@@ -12,7 +12,7 @@
 //! - LATE enough that the whole program is typed, so the reference interpreter
 //!   (`omega-interpreter`, the differential oracle) can evaluate the callee
 //!   over the very trees the rest of the pipeline consumes. The dependency is
-//!   acyclic: the interpreter depends only on `omega-core`/`omega-typed-trees`
+//!   acyclic: the interpreter depends only on `omega-core`/`psi-typed-trees`
 //!   /`omega-checked-trees` (its `omega-compiler` edge is dev-only).
 //!
 //! LEGALITY GATE: the callee's normalized effective service reach must be empty

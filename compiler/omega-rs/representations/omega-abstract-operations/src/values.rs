@@ -2,7 +2,7 @@ use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, Handle};
 use omega_core::arithmetic::ArithmeticPolicyAdapter;
 use omega_core::symbols::SymbolHandle;
-use omega_typed_trees::expression::ExpressionHandle;
+use psi_typed_trees::expression::ExpressionHandle;
 
 pub type AbstractValueFactHandle = Handle<AbstractValueFact>;
 

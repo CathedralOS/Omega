@@ -33,4 +33,4 @@ omega-state-storage = { path = "../omega-state-storage" }
 omega-state-values = { path = "../omega-state-values" }
 omega-target = { path = "../../foundation/omega-target" }
 omega-target-operations = { path = "../../representations/omega-target-operations" }
-omega-typed-trees = { path = "../../representations/omega-typed-trees" }
+psi-typed-trees = { path = "../../../psi-rs/representations/psi-typed-trees" }

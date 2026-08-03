@@ -4,7 +4,7 @@
 //! the interpreter, AND the instruction kinds (the native decode boundary
 //! carries a predicate MASK -- ZII: an empty mask is a plain byte copy).
 //! The tree-walking RESOLUTION (domain declaration -> predicate) lives in
-//! `omega-typed-trees::byte_predicates`.
+//! `psi-typed-trees::byte_predicates`.
 
 /// A compiler-recognized comptime byte-predicate primitive over a byte
 /// sequence. These are reusable building blocks (like `+`/`==`), NOT

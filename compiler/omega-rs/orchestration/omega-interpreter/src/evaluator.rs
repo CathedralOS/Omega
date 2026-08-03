@@ -64,17 +64,17 @@ use omega_core::float_semantics::{
     FloatPolicyTrap, FloatSemantics, FloatToIntegerError, IntegerFormat as SemanticIntegerFormat,
 };
 use omega_core::symbols::SymbolHandle;
-use omega_typed_trees::TypedTrees;
-use omega_typed_trees::data::{DataDefinition, DataMember};
-use omega_typed_trees::expression::{
+use psi_typed_trees::TypedTrees;
+use psi_typed_trees::data::{DataDefinition, DataMember};
+use psi_typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableNamePath, UnaryOperator,
 };
-use omega_typed_trees::machine::Machine;
-use omega_typed_trees::state::State;
-use omega_typed_trees::statement::{
+use psi_typed_trees::machine::Machine;
+use psi_typed_trees::state::State;
+use psi_typed_trees::statement::{
     StatementNode, TableCall, TableTransition, TransitionGuardNode, TransitionTargetNode,
 };
-use omega_typed_trees::types::{
+use psi_typed_trees::types::{
     FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
 };
 use std::cell::RefCell;
@@ -988,7 +988,7 @@ impl<'program> Evaluator<'program> {
         bindings: &[(
             SymbolHandle,
             String,
-            omega_typed_trees::types::TypeReferenceHandle,
+            psi_typed_trees::types::TypeReferenceHandle,
         )],
     ) -> EvalResult<()> {
         let members = self.program.data_members(data).to_vec();
@@ -1010,22 +1010,22 @@ impl<'program> Evaluator<'program> {
     /// per-element default cells). Falls back to the primitive/unit default.
     fn default_value_for_type(
         &mut self,
-        type_reference: omega_typed_trees::types::TypeReferenceHandle,
+        type_reference: psi_typed_trees::types::TypeReferenceHandle,
     ) -> EvalResult<Value> {
         self.default_value_for_type_with_bindings(type_reference, &[])
     }
 
     fn default_value_for_type_with_bindings(
         &mut self,
-        type_reference: omega_typed_trees::types::TypeReferenceHandle,
+        type_reference: psi_typed_trees::types::TypeReferenceHandle,
         bindings: &[(
             SymbolHandle,
             String,
-            omega_typed_trees::types::TypeReferenceHandle,
+            psi_typed_trees::types::TypeReferenceHandle,
         )],
     ) -> EvalResult<Value> {
         if type_reference.is_valid() {
-            if let omega_typed_trees::types::TypeReferenceNode::Named { symbol, name } = self
+            if let psi_typed_trees::types::TypeReferenceNode::Named { symbol, name } = self
                 .program
                 .type_reference_table
                 .type_reference(type_reference)
@@ -1052,7 +1052,7 @@ impl<'program> Evaluator<'program> {
             // arithmetic domain). Without this, a domain-constrained ARRAY field falls past the
             // FixedArray case below and defaults to `Unit`, so a later `self.arr[i]` raised
             // "cannot index Unit" and the whole canary was SKIPPED by the differential oracle.
-            if let omega_typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } = self
+            if let psi_typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } = self
                 .program
                 .type_reference_table
                 .type_reference(type_reference)
@@ -1062,7 +1062,7 @@ impl<'program> Evaluator<'program> {
             }
 
             // Fixed array `[T; N]` -> N default-initialized element cells.
-            if let omega_typed_trees::types::TypeReferenceNode::FixedArray {
+            if let psi_typed_trees::types::TypeReferenceNode::FixedArray {
                 element_type,
                 length,
             } = self
@@ -1072,14 +1072,14 @@ impl<'program> Evaluator<'program> {
             {
                 let element_type = *element_type;
                 let count = match length {
-                    omega_typed_trees::types::FixedArrayLength::Literal(count) => Some(*count),
-                    omega_typed_trees::types::FixedArrayLength::ConstParameter { symbol, name } => {
+                    psi_typed_trees::types::FixedArrayLength::Literal(count) => Some(*count),
+                    psi_typed_trees::types::FixedArrayLength::ConstParameter { symbol, name } => {
                         self.generic_binding_argument(*symbol, name.as_str(), bindings)
                             .and_then(|argument| {
                                 self.const_argument_value_with_bindings(argument, bindings, 0)
                             })
                     }
-                    omega_typed_trees::types::FixedArrayLength::ConstCall { .. } => None,
+                    psi_typed_trees::types::FixedArrayLength::ConstCall { .. } => None,
                 };
                 if let Some(count) = count {
                     let mut elements = Vec::with_capacity(count);
@@ -1093,7 +1093,7 @@ impl<'program> Evaluator<'program> {
                 }
             }
 
-            if let omega_typed_trees::types::TypeReferenceNode::Generic {
+            if let psi_typed_trees::types::TypeReferenceNode::Generic {
                 base_symbol,
                 base_name,
                 arguments,
@@ -1117,7 +1117,7 @@ impl<'program> Evaluator<'program> {
                         DataDefinition::shape_kind_from_members(
                             self.program.data_members(&definition)
                         ),
-                        omega_typed_trees::data::DataShapeKind::Record
+                        psi_typed_trees::data::DataShapeKind::Record
                     )
                 {
                     let parameters = self.program.data_type_parameters(&definition).to_vec();
@@ -1192,9 +1192,9 @@ impl<'program> Evaluator<'program> {
         bindings: &[(
             SymbolHandle,
             String,
-            omega_typed_trees::types::TypeReferenceHandle,
+            psi_typed_trees::types::TypeReferenceHandle,
         )],
-    ) -> Option<omega_typed_trees::types::TypeReferenceHandle> {
+    ) -> Option<psi_typed_trees::types::TypeReferenceHandle> {
         bindings
             .iter()
             .find(|(parameter, spelling, _)| {
@@ -1209,18 +1209,18 @@ impl<'program> Evaluator<'program> {
 
     fn const_argument_value_with_bindings(
         &self,
-        argument: omega_typed_trees::types::TypeReferenceHandle,
+        argument: psi_typed_trees::types::TypeReferenceHandle,
         bindings: &[(
             SymbolHandle,
             String,
-            omega_typed_trees::types::TypeReferenceHandle,
+            psi_typed_trees::types::TypeReferenceHandle,
         )],
         depth: usize,
     ) -> Option<usize> {
         if depth >= 16 {
             return None;
         }
-        let omega_typed_trees::types::TypeReferenceNode::Named { symbol, name } =
+        let psi_typed_trees::types::TypeReferenceNode::Named { symbol, name } =
             self.program.type_reference_table.type_reference(argument)
         else {
             return None;
@@ -1240,12 +1240,8 @@ impl<'program> Evaluator<'program> {
     /// payload fields.
     fn enum_zero_case(
         &self,
-        type_reference: omega_typed_trees::types::TypeReferenceHandle,
-    ) -> Option<(
-        SymbolHandle,
-        String,
-        Vec<omega_typed_trees::data::DataField>,
-    )> {
+        type_reference: psi_typed_trees::types::TypeReferenceHandle,
+    ) -> Option<(SymbolHandle, String, Vec<psi_typed_trees::data::DataField>)> {
         if self
             .program
             .primitive_type_reference(type_reference)
@@ -1267,7 +1263,7 @@ impl<'program> Evaluator<'program> {
             DataMember::Variant(variant) => Some(variant),
             _ => None,
         })?;
-        let mut fields: Vec<omega_typed_trees::data::DataField> = members
+        let mut fields: Vec<psi_typed_trees::data::DataField> = members
             .iter()
             .filter_map(|member| match member {
                 DataMember::Field(field) => Some(field.clone()),
@@ -1281,7 +1277,7 @@ impl<'program> Evaluator<'program> {
     /// If a field's declared type is a (non-primitive) `data` record, return it.
     fn field_nested_data(
         &self,
-        type_reference: omega_typed_trees::types::TypeReferenceHandle,
+        type_reference: psi_typed_trees::types::TypeReferenceHandle,
     ) -> Option<&'program DataDefinition> {
         if !type_reference.is_valid() {
             return None;
@@ -1309,15 +1305,15 @@ impl<'program> Evaluator<'program> {
                 // is what a `dyn Trait` receiver dispatches on at runtime.
                 !matches!(
                     DataDefinition::shape_kind_from_members(self.program.data_members(data)),
-                    omega_typed_trees::data::DataShapeKind::Enum
-                        | omega_typed_trees::data::DataShapeKind::Mixed
+                    psi_typed_trees::data::DataShapeKind::Enum
+                        | psi_typed_trees::data::DataShapeKind::Mixed
                 )
             })
     }
 
     fn default_for_type(
         &self,
-        type_reference: omega_typed_trees::types::TypeReferenceHandle,
+        type_reference: psi_typed_trees::types::TypeReferenceHandle,
     ) -> Value {
         match self.program.primitive_type_reference(type_reference) {
             Some(PrimitiveType::Bool) => Value::Bool(false),
@@ -2021,7 +2017,7 @@ impl<'program> Evaluator<'program> {
     ///    run its entry state on the current `self`.
     fn resolve_state_call(
         &self,
-        receiver: omega_core::arena::HandleSpan<omega_typed_trees::name::Identifier>,
+        receiver: omega_core::arena::HandleSpan<psi_typed_trees::name::Identifier>,
         target: &str,
         frame: &Frame,
     ) -> EvalResult<(Machine, String, Cell)> {
@@ -2056,7 +2052,7 @@ impl<'program> Evaluator<'program> {
     /// machine. The receiver path's leaf is the field; the head may be `self`.
     fn resolve_receiver_state_call(
         &self,
-        receiver: omega_core::arena::HandleSpan<omega_typed_trees::name::Identifier>,
+        receiver: omega_core::arena::HandleSpan<psi_typed_trees::name::Identifier>,
         target: &str,
         frame: &Frame,
     ) -> EvalResult<Option<(Machine, String, Cell)>> {
@@ -2292,7 +2288,7 @@ impl<'program> Evaluator<'program> {
     /// A NESTED MESSAGE field rides as its tag varint, a byte-LENGTH varint,
     /// then the child schema's fields (tags + scalar varints) WITHOUT an era
     /// discriminator (decision 10: the era rides only the top-level
-    /// envelope). The shared `omega_typed_trees::wire` vocabulary (field
+    /// envelope). The shared `psi_typed_trees::wire` vocabulary (field
     /// encodings + varint bytes) keeps interpreter and backends byte-for-byte
     /// in lockstep.
     fn try_wire_encode_call(
@@ -2300,7 +2296,7 @@ impl<'program> Evaluator<'program> {
         call: &TableCall,
         frame: &Frame,
     ) -> EvalResult<Option<Value>> {
-        use omega_typed_trees::wire::{WireFieldEncoding, WireMember, wire_varint_bytes};
+        use psi_typed_trees::wire::{WireFieldEncoding, WireMember, wire_varint_bytes};
 
         let Some(schema) = self.program.wire_encode_call_schema(call) else {
             return Ok(None);
@@ -2468,10 +2464,10 @@ impl<'program> Evaluator<'program> {
                     // Fixed arrays are exactly full. FixedVec carries its
                     // runtime length beside the inline items array.
                     let (items, live) = match repeated.carrier {
-                        omega_typed_trees::wire::WireRepeatedCarrier::FixedArray => {
+                        psi_typed_trees::wire::WireRepeatedCarrier::FixedArray => {
                             (Rc::clone(&raw), repeated.max_count)
                         }
-                        omega_typed_trees::wire::WireRepeatedCarrier::FixedVec => {
+                        psi_typed_trees::wire::WireRepeatedCarrier::FixedVec => {
                             let (items, length) = match &*raw.borrow() {
                                 Value::Struct { fields, .. } => {
                                     let items = fields.get("items").map(Rc::clone).ok_or_else(|| {
@@ -2659,7 +2655,7 @@ impl<'program> Evaluator<'program> {
         call: &TableCall,
         frame: &Frame,
     ) -> EvalResult<Option<Value>> {
-        use omega_typed_trees::wire::{WireMember, WireScalarEncoding, wire_varint_bytes};
+        use psi_typed_trees::wire::{WireMember, WireScalarEncoding, wire_varint_bytes};
 
         let Some(schema) = self.program.wire_decode_call_schema(call) else {
             return Ok(None);
@@ -2697,7 +2693,7 @@ impl<'program> Evaluator<'program> {
             let WireMember::Field(field) = member else {
                 continue;
             };
-            let target_type = omega_typed_trees::wire::data_field_type(
+            let target_type = psi_typed_trees::wire::data_field_type(
                 self.program,
                 value_type,
                 field.name.as_str(),
@@ -2709,13 +2705,13 @@ impl<'program> Evaluator<'program> {
                 ))
             })?;
             if let Some(repeated) = self.program.wire_field_repeated_encoding(field) {
-                let range = omega_typed_trees::wire::repeated_element_type(
+                let range = psi_typed_trees::wire::repeated_element_type(
                     self.program,
                     target_type,
                     repeated.carrier,
                 )
                 .and_then(|element| {
-                    omega_typed_trees::wire::scalar_decode_range(self.program, element)
+                    psi_typed_trees::wire::scalar_decode_range(self.program, element)
                 });
                 fields.push((
                     field.name.as_str().to_owned(),
@@ -2749,7 +2745,7 @@ impl<'program> Evaluator<'program> {
             if self.program.is_borrowed_byte_slice(field.type_reference) {
                 let mut predicates = Vec::new();
                 for (domain_name, predicate) in
-                    omega_typed_trees::byte_predicates::type_reference_domain_predicates(
+                    psi_typed_trees::byte_predicates::type_reference_domain_predicates(
                         &self.program,
                         field.type_reference,
                     )
@@ -2784,7 +2780,7 @@ impl<'program> Evaluator<'program> {
                 field.number,
                 WireInterpScalarField::Scalar {
                     encoding,
-                    range: omega_typed_trees::wire::scalar_decode_range(self.program, target_type),
+                    range: psi_typed_trees::wire::scalar_decode_range(self.program, target_type),
                 },
             ));
         }
@@ -3004,10 +3000,10 @@ impl<'program> Evaluator<'program> {
                         ok = false;
                     }
                     let (items_cell, count_cell) = match encoding.carrier {
-                        omega_typed_trees::wire::WireRepeatedCarrier::FixedArray => {
+                        psi_typed_trees::wire::WireRepeatedCarrier::FixedArray => {
                             (Rc::clone(&field_cell), None)
                         }
-                        omega_typed_trees::wire::WireRepeatedCarrier::FixedVec => {
+                        psi_typed_trees::wire::WireRepeatedCarrier::FixedVec => {
                             match &*field_cell.borrow() {
                                 Value::Struct { fields, .. } => {
                                     let items =
@@ -3039,7 +3035,7 @@ impl<'program> Evaluator<'program> {
                     for index in 0..encoding.max_count {
                         if matches!(
                             encoding.carrier,
-                            omega_typed_trees::wire::WireRepeatedCarrier::FixedVec
+                            psi_typed_trees::wire::WireRepeatedCarrier::FixedVec
                         ) && cursor >= end
                         {
                             continue;
@@ -5040,7 +5036,7 @@ impl<'program> Evaluator<'program> {
     fn eval_call_expression(
         &mut self,
         handle: ExpressionHandle,
-        call: &omega_typed_trees::expression::TableCallExpression,
+        call: &psi_typed_trees::expression::TableCallExpression,
         frame: &Frame,
     ) -> EvalResult<Value> {
         // Builtins: max / min over two integer/float operands.
@@ -5479,7 +5475,7 @@ impl<'program> Evaluator<'program> {
     fn try_float_boundary_value_call(
         &mut self,
         target: &str,
-        call: &omega_typed_trees::expression::TableCallExpression,
+        call: &psi_typed_trees::expression::TableCallExpression,
         frame: &Frame,
     ) -> EvalResult<Option<Value>> {
         if !call.receiver.is_valid() {
@@ -5487,8 +5483,8 @@ impl<'program> Evaluator<'program> {
         }
 
         let core_format =
-            omega_typed_trees::operator::resolve_named_expression_call(self.program, call)
-                .and_then(|operator| {
+            psi_typed_trees::operator::resolve_named_expression_call(self.program, call).and_then(
+                |operator| {
                     self.program
                         .operator_path_members(operator.name)
                         .first()
@@ -5497,7 +5493,8 @@ impl<'program> Evaluator<'program> {
                             "F64" => Some(SemanticFloatFormat::BINARY64),
                             _ => None,
                         })
-                });
+                },
+            );
         let compatibility_call =
             core_format.is_none() && matches!(target, "square_root" | "fused_multiply_add");
         if core_format.is_none() && !compatibility_call {
@@ -5766,7 +5763,7 @@ impl<'program> Evaluator<'program> {
 
     fn resolve_value_call_target(
         &mut self,
-        call: &omega_typed_trees::expression::TableCallExpression,
+        call: &psi_typed_trees::expression::TableCallExpression,
         target: &str,
         frame: &Frame,
     ) -> EvalResult<(Machine, String, Cell)> {
@@ -5791,7 +5788,7 @@ impl<'program> Evaluator<'program> {
             true
         } else {
             match self.program.expression_table.expression(call.receiver) {
-                omega_typed_trees::expression::ExpressionNode::Name(path) => {
+                psi_typed_trees::expression::ExpressionNode::Name(path) => {
                     let members = self
                         .program
                         .expression_table
@@ -5822,7 +5819,7 @@ impl<'program> Evaluator<'program> {
         // receiver (a pure constructor/helper), so the caller's self cell rides
         // along untouched -- same as the free-machine arm (3).
         if call.receiver.is_valid() {
-            if let omega_typed_trees::expression::ExpressionNode::Name(path) =
+            if let psi_typed_trees::expression::ExpressionNode::Name(path) =
                 self.program.expression_table.expression(call.receiver)
             {
                 let members = self
@@ -6280,10 +6277,7 @@ impl<'program> Evaluator<'program> {
     }
 
     /// `Type::Variant` paths whose head is an enum/data symbol with a matching variant.
-    fn enum_value_from_path(
-        &self,
-        members: &[omega_typed_trees::name::Identifier],
-    ) -> Option<Value> {
+    fn enum_value_from_path(&self, members: &[psi_typed_trees::name::Identifier]) -> Option<Value> {
         if members.len() != 2 {
             return None;
         }
@@ -6374,7 +6368,7 @@ impl<'program> Evaluator<'program> {
     /// copy, while a slice is a shared view that must NOT be deep-cloned.
     fn declared_type_is_fixed_array(
         &self,
-        type_reference: omega_typed_trees::types::TypeReferenceHandle,
+        type_reference: psi_typed_trees::types::TypeReferenceHandle,
     ) -> bool {
         if !type_reference.is_valid() {
             return false;
@@ -6384,8 +6378,8 @@ impl<'program> Evaluator<'program> {
             .type_reference_table
             .type_reference(type_reference)
         {
-            omega_typed_trees::types::TypeReferenceNode::FixedArray { .. } => true,
-            omega_typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+            psi_typed_trees::types::TypeReferenceNode::FixedArray { .. } => true,
+            psi_typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
                 self.declared_type_is_fixed_array(*base_type)
             }
             _ => false,
@@ -6397,12 +6391,12 @@ impl<'program> Evaluator<'program> {
     /// than treating the carrier as an always-full `[u8; N]` array.
     fn declared_type_is_bounded_byte_buffer(
         &self,
-        type_reference: omega_typed_trees::types::TypeReferenceHandle,
+        type_reference: psi_typed_trees::types::TypeReferenceHandle,
     ) -> bool {
         if !type_reference.is_valid() {
             return false;
         }
-        let omega_typed_trees::types::TypeReferenceNode::Constrained {
+        let psi_typed_trees::types::TypeReferenceNode::Constrained {
             base_type,
             constraints,
         } = self
@@ -6418,8 +6412,8 @@ impl<'program> Evaluator<'program> {
             .constraints(*constraints)
             .iter()
             .any(|constraint| match constraint {
-                omega_typed_trees::types::TypeConstraintNode::Domain(name) => {
-                    !omega_typed_trees::wire::is_layout_domain_name(name.as_str())
+                psi_typed_trees::types::TypeConstraintNode::Domain(name) => {
+                    !psi_typed_trees::wire::is_layout_domain_name(name.as_str())
                         && omega_core::semantics::CarryPermission::from_name(name.as_str())
                             .is_none()
                 }
@@ -6428,7 +6422,7 @@ impl<'program> Evaluator<'program> {
         if !has_value_domain {
             return false;
         }
-        let omega_typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. } =
+        let psi_typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. } =
             self.program.type_reference_table.type_reference(*base_type)
         else {
             return false;
@@ -6442,8 +6436,8 @@ impl<'program> Evaluator<'program> {
     /// element's width/domain (the field-store truncation, for `arr[i] = v`).
     fn fixed_array_element_type(
         &self,
-        type_reference: omega_typed_trees::types::TypeReferenceHandle,
-    ) -> Option<omega_typed_trees::types::TypeReferenceHandle> {
+        type_reference: psi_typed_trees::types::TypeReferenceHandle,
+    ) -> Option<psi_typed_trees::types::TypeReferenceHandle> {
         if !type_reference.is_valid() {
             return None;
         }
@@ -6452,10 +6446,10 @@ impl<'program> Evaluator<'program> {
             .type_reference_table
             .type_reference(type_reference)
         {
-            omega_typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. } => {
+            psi_typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. } => {
                 Some(*element_type)
             }
-            omega_typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+            psi_typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
                 self.fixed_array_element_type(*base_type)
             }
             _ => None,
@@ -6473,7 +6467,7 @@ impl<'program> Evaluator<'program> {
         &mut self,
         handle: ExpressionHandle,
         frame: &Frame,
-    ) -> Option<(omega_typed_trees::types::PrimitiveType, ArithmeticDomain)> {
+    ) -> Option<(psi_typed_trees::types::PrimitiveType, ArithmeticDomain)> {
         if let ExpressionNode::Indexed(indexed) =
             self.program.expression_table.expression(handle).clone()
         {
@@ -6503,7 +6497,7 @@ impl<'program> Evaluator<'program> {
     fn coerce_scalar_with(
         &self,
         value: Value,
-        primitive: omega_typed_trees::types::PrimitiveType,
+        primitive: psi_typed_trees::types::PrimitiveType,
         domain: ArithmeticDomain,
     ) -> EvalResult<Value> {
         match &value {
@@ -6533,7 +6527,7 @@ impl<'program> Evaluator<'program> {
     fn coerce_scalar_value(
         &self,
         value: Value,
-        type_reference: omega_typed_trees::types::TypeReferenceHandle,
+        type_reference: psi_typed_trees::types::TypeReferenceHandle,
     ) -> EvalResult<Value> {
         match self.program.primitive_type_reference(type_reference) {
             Some(primitive) => {
@@ -6555,7 +6549,7 @@ impl<'program> Evaluator<'program> {
         &mut self,
         handle: ExpressionHandle,
         frame: &Frame,
-    ) -> Option<omega_typed_trees::types::TypeReferenceHandle> {
+    ) -> Option<psi_typed_trees::types::TypeReferenceHandle> {
         let (receiver, field_name) = match self.program.expression_table.expression(handle).clone()
         {
             ExpressionNode::Member(member) => {
@@ -6615,7 +6609,7 @@ impl<'program> Evaluator<'program> {
         &self,
         type_symbol: SymbolHandle,
         field_name: &str,
-    ) -> Option<omega_typed_trees::types::TypeReferenceHandle> {
+    ) -> Option<psi_typed_trees::types::TypeReferenceHandle> {
         if let Some(data) = self
             .program
             .data_definitions()
@@ -6651,7 +6645,7 @@ impl<'program> Evaluator<'program> {
         &self,
         data: &DataDefinition,
         field_name: &str,
-    ) -> Option<omega_typed_trees::types::TypeReferenceHandle> {
+    ) -> Option<psi_typed_trees::types::TypeReferenceHandle> {
         for member in self.program.data_members(data) {
             if let DataMember::Field(field) = member
                 && field.name.as_str() == field_name
@@ -6702,7 +6696,7 @@ impl<'program> Evaluator<'program> {
     fn eval_subslice(
         &mut self,
         collection: ExpressionHandle,
-        range: &omega_typed_trees::expression::TableRangeExpression,
+        range: &psi_typed_trees::expression::TableRangeExpression,
         frame: &Frame,
     ) -> EvalResult<Value> {
         // A nested subslice base (`sub[1..][1..]`) is not a place — the inner
@@ -6767,7 +6761,7 @@ impl<'program> Evaluator<'program> {
     /// the tag and the named payload fields fill the case's declared payload.
     fn eval_struct_literal(
         &mut self,
-        literal: &omega_typed_trees::expression::TableStructLiteral,
+        literal: &psi_typed_trees::expression::TableStructLiteral,
         frame: &Frame,
     ) -> EvalResult<Value> {
         if let Some(case_name) = &literal.case_name {
@@ -6807,7 +6801,7 @@ impl<'program> Evaluator<'program> {
     /// traps.
     fn eval_case_literal(
         &mut self,
-        literal: &omega_typed_trees::expression::TableStructLiteral,
+        literal: &psi_typed_trees::expression::TableStructLiteral,
         case_name: &str,
         frame: &Frame,
     ) -> EvalResult<Value> {
@@ -6911,7 +6905,7 @@ impl<'program> Evaluator<'program> {
     /// The target `PrimitiveType` of a cast's full type reference.
     fn cast_target_primitive(
         &self,
-        target_type: omega_typed_trees::types::TypeReferenceHandle,
+        target_type: psi_typed_trees::types::TypeReferenceHandle,
     ) -> Option<PrimitiveType> {
         self.program.primitive_type_reference(target_type)
     }
@@ -7012,7 +7006,7 @@ impl<'program> Evaluator<'program> {
     /// interior class (the scalar-pun path then evaluates normally).
     fn eval_interior_recast(
         &mut self,
-        cast: &omega_typed_trees::expression::TableCastExpression,
+        cast: &psi_typed_trees::expression::TableCastExpression,
         target: Option<PrimitiveType>,
         frame: &Frame,
     ) -> EvalResult<Option<Value>> {
@@ -7130,7 +7124,7 @@ impl<'program> Evaluator<'program> {
         };
         let mut field_specs: Vec<(String, TypeReferenceHandle, usize, usize)> = Vec::new();
         for member in self.program.data_members(data) {
-            let omega_typed_trees::data::DataMember::Field(field) = member else {
+            let psi_typed_trees::data::DataMember::Field(field) = member else {
                 visiting.remove(type_name);
                 return Ok(None);
             };
@@ -7342,7 +7336,7 @@ impl<'program> Evaluator<'program> {
         let data = self.find_data_by_name(type_name)?;
         let mut field_layouts = Vec::new();
         for member in self.program.data_members(data) {
-            let omega_typed_trees::data::DataMember::Field(field) = member else {
+            let psi_typed_trees::data::DataMember::Field(field) = member else {
                 visiting.remove(type_name);
                 return None;
             };
@@ -7381,7 +7375,7 @@ impl<'program> Evaluator<'program> {
         let mut fields = Vec::new();
         let mut layouts = Vec::new();
         for member in self.program.data_members(data) {
-            let omega_typed_trees::data::DataMember::Field(field) = member else {
+            let psi_typed_trees::data::DataMember::Field(field) = member else {
                 return None;
             };
             let layout = self.record_view_type_layout(field.type_reference, &mut HashSet::new())?;
@@ -8912,10 +8906,10 @@ fn is_canonical_host_method(name: &str) -> bool {
 /// it: a directly encodable scalar/String, or a nested message's scalar-only
 /// field list (chapter 20).
 enum WireInterpField {
-    Direct(omega_typed_trees::wire::WireFieldEncoding),
-    Nested(Vec<(String, u64, omega_typed_trees::wire::WireScalarEncoding)>),
-    Repeated(omega_typed_trees::wire::WireRepeatedEncoding),
-    ScalarSlice(omega_typed_trees::wire::WireBorrowedScalarSliceEncoding),
+    Direct(psi_typed_trees::wire::WireFieldEncoding),
+    Nested(Vec<(String, u64, psi_typed_trees::wire::WireScalarEncoding)>),
+    Repeated(psi_typed_trees::wire::WireRepeatedEncoding),
+    ScalarSlice(psi_typed_trees::wire::WireBorrowedScalarSliceEncoding),
     /// A borrowed byte slice `&[u8]`: encodes as RAW bytes (length varint then
     /// the bytes), reading the field's element array.
     ByteSlice,
@@ -8926,19 +8920,19 @@ enum WireInterpField {
 /// decodes ZERO-COPY as a length-prefixed view of the buffer (`ByteSlice`).
 enum WireInterpScalarField {
     Scalar {
-        encoding: omega_typed_trees::wire::WireScalarEncoding,
+        encoding: psi_typed_trees::wire::WireScalarEncoding,
         range: Option<omega_core::wire::WireScalarRange>,
     },
     Nested(
         Vec<(
             String,
             u64,
-            omega_typed_trees::wire::WireScalarEncoding,
+            psi_typed_trees::wire::WireScalarEncoding,
             Option<omega_core::wire::WireScalarRange>,
         )>,
     ),
     Repeated {
-        encoding: omega_typed_trees::wire::WireRepeatedEncoding,
+        encoding: psi_typed_trees::wire::WireRepeatedEncoding,
         range: Option<omega_core::wire::WireScalarRange>,
     },
     /// A borrowed `&[u8]` field: read a byte-length varint then that many bytes
@@ -8947,7 +8941,7 @@ enum WireInterpScalarField {
     /// `predicates` are the slice's declared byte-domain obligations,
     /// evaluated over the UNTRUSTED wire bytes at the decode boundary.
     ByteSlice {
-        predicates: Vec<omega_typed_trees::byte_predicates::ByteSequencePredicate>,
+        predicates: Vec<psi_typed_trees::byte_predicates::ByteSequencePredicate>,
     },
 }
 
@@ -8956,9 +8950,9 @@ enum WireInterpScalarField {
 /// scalar-only child body.
 fn wire_nested_scalar_fields(
     program: &TypedTrees,
-    child: &omega_typed_trees::wire::WireSchema,
-) -> Result<Vec<(String, u64, omega_typed_trees::wire::WireScalarEncoding)>, Halt> {
-    use omega_typed_trees::wire::{WireMember, WireScalarEncoding};
+    child: &psi_typed_trees::wire::WireSchema,
+) -> Result<Vec<(String, u64, psi_typed_trees::wire::WireScalarEncoding)>, Halt> {
+    use psi_typed_trees::wire::{WireMember, WireScalarEncoding};
 
     let mut children = Vec::new();
     for member in program.wire_members(child.members) {
@@ -8984,18 +8978,18 @@ fn wire_nested_scalar_fields(
 /// range, because the schema primitive alone does not contain that fact.
 fn wire_nested_decode_scalar_fields(
     program: &TypedTrees,
-    child: &omega_typed_trees::wire::WireSchema,
+    child: &psi_typed_trees::wire::WireSchema,
     value_type: TypeReferenceHandle,
 ) -> Result<
     Vec<(
         String,
         u64,
-        omega_typed_trees::wire::WireScalarEncoding,
+        psi_typed_trees::wire::WireScalarEncoding,
         Option<omega_core::wire::WireScalarRange>,
     )>,
     Halt,
 > {
-    use omega_typed_trees::wire::{WireMember, WireScalarEncoding};
+    use psi_typed_trees::wire::{WireMember, WireScalarEncoding};
 
     let mut children = Vec::new();
     for member in program.wire_members(child.members) {
@@ -9003,7 +8997,7 @@ fn wire_nested_decode_scalar_fields(
             continue;
         };
         let target_type =
-            omega_typed_trees::wire::data_field_type(program, value_type, field.name.as_str())
+            psi_typed_trees::wire::data_field_type(program, value_type, field.name.as_str())
                 .ok_or_else(|| {
                     Halt::Unsupported(format!(
                         "data `{}` nested destination has no field `{}`",
@@ -9023,7 +9017,7 @@ fn wire_nested_decode_scalar_fields(
             field.name.as_str().to_owned(),
             field.number,
             scalar,
-            omega_typed_trees::wire::scalar_decode_range(program, target_type),
+            psi_typed_trees::wire::scalar_decode_range(program, target_type),
         ));
     }
     children.sort_by_key(|(_, number, _, _)| *number);
@@ -9039,14 +9033,14 @@ fn wire_argument_declared_type(
         ExpressionNode::Mutable(inner) => wire_argument_declared_type(program, frame, *inner),
         ExpressionNode::Member(member) => {
             let receiver = wire_argument_declared_type(program, frame, member.receiver)?;
-            omega_typed_trees::wire::data_field_type(program, receiver, member.member.as_str())
+            psi_typed_trees::wire::data_field_type(program, receiver, member.member.as_str())
         }
         ExpressionNode::Name(path) => {
             let members = program.expression_table.name_path_members(path.members);
             let mut current = *frame.type_locals.borrow().get(members.first()?.as_str())?;
             for member in members.iter().skip(1) {
                 current =
-                    omega_typed_trees::wire::data_field_type(program, current, member.as_str())?;
+                    psi_typed_trees::wire::data_field_type(program, current, member.as_str())?;
             }
             Some(current)
         }
@@ -9056,7 +9050,7 @@ fn wire_argument_declared_type(
 
 fn wire_scalar_in_range(
     raw: u64,
-    encoding: omega_typed_trees::wire::WireScalarEncoding,
+    encoding: psi_typed_trees::wire::WireScalarEncoding,
     value: &Value,
     range: omega_core::wire::WireScalarRange,
 ) -> bool {
@@ -9080,7 +9074,7 @@ fn wire_scalar_in_range(
 /// (zero- or sign-extending), zigzag signed sources at 64 bits.
 fn wire_scalar_varint_value(
     raw: i64,
-    scalar: omega_typed_trees::wire::WireScalarEncoding,
+    scalar: psi_typed_trees::wire::WireScalarEncoding,
 ) -> Result<u64, Halt> {
     match (scalar.byte_size, scalar.zigzag) {
         (1, _) => Ok(u64::from(raw != 0)),
@@ -9100,7 +9094,7 @@ fn wire_scalar_varint_value(
 /// un-zigzag signed targets at 64 bits first.
 fn wire_decoded_scalar_value(
     raw: u64,
-    encoding: omega_typed_trees::wire::WireScalarEncoding,
+    encoding: psi_typed_trees::wire::WireScalarEncoding,
 ) -> Result<Value, Halt> {
     match (encoding.byte_size, encoding.zigzag) {
         (1, _) => Ok(Value::Bool((raw & 0xff) != 0)),

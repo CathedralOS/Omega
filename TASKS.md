@@ -941,11 +941,11 @@ improvements do not change public identity.
   `psi-symbol-resolved-trees` owns the source-shaped representation carrying
   resolved symbol identities; the unused former Omega compatibility package
   is retired.
-  `psi-typed-trees` owns the target-neutral typed source representation, with
-  the former Omega crate reduced to a compatibility re-export. Typed boundary
-  identities retain semantic keys and canonical fingerprints only; concrete
-  register/stack/ABI calling plans remain in Omega orchestration for selected
-  native realization.
+  `psi-typed-trees` owns the target-neutral typed source representation; the
+  unused former Omega compatibility package is retired, and legacy backend
+  consumers depend on the Psi owner directly. Typed boundary identities retain
+  semantic keys and canonical fingerprints only; concrete register/stack/ABI
+  calling plans remain in Omega orchestration for selected native realization.
   `psi-facts` owns durable target-neutral places, contexts, propositions, and
   checked-fact plans; `omega-facts` is now only a compatibility export.
   `psi-checked-trees` owns the checked semantic representation, including

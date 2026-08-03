@@ -14,7 +14,7 @@ omega-checked-trees = { path = "../../representations/omega-checked-trees" }
 omega-control-flow = { path = "../../representations/omega-control-flow" }
 omega-core = { path = "../../foundation/omega-core" }
 omega-target = { path = "../../foundation/omega-target" }
-omega-typed-trees = { path = "../../representations/omega-typed-trees" }
+psi-typed-trees = { path = "../../../psi-rs/representations/psi-typed-trees" }
 
 [dev-dependencies]
 psi-source-files-to-tokens = { path = "../../../psi-rs/pipeline/psi-source-files-to-tokens" }

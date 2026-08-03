@@ -98,7 +98,6 @@ Omega/
 |   |   `-- [CRATE] omega-validation/                   # Transitional re-export of Psi-owned source validation.
 |   |
 |   |-- representations/
-|   |   |-- [CRATE] omega-typed-trees/                  # Transitional re-export of Psi-owned typed trees.
 |   |   |-- [CRATE] omega-facts/                        # Transitional re-export of Psi-owned checked fact vocabulary.
 |   |   |-- [CRATE] omega-effects/                      # Omega provider bindings/admission plus transitional Psi-effect exports.
 |   |   |-- [CRATE] omega-checked-trees/                # Transitional re-export of Psi-owned checked trees.

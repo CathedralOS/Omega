@@ -1,7 +1,7 @@
 mod lookups;
 
 use omega_core::arena::Arena;
-use omega_typed_trees::expression::ExpressionTable;
+use psi_typed_trees::expression::ExpressionTable;
 
 use crate::{
     ContainedFlow, ControlFlowSemanticRoots, MachineFlow, MachineOwnedDataFlow, Operation,
