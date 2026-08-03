@@ -18,6 +18,21 @@ pub(super) struct NormalizedSyscallRegisters {
     pub immediate: u16,
 }
 
+#[derive(Clone, Copy)]
+enum HostImportPlan<'plan> {
+    CompatibilityOracle,
+    Authoritative(&'plan CallPlan),
+}
+
+impl<'plan> HostImportPlan<'plan> {
+    const fn authoritative(self) -> Option<&'plan CallPlan> {
+        match self {
+            Self::CompatibilityOracle => None,
+            Self::Authoritative(plan) => Some(plan),
+        }
+    }
+}
+
 impl NormalizedSyscallRegisters {
     pub(super) fn required_result(
         &self,
@@ -398,7 +413,12 @@ pub fn encode_host_call_sequence_no_plan<T: InstructionOperandLike>(
     operation_key: HostOperationKey,
     operands: &[T],
 ) -> Result<Vec<u8>, Diagnostic> {
-    encode_host_call_sequence_optional_plan(target, operation_key, operands, None)
+    encode_host_call_sequence_for_plan(
+        target,
+        operation_key,
+        operands,
+        HostImportPlan::CompatibilityOracle,
+    )
 }
 
 pub fn encode_host_call_sequence_with_plan<T: InstructionOperandLike>(
@@ -407,20 +427,21 @@ pub fn encode_host_call_sequence_with_plan<T: InstructionOperandLike>(
     operands: &[T],
     authoritative_plan: &CallPlan,
 ) -> Result<Vec<u8>, Diagnostic> {
-    encode_host_call_sequence_optional_plan(
+    encode_host_call_sequence_for_plan(
         target,
         operation_key,
         operands,
-        Some(authoritative_plan),
+        HostImportPlan::Authoritative(authoritative_plan),
     )
 }
 
-fn encode_host_call_sequence_optional_plan<T: InstructionOperandLike>(
+fn encode_host_call_sequence_for_plan<T: InstructionOperandLike>(
     target: NativeTarget,
     operation_key: HostOperationKey,
     operands: &[T],
-    authoritative_plan: Option<&CallPlan>,
+    plan_source: HostImportPlan<'_>,
 ) -> Result<Vec<u8>, Diagnostic> {
+    let authoritative_plan = plan_source.authoritative();
     let returns_float = authoritative_plan
         .and_then(|plan| plan.result.as_ref())
         .is_some_and(|result| {
@@ -513,14 +534,14 @@ fn encode_host_call_sequence_optional_plan<T: InstructionOperandLike>(
                 &arguments,
             )
         }
-        Architecture::X86_64 => match authoritative_plan {
-            Some(plan) => x86_64::encode_host_call_sequence_with_plan(
+        Architecture::X86_64 => match plan_source {
+            HostImportPlan::Authoritative(plan) => x86_64::encode_host_call_sequence_with_plan(
                 CallingPolicy::native_for_target(target),
                 operation_key,
                 operands,
                 plan,
             ),
-            None => x86_64::encode_host_call_sequence_no_plan(
+            HostImportPlan::CompatibilityOracle => x86_64::encode_host_call_sequence_no_plan(
                 CallingPolicy::native_for_target(target),
                 operation_key,
                 operands,

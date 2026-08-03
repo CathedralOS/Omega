@@ -2093,7 +2093,12 @@ pub fn encode_host_call_sequence_no_plan<T: InstructionOperandLike>(
     operation_key: HostOperationKey,
     operands: &[T],
 ) -> Result<Vec<u8>, Diagnostic> {
-    encode_host_call_sequence_optional_plan(policy, operation_key, operands, None)
+    encode_host_call_sequence_for_plan(
+        policy,
+        operation_key,
+        operands,
+        HostCallPlan::CompatibilityOracle,
+    )
 }
 
 pub fn encode_host_call_sequence_with_plan<T: InstructionOperandLike>(
@@ -2102,20 +2107,36 @@ pub fn encode_host_call_sequence_with_plan<T: InstructionOperandLike>(
     operands: &[T],
     authoritative_plan: &CallPlan,
 ) -> Result<Vec<u8>, Diagnostic> {
-    encode_host_call_sequence_optional_plan(
+    encode_host_call_sequence_for_plan(
         policy,
         operation_key,
         operands,
-        Some(authoritative_plan),
+        HostCallPlan::Authoritative(authoritative_plan),
     )
 }
 
-fn encode_host_call_sequence_optional_plan<T: InstructionOperandLike>(
+#[derive(Clone, Copy)]
+enum HostCallPlan<'plan> {
+    CompatibilityOracle,
+    Authoritative(&'plan CallPlan),
+}
+
+impl<'plan> HostCallPlan<'plan> {
+    const fn authoritative(self) -> Option<&'plan CallPlan> {
+        match self {
+            Self::CompatibilityOracle => None,
+            Self::Authoritative(plan) => Some(plan),
+        }
+    }
+}
+
+fn encode_host_call_sequence_for_plan<T: InstructionOperandLike>(
     policy: CallingPolicy,
     operation_key: HostOperationKey,
     operands: &[T],
-    authoritative_plan: Option<&CallPlan>,
+    plan_source: HostCallPlan<'_>,
 ) -> Result<Vec<u8>, Diagnostic> {
+    let authoritative_plan = plan_source.authoritative();
     // Target calibration constants do not cross a call boundary. Keep their
     // architecture-local materialization available under every x86 policy.
     if matches!(
