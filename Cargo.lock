@@ -1132,10 +1132,7 @@ dependencies = [
 name = "omega-tokens-to-syntax-trees"
 version = "0.1.0"
 dependencies = [
- "omega-core",
- "omega-source-files-to-tokens",
- "omega-syntax-trees",
- "omega-tokens",
+ "psi-tokens-to-syntax-trees",
 ]
 
 [[package]]
@@ -1351,6 +1348,19 @@ name = "psi-tokens"
 version = "0.1.0"
 dependencies = [
  "psi-source",
+]
+
+[[package]]
+name = "psi-tokens-to-syntax-trees"
+version = "0.1.0"
+dependencies = [
+ "psi-arena",
+ "psi-language-core",
+ "psi-numerics",
+ "psi-source",
+ "psi-source-files-to-tokens",
+ "psi-syntax-trees",
+ "psi-tokens",
 ]
 
 [[package]]

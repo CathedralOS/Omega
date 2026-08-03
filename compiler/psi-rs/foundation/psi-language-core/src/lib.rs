@@ -4,6 +4,7 @@
 
 pub mod atomic;
 pub mod cast_form;
+pub mod inline_assembly;
 pub mod operator_spelling;
 mod source_semantics;
 

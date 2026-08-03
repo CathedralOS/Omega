@@ -22,7 +22,10 @@ source shape without turning nested syntax into scattered heap objects.
 - `compiler/psi-rs/representations/psi-syntax-trees` owns `SyntaxTrees`, its
   arena-backed tables, identity/snapshot materialization, and all source-shaped
   nodes. The old `omega-syntax-trees` crate is an implementation-free
-  compatibility export for unmigrated parser and resolver consumers.
+  compatibility export for unmigrated resolver consumers.
+- `compiler/psi-rs/pipeline/psi-tokens-to-syntax-trees` owns the parser modules
+  listed below. The old `omega-tokens-to-syntax-trees` package is an
+  implementation-free compatibility export for unmigrated orchestration.
 - `compiler/psi-rs/foundation/psi-arena` owns the generic typed dense, paged,
   generational, hierarchy, and ordered-root arena storage required by source
   representations. `omega-core::arena` temporarily re-exports these exact
@@ -31,7 +34,8 @@ source shape without turning nested syntax into scattered heap objects.
   `PhaseSnapshot` contract used to materialize readable source-shaped trees.
 - `compiler/psi-rs/foundation/psi-language-core` owns the grammar-facing
   multiplicity, data-supply, carry, domain-body, call-acknowledgement,
-  atomic-ordering, cast-form, and operator-spelling vocabulary. The
+  atomic-ordering, cast-form, operator-spelling, and source-assembly contract
+  vocabulary. The
   corresponding `omega-core` modules are compatibility exports during parser
   migration.
 - `compiler/psi-rs/foundation/psi-numerics` owns exact numeric meanings,
