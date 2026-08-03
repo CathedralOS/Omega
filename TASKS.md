@@ -1323,7 +1323,12 @@ improvements do not change public identity.
   return. The current-vocabulary semantic safe-point selector partitions the
   complete reachable path at every explicit jump/return edge and validation
   rejects omitted or reordered segments. Build-time migration, branch/loop
-  certificates, response outcomes, and trusted native metering remain.
+  certificates, response outcomes, and trusted native metering remain. Honest
+  attributed response outcomes are implementation-sequenced after terminal Psi
+  gains wait/foreign-edge variants and their finite-response contract field;
+  the current total jump/return vocabulary can derive `Bounded` but has no
+  semantic edge from which to validate `NoFiniteGuarantee(edge)`. Do not expose
+  a producer-authored attribution carrier before the verifier can recompute it.
   External-root provider summaries and provisions now use the Psi-owned fuel
   schedule identity directly. Local summary evidence now separates sealed
   terminal-Psi entry/segment certificates from admitted opaque-provider unit
@@ -1556,13 +1561,13 @@ and allocation handles expose no compiler-owned stack/control storage.
   `_fesetround(FE_UPWARD)` and proves the following half-ULP addition still
   ties nearest-even. A later admitted preservation proof may remove a redundant
   envelope without changing call layout. The first directed-rounding provider
-  cohorts now select exact F32/F64 add/subtract/multiply/divide-toward-zero/positive/negative
+  cohorts now select exact F32/F64 add/subtract/multiply/divide/square-root-toward-zero/positive/negative
   slots on all four native targets. Each baseline ISA realization saves its complete
   MXCSR/FPCR, installs the requested direction for one scalar operation, and restores
   the prior state before result-policy adaptation; midpoint dual-engine
   canaries also prove subsequent ordinary arithmetic remains nearest-even.
   Remaining rung-3 work includes x86-64 FMA realization, the directed
-  square-root/FMA cohorts, checked software fallbacks,
+  directed FMA cohort, checked software fallbacks,
   and rung-4 differential evidence.
   The first checked-software provider slice is now live independently of a
   float algorithm: an ordinary body may satisfy one exact named boundary
