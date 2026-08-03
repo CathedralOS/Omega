@@ -102,11 +102,12 @@ pub(crate) fn data_address_relocation_offset_for_target_with_plan(
         && field_model_shape.is_none()
         && !is_syscall
         && let Some(operation_key) = operation_key
-        && let Some(site) = omega_isa_x86_64::host_call_data_relocation_site_for_policy(
+        && let Some(site) = omega_isa_x86_64::host_call_data_relocation_site_with_plan(
             omega_calling_conventions::CallingPolicy::native_for_target(target),
             operation_key,
             operands,
             operand_index,
+            authoritative_plan,
         )
     {
         return selected_text_offset + site.byte_offset;

@@ -31,18 +31,11 @@ pub(crate) fn external_call_relocation_offset_with_plan<T: InstructionOperandLik
 ) -> usize {
     let architecture = target.architecture;
     if architecture == Architecture::X86_64
-        && let Some(plan) = authoritative_plan
-        && let Some(site) = omega_isa_x86_64::authored_import_relocation_sites(plan, operands)
-            .into_iter()
-            .find(|site| site.kind == omega_isa_x86_64::X86_64RelocationSiteKind::Relative32)
-    {
-        return selected_text_offset + site.byte_offset;
-    }
-    if architecture == Architecture::X86_64
-        && let Some(site) = omega_isa_x86_64::host_call_external_relocation_site_for_policy(
+        && let Some(site) = omega_isa_x86_64::host_call_external_relocation_site_with_plan(
             omega_calling_conventions::CallingPolicy::native_for_target(target),
             operation_key,
             operands,
+            authoritative_plan,
         )
     {
         return selected_text_offset + site.byte_offset;

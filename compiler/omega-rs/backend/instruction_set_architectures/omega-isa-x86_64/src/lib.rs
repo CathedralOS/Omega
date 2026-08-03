@@ -1400,12 +1400,27 @@ pub fn host_call_data_relocation_site_for_policy<T: InstructionOperandLike>(
     operands: &[T],
     operand_index: usize,
 ) -> Option<X86_64RelocationSite> {
-    host_call_relocation_sites_for_policy(policy, operation_key, operands)
-        .into_iter()
-        .find(|site| {
-            site.operand_index == Some(operand_index)
-                && site.kind == X86_64RelocationSiteKind::Absolute64
-        })
+    host_call_data_relocation_site_with_plan(policy, operation_key, operands, operand_index, None)
+}
+
+pub fn host_call_data_relocation_site_with_plan<T: InstructionOperandLike>(
+    policy: CallingPolicy,
+    operation_key: HostOperationKey,
+    operands: &[T],
+    operand_index: usize,
+    authoritative_plan: Option<&CallPlan>,
+) -> Option<X86_64RelocationSite> {
+    host_call_relocation_sites_for_policy_with_plan(
+        policy,
+        operation_key,
+        operands,
+        authoritative_plan,
+    )
+    .into_iter()
+    .find(|site| {
+        site.operand_index == Some(operand_index)
+            && site.kind == X86_64RelocationSiteKind::Absolute64
+    })
 }
 
 /// A `mov <arg-reg>, imm64` is 10 bytes (2-byte REX.W+B8 prefix, then the imm64), and
@@ -1998,15 +2013,38 @@ pub fn host_call_external_relocation_site_for_policy<T: InstructionOperandLike>(
     operation_key: HostOperationKey,
     operands: &[T],
 ) -> Option<X86_64RelocationSite> {
-    host_call_relocation_sites_for_policy(policy, operation_key, operands)
-        .into_iter()
-        .find(|site| site.kind == X86_64RelocationSiteKind::Relative32)
+    host_call_external_relocation_site_with_plan(policy, operation_key, operands, None)
+}
+
+pub fn host_call_external_relocation_site_with_plan<T: InstructionOperandLike>(
+    policy: CallingPolicy,
+    operation_key: HostOperationKey,
+    operands: &[T],
+    authoritative_plan: Option<&CallPlan>,
+) -> Option<X86_64RelocationSite> {
+    host_call_relocation_sites_for_policy_with_plan(
+        policy,
+        operation_key,
+        operands,
+        authoritative_plan,
+    )
+    .into_iter()
+    .find(|site| site.kind == X86_64RelocationSiteKind::Relative32)
 }
 
 pub fn encode_host_call_sequence<T: InstructionOperandLike>(
     policy: CallingPolicy,
     operation_key: HostOperationKey,
     operands: &[T],
+) -> Result<Vec<u8>, Diagnostic> {
+    encode_host_call_sequence_with_plan(policy, operation_key, operands, None)
+}
+
+pub fn encode_host_call_sequence_with_plan<T: InstructionOperandLike>(
+    policy: CallingPolicy,
+    operation_key: HostOperationKey,
+    operands: &[T],
+    authoritative_plan: Option<&CallPlan>,
 ) -> Result<Vec<u8>, Diagnostic> {
     // Target calibration constants do not cross a call boundary. Keep their
     // architecture-local materialization available under every x86 policy.
@@ -2025,7 +2063,7 @@ pub fn encode_host_call_sequence<T: InstructionOperandLike>(
             HostCapability::Unknown | HostCapability::Custom(_)
         )
     {
-        return encode_sysv_import_call(operands, true);
+        return Ok(sysv_import_layout_with_plan(operands, true, authoritative_plan)?.bytes);
     }
     if policy != CallingPolicy::MicrosoftX64 {
         return Err(Diagnostic::error(format!(
@@ -2036,7 +2074,7 @@ pub fn encode_host_call_sequence<T: InstructionOperandLike>(
         (
             HostCapability::Stdin | HostCapability::Stdout | HostCapability::Stderr,
             HostOperation::GetStdHandle,
-        ) => encode_win64_import_call(operands, false, false),
+        ) => encode_win64_import_call_with_plan(operands, false, false, authoritative_plan),
         (
             HostCapability::Stdout | HostCapability::Stderr,
             HostOperation::Write | HostOperation::WriteFile,
@@ -2046,13 +2084,13 @@ pub fn encode_host_call_sequence<T: InstructionOperandLike>(
         }
         (HostCapability::Process, HostOperation::ExitProcess)
         | (HostCapability::Clock, HostOperation::Sleep) => {
-            encode_win64_import_call(operands, false, false)
+            encode_win64_import_call_with_plan(operands, false, false, authoritative_plan)
         }
         // A 0-arg value-returning import through the GENERAL import-call encoder
         // (byte-identical to the original bespoke tick_count sequence for an
         // 8-byte result, and width-correct for a 4-byte one).
         (HostCapability::Clock, HostOperation::TickCount) => {
-            encode_win64_import_call(operands, true, false)
+            encode_win64_import_call_with_plan(operands, true, false, authoritative_plan)
         }
         // 0-arg value-returning imports whose result arrives through an
         // OUT-PARAM (QueryPerformanceCounter/-Frequency write a LARGE_INTEGER,
@@ -2064,25 +2102,32 @@ pub fn encode_host_call_sequence<T: InstructionOperandLike>(
             | HostOperation::MonotonicTicksPerSecond
             | HostOperation::WallClockRaw,
         ) => encode_win64_out_param_call(operation_key, operands),
-        (HostCapability::Input, HostOperation::KeyState) => encode_key_state_call(operands),
+        (HostCapability::Input, HostOperation::KeyState) => {
+            encode_key_state_call(operands, authoritative_plan)
+        }
         // Every Gui import is value-returning and encodes through the GENERAL
         // import call: operands[0] = result place, then the full ABI argument
         // list (selection interleaves the hard-wired immediates).
-        (HostCapability::Gui, _) => encode_win64_import_call(operands, true, false),
+        (HostCapability::Gui, _) => {
+            encode_win64_import_call_with_plan(operands, true, false, authoritative_plan)
+        }
         // Every Filesystem raw-seam op is value-returning (fd/count/rc) and
         // rides the same general import call (msvcrt's POSIX-shaped CRT calls
         // marshal like any Win64 import). `read_errno` (`_errno()` returns
         // `&errno`) derefs the returned pointer before the store, exactly the
         // darwin `___error()` shape.
-        (HostCapability::Filesystem, _) => {
-            encode_win64_import_call(operands, true, operation_key.dereferences_result())
-        }
+        (HostCapability::Filesystem, _) => encode_win64_import_call_with_plan(
+            operands,
+            true,
+            operation_key.dereferences_result(),
+            authoritative_plan,
+        ),
         // Provides-AUTHORED ops (extern brief §12): outside the closed catalog
         // the key is (Unknown, Unknown), and the op only reaches encoding when
         // its authored DllImport binding exists -- ride the same general
         // value-returning import call as the Filesystem/Gui rows.
         (HostCapability::Unknown | HostCapability::Custom(_), _) => {
-            encode_win64_import_call(operands, true, false)
+            encode_win64_import_call_with_plan(operands, true, false, authoritative_plan)
         }
         _ => Err(Diagnostic::error(format!(
             "X86_64 host operation {}.{} is not implemented",
@@ -2131,7 +2176,10 @@ pub fn authored_import_relocation_sites<T: InstructionOperandLike>(
 /// or runtime scalar), the relocated `call rel32`, the shadow restore, then
 /// `movzx eax, ax` (the return is a SHORT; zero the undefined upper bits) and
 /// the store-rax tail into the result place (operands[0]).
-fn encode_key_state_call<T: InstructionOperandLike>(operands: &[T]) -> Result<Vec<u8>, Diagnostic> {
+fn encode_key_state_call<T: InstructionOperandLike>(
+    operands: &[T],
+    authoritative_plan: Option<&CallPlan>,
+) -> Result<Vec<u8>, Diagnostic> {
     let Some((_, result_offset, _)) = operands
         .first()
         .and_then(|operand| operand.runtime_scalar_integer())
@@ -2140,7 +2188,13 @@ fn encode_key_state_call<T: InstructionOperandLike>(operands: &[T]) -> Result<Ve
             "cannot encode X86_64 key_state: the result storage place did not lower to a              runtime scalar operand",
         ));
     };
-    let plan = normalized_win64_call_plan(operands, Some(0), 1)?;
+    let plan = if let Some(plan) = authoritative_plan {
+        validate_win64_encoder_plan(plan)?;
+        validate_win64_call_plan_operand_shapes(plan, operands, Some(0), 1)?;
+        plan.clone()
+    } else {
+        normalized_win64_call_plan(operands, Some(0), 1)?
+    };
     let result_register = normalized_win64_result_register(&plan, true)?;
     if result_register != Some(MachineRegister::X86Rax) {
         return Err(Diagnostic::error(format!(
@@ -3214,6 +3268,7 @@ fn win64_argument_register_slot(register: MachineRegister) -> Option<usize> {
     }
 }
 
+#[cfg(test)]
 fn encode_win64_import_call<T: InstructionOperandLike>(
     operands: &[T],
     returns_value: bool,
@@ -3646,13 +3701,7 @@ fn sysv_field_call_layout<T: InstructionOperandLike>(
 /// evaluated plan owns the independent GPR/XMM banks, whole-value stack
 /// rollback, and `rax`/`rdx`/`xmm0` results; this encoder only realizes those
 /// locations. Vector and mixed-class aggregate cases stay closed.
-fn encode_sysv_import_call<T: InstructionOperandLike>(
-    operands: &[T],
-    returns_value: bool,
-) -> Result<Vec<u8>, Diagnostic> {
-    Ok(sysv_import_layout(operands, returns_value)?.bytes)
-}
-
+#[cfg(test)]
 fn sysv_import_layout<T: InstructionOperandLike>(
     operands: &[T],
     returns_value: bool,
@@ -6322,6 +6371,7 @@ fn constant_result_relocation_sites() -> Vec<X86_64RelocationSite> {
     }]
 }
 
+#[cfg(test)]
 fn win64_import_call_relocation_sites<T: InstructionOperandLike>(
     operands: &[T],
     returns_value: bool,
@@ -7077,10 +7127,20 @@ fn host_call_relocation_sites<T: InstructionOperandLike>(
     host_call_relocation_sites_for_policy(CallingPolicy::MicrosoftX64, operation_key, operands)
 }
 
+#[cfg(test)]
 fn host_call_relocation_sites_for_policy<T: InstructionOperandLike>(
     policy: CallingPolicy,
     operation_key: HostOperationKey,
     operands: &[T],
+) -> Vec<X86_64RelocationSite> {
+    host_call_relocation_sites_for_policy_with_plan(policy, operation_key, operands, None)
+}
+
+fn host_call_relocation_sites_for_policy_with_plan<T: InstructionOperandLike>(
+    policy: CallingPolicy,
+    operation_key: HostOperationKey,
+    operands: &[T],
+    authoritative_plan: Option<&CallPlan>,
 ) -> Vec<X86_64RelocationSite> {
     if policy == CallingPolicy::SystemVAMD64
         && matches!(
@@ -7088,7 +7148,7 @@ fn host_call_relocation_sites_for_policy<T: InstructionOperandLike>(
             HostCapability::Unknown | HostCapability::Custom(_)
         )
     {
-        return sysv_import_layout(operands, true)
+        return sysv_import_layout_with_plan(operands, true, authoritative_plan)
             .map(|layout| layout.relocation_sites)
             .unwrap_or_default();
     }
@@ -7099,12 +7159,14 @@ fn host_call_relocation_sites_for_policy<T: InstructionOperandLike>(
         (
             HostCapability::Stdin | HostCapability::Stdout | HostCapability::Stderr,
             HostOperation::GetStdHandle,
-        ) => win64_import_call_relocation_sites(operands, false, false),
+        ) => {
+            win64_import_call_relocation_sites_with_plan(operands, false, false, authoritative_plan)
+        }
         (HostCapability::Process, HostOperation::ExitProcess)
         | (HostCapability::Clock, HostOperation::Sleep) => {
             // Single-u32-arg kernel32 calls now share the plan-driven general
             // import marshaller and therefore its relocation walker.
-            win64_import_call_relocation_sites(operands, false, false)
+            win64_import_call_relocation_sites_with_plan(operands, false, false, authoritative_plan)
         }
         (HostCapability::Input, HostOperation::KeyState) => {
             // Layout: sub(4) + vk marshalling (17 runtime / 5 const) + call(5)
@@ -7140,7 +7202,7 @@ fn host_call_relocation_sites_for_policy<T: InstructionOperandLike>(
             // 0-arg value-returning call through the general import-call layout
             // (call at 4+1; result-region base at 13+2 -- identical to the
             // original bespoke site list).
-            win64_import_call_relocation_sites(operands, true, false)
+            win64_import_call_relocation_sites_with_plan(operands, true, false, authoritative_plan)
         }
         (
             HostCapability::Clock,
@@ -7154,16 +7216,21 @@ fn host_call_relocation_sites_for_policy<T: InstructionOperandLike>(
         ) => constant_result_relocation_sites(),
         (HostCapability::Gui, _) => {
             // Value-returning general import calls (mirrors the encode arm).
-            win64_import_call_relocation_sites(operands, true, false)
+            win64_import_call_relocation_sites_with_plan(operands, true, false, authoritative_plan)
         }
         (HostCapability::Filesystem, _) => {
             // Value-returning general import calls; read_errno's deref shifts
             // the result-store site by 2 (mirrors the encode arm).
-            win64_import_call_relocation_sites(operands, true, operation_key.dereferences_result())
+            win64_import_call_relocation_sites_with_plan(
+                operands,
+                true,
+                operation_key.dereferences_result(),
+                authoritative_plan,
+            )
         }
         (HostCapability::Unknown | HostCapability::Custom(_), _) => {
             // Provides-authored imports (mirrors the encode arm).
-            win64_import_call_relocation_sites(operands, true, false)
+            win64_import_call_relocation_sites_with_plan(operands, true, false, authoritative_plan)
         }
         (
             HostCapability::Stdout | HostCapability::Stderr,
