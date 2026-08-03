@@ -2518,6 +2518,70 @@ fn rejects_cross_state_static_provenance_missing_on_one_predecessor() {
 }
 
 #[test]
+fn accepts_cross_state_static_aggregate_frontier_accumulation() {
+    let source = r#"
+        data Message {
+            first: &[u8];
+            second: &[u8];
+        }
+
+        data Main {
+            source: Message;
+            copy: Message;
+        }
+
+        machine Main::store(&mut self) {
+            self.source.first = "first";
+            transition { _ -> establish_second() }
+
+            state establish_second(&mut self) {
+                self.source.second = "second";
+                transition { _ -> copy_complete() }
+            }
+
+            state copy_complete(&mut self) {
+                self.copy = self.source;
+            }
+        }
+    "#;
+
+    check_program(source)
+        .expect("each stable borrowed leaf crosses state edges into a complete frontier");
+}
+
+#[test]
+fn accepts_cross_state_static_leaf_across_disjoint_scalar_mutation() {
+    let source = r#"
+        data Message {
+            body: &[u8];
+            code: i32;
+        }
+
+        data Main {
+            source: Message;
+            copy: Message;
+        }
+
+        machine Main::store(&mut self) {
+            self.source.body = "program static";
+            transition { _ -> mutate_scalar() }
+
+            state mutate_scalar(&mut self) {
+                self.source.code = 7;
+                transition { _ -> copy_complete() }
+            }
+
+            state copy_complete(&mut self) {
+                self.copy = self.source;
+            }
+        }
+    "#;
+
+    check_program(source)
+        .expect("a disjoint scalar mutation does not invalidate the static borrowed leaf");
+}
+
+#[test]
 fn accepts_same_place_reassignment_from_static_persistent_storage() {
     let source = r#"
         data Main {

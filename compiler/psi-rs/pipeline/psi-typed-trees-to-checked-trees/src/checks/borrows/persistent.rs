@@ -12,6 +12,12 @@ use psi_symbols::SymbolHandle;
 use psi_typed_trees::statement::StatementNode;
 use psi_typed_trees::types::TypeReferenceHandle;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct StaticPersistentPath {
+    field: SymbolHandle,
+    segments: Vec<psi_facts::PlaceSegment>,
+}
+
 pub(super) fn check_persistent_borrow_assignments(
     program: &psi_typed_trees::TypedTrees,
     diagnostics: &mut Vec<Diagnostic>,
@@ -23,23 +29,23 @@ pub(super) fn check_persistent_borrow_assignments(
         }
 
         let states = program.machine_states(machine);
-        let entry_fields =
-            static_persistent_fields_at_state_entries(program, machine, &persistent, states);
-        for (state, entry_fields) in states.iter().zip(entry_fields) {
+        let entry_paths =
+            static_persistent_paths_at_state_entries(program, machine, &persistent, states);
+        for (state, entry_paths) in states.iter().zip(entry_paths) {
             let (_, state_diagnostics) =
-                analyze_persistent_state(program, machine, state, &persistent, &entry_fields, true);
+                analyze_persistent_state(program, machine, state, &persistent, &entry_paths, true);
             diagnostics.extend(state_diagnostics);
         }
     }
 }
 
-fn static_persistent_fields_at_state_entries(
+fn static_persistent_paths_at_state_entries(
     program: &psi_typed_trees::TypedTrees,
     machine: &psi_typed_trees::machine::Machine,
     persistent: &[(SymbolHandle, &str, TypeReferenceHandle)],
     states: &[psi_typed_trees::state::State],
-) -> Vec<Vec<SymbolHandle>> {
-    let mut entries = vec![None::<Vec<SymbolHandle>>; states.len()];
+) -> Vec<Vec<StaticPersistentPath>> {
+    let mut entries = vec![None::<Vec<StaticPersistentPath>>; states.len()];
     if !states.is_empty() {
         entries[0] = Some(Vec::new());
     }
@@ -64,8 +70,8 @@ fn static_persistent_fields_at_state_entries(
                     |prior| {
                         prior
                             .iter()
-                            .copied()
-                            .filter(|field| exit.contains(field))
+                            .cloned()
+                            .filter(|path| exit.contains(path))
                             .collect()
                     },
                 );
@@ -118,11 +124,11 @@ fn analyze_persistent_state(
     machine: &psi_typed_trees::machine::Machine,
     state: &psi_typed_trees::state::State,
     persistent: &[(SymbolHandle, &str, TypeReferenceHandle)],
-    entry_fields: &[SymbolHandle],
+    entry_paths: &[StaticPersistentPath],
     report_diagnostics: bool,
-) -> (Vec<SymbolHandle>, Vec<Diagnostic>) {
+) -> (Vec<StaticPersistentPath>, Vec<Diagnostic>) {
     let mut static_persistent_places = Vec::new();
-    let mut static_persistent_fields = entry_fields.to_vec();
+    let mut static_persistent_paths = entry_paths.to_vec();
     let mut diagnostics = Vec::new();
     for (statement_index, statement) in program
         .statement_table
@@ -135,7 +141,7 @@ fn analyze_persistent_state(
                 // Until call mutation summaries are joined here, do not carry
                 // static provenance across an opaque statement call.
                 static_persistent_places.clear();
-                static_persistent_fields.clear();
+                static_persistent_paths.clear();
             }
             continue;
         };
@@ -148,17 +154,27 @@ fn analyze_persistent_state(
             continue;
         };
         let target_field = persistent_field_and_tail(&place, persistent);
+        let target_path = stable_persistent_path(&place, persistent);
         let Some((name, target_type)) = persistent_target_type(program, &place, persistent) else {
             static_persistent_places
                 .retain(|known| !static_provenance_invalidated_by_mutation(program, known, &place));
+            invalidate_static_persistent_paths(
+                program,
+                &mut static_persistent_paths,
+                target_field,
+                target_path.as_ref(),
+            );
             continue;
         };
         if !crate::borrow::view_link::returns_borrow(program, target_type) {
             static_persistent_places
                 .retain(|known| !static_provenance_invalidated_by_mutation(program, known, &place));
-            if let Some((field, _)) = target_field {
-                static_persistent_fields.retain(|known| *known != field);
-            }
+            invalidate_static_persistent_paths(
+                program,
+                &mut static_persistent_paths,
+                target_field,
+                target_path.as_ref(),
+            );
             continue;
         }
         let initializers =
@@ -178,28 +194,28 @@ fn analyze_persistent_state(
                 assignment.value,
                 target_type,
                 &static_persistent_places,
-                &static_persistent_fields,
+                &static_persistent_paths,
                 persistent,
             );
 
         // Assignment reads its source before replacing the target.
         static_persistent_places
             .retain(|known| !static_provenance_invalidated_by_mutation(program, known, &place));
-        if let Some((field, _)) = target_field {
-            static_persistent_fields.retain(|known| *known != field);
-        }
+        invalidate_static_persistent_paths(
+            program,
+            &mut static_persistent_paths,
+            target_field,
+            target_path.as_ref(),
+        );
         if has_only_static_sources {
             static_persistent_places.push(place);
-            if let Some((field, tail)) = target_field
-                && tail
-                    == static_persistent_places
-                        .last()
-                        .expect("just inserted static place")
-                        .segments
-                        .len()
-                && !static_persistent_fields.contains(&field)
-            {
-                static_persistent_fields.push(field);
+            if let Some(target_path) = target_path {
+                add_static_borrow_frontier(
+                    program,
+                    target_path,
+                    target_type,
+                    &mut static_persistent_paths,
+                );
             }
             continue;
         }
@@ -213,7 +229,7 @@ fn analyze_persistent_state(
             )));
         }
     }
-    (static_persistent_fields, diagnostics)
+    (static_persistent_paths, diagnostics)
 }
 
 fn source_is_known_static_persistent_place(
@@ -223,7 +239,7 @@ fn source_is_known_static_persistent_place(
     expression: psi_typed_trees::expression::ExpressionHandle,
     source_type: TypeReferenceHandle,
     known_static: &[crate::flow::CanonicalPlace],
-    known_static_fields: &[SymbolHandle],
+    known_static_paths: &[StaticPersistentPath],
     persistent: &[(SymbolHandle, &str, TypeReferenceHandle)],
 ) -> bool {
     let Some(source) = crate::flow::canonical_place_from_expression_in_state(
@@ -234,12 +250,6 @@ fn source_is_known_static_persistent_place(
     ) else {
         return false;
     };
-
-    if persistent_field_and_tail(&source, persistent)
-        .is_some_and(|(field, _)| known_static_fields.contains(&field))
-    {
-        return true;
-    }
 
     let Some(state) = crate::find_state(program, state_symbol) else {
         return false;
@@ -266,6 +276,17 @@ fn source_is_known_static_persistent_place(
             known_static
                 .iter()
                 .any(|known| place_is_proven_prefix_of(program, state, known, &leaf))
+                || stable_persistent_path(&leaf, persistent).is_some_and(|leaf| {
+                    known_static_paths.iter().any(|known| {
+                        known.field == leaf.field
+                            && known.segments.len() <= leaf.segments.len()
+                            && known
+                                .segments
+                                .iter()
+                                .zip(&leaf.segments)
+                                .all(|(left, right)| left == right)
+                    })
+                })
         })
 }
 
@@ -298,6 +319,67 @@ fn persistent_field_and_tail(
                 .any(|(candidate, _, _)| candidate == symbol)
                 .then_some((*symbol, index + 1))
         })
+}
+
+fn stable_persistent_path(
+    place: &crate::flow::CanonicalPlace,
+    persistent: &[(SymbolHandle, &str, TypeReferenceHandle)],
+) -> Option<StaticPersistentPath> {
+    let (field, tail) = persistent_field_and_tail(place, persistent)?;
+    let segments = place.segments[tail..].to_vec();
+    segments
+        .iter()
+        .all(|segment| !matches!(segment, psi_facts::PlaceSegment::Index { .. }))
+        .then_some(StaticPersistentPath { field, segments })
+}
+
+fn invalidate_static_persistent_paths(
+    program: &psi_typed_trees::TypedTrees,
+    paths: &mut Vec<StaticPersistentPath>,
+    target_field: Option<(SymbolHandle, usize)>,
+    target_path: Option<&StaticPersistentPath>,
+) {
+    let Some((field, _)) = target_field else {
+        return;
+    };
+    paths.retain(|known| {
+        if known.field != field {
+            return true;
+        }
+        let Some(target) = target_path else {
+            // A dynamic or otherwise unstable persistent projection may select
+            // any leaf beneath the field.
+            return false;
+        };
+        !crate::flow::canonical_place_segments_may_overlap(
+            program,
+            &known.segments,
+            &target.segments,
+        )
+    });
+}
+
+fn add_static_borrow_frontier(
+    program: &psi_typed_trees::TypedTrees,
+    target: StaticPersistentPath,
+    target_type: TypeReferenceHandle,
+    paths: &mut Vec<StaticPersistentPath>,
+) {
+    let Some(frontier) =
+        crate::borrow::view_link::borrow_carrying_owner_paths(program, target_type)
+    else {
+        return;
+    };
+    for owner_path in frontier {
+        let Some(owner_segments) = owner_path_place_segments(&owner_path) else {
+            continue;
+        };
+        let mut path = target.clone();
+        path.segments.extend(owner_segments);
+        if !paths.contains(&path) {
+            paths.push(path);
+        }
+    }
 }
 
 fn owner_path_place_segments(

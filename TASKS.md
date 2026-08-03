@@ -1513,10 +1513,15 @@ and allocation handles expose no compiler-owned stack/control storage.
   zero-valued canonical controls. Call-return footprint evidence now retains
   `ControlState`, and validation authorizes that state only for prescribed
   `CallReturn` mechanics. This establishes checked state for ordinary generated
-  entry and callbacks and restores the foreign caller on exit. It does not yet
-  discharge outbound foreign calls: each selected binding must prove that it
-  preserves the semantic controls or gain an explicit save/restore trampoline.
-  Remaining rung-3 work includes that outbound binding proof/trampoline seam,
+  entry and callbacks and restores the foreign caller on exit. Returning
+  foreign crossings now take the conservative general-binding path: imports
+  and indirect vtable/table calls receive aligned MXCSR/FPCR save/restore
+  envelopes around their existing target call programs, while direct syscalls
+  receive none. Layout, emission, and relocation rebasing consume the same
+  mechanism classification. A hostile AArch64 native canary changes FPCR via
+  `_fesetround(FE_UPWARD)` and proves the following half-ULP addition still
+  ties nearest-even. A later admitted preservation proof may remove a redundant
+  envelope without changing call layout. Remaining rung-3 work includes
   x86-64 FMA realization, directed-rounding families, checked software
   fallbacks, and rung-4 differential evidence.
   The first checked-software provider slice is now live independently of a
@@ -1556,10 +1561,13 @@ move it to a convenience library.
   manufacturing a source loan. Whole persistent fields with that provenance
   now cross named graph-state edges through a predecessor-intersection
   must-analysis keyed by stable field identity rather than each state's
-  receiver parameter; mutation, a missing predecessor fact, or an opaque
-  statement call clears the shortcut. Parameter-backed storage, partial-place
-  cross-state propagation, call mutation summaries, and general state-parameter
-  loan-root rebasing remain.
+  receiver parameter. Stable nested field, sum-case, and fixed-index borrow
+  frontiers cross the same way, can accumulate over several states, and survive
+  disjoint sibling mutation; overlapping or dynamically indexed mutation, a
+  missing predecessor fact, or an opaque statement call clears the affected
+  shortcut. Parameter-backed storage, runtime-indexed cross-state propagation,
+  call mutation summaries, and general state-parameter loan-root rebasing
+  remain.
 - Implement constant data parameters after their identity/coherence rules are
   pinned by existing generic machinery.
 - Implement local dynamic traits as two-word borrowed descriptors selecting one
