@@ -823,6 +823,10 @@ Remaining:
   retired. Ordinary import encoding, width, AArch64 placement, and x86-64
   call/data relocation `with_plan` APIs now require `&CallPlan` rather than an
   optional plan; the no-plan route is a separately named differential oracle.
+  The shared ordinary-import encoder now carries that distinction as an
+  explicit authoritative-plan versus compatibility-oracle mode through both
+  instruction selection and the x86-64 ISA layer, so an internal `None` cannot
+  accidentally select hardcoded placement.
   The crate-local object call/data offset helpers enforce the same
   required-plan/named-no-plan split.
   AArch64 vtable/service-table plan normalization and field-call data
