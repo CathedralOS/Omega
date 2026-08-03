@@ -1074,7 +1074,12 @@ improvements do not change public identity.
   has been removed; general terminal production grows only in this Psi stage.
   Its independent content-evidence producer now revalidates checked
   conservation, reshuffle, and direct partition-composition facts into terminal
-  v9-v12 rows; a content-bearing executable source canary remains.
+  v9-v12 rows. **TERMINAL-CONTENT-ENTRY-CLAIMS — DESIGN BLOCKED
+  (`OWNER_QUESTIONS.md` Q6):** a direct partition wrapper has exact checked
+  entry claims but no sound one-to-one reshuffle, while v12 can name partition
+  inputs only through equality-bearing reshuffle rows. Choose a versioned
+  non-equality entry-claim binding before landing the content-bearing executable
+  source canary; the producer remains fail-closed meanwhile.
   The first in-memory executable slice is also live: stable machine/block
   topology, representable integer constants, v2 Boolean constants, v3
   exact-width wrapping integer addition, v4 exact-width saturating integer

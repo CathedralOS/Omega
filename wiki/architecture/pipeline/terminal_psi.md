@@ -354,7 +354,8 @@ rewrites, sealed introduction and custody-exit frontier rows, and the general
 frontier theorem remain to land.
 
 Design block discovered by the first real-source integration attempt
-(2026-08-03): a direct partition wrapper has checked entry claim identities and
+(2026-08-03, tracked as `OWNER_QUESTIONS.md` Q6): a direct partition wrapper
+has checked entry claim identities and
 an exact partition substitution, but correctly has no one-to-one identity
 reshuffles. Aggregate conservation does not establish that either input equals
 a particular output. Terminal v12 currently declares `input_claims` only by
