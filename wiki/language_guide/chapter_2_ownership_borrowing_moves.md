@@ -301,6 +301,13 @@ Here `result.left` retains only `left`, while `result.right` retains only
 `right`. Last-use accounting compares the canonical field/index path, so a
 later use of `result.right` does not artificially keep `result.left`'s loan
 active.
+Program-static views stored in persistent aggregate fields carry their stable
+field, case, and fixed-index identity across named graph states. A runtime index
+also crosses when it is an immutable state parameter forwarded unchanged into
+the target state's corresponding parameter; the edge rebases that identity to
+the target symbol. Rewriting or omitting the argument, an inconsistent
+predecessor, a possibly overlapping mutation, or an opaque call discards the
+provenance rather than guessing that two runtime indexes agree.
 General outlives constraints, persistent-storage assignment across state
 transitions, and the remaining aggregate expression forms remain
 implementation work; they are not new language-design questions.

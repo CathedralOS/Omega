@@ -2576,6 +2576,70 @@ fn accepts_cross_state_static_fixed_index_copy() {
 }
 
 #[test]
+fn accepts_cross_state_static_runtime_index_forwarded_through_state_parameter() {
+    let source = r#"
+        data Message {
+            body: &[u8];
+        }
+
+        data Main {
+            messages: [Message; 2];
+            copy: Message;
+        }
+
+        machine Main::store(&mut self, index: u64 [0..2]) {
+            self.messages[index].body = "program static";
+            transition { _ -> copy_element(index) }
+
+            state copy_element(&mut self, index: u64 [0..2]) {
+                self.copy = self.messages[index];
+            }
+        }
+    "#;
+
+    check_program(source).expect(
+        "an immutable runtime index forwarded unchanged to a state parameter retains identity",
+    );
+}
+
+#[test]
+fn rejects_cross_state_static_runtime_index_rewritten_on_transition() {
+    let source = r#"
+        data Message {
+            body: &[u8];
+        }
+
+        data Main {
+            messages: [Message; 2];
+            copy: Message;
+        }
+
+        machine Main::store(&mut self, index: u64 [0..2]) {
+            self.messages[index].body = "program static";
+            transition { _ -> copy_element(0) }
+
+            state copy_element(&mut self, index: u64 [0..2]) {
+                self.copy = self.messages[index];
+            }
+        }
+    "#;
+
+    let diagnostics = check_program(source)
+        .expect_err("rewriting an index does not preserve the established persistent leaf");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("assignment stores a borrow-carrying value in persistent field `copy`")),
+        "expected the rewritten-index persistent fence, got:\n{}",
+        diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.message.as_str())
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+}
+
+#[test]
 fn accepts_cross_state_static_leaf_across_disjoint_scalar_mutation() {
     let source = r#"
         data Message {

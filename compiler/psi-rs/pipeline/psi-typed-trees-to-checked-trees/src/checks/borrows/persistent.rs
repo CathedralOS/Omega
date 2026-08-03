@@ -2,10 +2,11 @@
 //!
 //! Local loan attribution is statement/state scoped today. A borrow backed by
 //! program-static storage needs no source loan, so literals and machine results
-//! whose every value exit is likewise static may be stored persistently. Other
+//! whose every value exit is likewise static may be stored persistently. Stable
+//! fixed-index paths and runtime indexes carried unchanged through immutable
+//! state parameters preserve that provenance across named edges. Non-static
 //! sources remain fenced until the flow plan propagates a persistent owner's
-//! loan through every outgoing transition and rebases state-parameter roots on
-//! each edge.
+//! loan through every outgoing transition.
 
 use psi_diagnostics::Diagnostic;
 use psi_symbols::SymbolHandle;
@@ -15,7 +16,21 @@ use psi_typed_trees::types::TypeReferenceHandle;
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct StaticPersistentPath {
     field: SymbolHandle,
-    segments: Vec<psi_facts::PlaceSegment>,
+    segments: Vec<StaticPersistentSegment>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StaticPersistentSegment {
+    Field(SymbolHandle),
+    Case(SymbolHandle),
+    FixedIndex(usize),
+    StateParameterIndex(SymbolHandle),
+}
+
+#[derive(Debug, Clone, Copy)]
+struct StateTransitionEdge {
+    target: SymbolHandle,
+    arguments: psi_arena::HandleSpan<psi_typed_trees::expression::ExpressionHandle>,
 }
 
 pub(super) fn check_persistent_borrow_assignments(
@@ -79,13 +94,20 @@ fn static_persistent_paths_at_state_entries(
                 call_frames,
                 false,
             );
-            for target in state_transition_targets(program, state) {
+            for edge in state_transition_edges(program, state) {
                 let Some(target_index) = states
                     .iter()
-                    .position(|candidate| candidate.symbol == target)
+                    .position(|candidate| candidate.symbol == edge.target)
                 else {
                     continue;
                 };
+                let exit = rebase_static_paths_for_transition(
+                    program,
+                    state,
+                    &states[target_index],
+                    edge.arguments,
+                    &exit,
+                );
                 let merged = entries[target_index].as_ref().map_or_else(
                     || exit.clone(),
                     |prior| {
@@ -113,10 +135,10 @@ fn static_persistent_paths_at_state_entries(
         .collect()
 }
 
-fn state_transition_targets(
+fn state_transition_edges(
     program: &psi_typed_trees::TypedTrees,
     state: &psi_typed_trees::state::State,
-) -> Vec<SymbolHandle> {
+) -> Vec<StateTransitionEdge> {
     program
         .statement_table
         .statements(state.statement_nodes)
@@ -130,14 +152,91 @@ fn state_transition_targets(
         .flatten()
         .filter(|target| target.is_valid())
         .filter_map(|target| {
-            let psi_typed_trees::statement::TransitionTargetNode::Named { path, .. } =
+            let psi_typed_trees::statement::TransitionTargetNode::Named { path, arguments } =
                 program.statement_table.transition_target(target)
             else {
                 return None;
             };
-            path.symbol.is_valid().then_some(path.symbol)
+            path.symbol.is_valid().then_some(StateTransitionEdge {
+                target: path.symbol,
+                arguments: *arguments,
+            })
         })
         .collect()
+}
+
+fn rebase_static_paths_for_transition(
+    program: &psi_typed_trees::TypedTrees,
+    source: &psi_typed_trees::state::State,
+    target: &psi_typed_trees::state::State,
+    arguments: psi_arena::HandleSpan<psi_typed_trees::expression::ExpressionHandle>,
+    paths: &[StaticPersistentPath],
+) -> Vec<StaticPersistentPath> {
+    let arguments = program.statement_table.expression_handles(arguments);
+    let target_parameters = program
+        .state_parameters(target)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .collect::<Vec<_>>();
+    if arguments.len() != target_parameters.len() {
+        return paths
+            .iter()
+            .filter(|path| {
+                !path.segments.iter().any(|segment| {
+                    matches!(segment, StaticPersistentSegment::StateParameterIndex(_))
+                })
+            })
+            .cloned()
+            .collect();
+    }
+
+    let mut rebased = Vec::new();
+    for path in paths {
+        let mut path = path.clone();
+        let mut complete = true;
+        for segment in &mut path.segments {
+            let StaticPersistentSegment::StateParameterIndex(source_symbol) = *segment else {
+                continue;
+            };
+            let replacement =
+                arguments
+                    .iter()
+                    .zip(&target_parameters)
+                    .find_map(|(argument, parameter)| {
+                        expression_is_exact_state_parameter(
+                            program,
+                            source,
+                            *argument,
+                            source_symbol,
+                        )
+                        .then_some(parameter.symbol)
+                    });
+            let Some(replacement) = replacement else {
+                complete = false;
+                break;
+            };
+            *segment = StaticPersistentSegment::StateParameterIndex(replacement);
+        }
+        if complete && !rebased.contains(&path) {
+            rebased.push(path);
+        }
+    }
+    rebased
+}
+
+fn expression_is_exact_state_parameter(
+    program: &psi_typed_trees::TypedTrees,
+    state: &psi_typed_trees::state::State,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+    symbol: SymbolHandle,
+) -> bool {
+    program
+        .state_parameters(state)
+        .iter()
+        .any(|parameter| !parameter.is_self && parameter.symbol == symbol)
+        && crate::flow::canonical_place_from_expression(program, expression).is_some_and(|place| {
+            place.root == psi_facts::PlaceRoot::Symbol(symbol) && place.segments.is_empty()
+        })
 }
 
 fn analyze_persistent_state(
@@ -162,6 +261,7 @@ fn analyze_persistent_state(
             .and_then(|frames| frames.statement_value_may_write_paths(machine, statement));
         if retain_static_paths_across_call_frame(
             program,
+            state,
             persistent,
             &mut static_persistent_paths,
             value_writes,
@@ -174,6 +274,7 @@ fn analyze_persistent_state(
                 call_frames.and_then(|frames| frames.may_write_paths(machine, call));
             if retain_static_paths_across_call_frame(
                 program,
+                state,
                 persistent,
                 &mut static_persistent_paths,
                 statement_writes,
@@ -195,12 +296,11 @@ fn analyze_persistent_state(
             continue;
         };
         let target_field = persistent_field_and_tail(&place, persistent);
-        let target_path = stable_persistent_path(&place, persistent);
+        let target_path = stable_persistent_path(program, state, &place, persistent);
         let Some((name, target_type)) = persistent_target_type(program, &place, persistent) else {
             static_persistent_places
                 .retain(|known| !static_provenance_invalidated_by_mutation(program, known, &place));
             invalidate_static_persistent_paths(
-                program,
                 &mut static_persistent_paths,
                 target_field,
                 target_path.as_ref(),
@@ -211,7 +311,6 @@ fn analyze_persistent_state(
             static_persistent_places
                 .retain(|known| !static_provenance_invalidated_by_mutation(program, known, &place));
             invalidate_static_persistent_paths(
-                program,
                 &mut static_persistent_paths,
                 target_field,
                 target_path.as_ref(),
@@ -243,7 +342,6 @@ fn analyze_persistent_state(
         static_persistent_places
             .retain(|known| !static_provenance_invalidated_by_mutation(program, known, &place));
         invalidate_static_persistent_paths(
-            program,
             &mut static_persistent_paths,
             target_field,
             target_path.as_ref(),
@@ -317,7 +415,7 @@ fn source_is_known_static_persistent_place(
             known_static
                 .iter()
                 .any(|known| place_is_proven_prefix_of(program, state, known, &leaf))
-                || stable_persistent_path(&leaf, persistent).is_some_and(|leaf| {
+                || stable_persistent_path(program, state, &leaf, persistent).is_some_and(|leaf| {
                     known_static_paths.iter().any(|known| {
                         known.field == leaf.field
                             && known.segments.len() <= leaf.segments.len()
@@ -363,19 +461,57 @@ fn persistent_field_and_tail(
 }
 
 fn stable_persistent_path(
+    program: &psi_typed_trees::TypedTrees,
+    state: &psi_typed_trees::state::State,
     place: &crate::flow::CanonicalPlace,
     persistent: &[(SymbolHandle, &str, TypeReferenceHandle)],
 ) -> Option<StaticPersistentPath> {
     let (field, tail) = persistent_field_and_tail(place, persistent)?;
-    let segments = place.segments[tail..].to_vec();
-    segments
+    let segments = place.segments[tail..]
         .iter()
-        .all(|segment| !matches!(segment, psi_facts::PlaceSegment::Index { .. }))
-        .then_some(StaticPersistentPath { field, segments })
+        .map(|segment| static_persistent_segment(program, state, *segment))
+        .collect::<Option<Vec<_>>>()?;
+    Some(StaticPersistentPath { field, segments })
+}
+
+fn static_persistent_segment(
+    program: &psi_typed_trees::TypedTrees,
+    state: &psi_typed_trees::state::State,
+    segment: psi_facts::PlaceSegment,
+) -> Option<StaticPersistentSegment> {
+    match segment {
+        psi_facts::PlaceSegment::Field { symbol } => Some(StaticPersistentSegment::Field(symbol)),
+        psi_facts::PlaceSegment::Case { variant } => Some(StaticPersistentSegment::Case(variant)),
+        psi_facts::PlaceSegment::FixedIndex { index } => {
+            Some(StaticPersistentSegment::FixedIndex(index))
+        }
+        psi_facts::PlaceSegment::Index { expression } => {
+            immutable_state_parameter_index_symbol(program, state, expression)
+                .map(StaticPersistentSegment::StateParameterIndex)
+        }
+    }
+}
+
+fn immutable_state_parameter_index_symbol(
+    program: &psi_typed_trees::TypedTrees,
+    state: &psi_typed_trees::state::State,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+) -> Option<SymbolHandle> {
+    let place = crate::flow::canonical_place_from_expression(program, expression)?;
+    if !place.segments.is_empty() {
+        return None;
+    }
+    let psi_facts::PlaceRoot::Symbol(symbol) = place.root else {
+        return None;
+    };
+    let mut matching = program.state_parameters(state).iter().filter(|parameter| {
+        !parameter.is_self && !parameter.is_mutable && parameter.symbol == symbol
+    });
+    let parameter = matching.next()?;
+    matching.next().is_none().then_some(parameter.symbol)
 }
 
 fn invalidate_static_persistent_paths(
-    program: &psi_typed_trees::TypedTrees,
     paths: &mut Vec<StaticPersistentPath>,
     target_field: Option<(SymbolHandle, usize)>,
     target_path: Option<&StaticPersistentPath>,
@@ -392,12 +528,51 @@ fn invalidate_static_persistent_paths(
             // any leaf beneath the field.
             return false;
         };
-        !crate::flow::canonical_place_segments_may_overlap(
-            program,
-            &known.segments,
-            &target.segments,
-        )
+        !static_persistent_segments_may_overlap(&known.segments, &target.segments)
     });
+}
+
+fn static_persistent_segments_may_overlap(
+    left: &[StaticPersistentSegment],
+    right: &[StaticPersistentSegment],
+) -> bool {
+    for (left, right) in left.iter().zip(right) {
+        match (*left, *right) {
+            (StaticPersistentSegment::Field(left), StaticPersistentSegment::Field(right))
+            | (StaticPersistentSegment::Case(left), StaticPersistentSegment::Case(right))
+                if left != right =>
+            {
+                return false;
+            }
+            (
+                StaticPersistentSegment::FixedIndex(left),
+                StaticPersistentSegment::FixedIndex(right),
+            ) if left != right => return false,
+            (
+                StaticPersistentSegment::StateParameterIndex(left),
+                StaticPersistentSegment::StateParameterIndex(right),
+            ) if left == right => {}
+            (StaticPersistentSegment::Field(_), StaticPersistentSegment::Field(_))
+            | (StaticPersistentSegment::Case(_), StaticPersistentSegment::Case(_))
+            | (StaticPersistentSegment::FixedIndex(_), StaticPersistentSegment::FixedIndex(_))
+            | (
+                StaticPersistentSegment::FixedIndex(_),
+                StaticPersistentSegment::StateParameterIndex(_),
+            )
+            | (
+                StaticPersistentSegment::StateParameterIndex(_),
+                StaticPersistentSegment::FixedIndex(_),
+            )
+            | (
+                StaticPersistentSegment::StateParameterIndex(_),
+                StaticPersistentSegment::StateParameterIndex(_),
+            ) => {}
+            // Different segment classes at one structural depth are not a
+            // stable proof of disjointness.
+            _ => return true,
+        }
+    }
+    true
 }
 
 fn add_static_borrow_frontier(
@@ -416,7 +591,17 @@ fn add_static_borrow_frontier(
             continue;
         };
         let mut path = target.clone();
-        path.segments.extend(owner_segments);
+        path.segments
+            .extend(owner_segments.into_iter().map(|segment| match segment {
+                psi_facts::PlaceSegment::Field { symbol } => StaticPersistentSegment::Field(symbol),
+                psi_facts::PlaceSegment::Case { variant } => StaticPersistentSegment::Case(variant),
+                psi_facts::PlaceSegment::FixedIndex { index } => {
+                    StaticPersistentSegment::FixedIndex(index)
+                }
+                psi_facts::PlaceSegment::Index { .. } => unreachable!(
+                    "dynamic borrow-owner paths are rejected before persistent propagation"
+                ),
+            }));
         if !paths.contains(&path) {
             paths.push(path);
         }
@@ -428,6 +613,7 @@ fn add_static_borrow_frontier(
 /// state-local canonical markers are conservatively retired as well.
 fn retain_static_paths_across_call_frame(
     program: &psi_typed_trees::TypedTrees,
+    state: &psi_typed_trees::state::State,
     persistent: &[(SymbolHandle, &str, TypeReferenceHandle)],
     paths: &mut Vec<StaticPersistentPath>,
     written: Option<Vec<String>>,
@@ -440,7 +626,7 @@ fn retain_static_paths_across_call_frame(
         return false;
     }
     paths.retain(|path| {
-        let aliases = static_path_frame_aliases(program, persistent, path);
+        let aliases = static_path_frame_aliases(program, state, persistent, path);
         !aliases.is_empty()
             && written.iter().all(|written| {
                 aliases
@@ -453,6 +639,7 @@ fn retain_static_paths_across_call_frame(
 
 fn static_path_frame_aliases(
     program: &psi_typed_trees::TypedTrees,
+    state: &psi_typed_trees::state::State,
     persistent: &[(SymbolHandle, &str, TypeReferenceHandle)],
     path: &StaticPersistentPath,
 ) -> Vec<String> {
@@ -463,23 +650,36 @@ fn static_path_frame_aliases(
     let mut suffix = String::new();
     for segment in &path.segments {
         match *segment {
-            psi_facts::PlaceSegment::Field { symbol } => {
+            StaticPersistentSegment::Field(symbol) => {
                 let Some(name) = data_field_name(program, symbol) else {
                     break;
                 };
                 suffix.push('.');
                 suffix.push_str(name);
             }
-            psi_facts::PlaceSegment::FixedIndex { index } => {
+            StaticPersistentSegment::FixedIndex(index) => {
                 suffix.push('[');
                 suffix.push_str(&index.to_string());
+                suffix.push(']');
+            }
+            StaticPersistentSegment::StateParameterIndex(symbol) => {
+                let Some(name) = program
+                    .state_parameters(state)
+                    .iter()
+                    .find_map(|parameter| {
+                        (parameter.symbol == symbol).then_some(parameter.name.as_str())
+                    })
+                else {
+                    return Vec::new();
+                };
+                suffix.push('[');
+                suffix.push_str(name);
                 suffix.push(']');
             }
             // Source frame strings do not retain normalized case identity.
             // Stop at the containing sum so any payload write invalidates the
             // fact rather than conflating equal field names across variants.
-            psi_facts::PlaceSegment::Case { .. } => break,
-            psi_facts::PlaceSegment::Index { .. } => return Vec::new(),
+            StaticPersistentSegment::Case(_) => break,
         }
     }
     vec![
