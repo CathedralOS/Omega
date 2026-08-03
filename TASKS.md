@@ -1867,7 +1867,15 @@ move it to a convenience library.
   deterministic live progress, and add constant/runtime equivalence canaries
   led by `f32`/`f64`. Add optional root-controlled warning and hard-ceiling
   policy only after the meter/reporting path exists; unlimited terminating
-  evaluation remains legal.
+  evaluation remains legal. The common gate now also requires ordinary checked
+  termination across the concrete typed call closure, using the same pure
+  graph/ranking judgment as checked facts; machine-entry-symbol backedges are
+  normalized to the entry state, and unmeasured recursive callees reject before
+  evaluation. The evaluator boundary also closes escaping mutation by using a
+  fresh machine instance, fresh owned argument graphs, and snapshot-only
+  results. Canonical usage schema v1 is now distinct from the evaluator-step
+  schedule and records checked recursive `result_cells`; logical-word,
+  aggregate-construction, and peak-live-cell telemetry remain.
 - Extend `build.omg` provider plans with the normalized
   `Hermetic | Receipted | Volatile` observation ceiling. Publish static ceiling,
   realized class, replay receipts, `ReplayableFromRecord`, and transitive
