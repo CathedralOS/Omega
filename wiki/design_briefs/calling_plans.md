@@ -780,8 +780,10 @@ the scratch slot itself remains an encoder materialization detail. Dedicated
 runtime line/byte Windows sequences now reuse the same file layout and consume
 the retained one-DWORD/RAX `GetStdHandle` plan alongside the retained
 five-parameter file plan without changing their fixed bytes or relocation
-sites. Supplying only one native subcall plan fails closed in both layout and
-emission.
+sites. Supplying only one native subcall plan fails closed in layout, emission,
+and the independent object-relocation walk; that walk no longer silently omits
+a missing GetStdHandle record or accepts catalog-shaped offsets without
+validating both plans.
 
 AArch64 `VtableSlot` and `VtableField` compatibility calls now consume the
 same normalized AAPCS64 argument and stack placements as direct imports. The
