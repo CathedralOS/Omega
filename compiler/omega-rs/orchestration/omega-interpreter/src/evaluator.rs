@@ -5161,6 +5161,30 @@ impl<'program> Evaluator<'program> {
                 return self.eval_rewritten_directed_binary(&args, format, target, frame);
             }
         }
+        if matches!(
+            target,
+            "float#sqrt_toward_zero_f32"
+                | "float#sqrt_toward_zero_f64"
+                | "float#sqrt_toward_positive_f32"
+                | "float#sqrt_toward_positive_f64"
+                | "float#sqrt_toward_negative_f32"
+                | "float#sqrt_toward_negative_f64"
+        ) && call.receiver == ExpressionHandle::invalid()
+        {
+            let args = self
+                .program
+                .expression_table
+                .expression_handles(call.arguments)
+                .to_vec();
+            if args.len() == 1 {
+                let format = if target.ends_with("_f32") {
+                    SemanticFloatFormat::BINARY32
+                } else {
+                    SemanticFloatFormat::BINARY64
+                };
+                return self.eval_rewritten_directed_square_root(&args, format, target, frame);
+            }
+        }
         // Builtin: sqrt over a single float operand. The interpreter consumes
         // the same exact semantic function used as the native
         // sqrtsd/sqrtss contract oracle.
@@ -8423,6 +8447,52 @@ impl<'program> Evaluator<'program> {
                 .map_err(|trap_class| {
                     Halt::Trap(format!(
                         "directed float operation produced {} in Trapping domain",
+                        match trap_class {
+                            FloatPolicyTrap::NaNResult => "NaN",
+                            FloatPolicyTrap::InfinityResult => "infinity",
+                        }
+                    ))
+                })?,
+            Some(ArithmeticDomain::Exact | ArithmeticDomain::Wrapping) | None => meaning,
+        };
+        Ok(Value::Float(meaning.to_interpreter_value(format)))
+    }
+
+    /// Execute an unnameable one-step directed square root selected by an exact
+    /// provider plan. Its single authored argument is evaluated once.
+    fn eval_rewritten_directed_square_root(
+        &mut self,
+        arguments: &[ExpressionHandle],
+        format: SemanticFloatFormat,
+        intrinsic: &str,
+        frame: &Frame,
+    ) -> EvalResult<Value> {
+        let scalar_type = self.expression_scalar_type(arguments[0], frame);
+        let Value::Float(value) = self.eval_expression(arguments[0], frame)? else {
+            return unsupported("selected directed square-root operand is not a float");
+        };
+        let operand = if format == SemanticFloatFormat::BINARY32 {
+            FloatMeaning::from_f32(value as f32)
+        } else {
+            FloatMeaning::from_f64(value)
+        };
+        let meaning = if intrinsic.contains("toward_zero") {
+            FloatSemantics::square_root_toward_zero(format, &operand)
+        } else if intrinsic.contains("toward_positive") {
+            FloatSemantics::square_root_toward_positive(format, &operand)
+        } else if intrinsic.contains("toward_negative") {
+            FloatSemantics::square_root_toward_negative(format, &operand)
+        } else {
+            return unsupported("unknown selected directed square-root intrinsic");
+        };
+        let meaning = match scalar_type.map(|(_, domain)| domain) {
+            Some(ArithmeticDomain::Saturating) => {
+                FloatSemantics::apply_saturating_policy(format, &[&operand], meaning)
+            }
+            Some(ArithmeticDomain::Trapping) => FloatSemantics::apply_trapping_policy(meaning)
+                .map_err(|trap_class| {
+                    Halt::Trap(format!(
+                        "directed square root produced {} in Trapping domain",
                         match trap_class {
                             FloatPolicyTrap::NaNResult => "NaN",
                             FloatPolicyTrap::InfinityResult => "infinity",

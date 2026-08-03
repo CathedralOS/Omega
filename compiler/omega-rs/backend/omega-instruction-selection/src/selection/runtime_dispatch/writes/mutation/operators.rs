@@ -88,6 +88,30 @@ pub(in crate::selection) fn builtin_runtime_unary_call_operator_in_table(
         return Some(StateGuardOperator::Sqrt);
     }
     for (builtin, operator) in [
+        (
+            BuiltinFunction::FloatSqrtTowardZeroF32,
+            StateGuardOperator::SqrtTowardZero,
+        ),
+        (
+            BuiltinFunction::FloatSqrtTowardZeroF64,
+            StateGuardOperator::SqrtTowardZero,
+        ),
+        (
+            BuiltinFunction::FloatSqrtTowardPositiveF32,
+            StateGuardOperator::SqrtTowardPositive,
+        ),
+        (
+            BuiltinFunction::FloatSqrtTowardPositiveF64,
+            StateGuardOperator::SqrtTowardPositive,
+        ),
+        (
+            BuiltinFunction::FloatSqrtTowardNegativeF32,
+            StateGuardOperator::SqrtTowardNegative,
+        ),
+        (
+            BuiltinFunction::FloatSqrtTowardNegativeF64,
+            StateGuardOperator::SqrtTowardNegative,
+        ),
         (BuiltinFunction::FloatIsNan, StateGuardOperator::IsNan),
         (BuiltinFunction::FloatIsFinite, StateGuardOperator::IsFinite),
         (

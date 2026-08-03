@@ -35333,6 +35333,12 @@ fn migrated_float_provider_plans_are_selected_for_every_native_target() {
         "F64::divide_toward_positive",
         "F32::divide_toward_negative",
         "F64::divide_toward_negative",
+        "F32::square_root_toward_zero",
+        "F64::square_root_toward_zero",
+        "F32::square_root_toward_positive",
+        "F64::square_root_toward_positive",
+        "F32::square_root_toward_negative",
+        "F64::square_root_toward_negative",
         "F32::from_f64",
         "F64::from_f32",
         "F32::from_i8",
@@ -35535,9 +35541,9 @@ fn migrated_float_provider_plans_are_selected_for_every_native_target() {
         assert_eq!(
             selected_count,
             if matches!(target, "linux_arm64" | "macos_arm64") {
-                134
+                140
             } else {
-                132
+                138
             },
             "all migrated primitive and target-valid named-operation slots must select"
         );
@@ -37126,6 +37132,115 @@ fn named_float_directed_divide_selects_exact_plans_and_restores_control_state() 
         })
         .unwrap_or_else(|diagnostics| {
             panic!("directed-divide providers should compile for {target}: {diagnostics:#?}")
+        });
+        let _ = fs::remove_dir_all(&scratch);
+    }
+}
+
+#[test]
+fn named_float_directed_square_root_selects_exact_plans_and_restores_control_state() {
+    let canary = pass_canary("float/named_provider_directed_square_root_exit");
+    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+        .expect("directed-square-root provider calls should compile to checked trees");
+
+    let mut selected_intrinsics = std::collections::BTreeSet::new();
+    for operator_use in checked.facts.operators.named_uses() {
+        let Some(plan) = checked
+            .selected_provider_plans()
+            .plan_by_identity(operator_use.provider_plan_identity)
+        else {
+            continue;
+        };
+        let [row] = plan.rows.as_slice() else {
+            continue;
+        };
+        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { name } =
+            &row.binding
+        else {
+            continue;
+        };
+        if !name.contains("::square_root_toward_") {
+            continue;
+        }
+        selected_intrinsics.insert(name.clone());
+        let psi_typed_trees::expression::ExpressionNode::Call(call) = checked
+            .typed
+            .expression_table
+            .expression(operator_use.expression)
+        else {
+            panic!("`{name}` must rewrite to an unnameable compiler call");
+        };
+        assert!(!call.receiver.is_valid());
+        assert_eq!(call.arguments.count(), 1);
+        assert!(call.target.as_str().starts_with("float#sqrt_toward_"));
+    }
+    assert_eq!(
+        selected_intrinsics,
+        [
+            "F32::square_root_toward_negative.f32",
+            "F32::square_root_toward_positive.f32",
+            "F32::square_root_toward_zero.f32",
+            "F64::square_root_toward_negative.f64",
+            "F64::square_root_toward_positive.f64",
+            "F64::square_root_toward_zero.f64",
+        ]
+        .into_iter()
+        .map(str::to_owned)
+        .collect()
+    );
+
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "directed-square-root interpreter semantics must distinguish irrational-result edges"
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-directed-square-root-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("directed-square-root providers should compile natively");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("directed-square-root provider canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "directed square root must restore nearest-even before ordinary arithmetic; artifact: {}; stderr: {}",
+        build_dir.display(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+
+    for target in ["linux_x64", "linux_arm64"] {
+        let scratch = std::env::temp_dir().join(format!(
+            "omega-directed-square-root-{target}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&scratch);
+        let source_dir = scratch.join("src");
+        fs::create_dir_all(&source_dir)
+            .expect("directed-square-root cross-target source directory");
+        fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
+            .expect("copy directed-square-root canary");
+        fs::write(
+            source_dir.join("build.omg"),
+            format!("target {target} {{\n}}\n"),
+        )
+        .expect("write directed-square-root target manifest");
+        compile(CompileOptions {
+            root_path: source_dir.join("main.omg"),
+            build_dir: Some(scratch.join("out")),
+            target_name: Some(target.to_owned()),
+            write_output: true,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!("directed-square-root providers should compile for {target}: {diagnostics:#?}")
         });
         let _ = fs::remove_dir_all(&scratch);
     }

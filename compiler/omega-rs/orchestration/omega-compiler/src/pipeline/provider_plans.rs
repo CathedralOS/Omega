@@ -633,8 +633,17 @@ fn expected_float_intrinsic(
             }
             let operation = match requirement.as_str() {
                 "minimum" | "maximum" => requirement.as_str(),
-                "negate" | "square_root" | "classify" | "is_nan" | "is_finite" | "is_infinite"
-                | "is_normal" | "is_subnormal" => requirement.as_str(),
+                "negate"
+                | "square_root"
+                | "square_root_toward_zero"
+                | "square_root_toward_positive"
+                | "square_root_toward_negative"
+                | "classify"
+                | "is_nan"
+                | "is_finite"
+                | "is_infinite"
+                | "is_normal"
+                | "is_subnormal" => requirement.as_str(),
                 "multiply_then_add" | "fused_multiply_add" => requirement.as_str(),
                 "add_toward_zero" | "add_toward_positive" | "add_toward_negative" => {
                     requirement.as_str()
@@ -661,6 +670,9 @@ fn expected_float_intrinsic(
                         operation,
                         "negate"
                             | "square_root"
+                            | "square_root_toward_zero"
+                            | "square_root_toward_positive"
+                            | "square_root_toward_negative"
                             | "classify"
                             | "is_nan"
                             | "is_finite"
