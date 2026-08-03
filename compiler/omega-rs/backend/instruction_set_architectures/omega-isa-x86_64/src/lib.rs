@@ -2386,6 +2386,23 @@ fn selected_win64_composite_plan(
     }
 }
 
+pub fn validate_win64_runtime_file_adapter_plans(
+    get_std_handle_plan: Option<&CallPlan>,
+    file_io_plan: Option<&CallPlan>,
+) -> Result<(), Diagnostic> {
+    match (get_std_handle_plan, file_io_plan) {
+        (None, None) => Ok(()),
+        (Some(get_std_handle_plan), Some(file_io_plan)) => {
+            validate_normalized_win64_get_std_handle_plan(Some(get_std_handle_plan))?;
+            normalized_win64_file_io_layout(Some(file_io_plan))?;
+            Ok(())
+        }
+        _ => Err(Diagnostic::error(
+            "Win64 runtime text adapter requires both retained GetStdHandle and ReadFile/WriteFile plans",
+        )),
+    }
+}
+
 /// Reserve through a composite call's final local byte while preserving the
 /// encoder's entry invariant: rsp is 8 mod 16 before `sub`, so the reservation
 /// itself must also be 8 mod 16 at the call boundary.

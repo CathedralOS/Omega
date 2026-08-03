@@ -894,7 +894,11 @@ Remaining:
   Direct Win64 GetStdHandle, ReadFile/WriteFile, key-state, and time-out-pointer
   encoders plus their relocation walks now validate those retained concrete
   subcall plans; a semantic outer shape cannot replace the native adapter
-  signature.
+  signature. The Windows runtime byte-read, byte-write, and all three line-read
+  target shapes now consume the retained GetStdHandle plan together with the
+  retained ReadFile/WriteFile plan in production layout and emission. Missing,
+  partial, or incompatible composite evidence rejects; independent
+  normalization remains only the differential oracle.
   The matching AArch64 direct-import composites now validate
   that same retained native signature and reject placement drift in lockstep
   with layout; Windows composites retain their independently normalized

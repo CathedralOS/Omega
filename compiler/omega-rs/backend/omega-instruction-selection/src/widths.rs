@@ -2014,17 +2014,36 @@ pub fn runtime_byte_read_width_with_plan(
     payload_offset: usize,
     authoritative_plan: Option<&omega_calling_conventions::CallPlan>,
 ) -> usize {
-    match authoritative_plan {
-        Some(plan) => crate::encode_runtime_byte_read_with_plan(
+    runtime_byte_read_width_with_plans(
+        architecture,
+        binding,
+        target_offset,
+        payload_offset,
+        authoritative_plan,
+        None,
+    )
+}
+
+pub fn runtime_byte_read_width_with_plans(
+    architecture: Architecture,
+    binding: &HostBindingMechanism,
+    target_offset: usize,
+    payload_offset: usize,
+    authoritative_plan: Option<&omega_calling_conventions::CallPlan>,
+    get_std_handle_plan: Option<&omega_calling_conventions::CallPlan>,
+) -> usize {
+    match (authoritative_plan, get_std_handle_plan) {
+        (None, None) => runtime_byte_read_width(architecture, binding),
+        (plan, handle_plan) => crate::encode_runtime_byte_read_with_plans(
             architecture,
             target_offset,
             payload_offset,
             binding,
-            Some(plan),
+            plan,
+            handle_plan,
         )
         .map(|bytes| bytes.len())
         .unwrap_or(0),
-        None => runtime_byte_read_width(architecture, binding),
     }
 }
 
@@ -2062,16 +2081,33 @@ pub fn runtime_byte_write_width_with_plan(
     source_offset: usize,
     authoritative_plan: Option<&omega_calling_conventions::CallPlan>,
 ) -> usize {
-    match authoritative_plan {
-        Some(plan) => crate::encode_runtime_byte_write_with_plan(
+    runtime_byte_write_width_with_plans(
+        architecture,
+        binding,
+        source_offset,
+        authoritative_plan,
+        None,
+    )
+}
+
+pub fn runtime_byte_write_width_with_plans(
+    architecture: Architecture,
+    binding: &HostBindingMechanism,
+    source_offset: usize,
+    authoritative_plan: Option<&omega_calling_conventions::CallPlan>,
+    get_std_handle_plan: Option<&omega_calling_conventions::CallPlan>,
+) -> usize {
+    match (authoritative_plan, get_std_handle_plan) {
+        (None, None) => runtime_byte_write_width(architecture, binding, source_offset),
+        (plan, handle_plan) => crate::encode_runtime_byte_write_with_plans(
             architecture,
             source_offset,
             binding,
-            Some(plan),
+            plan,
+            handle_plan,
         )
         .map(|bytes| bytes.len())
         .unwrap_or(0),
-        None => runtime_byte_write_width(architecture, binding, source_offset),
     }
 }
 
@@ -2156,24 +2192,45 @@ pub fn runtime_text_line_read_width_with_plan(
     target_offset: usize,
     authoritative_plan: Option<&omega_calling_conventions::CallPlan>,
 ) -> usize {
-    match authoritative_plan {
-        Some(plan) => crate::encode_runtime_text_line_read_with_plan(
-            architecture,
-            target_offset,
-            byte_capacity,
-            binding,
-            target,
-            Some(plan),
-        )
-        .map(|bytes| bytes.len())
-        .unwrap_or(0),
-        None => runtime_text_line_read_width(
+    runtime_text_line_read_width_with_plans(
+        architecture,
+        byte_capacity,
+        binding,
+        target,
+        target_offset,
+        authoritative_plan,
+        None,
+    )
+}
+
+pub fn runtime_text_line_read_width_with_plans(
+    architecture: Architecture,
+    byte_capacity: usize,
+    binding: &HostBindingMechanism,
+    target: RuntimeTextReadTarget,
+    target_offset: usize,
+    authoritative_plan: Option<&omega_calling_conventions::CallPlan>,
+    get_std_handle_plan: Option<&omega_calling_conventions::CallPlan>,
+) -> usize {
+    match (authoritative_plan, get_std_handle_plan) {
+        (None, None) => runtime_text_line_read_width(
             architecture,
             byte_capacity,
             binding,
             target,
             target_offset,
         ),
+        (plan, handle_plan) => crate::encode_runtime_text_line_read_with_plans(
+            architecture,
+            target_offset,
+            byte_capacity,
+            binding,
+            target,
+            plan,
+            handle_plan,
+        )
+        .map(|bytes| bytes.len())
+        .unwrap_or(0),
     }
 }
 
