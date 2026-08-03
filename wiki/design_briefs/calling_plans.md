@@ -659,7 +659,13 @@ read, byte write, and bounded-carrier, fixed-array, or string-descriptor line
 read compatibility sequences have an exact byte/width differential lock on
 x86-64 and AArch64. AArch64 emits the plan-selected registers and supervisor-call
 immediate; the current fixed x86-64 sequences fail closed when asked to realize
-a different normalized plan rather than silently overriding it.
+a different normalized plan rather than silently overriding it. On the direct
+Darwin import route, the same composites validate the retained native
+three-word/result AAPCS64 signature against their fixed `x0`/`x1`/`x2`/`x0`
+sequence and layout fails closed with emission when placement drifts. Windows
+runtime byte/line imports remain composite adapters over their separately
+normalized GetStdHandle and ReadFile/WriteFile subcalls; the outer semantic
+binding plan is not substituted for those internal signatures.
 Register-resident AArch64 C/import emission now also evaluates AAPCS64 from the
 selected operand shapes and passes the exact planned X/V argument and result
 registers to the ISA encoder. Scalar stack arguments and flat HFA arguments and

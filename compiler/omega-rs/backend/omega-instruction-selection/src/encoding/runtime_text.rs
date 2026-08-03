@@ -1,4 +1,7 @@
-use omega_calling_conventions::{CallPlan, HostBindingMechanism};
+use omega_calling_conventions::{
+    CallPlan, CallSignature, CallingPolicy, HostBindingMechanism, MachineRegister, ValueLocation,
+    ValueShape, validate_call_plan,
+};
 use omega_isa_aarch64::aarch64;
 use omega_isa_x86_64 as x86_64;
 use omega_target::Architecture;
@@ -6,6 +9,64 @@ use omega_target_operations::RuntimeTextReadTarget;
 use psi_diagnostics::Diagnostic;
 
 use super::host::normalized_syscall_registers_with_plan;
+
+fn validate_aarch64_runtime_import_plan(
+    authoritative_plan: Option<&CallPlan>,
+) -> Result<(), Diagnostic> {
+    let Some(plan) = authoritative_plan else {
+        return Ok(());
+    };
+    let word = ValueShape::integer(8, 8);
+    validate_call_plan(
+        plan,
+        &CallSignature {
+            parameters: vec![word; 3],
+            result: Some(word),
+        },
+    )
+    .map_err(|error| {
+        Diagnostic::error(format!(
+            "source-selected runtime import plan does not match the native read/write signature: {error}"
+        ))
+    })?;
+    if plan.policy != CallingPolicy::Aapcs64 {
+        return Err(Diagnostic::error(format!(
+            "AArch64 runtime import encoder requires AAPCS64, got {:?}",
+            plan.policy
+        )));
+    }
+    for (index, placement) in plan.parameters.iter().enumerate() {
+        let expected = MachineRegister::Aarch64X(index as u8);
+        if !matches!(
+            placement.locations.as_slice(),
+            [ValueLocation::Register {
+                register,
+                value_byte_offset: 0,
+                byte_size: 8,
+            }] if *register == expected
+        ) {
+            return Err(Diagnostic::error(format!(
+                "AArch64 runtime import parameter {index} requires {expected:?}, got {:?}",
+                placement.locations
+            )));
+        }
+    }
+    if !matches!(
+        plan.result
+            .as_ref()
+            .map(|result| result.locations.as_slice()),
+        Some([ValueLocation::Register {
+            register: MachineRegister::Aarch64X(0),
+            value_byte_offset: 0,
+            byte_size: 8,
+        }])
+    ) {
+        return Err(Diagnostic::error(
+            "AArch64 runtime import result requires the canonical x0 placement",
+        ));
+    }
+    Ok(())
+}
 
 pub fn encode_runtime_text_literal_compare(
     architecture: Architecture,
@@ -320,6 +381,7 @@ pub fn encode_runtime_byte_read_with_plan(
     match architecture {
         Architecture::Aarch64 => match binding {
             HostBindingMechanism::Import { .. } => {
+                validate_aarch64_runtime_import_plan(authoritative_plan)?;
                 aarch64::encode_runtime_byte_read_import(target_offset, payload_offset)
             }
             HostBindingMechanism::Syscall { number, .. } => {
@@ -394,6 +456,7 @@ pub fn encode_runtime_byte_write_with_plan(
     match architecture {
         Architecture::Aarch64 => match binding {
             HostBindingMechanism::Import { .. } => {
+                validate_aarch64_runtime_import_plan(authoritative_plan)?;
                 aarch64::encode_runtime_byte_write_import(source_offset)
             }
             HostBindingMechanism::Syscall { number, .. } => {
@@ -474,23 +537,26 @@ pub fn encode_runtime_text_line_read_with_plan(
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => match binding {
-            HostBindingMechanism::Import { .. } => match target {
-                RuntimeTextReadTarget::BoundedByteBuffer => {
-                    aarch64::encode_runtime_text_line_read_carrier_import(
-                        target_offset,
-                        byte_capacity,
-                    )
+            HostBindingMechanism::Import { .. } => {
+                validate_aarch64_runtime_import_plan(authoritative_plan)?;
+                match target {
+                    RuntimeTextReadTarget::BoundedByteBuffer => {
+                        aarch64::encode_runtime_text_line_read_carrier_import(
+                            target_offset,
+                            byte_capacity,
+                        )
+                    }
+                    RuntimeTextReadTarget::FixedByteArray => {
+                        aarch64::encode_runtime_text_line_read_fixed_array_import(
+                            target_offset,
+                            byte_capacity,
+                        )
+                    }
+                    RuntimeTextReadTarget::StringDescriptor => {
+                        aarch64::encode_runtime_text_line_read_import(target_offset, byte_capacity)
+                    }
                 }
-                RuntimeTextReadTarget::FixedByteArray => {
-                    aarch64::encode_runtime_text_line_read_fixed_array_import(
-                        target_offset,
-                        byte_capacity,
-                    )
-                }
-                RuntimeTextReadTarget::StringDescriptor => {
-                    aarch64::encode_runtime_text_line_read_import(target_offset, byte_capacity)
-                }
-            },
+            }
             HostBindingMechanism::Syscall { number, .. } => {
                 let registers = normalized_syscall_registers_with_plan(
                     architecture,
@@ -625,6 +691,13 @@ mod plan_differential_tests {
         }
     }
 
+    fn import_binding() -> HostBindingMechanism {
+        HostBindingMechanism::Import {
+            library: Arc::from("libSystem.B.dylib"),
+            symbol: Arc::from("_read"),
+        }
+    }
+
     fn plan(architecture: Architecture) -> CallPlan {
         let policy = match architecture {
             Architecture::Aarch64 => CallingPolicy::LinuxSyscallAarch64,
@@ -711,5 +784,83 @@ mod plan_differential_tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn aarch64_runtime_text_imports_validate_the_retained_native_plan() {
+        let binding = import_binding();
+        let plan = evaluate_call_plan(
+            CallingPolicy::Aapcs64,
+            &CallSignature {
+                parameters: vec![ValueShape::integer(8, 8); 3],
+                result: Some(ValueShape::integer(8, 8)),
+            },
+        )
+        .expect("AAPCS64 read/write plan");
+
+        assert_eq!(
+            encode_runtime_byte_read(Architecture::Aarch64, 16, 24, &binding)
+                .expect("compatibility import byte read"),
+            encode_runtime_byte_read_with_plan(
+                Architecture::Aarch64,
+                16,
+                24,
+                &binding,
+                Some(&plan),
+            )
+            .expect("planned import byte read")
+        );
+        assert_eq!(
+            encode_runtime_byte_write(Architecture::Aarch64, 32, &binding)
+                .expect("compatibility import byte write"),
+            encode_runtime_byte_write_with_plan(Architecture::Aarch64, 32, &binding, Some(&plan),)
+                .expect("planned import byte write")
+        );
+        for target in [
+            RuntimeTextReadTarget::BoundedByteBuffer,
+            RuntimeTextReadTarget::FixedByteArray,
+            RuntimeTextReadTarget::StringDescriptor,
+        ] {
+            assert_eq!(
+                encode_runtime_text_line_read(Architecture::Aarch64, 40, 64, &binding, target)
+                    .expect("compatibility import line read"),
+                encode_runtime_text_line_read_with_plan(
+                    Architecture::Aarch64,
+                    40,
+                    64,
+                    &binding,
+                    target,
+                    Some(&plan),
+                )
+                .expect("planned import line read")
+            );
+        }
+
+        let mut incompatible = plan;
+        incompatible.parameters[1].locations = vec![ValueLocation::Register {
+            register: MachineRegister::Aarch64X(3),
+            value_byte_offset: 0,
+            byte_size: 8,
+        }];
+        let error = encode_runtime_byte_read_with_plan(
+            Architecture::Aarch64,
+            16,
+            24,
+            &binding,
+            Some(&incompatible),
+        )
+        .expect_err("hardcoded import placement must reject a changed retained plan");
+        assert!(error.message.contains("requires Aarch64X(1)"));
+        assert_eq!(
+            crate::runtime_byte_read_width_with_plan(
+                Architecture::Aarch64,
+                &binding,
+                16,
+                24,
+                Some(&incompatible),
+            ),
+            0,
+            "layout must fail closed with emission"
+        );
     }
 }
