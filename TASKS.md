@@ -1664,7 +1664,8 @@ ordinary code never receives a raw executable address.
 
 ## Owner-blocked index
 
-There is currently no owner-blocked implementation work.
+- **ENTRY-CONTENT-ROOTS:** blocked on `OWNER_QUESTIONS.md` Q1's stable semantic
+  owner/identity for image and initial-storage handoff roots.
 
 ## Vertical acceptance slices
 
