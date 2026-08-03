@@ -280,6 +280,57 @@ fn source_wrapping_add_matches_emitted_host_machine_code() {
     assert_eq!(run_host_machine_code(entry.bytes(&object_artifact)), 44);
 }
 
+#[cfg(unix)]
+#[test]
+fn checked_source_ninth_parameter_reaches_the_host_stack_abi() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("terminal-Psi runtime-parameter source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_ninth_parameter")
+        .expect("nine-parameter source machine should lower to terminal Psi");
+    drop(checked);
+
+    let verified = verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("source-produced nine-parameter terminal Psi should verify");
+    let fixed_fuel = derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry)
+        .expect("direct parameter return should have fixed fuel");
+    assert_eq!(fixed_fuel.ceiling_units(), 1);
+    let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let arguments = [1_u128, 2, 3, 4, 5, 6, 7, 8, 77]
+        .into_iter()
+        .map(|value| TerminalScalarValue::Integer {
+            scalar_type: u8_type,
+            value: IntegerValue::Unsigned(value),
+        })
+        .collect::<Vec<_>>();
+    let measured = interpret_terminal_measured(&verified, &arguments)
+        .expect("source-produced ninth parameter should execute");
+    assert_eq!(measured.usage().total_units(), 1);
+    assert_eq!(measured.value(), arguments[8]);
+
+    let abstract_operations = lower_verified_module(&verified)
+        .expect("verified source parameters should lower without frontend state");
+    let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
+        .expect("source parameters should select host ABI locations");
+    let machine_code =
+        emit_machine_code(&target_operations).expect("source parameter return should emit");
+    let object_artifact = build_terminal_object_artifact(&machine_code)
+        .expect("source parameter return should form an object artifact");
+    let entry = object_artifact.entry_function();
+    assert!(entry.provenance.operations.is_empty());
+    assert_eq!(
+        entry.provenance.edges,
+        [EdgeId::new(1).expect("return edge")]
+    );
+    assert_eq!(
+        run_host_machine_code_with_nine_u8(entry.bytes(&object_artifact)),
+        77
+    );
+}
+
 #[test]
 fn psi_terminal_producer_rejects_source_outside_its_declared_slice() {
     let checked = compile_to_checked(&source_canary(), None)
@@ -739,6 +790,57 @@ fn run_host_machine_code(bytes: &[u8]) -> i32 {
         .expect("execute terminal native canary")
         .code()
         .expect("terminal native canary exited normally")
+}
+
+#[cfg(unix)]
+fn run_host_machine_code_with_nine_u8(bytes: &[u8]) -> i32 {
+    let nonce = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .expect("wall clock after epoch")
+        .as_nanos();
+    let directory = std::env::temp_dir().join(format!(
+        "omega-terminal-nine-parameter-{}-{nonce}",
+        std::process::id()
+    ));
+    std::fs::create_dir(&directory).expect("create terminal parameter test directory");
+    let _cleanup = ScratchDirectory(directory.clone());
+    let assembly_path = directory.join("entry.s");
+    let driver_path = directory.join("driver.c");
+    let executable_path = directory.join("entry");
+    let bytes = bytes
+        .iter()
+        .map(|byte| format!("0x{byte:02x}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let assembly = if cfg!(target_os = "macos") {
+        format!(".text\n.globl _terminal_entry\n.p2align 2\n_terminal_entry:\n.byte {bytes}\n")
+    } else {
+        format!(
+            ".text\n.globl terminal_entry\n.type terminal_entry,@function\nterminal_entry:\n.byte {bytes}\n.size terminal_entry, .-terminal_entry\n.section .note.GNU-stack,\"\",@progbits\n"
+        )
+    };
+    let driver = "#include <stdint.h>\n\
+extern uint8_t terminal_entry(uint8_t, uint8_t, uint8_t, uint8_t, uint8_t, uint8_t, uint8_t, uint8_t, uint8_t);\n\
+int main(void) { return terminal_entry(1, 2, 3, 4, 5, 6, 7, 8, 77); }\n";
+    std::fs::write(&assembly_path, assembly).expect("write parameter assembly harness");
+    std::fs::write(&driver_path, driver).expect("write parameter C harness");
+    let link = Command::new("cc")
+        .arg(&assembly_path)
+        .arg(&driver_path)
+        .arg("-o")
+        .arg(&executable_path)
+        .output()
+        .expect("invoke host C linker driver");
+    assert!(
+        link.status.success(),
+        "host linker rejected parameter terminal machine code:\n{}",
+        String::from_utf8_lossy(&link.stderr)
+    );
+    Command::new(&executable_path)
+        .status()
+        .expect("execute terminal parameter canary")
+        .code()
+        .expect("terminal parameter canary exited normally")
 }
 
 #[cfg(unix)]

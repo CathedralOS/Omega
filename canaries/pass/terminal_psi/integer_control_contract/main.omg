@@ -57,5 +57,22 @@ ensures 255u8 == 255u8
     state calculate(value: u8 in Saturating) -> u8 in Saturating { value * 13u8 }
 }
 
+machine terminal_ninth_parameter(
+    first: u8,
+    second: u8,
+    third: u8,
+    fourth: u8,
+    fifth: u8,
+    sixth: u8,
+    seventh: u8,
+    eighth: u8,
+    ninth: u8
+) -> u8
+requires 77u8 == 77u8
+ensures 77u8 == 77u8
+{
+    ninth
+}
+
 data Main {}
 machine Main::main(&mut self) {}

@@ -748,8 +748,13 @@ pub fn lower_machine(
     }
 
     let states = checked.machine_states(machine);
+    if let [entry_state] = states {
+        return lower_direct_parameter_machine(checked, machine, entry_state);
+    }
     let [entry_state, return_state] = states else {
-        return unsupported("machine must contain exactly an entry state and one return state");
+        return unsupported(
+            "machine must contain one direct-parameter state or an entry state and one return state",
+        );
     };
     if !checked.state_parameters(entry_state).is_empty() {
         return unsupported("entry-state parameters are not supported");
@@ -835,16 +840,115 @@ pub fn lower_machine(
         LoweredReturnExpression::IntegerBinary { result, .. } => result,
     };
 
-    validate_contract(checked, machine, return_type, executed_value)?;
+    let contract_value = validate_contract(checked, machine, return_type, Some(executed_value))?;
+    let (identity_reshuffles, partition_compositions) =
+        lower_content_evidence(checked, machine, entry_state)?;
+    Ok(build_module(
+        return_type,
+        value,
+        lowered_return,
+        contract_value,
+        identity_reshuffles,
+        partition_compositions,
+    ))
+}
+
+fn lower_direct_parameter_machine(
+    checked: &CheckedTrees,
+    machine: &psi_checked_trees::machine::Machine,
+    entry_state: &psi_checked_trees::state::State,
+) -> Result<LoweredTerminalPsi, LoweringError> {
+    if !checked.state_contracts(entry_state).is_empty() {
+        return unsupported("state contracts are not supported");
+    }
+    let parameters = checked.state_parameters(entry_state);
+    if parameters.is_empty() {
+        return unsupported("direct-parameter machine must declare at least one parameter");
+    }
+    if parameters
+        .iter()
+        .any(|parameter| parameter.is_self || parameter.is_const || parameter.is_mutable)
+    {
+        return unsupported("qualified direct-machine parameters are not supported");
+    }
+    let parameter_types = parameters
+        .iter()
+        .map(|parameter| {
+            integer_scalar_type(
+                checked
+                    .primitive_type_reference(parameter.type_reference)
+                    .ok_or(LoweringError::Unsupported(
+                        "direct-machine parameters must be primitive integers",
+                    ))?,
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let result_type = integer_scalar_type(
+        checked
+            .primitive_type_reference(entry_state.return_type)
+            .ok_or(LoweringError::Unsupported(
+                "machine result must be a primitive integer",
+            ))?,
+    )?;
+    let statements = checked
+        .statement_table
+        .statements(entry_state.statement_nodes);
+    let [StatementNode::Expression(return_expression)] = statements else {
+        return unsupported("direct-parameter machine must contain exactly one value expression");
+    };
+    let ExpressionNode::Name(path) = checked.expression_table.expression(*return_expression) else {
+        return unsupported("direct-parameter machine must return one declared parameter");
+    };
+    if checked
+        .expression_table
+        .name_path_members(path.members)
+        .len()
+        != 1
+    {
+        return unsupported("direct-parameter machine must return one declared parameter");
+    }
+    let returned_position = parameters
+        .iter()
+        .position(|parameter| {
+            parameter.symbol == path.symbol || parameter.symbol == path.head_symbol
+        })
+        .ok_or(LoweringError::Unsupported(
+            "direct-parameter machine must return one declared parameter",
+        ))?;
+    if parameter_types[returned_position] != result_type {
+        return unsupported("returned parameter and machine result types must match exactly");
+    }
+    let contract_value = validate_contract(checked, machine, result_type, None)?;
+    let (identity_reshuffles, partition_compositions) =
+        lower_content_evidence(checked, machine, entry_state)?;
+    Ok(build_direct_parameter_module(
+        &parameter_types,
+        returned_position,
+        result_type,
+        contract_value,
+        identity_reshuffles,
+        partition_compositions,
+    ))
+}
+
+fn lower_content_evidence(
+    checked: &CheckedTrees,
+    machine: &psi_checked_trees::machine::Machine,
+    state: &psi_checked_trees::state::State,
+) -> Result<
+    (
+        LoweredContentIdentityReshuffles,
+        LoweredContentPartitionCompositions,
+    ),
+    LoweringError,
+> {
     let identity_facts = checked
         .facts
         .qualifications
         .content
         .identity_reshuffles
         .iter()
-        .filter(|fact| {
-            fact.machine_symbol == machine.symbol && fact.state_symbol == entry_state.symbol
-        })
+        .filter(|fact| fact.machine_symbol == machine.symbol && fact.state_symbol == state.symbol)
         .cloned()
         .collect::<Vec<_>>();
     let identity_reshuffles = lower_content_identity_reshuffles(&identity_facts)?;
@@ -854,20 +958,12 @@ pub fn lower_machine(
         .content
         .partition_compositions
         .iter()
-        .filter(|fact| {
-            fact.machine_symbol == machine.symbol && fact.state_symbol == entry_state.symbol
-        })
+        .filter(|fact| fact.machine_symbol == machine.symbol && fact.state_symbol == state.symbol)
         .cloned()
         .collect::<Vec<_>>();
     let partition_compositions =
         lower_content_partition_compositions(&partition_facts, &identity_reshuffles)?;
-    Ok(build_module(
-        return_type,
-        value,
-        lowered_return,
-        identity_reshuffles,
-        partition_compositions,
-    ))
+    Ok((identity_reshuffles, partition_compositions))
 }
 
 fn lower_return_expression(
@@ -988,12 +1084,13 @@ fn validate_contract(
     checked: &CheckedTrees,
     machine: &psi_checked_trees::machine::Machine,
     result_type: ScalarType,
-    expected_value: IntegerValue,
-) -> Result<(), LoweringError> {
+    expected_value: Option<IntegerValue>,
+) -> Result<IntegerValue, LoweringError> {
     let contracts = checked.machine_contracts(machine);
     if contracts.len() != 2 {
         return unsupported("machine must have exactly one requires and one ensures clause");
     };
+    let mut shared_value = None;
     for kind in [
         SignatureContractKind::Requires,
         SignatureContractKind::Ensures,
@@ -1025,13 +1122,22 @@ fn validate_contract(
                 );
             }
         };
-        if integer_value(left_literal, result_type)? != expected_value
-            || integer_value(right_literal, result_type)? != expected_value
-        {
+        let left = integer_value(left_literal, result_type)?;
+        let right = integer_value(right_literal, result_type)?;
+        if left != right {
+            return unsupported("contract equality must be reflexive");
+        }
+        if expected_value.is_some_and(|expected| left != expected) {
             return unsupported("contract literals must equal the executed literal");
         }
+        if shared_value.is_some_and(|previous| previous != left) {
+            return unsupported("requires and ensures must carry the same closed equality");
+        }
+        shared_value = Some(left);
     }
-    Ok(())
+    shared_value.ok_or(LoweringError::Unsupported(
+        "machine must have exactly one requires and one ensures clause",
+    ))
 }
 
 fn integer_scalar_type(primitive: PrimitiveType) -> Result<ScalarType, LoweringError> {
@@ -1088,10 +1194,101 @@ fn integer_value(
     Ok(value)
 }
 
+fn build_direct_parameter_module(
+    parameter_types: &[ScalarType],
+    returned_position: usize,
+    result_type: ScalarType,
+    contract_value: IntegerValue,
+    identity_reshuffles: LoweredContentIdentityReshuffles,
+    partition_compositions: LoweredContentPartitionCompositions,
+) -> LoweredTerminalPsi {
+    let terminal_parameters = parameter_types
+        .iter()
+        .enumerate()
+        .map(|(index, scalar_type)| ValueDeclaration {
+            id: value_id(
+                u64::try_from(index)
+                    .expect("parameter index fits a semantic identity")
+                    .checked_add(1)
+                    .expect("parameter identity is nonzero"),
+            ),
+            scalar_type: *scalar_type,
+        })
+        .collect::<Vec<_>>();
+    let returned = terminal_parameters[returned_position].id;
+    let result_id = value_id(
+        u64::try_from(parameter_types.len())
+            .expect("parameter count fits a semantic identity")
+            .checked_add(1)
+            .expect("result identity follows the parameter identities"),
+    );
+    let ScalarType::Integer(integer_type) = result_type else {
+        unreachable!("source slice accepts only integer results");
+    };
+    let literal = ScalarTerm::integer(integer_type, contract_value)
+        .expect("validated source contract value fits its terminal integer type");
+    let goal = Proposition::Equal(literal.clone(), literal);
+    let obligation = obligation_id(1);
+    let mut structural_places = identity_reshuffles
+        .structural_places
+        .into_iter()
+        .map(|place| (place.id, place.kind))
+        .collect::<BTreeMap<_, _>>();
+    for place in partition_compositions.structural_places {
+        merge_content_place_declaration(&mut structural_places, place)
+            .expect("checked lowering rejects conflicting structural places");
+    }
+    LoweredTerminalPsi {
+        semantic_module: TerminalModule {
+            semantic_version: SemanticVersion::CURRENT,
+            entry: machine_id(1),
+            machines: vec![TerminalMachine {
+                id: machine_id(1),
+                parameters: terminal_parameters,
+                result: ValueDeclaration {
+                    id: result_id,
+                    scalar_type: result_type,
+                },
+                structural_places: structural_places
+                    .into_iter()
+                    .map(|(id, kind)| StructuralPlaceDeclaration { id, kind })
+                    .collect(),
+                content_identity_reshuffles: identity_reshuffles.reshuffles,
+                content_partition_compositions: partition_compositions.compositions,
+                entry: block_id(1),
+                blocks: vec![Block {
+                    id: block_id(1),
+                    parameters: Vec::new(),
+                    operations: Vec::new(),
+                    terminator: Terminator::Return {
+                        edge: edge_id(1),
+                        value: returned,
+                    },
+                }],
+                contract: MachineContract {
+                    id: contract_id(1),
+                    requires: vec![goal.clone()],
+                    ensures: vec![ContractClause {
+                        obligation,
+                        proposition: goal,
+                    }],
+                },
+            }],
+        },
+        proof_bundle: ProofBundle {
+            evidence: vec![ObligationEvidence {
+                obligation,
+                route: EvidenceRoute::KernelDerived(PrimitiveJudgment::ClosedIntegerRelation),
+            }],
+        },
+    }
+}
+
 fn build_module(
     result_type: ScalarType,
     value: IntegerValue,
     return_expression: LoweredReturnExpression,
+    contract_value: IntegerValue,
     identity_reshuffles: LoweredContentIdentityReshuffles,
     partition_compositions: LoweredContentPartitionCompositions,
 ) -> LoweredTerminalPsi {
@@ -1100,7 +1297,7 @@ fn build_module(
     let ScalarType::Integer(integer_type) = result_type else {
         unreachable!("source slice accepts only integer results");
     };
-    let (result_id, return_operations, return_value, executed_value) = match return_expression {
+    let (result_id, return_operations, return_value) = match return_expression {
         LoweredReturnExpression::Literal => {
             let return_constant_id = value_id(3);
             (
@@ -1114,13 +1311,12 @@ fn build_module(
                     kind: OperationKind::IntegerConstant { value },
                 }],
                 return_constant_id,
-                value,
             )
         }
         LoweredReturnExpression::IntegerBinary {
             kind,
             right,
-            result,
+            result: _,
         } => {
             let right_id = value_id(3);
             let binary_result_id = value_id(4);
@@ -1145,12 +1341,11 @@ fn build_module(
                     },
                 ],
                 binary_result_id,
-                result,
             )
         }
     };
-    let literal = ScalarTerm::integer(integer_type, executed_value)
-        .expect("validated source result fits its terminal integer type");
+    let literal = ScalarTerm::integer(integer_type, contract_value)
+        .expect("validated source contract value fits its terminal integer type");
     let goal = Proposition::Equal(literal.clone(), literal);
 
     let obligation = obligation_id(1);
