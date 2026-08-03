@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 use std::ops::Range;
 
-use crate::arena::{Handle, HandleSpan};
+use crate::{Handle, HandleSpan};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Arena<T> {
@@ -584,7 +584,7 @@ fn next_generation(generation: u32) -> u32 {
 
 #[cfg(test)]
 mod tests {
-    use crate::arena::{Arena, Handle};
+    use crate::{Arena, Handle};
 
     #[test]
     fn resolves_zero_to_dummy_slot() {
@@ -644,7 +644,7 @@ mod tests {
     #[test]
     fn appends_directly_to_contiguous_handle_spans() {
         let mut arena = Arena::new();
-        let mut span = crate::arena::HandleSpan::empty();
+        let mut span = crate::HandleSpan::empty();
 
         let alpha = arena.append_to_span(&mut span, "alpha".to_owned());
         let beta = arena.append_to_span(&mut span, "beta".to_owned());
@@ -663,7 +663,7 @@ mod tests {
     #[should_panic(expected = "arena span append must be contiguous")]
     fn panics_when_extending_stale_contiguous_spans() {
         let mut arena = Arena::new();
-        let mut span = crate::arena::HandleSpan::empty();
+        let mut span = crate::HandleSpan::empty();
         arena.append_to_span(&mut span, "alpha".to_owned());
         arena.append("gap".to_owned());
 

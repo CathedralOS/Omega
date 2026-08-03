@@ -10,4 +10,5 @@ path = "src/lib.rs"
 
 [dependencies]
 arc-swap = "1.7"
+psi-arena = { path = "../../../psi-rs/foundation/psi-arena" }
 psi-source = { path = "../../../psi-rs/foundation/psi-source" }

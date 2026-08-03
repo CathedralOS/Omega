@@ -13,6 +13,8 @@ the old Omega pipeline.
 
 Current roots:
 
+- `foundation/psi-arena`: typed arena handles and contiguous handle spans used
+  by Psi-owned source representations;
 - `foundation/psi-source`: loaded-source records and maps, source identities,
   coordinates, and source-backed text shared by the Psi frontend and temporary
   Omega compatibility exports;
