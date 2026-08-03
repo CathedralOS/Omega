@@ -481,6 +481,7 @@ dependencies = [
  "omega-target",
  "psi-extents",
  "psi-layout-plans",
+ "psi-terminal-fuel",
 ]
 
 [[package]]

@@ -17,6 +17,7 @@ use omega_calling_conventions::{
 pub use omega_executable_installation::{ArtifactId, InstalledCodeId};
 use omega_executable_installation::{InstalledCode, InstalledCodeContext};
 use psi_layout_plans::EntryStubId;
+pub use psi_terminal_fuel::FuelScheduleIdentity;
 
 macro_rules! normalized_id {
     ($name:ident, $label:literal) => {
@@ -83,27 +84,6 @@ normalized_id!(
     InterruptAcknowledgementReceiptId,
     "interrupt acknowledgement receipt"
 );
-
-/// Identity of the deterministic logical-cost schedule used to denominate a
-/// fuel summary or provision. Schedule versioning is independent from portable
-/// IR semantics: changing this value changes accounting, not program meaning.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct FuelScheduleIdentity(u32);
-
-impl FuelScheduleIdentity {
-    pub fn from_schedule_version(version: u32) -> Result<Self, ExternalRootDiagnostic> {
-        if version == 0 {
-            return Err(ExternalRootDiagnostic(
-                "logical-fuel schedule version cannot be zero".into(),
-            ));
-        }
-        Ok(Self(version))
-    }
-
-    pub const fn schedule_version(self) -> u32 {
-        self.0
-    }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ComponentVersionPin {
@@ -2752,7 +2732,7 @@ mod tests {
     }
 
     fn fuel_schedule() -> FuelScheduleIdentity {
-        FuelScheduleIdentity::from_schedule_version(1).expect("canonical test fuel schedule")
+        FuelScheduleIdentity::new(1).expect("canonical test fuel schedule")
     }
 
     fn install_id<T>(
@@ -4190,7 +4170,7 @@ mod tests {
 
         let mut wrong_fuel_schedule = candidate(entry_id(1001));
         wrong_fuel_schedule.logical_fuel.schedule =
-            FuelScheduleIdentity::from_schedule_version(2).expect("different fuel schedule");
+            FuelScheduleIdentity::new(2).expect("different fuel schedule");
         let error = validate_external_root(wrong_fuel_schedule, &boundary())
             .expect_err("fuel provision cannot reinterpret another schedule's units");
         assert!(error.0.contains("different schedule versions"));
@@ -4410,9 +4390,7 @@ mod tests {
 
     #[test]
     fn fixed_fuel_composition_is_transitive_canonical_and_fails_closed() {
-        let error = FuelScheduleIdentity::from_schedule_version(0)
-            .expect_err("zero cannot identify a fuel schedule");
-        assert!(error.0.contains("cannot be zero"));
+        assert_eq!(FuelScheduleIdentity::new(0), None);
 
         let leaf_identity = root_id(61, ProviderFuelSummaryId::from_normalized_identity);
         let root_identity = root_id(60, ProviderFuelSummaryId::from_normalized_identity);
@@ -4454,8 +4432,7 @@ mod tests {
         assert!(error.0.contains("missing"));
 
         let mismatched_leaf = FixedFuelProviderSummary {
-            schedule: FuelScheduleIdentity::from_schedule_version(2)
-                .expect("different fuel schedule"),
+            schedule: FuelScheduleIdentity::new(2).expect("different fuel schedule"),
             ..leaf.clone()
         };
         let error = compose_fixed_fuel(root_identity, [&root, &mismatched_leaf])

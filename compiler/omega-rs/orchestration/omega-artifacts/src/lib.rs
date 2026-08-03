@@ -2057,7 +2057,7 @@ mod tests {
     }
 
     fn fuel_schedule() -> FuelScheduleIdentity {
-        FuelScheduleIdentity::from_schedule_version(1).expect("canonical test fuel schedule")
+        FuelScheduleIdentity::new(1).expect("canonical test fuel schedule")
     }
 
     fn install_id<T>(

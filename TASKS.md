@@ -1217,6 +1217,9 @@ improvements do not change public identity.
   return. Semantic safe-point selection, build-time migration, branch/loop
   certificates, response outcomes, provider-summary migration, and trusted
   native metering remain.
+  External-root provider summaries and provisions now use the Psi-owned fuel
+  schedule identity directly; their unit claims still need replacement by the
+  entry/segment certificates rather than a parallel Omega denomination.
 - **FFIVAL:** validate the settled boundary model before adding any new
   construct. The returned-custody-from-borrow rejection canary now lands
   through content-algebra facts. The provider-independent executor-selection
