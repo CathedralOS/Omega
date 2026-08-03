@@ -219,12 +219,13 @@ pub(super) fn encode_runtime_text_line_read(
             operation_key.operation_name()
         )));
     };
-    architecture::encode_runtime_text_line_read(
+    architecture::encode_runtime_text_line_read_with_plan(
         input.target.architecture,
         target_offset,
         byte_capacity,
         &binding.mechanism,
         target,
+        binding.call_plan(),
     )
 }
 
@@ -245,11 +246,12 @@ pub(super) fn encode_runtime_byte_read(
             operation_key.operation_name()
         )));
     };
-    architecture::encode_runtime_byte_read(
+    architecture::encode_runtime_byte_read_with_plan(
         input.target.architecture,
         target_offset,
         payload_offset,
         &binding.mechanism,
+        binding.call_plan(),
     )
 }
 
@@ -269,9 +271,10 @@ pub(super) fn encode_runtime_byte_write(
             operation_key.operation_name()
         )));
     };
-    architecture::encode_runtime_byte_write(
+    architecture::encode_runtime_byte_write_with_plan(
         input.target.architecture,
         source_offset,
         &binding.mechanism,
+        binding.call_plan(),
     )
 }
