@@ -41,6 +41,8 @@ pub enum StructuralPlaceKind {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ContentPlaceSegment {
+    /// Stable sum-case spelling within the statically typed parent path.
+    Case(String),
     /// Stable field spelling within the statically typed parent path.
     Field(String),
     FixedIndex(u64),
@@ -148,6 +150,11 @@ fn validate_term(term: &ContentTerm, depth: usize) -> Result<(), PropositionErro
         } => {
             if projection.projection_fingerprint == 0 {
                 return Err(PropositionError::ZeroContentProjectionFingerprint);
+            }
+            if subject.segments.iter().any(
+                |segment| matches!(segment, ContentPlaceSegment::Case(name) if name.is_empty()),
+            ) {
+                return Err(PropositionError::EmptyContentCaseName);
             }
             if subject.segments.iter().any(
                 |segment| matches!(segment, ContentPlaceSegment::Field(name) if name.is_empty()),

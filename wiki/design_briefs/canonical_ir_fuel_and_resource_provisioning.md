@@ -24,9 +24,12 @@ carries stable machine/block/value/operation/edge identities, representable
 integer constants, v2 Boolean constants, v3 exact-width wrapping integer
 addition, v4 exact-width saturating integer addition, v5 exact-width
 wrapping integer subtraction, v6 exact-width saturating integer subtraction,
-v7 exact-width wrapping integer multiplication, and current-v8 exact-width
-saturating integer multiplication, unconditional
-jump/return control, and bodyful contracts. The
+v7 exact-width wrapping integer multiplication, and v8 exact-width saturating
+integer multiplication, unconditional jump/return control, and bodyful
+contracts. Semantic v9 adds proof-only structural places and content
+conservation, v10 adds identity-preserving claim reshuffles, and current v11
+adds stable sum-case content-path segments without adding executable
+operations. The
 verifier reconstructs operation, edge-binding, and return-binding axioms from
 the executable path, rejects unreachable fact sources and out-of-scope contract
 values, and requires evidence for every `ensures`; the proof kernel checks
@@ -71,7 +74,7 @@ spill frame.
 Semantic v5 and proof format v4 add recursive wrapping-subtract vocabulary;
 semantic v6 and proof format v5 add recursive saturating-subtract vocabulary;
 semantic v7 and proof format v6 add recursive wrapping-multiply vocabulary;
-current semantic v8 and proof format v7 add recursive saturating-multiply
+semantic v8 and proof format v7 add recursive saturating-multiply
 vocabulary without changing fuel schedule v1. Parameter-fed canaries
 round-trip, verify, cost two units, and agree with native execution: wrapping
 `u8` computes 5-10 = 251, while signed `i64` saturating subtraction reaches
@@ -85,8 +88,9 @@ discarding producer state. Proof format v1 retains its frozen original bytes,
 minimal format v2 adds recursive wrapping-add terms, minimal format v3 adds
 recursive saturating-add terms, minimal format v4 adds recursive wrapping-subtract
 terms, minimal format v5 adds recursive saturating-subtract terms, and minimal
-format v6 adds recursive wrapping-multiply terms, while minimal format v7 adds
-recursive saturating-multiply terms. The proof section has its own
+format v6 adds recursive wrapping-multiply terms, minimal format v7 adds
+recursive saturating-multiply terms, minimal format v8 adds content-conservation
+terms, and minimal format v9 adds sum-case structural paths. The proof section has its own
 golden fingerprint, and a role-separated manifest binds semantic, proof,
 installation, and debug sections without folding replaceable evidence into
 program identity. The clean terminal lane owns a semantic-identity-bound object
@@ -104,9 +108,10 @@ debug/source maps remain. General register assignment remains on the legacy
 backend.
 
 Semantic v1 integer, v2 Boolean, v3 wrapping-add, v4 saturating-add, v5
-wrapping-subtract, v6 saturating-subtract, and v7 wrapping-multiply modules
-retain their frozen bytes and execution semantics; explicit migration produces
-a new current-v8 fingerprint. The v3 wrapping slice round-trips, verifies,
+wrapping-subtract, v6 saturating-subtract, v7 wrapping-multiply, v8
+saturating-multiply, v9 content, and v10 reshuffle modules retain their frozen
+bytes and execution semantics; explicit migration produces a new current-v11
+fingerprint. The v3 wrapping slice round-trips, verifies,
 meters, lowers, emits,
 and executes `u8` 200+100 as 44. The v4 saturating slice traverses the
 same path and clamps that sum to 255. The checkpoint still has no branching.

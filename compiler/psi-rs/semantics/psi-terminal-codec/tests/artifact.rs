@@ -1,9 +1,9 @@
 use psi_core::{
     AdmissionSiteId, BlockId, ContentAlgebra, ContentAlgebraKind, ContentConservation,
-    ContentDomainId, ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace,
-    ContentTerm, ContractId, EdgeId, EvidenceIdentity, IntegerSign, IntegerType, IntegerValue,
-    MachineId, ObligationId, OperationId, PlaceId, ProfileDecisionId, Proposition,
-    PropositionContext, ScalarTerm, ScalarType, StructuralPlaceKind, ValueId,
+    ContentDomainId, ContentPlaceSegment, ContentPlaceVersion, ContentProjectionIdentity,
+    ContentStructuralPlace, ContentTerm, ContractId, EdgeId, EvidenceIdentity, IntegerSign,
+    IntegerType, IntegerValue, MachineId, ObligationId, OperationId, PlaceId, ProfileDecisionId,
+    Proposition, PropositionContext, ScalarTerm, ScalarType, StructuralPlaceKind, ValueId,
 };
 use psi_proof_kernel::{
     AdmissionEvidence, AdmissionKind, AdmissionProfile, CertificateEnvelope, EvidenceRoute,
@@ -54,10 +54,10 @@ fn proof_bundle_has_stable_canonical_bytes_and_an_independent_identity() {
         Err(ProofCodecError::TrailingBytes(1))
     );
     let mut future = bytes;
-    future[8..10].copy_from_slice(&9_u16.to_le_bytes());
+    future[8..10].copy_from_slice(&10_u16.to_le_bytes());
     assert_eq!(
         decode_proof_bundle(&future),
-        Err(ProofCodecError::UnsupportedFormatVersion(9))
+        Err(ProofCodecError::UnsupportedFormatVersion(10))
     );
 }
 
@@ -343,6 +343,63 @@ fn proof_format_v6_canonically_encodes_closed_wrapping_multiplication() {
         proof_bundle_fingerprint(&bundle).unwrap().to_string(),
         "ca94daffef56eebbb5ecb44f90e619f7cc85fa62c4a5af0b413f1b60ddf3426a"
     );
+}
+
+#[test]
+fn proof_format_v9_canonically_encodes_sum_case_content_certificates() {
+    let root = PlaceId::new(90).expect("place");
+    let term = ContentTerm::Projection {
+        projection: ContentProjectionIdentity {
+            domain: ContentDomainId::new(91).expect("domain"),
+            projection_fingerprint: 0x9293,
+        },
+        subject: ContentStructuralPlace {
+            version: ContentPlaceVersion::Entry,
+            root,
+            segments: vec![
+                ContentPlaceSegment::Case("Present".to_owned()),
+                ContentPlaceSegment::Field("payload".to_owned()),
+            ],
+        },
+    };
+    let goal = Proposition::ContentConservation(ContentConservation::new(
+        ContentAlgebra {
+            kind: ContentAlgebraKind::CountedQuantity,
+            parameter: "Byte".to_owned(),
+        },
+        term.clone(),
+        term,
+    ));
+    let proof = ProofNode {
+        conclusion: goal,
+        rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
+    };
+    let bundle = ProofBundle {
+        evidence: vec![ObligationEvidence {
+            obligation: obligation_id(90),
+            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                identity: evidence_id(90),
+                proof_system_version: ProofSystemVersion::CURRENT,
+                proof,
+            }),
+        }],
+    };
+
+    let bytes = encode_proof_bundle(&bundle).expect("proof v9 bytes");
+    assert_eq!(&bytes[8..10], &9_u16.to_le_bytes());
+    assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
+    assert_eq!(
+        proof_bundle_fingerprint(&bundle).unwrap().to_string(),
+        "2ae22800e0bc7ad9b375b73467c43a24120267dd4da822013a513bfa281107ae"
+    );
+
+    let mut old_version = bytes;
+    old_version[8..10].copy_from_slice(&8_u16.to_le_bytes());
+    assert!(matches!(
+        decode_proof_bundle(&old_version),
+        Err(ProofCodecError::InvalidTag("ContentPlaceSegment", 3))
+            | Err(ProofCodecError::NonCanonicalEncoding)
+    ));
 }
 
 #[test]

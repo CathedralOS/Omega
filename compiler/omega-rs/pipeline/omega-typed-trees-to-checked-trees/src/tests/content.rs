@@ -464,6 +464,63 @@ fn checked_facts_infer_exact_content_reshuffles_through_transparent_paths() {
 }
 
 #[test]
+fn checked_facts_infer_exact_content_reshuffles_through_sum_case_paths() {
+    let source = r#"
+        data ByteUnit {}
+        data CountedQuantity<Unit> { magnitude: u64; }
+        trait Content<A> {
+            machine project(subject: &Self) -> A;
+        }
+
+        data Region [linear] { length: u64; }
+        domain Region::Owned;
+        machine Owned::content(region: &Region) -> CountedQuantity<ByteUnit>
+        satisfies Content<CountedQuantity<ByteUnit>>::project
+        {
+            CountedQuantity { magnitude: region.length }
+        }
+
+        data Envelope {
+            case Empty;
+            case Present(region: Region in Owned);
+        }
+
+        data Main {}
+        machine Main::forward(value: Envelope) -> Envelope {
+            value
+        }
+        machine Main::main(&mut self) {}
+    "#;
+
+    let checked = checked(source);
+    let [reshuffle] = checked
+        .facts
+        .qualifications
+        .content
+        .identity_reshuffles
+        .as_slice()
+    else {
+        panic!("one active-payload reshuffle should be inferred");
+    };
+    for term in [
+        reshuffle.plan.equation.left(),
+        reshuffle.plan.equation.right(),
+    ] {
+        let ContentConservationTerm::Projection { subject, .. } = term else {
+            panic!("an identity reshuffle must remain a direct projection equality");
+        };
+        assert!(matches!(
+            subject.segments.as_slice(),
+            [ContentPlaceSegment::Case(case), ContentPlaceSegment::Field(field)]
+                if case.name == "Present"
+                    && case.symbol.is_valid()
+                    && field.name == "region"
+                    && field.symbol.is_valid()
+        ));
+    }
+}
+
+#[test]
 fn checked_facts_do_not_infer_content_for_fresh_claim_establishment() {
     let source = r#"
         data ByteUnit {}

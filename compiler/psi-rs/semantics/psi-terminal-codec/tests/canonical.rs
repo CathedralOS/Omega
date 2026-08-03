@@ -29,7 +29,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.semantic_version, SemanticVersion::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "77ed3e95229377c7f9a5eb6f6cff7f19802a8d05e0f7c9170d46b8c1d6f554d8"
+        "e01075a9e3550f6cea0889b45cd502fbc45d1089bd5728d8a9c370918e9a5c49"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -64,6 +64,29 @@ fn v10_identity_reshuffle_has_stable_canonical_bytes() {
 }
 
 #[test]
+fn v11_sum_case_identity_reshuffle_has_stable_canonical_bytes() {
+    let mut module = identity_reshuffle_fixture(SemanticVersion::V11);
+    let segments = vec![
+        ContentPlaceSegment::Case("Present".to_owned()),
+        ContentPlaceSegment::Field("payload".to_owned()),
+    ];
+    module.machines[0].content_identity_reshuffles[0]
+        .input
+        .segments = segments.clone();
+    module.machines[0].content_identity_reshuffles[0]
+        .output
+        .segments = segments;
+    let bytes = encode_module(&module).expect("v11 sum-case reshuffle should encode");
+
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
+    assert_eq!(
+        semantic_fingerprint(&module).unwrap().to_string(),
+        "9416872934ea26fdf70a5cac07e881fae236cf157cb70f4b90dbb85f2c1102da"
+    );
+}
+
+#[test]
 fn identity_reshuffle_encoding_is_v10_and_canonically_ordered() {
     let old = identity_reshuffle_fixture(SemanticVersion::V9);
     assert!(matches!(
@@ -87,6 +110,25 @@ fn identity_reshuffle_encoding_is_v10_and_canonically_ordered() {
             "claim content projections by identity and algebra"
         ))
     );
+}
+
+#[test]
+fn v10_cannot_encode_sum_case_content_paths() {
+    let mut module = identity_reshuffle_fixture(SemanticVersion::V10);
+    module.machines[0].content_identity_reshuffles[0]
+        .input
+        .segments = vec![ContentPlaceSegment::Case("Present".to_owned())];
+
+    assert!(matches!(
+        encode_module(&module),
+        Err(CodecError::InvalidModule(
+            psi_terminal_verifier::ModuleError::ContentIdentityCasePathRequiresSemanticVersion {
+                required: SemanticVersion::V11,
+                actual: SemanticVersion::V10,
+                ..
+            }
+        ))
+    ));
 }
 
 #[test]

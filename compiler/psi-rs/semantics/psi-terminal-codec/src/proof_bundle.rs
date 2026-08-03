@@ -20,6 +20,7 @@ const FORMAT_VERSION_V5: u16 = 5;
 const FORMAT_VERSION_V6: u16 = 6;
 const FORMAT_VERSION_V7: u16 = 7;
 const FORMAT_VERSION_V8: u16 = 8;
+const FORMAT_VERSION_V9: u16 = 9;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-proof-bundle-fingerprint-v1\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -72,6 +73,7 @@ pub fn decode_proof_bundle(bytes: &[u8]) -> Result<ProofBundle, ProofCodecError>
             | FORMAT_VERSION_V6
             | FORMAT_VERSION_V7
             | FORMAT_VERSION_V8
+            | FORMAT_VERSION_V9
     ) {
         return Err(ProofCodecError::UnsupportedFormatVersion(format_version));
     }
@@ -225,6 +227,14 @@ fn required_format_version(bundle: &ProofBundle) -> u16 {
         matches!(
             &evidence.route,
             EvidenceRoute::CertificateDerived(certificate)
+                if proof_uses_v9_content_case(&certificate.proof)
+        )
+    }) {
+        FORMAT_VERSION_V9
+    } else if bundle.evidence.iter().any(|evidence| {
+        matches!(
+            &evidence.route,
+            EvidenceRoute::CertificateDerived(certificate)
                 if proof_uses_v8_content(&certificate.proof)
         )
     }) {
@@ -279,6 +289,68 @@ fn required_format_version(bundle: &ProofBundle) -> u16 {
         FORMAT_VERSION_V2
     } else {
         FORMAT_VERSION_V1
+    }
+}
+
+fn proof_uses_v9_content_case(node: &ProofNode) -> bool {
+    proposition_uses_v9_content_case(&node.conclusion)
+        || match &node.rule {
+            ProofRule::Primitive(_)
+            | ProofRule::SemanticAxiom { .. }
+            | ProofRule::Assumption { .. } => false,
+            ProofRule::ConjunctionIntroduction(nodes) => {
+                nodes.iter().any(proof_uses_v9_content_case)
+            }
+            ProofRule::ConjunctionElimination { conjunction, .. } => {
+                proof_uses_v9_content_case(conjunction)
+            }
+            ProofRule::ImplicationIntroduction { body } => proof_uses_v9_content_case(body),
+            ProofRule::ImplicationElimination {
+                implication,
+                premise,
+            } => proof_uses_v9_content_case(implication) || proof_uses_v9_content_case(premise),
+            ProofRule::EqualityTransitivity {
+                left_equals_middle,
+                middle_equals_right,
+            } => {
+                proof_uses_v9_content_case(left_equals_middle)
+                    || proof_uses_v9_content_case(middle_equals_right)
+            }
+        }
+}
+
+fn proposition_uses_v9_content_case(proposition: &Proposition) -> bool {
+    match proposition {
+        Proposition::ContentConservation(conservation) => {
+            content_term_uses_case(conservation.left())
+                || content_term_uses_case(conservation.right())
+        }
+        Proposition::Conjunction(conjuncts) => {
+            conjuncts.iter().any(proposition_uses_v9_content_case)
+        }
+        Proposition::Implication {
+            premise,
+            conclusion,
+        } => {
+            proposition_uses_v9_content_case(premise)
+                || proposition_uses_v9_content_case(conclusion)
+        }
+        Proposition::Truth
+        | Proposition::Falsehood
+        | Proposition::Atom(_)
+        | Proposition::Equal(_, _)
+        | Proposition::LessThan(_, _)
+        | Proposition::LessOrEqual(_, _) => false,
+    }
+}
+
+fn content_term_uses_case(term: &ContentTerm) -> bool {
+    match term {
+        ContentTerm::Projection { subject, .. } => subject
+            .segments
+            .iter()
+            .any(|segment| matches!(segment, ContentPlaceSegment::Case(_))),
+        ContentTerm::Separate(terms) => terms.iter().any(content_term_uses_case),
     }
 }
 
@@ -830,8 +902,8 @@ fn encode_proposition(
             }
             writer.u8(9);
             encode_content_algebra(writer, conservation.algebra())?;
-            encode_content_term(writer, conservation.left(), 0)?;
-            encode_content_term(writer, conservation.right(), 0)?;
+            encode_content_term(writer, conservation.left(), 0, format_version)?;
+            encode_content_term(writer, conservation.right(), 0, format_version)?;
         }
     }
     Ok(())
@@ -852,6 +924,7 @@ fn encode_content_term(
     writer: &mut Writer,
     term: &ContentTerm,
     depth: usize,
+    format_version: u16,
 ) -> Result<(), ProofCodecError> {
     if depth > MAX_CONTENT_TERM_DEPTH {
         return Err(ProofCodecError::ContentTermNestingTooDeep);
@@ -872,6 +945,13 @@ fn encode_content_term(
             writer.len("content place segments", subject.segments.len())?;
             for segment in &subject.segments {
                 match segment {
+                    ContentPlaceSegment::Case(name) => {
+                        if format_version < FORMAT_VERSION_V9 {
+                            return Err(ProofCodecError::UnsupportedContentCasePathForFormat);
+                        }
+                        writer.u8(3);
+                        writer.string("content case", name)?;
+                    }
                     ContentPlaceSegment::Field(name) => {
                         writer.u8(1);
                         writer.string("content field", name)?;
@@ -887,7 +967,7 @@ fn encode_content_term(
             writer.u8(2);
             writer.len("separated content terms", terms.len())?;
             for term in terms {
-                encode_content_term(writer, term, depth + 1)?;
+                encode_content_term(writer, term, depth + 1, format_version)?;
             }
         }
     }
@@ -1155,8 +1235,8 @@ fn decode_proposition(
         },
         9 if format_version >= FORMAT_VERSION_V8 => {
             let algebra = decode_content_algebra(reader)?;
-            let left = decode_content_term(reader, 0)?;
-            let right = decode_content_term(reader, 0)?;
+            let left = decode_content_term(reader, 0, format_version)?;
+            let right = decode_content_term(reader, 0, format_version)?;
             Proposition::ContentConservation(ContentConservation::new(algebra, left, right))
         }
         tag => return Err(ProofCodecError::InvalidTag("Proposition", tag)),
@@ -1178,6 +1258,7 @@ fn decode_content_algebra(reader: &mut Reader<'_>) -> Result<ContentAlgebra, Pro
 fn decode_content_term(
     reader: &mut Reader<'_>,
     depth: usize,
+    format_version: u16,
 ) -> Result<ContentTerm, ProofCodecError> {
     if depth > MAX_CONTENT_TERM_DEPTH {
         return Err(ProofCodecError::ContentTermNestingTooDeep);
@@ -1200,6 +1281,9 @@ fn decode_content_term(
                 segments.push(match reader.u8()? {
                     1 => ContentPlaceSegment::Field(reader.string("content field")?),
                     2 => ContentPlaceSegment::FixedIndex(reader.u64()?),
+                    3 if format_version >= FORMAT_VERSION_V9 => {
+                        ContentPlaceSegment::Case(reader.string("content case")?)
+                    }
                     tag => return Err(ProofCodecError::InvalidTag("ContentPlaceSegment", tag)),
                 });
             }
@@ -1216,7 +1300,7 @@ fn decode_content_term(
             let count = reader.count()?;
             let mut terms = Vec::new();
             for _ in 0..count {
-                terms.push(decode_content_term(reader, depth + 1)?);
+                terms.push(decode_content_term(reader, depth + 1, format_version)?);
             }
             ContentTerm::separate(terms).map_err(ProofCodecError::MalformedProposition)?
         }
@@ -1486,6 +1570,7 @@ pub enum ProofCodecError {
     ProofNestingTooDeep,
     UnsupportedScalarTermForFormat,
     UnsupportedContentPropositionForFormat,
+    UnsupportedContentCasePathForFormat,
     StringTooLong(&'static str),
     InvalidUtf8(&'static str),
     MalformedProposition(PropositionError),

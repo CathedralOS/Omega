@@ -20,6 +20,12 @@ pub struct ContentFieldSegment {
     pub name: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContentCaseSegment {
+    pub symbol: SymbolHandle,
+    pub name: String,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ContentArithmeticOperator {
     Add,
@@ -257,6 +263,7 @@ pub enum ContentPlaceRoot {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ContentPlaceSegment {
+    Case(ContentCaseSegment),
     Field(ContentFieldSegment),
     FixedIndex(u64),
 }
@@ -400,6 +407,10 @@ fn encode_content_conservation_term(term: &ContentConservationTerm, output: &mut
             output.extend_from_slice(&(subject.segments.len() as u64).to_le_bytes());
             for segment in &subject.segments {
                 match segment {
+                    ContentPlaceSegment::Case(case) => {
+                        output.push(3);
+                        encode_string(&case.name, output);
+                    }
                     ContentPlaceSegment::Field(field) => {
                         output.push(1);
                         encode_string(&field.name, output);

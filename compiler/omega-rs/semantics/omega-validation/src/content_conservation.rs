@@ -496,38 +496,94 @@ fn structural_place_type(
     mut current: TypeReferenceHandle,
     segments: &mut [ContentPlaceSegment],
 ) -> Result<TypeReferenceHandle, String> {
+    let mut active_variant = None;
     for segment in segments {
         let unwrapped = crate::places::unwrapped_type_reference(program, current)
             .ok_or_else(|| "an unresolved type appears in the structural place".to_owned())?;
         match segment {
+            ContentPlaceSegment::Case(case) => {
+                if active_variant.is_some() {
+                    return Err("a sum-case path must select a payload field".to_owned());
+                }
+                let data = crate::places::data_definition_for_type(program, unwrapped)
+                    .ok_or_else(|| format!("`{}` is selected from a non-sum carrier", case.name))?;
+                let variant = program
+                    .data_members(data)
+                    .iter()
+                    .find_map(|member| match member {
+                        omega_typed_trees::data::DataMember::Variant(variant)
+                            if variant.name.as_str() == case.name =>
+                        {
+                            Some(variant)
+                        }
+                        _ => None,
+                    })
+                    .ok_or_else(|| {
+                        format!("data `{}` has no sum case `{}`", data.name, case.name)
+                    })?;
+                if case.symbol.is_valid() && case.symbol != variant.symbol {
+                    return Err(format!(
+                        "sum case `{}` does not match its resolved identity",
+                        case.name
+                    ));
+                }
+                case.symbol = variant.symbol;
+                active_variant = Some(variant.symbol);
+            }
             ContentPlaceSegment::Field(field) => {
                 let data = crate::places::data_definition_for_type(program, unwrapped).ok_or_else(
                     || format!("`{}` is selected from a non-record carrier", field.name),
                 )?;
-                let selected = program
-                    .data_members(data)
-                    .iter()
-                    .find_map(|member| match member {
-                        omega_typed_trees::data::DataMember::Field(candidate)
-                            if candidate.name.as_str() == field.name =>
-                        {
-                            Some(candidate.type_reference)
-                        }
-                        omega_typed_trees::data::DataMember::Variant(variant) => program
-                            .data_payload_fields(variant)
-                            .iter()
-                            .find(|candidate| candidate.name.as_str() == field.name)
-                            .map(|candidate| candidate.type_reference),
-                        _ => None,
-                    });
-                current = selected.ok_or_else(|| {
+                let selected = if let Some(variant_symbol) = active_variant.take() {
+                    program.data_members(data).iter().find_map(|member| {
+                        let omega_typed_trees::data::DataMember::Variant(variant) = member else {
+                            return None;
+                        };
+                        (variant.symbol == variant_symbol).then(|| {
+                            program
+                                .data_payload_fields(variant)
+                                .iter()
+                                .find(|candidate| candidate.name.as_str() == field.name)
+                                .map(|candidate| (candidate.symbol, candidate.type_reference))
+                        })?
+                    })
+                } else {
+                    program
+                        .data_members(data)
+                        .iter()
+                        .find_map(|member| match member {
+                            omega_typed_trees::data::DataMember::Field(candidate)
+                                if candidate.name.as_str() == field.name =>
+                            {
+                                Some((candidate.symbol, candidate.type_reference))
+                            }
+                            omega_typed_trees::data::DataMember::Variant(variant) => program
+                                .data_payload_fields(variant)
+                                .iter()
+                                .find(|candidate| candidate.name.as_str() == field.name)
+                                .map(|candidate| (candidate.symbol, candidate.type_reference)),
+                            _ => None,
+                        })
+                };
+                let (field_symbol, field_type) = selected.ok_or_else(|| {
                     format!(
                         "data `{}` has no structural field `{}`",
                         data.name, field.name
                     )
                 })?;
+                if field.symbol.is_valid() && field.symbol != field_symbol {
+                    return Err(format!(
+                        "structural field `{}` does not match its resolved identity",
+                        field.name
+                    ));
+                }
+                field.symbol = field_symbol;
+                current = field_type;
             }
             ContentPlaceSegment::FixedIndex(_) => {
+                if active_variant.is_some() {
+                    return Err("a sum-case path must select a payload field".to_owned());
+                }
                 current = match program.type_reference_table.type_reference(unwrapped) {
                     TypeReferenceNode::FixedArray { element_type, .. } => *element_type,
                     _ => {
@@ -539,6 +595,9 @@ fn structural_place_type(
                 };
             }
         }
+    }
+    if active_variant.is_some() {
+        return Err("a sum-case path must select a payload field".to_owned());
     }
     Ok(current)
 }
@@ -855,6 +914,10 @@ fn structural_place_label(place: &ContentStructuralPlace) -> String {
     };
     for segment in &place.segments {
         match segment {
+            ContentPlaceSegment::Case(case) => {
+                label.push_str("::");
+                label.push_str(&case.name);
+            }
             ContentPlaceSegment::Field(field) => {
                 label.push('.');
                 label.push_str(&field.name);

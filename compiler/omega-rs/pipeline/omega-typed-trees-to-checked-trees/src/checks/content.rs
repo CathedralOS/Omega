@@ -9,10 +9,10 @@
 
 use omega_checked_trees::{CheckFacts, ContentIdentityReshuffleFact, FlowClaimOutcomeSource};
 use omega_core::content::{
-    ContentConservationEquation, ContentConservationOwnerKind, ContentConservationPlan,
-    ContentConservationTerm, ContentFieldSegment, ContentPlaceRoot, ContentPlaceSegment,
-    ContentPlaceVersion, ContentProjectionPlan, ContentStructuralPlace, conservation_fingerprint,
-    content_conservation_plan_bytes,
+    ContentCaseSegment, ContentConservationEquation, ContentConservationOwnerKind,
+    ContentConservationPlan, ContentConservationTerm, ContentFieldSegment, ContentPlaceRoot,
+    ContentPlaceSegment, ContentPlaceVersion, ContentProjectionPlan, ContentStructuralPlace,
+    conservation_fingerprint, content_conservation_plan_bytes,
 };
 use omega_core::diagnostics::Diagnostic;
 use omega_core::semantics::{
@@ -417,6 +417,12 @@ fn content_paths_match(left: &[ContentPlaceSegment], right: &[ContentPlaceSegmen
             .iter()
             .zip(right)
             .all(|(left, right)| match (left, right) {
+                (ContentPlaceSegment::Case(left), ContentPlaceSegment::Case(right)) => {
+                    left.name == right.name
+                        && (!left.symbol.is_valid()
+                            || !right.symbol.is_valid()
+                            || left.symbol == right.symbol)
+                }
                 (ContentPlaceSegment::FixedIndex(left), ContentPlaceSegment::FixedIndex(right)) => {
                     left == right
                 }
@@ -436,6 +442,12 @@ fn content_path(
 ) -> Option<Vec<ContentPlaceSegment>> {
     path.iter()
         .map(|segment| match segment {
+            omega_facts::PlaceSegment::Case { variant } => {
+                Some(ContentPlaceSegment::Case(ContentCaseSegment {
+                    symbol: *variant,
+                    name: data_variant_name(program, *variant)?.to_owned(),
+                }))
+            }
             omega_facts::PlaceSegment::Field { symbol } => {
                 Some(ContentPlaceSegment::Field(ContentFieldSegment {
                     symbol: *symbol,
@@ -447,11 +459,23 @@ fn content_path(
                     u64::try_from(*index).expect("fixed index fits u64"),
                 ))
             }
-            omega_facts::PlaceSegment::Case { .. } | omega_facts::PlaceSegment::Index { .. } => {
-                None
-            }
+            omega_facts::PlaceSegment::Index { .. } => None,
         })
         .collect()
+}
+
+fn data_variant_name(program: &TypedTrees, variant_symbol: SymbolHandle) -> Option<&str> {
+    program.data_definitions().iter().find_map(|definition| {
+        program
+            .data_members(definition)
+            .iter()
+            .find_map(|member| match member {
+                omega_typed_trees::data::DataMember::Variant(variant) => {
+                    (variant.symbol == variant_symbol).then_some(variant.name.as_str())
+                }
+                omega_typed_trees::data::DataMember::Field(_) => None,
+            })
+    })
 }
 
 fn data_field_name(program: &TypedTrees, field_symbol: SymbolHandle) -> Option<&str> {

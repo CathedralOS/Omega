@@ -24,10 +24,11 @@ adds exact-width saturating integer addition; v5 adds exact-width
 wrapping integer subtraction; v6 adds exact-width saturating integer
 subtraction; v7 adds exact-width wrapping integer multiplication; v8 adds
 exact-width saturating integer multiplication; v9 adds proof-only
-structural-place declarations and content-conservation propositions; and
-current v10 adds canonical identity-preserving claim reshuffles without a new
-executable operation. Every executable slice uses unconditional jump and return
-edges.
+structural-place declarations and content-conservation propositions; v10 adds
+canonical identity-preserving claim reshuffles; and current v11 adds distinct
+stable sum-case segments to structural content paths. Neither v10 nor v11 adds
+an executable operation. Every executable slice uses unconditional jump and
+return edges.
 `psi-terminal-verifier` rejects malformed identities, types, contract scopes,
 cycles, unreachable fact sources, and missing/extra evidence, reconstructs the
 exact operation/edge/return axioms, and checks every `ensures` from a separate
@@ -47,7 +48,9 @@ rechecks each checked conservation fingerprint, removes arena-local symbols,
 and produces canonical v9 structural-place declarations and proposition terms.
 Its v10 identity-reshuffle translation additionally revalidates direct
 entry-parameter/current-result equality shape, groups exact projections by
-preserved source claim, and emits dense machine-local terminal claim IDs.
+preserved source claim, and emits dense machine-local terminal claim IDs. The
+v11 vocabulary retains active-sum case-plus-field identity while stripping
+arena-local variant and payload-field symbols.
 Integration into general executable-machine lowering waits on the broader
 frontend migration.
 The current legacy exit prover also cannot establish an ordinary
@@ -257,9 +260,10 @@ entry/current equality per preserved claim, retaining its claim identity and
 both structural paths. The derivation requires the same terminal projection
 identity and algebra on both places, accepts type or ordinary contract
 qualification, and never synthesizes separated composition across independent
-claims. Fresh establishments, mismatched projections, runtime indices, and the
-not-yet-representable sum-case path infer nothing. Terminal semantic v10
-carries these rows in canonical machine-local claim order. The verifier
+claims. Fresh establishments, mismatched projections, and runtime indices infer
+nothing. Terminal semantic v10 carries field/fixed-index rows in canonical
+machine-local claim order; semantic v11 adds distinct stable sum-case path
+segments, and proof format v9 carries those segments in certificates. The verifier
 revalidates one-to-one, non-overlapping parameter-entry/result-current paths,
 exact projection and algebra identity, and reconstructs one content-equality
 semantic axiom per projection for replaceable certificates. Sealed introduction
@@ -305,7 +309,7 @@ conjunction members are strictly ordered by their canonical encoded bytes,
 duplicates are rejected, and symmetric equality operands use that same wire
 ordering. Content equations order their symmetric sides canonically;
 `separate(...)` is flat, sorted, duplicate-free, and exact projection/domain,
-entry/current place, field, and fixed-index identities are encoded. Nested
+entry/current place, field, fixed-index, and v11 sum-case identities are encoded. Nested
 conjunctions, proposition nesting, recursive scalar terms, and content terms
 deeper than 256 edges are rejected. Execution-significant vectors—parameters, operations, and
 jump arguments—retain their declared order.
@@ -324,20 +328,21 @@ Semantic version 1 is frozen with `IntegerConstant`; version 2 adds
 `SaturatingIntegerAdd`; version 5 adds `WrappingIntegerSubtract`; version 6
 adds `SaturatingIntegerSubtract`; version 7 adds `WrappingIntegerMultiply`;
 version 8 adds `SaturatingIntegerMultiply`; version 9 adds proof-only
-structural places and content-conservation propositions; current version 10
-adds canonical identity-preserving claim reshuffles.
+structural places and content-conservation propositions; version 10 adds
+canonical identity-preserving claim reshuffles; current version 11 adds stable
+sum-case content-path segments.
 The arithmetic operations require two already defined operands of the exact
 result integer type and have distinct canonical recursive proposition terms for
 their exact logical results. Validation and execution continue to accept valid
-v1/v2/v3/v4/v5/v6/v7/v8/v9 modules under their original meaning, while an older
+v1/v2/v3/v4/v5/v6/v7/v8/v9/v10 modules under their original meaning, while an older
 module cannot claim a later operation or proposition tag.
-`migrate_module_to_current` is an explicit validated older-to-v10 translation:
+`migrate_module_to_current` is an explicit validated older-to-v11 translation:
 it preserves the graph and obligations, changes the version field, and therefore
 creates new canonical bytes and a new semantic fingerprint. An unchanged proof
 bundle retains its separate bytes and identity but is verified again against the
-migrated module. Golden tests retain the archived v1 through v9 fingerprints
-and independently freeze the current v10 fingerprint and identity-reshuffle
-fixture.
+migrated module. Golden tests retain the archived v1 through v10 fingerprints
+and independently freeze the current v11 fingerprint, v10 identity-reshuffle
+fixture, and v11 sum-case fixture.
 
 The same codec gives proof bundles their own canonical `PSIPRF` bytes and golden
 fingerprint. Proof format v1 remains the minimal frozen encoding for the
@@ -346,8 +351,9 @@ scalar term; format v3 adds the recursive saturating-add scalar term; format v4
 adds the recursive wrapping-subtract scalar term; format v5 adds the recursive
 saturating-subtract scalar term; format v6 adds the recursive wrapping-multiply
 scalar term; format v7 adds the recursive saturating-multiply scalar term;
-format v8 adds content-conservation propositions and structural-place terms. The
-encoder selects the minimal format needed by a carried proof tree, and the
+format v8 adds content-conservation propositions and field/fixed-index
+structural-place terms; format v9 adds sum-case path segments. The encoder
+selects the minimal format needed by a carried proof tree, and the
 decoder rejects a v2, v3, v4, v5, v6, v7, or v8 bundle representable in an earlier format.
 Evidence entries are strictly ordered by `ObligationId`; the
 closed encoding covers kernel judgments, separately versioned recursive proof
@@ -424,7 +430,7 @@ The v8 parameter-fed saturating-multiply canary costs two units and
 reaches both signed `i64` bounds.
 
 `psi-terminal-fixed-fuel` provides the first restricted checker over this same
-schedule. Because the supported v1/v2/v3/v4/v5/v6/v7/v8/v9 control vocabulary currently
+schedule. Because the supported v1/v2/v3/v4/v5/v6/v7/v8/v9/v10/v11 control vocabulary currently
 permits one acyclic straight-line path, it derives an exact entry-to-return
 ceiling with no additional precondition assumptions. The certificate keys the
 canonical terminal-Psi identity, entry machine, reached return edge, schedule
