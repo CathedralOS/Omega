@@ -290,25 +290,6 @@ pub fn syscall_sequence_width<T: InstructionOperandLike>(
     operands: &[T],
     syscall_number: u32,
 ) -> usize {
-    syscall_sequence_width_with_plan(architecture, operands, syscall_number, None)
-}
-
-pub fn syscall_sequence_width_with_plan<T: InstructionOperandLike>(
-    architecture: Architecture,
-    operands: &[T],
-    syscall_number: u32,
-    authoritative_plan: Option<&omega_calling_conventions::CallPlan>,
-) -> usize {
-    if let Some(plan) = authoritative_plan {
-        return crate::encode_syscall_sequence_with_plan(
-            architecture,
-            operands,
-            syscall_number,
-            Some(plan),
-        )
-        .map(|bytes| bytes.len())
-        .unwrap_or(0);
-    }
     match architecture {
         Architecture::Aarch64 => aarch64::syscall_sequence_width_from_operands(
             operands.iter().map(aarch64_call_operand),
@@ -318,11 +299,37 @@ pub fn syscall_sequence_width_with_plan<T: InstructionOperandLike>(
     }
 }
 
+pub fn syscall_sequence_width_with_plan<T: InstructionOperandLike>(
+    architecture: Architecture,
+    operands: &[T],
+    syscall_number: u32,
+    authoritative_plan: &omega_calling_conventions::CallPlan,
+) -> usize {
+    crate::encode_syscall_sequence_with_plan(
+        architecture,
+        operands,
+        syscall_number,
+        authoritative_plan,
+    )
+    .map(|bytes| bytes.len())
+    .unwrap_or(0)
+}
+
+pub fn value_syscall_sequence_width<T: InstructionOperandLike>(
+    architecture: Architecture,
+    operands: &[T],
+    syscall_number: u32,
+) -> usize {
+    crate::encode_value_syscall_sequence(architecture, operands, syscall_number)
+        .map(|bytes| bytes.len())
+        .unwrap_or(0)
+}
+
 pub fn value_syscall_sequence_width_with_plan<T: InstructionOperandLike>(
     architecture: Architecture,
     operands: &[T],
     syscall_number: u32,
-    authoritative_plan: Option<&omega_calling_conventions::CallPlan>,
+    authoritative_plan: &omega_calling_conventions::CallPlan,
 ) -> usize {
     crate::encode_value_syscall_sequence_with_plan(
         architecture,
@@ -334,11 +341,21 @@ pub fn value_syscall_sequence_width_with_plan<T: InstructionOperandLike>(
     .unwrap_or(0)
 }
 
+pub fn linux_timespec_syscall_sequence_width<T: InstructionOperandLike>(
+    architecture: Architecture,
+    operands: &[T],
+    syscall_number: u32,
+) -> usize {
+    crate::encode_linux_timespec_syscall(architecture, operands, syscall_number)
+        .map(|bytes| bytes.len())
+        .unwrap_or(0)
+}
+
 pub fn linux_timespec_syscall_sequence_width_with_plan<T: InstructionOperandLike>(
     architecture: Architecture,
     operands: &[T],
     syscall_number: u32,
-    authoritative_plan: Option<&omega_calling_conventions::CallPlan>,
+    authoritative_plan: &omega_calling_conventions::CallPlan,
 ) -> usize {
     crate::encode_linux_timespec_syscall_with_plan(
         architecture,
@@ -350,11 +367,21 @@ pub fn linux_timespec_syscall_sequence_width_with_plan<T: InstructionOperandLike
     .unwrap_or(0)
 }
 
+pub fn linux_timespec_argument_syscall_sequence_width<T: InstructionOperandLike>(
+    architecture: Architecture,
+    operands: &[T],
+    syscall_number: u32,
+) -> usize {
+    crate::encode_linux_timespec_argument_syscall(architecture, operands, syscall_number)
+        .map(|bytes| bytes.len())
+        .unwrap_or(0)
+}
+
 pub fn linux_timespec_argument_syscall_sequence_width_with_plan<T: InstructionOperandLike>(
     architecture: Architecture,
     operands: &[T],
     syscall_number: u32,
-    authoritative_plan: Option<&omega_calling_conventions::CallPlan>,
+    authoritative_plan: &omega_calling_conventions::CallPlan,
 ) -> usize {
     crate::encode_linux_timespec_argument_syscall_with_plan(
         architecture,

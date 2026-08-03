@@ -1256,10 +1256,24 @@ pub fn encode_syscall_sequence<T: InstructionOperandLike>(
     operands: &[T],
     syscall_number: u32,
 ) -> Result<Vec<u8>, Diagnostic> {
-    encode_syscall_sequence_with_plan(architecture, operands, syscall_number, None)
+    encode_syscall_sequence_optional_plan(architecture, operands, syscall_number, None)
 }
 
 pub fn encode_syscall_sequence_with_plan<T: InstructionOperandLike>(
+    architecture: Architecture,
+    operands: &[T],
+    syscall_number: u32,
+    authoritative_plan: &CallPlan,
+) -> Result<Vec<u8>, Diagnostic> {
+    encode_syscall_sequence_optional_plan(
+        architecture,
+        operands,
+        syscall_number,
+        Some(authoritative_plan),
+    )
+}
+
+fn encode_syscall_sequence_optional_plan<T: InstructionOperandLike>(
     architecture: Architecture,
     operands: &[T],
     syscall_number: u32,
@@ -1331,17 +1345,26 @@ fn encode_value_syscall_sequence_with_site<T: InstructionOperandLike>(
     }
 }
 
+pub fn encode_value_syscall_sequence<T: InstructionOperandLike>(
+    architecture: Architecture,
+    operands: &[T],
+    syscall_number: u32,
+) -> Result<Vec<u8>, Diagnostic> {
+    encode_value_syscall_sequence_with_site(architecture, operands, syscall_number, None)
+        .map(|(bytes, _)| bytes)
+}
+
 pub fn encode_value_syscall_sequence_with_plan<T: InstructionOperandLike>(
     architecture: Architecture,
     operands: &[T],
     syscall_number: u32,
-    authoritative_plan: Option<&CallPlan>,
+    authoritative_plan: &CallPlan,
 ) -> Result<Vec<u8>, Diagnostic> {
     encode_value_syscall_sequence_with_site(
         architecture,
         operands,
         syscall_number,
-        authoritative_plan,
+        Some(authoritative_plan),
     )
     .map(|(bytes, _)| bytes)
 }
@@ -1423,17 +1446,26 @@ fn encode_linux_timespec_syscall_with_site<T: InstructionOperandLike>(
     }
 }
 
+pub fn encode_linux_timespec_syscall<T: InstructionOperandLike>(
+    architecture: Architecture,
+    operands: &[T],
+    syscall_number: u32,
+) -> Result<Vec<u8>, Diagnostic> {
+    encode_linux_timespec_syscall_with_site(architecture, operands, syscall_number, None)
+        .map(|(bytes, _)| bytes)
+}
+
 pub fn encode_linux_timespec_syscall_with_plan<T: InstructionOperandLike>(
     architecture: Architecture,
     operands: &[T],
     syscall_number: u32,
-    authoritative_plan: Option<&CallPlan>,
+    authoritative_plan: &CallPlan,
 ) -> Result<Vec<u8>, Diagnostic> {
     encode_linux_timespec_syscall_with_site(
         architecture,
         operands,
         syscall_number,
-        authoritative_plan,
+        Some(authoritative_plan),
     )
     .map(|(bytes, _)| bytes)
 }
@@ -1493,17 +1525,26 @@ fn encode_linux_timespec_argument_syscall_with_site<T: InstructionOperandLike>(
     }
 }
 
+pub fn encode_linux_timespec_argument_syscall<T: InstructionOperandLike>(
+    architecture: Architecture,
+    operands: &[T],
+    syscall_number: u32,
+) -> Result<Vec<u8>, Diagnostic> {
+    encode_linux_timespec_argument_syscall_with_site(architecture, operands, syscall_number, None)
+        .map(|(bytes, _)| bytes)
+}
+
 pub fn encode_linux_timespec_argument_syscall_with_plan<T: InstructionOperandLike>(
     architecture: Architecture,
     operands: &[T],
     syscall_number: u32,
-    authoritative_plan: Option<&CallPlan>,
+    authoritative_plan: &CallPlan,
 ) -> Result<Vec<u8>, Diagnostic> {
     encode_linux_timespec_argument_syscall_with_site(
         architecture,
         operands,
         syscall_number,
-        authoritative_plan,
+        Some(authoritative_plan),
     )
     .map(|(bytes, _)| bytes)
 }
@@ -1861,7 +1902,7 @@ mod syscall_plan_contract_tests {
                 architecture,
                 &statement_operands,
                 number,
-                Some(&statement_plan),
+                &statement_plan,
             )
             .expect("explicit-plan statement syscall");
             assert_eq!(compatibility, planned, "statement {architecture:?}");
@@ -1871,39 +1912,30 @@ mod syscall_plan_contract_tests {
                     architecture,
                     &statement_operands,
                     number,
-                    Some(&statement_plan),
+                    &statement_plan,
                 ),
                 "statement {architecture:?}"
             );
 
             let value_plan = explicit_plan(architecture, 1, true);
-            let compatibility = encode_value_syscall_sequence_with_plan(
-                architecture,
-                &value_operands,
-                number,
-                None,
-            )
-            .expect("compatibility value syscall");
+            let compatibility =
+                encode_value_syscall_sequence(architecture, &value_operands, number)
+                    .expect("compatibility value syscall");
             let planned = encode_value_syscall_sequence_with_plan(
                 architecture,
                 &value_operands,
                 number,
-                Some(&value_plan),
+                &value_plan,
             )
             .expect("explicit-plan value syscall");
             assert_eq!(compatibility, planned, "value {architecture:?}");
             assert_eq!(
+                crate::value_syscall_sequence_width(architecture, &value_operands, number,),
                 crate::value_syscall_sequence_width_with_plan(
                     architecture,
                     &value_operands,
                     number,
-                    None,
-                ),
-                crate::value_syscall_sequence_width_with_plan(
-                    architecture,
-                    &value_operands,
-                    number,
-                    Some(&value_plan),
+                    &value_plan,
                 ),
                 "value {architecture:?}"
             );
@@ -1930,33 +1962,28 @@ mod syscall_plan_contract_tests {
             }
 
             let timespec_plan = explicit_plan(architecture, 2, true);
-            let compatibility = encode_linux_timespec_syscall_with_plan(
-                architecture,
-                &timespec_operands,
-                number,
-                None,
-            )
-            .expect("compatibility timespec result syscall");
+            let compatibility =
+                encode_linux_timespec_syscall(architecture, &timespec_operands, number)
+                    .expect("compatibility timespec result syscall");
             let planned = encode_linux_timespec_syscall_with_plan(
                 architecture,
                 &timespec_operands,
                 number,
-                Some(&timespec_plan),
+                &timespec_plan,
             )
             .expect("explicit-plan timespec result syscall");
             assert_eq!(compatibility, planned, "timespec result {architecture:?}");
             assert_eq!(
-                crate::linux_timespec_syscall_sequence_width_with_plan(
+                crate::linux_timespec_syscall_sequence_width(
                     architecture,
                     &timespec_operands,
                     number,
-                    None,
                 ),
                 crate::linux_timespec_syscall_sequence_width_with_plan(
                     architecture,
                     &timespec_operands,
                     number,
-                    Some(&timespec_plan),
+                    &timespec_plan,
                 ),
                 "timespec result {architecture:?}"
             );
@@ -1978,33 +2005,31 @@ mod syscall_plan_contract_tests {
                 "timespec result relocation {architecture:?}"
             );
 
-            let compatibility = encode_linux_timespec_argument_syscall_with_plan(
+            let compatibility = encode_linux_timespec_argument_syscall(
                 architecture,
                 &timespec_argument_operands,
                 number,
-                None,
             )
             .expect("compatibility timespec argument syscall");
             let planned = encode_linux_timespec_argument_syscall_with_plan(
                 architecture,
                 &timespec_argument_operands,
                 number,
-                Some(&timespec_plan),
+                &timespec_plan,
             )
             .expect("explicit-plan timespec argument syscall");
             assert_eq!(compatibility, planned, "timespec argument {architecture:?}");
             assert_eq!(
-                crate::linux_timespec_argument_syscall_sequence_width_with_plan(
+                crate::linux_timespec_argument_syscall_sequence_width(
                     architecture,
                     &timespec_argument_operands,
                     number,
-                    None,
                 ),
                 crate::linux_timespec_argument_syscall_sequence_width_with_plan(
                     architecture,
                     &timespec_argument_operands,
                     number,
-                    Some(&timespec_plan),
+                    &timespec_plan,
                 ),
                 "timespec argument {architecture:?}"
             );
@@ -2092,17 +2117,12 @@ mod syscall_plan_contract_tests {
             byte_size: 8,
         };
         let x86_bytes =
-            encode_syscall_sequence_with_plan(Architecture::X86_64, &operands, 60, Some(&x86_plan))
+            encode_syscall_sequence_with_plan(Architecture::X86_64, &operands, 60, &x86_plan)
                 .expect("source-selected x86-64 syscall register");
         assert_eq!(&x86_bytes[..2], &[0x49, 0xba]);
         assert_eq!(
             x86_bytes.len(),
-            crate::syscall_sequence_width_with_plan(
-                Architecture::X86_64,
-                &operands,
-                60,
-                Some(&x86_plan),
-            )
+            crate::syscall_sequence_width_with_plan(Architecture::X86_64, &operands, 60, &x86_plan,)
         );
 
         let mut aarch64_plan = evaluate_call_plan(CallingPolicy::LinuxSyscallAarch64, &signature)
@@ -2112,13 +2132,9 @@ mod syscall_plan_contract_tests {
             value_byte_offset: 0,
             byte_size: 8,
         };
-        let aarch64_bytes = encode_syscall_sequence_with_plan(
-            Architecture::Aarch64,
-            &operands,
-            93,
-            Some(&aarch64_plan),
-        )
-        .expect("source-selected AArch64 syscall register");
+        let aarch64_bytes =
+            encode_syscall_sequence_with_plan(Architecture::Aarch64, &operands, 93, &aarch64_plan)
+                .expect("source-selected AArch64 syscall register");
         assert_eq!(&aarch64_bytes[..4], &[0xe3, 0x00, 0x80, 0xd2]);
         assert_eq!(
             aarch64_bytes.len(),
@@ -2126,7 +2142,7 @@ mod syscall_plan_contract_tests {
                 Architecture::Aarch64,
                 &operands,
                 93,
-                Some(&aarch64_plan),
+                &aarch64_plan,
             )
         );
     }
@@ -2150,9 +2166,8 @@ mod syscall_plan_contract_tests {
         ];
 
         for (architecture, number) in [(Architecture::X86_64, 3), (Architecture::Aarch64, 57)] {
-            let bytes =
-                encode_value_syscall_sequence_with_plan(architecture, &operands, number, None)
-                    .expect("value-returning syscall");
+            let bytes = encode_value_syscall_sequence(architecture, &operands, number)
+                .expect("value-returning syscall");
             let result_site =
                 value_syscall_relocation_byte_offset(architecture, &operands, 0, number, None)
                     .expect("result relocation");
