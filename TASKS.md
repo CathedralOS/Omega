@@ -482,10 +482,14 @@ remains implementation work.
   placement package may directly name or issue a binding-private accessor;
   possession delegates the public operation requirements it conforms to generic
   code. Copyability, cross-activation sharing, and counted permits separately
-  control durable, concurrent, and bounded delegation. Qualified-borrow
-  admission, placed-content establishment/retirement, and transfer-footprint
-  conflict checking remain implementation work rather than language-design
-  blockers.
+  control durable, concurrent, and bounded delegation. Sealed primitive
+  requests now retain the logical field fragments separately from the complete
+  concrete transfer footprint; the foundation conflict judgment shares
+  repeatable reads and exact same-container atomics while rejecting destructive,
+  write/RMW, and mixed-width overlapping atomic events. Qualified-borrow
+  admission, placed-content establishment/retirement, and compiler view-set
+  integration of those footprint conflicts remain implementation work rather
+  than language-design blockers.
 - Publish one sealed `omega::core` requirement per atomic operation. Use shared
   receivers, the settled proof-static ordering vocabulary, exact derived
   conformance for core atomics and placed accessors, exact-forwarding wrapper
