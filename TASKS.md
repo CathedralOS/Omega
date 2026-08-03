@@ -486,10 +486,12 @@ remains implementation work.
   requests now retain the logical field fragments separately from the complete
   concrete transfer footprint; the foundation conflict judgment shares
   repeatable reads and exact same-container atomics while rejecting destructive,
-  write/RMW, and mixed-width overlapping atomic events. Qualified-borrow
-  admission, placed-content establishment/retirement, and compiler view-set
-  integration of those footprint conflicts remain implementation work rather
-  than language-design blockers.
+  write/RMW, and mixed-width overlapping atomic events. Plan validation also
+  requires a destructive accessor to cover its whole transfer container and
+  rejects a second accessor overlapping that one-shot snapshot. Qualified-
+  borrow admission, placed-content establishment/retirement, and compiler
+  view-set integration of those footprint conflicts remain implementation work
+  rather than language-design blockers.
 - Publish one sealed `omega::core` requirement per atomic operation. Use shared
   receivers, the settled proof-static ordering vocabulary, exact derived
   conformance for core atomics and placed accessors, exact-forwarding wrapper
