@@ -803,7 +803,10 @@ Remaining:
   runtime byte-read, byte-write, and all three line-read target shapes now
   consume the binding-retained three-argument/result syscall plan in emission
   and layout, with x86-64/AArch64 compatibility bytes and widths locked to the
-  explicit plan; and
+  explicit plan. The matching AArch64 direct-import composites now validate
+  that same retained native signature and reject placement drift in lockstep
+  with layout; Windows composites retain their independently normalized
+  GetStdHandle/ReadFile/WriteFile subcall plans; and
 - delete compatibility fields after their final consumer migrates.
 
 Acceptance: changing a normalized plan changes lowering or rejects; changing
