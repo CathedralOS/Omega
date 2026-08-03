@@ -393,7 +393,7 @@ pub fn encode_table_function_call_sequence_with_plan<T: InstructionOperandLike>(
     }
 }
 
-pub fn encode_host_call_sequence<T: InstructionOperandLike>(
+pub fn encode_host_call_sequence_no_plan<T: InstructionOperandLike>(
     target: NativeTarget,
     operation_key: HostOperationKey,
     operands: &[T],
@@ -520,7 +520,7 @@ fn encode_host_call_sequence_optional_plan<T: InstructionOperandLike>(
                 operands,
                 plan,
             ),
-            None => x86_64::encode_host_call_sequence(
+            None => x86_64::encode_host_call_sequence_no_plan(
                 CallingPolicy::native_for_target(target),
                 operation_key,
                 operands,
@@ -2261,13 +2261,13 @@ mod compatibility_encoder_differential_tests {
         let operation = HostOperationKey::from_names("Filesystem", "close");
         for target in [NativeTarget::windows_x64(), NativeTarget::macos_arm64()] {
             let plan = plan(target, 1, true);
-            let compatibility = encode_host_call_sequence(target, operation, &operands)
+            let compatibility = encode_host_call_sequence_no_plan(target, operation, &operands)
                 .expect("compatibility built-in import encoding");
             let planned = encode_host_call_sequence_with_plan(target, operation, &operands, &plan)
                 .expect("explicit-plan built-in import encoding");
             assert_eq!(compatibility, planned, "target {target:?}");
             assert_eq!(
-                crate::host_call_sequence_width(target, operation, &operands),
+                crate::host_call_sequence_width_no_plan(target, operation, &operands),
                 crate::host_call_sequence_width_with_plan(target, operation, &operands, &plan,),
                 "target {target:?}"
             );
@@ -2319,14 +2319,14 @@ mod compatibility_encoder_differential_tests {
         ] {
             let plan = plan(target, 1, false);
             assert_eq!(
-                encode_host_call_sequence(target, operation, &void_operands)
+                encode_host_call_sequence_no_plan(target, operation, &void_operands)
                     .expect("compatibility void import"),
                 encode_host_call_sequence_with_plan(target, operation, &void_operands, &plan,)
                     .expect("planned void import"),
                 "void target {target:?}"
             );
             assert_eq!(
-                crate::host_call_sequence_width(target, operation, &void_operands),
+                crate::host_call_sequence_width_no_plan(target, operation, &void_operands),
                 crate::host_call_sequence_width_with_plan(target, operation, &void_operands, &plan,),
                 "void width target {target:?}"
             );
@@ -2337,14 +2337,14 @@ mod compatibility_encoder_differential_tests {
         for target in [NativeTarget::windows_x64(), NativeTarget::macos_arm64()] {
             let plan = plan(target, 0, true);
             assert_eq!(
-                encode_host_call_sequence(target, dereference, &result_only)
+                encode_host_call_sequence_no_plan(target, dereference, &result_only)
                     .expect("compatibility pointer-dereference import"),
                 encode_host_call_sequence_with_plan(target, dereference, &result_only, &plan,)
                     .expect("planned pointer-dereference import"),
                 "dereference target {target:?}"
             );
             assert_eq!(
-                crate::host_call_sequence_width(target, dereference, &result_only),
+                crate::host_call_sequence_width_no_plan(target, dereference, &result_only),
                 crate::host_call_sequence_width_with_plan(target, dereference, &result_only, &plan,),
                 "dereference width target {target:?}"
             );
@@ -2355,7 +2355,7 @@ mod compatibility_encoder_differential_tests {
         let key_operation = HostOperationKey::from_names("Input", "key_state");
         let key_plan = plan(key_target, 1, true);
         assert_eq!(
-            encode_host_call_sequence(key_target, key_operation, &key_operands)
+            encode_host_call_sequence_no_plan(key_target, key_operation, &key_operands)
                 .expect("compatibility key-state import"),
             encode_host_call_sequence_with_plan(
                 key_target,
@@ -2366,7 +2366,7 @@ mod compatibility_encoder_differential_tests {
             .expect("planned key-state import")
         );
         assert_eq!(
-            crate::host_call_sequence_width(key_target, key_operation, &key_operands),
+            crate::host_call_sequence_width_no_plan(key_target, key_operation, &key_operands),
             crate::host_call_sequence_width_with_plan(
                 key_target,
                 key_operation,
@@ -2387,7 +2387,7 @@ mod compatibility_encoder_differential_tests {
         )
         .expect("AAPCS64 float import plan");
         assert_eq!(
-            encode_host_call_sequence(float_target, float_operation, &float_operands)
+            encode_host_call_sequence_no_plan(float_target, float_operation, &float_operands)
                 .expect("compatibility float import"),
             encode_host_call_sequence_with_plan(
                 float_target,
@@ -2398,7 +2398,7 @@ mod compatibility_encoder_differential_tests {
             .expect("planned float import")
         );
         assert_eq!(
-            crate::host_call_sequence_width(float_target, float_operation, &float_operands),
+            crate::host_call_sequence_width_no_plan(float_target, float_operation, &float_operands),
             crate::host_call_sequence_width_with_plan(
                 float_target,
                 float_operation,
@@ -2656,11 +2656,16 @@ mod aarch64_import_plan_tests {
 
         let operation =
             HostOperationKey::new(HostCapability::Filesystem, HostOperation::OpenCreate);
-        let bytes = encode_host_call_sequence(NativeTarget::macos_arm64(), operation, &operands)
-            .expect("plan-driven Darwin open_create encoding");
+        let bytes =
+            encode_host_call_sequence_no_plan(NativeTarget::macos_arm64(), operation, &operands)
+                .expect("plan-driven Darwin open_create encoding");
         assert_eq!(
             bytes.len(),
-            crate::host_call_sequence_width(NativeTarget::macos_arm64(), operation, &operands)
+            crate::host_call_sequence_width_no_plan(
+                NativeTarget::macos_arm64(),
+                operation,
+                &operands,
+            )
         );
         assert_eq!(&bytes[..4], &0xd100_43ff_u32.to_le_bytes());
         assert_eq!(&bytes[24..28], &0x9400_0000_u32.to_le_bytes());

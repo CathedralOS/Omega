@@ -152,7 +152,7 @@ pub fn table_function_call_sequence_width_with_plan<T: InstructionOperandLike>(
     }
 }
 
-pub fn host_call_sequence_width<T: InstructionOperandLike>(
+pub fn host_call_sequence_width_no_plan<T: InstructionOperandLike>(
     target: NativeTarget,
     operation_key: HostOperationKey,
     operands: &[T],
@@ -224,7 +224,7 @@ pub fn host_call_sequence_width<T: InstructionOperandLike>(
             let float_return = if operation_key.returns_float() { 4 } else { 0 };
             base + planned_stack + deref + float_return
         }
-        Architecture::X86_64 => x86_64::host_call_sequence_width(
+        Architecture::X86_64 => x86_64::host_call_sequence_width_no_plan(
             omega_calling_conventions::CallingPolicy::native_for_target(target),
             operation_key,
             operands,
