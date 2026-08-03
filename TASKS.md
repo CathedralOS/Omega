@@ -1635,7 +1635,12 @@ and allocation handles expose no compiler-owned stack/control storage.
   `omega.float.hardware.macos_arm64.nearest-fma.v1` /
   `0xa1b8c9cb16855a61`, binding its two exact plans to binary32/binary64
   cancellation edges, one fused rounding, interpreter/native results, and Linux
-  AArch64 cross-build success. The directed-FMA slice retains
+  AArch64 cross-build success. The multiply-then-add slice retains
+  `omega.float.hardware.macos_arm64.multiply-then-add.v1` /
+  `0x8b5fa3afbbf00653`, binding its two exact plans to binary32/binary64
+  cancellation edges, two distinct roundings, binary32 finite-overflow
+  saturation, interpreter/native results, and both Linux cross-builds. The
+  directed-FMA slice retains
   `omega.float.hardware.macos_arm64.directed-fma.v1` /
   `0x75be2c4963f3f15a`, binding its six exact plans to binary32/binary64 half-ULP
   edges, all three directions, one fused rounding, control-state restoration,
