@@ -232,6 +232,18 @@ impl CoexistingExecutableTcbSet {
         Ok(())
     }
 
+    pub(crate) fn retire_era_after_quiescence(
+        &mut self,
+        identity: u64,
+    ) -> Result<AdmittedExecutableEra, String> {
+        let Some(index) = self.eras.iter().position(|era| era.identity == identity) else {
+            return Err(format!(
+                "component executable era {identity:#018x} is not live"
+            ));
+        };
+        Ok(self.eras.remove(index))
+    }
+
     pub fn live_report(&self) -> CoexistingExecutableTcbReport {
         let mut entries = Vec::new();
         let mut completeness = Vec::new();

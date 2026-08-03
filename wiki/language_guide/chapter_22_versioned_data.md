@@ -163,6 +163,13 @@ gates entry; quiescence of the old era gates reclamation. Parked continuations
 ordinarily pin the code and metadata of their era. "New routing is active" and
 "the old era is reclaimed" are therefore separate completion states.
 
+The generic entry ledger enforces those states directly. Publication binds the
+new era's admitted entry plan and profile-accepted executable manifest, exposes
+it as current, and closes the previous era to future entry. Already-entered
+calls retain their old era until exact leave. A noncurrent era and its manifest
+remain live until active entries and residual cohort holds are both zero, every
+disposition is complete, and a fresh release receipt retires the cohort.
+
 Candidate admission also checks its selected-provider TCB manifest. Coexisting
 eras contribute the union of their known executable entries and the weakest
 scope-completeness and containment evidence. Fully checked Omega eras coexist
@@ -212,7 +219,7 @@ required protocol.
 ## Deliberately Deferred Component Work
 
 The remaining representation work includes the artifact and mapping-cohort
-manifest, entry-acquisition algorithm, era-ledger and disposition receipts,
-bounded live-era policy, outbound calls from old continuations, exact
-liveness accounting, and optional continuation migration. These complete the
-component-runtime protocol described above.
+manifest, durable encoding for runtime-selected entry-ledger/disposition
+receipts, concrete entry-acquisition algorithms, outbound calls from old
+continuations, exact liveness accounting, and optional continuation migration.
+These complete the component-runtime protocol described above.

@@ -96,6 +96,16 @@ Every replaceable binding publishes an entry contract with these semantics:
 4. reclamation waits for acknowledged quiescence; and
 5. entry and leave publish operational and resource cost.
 
+Implementation status (2026-08-03): the generic era-entry ledger binds one
+exact binding contract, entry contract, admitted entry plan, and profile-sealed
+executable manifest per era. Publication exposes the new current era and closes
+the previous one to future entry as separate checked facts. An invocation
+linearizes once, retains its selected era across a later routing switch, and
+must leave with exact evidence. A closing era becomes quiescent only at zero
+active entries, zero residual lifetime-cohort holds, and complete dispositions;
+only a fresh cohort-release receipt then removes the era and its live TCB
+manifest. Runtime-specific RCU/counter/hazard implementations remain policy.
+
 The algorithm is runtime policy. Epochs, RCU, counters, hazard references, or a
 target-specific single-core scheme may satisfy the same contract. Whether a
 bounded or interrupt context may call the binding is derived from the admitted
@@ -356,7 +366,8 @@ contract.
 
 - exact component artifact and lifetime-cohort manifest;
 - symbolic import/export and relocation encoding;
-- concrete entry-acquisition and era-ledger representation;
+- durable runtime encoding for the generic entry-ledger receipts and the
+  selected concrete entry-acquisition algorithm;
 - replacement-plan and disposition-receipt representation;
 - continuation/state migration interfaces and the stable-object table bundle;
 - cross-component optimization and specialization rules; and
