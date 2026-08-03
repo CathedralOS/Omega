@@ -246,6 +246,9 @@ The fingerprinted semantic module contains:
   choices that change execution or generated obligations;
 - structural places rooted in ordinary or provider-backed storage, including
   field, index-by-value, dereference, and range/subextent projections;
+- machine-local entry-claim bindings that give each content claim a dense
+  identity, projection, algebra, and entry structural place without asserting
+  equality to an output;
 - contracts, author-declared premises, generated structural obligations,
   cleanup/transfer actions, conservation equations, work attribution, trust
   classes, and authorized admission sites;
@@ -268,6 +271,13 @@ transition under those obligations. These per-operation proofs, plus the
 global soundness obligations for control-flow composition, place algebra,
 admission binding, canonical decoding, and ordering, form an enumerable Psi
 language-verification backlog rather than an amorphous trusted compiler.
+
+Conditional control flow is one terminator over an already-defined Boolean
+value with ordered true/false successor edge records. Each successor retains
+its own edge identity, typed bindings, actions, and fuel charge. This makes
+mutual exclusion and exhaustiveness structural rather than generating a proof
+obligation solely to repair the representation. Proposition terms are not
+executable guards, and only the selected successor contributes path fuel.
 
 The normative Psi semantics is not whatever the current interpreter happens to
 do. The interpreter and native lowering implement the versioned operation

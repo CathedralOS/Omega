@@ -33,6 +33,12 @@ requires
     ExtentRootProvider::grant;
 }
 
+// A second settled route will name the core-owned program-storage entry
+// requirement for image and initial stack/storage parameters. Target entry
+// traits inherit that exact requirement; they do not define target-owned
+// look-alike Granted domains. The declaration above remains transitional until
+// parameter-route implementation adds that core requirement.
+
 // `Granted` owns one canonical half-open address interval. Runtime address
 // arithmetic must not define the one-past end: proof-level naturals retain an
 // end equal to the address-space bound even when `addr` cannot represent it.

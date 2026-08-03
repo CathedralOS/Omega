@@ -1,6 +1,6 @@
 # Tasks
 
-Last pruned: 2026-08-02.
+Last pruned: 2026-08-03.
 
 This file is an execution queue, not a changelog. A task should contain only:
 
@@ -107,15 +107,15 @@ provider plan, obtains one `Granted` root after `ExitBootServices`, and carries
 that linear value into owned idle. The remaining authority migrations and
 composite claim-frontier work remain.
 
-- **ENTRY-CONTENT-ROOTS — DESIGN BLOCKED (OWNER_QUESTIONS Q1):** add
-  entry-provisioned content roots for the loaded image and initial
-  stack/storage to the typed boot handoff. Derive sections and statics as
-  subextents; allocate later frames and task stacks from existing roots. The
-  startup provider admits only the handful of mappings it actually supplies,
-  not each object independently. The missing decision is the stable semantic
-  owner and identity of those routed root domains/entry requirement; core
-  `Extent::Granted` cannot name a UEFI/Cathedral-specific route, while arbitrary
-  target-owned domains give generic compiler derivation no portable identity.
+- **ENTRY-CONTENT-ROOTS — DESIGN CLEAR:** add one core-owned stable program-
+  storage entry requirement whose exact qualified parameter positions identify
+  the image and initial stack/storage roots. `Extent::Granted` authorizes that
+  requirement as an alternative route; UEFI, process, and other target entry
+  traits inherit the same semantic requirement while `Calling<C>` and target
+  policy refine only its plan and ABI. Installation introduces the matching
+  parameters. Derive sections and statics as subextents; allocate later frames
+  and task stacks from existing roots. The startup provider admits only the
+  handful of mappings it actually supplies, not each object independently.
 
 - `Task<T>` plus the interrupt mask guard and acknowledgement token are now
   ordinary linear data. The interrupt carriers expose the compact
@@ -838,11 +838,13 @@ identity.
 
 #### ENT3 — final state-footprint validation
 
-**DESIGN BLOCKED (OWNER_QUESTIONS Q2).** The exact final executable-region
-inventory, compiler-text relocation envelope, checked-assembly validation, and
-format-owned import-thunk validators are live. Completing the general
-compiler-function decoder and composing admitted leaves requires the canonical
-certificate/decoder trust boundary for static and dynamically loaded artifacts.
+**DESIGN CLEAR.** The exact final executable-region inventory, compiler-text
+relocation envelope, checked-assembly validation, and format-owned import-thunk
+validators are live. Emit one self-describing, versioned footprint certificate
+bound to exact final bytes and placements. Admission replays its normalized
+instruction/region rows against the closed target instruction specifications,
+proves complete region coverage, and composes admitted leaves under their
+separate provenance. Do not add a second whole-image decoder/admission path.
 
 - Finish enumeration of compiler-generated entry/body regions.
 - Validate final placed bytes after relocation, thunks, veneers, and generated
@@ -983,14 +985,14 @@ improvements do not change public identity.
   small structural proof kernel, versioned certificate envelope, total truth /
   reflexive-equality / closed-integer judgments, and sealed exact admission
   validator are live; architecture tests forbid Psi dependencies on Omega.
-  **CONDITIONAL-EDGE — DESIGN BLOCKED (OWNER_QUESTIONS Q4):** the settled
-  executable vocabulary currently defines only total unconditional jumps and
-  returns. Before adding branching, choose the canonical conditional-edge
-  shape, successor ordering/identity, guard representation, reconstructed
-  exclusivity/exhaustiveness obligation, and selected-edge fuel identity.
-  This blocks a semantic-v13 branch slice and branch-aware exact-path
-  certificates, not continued implementation of unrelated terminal-Psi
-  operations or ownership migration.
+  **CONDITIONAL-EDGE — DESIGN CLEAR:** add one conditional terminator over an
+  already-defined Boolean value with ordered true/false successor edge records.
+  Each successor owns its stable `EdgeId`, typed block-parameter bindings, edge
+  actions, and fuel site. The form is exhaustive and mutually exclusive by
+  construction; it generates no proposition merely to prove its own shape, and
+  only the selected successor edge is charged. Predicates remain proposition
+  vocabulary rather than executable terminator operands. Land this as one
+  semantic-v13 verifier/codec/interpreter/fuel/lowering vertical slice.
   The first frontend-ownership migration slice is live: `psi-source` owns
   source identities, byte spans, and source-backed text; `psi-tokens` owns the
   token representation; `psi-arena` owns generic dense, paged, generational,
@@ -1078,12 +1080,15 @@ improvements do not change public identity.
   has been removed; general terminal production grows only in this Psi stage.
   Its independent content-evidence producer now revalidates checked
   conservation, reshuffle, and direct partition-composition facts into terminal
-  v9-v12 rows. **TERMINAL-CONTENT-ENTRY-CLAIMS — DESIGN BLOCKED
-  (`OWNER_QUESTIONS.md` Q6):** a direct partition wrapper has exact checked
-  entry claims but no sound one-to-one reshuffle, while v12 can name partition
-  inputs only through equality-bearing reshuffle rows. Choose a versioned
-  non-equality entry-claim binding before landing the content-bearing executable
-  source canary; the producer remains fail-closed meanwhile.
+  v9-v12 rows. **TERMINAL-CONTENT-ENTRY-CLAIMS — DESIGN CLEAR:** add a
+  fingerprinted machine-local entry-claim binding row containing dense claim
+  identity, projection, algebra, and entry structural place, with no output and
+  no equality assertion. Partition-composition rows reference those bindings;
+  `ContentIdentityReshuffle` remains exclusively the one-to-one equality case.
+  The verifier checks unique canonical bindings and permits later content axioms
+  to reference them independently. Version the semantic module, codec,
+  verifier, proof adapter, and producer together before landing the executable
+  content canary; the producer remains fail-closed meanwhile.
   The first in-memory executable slice is also live: stable machine/block
   topology, representable integer constants, v2 Boolean constants, v3
   exact-width wrapping integer addition, v4 exact-width saturating integer
@@ -1510,7 +1515,7 @@ and allocation handles expose no compiler-owned stack/control storage.
 - **N6:** implement law-bearing relations and quotient evidence in the ordered
   sequence fixed by
   `wiki/design_briefs/law_bearing_relations_and_quotients.md`:
-  1. **PROP-FAMILY-SURFACE — DESIGN BLOCKED (`OWNER_QUESTIONS.md` Q5):**
+  1. **PROP-FAMILY-SURFACE — DESIGN BLOCKED (`OWNER_QUESTIONS.md` Q1):**
      land the proof-side Prop-family/index-telescope fragment after choosing
      the source declaration/application and transparent-alias surface;
   2. add the proof stratum to selected-conformance projection and permit
@@ -1856,7 +1861,7 @@ move it to a convenience library.
   `{ instance, selected-conformance table }` carrier from the byte-identical
   slice descriptor, and layout/runtime-storage descriptors retain the exact
   trait and authored named-selection metadata. **DYNAMIC-CONFORMANCE-SATISFIERS
-  — DESIGN BLOCKED (`OWNER_QUESTIONS.md` Q7):** the source model does not yet
+  — DESIGN BLOCKED (`OWNER_QUESTIONS.md` Q2):** the source model does not yet
   settle how one named whole-trait edge binds its complete set of attached
   requirement satisfiers; do not derive adapter rows by state-name coincidence.
   Descriptor materialization, private table emission, requirement adapters,
@@ -1892,7 +1897,7 @@ move it to a convenience library.
   canaries now carry ordinary checked fuel rankings, so enabling the common
   termination floor no longer leaves those semantic-evaluation consumers on
   stale unmeasured loops. **BUILD-TIME-ABNORMAL-OUTCOME — DESIGN
-  BLOCKED (`OWNER_QUESTIONS.md` Q8):** the failure/control axis is settled, but
+  BLOCKED (`OWNER_QUESTIONS.md` Q3):** the failure/control axis is settled, but
   its complete-contract and terminal source surface are not. Contextual `trap`
   currently erases to an ordinary terminal transition and is not usable
   admission evidence; do not invent an abnormal-outcome summary until the
@@ -1967,20 +1972,6 @@ ordinary code never receives a raw executable address.
 
 ## Owner-blocked index
 
-- **ENTRY-CONTENT-ROOTS:** blocked on `OWNER_QUESTIONS.md` Q1's stable semantic
-  owner/identity for image and initial-storage handoff roots.
-- **ENT3:** blocked on `OWNER_QUESTIONS.md` Q2's final artifact-footprint
-  certificate format, trusted decoder surface, and admitted-leaf composition
-  boundary.
-- **LINUX-METADATA:** blocked on `OWNER_QUESTIONS.md` Q3's choice between a
-  width-adapting integer layout placement and target-owned foreign-record
-  normalization.
-- **TERMINAL-CONTENT-CLAIMS:** blocked on a versioned terminal-Psi entry-claim
-  binding that identifies a partition theorem's consumed inputs without
-  asserting the stronger, false one-to-one input/output equality. This also
-  blocks the dependent bump-allocator canary and frontier work.
-- **CONDITIONAL-EDGE:** blocked on `OWNER_QUESTIONS.md` Q4's choice of canonical
-  terminal-Psi conditional-edge, guard, successor, proof, and fuel identity.
 - **ATOMIC-EVENT-MODEL:** blocked on the open formal portable atomic-event
   axioms and x86-64/AArch64 refinement choices recorded in
   `wiki/language_guide/appendix_open_questions.md`. This blocks portable fences
@@ -1990,15 +1981,19 @@ ordinary code never receives a raw executable address.
   arithmetic earns a distinct public library carrier beyond exact-by-default
   obligations and the existing explicit policy families, as recorded in
   `wiki/language_guide/appendix_open_questions.md`.
-- **PROP-FAMILY-SURFACE:** blocked on `OWNER_QUESTIONS.md` Q5's choice of
+- **PROP-FAMILY-SURFACE:** blocked on `OWNER_QUESTIONS.md` Q1's choice of
   nominal proposition-family declaration, application, and transparent-alias
   surface over carrierless selected-conformance evidence. This blocks N6's
   ordered first rung and therefore its later quotient migration.
-- **BUILD-TIME-ABNORMAL-OUTCOME:** blocked on `OWNER_QUESTIONS.md` Q8's
+- **BUILD-TIME-ABNORMAL-OUTCOME:** blocked on `OWNER_QUESTIONS.md` Q3's
   complete-contract spelling and normalized propagation model for nuclear
   abort, trap-capable operations, and other abnormal non-return. The legacy
   contextual `trap` parser route erases to ordinary termination and cannot
   support build-time admission.
+- **DYNAMIC-CONFORMANCE-SATISFIERS:** blocked on `OWNER_QUESTIONS.md` Q2's
+  binding between one named whole-trait edge and its complete requirement
+  satisfier set. This blocks dynamic table adapter emission, not static trait
+  dispatch.
 
 ## Vertical acceptance slices
 
@@ -2029,10 +2024,12 @@ ordinary code never receives a raw executable address.
   plan-prefixed `readlinkat` are normalized too. Plain-path removal now injects
   both `AT_FDCWD` and Linux's `AT_REMOVEDIR` through retained plan data.
   `renameat`/`linkat`/`symlinkat` retain their directory descriptors and flags
-  through the same plan surface. **Linux metadata is DESIGN BLOCKED
-  (`OWNER_QUESTIONS.md` Q3):** the real x86-64/AArch64 `struct stat` fields
-  require target-width normalization that the settled layout vocabulary cannot
-  express. Linux `read_dir` now retains the real three-argument `getdents64`
+  through the same plan surface. **Linux metadata is DESIGN CLEAR:** extend the
+  closed `FieldPlan` vocabulary with an integer placement carrying byte offset,
+  stored width, and signed/unsigned interpretation. Projection sign- or zero-
+  extends into the portable semantic carrier; mutable views require total
+  encoding or a concrete fit proof plus ordinary legal-transfer evidence.
+  Linux `read_dir` now retains the real three-argument `getdents64`
   plan, omits the Darwin-only cursor at selection, and decodes the Linux record
   offsets in both target packages. Direct syscall failures now flow as explicit
   `-errno` results into target-package classification; Linux does not acquire a

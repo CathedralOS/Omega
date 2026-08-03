@@ -343,7 +343,7 @@ artifact.
   proof/build-admission exists. Authority, trust, abnormal-outcome, and richer
   resource axes still need to complete the common admission floor.
 - Abnormal non-return admission is design-blocked on
-  `OWNER_QUESTIONS.md` Q8. The language has not selected the complete-contract
+  `OWNER_QUESTIONS.md` Q3. The language has not selected the complete-contract
   spelling or normalized failure/control row; contextual parser `trap`
   currently erases to an ordinary terminal edge and cannot serve as checked
   evidence.

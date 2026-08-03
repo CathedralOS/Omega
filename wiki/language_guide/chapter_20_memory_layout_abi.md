@@ -612,6 +612,16 @@ permitted only for `Stable` storage. On the write side, it establishes whether
 every value admitted by the field type has an encoding, or requires proof that
 the concrete value fits. The compiler checks such a proof but never invents a
 qualification such as `Fits12`, silently truncates, or chooses an encoder.
+
+A foreign integer whose stored width differs across targets uses the closed
+integer-placement form. The placement names its byte offset, stored width, and
+signed or unsigned interpretation; field projection performs the corresponding
+sign or zero extension into the semantic carrier. This keeps one portable
+record definition across ABIs such as `struct stat`. Writing through such a
+view requires total encodability or a concrete fit proof in addition to the
+ordinary legal-transfer and observation checks. An adapter machine is optional
+policy for more involved decoding, not the canonical answer to integer-width
+variation alone.
 Encodability alone does not authorize a transfer: sub-unit mutation must also
 have a legal implementation. Stable exclusive storage may use one bounded
 read-patch-write sequence. External storage requires a whole-container or

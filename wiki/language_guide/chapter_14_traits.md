@@ -430,7 +430,7 @@ the trait plus authored named selection in physical layout descriptors; it no
 longer models the second word as a slice length. Descriptor materialization,
 private table emission, and adapter lowering remain subsequent implementation
 rungs. The exact association between a named whole-trait edge and its attached
-requirement satisfiers is design-blocked on `OWNER_QUESTIONS.md` Q7; neither Psi
+requirement satisfiers is design-blocked on `OWNER_QUESTIONS.md` Q2; neither Psi
 nor Omega may infer adapter rows merely from matching state names.
 
 The table is a private realization. Logical identity records the trait,

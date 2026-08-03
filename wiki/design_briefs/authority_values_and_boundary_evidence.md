@@ -179,6 +179,13 @@ claims under field/case/index paths; destructuring performs the inverse.
 One-to-one and otherwise unambiguous outcome mappings infer. Ambiguous mappings
 reject rather than guessing.
 
+Terminal Psi names an entry claim independently of any output equality. One
+machine-local semantic binding records its dense claim identity, projection,
+algebra, and entry structural place. Partition theorems and later content
+axioms reference that binding. An identity-reshuffle row is emitted only for a
+separate one-to-one input/output equality; it is never required merely to name
+a partition input.
+
 Implementation checkpoint (2026-08-02): checked outcome maps now feed exact
 content-identity reshuffle rows. A row exists only when the input and output
 claim paths preserve one transfer-stable claim identity and both places select
@@ -425,6 +432,15 @@ Fresh roots arise either from a `ProgramLocal` declaration or from admitted
 provider issuance. Thus checked sub-allocators transform existing content,
 while externally rooted conduits require admitted backing identity, fresh
 issuance, and custody evidence.
+
+Entry-provisioned image and initial-storage extents use the same inbound route
+rule as other admitted parameters. Core owns one stable program-storage entry
+requirement and `Extent::Granted` lists it as an alternative route. Target
+entry traits inherit that exact requirement and may refine its selected plan;
+they do not replace its semantic identity or declare look-alike root domains.
+The requirement's exact semantic parameter positions are the portable keys by
+which the compiler derives image sections, statics, and initial stack/storage
+subextents after installation.
 
 The admitted root is a scoped hypothesis import, not a proof that external
 reality equals the compiler model. A selected provider states the exact
