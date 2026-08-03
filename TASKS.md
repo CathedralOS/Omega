@@ -1720,8 +1720,11 @@ move it to a convenience library.
   same-named attached machines. Existing interpreter/native dispatch canaries
   now declare their conformance edges. Psi type validation also rejects a
   boundary trait as a local dynamic value and rejects a bare generic trait
-  whose parameters cannot yet be bound by the `dyn` source form. The two-word
-  descriptor, coherent
+  whose parameters cannot yet be bound by the `dyn` source form. The first
+  per-requirement source fence is also live: a call is absent from `dyn`
+  when it lacks a borrowed receiver, carries requirement-local generics, or
+  mentions `Self` outside that receiver, without hiding eligible siblings. The
+  two-word descriptor, coherent
   named-conformance selection, per-requirement eligibility/adapters, and
   envelope inference remain.
   Local descriptors must not cross replaceable component boundaries. Add owned
