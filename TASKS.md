@@ -304,16 +304,6 @@ embeddings and arithmetic), semantic-domain identity, and the stable projection
 fingerprint. It does not publish placeholder backing or conservation witnesses;
 those rows remain absent until their actual checked proofs exist.
 
-- **INTERVAL-SET-CONTENT — COMPLETE (2026-08-02):** the transitional
-  `Interval<CoordinateSpace>` content algebra is retired in favor of canonical
-  `IntervalSet<CoordinateSpace>`. The compiler-owned exact-natural engine sorts
-  disjoint half-open members, removes empty members, merges adjacency, retains
-  one empty representation, rejects overlap in partial `separate(...)`, proves
-  containment, and derives canonical fragmented residual difference. Core's
-  proof-only declaration and `Extent::Granted` projection, closed-fragment
-  normalization, schema-distinct stable fingerprints, checked facts, debug JSON,
-  generic proof-carrier handling, and canaries all use the set vocabulary. A
-  fail canary rejects a user-authored lookalike of the retired `Interval` name;
 - **BUMP-ALLOCATOR-CANARY — BLOCKED on `CONSERVATION-CONTRACT`:** implement an
   ordinary package-level bump strategy over a consumed `Extent` once source
   content-conservation contracts can state
@@ -875,45 +865,6 @@ application-handler re-entry restrictions use ordinary local reach analysis.
   Recursion detection is shared across statement- and value-position calls. A
   reachable state-transition cycle or truly unresolved frame stays opaque, so
   consumers fail closed rather than extrapolating from one observed route.
-- **DOM1/DOM2/DOM3/DOM5:** exact integer `as`, per-atom
-  weakening/explicit erasure, operator ownership, predicate `requires`, and
-  exact route bodies are complete. Keep unit conversion in ordinary library
-  machines and operators.
-- **PDI2 — COMPLETE:** closed indexed erased domain declarations and binding
-  constraints now accept `domain<T, const U: Unit> T::Quantity<U>;`. Canonical closed values
-  distinguish semantic instances while reordered structural values coincide;
-  one family spans carriers, direct const binders survive generic signatures,
-  ordinary per-pair operators attach to the family, implicit cross-index flow
-  rejects, and the index remains absent from carrier layout. Indexed explicit
-  qualification now accepts both closed canonical values and a direct in-scope
-  const binder, retains the exact instance in typed/checked artifacts, and
-  rejects missing, mistyped, or unresolved index packs. Result/parameter type
-  evidence now specializes const-generic machine calls, clones distinct
-  canonical tuples, refreshes exact indexed identities, and executes a
-  destination-parameterized conversion in both engines; incomplete inference
-  rejects. The first shipped library customer now lives in
-  `omega/language/std/units.omg`: named length/time/speed indices, explicit
-  trapping and truncating integer conversions, IEEE floating conversions, and
-  per-pair addition/division operators execute in both engines. Imported
-  cross-index calls reject, and initialized qualified locals retain their
-  checked fact across later call/operator boundaries.
-- **PDI3 — COMPLETE:** computed open result indices now survive parsing, resolution,
-  specialization, indexed qualification, and checked lowering. Each operator
-  node requires one exact public operator, one checked provider, and one exact
-  proved associative/commutative algebra instance; that authority is retained
-  in typed/checked snapshots, enters indexed-domain and generic-template
-  identity, and licenses only same-authority flattening/sorting. Missing or
-  ambiguous authority rejects. Successful closed-evaluation and licensed-
-  normalization judgments now retain named verification conditions, exact
-  source/target expressions and instances, program points, and discharge
-  evidence in checked trees and a public JSON artifact without rewriting
-  semantic identity. Exact active `requires` facts and prior or result-call
-  `ensures` now discharge remaining equality obligations, including every
-  unequal member of a multi-index pack and nested literal boundaries. Checked
-  evidence retains the exact local fact handles; conjunctions expose only their
-  authored equality conjuncts, no ambient theorem search occurs, and unresolved
-  equality rejects without inventing a public generic precondition or adding a
-  special citation surface.
 - **STR/EFX:** the source reach clause is now canonically `reaches`; the parser
   rejects legacy `effects` with directed migration guidance, and the Omega,
   canary, sample, and Cathedral source corpora use the new spelling. Syntax,
@@ -1557,25 +1508,11 @@ move it to a convenience library.
 The language model is settled in guide chapters 21-22 and the programmable
 layouts brief. Complete the implementation in dependency order:
 
-- [done] extend the live repeated-field encoder (exact `[T; N]`, bounded
-  `FixedVec<T, N>`, and borrowed byte slices) to general borrowed scalar
-  slices, retaining runtime length, two-pass work, and exact output-capacity
-  obligations in the normalized generated encode plan;
 - extend repeated encode/decode to `Vec<T>` once its allocator obligations are
   available; packed scalar decode into `&[T]` remains intentionally
   unsupported because varints cannot form a zero-copy scalar view;
-- [done] expose strict, projecting, and preserving decode requirements;
-  implement the preserving package carrier `Relayed<T>` with an opaque
-  round-trip remainder;
-- [done] represent published historical formats as ordinary immutable data and
-  select checked migration machines through format-lineage packages;
-- [done] make compatibility checks consume channel/store demands and report
-  directional readability, writability, unknown preservation, canonicality,
-  and migration coverage; and
-- [done] retain realization origin separately from trust, classifying the
-  current generated `compact_binary` codec as compiler-admitted until its
-  generated body is independently checked against the public codec
-  requirement.
+- implement the preserving package carrier `Relayed<T>` with an opaque
+  round-trip remainder.
 
 Keep `compact_binary` strict while extending its normalized plan and generated
 realizations. Additional native or ecosystem codec families are ordinary
@@ -1607,11 +1544,6 @@ ordinary code never receives a raw executable address.
   termination, mutation, and trust normalize independently. Candidate resource
   demand and installed provision admit separately; a fixed resource ceiling is
   contract identity only when policy deliberately publishes one.
-- **Indexed domains, rung 2:** build on canonical structured const parameters
-  with one erased domain family over closed named unit indices. Prove one declaration
-  spans `f64` and `i64` carriers, carrier layout and SIMD shape remain unchanged,
-  arithmetic-policy composition stays independent, and predicate facts derive
-  through `ensures`. Computed `A / B` result indices belong to rung 3.
 - **Allocator substrate:** implement a package-level bump strategy over one
   qualified `Extent`. Two allocations coexist; release cleans and returns an
   exact retired subextent without restoring tail capacity; reset rejects while
