@@ -69,3 +69,24 @@ target-policy computation, whether direct foreign-record views remain the
 filesystem mechanism, and what read/write guarantees a future width-adapting
 placement would carry. Correct Linux `StatLayout`, path metadata, and decoded
 descriptor metadata must not claim completion until this is settled.
+
+## Q4 — What is the canonical terminal-Psi conditional edge?
+
+The live terminal-Psi vocabulary has only total unconditional jumps and
+returns. Its architecture requires future guards and branch-created blocks to
+be explicit, but it does not yet choose the semantic shape that makes one
+conditional transition independently verifiable, executable, serializable,
+meterable, and lowerable. Which edge form is canonical?
+
+- one conditional edge with an exact Boolean guard and ordered true/false
+  successors, each carrying its own typed block-parameter bindings and edge
+  actions; or
+- separate guarded edges whose mutual exclusivity and exhaustiveness are
+  reconstructed as a block-level obligation?
+
+The choice fixes successor ordering and identity, whether the guard is an
+already-defined Boolean value or may contain a closed predicate form, where
+branch exclusivity/exhaustiveness is proven, which selected edge is charged,
+and how exact-path and safe-point fuel certificates identify the untaken arm.
+Do not freeze semantic v13, extend the codec, or publish branch certificates
+until this shape is settled as one reviewed vertical slice.
