@@ -51,6 +51,8 @@ pub struct SelectedExternalRootEntryFactBinding {
 #[derive(Debug)]
 pub struct AdmittedExternalRootEntryFactHandoff<'entry, 'storage> {
     occurrence: &'entry omega_external_roots::AdmittedEntryQualification,
+    implementation_machine: psi_symbols::SymbolHandle,
+    implementation_state: psi_symbols::SymbolHandle,
     checked_fact: psi_facts::FactHandle,
     parameter_symbol: psi_symbols::SymbolHandle,
     storage: &'storage omega_instruction_selection::DerivedBoundaryEntryParameterStorage,
@@ -59,6 +61,14 @@ pub struct AdmittedExternalRootEntryFactHandoff<'entry, 'storage> {
 impl<'entry, 'storage> AdmittedExternalRootEntryFactHandoff<'entry, 'storage> {
     pub const fn occurrence(&self) -> &'entry omega_external_roots::AdmittedEntryQualification {
         self.occurrence
+    }
+
+    pub const fn implementation_machine(&self) -> psi_symbols::SymbolHandle {
+        self.implementation_machine
+    }
+
+    pub const fn implementation_state(&self) -> psi_symbols::SymbolHandle {
+        self.implementation_state
     }
 
     pub const fn checked_fact(&self) -> psi_facts::FactHandle {
@@ -139,7 +149,7 @@ impl SelectedExternalRootEntryFactBinding {
     /// index is still present beside the exact placement selected by the
     /// installed root's validated boundary plan, so ABI lowering never has to
     /// rediscover the admitted subject by name or register.
-    pub fn admit_acknowledgement<'entry>(
+    fn admit_acknowledgement<'entry>(
         &self,
         acknowledgement: &'entry omega_external_roots::InterruptAcknowledgement,
     ) -> Result<
@@ -158,7 +168,7 @@ impl SelectedExternalRootEntryFactBinding {
     /// Join the live admitted occurrence to the exact generated prologue
     /// capture before the checked adapter body may rely on its propagated
     /// parameter fact.
-    pub fn admit_acknowledgement_handoff<'entry, 'storage>(
+    fn admit_acknowledgement_handoff<'entry, 'storage>(
         &self,
         acknowledgement: &'entry omega_external_roots::InterruptAcknowledgement,
         storage: &'storage omega_instruction_selection::DerivedBoundaryEntryStorage,
@@ -181,10 +191,31 @@ impl SelectedExternalRootEntryFactBinding {
         }
         Ok(AdmittedExternalRootEntryFactHandoff {
             occurrence,
+            implementation_machine: self.implementation_machine,
+            implementation_state: self.implementation_state,
             checked_fact: self.checked_fact,
             parameter_symbol: self.parameter_symbol,
             storage: parameter,
         })
+    }
+
+    /// Dispatch the exact checked provider body only after joining its
+    /// propagated parameter fact to the live installed-root occurrence and
+    /// generated entry-prologue capture.
+    ///
+    /// The executor is deliberately invoked inside this operation rather than
+    /// receiving a detachable admission result. A failed occurrence or ABI
+    /// placement match returns before `execute` runs, while a successful call
+    /// receives the non-constructible borrowed handoff naming the exact checked
+    /// machine, state, fact, parameter, and prologue write range.
+    pub fn dispatch_checked_adapter_body<'entry, 'storage, Output>(
+        &self,
+        acknowledgement: &'entry omega_external_roots::InterruptAcknowledgement,
+        storage: &'storage omega_instruction_selection::DerivedBoundaryEntryStorage,
+        execute: impl FnOnce(AdmittedExternalRootEntryFactHandoff<'entry, 'storage>) -> Output,
+    ) -> Result<Output, omega_external_roots::ExternalRootDiagnostic> {
+        let handoff = self.admit_acknowledgement_handoff(acknowledgement, storage)?;
+        Ok(execute(handoff))
     }
 }
 
