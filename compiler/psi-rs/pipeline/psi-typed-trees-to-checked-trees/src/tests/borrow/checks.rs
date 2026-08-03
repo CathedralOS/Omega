@@ -2453,6 +2453,71 @@ fn accepts_same_state_copy_from_static_persistent_storage() {
 }
 
 #[test]
+fn accepts_cross_state_copy_from_static_persistent_storage() {
+    let source = r#"
+        data Main {
+            first: &[u8];
+            second: &[u8];
+        }
+
+        machine Main::store(&mut self) {
+            self.first = "program static";
+            transition { _ -> copy() }
+
+            state copy(&mut self) {
+                self.second = self.first;
+            }
+        }
+    "#;
+
+    check_program(source).expect("program-static persistent provenance crosses a graph-state edge");
+}
+
+#[test]
+fn rejects_cross_state_static_provenance_missing_on_one_predecessor() {
+    let source = r#"
+        data Main {
+            first: &[u8];
+            second: &[u8];
+        }
+
+        machine Main::store(&mut self, choose_static: bool) {
+            transition choose_static {
+                true -> establish()
+                false -> bypass()
+            }
+
+            state establish(&mut self) {
+                self.first = "program static";
+                transition { _ -> join() }
+            }
+
+            state bypass(&mut self) {
+                transition { _ -> join() }
+            }
+
+            state join(&mut self) {
+                self.second = self.first;
+            }
+        }
+    "#;
+
+    let diagnostics =
+        check_program(source).expect_err("static provenance must hold on every predecessor");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("assignment stores a borrow-carrying value in persistent field `second`")),
+        "expected the cross-state must-analysis fence, got:\n{}",
+        diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.message.as_str())
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+}
+
+#[test]
 fn accepts_same_place_reassignment_from_static_persistent_storage() {
     let source = r#"
         data Main {

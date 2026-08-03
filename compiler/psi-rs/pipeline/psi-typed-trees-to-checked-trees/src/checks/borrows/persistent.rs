@@ -22,89 +22,198 @@ pub(super) fn check_persistent_borrow_assignments(
             continue;
         }
 
-        for state in program.machine_states(machine) {
-            let mut static_persistent_places = Vec::new();
-            for (statement_index, statement) in program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .enumerate()
-            {
-                let StatementNode::Assignment(assignment) = statement else {
-                    if matches!(statement, StatementNode::Call(_)) {
-                        // Until call mutation summaries are joined here, do not
-                        // carry a static-provenance shortcut across an opaque
-                        // statement call that may replace persistent storage.
-                        static_persistent_places.clear();
-                    }
-                    continue;
-                };
-                let Some(place) = crate::flow::canonical_place_from_expression_in_state(
-                    program,
-                    state.symbol,
-                    statement_index,
-                    assignment.target,
-                ) else {
-                    continue;
-                };
-                let Some((name, target_type)) =
-                    persistent_target_type(program, &place, &persistent)
-                else {
-                    static_persistent_places.retain(|known| {
-                        !static_provenance_invalidated_by_mutation(program, known, &place)
-                    });
-                    continue;
-                };
-                if !crate::borrow::view_link::returns_borrow(program, target_type) {
-                    static_persistent_places.retain(|known| {
-                        !static_provenance_invalidated_by_mutation(program, known, &place)
-                    });
-                    continue;
-                }
-                let initializers = crate::borrow::borrow_initializer_expressions(
-                    program,
-                    target_type,
-                    assignment.value,
-                );
-                let has_only_static_sources = if initializers.is_empty() {
-                    is_state_independent_borrow_source(program, assignment.value)
-                } else {
-                    initializers
-                        .into_iter()
-                        .all(|initializer| is_state_independent_borrow_source(program, initializer))
-                };
-                let has_only_static_sources = has_only_static_sources
-                    || source_is_known_static_persistent_place(
-                        program,
-                        state.symbol,
-                        statement_index,
-                        assignment.value,
-                        target_type,
-                        &static_persistent_places,
-                    );
-
-                // Assignment reads its source before replacing the target, so
-                // establish the source verdict against the pre-write
-                // provenance above. Retire every possibly overlapping old
-                // marker only after that read, then publish the replacement
-                // marker when the new value was proved static.
-                static_persistent_places.retain(|known| {
-                    !static_provenance_invalidated_by_mutation(program, known, &place)
-                });
-                if has_only_static_sources {
-                    static_persistent_places.push(place);
-                    continue;
-                }
-
-                diagnostics.push(Diagnostic::error(format!(
-                    "assignment stores a borrow-carrying value in persistent field `{name}` of \
-                     machine `{}`; persistent loans must be propagated through graph-state \
-                     transitions before this write can be admitted",
-                    machine.name,
-                )));
-            }
+        let states = program.machine_states(machine);
+        let entry_fields =
+            static_persistent_fields_at_state_entries(program, machine, &persistent, states);
+        for (state, entry_fields) in states.iter().zip(entry_fields) {
+            let (_, state_diagnostics) =
+                analyze_persistent_state(program, machine, state, &persistent, &entry_fields, true);
+            diagnostics.extend(state_diagnostics);
         }
     }
+}
+
+fn static_persistent_fields_at_state_entries(
+    program: &psi_typed_trees::TypedTrees,
+    machine: &psi_typed_trees::machine::Machine,
+    persistent: &[(SymbolHandle, &str, TypeReferenceHandle)],
+    states: &[psi_typed_trees::state::State],
+) -> Vec<Vec<SymbolHandle>> {
+    let mut entries = vec![None::<Vec<SymbolHandle>>; states.len()];
+    if !states.is_empty() {
+        entries[0] = Some(Vec::new());
+    }
+
+    loop {
+        let mut changed = false;
+        for (state_index, state) in states.iter().enumerate() {
+            let Some(entry) = entries[state_index].clone() else {
+                continue;
+            };
+            let (exit, _) =
+                analyze_persistent_state(program, machine, state, persistent, &entry, false);
+            for target in state_transition_targets(program, state) {
+                let Some(target_index) = states
+                    .iter()
+                    .position(|candidate| candidate.symbol == target)
+                else {
+                    continue;
+                };
+                let merged = entries[target_index].as_ref().map_or_else(
+                    || exit.clone(),
+                    |prior| {
+                        prior
+                            .iter()
+                            .copied()
+                            .filter(|field| exit.contains(field))
+                            .collect()
+                    },
+                );
+                if entries[target_index].as_ref() != Some(&merged) {
+                    entries[target_index] = Some(merged);
+                    changed = true;
+                }
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+
+    entries
+        .into_iter()
+        .map(|entry| entry.unwrap_or_default())
+        .collect()
+}
+
+fn state_transition_targets(
+    program: &psi_typed_trees::TypedTrees,
+    state: &psi_typed_trees::state::State,
+) -> Vec<SymbolHandle> {
+    program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .filter_map(|statement| {
+            let StatementNode::Transition(transition) = statement else {
+                return None;
+            };
+            Some([transition.target, transition.continuation])
+        })
+        .flatten()
+        .filter(|target| target.is_valid())
+        .filter_map(|target| {
+            let psi_typed_trees::statement::TransitionTargetNode::Named { path, .. } =
+                program.statement_table.transition_target(target)
+            else {
+                return None;
+            };
+            path.symbol.is_valid().then_some(path.symbol)
+        })
+        .collect()
+}
+
+fn analyze_persistent_state(
+    program: &psi_typed_trees::TypedTrees,
+    machine: &psi_typed_trees::machine::Machine,
+    state: &psi_typed_trees::state::State,
+    persistent: &[(SymbolHandle, &str, TypeReferenceHandle)],
+    entry_fields: &[SymbolHandle],
+    report_diagnostics: bool,
+) -> (Vec<SymbolHandle>, Vec<Diagnostic>) {
+    let mut static_persistent_places = Vec::new();
+    let mut static_persistent_fields = entry_fields.to_vec();
+    let mut diagnostics = Vec::new();
+    for (statement_index, statement) in program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .enumerate()
+    {
+        let StatementNode::Assignment(assignment) = statement else {
+            if matches!(statement, StatementNode::Call(_)) {
+                // Until call mutation summaries are joined here, do not carry
+                // static provenance across an opaque statement call.
+                static_persistent_places.clear();
+                static_persistent_fields.clear();
+            }
+            continue;
+        };
+        let Some(place) = crate::flow::canonical_place_from_expression_in_state(
+            program,
+            state.symbol,
+            statement_index,
+            assignment.target,
+        ) else {
+            continue;
+        };
+        let target_field = persistent_field_and_tail(&place, persistent);
+        let Some((name, target_type)) = persistent_target_type(program, &place, persistent) else {
+            static_persistent_places
+                .retain(|known| !static_provenance_invalidated_by_mutation(program, known, &place));
+            continue;
+        };
+        if !crate::borrow::view_link::returns_borrow(program, target_type) {
+            static_persistent_places
+                .retain(|known| !static_provenance_invalidated_by_mutation(program, known, &place));
+            if let Some((field, _)) = target_field {
+                static_persistent_fields.retain(|known| *known != field);
+            }
+            continue;
+        }
+        let initializers =
+            crate::borrow::borrow_initializer_expressions(program, target_type, assignment.value);
+        let has_only_static_sources = if initializers.is_empty() {
+            is_state_independent_borrow_source(program, assignment.value)
+        } else {
+            initializers
+                .into_iter()
+                .all(|initializer| is_state_independent_borrow_source(program, initializer))
+        };
+        let has_only_static_sources = has_only_static_sources
+            || source_is_known_static_persistent_place(
+                program,
+                state.symbol,
+                statement_index,
+                assignment.value,
+                target_type,
+                &static_persistent_places,
+                &static_persistent_fields,
+                persistent,
+            );
+
+        // Assignment reads its source before replacing the target.
+        static_persistent_places
+            .retain(|known| !static_provenance_invalidated_by_mutation(program, known, &place));
+        if let Some((field, _)) = target_field {
+            static_persistent_fields.retain(|known| *known != field);
+        }
+        if has_only_static_sources {
+            static_persistent_places.push(place);
+            if let Some((field, tail)) = target_field
+                && tail
+                    == static_persistent_places
+                        .last()
+                        .expect("just inserted static place")
+                        .segments
+                        .len()
+                && !static_persistent_fields.contains(&field)
+            {
+                static_persistent_fields.push(field);
+            }
+            continue;
+        }
+
+        if report_diagnostics {
+            diagnostics.push(Diagnostic::error(format!(
+                "assignment stores a borrow-carrying value in persistent field `{name}` of \
+                 machine `{}`; persistent loans must be propagated through graph-state \
+                 transitions before this write can be admitted",
+                machine.name,
+            )));
+        }
+    }
+    (static_persistent_fields, diagnostics)
 }
 
 fn source_is_known_static_persistent_place(
@@ -114,6 +223,8 @@ fn source_is_known_static_persistent_place(
     expression: psi_typed_trees::expression::ExpressionHandle,
     source_type: TypeReferenceHandle,
     known_static: &[crate::flow::CanonicalPlace],
+    known_static_fields: &[SymbolHandle],
+    persistent: &[(SymbolHandle, &str, TypeReferenceHandle)],
 ) -> bool {
     let Some(source) = crate::flow::canonical_place_from_expression_in_state(
         program,
@@ -123,6 +234,12 @@ fn source_is_known_static_persistent_place(
     ) else {
         return false;
     };
+
+    if persistent_field_and_tail(&source, persistent)
+        .is_some_and(|(field, _)| known_static_fields.contains(&field))
+    {
+        return true;
+    }
 
     let Some(state) = crate::find_state(program, state_symbol) else {
         return false;
@@ -149,6 +266,37 @@ fn source_is_known_static_persistent_place(
             known_static
                 .iter()
                 .any(|known| place_is_proven_prefix_of(program, state, known, &leaf))
+        })
+}
+
+/// Return the persistent field selected by a canonical place and the segment
+/// index immediately below that field. Attached-data places carry the field as
+/// a segment below the state-local receiver root; machine-owned data can use
+/// the field symbol as the root directly.
+fn persistent_field_and_tail(
+    place: &crate::flow::CanonicalPlace,
+    persistent: &[(SymbolHandle, &str, TypeReferenceHandle)],
+) -> Option<(SymbolHandle, usize)> {
+    if let psi_facts::PlaceRoot::Symbol(symbol) = place.root
+        && persistent
+            .iter()
+            .any(|(candidate, _, _)| *candidate == symbol)
+    {
+        return Some((symbol, 0));
+    }
+
+    place
+        .segments
+        .iter()
+        .enumerate()
+        .find_map(|(index, segment)| {
+            let psi_facts::PlaceSegment::Field { symbol } = segment else {
+                return None;
+            };
+            persistent
+                .iter()
+                .any(|(candidate, _, _)| candidate == symbol)
+                .then_some((*symbol, index + 1))
         })
 }
 

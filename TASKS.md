@@ -1553,9 +1553,13 @@ move it to a convenience library.
   aggregate borrow propagation. Program-static literal views (including folded
   literal joins), nested static aggregate views, static-only machine results,
   and exact persistent-place copies within one state are admitted without
-  manufacturing a source loan; opaque statement calls clear that provenance.
-  Parameter-backed storage, cross-state propagation, call mutation summaries,
-  and state-parameter root rebasing remain.
+  manufacturing a source loan. Whole persistent fields with that provenance
+  now cross named graph-state edges through a predecessor-intersection
+  must-analysis keyed by stable field identity rather than each state's
+  receiver parameter; mutation, a missing predecessor fact, or an opaque
+  statement call clears the shortcut. Parameter-backed storage, partial-place
+  cross-state propagation, call mutation summaries, and general state-parameter
+  loan-root rebasing remain.
 - Implement constant data parameters after their identity/coherence rules are
   pinned by existing generic machinery.
 - Implement local dynamic traits as two-word borrowed descriptors selecting one
