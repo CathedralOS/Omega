@@ -358,6 +358,11 @@ AArch64 cross-build success. Multiply-then-add separately retains
 `omega.float.hardware.macos_arm64.multiply-then-add.v1` /
 `0x8b5fa3afbbf00653`, binding its two exact plan identities to binary32/binary64
 cancellation cases, two distinct roundings, binary32 finite-overflow saturation,
+interpreter/native outputs, and both Linux cross-builds. The
+minimum/maximum/square-root cohort retains
+`omega.float.hardware.macos_arm64.minimum-maximum-square-root.v1` /
+`0x8b3cf5ec26298fed`, binding its six exact plan identities to both-format NaN
+operand order, the settled signed-zero choices, exact square roots,
 interpreter/native outputs, and both Linux cross-builds. Directed FMA separately
 retains `omega.float.hardware.macos_arm64.directed-fma.v1` /
 `0x75be2c4963f3f15a`, binding its six exact plan identities to binary32/binary64
