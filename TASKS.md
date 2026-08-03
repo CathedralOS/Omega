@@ -837,7 +837,11 @@ Remaining:
   of activating catalog-shaped compatibility placement. Void imports,
   pointer-result dereference imports, Windows key-state postprocessing, and
   AAPCS64 scalar-float returns now carry matching explicit-plan byte/width
-  locks. The dead clock out-pointer compatibility classifier is retired;
+  locks. Object relocation planning now independently validates every ordinary
+  selected import and its exact operands through the retained plan before
+  accepting call or data offsets; missing or incompatible plan evidence cannot
+  fall back to catalog-shaped relocation arithmetic. The dead clock out-pointer
+  compatibility classifier is retired;
   composite encoders own their concrete subcall shapes. Authoritative AArch64
   built-in paths now derive result presence and scalar-float class from the
   retained plan through emission and relocation accounting; the operation
