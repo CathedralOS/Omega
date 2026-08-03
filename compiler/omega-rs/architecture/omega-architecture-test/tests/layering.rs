@@ -312,7 +312,7 @@ fn frontend_implementation_is_psi_owned() {
         "compiler/omega-rs/foundation/omega-core/src/cast_form.rs",
         "compiler/omega-rs/foundation/omega-core/src/const_value.rs",
         "compiler/omega-rs/foundation/omega-core/src/content.rs",
-        "compiler/omega-rs/foundation/omega-core/src/diagnostics",
+        "compiler/omega-rs/foundation/omega-core/src/diagnostics/mod.rs",
         "compiler/omega-rs/foundation/omega-core/src/float_semantics.rs",
         "compiler/omega-rs/foundation/omega-core/src/inline_assembly.rs",
         "compiler/omega-rs/foundation/omega-core/src/literals.rs",
