@@ -14,7 +14,6 @@ use self::folding::{
 use self::helper_stack::HelperStateStack;
 use crate::StateValueRole;
 use omega_core::arena::Arena;
-use omega_core::symbols::SymbolHandle;
 use psi_checked_trees::CheckedTrees;
 use psi_checked_trees::expression::{
     BinaryExpression, CallExpression, Expression, IndexedExpression, MemberExpression,
@@ -23,6 +22,7 @@ use psi_checked_trees::expression::{
 use psi_checked_trees::machine::Machine;
 use psi_checked_trees::state::State;
 use psi_checked_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
+use psi_symbols::SymbolHandle;
 use std::sync::Arc;
 
 pub fn simplify_expression(
@@ -1141,7 +1141,6 @@ impl Default for HelperTransition {
 #[cfg(test)]
 mod tests {
     use super::simplify_expression;
-    use omega_core::symbols::SymbolHandle;
     use psi_checked_trees::CheckedTrees;
     use psi_checked_trees::expression::{
         BinaryExpression, BinaryOperator, CallExpression, Expression, NamePath,
@@ -1154,6 +1153,7 @@ mod tests {
         StatementNode, TableLocalData, TableTransition, TransitionGuardNode, TransitionTargetNode,
     };
     use psi_checked_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+    use psi_symbols::SymbolHandle;
     use std::sync::Arc;
 
     #[test]

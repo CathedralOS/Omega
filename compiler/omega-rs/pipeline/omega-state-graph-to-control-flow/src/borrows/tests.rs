@@ -1,6 +1,6 @@
 use super::*;
 use omega_core::arena::HandleSpan;
-use omega_core::symbols::SymbolHandle;
+use psi_symbols::SymbolHandle;
 
 #[test]
 fn remap_borrow_summary_preserves_all_borrow_spans() {

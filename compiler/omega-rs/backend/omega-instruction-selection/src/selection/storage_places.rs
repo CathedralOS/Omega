@@ -28,7 +28,6 @@ use nested_fields::{
     resolve_nested_field_layout_with_pairs,
 };
 use omega_control_flow::StateKey;
-use omega_core::symbols::{BuiltinType, SymbolHandle};
 use omega_layout::{FieldLayout, TypeLayout, TypeLayoutDescriptor};
 use omega_state_calls::StateCallRole;
 use psi_checked_trees::expression::{
@@ -36,6 +35,7 @@ use psi_checked_trees::expression::{
 };
 use psi_checked_trees::name::Identifier;
 use psi_checked_trees::types::PrimitiveType;
+use psi_symbols::{BuiltinType, SymbolHandle};
 
 fn state_key_matches_statement_source(expected: StateKey, actual: StateKey) -> bool {
     expected == actual || (expected.machine == actual.machine && expected.state == actual.state)
@@ -3205,7 +3205,7 @@ pub(in crate::selection) fn runtime_frame_slot_for_expression_scoped<'plan>(
 pub(in crate::selection) fn unique_machine_frame_slot_key_for_expression(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
-    machine: omega_core::symbols::SymbolHandle,
+    machine: psi_symbols::SymbolHandle,
     expressions: &ExpressionTable,
     expression: ExpressionHandle,
 ) -> Option<StateKey> {

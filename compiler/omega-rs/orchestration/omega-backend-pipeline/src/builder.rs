@@ -555,10 +555,10 @@ fn host_computed_scalar_argument_slot_count(
                                 | psi_checked_trees::expression::ExpressionNode::Cast(_)
                                 | psi_checked_trees::expression::ExpressionNode::Indexed(_) => true,
                                 psi_checked_trees::expression::ExpressionNode::Call(call) => [
-                                    omega_core::symbols::BuiltinFunction::Max,
-                                    omega_core::symbols::BuiltinFunction::Min,
-                                    omega_core::symbols::BuiltinFunction::Sqrt,
-                                    omega_core::symbols::BuiltinFunction::FloatIsNan,
+                                    psi_symbols::BuiltinFunction::Max,
+                                    psi_symbols::BuiltinFunction::Min,
+                                    psi_symbols::BuiltinFunction::Sqrt,
+                                    psi_symbols::BuiltinFunction::FloatIsNan,
                                 ]
                                 .into_iter()
                                 .any(|builtin| {
@@ -610,10 +610,10 @@ fn entry_native_expression_result_layout(
             | psi_checked_trees::expression::ExpressionNode::StructLiteral(_)
             | psi_checked_trees::expression::ExpressionNode::Unary(_) => true,
             psi_checked_trees::expression::ExpressionNode::Call(call) => [
-                omega_core::symbols::BuiltinFunction::Max,
-                omega_core::symbols::BuiltinFunction::Min,
-                omega_core::symbols::BuiltinFunction::Sqrt,
-                omega_core::symbols::BuiltinFunction::FloatIsNan,
+                psi_symbols::BuiltinFunction::Max,
+                psi_symbols::BuiltinFunction::Min,
+                psi_symbols::BuiltinFunction::Sqrt,
+                psi_symbols::BuiltinFunction::FloatIsNan,
             ]
             .into_iter()
             .any(|builtin| {
@@ -1041,7 +1041,7 @@ fn compute_receiver_bases(
     state_calls: &StateCallPlan,
     layouts: &omega_layout::LayoutPlan,
 ) -> Vec<Option<usize>> {
-    let machine_layout_of = |machine: omega_core::symbols::SymbolHandle| {
+    let machine_layout_of = |machine: psi_symbols::SymbolHandle| {
         layouts
             .machine_layouts
             .iter()

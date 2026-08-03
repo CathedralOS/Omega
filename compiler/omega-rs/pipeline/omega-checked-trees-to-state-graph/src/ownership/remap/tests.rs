@@ -1,5 +1,5 @@
 use super::*;
-use omega_core::symbols::SymbolHandle;
+use psi_symbols::SymbolHandle;
 
 #[test]
 fn remaps_ownership_summary_from_source_roots_into_target_roots() {

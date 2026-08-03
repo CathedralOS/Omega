@@ -1,7 +1,7 @@
 use crate::InstructionSelectionInput;
 use omega_abstract_operations::StateGuardOperator;
-use omega_core::symbols::BuiltinFunction;
 use psi_checked_trees::expression::{BinaryOperator, TableCallExpression};
+use psi_symbols::BuiltinFunction;
 
 pub(super) fn supports_scalar_integer_write(byte_size: usize) -> bool {
     matches!(byte_size, 1 | 2 | 4 | 8)
@@ -117,7 +117,7 @@ pub(in crate::selection) fn builtin_runtime_unary_call_operator_in_table(
 
 fn builtin_runtime_call_operator_by_symbol(
     input: &InstructionSelectionInput<'_>,
-    target_symbol: omega_core::symbols::SymbolHandle,
+    target_symbol: psi_symbols::SymbolHandle,
 ) -> Option<StateGuardOperator> {
     let symbols = &input.program.symbols;
     if Some(target_symbol) == symbols.builtin_function_symbol(BuiltinFunction::Max) {

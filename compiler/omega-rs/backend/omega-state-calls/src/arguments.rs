@@ -2,9 +2,9 @@ use crate::StateCallPlanningContext;
 use omega_control_flow::StateKey;
 use omega_control_flow::StateParameterFlow;
 use omega_core::arena::{Arena, HandleSpan};
-use omega_core::symbols::SymbolHandle;
 use psi_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use psi_checked_trees::name::Identifier;
+use psi_symbols::SymbolHandle;
 
 use super::lookups::state_flow_from_key;
 use super::{StateCallArgument, StateCallArgumentKind, StateCallRole};

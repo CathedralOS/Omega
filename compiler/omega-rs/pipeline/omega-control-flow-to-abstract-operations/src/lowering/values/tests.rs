@@ -2,7 +2,7 @@ use super::*;
 use omega_control_flow::{
     ControlFlowPlan, StateFlow, StateKey, StateValueFact, StateValueOrigin, StateValueStatementRole,
 };
-use omega_core::symbols::SymbolHandle;
+use psi_symbols::SymbolHandle;
 
 #[test]
 fn copies_control_flow_values_into_abstract_summary() {

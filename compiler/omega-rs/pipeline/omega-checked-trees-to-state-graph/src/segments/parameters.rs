@@ -35,7 +35,7 @@ pub(super) fn state_parameters_for_segment(
             _ => None,
         };
         let type_symbol = impl_symbol.unwrap_or(base_symbol);
-        let data_name_for = |symbol: omega_core::symbols::SymbolHandle| {
+        let data_name_for = |symbol: psi_symbols::SymbolHandle| {
             program
                 .data_definitions()
                 .iter()

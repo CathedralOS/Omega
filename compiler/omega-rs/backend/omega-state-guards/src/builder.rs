@@ -6,7 +6,6 @@ use crate::{
 };
 use omega_control_flow::{ControlFlowPlan, StateKey};
 use omega_core::arena::Arena;
-use omega_core::symbols::SymbolHandle;
 use omega_layout::LayoutPlan;
 use omega_runtime_storage::RuntimeStoragePlan;
 use omega_state_dispatch::{DispatchEdge, StateDispatchPlan};
@@ -17,6 +16,7 @@ use psi_checked_trees::expression::{
     ExpressionTable, TableBinaryExpression,
 };
 use psi_checked_trees::machine::Machine;
+use psi_symbols::SymbolHandle;
 
 pub fn build_state_guard_plan(
     program: &CheckedTrees,

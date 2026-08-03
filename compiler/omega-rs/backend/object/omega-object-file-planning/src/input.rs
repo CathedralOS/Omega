@@ -1,10 +1,10 @@
 use omega_calling_conventions::HostAbiPlan;
 use omega_control_flow::StateKey;
-use omega_core::symbols::SymbolHandle;
 use omega_layout::LayoutPlan;
 use omega_machine_bytes::EncodedMachinePlan;
 use omega_target::NativeTarget;
 use omega_target_operations::TargetDataPlan;
+use psi_symbols::SymbolHandle;
 
 pub struct ObjectPlanningInput<'plan> {
     pub target: NativeTarget,

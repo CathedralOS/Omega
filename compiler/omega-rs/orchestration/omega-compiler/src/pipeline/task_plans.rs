@@ -255,7 +255,7 @@ struct ActivationCarryCrossings<'program> {
 
 fn activation_carry_crossings(
     program: &CheckedTrees,
-    root: omega_core::symbols::SymbolHandle,
+    root: psi_symbols::SymbolHandle,
 ) -> ActivationCarryCrossings<'_> {
     let subtree_machines = program.facts.carry.machine_subtree_symbols(root);
     let subtree = program
@@ -275,8 +275,8 @@ fn activation_carry_crossings(
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct TaskStartSelection {
-    requirement: omega_core::symbols::SymbolHandle,
-    target_entry: omega_core::symbols::SymbolHandle,
+    requirement: psi_symbols::SymbolHandle,
+    target_entry: psi_symbols::SymbolHandle,
     fingerprint: u64,
     operation: TaskStartOperation,
 }
@@ -326,7 +326,7 @@ fn task_start_selections(
 
 fn append_task_start_selection(
     program: &CheckedTrees,
-    requirement: omega_core::symbols::SymbolHandle,
+    requirement: psi_symbols::SymbolHandle,
     target_name: &str,
     machine_arguments: &[psi_checked_trees::expression::StaticMachineArgument],
     selections: &mut Vec<TaskStartSelection>,
@@ -561,7 +561,7 @@ fn canonical_suspension_crossing(
     })
 }
 
-fn symbol_identity(program: &CheckedTrees, symbol: omega_core::symbols::SymbolHandle) -> &str {
+fn symbol_identity(program: &CheckedTrees, symbol: psi_symbols::SymbolHandle) -> &str {
     for machine in program.machines() {
         if machine.symbol == symbol {
             return machine.name.as_str();
@@ -723,10 +723,10 @@ mod tests {
 
     #[test]
     fn activation_crossings_include_contained_machine_crossings() {
-        let root = omega_core::symbols::SymbolHandle::from_arena_index(1);
-        let child = omega_core::symbols::SymbolHandle::from_arena_index(2);
-        let field = omega_core::symbols::SymbolHandle::from_arena_index(3);
-        let data = omega_core::symbols::SymbolHandle::from_arena_index(4);
+        let root = psi_symbols::SymbolHandle::from_arena_index(1);
+        let child = psi_symbols::SymbolHandle::from_arena_index(2);
+        let field = psi_symbols::SymbolHandle::from_arena_index(3);
+        let data = psi_symbols::SymbolHandle::from_arena_index(4);
         let mut program = CheckedTrees::default();
         let targets = program
             .facts
@@ -762,10 +762,10 @@ mod tests {
         program.facts.carry.suspension_crossings.push(
             psi_checked_trees::SuspensionCrossingCarryFact {
                 machine: child,
-                state: omega_core::symbols::SymbolHandle::invalid(),
+                state: psi_symbols::SymbolHandle::invalid(),
                 statement_index: 0,
                 call_ordinal: 0,
-                target: omega_core::symbols::SymbolHandle::invalid(),
+                target: psi_symbols::SymbolHandle::invalid(),
                 effective: child_policy,
                 live_values: Vec::new(),
             },

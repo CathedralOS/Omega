@@ -57,10 +57,10 @@ fn yes_no(value: bool) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::append_reach_and_operation_lines;
-    use omega_core::symbols::SymbolHandle;
     use psi_language_semantics::{
         OperationalMaySummary, ServiceReachRowTable, ServiceReachSummary, ServiceReachTable,
     };
+    use psi_symbols::SymbolHandle;
 
     #[test]
     fn rendering_keeps_services_and_operational_axes_independent() {

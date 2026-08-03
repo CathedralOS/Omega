@@ -1,4 +1,4 @@
-use omega_core::symbols::SymbolHandle;
+use psi_symbols::SymbolHandle;
 
 const INLINE_HELPER_STATE_STACK_COUNT: usize = 16;
 

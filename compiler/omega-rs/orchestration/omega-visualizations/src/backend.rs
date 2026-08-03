@@ -5,11 +5,11 @@ use omega_control_flow::{
     ControlFlowPlan, MachineFlow, Operation, OperationKind, PlannedTransitionTarget, StateFlow,
     StateKey, TransitionFlow,
 };
-use omega_core::symbols::SymbolHandle;
 use omega_machine_bytes::EncodedMachinePlan;
 use omega_machine_instructions::{MachineInstruction, MachineInstructionPlan};
 use omega_object_file::{ObjectPlan, RelocationPlan, RelocationRecord, SectionKind, SymbolKind};
 use omega_target_operations::{TargetOperation, TargetOperationPlan};
+use psi_symbols::SymbolHandle;
 use std::fmt::Debug;
 
 const MAX_EMISSION_DETAIL_CHUNKS: usize = 16;

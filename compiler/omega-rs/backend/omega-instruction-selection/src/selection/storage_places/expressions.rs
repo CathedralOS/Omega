@@ -1,9 +1,9 @@
-use omega_core::symbols::SymbolHandle;
 use psi_checked_trees::expression::{
     Expression, ExpressionHandle, ExpressionNode, ExpressionTable, IndexedExpression,
     MemberExpression, NamePath, TableCallExpression,
 };
 use psi_checked_trees::name::Identifier;
+use psi_symbols::SymbolHandle;
 
 pub(in crate::selection) fn normalized_storage_expression(
     expression: &Expression,

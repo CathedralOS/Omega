@@ -2,10 +2,10 @@ use crate::EmissionPlanningInput;
 use crate::blocker;
 use omega_backend_report_types::EmissionBlocker;
 use omega_core::arena::{Arena, HandleSpan};
-use omega_core::symbols::SymbolHandle;
 use omega_layout::{
     FieldLayout, LayoutPlan, MachineLayout, field_data_layout_fields, field_machine_layout,
 };
+use psi_symbols::SymbolHandle;
 
 /// Contained-machine method dispatch resolves the receiver's storage region by
 /// TYPE: `nested_machine_storage_offset` (instruction selection, machine_owned.rs)

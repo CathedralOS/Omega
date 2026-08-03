@@ -158,8 +158,8 @@ fn append_or_enrich_value(values: &mut Vec<StateValueFact>, value: StateValueFac
 fn statement_origin(
     origin: CheckedValueOrigin,
 ) -> Option<(
-    omega_core::symbols::SymbolHandle,
-    omega_core::symbols::SymbolHandle,
+    psi_symbols::SymbolHandle,
+    psi_symbols::SymbolHandle,
     usize,
     CheckedValueStatementRole,
 )> {

@@ -1,9 +1,9 @@
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
-use omega_core::symbols::SymbolHandle;
 use psi_checked_trees::expression::{ExpressionHandle, ExpressionTable, ExpressionTableCapacity};
 use psi_checked_trees::name::Identifier;
 use psi_checked_trees::types::{TypeReferenceHandle, TypeReferenceTable};
+use psi_symbols::SymbolHandle;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateStoragePlan {

@@ -4,7 +4,7 @@ use omega_abstract_operations::{
     AbstractSourceBoundaryEdge, AbstractValueFact, AbstractValueOrigin, AbstractValueStatementRole,
 };
 use omega_assigned_target_operations::AssignedTargetOperationPlan;
-use omega_core::symbols::SymbolHandle;
+use psi_symbols::SymbolHandle;
 
 #[test]
 fn copies_assigned_value_summary_to_machine_instruction_plan() {

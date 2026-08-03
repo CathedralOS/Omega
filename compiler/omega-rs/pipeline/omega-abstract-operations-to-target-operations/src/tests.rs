@@ -9,9 +9,9 @@ use omega_calling_conventions::{
     HostCapability, HostOperation, HostOperationKey, MachineRegister, MachineStateSet, RegisterSet,
     StateFootprintEvidence, build_host_abi_plan,
 };
-use omega_core::symbols::SymbolHandle;
 use omega_platform_interface::HostCallPlan;
 use omega_target::NativeTarget;
+use psi_symbols::SymbolHandle;
 
 #[test]
 fn copies_abstract_value_summary_to_target_plan() {

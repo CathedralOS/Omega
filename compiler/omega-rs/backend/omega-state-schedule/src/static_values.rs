@@ -2,7 +2,7 @@ mod aliases;
 mod assignments;
 mod evaluation;
 
-use omega_core::symbols::SymbolHandle;
+use psi_symbols::SymbolHandle;
 use std::sync::Arc;
 
 pub(super) use aliases::{PlaceKey, argument_binding_place_key};

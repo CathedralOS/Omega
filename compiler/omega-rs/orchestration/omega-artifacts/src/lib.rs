@@ -2102,7 +2102,6 @@ mod tests {
         ProviderExitRealization, RegisterSet, StateFootprintEvidence, ValueShape,
         evaluate_ordinary_boundary_entry_plan,
     };
-    use omega_core::symbols::SymbolHandle;
     use omega_executable_installation::{
         Artifact, ArtifactContentId, ArtifactEntry, ArtifactId, ContainerLimits,
         DecodedArtifactContainer, EntrySetId, InstallationDiagnostic, InstalledCodeId,
@@ -2127,6 +2126,7 @@ mod tests {
     use psi_checked_trees::name::Identifier;
     use psi_checked_trees::state::State;
     use psi_layout_plans::{EntryStubId, PlacementConstraints, PlacementPhase};
+    use psi_symbols::SymbolHandle;
 
     use super::{
         ArtifactWriter, build_backend_surface_report, external_root_records_manifest_json,

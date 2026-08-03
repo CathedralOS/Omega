@@ -320,6 +320,7 @@ fn frontend_implementation_is_psi_owned() {
         "compiler/omega-rs/foundation/omega-core/src/semantics.rs",
         "compiler/omega-rs/foundation/omega-core/src/source",
         "compiler/omega-rs/foundation/omega-core/src/span.rs",
+        "compiler/omega-rs/foundation/omega-core/src/symbols/mod.rs",
         "compiler/omega-rs/foundation/omega-core/src/value_domain.rs",
         "compiler/omega-rs/foundation/omega-core/src/wire.rs",
     ] {
@@ -351,18 +352,6 @@ fn frontend_implementation_is_psi_owned() {
             "legacy arena module must not regain Psi-owned implementation module {forbidden}"
         );
     }
-
-    let symbols_module = root.join("compiler/omega-rs/foundation/omega-core/src/symbols/mod.rs");
-    let source = std::fs::read_to_string(&symbols_module)
-        .unwrap_or_else(|error| panic!("failed to read {}: {error}", symbols_module.display()));
-    assert!(
-        source.contains("pub use psi_symbols::*;"),
-        "legacy symbols module must re-export the Psi-owned symbol foundation"
-    );
-    assert!(
-        !source.contains("mod "),
-        "legacy symbols module must not regain implementation modules"
-    );
 }
 
 #[test]

@@ -1,7 +1,7 @@
 use super::push_json_string;
-use omega_core::symbols::SymbolHandle;
 use psi_checked_trees::CheckedTrees;
 use psi_effects::CapabilityFlowKind;
+use psi_symbols::SymbolHandle;
 
 pub fn capability_manifest_html(program: &CheckedTrees) -> String {
     crate::phase_diagram::text_report_html(
@@ -165,12 +165,12 @@ fn entry_machine_with_state(
 #[cfg(test)]
 mod tests {
     use super::{capability_manifest_json, capability_manifest_text};
-    use omega_core::symbols::SymbolHandle;
     use psi_checked_trees::{CheckedTrees, MachineContractPlan, StateWriteFramePlan};
     use psi_language_semantics::{
         BlockingInterface, BlockingPlan, MachineSupplyMode, ServiceReachInterface,
         ServiceReachPlan, SuspensionInterface, SuspensionPlan, TerminationGuarantee,
     };
+    use psi_symbols::SymbolHandle;
     use psi_typed_trees::machine::Machine;
     use psi_typed_trees::name::Identifier;
     use psi_typed_trees::state::State;

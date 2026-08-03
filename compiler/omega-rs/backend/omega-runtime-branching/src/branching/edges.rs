@@ -203,7 +203,7 @@ fn runtime_transition_target(
 fn resolve_attached_machine_state_key(
     context: &RuntimeBranchingContext,
     source_machine: &MachineFlow,
-    target_symbol: omega_core::symbols::SymbolHandle,
+    target_symbol: psi_symbols::SymbolHandle,
 ) -> Option<StateKey> {
     let attached_data = source_machine.attached_data.as_ref()?;
     resolve_attached_data_state_key(context, attached_data, target_symbol)
@@ -212,7 +212,7 @@ fn resolve_attached_machine_state_key(
 fn resolve_attached_data_state_key(
     context: &RuntimeBranchingContext,
     attached_data: &psi_checked_trees::name::Identifier,
-    target_symbol: omega_core::symbols::SymbolHandle,
+    target_symbol: psi_symbols::SymbolHandle,
 ) -> Option<StateKey> {
     if !target_symbol.is_valid() {
         return None;

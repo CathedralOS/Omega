@@ -1,8 +1,8 @@
-use omega_core::symbols::SymbolHandle;
 use psi_checked_trees::expression::{BinaryExpression, BinaryOperator, Expression};
 use psi_checked_trees::types::PrimitiveType;
 use psi_numerics::arithmetic::ArithmeticDomain;
 use psi_numerics::literals::IntegerLiteral;
+use psi_symbols::SymbolHandle;
 
 /// The folder reads literals through the i64 VALUE WINDOW (D14): an anonymous
 /// literal that fits i64 folds exactly as before; an oversize (u64-magnitude)

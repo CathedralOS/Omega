@@ -1,13 +1,13 @@
 use super::{StateMutationKind, StateMutationLowering};
 use crate::StateStoragePlanningContext;
 use omega_control_flow::StateKey;
-use omega_core::symbols::SymbolHandle;
 use psi_checked_trees::CheckedTrees;
 use psi_checked_trees::expression::{
     ExpressionHandle, ExpressionNode, ExpressionTable, TableMemberExpression, TableNamePath,
 };
 use psi_checked_trees::statement::StatementNode;
 use psi_checked_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use psi_symbols::SymbolHandle;
 
 pub(super) fn mutation_lowering(
     context: &StateStoragePlanningContext,

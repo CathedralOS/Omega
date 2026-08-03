@@ -6,7 +6,7 @@ use omega_control_flow::{
     StateBorrowArgumentAccess, StateBorrowCall, StateBorrowEventSource, StateBorrowLoan,
     StateBorrowWeakening, StateBorrowWeakeningReason, StateFlow, StateKey, TransitionFlow,
 };
-use omega_core::symbols::SymbolHandle;
+use psi_symbols::SymbolHandle;
 use psi_typed_trees::expression::ExpressionHandle;
 
 pub fn control_flow_html(plan: &ControlFlowPlan) -> String {

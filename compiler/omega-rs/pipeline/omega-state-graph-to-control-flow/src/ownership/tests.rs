@@ -1,5 +1,5 @@
 use super::*;
-use omega_core::symbols::SymbolHandle;
+use psi_symbols::SymbolHandle;
 
 #[test]
 fn remap_ownership_summary_preserves_all_event_handles() {

@@ -14,6 +14,7 @@ omega-calling-conventions = { path = "../../foundation/omega-calling-conventions
 psi-checked-trees = { path = "../../../psi-rs/representations/psi-checked-trees" }
 omega-control-flow = { path = "../../representations/omega-control-flow" }
 omega-core = { path = "../../foundation/omega-core" }
+psi-symbols = { path = "../../../psi-rs/foundation/psi-symbols" }
 omega-image-emission = { path = "../images/omega-image-emission" }
 omega-layout = { path = "../omega-layout" }
 omega-machine-bytes = { path = "../../representations/omega-machine-bytes" }

@@ -1866,7 +1866,7 @@ fn declared_domain_constraint_with_missing_normalized_identity_fails_closed() {
             _ => None,
         })
         .expect("domain constraint");
-    domain.symbol = omega_core::symbols::SymbolHandle::invalid();
+    domain.symbol = psi_symbols::SymbolHandle::invalid();
 
     let diagnostics = validate_program(&typed)
         .expect_err("a declared-domain constraint cannot fall back to global name lookup");

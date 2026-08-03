@@ -1,7 +1,7 @@
 use super::*;
-use omega_core::symbols::SymbolHandle;
 use psi_checked_trees::CheckedValueFact;
 use psi_checked_trees::expression::ExpressionHandle;
+use psi_symbols::SymbolHandle;
 
 #[test]
 fn state_value_summary_keeps_values_for_matching_state() {

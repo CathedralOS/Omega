@@ -3,8 +3,8 @@ use omega_abstract_operations::{
     AbstractBoundaryPolicyCheck, AbstractBoundaryPolicyVerdict, AbstractPermissionEvent,
     AbstractValueFact, AbstractValueOrigin, AbstractValueStatementRole,
 };
-use omega_core::symbols::SymbolHandle;
 use omega_target_operations::TargetOperationPlan;
+use psi_symbols::SymbolHandle;
 
 #[test]
 fn copies_target_value_summary_to_assigned_plan() {

@@ -1,6 +1,5 @@
 use crate::InstructionSelectionInput;
 use omega_control_flow::{Operation, StateKey, StateParameterFlow};
-use omega_core::symbols::SymbolHandle;
 use omega_platform_interface::HostCall;
 use omega_state_calls::StateCall;
 use omega_state_storage::StateMutation;
@@ -10,6 +9,7 @@ use psi_checked_trees::expression::{
 use psi_checked_trees::name::Identifier;
 use psi_numerics::arithmetic::{ArithmeticDomain, ArithmeticPolicyAdapter};
 use psi_numerics::float_semantics::FloatFormat;
+use psi_symbols::SymbolHandle;
 
 fn state_key_matches_statement_source(expected: StateKey, actual: StateKey) -> bool {
     expected == actual || (expected.machine == actual.machine && expected.state == actual.state)
@@ -186,7 +186,7 @@ mod float_provider_plan_tests {
     use omega_control_flow::{
         ControlFlowPlan, StateFlow, StateValueFact, StateValueOrigin, StateValueStatementRole,
     };
-    use omega_core::symbols::SymbolHandle;
+    use psi_symbols::SymbolHandle;
 
     fn carried(identities: &[Option<u64>]) -> CarriedFloatProviderPlan {
         let source_key = StateKey {

@@ -5,7 +5,7 @@
 //! is ordinary code attempting to mint that boundary capability and rejects.
 //! Approval is exact to the boundary trait symbol; service rows are unrelated.
 
-use omega_core::symbols::SymbolHandle;
+use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
 
 use crate::capabilities::provider_approval::{

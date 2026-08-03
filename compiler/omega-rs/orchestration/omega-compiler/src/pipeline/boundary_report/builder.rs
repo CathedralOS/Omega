@@ -3,10 +3,10 @@ use omega_artifacts::{
     UncheckedBoundaryPolicy,
 };
 use omega_core::arena::HandleSpan;
-use omega_core::symbols::SymbolHandle;
 use omega_effects::build_boundary_provider_approval_registry;
 use psi_checked_trees::CheckedTrees;
 use psi_effects::CapabilityFlowKind;
+use psi_symbols::SymbolHandle;
 use psi_syntax_trees::SyntaxTrees;
 use psi_syntax_trees::identifier::Identifier;
 use psi_syntax_trees::item::{

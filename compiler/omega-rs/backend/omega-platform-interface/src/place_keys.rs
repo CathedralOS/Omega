@@ -1,8 +1,8 @@
-use omega_core::symbols::SymbolHandle;
 use psi_checked_trees::expression::{
     Expression, ExpressionHandle, ExpressionNode, ExpressionTable, NamePath, TableNamePath,
 };
 use psi_checked_trees::name::Identifier;
+use psi_symbols::SymbolHandle;
 use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

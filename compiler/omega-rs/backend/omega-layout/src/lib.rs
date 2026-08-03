@@ -1,6 +1,6 @@
 use omega_core::arena::{Arena, HandleSpan};
-use omega_core::symbols::SymbolHandle;
 use psi_checked_trees::name::Identifier;
+use psi_symbols::SymbolHandle;
 use std::sync::Arc;
 
 mod field_paths;

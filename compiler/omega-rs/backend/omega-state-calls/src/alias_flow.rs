@@ -1,9 +1,9 @@
 use crate::{StateCallArgumentKind, StateCallPlan};
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
-use omega_core::symbols::SymbolHandle;
 use psi_checked_trees::expression::{ExpressionHandle, ExpressionTable};
 use psi_checked_trees::name::Identifier;
+use psi_symbols::SymbolHandle;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct AliasFlowPlan {

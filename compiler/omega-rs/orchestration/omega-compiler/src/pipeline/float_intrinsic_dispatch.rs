@@ -7,12 +7,12 @@
 //! result-policy evidence, and diagnostics continue to name the boundary
 //! requirement rather than the bootstrap execution form.
 
-use omega_core::symbols::BuiltinFunction;
 use omega_effects::provider_plan::ProviderBinding;
 use psi_checked_trees::CheckedTrees;
 use psi_diagnostics::Diagnostic;
 use psi_numerics::arithmetic::ArithmeticDomain;
 use psi_numerics::literals::{FloatFormat, FloatLiteral};
+use psi_symbols::BuiltinFunction;
 use psi_typed_trees::expression::{BinaryOperator, ExpressionNode, TableBinaryExpression};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -223,7 +223,7 @@ pub(crate) fn rewrite_selected_float_intrinsic_calls(
                     domain,
                     semantic_domain: omega_core::arena::HandleSpan::empty(),
                     semantic_domain_arguments: omega_core::arena::HandleSpan::empty(),
-                    semantic_domain_symbol: omega_core::symbols::SymbolHandle::invalid(),
+                    semantic_domain_symbol: psi_symbols::SymbolHandle::invalid(),
                     semantic_domain_id: psi_language_semantics::SemanticDomainId::NULL,
                     form: psi_language_core::CastForm::Value,
                 })

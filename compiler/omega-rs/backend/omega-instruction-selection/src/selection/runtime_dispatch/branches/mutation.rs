@@ -6,11 +6,11 @@ use omega_abstract_operations::{
 };
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
-use omega_core::symbols::{BuiltinFunction, SymbolHandle};
 use psi_checked_trees::expression::{
     BinaryOperator, Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
     TableCallExpression, TableMemberExpression,
 };
+use psi_symbols::{BuiltinFunction, SymbolHandle};
 
 use super::super::super::storage_places::resolve_runtime_frame_base_indexed_target_in_table;
 use super::super::super::storage_places::{

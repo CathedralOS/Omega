@@ -139,7 +139,7 @@ fn runtime_transition_target(
 fn resolve_local_or_attached_state(
     context: &StateCallPlanningContext,
     machine: &MachineFlow,
-    state_symbol: omega_core::symbols::SymbolHandle,
+    state_symbol: psi_symbols::SymbolHandle,
     state_name: &psi_checked_trees::name::Identifier,
 ) -> Option<StateKey> {
     resolve_state_in_machine(context, machine.symbol, state_symbol, state_name).or_else(|| {
@@ -151,9 +151,9 @@ fn resolve_local_or_attached_state(
 fn resolve_contained_attached_state(
     context: &StateCallPlanningContext,
     machine: &MachineFlow,
-    receiver_symbol: omega_core::symbols::SymbolHandle,
+    receiver_symbol: psi_symbols::SymbolHandle,
     receiver_name: &psi_checked_trees::name::Identifier,
-    state_symbol: omega_core::symbols::SymbolHandle,
+    state_symbol: psi_symbols::SymbolHandle,
     state_name: &psi_checked_trees::name::Identifier,
 ) -> Option<StateKey> {
     let contained = context
@@ -173,7 +173,7 @@ fn resolve_contained_attached_state(
 fn resolve_attached_data_state(
     context: &StateCallPlanningContext,
     attached_data: &psi_checked_trees::name::Identifier,
-    state_symbol: omega_core::symbols::SymbolHandle,
+    state_symbol: psi_symbols::SymbolHandle,
     state_name: &psi_checked_trees::name::Identifier,
 ) -> Option<StateKey> {
     context
@@ -190,8 +190,8 @@ fn resolve_attached_data_state(
 
 fn resolve_state_in_machine(
     context: &StateCallPlanningContext,
-    machine_symbol: omega_core::symbols::SymbolHandle,
-    state_symbol: omega_core::symbols::SymbolHandle,
+    machine_symbol: psi_symbols::SymbolHandle,
+    state_symbol: psi_symbols::SymbolHandle,
     state_name: &psi_checked_trees::name::Identifier,
 ) -> Option<StateKey> {
     if state_symbol.is_valid()

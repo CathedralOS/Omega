@@ -1,4 +1,4 @@
-use omega_core::symbols::SymbolHandle;
+use psi_symbols::SymbolHandle;
 use psi_typed_trees::expression::ExpressionHandle;
 use psi_typed_trees::name::Identifier;
 

@@ -6,7 +6,7 @@
 //! or illicitly minted by an ordinary in-package implementation. No service
 //! spelling, compatibility effect bit, or unrelated provider participates.
 
-use omega_core::symbols::SymbolHandle;
+use psi_symbols::SymbolHandle;
 
 /// Approval state for one boundary capability's provider edge.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

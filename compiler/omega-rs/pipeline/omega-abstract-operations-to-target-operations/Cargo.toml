@@ -12,6 +12,7 @@ path = "src/lib.rs"
 omega-abstract-operations = { path = "../../representations/omega-abstract-operations" }
 omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }
 omega-core = { path = "../../foundation/omega-core" }
+psi-symbols = { path = "../../../psi-rs/foundation/psi-symbols" }
 omega-platform-interface = { path = "../../backend/omega-platform-interface" }
 omega-target = { path = "../../foundation/omega-target" }
 omega-target-operations = { path = "../../representations/omega-target-operations" }

@@ -1,11 +1,11 @@
 use super::RuntimeStorageContext;
 use omega_core::arena::HandleSpan;
-use omega_core::symbols::{BuiltinType, SymbolHandle};
 use omega_layout::TypeLayout;
 use psi_checked_trees::types::{
     FixedArrayLength, PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
     TypeReferenceTable,
 };
+use psi_symbols::{BuiltinType, SymbolHandle};
 
 /// Rung C2's record view: a reference-typed local whose initializer is a
 /// judged RECAST over a byte region reserves the REFEREE RECORD's width. For

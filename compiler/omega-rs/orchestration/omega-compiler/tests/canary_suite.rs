@@ -35916,9 +35916,9 @@ fn named_float_provider_calls_rewrite_to_selected_builtins() {
                 .typed
                 .symbols
                 .builtin_function_symbol(match expected_builtin {
-                    "min" => omega_core::symbols::BuiltinFunction::Min,
-                    "max" => omega_core::symbols::BuiltinFunction::Max,
-                    "sqrt" => omega_core::symbols::BuiltinFunction::Sqrt,
+                    "min" => psi_symbols::BuiltinFunction::Min,
+                    "max" => psi_symbols::BuiltinFunction::Max,
+                    "sqrt" => psi_symbols::BuiltinFunction::Sqrt,
                     _ => unreachable!(),
                 })
         );
@@ -36054,7 +36054,7 @@ fn named_float_negate_and_is_nan_preserve_selected_roots_and_execute() {
                 checked
                     .typed
                     .symbols
-                    .builtin_function_symbol(omega_core::symbols::BuiltinFunction::FloatIsNan)
+                    .builtin_function_symbol(psi_symbols::BuiltinFunction::FloatIsNan)
                     .expect("internal float is_nan builtin symbol")
             );
             assert_eq!(call.target.as_str(), "float#is_nan");
@@ -36167,22 +36167,22 @@ fn named_float_classification_predicates_select_and_execute() {
 
         let (expected_builtin, expected_target) = if name.contains("::is_finite.") {
             (
-                omega_core::symbols::BuiltinFunction::FloatIsFinite,
+                psi_symbols::BuiltinFunction::FloatIsFinite,
                 "float#is_finite",
             )
         } else if name.contains("::is_infinite.") {
             (
-                omega_core::symbols::BuiltinFunction::FloatIsInfinite,
+                psi_symbols::BuiltinFunction::FloatIsInfinite,
                 "float#is_infinite",
             )
         } else if name.contains("::is_normal.") {
             (
-                omega_core::symbols::BuiltinFunction::FloatIsNormal,
+                psi_symbols::BuiltinFunction::FloatIsNormal,
                 "float#is_normal",
             )
         } else if name.contains("::is_subnormal.") {
             (
-                omega_core::symbols::BuiltinFunction::FloatIsSubnormal,
+                psi_symbols::BuiltinFunction::FloatIsSubnormal,
                 "float#is_subnormal",
             )
         } else {
@@ -36339,12 +36339,12 @@ fn named_float_classify_preserves_enum_layout_and_executes() {
         selected_intrinsics.insert(name.clone());
         let (expected_builtin, expected_target) = if name.starts_with("F32::") {
             (
-                omega_core::symbols::BuiltinFunction::FloatClassifyF32,
+                psi_symbols::BuiltinFunction::FloatClassifyF32,
                 "float#classify_f32",
             )
         } else {
             (
-                omega_core::symbols::BuiltinFunction::FloatClassifyF64,
+                psi_symbols::BuiltinFunction::FloatClassifyF64,
                 "float#classify_f64",
             )
         };
@@ -36463,12 +36463,8 @@ fn named_float_multiply_then_add_preserves_two_roundings_and_executes() {
         assert_eq!(call.arguments.count(), 3);
         assert!(!call.receiver.is_valid());
         let expected_builtin = match name.as_str() {
-            "F32::multiply_then_add.f32" => {
-                omega_core::symbols::BuiltinFunction::FloatMultiplyThenAddF32
-            }
-            "F64::multiply_then_add.f64" => {
-                omega_core::symbols::BuiltinFunction::FloatMultiplyThenAddF64
-            }
+            "F32::multiply_then_add.f32" => psi_symbols::BuiltinFunction::FloatMultiplyThenAddF32,
+            "F64::multiply_then_add.f64" => psi_symbols::BuiltinFunction::FloatMultiplyThenAddF64,
             _ => panic!("unexpected multiply-then-add intrinsic `{name}`"),
         };
         assert_eq!(
@@ -36587,12 +36583,8 @@ fn named_float_fused_multiply_add_selects_aarch64_fmadd_and_executes() {
         assert_eq!(call.arguments.count(), 3);
         assert!(!call.receiver.is_valid());
         let expected_builtin = match name.as_str() {
-            "F32::fused_multiply_add.f32" => {
-                omega_core::symbols::BuiltinFunction::FloatFusedMultiplyAddF32
-            }
-            "F64::fused_multiply_add.f64" => {
-                omega_core::symbols::BuiltinFunction::FloatFusedMultiplyAddF64
-            }
+            "F32::fused_multiply_add.f32" => psi_symbols::BuiltinFunction::FloatFusedMultiplyAddF32,
+            "F64::fused_multiply_add.f64" => psi_symbols::BuiltinFunction::FloatFusedMultiplyAddF64,
             _ => panic!("unexpected FMA intrinsic `{name}`"),
         };
         assert_eq!(

@@ -1,7 +1,7 @@
 //! Omega-owned boundary-provider admission after Psi semantic checking.
 
-use omega_core::symbols::SymbolHandle;
 use psi_diagnostics::Diagnostic;
+use psi_symbols::SymbolHandle;
 
 pub(super) fn check_boundary_provider_approval(
     checked: &psi_checked_trees::CheckedTrees,

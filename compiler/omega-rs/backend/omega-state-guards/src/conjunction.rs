@@ -6,12 +6,12 @@ use crate::{
     StateGuardOperator, StateGuardPlan,
 };
 use omega_control_flow::StateKey;
-use omega_core::symbols::SymbolHandle;
 use omega_layout::LayoutPlan;
 use omega_runtime_storage::RuntimeStoragePlan;
 use psi_checked_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable, TableBinaryExpression,
 };
+use psi_symbols::SymbolHandle;
 
 pub fn lower_guard_conjunction(
     plan: &StateGuardPlan,

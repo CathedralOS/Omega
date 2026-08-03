@@ -4,9 +4,9 @@ use omega_control_flow::{
     StateKey, TransitionExpressionRefs,
 };
 use omega_core::arena::{Arena, HandleSpan};
-use omega_core::symbols::SymbolHandle;
 use psi_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use psi_checked_trees::name::Identifier;
+use psi_symbols::SymbolHandle;
 
 use super::{StateCallResolution, StateCallRole};
 

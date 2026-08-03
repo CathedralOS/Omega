@@ -5,7 +5,6 @@ use crate::{
     MachineLayout, TypeLayout, TypeLayoutDescriptor, VariantLayout,
 };
 use omega_core::arena::Arena;
-use omega_core::symbols::{BuiltinType, SymbolHandle};
 use omega_target::NativeTarget;
 use psi_checked_trees::CheckedTrees;
 use psi_checked_trees::data::{DataDefinition, DataMember, DataShapeKind};
@@ -15,6 +14,7 @@ use psi_checked_trees::types::{
     FixedArrayLength, PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 use psi_diagnostics::Diagnostic;
+use psi_symbols::{BuiltinType, SymbolHandle};
 
 pub fn build_layout_plan(
     program: &CheckedTrees,
