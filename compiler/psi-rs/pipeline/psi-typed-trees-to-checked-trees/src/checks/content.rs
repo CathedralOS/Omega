@@ -216,6 +216,12 @@ struct PartitionCompositionEvidence {
     observed_entry_projection: bool,
 }
 
+#[derive(Debug, Clone)]
+struct AvailablePartitionSource {
+    plan: ContentConservationPlan,
+    derivation_depth: u32,
+}
+
 /// Instantiate an already-authored partition theorem through an exact wrapper.
 /// This pass can substitute caller-entry paths and either a directly returned
 /// result or a result staged through exact local-chain and aggregate identity
@@ -226,10 +232,21 @@ struct PartitionCompositionEvidence {
 ///
 /// Derived rows are made available to later rounds so wrapper chains close to
 /// a fixed point. Every staged source-result projection must retain one exact
-/// call-established claim identity into a unique callable-result path. States
-/// with multiple candidate authored-partition calls remain fail-closed.
+/// call-established claim identity into a unique callable-result path. When
+/// several staged calls independently contribute to one returned aggregate,
+/// each call retains its own authored theorem and exact structural rewrite row.
 pub(crate) fn compose_partition_wrappers(program: &TypedTrees, facts: &mut CheckFacts) {
-    let mut available = facts.qualifications.content.conservation_plans.clone();
+    let mut available = facts
+        .qualifications
+        .content
+        .conservation_plans
+        .iter()
+        .cloned()
+        .map(|plan| AvailablePartitionSource {
+            plan,
+            derivation_depth: 0,
+        })
+        .collect::<Vec<_>>();
     let state_count = program
         .machines()
         .iter()
@@ -243,37 +260,41 @@ pub(crate) fn compose_partition_wrappers(program: &TypedTrees, facts: &mut Check
 
         for machine in program.machines() {
             for state in program.machine_states(machine) {
-                let Some(invocation) = returned_partition_invocation(program, state) else {
-                    continue;
-                };
-                for source in sources.iter().filter(|source| {
-                    source.callable == invocation.target_symbol
-                        && equation_contains_partition(&source.equation)
-                }) {
-                    if available
-                        .iter()
-                        .chain(
-                            round
-                                .iter()
-                                .map(|fact: &ContentPartitionCompositionFact| &fact.plan),
-                        )
-                        .any(|existing| {
-                            existing.callable == state.symbol && existing.algebra == source.algebra
-                        })
-                    {
-                        continue;
+                for invocation in returned_partition_invocations(program, state) {
+                    for source in sources.iter().filter(|source| {
+                        source.plan.callable == invocation.target_symbol
+                            && equation_contains_partition(&source.plan.equation)
+                    }) {
+                        let Some(composition) = instantiate_partition_wrapper(
+                            program,
+                            facts,
+                            machine.symbol,
+                            state,
+                            &invocation,
+                            &source.plan,
+                            source.derivation_depth,
+                        ) else {
+                            continue;
+                        };
+                        if available
+                            .iter()
+                            .map(|source| &source.plan)
+                            .chain(
+                                round
+                                    .iter()
+                                    .map(|fact: &ContentPartitionCompositionFact| &fact.plan),
+                            )
+                            .any(|existing| {
+                                existing.callable == state.symbol
+                                    && existing.algebra == composition.plan.algebra
+                                    && existing.fingerprint == composition.plan.fingerprint
+                                    && existing.equation == composition.plan.equation
+                            })
+                        {
+                            continue;
+                        }
+                        round.push(composition);
                     }
-                    let Some(composition) = instantiate_partition_wrapper(
-                        program,
-                        facts,
-                        machine.symbol,
-                        state,
-                        &invocation,
-                        source,
-                    ) else {
-                        continue;
-                    };
-                    round.push(composition);
                 }
             }
         }
@@ -291,7 +312,10 @@ pub(crate) fn compose_partition_wrappers(program: &TypedTrees, facts: &mut Check
         if round.is_empty() {
             break;
         }
-        available.extend(round.iter().map(|fact| fact.plan.clone()));
+        available.extend(round.iter().map(|fact| AvailablePartitionSource {
+            plan: fact.plan.clone(),
+            derivation_depth: fact.source_derivation_depth.saturating_add(1),
+        }));
         compositions.extend(round);
     }
 
@@ -306,12 +330,12 @@ pub(crate) fn compose_partition_wrappers(program: &TypedTrees, facts: &mut Check
     facts.qualifications.content.partition_compositions = compositions;
 }
 
-fn returned_partition_invocation(
+fn returned_partition_invocations(
     program: &TypedTrees,
     state: &psi_typed_trees::state::State,
-) -> Option<ReturnedPartitionInvocation> {
+) -> Vec<ReturnedPartitionInvocation> {
     let statements = program.statement_table.statements(state.statement_nodes);
-    let staged = statements
+    let mut invocations = statements
         .iter()
         .enumerate()
         .filter_map(|(statement_index, statement)| {
@@ -326,14 +350,9 @@ fn returned_partition_invocation(
             };
             Some(invocation)
         })
+        .filter(|invocation| invocation.target_symbol.is_valid())
         .collect::<Vec<_>>();
-    if let [invocation] = staged.as_slice() {
-        return invocation
-            .target_symbol
-            .is_valid()
-            .then(|| invocation.clone());
-    }
-    let mut invocations = Vec::new();
+    let mut returned = Vec::new();
 
     for (statement_index, statement) in statements.iter().enumerate() {
         match statement {
@@ -341,7 +360,7 @@ fn returned_partition_invocation(
                 if let Some(invocation) =
                     direct_expression_invocation(program, statement_index, *expression)
                 {
-                    invocations.push(invocation);
+                    returned.push(invocation);
                 }
             }
             StatementNode::Transition(transition) => {
@@ -351,7 +370,7 @@ fn returned_partition_invocation(
                 {
                     match program.statement_table.transition_target(target) {
                         TransitionTargetNode::Named { path, arguments } => {
-                            invocations.push(ReturnedPartitionInvocation {
+                            returned.push(ReturnedPartitionInvocation {
                                 statement_index,
                                 target_symbol: path.symbol,
                                 receiver: None,
@@ -366,7 +385,7 @@ fn returned_partition_invocation(
                             if let Some(invocation) =
                                 direct_expression_invocation(program, statement_index, *expression)
                             {
-                                invocations.push(invocation);
+                                returned.push(invocation);
                             }
                         }
                         TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
@@ -377,13 +396,12 @@ fn returned_partition_invocation(
         }
     }
 
-    let [invocation] = invocations.as_slice() else {
-        return None;
-    };
-    invocation
-        .target_symbol
-        .is_valid()
-        .then(|| invocation.clone())
+    if let [invocation] = returned.as_slice()
+        && invocation.target_symbol.is_valid()
+    {
+        invocations.push(invocation.clone());
+    }
+    invocations
 }
 
 fn direct_expression_invocation(
@@ -424,6 +442,7 @@ fn instantiate_partition_wrapper(
     state: &psi_typed_trees::state::State,
     invocation: &ReturnedPartitionInvocation,
     source: &ContentConservationPlan,
+    source_derivation_depth: u32,
 ) -> Option<ContentPartitionCompositionFact> {
     let target_parameters = crate::call_target_parameters(program, invocation.target_symbol)?;
     let call_ordinal = partition_invocation_call_ordinal(
@@ -492,6 +511,7 @@ fn instantiate_partition_wrapper(
         state_symbol: state.symbol,
         source_callable: source.callable,
         source_fingerprint: source.fingerprint,
+        source_derivation_depth,
         source_plan: source.clone(),
         statement_index: invocation.statement_index,
         call_ordinal,

@@ -358,6 +358,9 @@ pub fn lower_content_partition_compositions(
     let mut compositions = Vec::new();
 
     for fact in facts {
+        if fact.source_derivation_depth != 0 {
+            return Err(LoweringError::ContentPartitionDerivedSourceUnsupported);
+        }
         if !fact.result_rewrites.is_empty() {
             return Err(LoweringError::ContentPartitionResultRewriteUnsupported);
         }
@@ -1862,6 +1865,7 @@ pub enum LoweringError {
     DuplicateContentPartitionSubstitution,
     DuplicateContentPartitionComposition,
     ContentPartitionResultRewriteUnsupported,
+    ContentPartitionDerivedSourceUnsupported,
     ContentPartitionSubstitutionCoverageMismatch,
     ContentPartitionReplayMismatch,
     UnknownContentClaimIdentity,
@@ -2124,6 +2128,7 @@ mod tests {
             state_symbol: plan.callable,
             source_callable: source_plan.callable,
             source_fingerprint: source_plan.fingerprint,
+            source_derivation_depth: 0,
             source_plan,
             statement_index: 4,
             call_ordinal: 2,
@@ -2235,6 +2240,13 @@ mod tests {
         assert_eq!(
             lower_content_partition_compositions(&[staged], &identities),
             Err(LoweringError::ContentPartitionResultRewriteUnsupported)
+        );
+
+        let mut derived_source = fact.clone();
+        derived_source.source_derivation_depth = 1;
+        assert_eq!(
+            lower_content_partition_compositions(&[derived_source], &identities),
+            Err(LoweringError::ContentPartitionDerivedSourceUnsupported)
         );
 
         let mut drifted = fact;
