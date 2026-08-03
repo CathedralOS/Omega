@@ -155,11 +155,13 @@ composite claim-frontier work remain.
   no accepted claim. An Omega-owned sidecar now resolves each selected
   `accepts` row to the exact propagated checked parameter fact and admits only
   a matching unforgeable installed-root occurrence; plan, requirement,
-  semantic parameter position, domain, and carry policy must all agree. Do not
-  add an `[entry]`/`[accepted]` marker, source selector, public receipt, or new
-  trust category. Remaining: require that admitted match in concrete compiler
-  entry lowering before entering the checked adapter body, preserving the
-  semantic position until ABI lowering.
+  semantic parameter position, domain, and carry policy must all agree. The
+  live admitted occurrence now retains that semantic position beside its exact
+  placement from the validated boundary plan, and an out-of-range position
+  rejects before installation. Do not add an `[entry]`/`[accepted]` marker,
+  source selector, public receipt, or new trust category. Remaining: make the
+  generated entry prologue/body handoff consume that live admitted match before
+  entering the checked adapter body instead of merely carrying it.
 - `TaskRuntime` is now an ordinary boundary trait. Each concrete `start<M>` /
   `try_start<M>` Omega activation-sidecar fact binds the exact retained
   selected-provider plan and exact operation requirement, rejecting a missing

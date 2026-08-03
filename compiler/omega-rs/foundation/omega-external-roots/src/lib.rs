@@ -11,8 +11,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use omega_calling_conventions::{
     BoundaryEntryPlan, EntryControl, EntryStack, MachineRegister, ProviderExitRealization,
-    StateFootprintEvidence, ValidatedBoundaryEntryPlan, validate_provider_exit_realization,
-    validate_state_footprint,
+    StateFootprintEvidence, ValidatedBoundaryEntryPlan, ValuePlacement,
+    validate_provider_exit_realization, validate_state_footprint,
 };
 pub use omega_executable_installation::{ArtifactId, InstalledCodeId};
 use omega_executable_installation::{InstalledCode, InstalledCodeContext};
@@ -829,6 +829,7 @@ pub struct AdmittedEntryQualification {
     provider_plan: ProviderPlanId,
     requirement_identity: String,
     parameter_index: usize,
+    abi_placement: ValuePlacement,
     domain: String,
     effective_carry: omega_core::semantics::CarryPolicy,
     entry_receipt: InterruptEntryReceiptId,
@@ -865,6 +866,15 @@ impl AdmittedEntryQualification {
 
     pub const fn parameter_index(&self) -> usize {
         self.parameter_index
+    }
+
+    /// Exact inbound ABI placement selected for this semantic parameter.
+    ///
+    /// The semantic index remains authoritative until this occurrence is
+    /// admitted. Entry lowering may then consume this placement without
+    /// rediscovering a parameter by source name or physical register.
+    pub const fn abi_placement(&self) -> &ValuePlacement {
+        &self.abi_placement
     }
 
     pub fn domain(&self) -> &str {
@@ -1201,6 +1211,18 @@ pub fn validate_external_root(
             return Err(ExternalRootDiagnostic(
                 "external-root entry claims must be uniquely sorted by parameter and domain".into(),
             ));
+        }
+        if boundary
+            .plan()
+            .call
+            .parameters
+            .get(claim.parameter_index)
+            .is_none()
+        {
+            return Err(ExternalRootDiagnostic(format!(
+                "external-root entry claim parameter {} has no exact ABI placement in the validated boundary plan",
+                claim.parameter_index
+            )));
         }
         prior_claim = Some(key);
     }
@@ -2004,6 +2026,7 @@ impl InstalledRootLedger {
                     provider_plan: record.provider_plan,
                     requirement_identity: record.requirement_identity.clone(),
                     parameter_index,
+                    abi_placement: record.boundary.call.parameters[parameter_index].clone(),
                     domain: claim.domain.clone(),
                     effective_carry: claim.effective_carry,
                     entry_receipt: receipt.identity,
@@ -3264,6 +3287,11 @@ mod tests {
         );
         assert_eq!(pending_qualification.parameter_index, 0);
         assert_eq!(
+            pending_qualification.abi_placement(),
+            &interrupt_boundary().plan().call.parameters[0],
+            "the live admitted occurrence must retain the exact ABI placement for its semantic parameter"
+        );
+        assert_eq!(
             pending_qualification.domain,
             "InterruptAcknowledgement::Pending"
         );
@@ -3839,6 +3867,18 @@ mod tests {
         let missing = validate_external_root(missing, &boundary)
             .expect_err("the acknowledgement parameter must name an admitted claim");
         assert!(missing.0.contains("acknowledgement parameter"));
+    }
+
+    #[test]
+    fn external_root_entry_claim_requires_an_exact_abi_parameter() {
+        let boundary = interrupt_boundary();
+        let mut candidate = interrupt_candidate(entry_id(162));
+        candidate.entry_claims[0].parameter_index = 1;
+        candidate.acknowledgement_parameter_index = Some(1);
+
+        let diagnostic = validate_external_root(candidate, &boundary)
+            .expect_err("a semantic entry parameter outside the boundary signature must reject");
+        assert!(diagnostic.0.contains("has no exact ABI placement"));
     }
 
     #[test]

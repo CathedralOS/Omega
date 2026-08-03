@@ -100,7 +100,10 @@ impl SelectedExternalRootEntryFactBinding {
     /// Resolve this checked parameter fact only through the linear runtime
     /// acknowledgement minted for the installed-root occurrence. The returned
     /// evidence remains borrowed from that carrier and cannot be detached or
-    /// replayed as an independently cloneable receipt.
+    /// replayed as an independently cloneable receipt. Its semantic parameter
+    /// index is still present beside the exact placement selected by the
+    /// installed root's validated boundary plan, so ABI lowering never has to
+    /// rediscover the admitted subject by name or register.
     pub fn admit_acknowledgement<'entry>(
         &self,
         acknowledgement: &'entry omega_external_roots::InterruptAcknowledgement,
