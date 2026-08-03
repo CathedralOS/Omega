@@ -938,6 +938,14 @@ a redundant second no-plan data-site query after its plan-aware query. The
 remaining x86-64 relocation consumers therefore either name the policy being
 tested as a compatibility oracle or supply the retained authoritative plan.
 
+Concrete promoted variadic calls now have a normalized signature that retains
+the fixed/anonymous parameter boundary. The first Darwin AAPCS64 evaluator
+keeps fixed parameters on the ordinary plan and places promoted anonymous
+scalars in the outgoing stack area; a focused `open(path, flags, mode)` plan
+pins `mode` at stack offset zero. The existing open-create encoder and its
+relocation walkers still need to consume that complete plan before the
+operation-key compatibility seam can be retired.
+
 Remaining order:
 
 1. Complete plan-driven outbound calls and their results;

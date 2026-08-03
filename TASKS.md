@@ -833,7 +833,11 @@ Remaining:
   GetStdHandle/ReadFile/WriteFile subcall plans. The unused x86-64 relocation
   wrappers that silently selected Microsoft x64 are retired, along with the
   object walker's redundant second no-plan data-relocation lookup; remaining
-  callers now name a policy or supply the retained plan; and
+  callers now name a policy or supply the retained plan. Concrete promoted
+  variadic signatures now preserve their fixed/anonymous parameter boundary;
+  the Darwin AAPCS64 planner places anonymous scalar arguments on the outgoing
+  stack and pins the `open(path, flags, mode)` shape, while its emission and
+  relocation consumers still need to migrate off the compatibility seam; and
 - delete compatibility fields after their final consumer migrates.
 
 Acceptance: changing a normalized plan changes lowering or rejects; changing

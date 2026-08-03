@@ -8,11 +8,12 @@ pub use darwin::{
 pub use linux::{linux_clock_gettime_syscall_number, linux_nanosleep_syscall_number};
 pub use plans::{
     BoundaryEntryPlan, BoundaryPlanDiagnostic, BoundaryPlanResult, CallPlan, CallSignature,
-    CallingPolicy, CallingPolicyRejection, EntryControl, EntryStack, IndirectPointerLocation,
-    MachineRegime, MachineRegister, MachineState, MachineStateSet, PlanDiagnostic, Preemption,
-    ProviderExitRealization, RegisterSet, StateFootprintEvidence, StatePlan, SystemVEightbyteClass,
-    ValidatedBoundaryEntryPlan, ValueClass, ValueLocation, ValuePlacement, ValueShape,
-    compose_state_footprints, evaluate_call_plan, evaluate_ordinary_boundary_entry_plan,
+    CallingPolicy, CallingPolicyRejection, ConcreteVariadicCallSignature, EntryControl, EntryStack,
+    IndirectPointerLocation, MachineRegime, MachineRegister, MachineState, MachineStateSet,
+    PlanDiagnostic, Preemption, ProviderExitRealization, RegisterSet, StateFootprintEvidence,
+    StatePlan, SystemVEightbyteClass, ValidatedBoundaryEntryPlan, ValueClass, ValueLocation,
+    ValuePlacement, ValueShape, compose_state_footprints, evaluate_call_plan,
+    evaluate_darwin_aapcs64_variadic_call_plan, evaluate_ordinary_boundary_entry_plan,
     validate_boundary_entry_plan, validate_boundary_plan_result, validate_call_plan,
     validate_call_return_mechanics_footprint, validate_composed_state_footprint,
     validate_provider_exit_realization, validate_runtime_value_guard_footprint,

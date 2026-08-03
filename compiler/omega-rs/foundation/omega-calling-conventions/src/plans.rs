@@ -150,6 +150,30 @@ pub struct CallSignature {
     pub result: Option<ValueShape>,
 }
 
+/// One concrete call to a C variadic function after default argument
+/// promotion. The fixed/anonymous boundary is ABI-significant even though all
+/// parameters have already acquired exact machine shapes.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ConcreteVariadicCallSignature {
+    pub fixed_parameters: Vec<ValueShape>,
+    pub variadic_parameters: Vec<ValueShape>,
+    pub result: Option<ValueShape>,
+}
+
+impl ConcreteVariadicCallSignature {
+    pub fn flattened(&self) -> CallSignature {
+        CallSignature {
+            parameters: self
+                .fixed_parameters
+                .iter()
+                .chain(&self.variadic_parameters)
+                .copied()
+                .collect(),
+            result: self.result,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ValueLocation {
     Register {
@@ -1307,6 +1331,84 @@ fn evaluate_aapcs64(signature: &CallSignature) -> Result<CallPlan, PlanDiagnosti
     Ok(plan)
 }
 
+/// Evaluate Apple's arm64 C variadic rule for one fully shaped call. Fixed
+/// parameters use ordinary AAPCS64 placement; promoted anonymous scalar
+/// parameters use the outgoing stack area even while argument registers remain.
+///
+/// The first consumer is Darwin `open(path, flags, mode)`. Aggregate variadic
+/// values remain fail-closed until an actual native binding needs their Apple
+/// ABI classification.
+pub fn evaluate_darwin_aapcs64_variadic_call_plan(
+    signature: &ConcreteVariadicCallSignature,
+) -> Result<CallPlan, PlanDiagnostic> {
+    if signature.variadic_parameters.is_empty() {
+        return Err(PlanDiagnostic(
+            "a concrete variadic call must supply at least one anonymous parameter".into(),
+        ));
+    }
+    let fixed_signature = CallSignature {
+        parameters: signature.fixed_parameters.clone(),
+        result: signature.result,
+    };
+    validate_signature_shapes(CallingPolicy::Aapcs64, &signature.flattened())?;
+    let mut plan = evaluate_aapcs64(&fixed_signature)?;
+    let mut stack_offset = call_plan_stack_extent(&plan);
+    for (index, shape) in signature.variadic_parameters.iter().copied().enumerate() {
+        if !matches!(shape.class, ValueClass::Integer | ValueClass::Float) || shape.byte_size > 8 {
+            return Err(PlanDiagnostic(format!(
+                "Darwin AAPCS64 anonymous parameter {index} is not a promoted scalar"
+            )));
+        }
+        let alignment = shape.alignment.clamp(8, 16);
+        stack_offset = align_up(stack_offset, u32::from(alignment));
+        plan.parameters.push(ValuePlacement {
+            shape,
+            locations: vec![ValueLocation::Stack {
+                stack_byte_offset: stack_offset,
+                value_byte_offset: 0,
+                byte_size: shape.byte_size,
+                alignment,
+            }],
+        });
+        stack_offset += u32::from(shape.byte_size.max(8));
+    }
+    validate_call_plan(&plan, &signature.flattened())?;
+    Ok(plan)
+}
+
+fn call_plan_stack_extent(plan: &CallPlan) -> u32 {
+    plan.parameters
+        .iter()
+        .flat_map(|placement| &placement.locations)
+        .fold(0, |extent, location| {
+            let end = match *location {
+                ValueLocation::Register { .. } => 0,
+                ValueLocation::Stack {
+                    stack_byte_offset,
+                    byte_size,
+                    ..
+                } => stack_byte_offset + u32::from(byte_size.max(8)),
+                ValueLocation::Indirect {
+                    pointer,
+                    copy_stack_byte_offset,
+                    byte_size,
+                    ..
+                } => {
+                    let pointer_end = match pointer {
+                        IndirectPointerLocation::Register(_) => 0,
+                        IndirectPointerLocation::Stack {
+                            stack_byte_offset, ..
+                        } => stack_byte_offset + 8,
+                    };
+                    pointer_end.max(copy_stack_byte_offset.map_or(0, |offset| {
+                        offset + u32::from(byte_size).next_multiple_of(8)
+                    }))
+                }
+            };
+            extent.max(end)
+        })
+}
+
 fn evaluate_split_bank_call(
     policy: CallingPolicy,
     signature: &CallSignature,
@@ -2093,6 +2195,50 @@ mod tests {
                 register: MachineRegister::Aarch64V(1),
                 ..
             }
+        ));
+    }
+
+    #[test]
+    fn darwin_aapcs64_variadic_scalars_start_on_the_stack() {
+        let word = ValueShape::integer(8, 8);
+        let mode = ValueShape::integer(4, 4);
+        let signature = ConcreteVariadicCallSignature {
+            fixed_parameters: vec![word, ValueShape::integer(4, 4)],
+            variadic_parameters: vec![mode],
+            result: Some(ValueShape::integer(4, 4)),
+        };
+        let plan = evaluate_darwin_aapcs64_variadic_call_plan(&signature)
+            .expect("Darwin arm64 variadic plan");
+
+        assert!(matches!(
+            plan.parameters[0].locations.as_slice(),
+            [ValueLocation::Register {
+                register: MachineRegister::Aarch64X(0),
+                ..
+            }]
+        ));
+        assert!(matches!(
+            plan.parameters[1].locations.as_slice(),
+            [ValueLocation::Register {
+                register: MachineRegister::Aarch64X(1),
+                ..
+            }]
+        ));
+        assert_eq!(
+            plan.parameters[2].locations,
+            vec![ValueLocation::Stack {
+                stack_byte_offset: 0,
+                value_byte_offset: 0,
+                byte_size: 4,
+                alignment: 8,
+            }]
+        );
+        assert!(matches!(
+            plan.result.expect("result placement").locations.as_slice(),
+            [ValueLocation::Register {
+                register: MachineRegister::Aarch64X(0),
+                ..
+            }]
         ));
     }
 
