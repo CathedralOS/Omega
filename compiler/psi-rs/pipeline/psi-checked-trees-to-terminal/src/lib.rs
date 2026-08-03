@@ -749,6 +749,14 @@ fn lower_content_place(
 ///     B | pN
 /// }
 ///
+/// machine name(p0: bool, ...) -> bool
+/// requires B == B
+/// ensures B == B
+/// {
+///     transition { _ -> next(B | pN) }
+///     state next(value: bool) -> bool { B | value }
+/// }
+///
 /// machine name(p0: integer, ...) -> integer
 /// requires C == C
 /// ensures C == C
@@ -812,6 +820,11 @@ fn lower_selected_machine(
             Some(PrimitiveType::Bool) => lower_boolean_machine(checked, machine, entry_state),
             _ => lower_direct_parameter_machine(checked, machine, entry_state),
         };
+    }
+    if states.len() >= 2
+        && checked.primitive_type_reference(states[0].return_type) == Some(PrimitiveType::Bool)
+    {
+        return lower_boolean_state_chain(checked, machine, states);
     }
     if states.len() >= 2 && !checked.state_parameters(&states[0]).is_empty() {
         return lower_parameterized_state_chain(checked, machine, states);
@@ -1066,19 +1079,7 @@ fn lower_boolean_machine(
     let [StatementNode::Expression(return_expression)] = statements else {
         return unsupported("Boolean source machine must contain exactly one value expression");
     };
-    let return_expression = match checked.expression_table.expression(*return_expression) {
-        ExpressionNode::Boolean(value) => {
-            LoweredBooleanReturnExpression::Constant { value: *value }
-        }
-        ExpressionNode::Name(path) => LoweredBooleanReturnExpression::Parameter {
-            position: direct_parameter_position(checked, path, parameters)?,
-        },
-        _ => {
-            return unsupported(
-                "Boolean source machine must return a literal or declared parameter",
-            );
-        }
-    };
+    let return_expression = lower_boolean_expression(checked, *return_expression, parameters)?;
     let contract_value = validate_boolean_contract(checked, machine)?;
     let (identity_reshuffles, partition_compositions) =
         lower_content_evidence(checked, machine, entry_state)?;
@@ -1089,6 +1090,121 @@ fn lower_boolean_machine(
         identity_reshuffles,
         partition_compositions,
     ))
+}
+
+fn lower_boolean_state_chain(
+    checked: &CheckedTrees,
+    machine: &psi_checked_trees::machine::Machine,
+    states: &[psi_checked_trees::state::State],
+) -> Result<LoweredTerminalPsi, LoweringError> {
+    let entry_state = &states[0];
+    let entry_parameters = checked.state_parameters(entry_state);
+    if entry_parameters
+        .iter()
+        .any(|parameter| parameter.is_self || parameter.is_const || parameter.is_mutable)
+    {
+        return unsupported("qualified Boolean state-chain parameters are not supported");
+    }
+    if entry_parameters.iter().any(|parameter| {
+        checked.primitive_type_reference(parameter.type_reference) != Some(PrimitiveType::Bool)
+    }) {
+        return unsupported("Boolean state-chain machine parameters must be Boolean");
+    }
+    for state in &states[1..] {
+        let [parameter] = checked.state_parameters(state) else {
+            return unsupported("every non-entry Boolean state must have exactly one parameter");
+        };
+        if parameter.is_self || parameter.is_const || parameter.is_mutable {
+            return unsupported("qualified Boolean state-chain parameters are not supported");
+        }
+        if checked.primitive_type_reference(state.return_type) != Some(PrimitiveType::Bool)
+            || checked.primitive_type_reference(parameter.type_reference)
+                != Some(PrimitiveType::Bool)
+        {
+            return unsupported("Boolean state and carried parameter types must remain Boolean");
+        }
+    }
+    if states
+        .iter()
+        .any(|state| !checked.state_contracts(state).is_empty())
+    {
+        return unsupported("state contracts are not supported");
+    }
+
+    let mut jump_expressions = Vec::with_capacity(states.len() - 1);
+    for (index, state) in states[..states.len() - 1].iter().enumerate() {
+        let statements = checked.statement_table.statements(state.statement_nodes);
+        let [StatementNode::Transition(transition)] = statements else {
+            return unsupported("each nonterminal Boolean state must contain one transition");
+        };
+        if transition.guard != TransitionGuardNode::Always || transition.continuation.is_valid() {
+            return unsupported(
+                "Boolean state-chain transitions must be unconditional and have no continuation",
+            );
+        }
+        let TransitionTargetNode::Named { path, arguments } =
+            checked.statement_table.transition_target(transition.target)
+        else {
+            return unsupported("a Boolean state-chain transition must target its next state");
+        };
+        if path.symbol != states[index + 1].symbol {
+            return unsupported(
+                "a Boolean state-chain transition must target the next declared state",
+            );
+        }
+        let [argument] = checked.statement_table.expression_handles(*arguments) else {
+            return unsupported("a Boolean state-chain transition must carry exactly one argument");
+        };
+        jump_expressions.push(lower_boolean_expression(
+            checked,
+            *argument,
+            checked.state_parameters(state),
+        )?);
+    }
+
+    let return_state = states.last().expect("Boolean state chain is nonempty");
+    let [return_parameter] = checked.state_parameters(return_state) else {
+        unreachable!("non-entry Boolean state shape was validated above");
+    };
+    let return_statements = checked
+        .statement_table
+        .statements(return_state.statement_nodes);
+    let [StatementNode::Expression(return_expression)] = return_statements else {
+        return unsupported("return Boolean state must contain exactly one value expression");
+    };
+    let return_expression = lower_boolean_expression(
+        checked,
+        *return_expression,
+        std::slice::from_ref(return_parameter),
+    )?;
+
+    let contract_value = validate_boolean_contract(checked, machine)?;
+    let (identity_reshuffles, partition_compositions) =
+        lower_content_evidence(checked, machine, entry_state)?;
+    Ok(build_boolean_state_chain_module(
+        entry_parameters.len(),
+        jump_expressions,
+        return_expression,
+        contract_value,
+        identity_reshuffles,
+        partition_compositions,
+    ))
+}
+
+fn lower_boolean_expression(
+    checked: &CheckedTrees,
+    expression: psi_checked_trees::expression::ExpressionHandle,
+    parameters: &[psi_checked_trees::signature::StateParameter],
+) -> Result<LoweredBooleanReturnExpression, LoweringError> {
+    match checked.expression_table.expression(expression) {
+        ExpressionNode::Boolean(value) => {
+            Ok(LoweredBooleanReturnExpression::Constant { value: *value })
+        }
+        ExpressionNode::Name(path) => Ok(LoweredBooleanReturnExpression::Parameter {
+            position: direct_parameter_position(checked, path, parameters)?,
+        }),
+        _ => unsupported("Boolean terminal expressions require a literal or declared parameter"),
+    }
 }
 
 fn lower_direct_parameter_machine(
@@ -1649,6 +1765,189 @@ fn build_boolean_module(
                         value: returned,
                     },
                 }],
+                contract: MachineContract {
+                    id: contract_id(1),
+                    requires: vec![goal.clone()],
+                    ensures: vec![ContractClause {
+                        obligation,
+                        proposition: goal,
+                    }],
+                },
+            }],
+        },
+        proof_bundle: ProofBundle {
+            evidence: vec![ObligationEvidence {
+                obligation,
+                route: EvidenceRoute::KernelDerived(PrimitiveJudgment::ReflexiveEquality),
+            }],
+        },
+        debug_map: None,
+    }
+}
+
+fn emit_boolean_expression(
+    expression: &LoweredBooleanReturnExpression,
+    parameters: &[ValueDeclaration],
+    next_value_identity: &mut u64,
+    operations: &mut Vec<Operation>,
+) -> ValueId {
+    match expression {
+        LoweredBooleanReturnExpression::Constant { value } => {
+            let id = value_id(*next_value_identity);
+            *next_value_identity = next_value_identity
+                .checked_add(1)
+                .expect("generated value identity advances after a Boolean literal");
+            operations.push(Operation {
+                id: operation_id(
+                    u64::try_from(operations.len())
+                        .expect("operation count fits a semantic identity")
+                        .checked_add(1)
+                        .expect("operation identity is nonzero"),
+                ),
+                result: ValueDeclaration {
+                    id,
+                    scalar_type: ScalarType::Boolean,
+                },
+                kind: OperationKind::BooleanConstant { value: *value },
+            });
+            id
+        }
+        LoweredBooleanReturnExpression::Parameter { position } => parameters[*position].id,
+    }
+}
+
+fn build_boolean_state_chain_module(
+    parameter_count: usize,
+    jump_expressions: Vec<LoweredBooleanReturnExpression>,
+    return_expression: LoweredBooleanReturnExpression,
+    contract_value: bool,
+    identity_reshuffles: LoweredContentIdentityReshuffles,
+    partition_compositions: LoweredContentPartitionCompositions,
+) -> LoweredTerminalPsi {
+    let terminal_parameters = (0..parameter_count)
+        .map(|index| ValueDeclaration {
+            id: value_id(
+                u64::try_from(index)
+                    .expect("parameter index fits a semantic identity")
+                    .checked_add(1)
+                    .expect("parameter identity is nonzero"),
+            ),
+            scalar_type: ScalarType::Boolean,
+        })
+        .collect::<Vec<_>>();
+    let mut next_value_identity = u64::try_from(parameter_count)
+        .expect("parameter count fits a semantic identity")
+        .checked_add(1)
+        .expect("generated identities follow the parameter identities");
+    let mut all_operations = Vec::new();
+    let mut blocks = Vec::with_capacity(jump_expressions.len() + 1);
+    let mut current_parameters = terminal_parameters.clone();
+    for (index, jump_expression) in jump_expressions.iter().enumerate() {
+        let operation_start = all_operations.len();
+        let jump_value = emit_boolean_expression(
+            jump_expression,
+            &current_parameters,
+            &mut next_value_identity,
+            &mut all_operations,
+        );
+        let next_parameter = ValueDeclaration {
+            id: value_id(next_value_identity),
+            scalar_type: ScalarType::Boolean,
+        };
+        next_value_identity = next_value_identity
+            .checked_add(1)
+            .expect("generated identities advance after a Boolean block parameter");
+        blocks.push(Block {
+            id: block_id(
+                u64::try_from(index)
+                    .expect("block index fits a semantic identity")
+                    .checked_add(1)
+                    .expect("block identity is nonzero"),
+            ),
+            parameters: if index == 0 {
+                Vec::new()
+            } else {
+                current_parameters.clone()
+            },
+            operations: all_operations[operation_start..].to_vec(),
+            terminator: Terminator::Jump {
+                edge: edge_id(
+                    u64::try_from(index)
+                        .expect("edge index fits a semantic identity")
+                        .checked_add(1)
+                        .expect("edge identity is nonzero"),
+                ),
+                target: block_id(
+                    u64::try_from(index)
+                        .expect("block index fits a semantic identity")
+                        .checked_add(2)
+                        .expect("target block identity follows its source"),
+                ),
+                arguments: vec![jump_value],
+            },
+        });
+        current_parameters = vec![next_parameter];
+    }
+    let return_operation_start = all_operations.len();
+    let return_value = emit_boolean_expression(
+        &return_expression,
+        &current_parameters,
+        &mut next_value_identity,
+        &mut all_operations,
+    );
+    let final_index = jump_expressions.len();
+    blocks.push(Block {
+        id: block_id(
+            u64::try_from(final_index)
+                .expect("block index fits a semantic identity")
+                .checked_add(1)
+                .expect("block identity is nonzero"),
+        ),
+        parameters: current_parameters,
+        operations: all_operations[return_operation_start..].to_vec(),
+        terminator: Terminator::Return {
+            edge: edge_id(
+                u64::try_from(final_index)
+                    .expect("edge index fits a semantic identity")
+                    .checked_add(1)
+                    .expect("edge identity is nonzero"),
+            ),
+            value: return_value,
+        },
+    });
+    let result_id = value_id(next_value_identity);
+    let literal = ScalarTerm::boolean(contract_value);
+    let goal = Proposition::Equal(literal.clone(), literal);
+    let obligation = obligation_id(1);
+    let mut structural_places = identity_reshuffles
+        .structural_places
+        .into_iter()
+        .map(|place| (place.id, place.kind))
+        .collect::<BTreeMap<_, _>>();
+    for place in partition_compositions.structural_places {
+        merge_content_place_declaration(&mut structural_places, place)
+            .expect("checked lowering rejects conflicting structural places");
+    }
+
+    LoweredTerminalPsi {
+        semantic_module: TerminalModule {
+            semantic_version: SemanticVersion::CURRENT,
+            entry: machine_id(1),
+            machines: vec![TerminalMachine {
+                id: machine_id(1),
+                parameters: terminal_parameters,
+                result: ValueDeclaration {
+                    id: result_id,
+                    scalar_type: ScalarType::Boolean,
+                },
+                structural_places: structural_places
+                    .into_iter()
+                    .map(|(id, kind)| StructuralPlaceDeclaration { id, kind })
+                    .collect(),
+                content_identity_reshuffles: identity_reshuffles.reshuffles,
+                content_partition_compositions: partition_compositions.compositions,
+                entry: block_id(1),
+                blocks,
                 contract: MachineContract {
                     id: contract_id(1),
                     requires: vec![goal.clone()],
