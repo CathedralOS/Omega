@@ -47,6 +47,8 @@ Current roots:
   resolved symbol identities;
 - `representations/psi-typed-trees`: target-neutral typed source trees and
   canonical semantic boundary identities;
+- `representations/psi-facts`: durable target-neutral places, contexts,
+  propositions, and checked-fact plans;
 - `representations/psi-terminal`: the in-memory terminal semantic module and
   its first integer-constant / jump / return operation vocabulary;
 - `pipeline/psi-source-files-to-tokens`: the Psi-owned Omega lexer;

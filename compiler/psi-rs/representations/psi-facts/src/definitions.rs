@@ -1,7 +1,7 @@
-use omega_core::arena::{Handle, HandleSpan};
-use omega_typed_trees::TypedTrees;
-use omega_typed_trees::domain::ProofFact;
-use omega_typed_trees::types::TypeConstraintNode;
+use psi_arena::{Handle, HandleSpan};
+use psi_typed_trees::TypedTrees;
+use psi_typed_trees::domain::ProofFact;
+use psi_typed_trees::types::TypeConstraintNode;
 
 use crate::{Fact, FactOrigin, FactPayload, FactPlace, FactPlan, PlaceHandle, ProgramPoint};
 

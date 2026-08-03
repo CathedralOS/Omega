@@ -1,7 +1,7 @@
-use omega_core::arena::HandleSpan;
-use omega_core::symbols::SymbolHandle;
-use omega_typed_trees::TypedTrees;
-use omega_typed_trees::expression::ExpressionHandle;
+use psi_arena::HandleSpan;
+use psi_symbols::SymbolHandle;
+use psi_typed_trees::TypedTrees;
+use psi_typed_trees::expression::ExpressionHandle;
 
 use crate::{
     BooleanFact, DomainMembershipFact, Fact, FactPayload, FactPlace, FactPlan, FactRef,

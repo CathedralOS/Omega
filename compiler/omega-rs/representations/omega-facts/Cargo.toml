@@ -9,5 +9,4 @@ name = "omega_facts"
 path = "src/lib.rs"
 
 [dependencies]
-omega-core = { path = "../../foundation/omega-core" }
-omega-typed-trees = { path = "../omega-typed-trees" }
+psi-facts = { path = "../../../psi-rs/representations/psi-facts" }

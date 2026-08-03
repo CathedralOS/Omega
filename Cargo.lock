@@ -509,8 +509,7 @@ dependencies = [
 name = "omega-facts"
 version = "0.1.0"
 dependencies = [
- "omega-core",
- "omega-typed-trees",
+ "psi-facts",
 ]
 
 [[package]]
@@ -1242,6 +1241,17 @@ dependencies = [
 [[package]]
 name = "psi-extents"
 version = "0.1.0"
+
+[[package]]
+name = "psi-facts"
+version = "0.1.0"
+dependencies = [
+ "psi-arena",
+ "psi-language-semantics",
+ "psi-numerics",
+ "psi-symbols",
+ "psi-typed-trees",
+]
 
 [[package]]
 name = "psi-language-core"

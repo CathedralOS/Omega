@@ -73,6 +73,7 @@ Omega/
 |   |   |   |-- [CRATE] psi-syntax-trees/               # Parsed source shape before symbol resolution.
 |   |   |   |-- [CRATE] psi-symbol-resolved-trees/      # Source trees with resolved symbol identity.
 |   |   |   |-- [CRATE] psi-typed-trees/                # Typed source semantics without target realization state.
+|   |   |   |-- [CRATE] psi-facts/                      # Durable checked places, contexts, and semantic fact plans.
 |   |   |   `-- [CRATE] psi-terminal/                   # Self-contained terminal module and closed operation vocabulary.
 |   |   |-- pipeline/
 |   |   |   |-- [CRATE] psi-source-files-to-tokens/     # Psi-owned Omega source lexer.
@@ -97,7 +98,7 @@ Omega/
 |   |   |-- [CRATE] omega-syntax-trees/                 # Transitional re-export of Psi-owned syntax trees.
 |   |   |-- [CRATE] omega-symbol-resolved-trees/        # SymbolResolvedTrees: syntax shape with declaration/reference symbols resolved.
 |   |   |-- [CRATE] omega-typed-trees/                  # Transitional re-export of Psi-owned typed trees.
-|   |   |-- [CRATE] omega-facts/                        # Checked semantic facts, invariants, and refinement data embedded in later IRs.
+|   |   |-- [CRATE] omega-facts/                        # Transitional re-export of Psi-owned checked fact vocabulary.
 |   |   |-- [CRATE] omega-effects/                      # Effect-set, capability, and provider data shapes embedded in later IRs.
 |   |   |-- [CRATE] omega-checked-trees/                # Typed trees plus checked semantic facts after validation/proof-facing checks.
 |   |   |-- [CRATE] omega-state-graph/                  # Explicit machine/state graph for proof and scheduling.
@@ -255,12 +256,12 @@ Omega/
   crates today. Borrow, invariant, contract, and const-evaluation reasoning live
   inside the existing semantic crates (chiefly `omega-types`, `omega-facts`,
   `omega-validation`, and `omega-proof`).
-- `omega-facts` and `omega-effects` are data-shape crates and live under
-  `representations/` so checked IRs can embed their types without a
-  representations-to-semantics edge; semantics crates still own how those
-  facts and effects are established.
-- `omega-facts` carries checked facts, invariants, and refinement data: what
-  remains true.
+- `psi-facts` carries checked facts, invariants, and refinement data: what
+  remains true. The old `omega-facts` name is a compatibility export while
+  downstream Omega consumers migrate to terminal Psi.
+- `omega-effects` remains a temporary mixed-ownership data-shape crate. Split
+  target-neutral operational/reach/invocation semantics into Psi before moving
+  it; provider bindings and installation evidence remain Omega-owned.
 - `omega-validation` answers cross-semantic obligations, including who may read
   or mutate and what a callable requires or promises.
 - `omega-proof` discharges obligations.
