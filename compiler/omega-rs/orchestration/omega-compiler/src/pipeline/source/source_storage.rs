@@ -3,7 +3,7 @@ use crate::pipeline::source::SourceFile;
 use crate::source::SourceMap;
 use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
-use omega_core::source::SourceOrigin;
+use psi_source::SourceOrigin;
 use psi_syntax_trees::SyntaxTrees;
 use std::path::{Path, PathBuf};
 

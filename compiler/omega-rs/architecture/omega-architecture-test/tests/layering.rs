@@ -658,6 +658,7 @@ fn omega_driver_invokes_the_psi_frontend_directly() {
     }
 
     for psi_stage in [
+        "psi-source",
         "psi-source-files-to-tokens",
         "psi-tokens",
         "psi-tokens-to-syntax-trees",

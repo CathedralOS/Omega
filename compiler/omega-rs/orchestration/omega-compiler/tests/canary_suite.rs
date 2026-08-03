@@ -4512,7 +4512,7 @@ fn extent_root_provider_adapter_compiles() {
         .expect("no_wrap call target should resolve to its owning machine");
     assert_eq!(
         checked.symbols.symbol_source_origin(no_wrap_machine.symbol),
-        Some(omega_core::source::SourceOrigin::Toolchain),
+        Some(psi_source::SourceOrigin::Toolchain),
         "the target-bound predicate must be the compiler-provided declaration"
     );
     assert!(matches!(

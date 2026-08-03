@@ -5,7 +5,7 @@ use crate::pipeline::source::SourceStorage;
 use crate::{lexer, parser};
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
-use omega_core::source::{SourceId, SourcePosition};
+use psi_source::{SourceId, SourcePosition};
 use psi_syntax_trees::SyntaxTrees;
 use psi_syntax_trees::identifier::Identifier;
 use psi_syntax_trees::item::{Item, ItemHandle};

@@ -22,6 +22,7 @@ omega-external-roots = { path = "../../foundation/omega-external-roots" }
 omega-image = { path = "../../backend/images/omega-image" }
 omega-image-emission = { path = "../../backend/images/omega-image-emission" }
 omega-instruction-selection = { path = "../../backend/omega-instruction-selection" }
+psi-source = { path = "../../../psi-rs/foundation/psi-source" }
 psi-source-files-to-tokens = { path = "../../../psi-rs/pipeline/psi-source-files-to-tokens" }
 psi-tokens = { path = "../../../psi-rs/representations/psi-tokens" }
 omega-layout = { path = "../../backend/omega-layout" }

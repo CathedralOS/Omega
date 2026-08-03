@@ -29,7 +29,7 @@ use std::sync::Arc;
 pub(super) struct AssembledSyntax {
     pub(super) syntax_trees: SyntaxTrees,
     pub(super) files: Vec<crate::pipeline::source::SourceFile>,
-    pub(super) sources: Arc<omega_core::source::SourceMap>,
+    pub(super) sources: Arc<psi_source::SourceMap>,
 }
 
 pub(super) struct CheckedProgramSurface {
