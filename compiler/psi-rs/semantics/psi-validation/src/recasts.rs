@@ -393,6 +393,24 @@ fn judge_scalar_recast(
         return;
     }
 
+    let source = strip_mutable(program, cast.value);
+    let source_type = crate::places::declared_place_type_raw(program, machine, Some(state), source);
+    let source_placed = source_type
+        .and_then(|type_reference| program.placed_view_plan_for_type_reference(type_reference));
+    let target_placed = program.placed_view_plan_for_type_reference(cast.target_type);
+    if source_placed.is_some() || target_placed.is_some() {
+        let source_name = source_placed
+            .map(|view| view.data_name.as_str())
+            .unwrap_or("non-placed storage");
+        let target_name = target_placed
+            .map(|view| view.data_name.as_str())
+            .unwrap_or("non-placed storage");
+        diagnostics.push(Diagnostic::error(format!(
+            "{context}: placed-view recast from `{source_name}` to `{target_name}` is unavailable; retain the underlying qualified extent borrow and explicitly admit the intended placement"
+        )));
+        return;
+    }
+
     // Target: a fixed-width scalar or recursively fixed aggregate, restated
     // exactly by the let. Structural targets are semantic type references;
     // their cached display spelling never participates in the judgment.
@@ -434,7 +452,6 @@ fn judge_scalar_recast(
                 )));
                 return;
             }
-            let source = strip_mutable(program, cast.value);
             let interior = interior_byte_region_source(program, machine, state, source);
             if let InteriorByteRegion::OffsetUnproven {
                 offset_display,
@@ -533,7 +550,6 @@ fn judge_scalar_recast(
     // Source: a scalar place of the SAME byte width (§5b rule 1: same total
     // size; scalar alignment follows from size). Facts on the source are
     // fine under a shared view (weakening).
-    let source = strip_mutable(program, cast.value);
     // RUNG B: an INTERIOR recast into a `[u8; N]` region at a STATIC offset
     // (`&self.buf[4] as &u32`): the target's footprint must fit the
     // remaining bytes (`k + size(T) <= N`). Byte buffers carry no facts and
