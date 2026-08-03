@@ -8,10 +8,10 @@
 
 use omega_core::diagnostics::Diagnostic;
 use omega_core::literals::{IntegerLiteral, IntegerRadix};
-use omega_syntax_trees::SyntaxTrees;
-use omega_syntax_trees::expression::{ExpressionHandle, ExpressionNode};
-use omega_syntax_trees::identifier::Identifier;
-use omega_syntax_trees::types::TypeReferenceNode;
+use psi_syntax_trees::SyntaxTrees;
+use psi_syntax_trees::expression::{ExpressionHandle, ExpressionNode};
+use psi_syntax_trees::identifier::Identifier;
+use psi_syntax_trees::types::TypeReferenceNode;
 use std::collections::BTreeMap;
 
 pub(super) fn evaluate_const_generic_calls(
@@ -42,9 +42,9 @@ pub(super) fn evaluate_const_generic_calls(
         );
     }
     super::generic_instances::desugar_generic_data_instances(&mut probe)?;
-    let resolved = omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&probe)
+    let resolved = psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&probe)
         .map_err(|diagnostic| vec![diagnostic])?;
-    let typed = omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+    let typed = psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .map_err(|diagnostic| vec![diagnostic])?;
     let admission = super::build_time_admission::BuildTimeAdmissionPlan::infer(&typed);
 
@@ -111,7 +111,7 @@ fn collect_call_leaves(
 
 fn call_machine_name(
     syntax: &SyntaxTrees,
-    call: &omega_syntax_trees::expression::TableCallExpression,
+    call: &psi_syntax_trees::expression::TableCallExpression,
 ) -> Result<String, Vec<Diagnostic>> {
     if !call.receiver.is_valid() {
         return Ok(call.target.as_str().to_string());

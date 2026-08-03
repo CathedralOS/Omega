@@ -3,8 +3,8 @@ use crate::pipeline::stages::{
     syntax_trees_to_symbol_resolved_trees, typed_trees_to_checked_trees,
 };
 use crate::pipeline::timing::CompileTimings;
-use omega_checked_trees::CheckedTrees;
 use omega_core::diagnostics::Diagnostic;
+use psi_checked_trees::CheckedTrees;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -83,7 +83,7 @@ pub fn compile_to_checked(
         .filter(|file| file.path.file_name().and_then(|name| name.to_str()) == Some("build.omg"))
         .flat_map(|file| file.root_items.iter())
         .filter_map(|handle| match syntax.syntax_trees.root_item(*handle) {
-            omega_syntax_trees::item::Item::Machine(machine) => {
+            psi_syntax_trees::item::Item::Machine(machine) => {
                 Some(machine.name.as_str().to_owned())
             }
             _ => None,

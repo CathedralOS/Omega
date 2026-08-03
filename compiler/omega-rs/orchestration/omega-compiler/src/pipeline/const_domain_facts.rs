@@ -11,12 +11,12 @@
 use omega_core::arena::Handle;
 use omega_core::diagnostics::Diagnostic;
 use omega_interpreter::BuildTimeValue;
-use omega_typed_trees::TypedTrees;
-use omega_typed_trees::domain::{ProofFact, ProofMembershipFact};
-use omega_typed_trees::expression::{
+use psi_typed_trees::TypedTrees;
+use psi_typed_trees::domain::{ProofFact, ProofMembershipFact};
+use psi_typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableCallExpression, UnaryOperator,
 };
-use omega_typed_trees::types::PrimitiveType;
+use psi_typed_trees::types::PrimitiveType;
 
 use super::build_time_admission::BuildTimeAdmissionPlan;
 
@@ -202,7 +202,7 @@ fn evaluate_machine_fact(
             typed
                 .type_reference_table
                 .type_reference(parameters[0].type_reference),
-            omega_typed_trees::types::TypeReferenceNode::Reference { .. }
+            psi_typed_trees::types::TypeReferenceNode::Reference { .. }
         )
     {
         return Err(format!(
@@ -243,7 +243,7 @@ fn evaluate_machine_fact(
 fn evaluate_domain_facts(
     typed: &TypedTrees,
     admission: &BuildTimeAdmissionPlan,
-    domain: &omega_typed_trees::domain::DomainDefinition,
+    domain: &psi_typed_trees::domain::DomainDefinition,
     self_value: i64,
     visiting: &mut Vec<omega_core::symbols::SymbolHandle>,
 ) -> Result<Option<bool>, String> {

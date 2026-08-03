@@ -4486,12 +4486,11 @@ fn extent_root_provider_adapter_compiles() {
         .iter()
         .find(|domain| domain.name.as_str().rsplit("::").next() == Some("Granted"))
         .expect("core Extent::Granted domain");
-    let [omega_typed_trees::domain::ProofFact::Expression(predicate)] =
-        checked.proof_facts(granted)
+    let [psi_typed_trees::domain::ProofFact::Expression(predicate)] = checked.proof_facts(granted)
     else {
         panic!("Extent::Granted should require exactly one no-wrap predicate");
     };
-    let omega_typed_trees::expression::ExpressionNode::Call(no_wrap) =
+    let psi_typed_trees::expression::ExpressionNode::Call(no_wrap) =
         checked.expression_table.expression(*predicate)
     else {
         panic!("Extent::Granted predicate should be a call");
@@ -15912,7 +15911,7 @@ fn runtime_adapter_forwarding_exit_canary_runs() {
         .statements(entry.statement_nodes)
         .iter()
         .filter_map(|statement| match statement {
-            omega_checked_trees::statement::StatementNode::Call(call) => Some(call.target.as_str()),
+            psi_checked_trees::statement::StatementNode::Call(call) => Some(call.target.as_str()),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -22537,13 +22536,13 @@ fn closed_indexed_domain_canaries() {
             .iter()
             .find(|state| state.symbol == use_fact.state)
             .expect("qualification owner state");
-        let omega_typed_trees::types::TypeReferenceNode::Constrained { constraints, .. } = checked
+        let psi_typed_trees::types::TypeReferenceNode::Constrained { constraints, .. } = checked
             .type_reference_table
             .type_reference(state.return_type)
         else {
             panic!("indexed qualification canary result should remain constrained");
         };
-        let [omega_typed_trees::types::TypeConstraintNode::Domain(result_domain)] =
+        let [psi_typed_trees::types::TypeConstraintNode::Domain(result_domain)] =
             checked.type_reference_table.constraints(*constraints)
         else {
             panic!("indexed qualification canary result should carry one domain");
@@ -22678,7 +22677,7 @@ fn std_units_package_conversion_and_operator_canaries() {
             .iter()
             .any(|condition| matches!(
                 &condition.discharge,
-                omega_checked_trees::IndexCompatibilityDischarge::ClosedEvaluation
+                psi_checked_trees::IndexCompatibilityDischarge::ClosedEvaluation
             )),
         "closed unit flows should retain their closed-evaluation verification condition"
     );
@@ -22761,7 +22760,7 @@ fn open_computed_quantity_result_canary_runs() {
                 condition.name.starts_with("index-equality:")
                     && matches!(
                         &condition.discharge,
-                        omega_checked_trees::IndexCompatibilityDischarge::LicensedNormalization {
+                        psi_checked_trees::IndexCompatibilityDischarge::LicensedNormalization {
                             operation_count
                         } if *operation_count > 0
                     )
@@ -22803,7 +22802,7 @@ fn open_index_exact_local_fact_canary_runs() {
         .filter(|condition| {
             matches!(
                 &condition.discharge,
-                omega_checked_trees::IndexCompatibilityDischarge::EstablishedLocalFacts { .. }
+                psi_checked_trees::IndexCompatibilityDischarge::EstablishedLocalFacts { .. }
             )
         })
         .collect::<Vec<_>>();
@@ -22819,7 +22818,7 @@ fn open_index_exact_local_fact_canary_runs() {
     assert!(
         conditions.iter().any(|condition| matches!(
             &condition.discharge,
-            omega_checked_trees::IndexCompatibilityDischarge::EstablishedLocalFacts { facts }
+            psi_checked_trees::IndexCompatibilityDischarge::EstablishedLocalFacts { facts }
                 if facts.len() == 2
         )),
         "a two-member index pack should retain both exact equality facts"
@@ -22827,7 +22826,7 @@ fn open_index_exact_local_fact_canary_runs() {
     let evidence = conditions
         .iter()
         .map(|condition| {
-            let omega_checked_trees::IndexCompatibilityDischarge::EstablishedLocalFacts { facts } =
+            let psi_checked_trees::IndexCompatibilityDischarge::EstablishedLocalFacts { facts } =
                 &condition.discharge
             else {
                 unreachable!();
@@ -35213,7 +35212,7 @@ fn float_operator_spellings_record_named_core_identities() {
         );
     }
 
-    let operator_name = |operator: &omega_typed_trees::operator::OperatorDefinition| {
+    let operator_name = |operator: &psi_typed_trees::operator::OperatorDefinition| {
         checked
             .typed
             .operator_path_members(operator.name)
@@ -35332,7 +35331,7 @@ fn migrated_float_provider_plans_are_selected_for_every_native_target() {
             .unwrap_or_else(|diagnostics| {
                 panic!("core float provider plans should check for {target}: {diagnostics:#?}")
             });
-        let operator_path = |operator: &omega_typed_trees::operator::OperatorDefinition| {
+        let operator_path = |operator: &psi_typed_trees::operator::OperatorDefinition| {
             checked
                 .typed
                 .operator_path_members(operator.name)
@@ -35341,7 +35340,7 @@ fn migrated_float_provider_plans_are_selected_for_every_native_target() {
                 .collect::<Vec<_>>()
                 .join("::")
         };
-        let expected_intrinsic = |operator: &omega_typed_trees::operator::OperatorDefinition| {
+        let expected_intrinsic = |operator: &psi_typed_trees::operator::OperatorDefinition| {
             let path = operator_path(operator);
             if !MIGRATED_REQUIREMENTS.contains(&path.as_str()) {
                 return None;
@@ -35358,16 +35357,16 @@ fn migrated_float_provider_plans_are_selected_for_every_native_target() {
                 .typed
                 .primitive_type_reference(left.type_reference)?
             {
-                omega_typed_trees::types::PrimitiveType::F32 => "f32",
-                omega_typed_trees::types::PrimitiveType::F64 => "f64",
-                omega_typed_trees::types::PrimitiveType::I8 => "i8",
-                omega_typed_trees::types::PrimitiveType::I16 => "i16",
-                omega_typed_trees::types::PrimitiveType::I32 => "i32",
-                omega_typed_trees::types::PrimitiveType::I64 => "i64",
-                omega_typed_trees::types::PrimitiveType::U8 => "u8",
-                omega_typed_trees::types::PrimitiveType::U16 => "u16",
-                omega_typed_trees::types::PrimitiveType::U32 => "u32",
-                omega_typed_trees::types::PrimitiveType::U64 => "u64",
+                psi_typed_trees::types::PrimitiveType::F32 => "f32",
+                psi_typed_trees::types::PrimitiveType::F64 => "f64",
+                psi_typed_trees::types::PrimitiveType::I8 => "i8",
+                psi_typed_trees::types::PrimitiveType::I16 => "i16",
+                psi_typed_trees::types::PrimitiveType::I32 => "i32",
+                psi_typed_trees::types::PrimitiveType::I64 => "i64",
+                psi_typed_trees::types::PrimitiveType::U8 => "u8",
+                psi_typed_trees::types::PrimitiveType::U16 => "u16",
+                psi_typed_trees::types::PrimitiveType::U32 => "u32",
+                psi_typed_trees::types::PrimitiveType::U64 => "u64",
                 _ => return None,
             };
             let is_integer_destination = [
@@ -35419,7 +35418,7 @@ fn migrated_float_provider_plans_are_selected_for_every_native_target() {
             assert_eq!(plan.target, target);
             assert_eq!(
                 plan.schema.trait_name,
-                omega_typed_trees::operator::boundary_operator_requirement_identity(
+                psi_typed_trees::operator::boundary_operator_requirement_identity(
                     &checked.typed,
                     operator,
                 )
@@ -35464,7 +35463,7 @@ fn migrated_float_provider_plans_are_selected_for_every_native_target() {
                 continue;
             };
             selected_count += 1;
-            let slot = omega_typed_trees::operator::boundary_operator_requirement_identity(
+            let slot = psi_typed_trees::operator::boundary_operator_requirement_identity(
                 &checked.typed,
                 operator,
             );
@@ -35557,7 +35556,7 @@ fn named_float_format_conversion_requirements_execute_in_both_engines() {
         .collect::<Vec<_>>();
     assert_eq!(selected.len(), 5, "all five conversion calls retain a plan");
     for (operator_use, intrinsic) in selected {
-        let omega_typed_trees::expression::ExpressionNode::Cast(cast) = checked
+        let psi_typed_trees::expression::ExpressionNode::Cast(cast) = checked
             .typed
             .expression_table
             .expression(operator_use.expression)
@@ -35565,9 +35564,9 @@ fn named_float_format_conversion_requirements_execute_in_both_engines() {
             panic!("selected conversion `{intrinsic}` must rewrite to one typed cast");
         };
         let expected = if intrinsic == "F32::from_f64.f64" {
-            omega_typed_trees::types::PrimitiveType::F32
+            psi_typed_trees::types::PrimitiveType::F32
         } else if intrinsic == "F64::from_f32.f32" {
-            omega_typed_trees::types::PrimitiveType::F64
+            psi_typed_trees::types::PrimitiveType::F64
         } else {
             panic!("unexpected conversion intrinsic `{intrinsic}`");
         };
@@ -35743,7 +35742,7 @@ fn named_float_to_integer_requirements_execute_in_both_engines() {
     assert_eq!(selected_intrinsics, expected_intrinsics);
 
     for (operator_use, intrinsic) in selected {
-        let omega_typed_trees::expression::ExpressionNode::Cast(cast) = checked
+        let psi_typed_trees::expression::ExpressionNode::Cast(cast) = checked
             .typed
             .expression_table
             .expression(operator_use.expression)
@@ -35892,7 +35891,7 @@ fn named_float_provider_calls_rewrite_to_selected_builtins() {
         };
         selected_intrinsics.insert(name.clone());
 
-        let omega_typed_trees::expression::ExpressionNode::Call(call) = checked
+        let psi_typed_trees::expression::ExpressionNode::Call(call) = checked
             .typed
             .expression_table
             .expression(operator_use.expression)
@@ -36019,7 +36018,7 @@ fn named_float_negate_and_is_nan_preserve_selected_roots_and_execute() {
         selected_intrinsics.insert(name.clone());
 
         if name.contains("::negate.") {
-            let omega_typed_trees::expression::ExpressionNode::Binary(binary) = checked
+            let psi_typed_trees::expression::ExpressionNode::Binary(binary) = checked
                 .typed
                 .expression_table
                 .expression(operator_use.expression)
@@ -36028,9 +36027,9 @@ fn named_float_negate_and_is_nan_preserve_selected_roots_and_execute() {
             };
             assert_eq!(
                 binary.operator,
-                omega_typed_trees::expression::BinaryOperator::Multiply
+                psi_typed_trees::expression::BinaryOperator::Multiply
             );
-            let omega_typed_trees::expression::ExpressionNode::Float(negative_one) =
+            let psi_typed_trees::expression::ExpressionNode::Float(negative_one) =
                 checked.typed.expression_table.expression(binary.right)
             else {
                 panic!("`{name}` must multiply by a landed -1 literal");
@@ -36045,7 +36044,7 @@ fn named_float_negate_and_is_nan_preserve_selected_roots_and_execute() {
                 })
             );
         } else if name.contains("::is_nan.") {
-            let omega_typed_trees::expression::ExpressionNode::Call(call) = checked
+            let psi_typed_trees::expression::ExpressionNode::Call(call) = checked
                 .typed
                 .expression_table
                 .expression(operator_use.expression)
@@ -36191,7 +36190,7 @@ fn named_float_classification_predicates_select_and_execute() {
         } else {
             panic!("unexpected classification intrinsic `{name}`");
         };
-        let omega_typed_trees::expression::ExpressionNode::Call(call) = checked
+        let psi_typed_trees::expression::ExpressionNode::Call(call) = checked
             .typed
             .expression_table
             .expression(operator_use.expression)
@@ -36351,7 +36350,7 @@ fn named_float_classify_preserves_enum_layout_and_executes() {
                 "float#classify_f64",
             )
         };
-        let omega_typed_trees::expression::ExpressionNode::Call(call) = checked
+        let psi_typed_trees::expression::ExpressionNode::Call(call) = checked
             .typed
             .expression_table
             .expression(operator_use.expression)
@@ -36456,7 +36455,7 @@ fn named_float_multiply_then_add_preserves_two_roundings_and_executes() {
         };
         selected_intrinsics.insert(name.clone());
 
-        let omega_typed_trees::expression::ExpressionNode::Call(call) = checked
+        let psi_typed_trees::expression::ExpressionNode::Call(call) = checked
             .typed
             .expression_table
             .expression(operator_use.expression)
@@ -36580,7 +36579,7 @@ fn named_float_fused_multiply_add_selects_aarch64_fmadd_and_executes() {
         }
         selected_intrinsics.insert(name.clone());
 
-        let omega_typed_trees::expression::ExpressionNode::Call(call) = checked
+        let psi_typed_trees::expression::ExpressionNode::Call(call) = checked
             .typed
             .expression_table
             .expression(operator_use.expression)
@@ -36671,13 +36670,13 @@ fn float_policy_operator_uses_record_checked_result_adapters() {
     for (canary_name, expected) in [
         (
             "float/float_saturating_arithmetic_exit",
-            omega_checked_trees::CheckedArithmeticPolicyAdapter::FloatSaturatingOverflowOnly {
+            psi_checked_trees::CheckedArithmeticPolicyAdapter::FloatSaturatingOverflowOnly {
                 format: omega_core::float_semantics::FloatFormat::BINARY32,
             },
         ),
         (
             "float/float_trapping_overflow_traps",
-            omega_checked_trees::CheckedArithmeticPolicyAdapter::FloatTrappingNonFinite {
+            psi_checked_trees::CheckedArithmeticPolicyAdapter::FloatTrappingNonFinite {
                 format: omega_core::float_semantics::FloatFormat::BINARY32,
             },
         ),
@@ -36711,7 +36710,7 @@ fn domain_operator_selection_records_builtin_fallback_without_binding_selection(
     let fallback_uses = checked
         .facts
         .operators
-        .uses_with_status(omega_checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback)
+        .uses_with_status(psi_checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback)
         .count();
     assert!(
         fallback_uses > 0,

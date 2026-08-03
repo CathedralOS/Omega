@@ -26,9 +26,9 @@
 
 use omega_core::diagnostics::Diagnostic;
 use omega_interpreter::BuildTimeValue;
-use omega_typed_trees::TypedTrees;
-use omega_typed_trees::types::PrimitiveType;
-use omega_typed_trees::wire::{WireMember, WirePlacement};
+use psi_typed_trees::TypedTrees;
+use psi_typed_trees::types::PrimitiveType;
+use psi_typed_trees::wire::{WireMember, WirePlacement};
 
 const WIRE_GRAMMAR_POLICY: &str = "CompactBinary::plan";
 
@@ -42,7 +42,7 @@ enum FieldShape {
     Nested,
     Repeated,
     BorrowedScalarSlice {
-        element: omega_typed_trees::wire::WireScalarEncoding,
+        element: psi_typed_trees::wire::WireScalarEncoding,
     },
 }
 
@@ -156,15 +156,15 @@ pub(crate) fn compute_wire_plans(typed: &mut TypedTrees) -> Result<(), Vec<Diagn
                 let FieldShape::BorrowedScalarSlice { element } = shape else {
                     return None;
                 };
-                Some(omega_typed_trees::wire::WireEncodeObligation {
+                Some(psi_typed_trees::wire::WireEncodeObligation {
                     field_number,
                     element,
                     length:
-                        omega_typed_trees::wire::WireEncodeLengthObligation::RuntimeElementCount,
+                        psi_typed_trees::wire::WireEncodeLengthObligation::RuntimeElementCount,
                     work:
-                        omega_typed_trees::wire::WireEncodeWorkObligation::TwoPassesPerElement,
+                        psi_typed_trees::wire::WireEncodeWorkObligation::TwoPassesPerElement,
                     output_capacity:
-                        omega_typed_trees::wire::WireEncodeOutputCapacityObligation::ExactPackedPayload,
+                        psi_typed_trees::wire::WireEncodeOutputCapacityObligation::ExactPackedPayload,
                 })
             })
             .collect::<Vec<_>>();

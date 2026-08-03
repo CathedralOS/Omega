@@ -7,7 +7,6 @@
 //! result-policy evidence, and diagnostics continue to name the boundary
 //! requirement rather than the bootstrap execution form.
 
-use omega_checked_trees::CheckedTrees;
 use omega_core::{
     arithmetic::ArithmeticDomain,
     diagnostics::Diagnostic,
@@ -15,7 +14,8 @@ use omega_core::{
     symbols::BuiltinFunction,
 };
 use omega_effects::provider_plan::ProviderBinding;
-use omega_typed_trees::expression::{BinaryOperator, ExpressionNode, TableBinaryExpression};
+use psi_checked_trees::CheckedTrees;
+use psi_typed_trees::expression::{BinaryOperator, ExpressionNode, TableBinaryExpression};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum NamedFloatRealization {
@@ -73,7 +73,7 @@ pub(crate) fn rewrite_selected_float_intrinsic_calls(
             )));
             continue;
         };
-        if omega_typed_trees::operator::resolve_named_expression_call(&checked.typed, call)
+        if psi_typed_trees::operator::resolve_named_expression_call(&checked.typed, call)
             .map(|operator| operator.symbol)
             != Some(operator_use.selected_operator_symbol)
         {
@@ -147,8 +147,8 @@ pub(crate) fn rewrite_selected_float_intrinsic_calls(
                     continue;
                 };
                 let mut call = call;
-                call.receiver = omega_typed_trees::expression::ExpressionHandle::invalid();
-                call.target = omega_typed_trees::name::Identifier::generated(function.name());
+                call.receiver = psi_typed_trees::expression::ExpressionHandle::invalid();
+                call.target = psi_typed_trees::name::Identifier::generated(function.name());
                 call.target_symbol = symbol;
                 ExpressionNode::Call(call)
             }
@@ -181,8 +181,8 @@ pub(crate) fn rewrite_selected_float_intrinsic_calls(
                     continue;
                 };
                 let mut call = call;
-                call.receiver = omega_typed_trees::expression::ExpressionHandle::invalid();
-                call.target = omega_typed_trees::name::Identifier::generated(function.name());
+                call.receiver = psi_typed_trees::expression::ExpressionHandle::invalid();
+                call.target = psi_typed_trees::name::Identifier::generated(function.name());
                 call.target_symbol = symbol;
                 ExpressionNode::Call(call)
             }
@@ -203,23 +203,22 @@ pub(crate) fn rewrite_selected_float_intrinsic_calls(
                     continue;
                 };
                 let mut call = call;
-                call.receiver = omega_typed_trees::expression::ExpressionHandle::invalid();
-                call.target = omega_typed_trees::name::Identifier::generated(function.name());
+                call.receiver = psi_typed_trees::expression::ExpressionHandle::invalid();
+                call.target = psi_typed_trees::name::Identifier::generated(function.name());
                 call.target_symbol = symbol;
                 ExpressionNode::Call(call)
             }
             NamedFloatRealization::Convert(domain) => {
-                let Some(target_type) = omega_typed_trees::operator::resolve_named_expression_call(
-                    &checked.typed,
-                    &call,
-                )
-                .map(|operator| operator.return_type) else {
+                let Some(target_type) =
+                    psi_typed_trees::operator::resolve_named_expression_call(&checked.typed, &call)
+                        .map(|operator| operator.return_type)
+                else {
                     diagnostics.push(Diagnostic::error(format!(
                         "selected named conversion intrinsic at expression {expression:?} no longer resolves its return type"
                     )));
                     continue;
                 };
-                ExpressionNode::Cast(omega_typed_trees::expression::TableCastExpression {
+                ExpressionNode::Cast(psi_typed_trees::expression::TableCastExpression {
                     value: arguments[0],
                     target_type,
                     target_label: omega_core::arena::HandleSpan::empty(),

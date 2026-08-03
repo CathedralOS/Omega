@@ -631,6 +631,55 @@ fn target_neutral_effect_inference_is_psi_owned() {
 }
 
 #[test]
+fn omega_driver_invokes_the_psi_frontend_directly() {
+    let graph = load_graph();
+    let compiler = graph
+        .get("omega-compiler")
+        .expect("omega-compiler must remain in the governed workspace graph");
+
+    for stale_adapter in [
+        "omega-source-files-to-tokens",
+        "omega-tokens",
+        "omega-tokens-to-syntax-trees",
+        "omega-syntax-trees",
+        "omega-syntax-trees-to-symbol-resolved-trees",
+        "omega-symbol-resolved-trees",
+        "omega-symbol-resolved-trees-to-typed-trees",
+        "omega-typed-trees",
+        "omega-checked-trees",
+    ] {
+        assert!(
+            !compiler
+                .deps
+                .iter()
+                .any(|dependency| dependency == stale_adapter),
+            "Omega orchestration must invoke Psi directly instead of depending on frontend compatibility package {stale_adapter}"
+        );
+    }
+
+    for psi_stage in [
+        "psi-source-files-to-tokens",
+        "psi-tokens",
+        "psi-tokens-to-syntax-trees",
+        "psi-syntax-trees",
+        "psi-syntax-trees-to-symbol-resolved-trees",
+        "psi-symbol-resolved-trees",
+        "psi-symbol-resolved-trees-to-typed-trees",
+        "psi-typed-trees",
+        "psi-typed-trees-to-checked-trees",
+        "psi-checked-trees",
+    ] {
+        assert!(
+            compiler
+                .deps
+                .iter()
+                .any(|dependency| dependency == psi_stage),
+            "Omega orchestration must invoke Psi-owned frontend stage {psi_stage} directly"
+        );
+    }
+}
+
+#[test]
 fn checked_semantics_are_psi_owned_without_provider_realization() {
     let root = workspace_root();
     let legacy = root.join("compiler/omega-rs/representations/omega-checked-trees");

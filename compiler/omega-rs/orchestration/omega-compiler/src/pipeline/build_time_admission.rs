@@ -7,8 +7,8 @@
 //! termination, and escaping-mutation admission remain independent axes and
 //! are added here as their checked plans become available.
 
-use omega_typed_trees::TypedTrees;
-use omega_typed_trees::machine::Machine;
+use psi_typed_trees::TypedTrees;
+use psi_typed_trees::machine::Machine;
 
 pub(super) struct BuildTimeAdmissionPlan {
     operations: omega_effects::OperationalPlan,

@@ -2,13 +2,13 @@ use omega_artifacts::{
     BoundaryContract, BoundaryProviderEntry, BoundaryReport, BoundaryTarget, CapabilityBlastRadius,
     UncheckedBoundaryPolicy,
 };
-use omega_checked_trees::CheckedTrees;
 use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
 use omega_effects::{CapabilityFlowKind, build_boundary_provider_approval_registry};
-use omega_syntax_trees::SyntaxTrees;
-use omega_syntax_trees::identifier::Identifier;
-use omega_syntax_trees::item::{
+use psi_checked_trees::CheckedTrees;
+use psi_syntax_trees::SyntaxTrees;
+use psi_syntax_trees::identifier::Identifier;
+use psi_syntax_trees::item::{
     BoundaryLevel, BoundaryMode, CapabilityContractKind, CapabilityMember, Item,
 };
 
@@ -230,7 +230,7 @@ fn collect_operator_boundary(
     report: &mut BoundaryReport,
     capability: &str,
     syntax: &SyntaxTrees,
-    operator: &omega_syntax_trees::item::OperatorDefinition,
+    operator: &psi_syntax_trees::item::OperatorDefinition,
 ) {
     collect_declared_boundary(
         report,
@@ -244,7 +244,7 @@ fn collect_boundary_contracts(
     report: &mut BoundaryReport,
     capability: &str,
     state: &str,
-    contracts: &[omega_syntax_trees::item::CapabilityContract],
+    contracts: &[psi_syntax_trees::item::CapabilityContract],
 ) {
     let requires_count = contracts
         .iter()
@@ -273,7 +273,7 @@ fn collect_declared_boundary(
     report: &mut BoundaryReport,
     capability: &str,
     state: &str,
-    contracts: &[omega_syntax_trees::item::CapabilityContract],
+    contracts: &[psi_syntax_trees::item::CapabilityContract],
 ) {
     let requires_count = contracts
         .iter()
@@ -313,8 +313,8 @@ fn identifier_path_name(syntax: &SyntaxTrees, path: HandleSpan<Identifier>) -> S
 #[cfg(test)]
 mod tests {
     use super::build_boundary_report;
-    use omega_source_files_to_tokens::Lexer;
-    use omega_tokens_to_syntax_trees::parse_syntax_trees;
+    use psi_source_files_to_tokens::Lexer;
+    use psi_tokens_to_syntax_trees::parse_syntax_trees;
 
     #[test]
     fn boundary_report_collects_targets_contracts_and_operators() {

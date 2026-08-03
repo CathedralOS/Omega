@@ -6,10 +6,10 @@
 //! the operator analogue of boundary-trait adapter dispatch; compiler
 //! intrinsics remain in `float_intrinsic_dispatch`.
 
-use omega_checked_trees::CheckedTrees;
 use omega_core::diagnostics::Diagnostic;
 use omega_effects::provider_plan::ProviderBinding;
-use omega_typed_trees::expression::ExpressionNode;
+use psi_checked_trees::CheckedTrees;
+use psi_typed_trees::expression::ExpressionNode;
 
 pub(crate) fn rewrite_selected_operator_adapter_calls(
     checked: &mut CheckedTrees,
@@ -70,7 +70,7 @@ pub(crate) fn rewrite_selected_operator_adapter_calls(
             )));
             continue;
         };
-        if omega_typed_trees::operator::resolve_named_expression_call(&checked.typed, call)
+        if psi_typed_trees::operator::resolve_named_expression_call(&checked.typed, call)
             .map(|operator| operator.symbol)
             != Some(operator_use.selected_operator_symbol)
         {
@@ -108,8 +108,8 @@ pub(crate) fn rewrite_selected_operator_adapter_calls(
         else {
             continue;
         };
-        call.receiver = omega_typed_trees::expression::ExpressionHandle::invalid();
-        call.target = omega_typed_trees::name::Identifier::generated(machine);
+        call.receiver = psi_typed_trees::expression::ExpressionHandle::invalid();
+        call.target = psi_typed_trees::name::Identifier::generated(machine);
         call.target_symbol = symbol;
         *checked.typed.expression_table.expression_mut(expression) = ExpressionNode::Call(call);
     }

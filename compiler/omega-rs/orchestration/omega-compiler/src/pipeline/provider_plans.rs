@@ -6,7 +6,7 @@
 //! selection remains under slot-owner authority.
 
 use omega_effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema};
-use omega_typed_trees::TypedTrees;
+use psi_typed_trees::TypedTrees;
 
 /// Exact selected provider-plan input consumed by external-root construction.
 ///
@@ -212,7 +212,7 @@ impl SelectedExternalRootProviderPlan {
 /// compiler-generated helper machines consume the returned carrier; neither
 /// may reconstruct a plan by scanning authored `satisfies` rows.
 pub(crate) fn bind_selected_provider_plan_facts(
-    checked: &mut omega_checked_trees::CheckedTrees,
+    checked: &mut psi_checked_trees::CheckedTrees,
     candidates: &[ProviderPlan],
     selected_names: &[String],
     root_grants: &[String],
@@ -264,7 +264,7 @@ pub(crate) fn bind_selected_provider_plan_facts(
 }
 
 fn retain_selected_operator_provider_evidence(
-    checked: &mut omega_checked_trees::CheckedTrees,
+    checked: &mut psi_checked_trees::CheckedTrees,
     candidates: &[ProviderPlan],
     selected: &omega_effects::SelectedProviderPlanFacts,
 ) -> Result<(), Vec<omega_core::diagnostics::Diagnostic>> {
@@ -276,7 +276,7 @@ fn retain_selected_operator_provider_evidence(
     for plan in selected.plans() {
         let operator = checked.typed.operators().iter().find(|operator| {
             operator.is_boundary
-                && omega_typed_trees::operator::boundary_operator_requirement_identity(
+                && psi_typed_trees::operator::boundary_operator_requirement_identity(
                     &checked.typed,
                     operator,
                 ) == plan.schema.trait_name
@@ -345,7 +345,7 @@ fn retain_selected_operator_provider_evidence(
 }
 
 fn selected_operator_provider_identity(
-    checked: &omega_checked_trees::CheckedTrees,
+    checked: &psi_checked_trees::CheckedTrees,
     candidates: &[ProviderPlan],
     selected: &omega_effects::SelectedProviderPlanFacts,
     operator_symbol: omega_core::symbols::SymbolHandle,
@@ -358,10 +358,8 @@ fn selected_operator_provider_identity(
     else {
         return Ok(None);
     };
-    let slot = omega_typed_trees::operator::boundary_operator_requirement_identity(
-        &checked.typed,
-        operator,
-    );
+    let slot =
+        psi_typed_trees::operator::boundary_operator_requirement_identity(&checked.typed, operator);
     if !candidates
         .iter()
         .any(|candidate| candidate.schema.trait_name == slot)
@@ -402,7 +400,7 @@ fn selected_operator_provider_identity(
                     .iter()
                     .any(|conformance| {
                         conformance.via.is_none()
-                            && omega_typed_trees::operator::resolve_satisfied_checked_operator(
+                            && psi_typed_trees::operator::resolve_satisfied_checked_operator(
                                 &checked.typed,
                                 candidate,
                                 namespace.as_str(),
@@ -442,7 +440,7 @@ fn selected_operator_provider_identity(
 
 fn expected_float_intrinsic(
     typed: &TypedTrees,
-    operator: &omega_typed_trees::operator::OperatorDefinition,
+    operator: &psi_typed_trees::operator::OperatorDefinition,
 ) -> Option<String> {
     let path = typed.operator_path_members(operator.name);
     let [namespace, requirement] = path else {
@@ -467,7 +465,7 @@ fn expected_float_intrinsic(
             {
                 primitive
             } else {
-                omega_typed_trees::types::PrimitiveType::Bool
+                psi_typed_trees::types::PrimitiveType::Bool
             };
             (operation, primitive, expected_result)
         }
@@ -476,13 +474,13 @@ fn expected_float_intrinsic(
                 let (expected_source, expected_result, source_name) =
                     match (namespace.as_str(), requirement.as_str()) {
                         ("F32", "from_f64") => (
-                            omega_typed_trees::types::PrimitiveType::F64,
-                            omega_typed_trees::types::PrimitiveType::F32,
+                            psi_typed_trees::types::PrimitiveType::F64,
+                            psi_typed_trees::types::PrimitiveType::F32,
                             "f64",
                         ),
                         ("F64", "from_f32") => (
-                            omega_typed_trees::types::PrimitiveType::F32,
-                            omega_typed_trees::types::PrimitiveType::F64,
+                            psi_typed_trees::types::PrimitiveType::F32,
+                            psi_typed_trees::types::PrimitiveType::F64,
                             "f32",
                         ),
                         _ => return None,
@@ -503,20 +501,20 @@ fn expected_float_intrinsic(
             }
             if let Some(source_name) = requirement.as_str().strip_prefix("from_") {
                 let expected_source = match source_name {
-                    "i8" => omega_typed_trees::types::PrimitiveType::I8,
-                    "i16" => omega_typed_trees::types::PrimitiveType::I16,
-                    "i32" => omega_typed_trees::types::PrimitiveType::I32,
-                    "i64" => omega_typed_trees::types::PrimitiveType::I64,
-                    "u8" => omega_typed_trees::types::PrimitiveType::U8,
-                    "u16" => omega_typed_trees::types::PrimitiveType::U16,
-                    "u32" => omega_typed_trees::types::PrimitiveType::U32,
-                    "u64" => omega_typed_trees::types::PrimitiveType::U64,
+                    "i8" => psi_typed_trees::types::PrimitiveType::I8,
+                    "i16" => psi_typed_trees::types::PrimitiveType::I16,
+                    "i32" => psi_typed_trees::types::PrimitiveType::I32,
+                    "i64" => psi_typed_trees::types::PrimitiveType::I64,
+                    "u8" => psi_typed_trees::types::PrimitiveType::U8,
+                    "u16" => psi_typed_trees::types::PrimitiveType::U16,
+                    "u32" => psi_typed_trees::types::PrimitiveType::U32,
+                    "u64" => psi_typed_trees::types::PrimitiveType::U64,
                     _ => return None,
                 };
                 let expected_result = if namespace.as_str() == "F32" {
-                    omega_typed_trees::types::PrimitiveType::F32
+                    psi_typed_trees::types::PrimitiveType::F32
                 } else {
-                    omega_typed_trees::types::PrimitiveType::F64
+                    psi_typed_trees::types::PrimitiveType::F64
                 };
                 let [value] = parameters else {
                     return None;
@@ -540,9 +538,9 @@ fn expected_float_intrinsic(
                 _ => return None,
             };
             let expected_primitive = if namespace.as_str() == "F32" {
-                omega_typed_trees::types::PrimitiveType::F32
+                psi_typed_trees::types::PrimitiveType::F32
             } else {
-                omega_typed_trees::types::PrimitiveType::F64
+                psi_typed_trees::types::PrimitiveType::F64
             };
             match parameters {
                 [value]
@@ -592,7 +590,7 @@ fn expected_float_intrinsic(
                 if typed.display_type_reference(operator.return_type) != "FloatClass" {
                     return None;
                 }
-                let format = if expected_primitive == omega_typed_trees::types::PrimitiveType::F32 {
+                let format = if expected_primitive == psi_typed_trees::types::PrimitiveType::F32 {
                     "f32"
                 } else {
                     "f64"
@@ -603,7 +601,7 @@ fn expected_float_intrinsic(
                 operation,
                 "is_nan" | "is_finite" | "is_infinite" | "is_normal" | "is_subnormal"
             ) {
-                omega_typed_trees::types::PrimitiveType::Bool
+                psi_typed_trees::types::PrimitiveType::Bool
             } else {
                 expected_primitive
             };
@@ -611,19 +609,19 @@ fn expected_float_intrinsic(
         }
         "I8" | "I16" | "I32" | "I64" | "U8" | "U16" | "U32" | "U64" => {
             let expected_result = match namespace.as_str() {
-                "I8" => omega_typed_trees::types::PrimitiveType::I8,
-                "I16" => omega_typed_trees::types::PrimitiveType::I16,
-                "I32" => omega_typed_trees::types::PrimitiveType::I32,
-                "I64" => omega_typed_trees::types::PrimitiveType::I64,
-                "U8" => omega_typed_trees::types::PrimitiveType::U8,
-                "U16" => omega_typed_trees::types::PrimitiveType::U16,
-                "U32" => omega_typed_trees::types::PrimitiveType::U32,
-                "U64" => omega_typed_trees::types::PrimitiveType::U64,
+                "I8" => psi_typed_trees::types::PrimitiveType::I8,
+                "I16" => psi_typed_trees::types::PrimitiveType::I16,
+                "I32" => psi_typed_trees::types::PrimitiveType::I32,
+                "I64" => psi_typed_trees::types::PrimitiveType::I64,
+                "U8" => psi_typed_trees::types::PrimitiveType::U8,
+                "U16" => psi_typed_trees::types::PrimitiveType::U16,
+                "U32" => psi_typed_trees::types::PrimitiveType::U32,
+                "U64" => psi_typed_trees::types::PrimitiveType::U64,
                 _ => unreachable!(),
             };
             let (expected_source, source_name) = match requirement.as_str() {
-                "from_f32" => (omega_typed_trees::types::PrimitiveType::F32, "f32"),
-                "from_f64" => (omega_typed_trees::types::PrimitiveType::F64, "f64"),
+                "from_f32" => (psi_typed_trees::types::PrimitiveType::F32, "f32"),
+                "from_f64" => (psi_typed_trees::types::PrimitiveType::F64, "f64"),
                 _ => return None,
             };
             let [value] = parameters else {
@@ -655,15 +653,15 @@ fn expected_float_intrinsic(
         return None;
     }
     let format = match primitive {
-        omega_typed_trees::types::PrimitiveType::F32 => "f32",
-        omega_typed_trees::types::PrimitiveType::F64 => "f64",
+        psi_typed_trees::types::PrimitiveType::F32 => "f32",
+        psi_typed_trees::types::PrimitiveType::F64 => "f64",
         _ => return None,
     };
     Some(format!("{}::{operation}.{format}", namespace.as_str()))
 }
 
 fn evidence_source_names_boundary(
-    checked: &omega_checked_trees::CheckedTrees,
+    checked: &psi_checked_trees::CheckedTrees,
     source_symbol: omega_core::symbols::SymbolHandle,
     boundary_name: &str,
 ) -> bool {
@@ -735,7 +733,7 @@ pub fn selected_external_root_provider_plan(
 /// Resolve every routed entry claim on one selected external root onto the
 /// exact checked source-parameter fact consumed by its checked adapter.
 pub fn selected_external_root_entry_fact_bindings(
-    checked: &omega_checked_trees::CheckedTrees,
+    checked: &psi_checked_trees::CheckedTrees,
     selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
     boundary_trait: &str,
 ) -> Result<Vec<SelectedExternalRootEntryFactBinding>, omega_external_roots::ExternalRootDiagnostic>
@@ -900,13 +898,13 @@ pub fn selected_external_root_entry_fact_bindings(
 /// COVERING derived plan selects it implicitly; ambiguity or partial
 /// coverage is loud at the consumer (the trust report shows coverage).
 pub(crate) fn derive_satisfies_plans(
-    syntax_trees: &omega_syntax_trees::SyntaxTrees,
+    syntax_trees: &psi_syntax_trees::SyntaxTrees,
     typed: &TypedTrees,
     selected_target: Option<&str>,
 ) -> Vec<ProviderPlan> {
     let mut plans: Vec<ProviderPlan> = Vec::new();
     for item in syntax_trees.root_items() {
-        let omega_syntax_trees::item::Item::Machine(machine) = item else {
+        let psi_syntax_trees::item::Item::Machine(machine) = item else {
             continue;
         };
         // Target filtering clears the selected implementation's marker and
@@ -927,7 +925,7 @@ pub(crate) fn derive_satisfies_plans(
                     .iter()
                     .find(|candidate| candidate.name.as_str() == machine.name.as_str())
                     .and_then(|candidate| {
-                        omega_typed_trees::operator::resolve_satisfied_boundary_operator(
+                        psi_typed_trees::operator::resolve_satisfied_boundary_operator(
                             typed,
                             candidate,
                             clause.trait_name.as_str(),
@@ -1110,13 +1108,13 @@ fn provider_plan_schema_targets(
 }
 
 fn derive_boundary_operator_plans(
-    syntax_trees: &omega_syntax_trees::SyntaxTrees,
+    syntax_trees: &psi_syntax_trees::SyntaxTrees,
     typed: &TypedTrees,
     selected_target: Option<&str>,
 ) -> Vec<ProviderPlan> {
     let mut plans = Vec::<ProviderPlan>::new();
     for item in syntax_trees.root_items() {
-        let omega_syntax_trees::item::Item::Machine(machine) = item else {
+        let psi_syntax_trees::item::Item::Machine(machine) = item else {
             continue;
         };
         if machine.target.is_some() {
@@ -1147,7 +1145,7 @@ fn derive_boundary_operator_plans(
                 },
                 _ => continue, // invalid via/body combinations are refused elsewhere
             };
-            let Some(operator) = omega_typed_trees::operator::resolve_satisfied_boundary_operator(
+            let Some(operator) = psi_typed_trees::operator::resolve_satisfied_boundary_operator(
                 typed,
                 typed_machine,
                 clause.trait_name.as_str(),
@@ -1284,10 +1282,10 @@ fn exact_satisfied_requirement_identity(
 }
 
 fn external_provider_binding(
-    binding: &omega_syntax_trees::item::ExternalBinding,
+    binding: &psi_syntax_trees::item::ExternalBinding,
     provider_type: &str,
 ) -> ProviderBinding {
-    use omega_syntax_trees::item::ExternalBinding;
+    use psi_syntax_trees::item::ExternalBinding;
 
     match binding {
         ExternalBinding::Syscall { number } => ProviderBinding::Syscall {
@@ -1314,9 +1312,9 @@ fn external_provider_binding(
 
 fn provider_boundary_arguments(
     typed: &TypedTrees,
-    boundary: &omega_typed_trees::trait_definition::TraitDefinition,
+    boundary: &psi_typed_trees::trait_definition::TraitDefinition,
     provider_type: &str,
-) -> Vec<omega_typed_trees::types::TypeReferenceHandle> {
+) -> Vec<psi_typed_trees::types::TypeReferenceHandle> {
     typed
         .data_conformances()
         .iter()
@@ -1548,7 +1546,7 @@ pub(crate) fn validate_selected_synchronous_invocation_cycles(
 
 fn invocation_service_name(
     typed: &TypedTrees,
-    machine: &omega_typed_trees::machine::Machine,
+    machine: &psi_typed_trees::machine::Machine,
     target: omega_effects::InvocationTarget,
 ) -> Option<String> {
     let symbol = match target {
@@ -1581,7 +1579,7 @@ fn invocation_service_name(
 /// invocation targets and continue to refine the requirement ceiling.
 fn is_self_forwarded_invocation(
     typed: &TypedTrees,
-    machine: &omega_typed_trees::machine::Machine,
+    machine: &psi_typed_trees::machine::Machine,
     schema: &omega_effects::provider_plan::ServiceSchema,
     method: &omega_effects::provider_plan::ServiceMethod,
     target: omega_effects::InvocationTarget,
@@ -2020,13 +2018,13 @@ mod tests {
         let boundary_symbol = omega_core::symbols::SymbolHandle::from_arena_index(7);
         let subject_symbol = omega_core::symbols::SymbolHandle::from_arena_index(8);
         let domain_symbol = omega_core::symbols::SymbolHandle::from_arena_index(9);
-        let mut checked = omega_checked_trees::CheckedTrees::default();
+        let mut checked = psi_checked_trees::CheckedTrees::default();
         checked
             .typed
-            .push_trait_definition(omega_typed_trees::trait_definition::TraitDefinition {
+            .push_trait_definition(psi_typed_trees::trait_definition::TraitDefinition {
                 symbol: boundary_symbol,
                 is_boundary: true,
-                name: omega_typed_trees::name::Identifier::generated("Pair"),
+                name: psi_typed_trees::name::Identifier::generated("Pair"),
                 ..Default::default()
             });
         let place = checked.facts.semantic.append_symbol_place(subject_symbol);
@@ -2382,15 +2380,15 @@ mod tests {
                 queryable.query();
             }
         "#;
-        let tokens = omega_source_files_to_tokens::Lexer::new(source)
+        let tokens = psi_source_files_to_tokens::Lexer::new(source)
             .tokenize()
             .expect("tokenize");
         let syntax =
-            omega_tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse provider");
-        let resolved = omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
+            psi_tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse provider");
+        let resolved = psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
             .expect("resolve provider");
         let typed =
-            omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+            psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
                 .expect("type provider");
         let plans = derive_satisfies_plans(&syntax, &typed, None);
 

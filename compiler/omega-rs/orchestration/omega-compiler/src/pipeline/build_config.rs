@@ -27,7 +27,7 @@
 
 use omega_core::diagnostics::Diagnostic;
 use omega_interpreter::BuildTimeValue;
-use omega_typed_trees::TypedTrees;
+use psi_typed_trees::TypedTrees;
 
 const BUILD_MACHINE: &str = "build";
 
@@ -95,7 +95,7 @@ impl Default for BuildConfig {
 /// A wrong-arity build machine still refuses at evaluation with the arity
 /// error (pinned by fail/build/build_machine_wrong_arity).
 pub(crate) fn is_build_machine(
-    machine: &omega_typed_trees::machine::Machine,
+    machine: &psi_typed_trees::machine::Machine,
     build_file_machines: &[String],
 ) -> bool {
     let name = machine.name.as_str();
@@ -271,7 +271,7 @@ pub(crate) fn compute_build_config(
 /// declarations before compatibility evaluation consumes it.
 fn harvest_wire_compatibility_demands(
     typed: &TypedTrees,
-    machine: &omega_typed_trees::machine::Machine,
+    machine: &psi_typed_trees::machine::Machine,
 ) -> Result<Vec<WireCompatibilityDemand>, Vec<Diagnostic>> {
     let mut demands = Vec::new();
     let mut diagnostics = Vec::new();
@@ -328,14 +328,14 @@ fn harvest_wire_compatibility_demands(
     for state in typed.machine_states(machine) {
         for statement in typed.statement_table.statements(state.statement_nodes) {
             match statement {
-                omega_typed_trees::statement::StatementNode::Expression(expression) => {
-                    if let omega_typed_trees::expression::ExpressionNode::Call(call) =
+                psi_typed_trees::statement::StatementNode::Expression(expression) => {
+                    if let psi_typed_trees::expression::ExpressionNode::Call(call) =
                         typed.expression_table.expression(*expression)
                     {
                         record(call.target.as_str());
                     }
                 }
-                omega_typed_trees::statement::StatementNode::Call(call) => {
+                psi_typed_trees::statement::StatementNode::Call(call) => {
                     record(call.target.as_str());
                 }
                 _ => {}
@@ -354,7 +354,7 @@ fn harvest_wire_compatibility_demands(
 /// grants nothing; selection authority comes from this file-scoped root.
 fn harvest_provider_selections(
     typed: &TypedTrees,
-    machine: &omega_typed_trees::machine::Machine,
+    machine: &psi_typed_trees::machine::Machine,
 ) -> Result<Vec<ProviderSelection>, Vec<Diagnostic>> {
     let mut selections: Vec<ProviderSelection> = Vec::new();
     let mut diagnostics = Vec::new();
@@ -388,14 +388,14 @@ fn harvest_provider_selections(
     for state in typed.machine_states(machine) {
         for statement in typed.statement_table.statements(state.statement_nodes) {
             match statement {
-                omega_typed_trees::statement::StatementNode::Expression(expression) => {
-                    if let omega_typed_trees::expression::ExpressionNode::Call(call) =
+                psi_typed_trees::statement::StatementNode::Expression(expression) => {
+                    if let psi_typed_trees::expression::ExpressionNode::Call(call) =
                         typed.expression_table.expression(*expression)
                     {
                         record(call.target.as_str());
                     }
                 }
-                omega_typed_trees::statement::StatementNode::Call(call) => {
+                psi_typed_trees::statement::StatementNode::Call(call) => {
                     record(call.target.as_str());
                 }
                 _ => {}
@@ -448,16 +448,16 @@ pub(crate) fn compute_target_provider_defaults(
 /// `b.accept_boundary<path>();`). Order-preserving, deduplicated.
 fn harvest_root_grants(
     typed: &TypedTrees,
-    machine: &omega_typed_trees::machine::Machine,
+    machine: &psi_typed_trees::machine::Machine,
 ) -> Vec<String> {
     let mut grants: Vec<String> = Vec::new();
     for state in typed.machine_states(machine) {
         for statement in typed.statement_table.statements(state.statement_nodes) {
-            let handles: Vec<omega_typed_trees::expression::ExpressionHandle> = match statement {
-                omega_typed_trees::statement::StatementNode::Expression(expression) => {
+            let handles: Vec<psi_typed_trees::expression::ExpressionHandle> = match statement {
+                psi_typed_trees::statement::StatementNode::Expression(expression) => {
                     vec![*expression]
                 }
-                omega_typed_trees::statement::StatementNode::Call(call) => {
+                psi_typed_trees::statement::StatementNode::Call(call) => {
                     // A statement-level call keeps the marker in its target.
                     if let Some(path) = call.target.as_str().strip_prefix("accept_boundary#")
                         && !grants.iter().any(|existing| existing == path)
@@ -469,7 +469,7 @@ fn harvest_root_grants(
                 _ => Vec::new(),
             };
             for handle in handles {
-                if let omega_typed_trees::expression::ExpressionNode::Call(call) =
+                if let psi_typed_trees::expression::ExpressionNode::Call(call) =
                     typed.expression_table.expression(handle)
                     && let Some(path) = call.target.as_str().strip_prefix("accept_boundary#")
                     && !grants.iter().any(|existing| existing == path)

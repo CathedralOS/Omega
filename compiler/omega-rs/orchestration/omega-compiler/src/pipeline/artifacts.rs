@@ -135,7 +135,7 @@ fn display_path(path: &Path) -> String {
 
 pub(super) fn write_resolved_snapshot(
     options: &CompileOptions,
-    resolved: &omega_symbol_resolved_trees::SymbolResolvedTrees,
+    resolved: &psi_symbol_resolved_trees::SymbolResolvedTrees,
 ) -> Result<(), Vec<Diagnostic>> {
     write_phase_diagram(
         options,
@@ -151,7 +151,7 @@ pub(super) fn write_resolved_snapshot(
 
 pub(super) fn write_typed_snapshot(
     options: &CompileOptions,
-    typed: &omega_typed_trees::TypedTrees,
+    typed: &psi_typed_trees::TypedTrees,
 ) -> Result<(), Vec<Diagnostic>> {
     write_phase_diagram(
         options,
@@ -167,7 +167,7 @@ pub(super) fn write_typed_snapshot(
 
 pub(super) fn write_checked_snapshot(
     options: &CompileOptions,
-    checked: &omega_checked_trees::CheckedTrees,
+    checked: &psi_checked_trees::CheckedTrees,
     selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
     task_activations: &omega_task_plans::TaskActivationPlanSet,
 ) -> Result<(), Vec<Diagnostic>> {

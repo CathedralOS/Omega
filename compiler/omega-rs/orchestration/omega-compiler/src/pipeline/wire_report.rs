@@ -7,8 +7,8 @@ use omega_artifacts::{
 };
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
-use omega_typed_trees::TypedTrees;
-use omega_typed_trees::wire::{WireMember, WireSchema};
+use psi_typed_trees::TypedTrees;
+use psi_typed_trees::wire::{WireMember, WireSchema};
 
 pub(super) fn write_wire_protocol_report(
     options: &CompileOptions,
@@ -174,16 +174,16 @@ fn encode_requirement_identity(schema_identity: u64) -> u64 {
 
 fn normalized_wire_plan_identity(
     schema_identity: u64,
-    placements: &[omega_typed_trees::wire::WirePlacement],
-    obligations: &[omega_typed_trees::wire::WireEncodeObligation],
+    placements: &[psi_typed_trees::wire::WirePlacement],
+    obligations: &[psi_typed_trees::wire::WireEncodeObligation],
 ) -> u64 {
     let mut parts = Vec::with_capacity(placements.len() + obligations.len() + 1);
     let schema_bytes = schema_identity.to_le_bytes();
     parts.push(schema_bytes.to_vec());
     for placement in placements {
         let (kind, tag) = match placement {
-            omega_typed_trees::wire::WirePlacement::Varint { tag } => (0u8, *tag),
-            omega_typed_trees::wire::WirePlacement::LengthPrefixed { tag } => (1u8, *tag),
+            psi_typed_trees::wire::WirePlacement::Varint { tag } => (0u8, *tag),
+            psi_typed_trees::wire::WirePlacement::LengthPrefixed { tag } => (1u8, *tag),
         };
         let mut bytes = Vec::with_capacity(9);
         bytes.push(kind);
@@ -464,9 +464,9 @@ fn names_match(left: &str, right: &str) -> bool {
 
 fn ordinary_data_schema_report_entry(
     typed: &TypedTrees,
-    data: &omega_typed_trees::data::DataDefinition,
+    data: &psi_typed_trees::data::DataDefinition,
 ) -> Option<WireSchemaReportEntry> {
-    use omega_typed_trees::data::{DataMember, DataShapeKind};
+    use psi_typed_trees::data::{DataMember, DataShapeKind};
 
     let members = typed.data_members(data);
     let has_identity_metadata = !data.retired_identities.is_empty()
@@ -517,7 +517,7 @@ fn ordinary_data_schema_report_entry(
             DataMember::Field(_) => None,
         })
         .collect();
-    let shape = omega_typed_trees::data::DataDefinition::shape_kind_from_members(members);
+    let shape = psi_typed_trees::data::DataDefinition::shape_kind_from_members(members);
     let (reserved, retired_cases) = match shape {
         DataShapeKind::Record => (data.retired_identities.clone(), Vec::new()),
         DataShapeKind::Enum => (Vec::new(), data.retired_identities.clone()),
@@ -720,7 +720,7 @@ mod tests {
     use super::{
         codec_requirement_identity, encode_requirement_identity, normalized_wire_plan_identity,
     };
-    use omega_typed_trees::wire::WirePlacement;
+    use psi_typed_trees::wire::WirePlacement;
 
     #[test]
     fn codec_requirement_identity_binds_the_normalized_schema() {
@@ -755,16 +755,16 @@ mod tests {
         assert_ne!(identity, normalized_wire_plan_identity(7, &length, &[]));
         assert_ne!(identity, normalized_wire_plan_identity(7, &retagged, &[]));
 
-        let obligation = omega_typed_trees::wire::WireEncodeObligation {
+        let obligation = psi_typed_trees::wire::WireEncodeObligation {
             field_number: 1,
-            element: omega_typed_trees::wire::WireScalarEncoding {
+            element: psi_typed_trees::wire::WireScalarEncoding {
                 byte_size: 4,
                 zigzag: false,
             },
-            length: omega_typed_trees::wire::WireEncodeLengthObligation::RuntimeElementCount,
-            work: omega_typed_trees::wire::WireEncodeWorkObligation::TwoPassesPerElement,
+            length: psi_typed_trees::wire::WireEncodeLengthObligation::RuntimeElementCount,
+            work: psi_typed_trees::wire::WireEncodeWorkObligation::TwoPassesPerElement,
             output_capacity:
-                omega_typed_trees::wire::WireEncodeOutputCapacityObligation::ExactPackedPayload,
+                psi_typed_trees::wire::WireEncodeOutputCapacityObligation::ExactPackedPayload,
         };
         assert_ne!(
             identity,

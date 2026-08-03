@@ -13,8 +13,11 @@ workspace root. The first source-facing ownership slice is live:
 source-backed text;
 `psi-tokens` owns token streams; and
 `psi-source-files-to-tokens` owns the Omega lexer without depending on any
-Omega crate. The old Omega-named token and lexer crates are thin compatibility
-exports for the not-yet-migrated parser. `psi-core` provides nonzero stable semantic identities, the
+Omega crate. The old Omega-named frontend crates are thin compatibility
+exports for remaining legacy consumers. `omega-compiler` invokes the
+Psi-owned lexer, parser, resolver, typer, checker, and source representations
+directly, although its legacy backend still consumes checked semantics until
+general terminal production replaces that early cut. `psi-core` provides nonzero stable semantic identities, the
 typed scalar proposition vocabulary, and a module-owned value-typing context.
 `psi-proof-kernel` provides total primitive judgments, structural proof
 checking (including semantic-axiom citation and typed equality transitivity),

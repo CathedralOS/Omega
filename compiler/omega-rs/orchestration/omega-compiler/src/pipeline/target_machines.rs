@@ -22,9 +22,9 @@
 //! everywhere, which is also what makes fail-canaries host-portable).
 
 use omega_core::diagnostics::Diagnostic;
-use omega_syntax_trees::SyntaxTrees;
-use omega_syntax_trees::item::Item;
 use omega_target::NativeTarget;
+use psi_syntax_trees::SyntaxTrees;
+use psi_syntax_trees::item::Item;
 use std::collections::BTreeMap;
 
 pub(crate) fn filter_target_machines(
@@ -36,7 +36,7 @@ pub(crate) fn filter_target_machines(
 
     // full machine name -> (selected handles, non-selected target names).
     // BTreeMap keeps diagnostics deterministic across runs.
-    let mut rows: BTreeMap<String, (Vec<omega_syntax_trees::item::ItemHandle>, Vec<String>)> =
+    let mut rows: BTreeMap<String, (Vec<psi_syntax_trees::item::ItemHandle>, Vec<String>)> =
         BTreeMap::new();
     for handle in syntax.root_item_handles().to_vec() {
         let Item::Machine(machine) = syntax.root_item(handle) else {

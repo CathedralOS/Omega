@@ -13,16 +13,16 @@ use crate::pipeline::stage::{
     TYPED_TREES_TO_CHECKED_TREES,
 };
 use crate::pipeline::timing::CompileTimings;
-use omega_checked_trees::CheckedTrees as CheckedProgram;
 use omega_control_flow::ControlFlowPlan;
 use omega_core::diagnostics::Diagnostic;
 use omega_emission_planning::{EmissionPlanningInput, build_emission_plan};
 use omega_object_file::SectionKind;
 use omega_state_graph::StateGraph;
-use omega_symbol_resolved_trees::SymbolResolvedTrees;
-use omega_syntax_trees::SyntaxTrees;
 use omega_target::NativeTarget;
-use omega_typed_trees::TypedTrees;
+use psi_checked_trees::CheckedTrees as CheckedProgram;
+use psi_symbol_resolved_trees::SymbolResolvedTrees;
+use psi_syntax_trees::SyntaxTrees;
+use psi_typed_trees::TypedTrees;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -201,14 +201,14 @@ fn inject_build_prelude(
             file.path.file_name().and_then(|name| name.to_str()) == Some("build.omg");
         for root_item in &file.root_items {
             match source_storage.syntax_trees.root_item(*root_item) {
-                omega_syntax_trees::item::Item::Machine(machine)
+                psi_syntax_trees::item::Item::Machine(machine)
                     if is_build_file
                         && (machine.name.as_str() == "build"
                             || machine.name.as_str().ends_with("::build")) =>
                 {
                     has_build_machine = true;
                 }
-                omega_syntax_trees::item::Item::Data(data) if data.name.as_str() == "Build" => {
+                psi_syntax_trees::item::Item::Data(data) if data.name.as_str() == "Build" => {
                     has_build_data = true;
                 }
                 _ => {}
@@ -273,7 +273,7 @@ fn substitute_native_gui_provider(
     for (_, file) in source_storage.files.iter() {
         for root_item in &file.root_items {
             match source_storage.syntax_trees.root_item(*root_item) {
-                omega_syntax_trees::item::Item::Trait(trait_definition)
+                psi_syntax_trees::item::Item::Trait(trait_definition)
                     if trait_definition.is_boundary
                         && DARWIN_BOUNDARY_PROVIDERS
                             .iter()
@@ -281,7 +281,7 @@ fn substitute_native_gui_provider(
                 {
                     has_any_boundary = true;
                 }
-                omega_syntax_trees::item::Item::Data(data) if data.name.as_str() == "MacosGui" => {
+                psi_syntax_trees::item::Item::Data(data) if data.name.as_str() == "MacosGui" => {
                     has_provider_module = true;
                 }
                 _ => {}
@@ -338,11 +338,11 @@ fn substitute_native_gui_provider(
 
     // Rewrite each `<field>: <Boundary>` FIELD -> its provider data type. Collect first
     // (immutable borrows), then mutate, exactly like the plan-laid value-type desugar.
-    let mut rewrites: Vec<(omega_syntax_trees::types::TypeReferenceHandle, &'static str)> =
+    let mut rewrites: Vec<(psi_syntax_trees::types::TypeReferenceHandle, &'static str)> =
         Vec::new();
     for (_, file) in source_storage.files.iter() {
         for root_item in &file.root_items {
-            let omega_syntax_trees::item::Item::Data(definition) =
+            let psi_syntax_trees::item::Item::Data(definition) =
                 source_storage.syntax_trees.root_item(*root_item)
             else {
                 continue;
@@ -354,10 +354,10 @@ fn substitute_native_gui_provider(
                 .items
                 .data_members(members)
             {
-                let omega_syntax_trees::item::DataMember::Field(field) = member else {
+                let psi_syntax_trees::item::DataMember::Field(field) = member else {
                     continue;
                 };
-                if let omega_syntax_trees::types::TypeReferenceNode::Named(name) = source_storage
+                if let psi_syntax_trees::types::TypeReferenceNode::Named(name) = source_storage
                     .syntax_trees
                     .tables
                     .type_references
@@ -378,8 +378,8 @@ fn substitute_native_gui_provider(
             .type_references
             .replace_type_reference(
                 handle,
-                omega_syntax_trees::types::TypeReferenceNode::Named(
-                    omega_syntax_trees::identifier::Identifier::generated(provider.to_string()),
+                psi_syntax_trees::types::TypeReferenceNode::Named(
+                    psi_syntax_trees::identifier::Identifier::generated(provider.to_string()),
                 ),
             );
     }
@@ -401,7 +401,7 @@ pub(super) fn syntax_trees_to_symbol_resolved_trees(
     timings: &mut CompileTimings,
 ) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
     timings.record(SYNTAX_TREES_TO_SYMBOL_RESOLVED_TREES, || {
-        omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources(
+        psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources(
             &syntax.syntax_trees,
             syntax.sources,
         )
@@ -414,7 +414,7 @@ pub(super) fn symbol_resolved_trees_to_typed_trees(
     timings: &mut CompileTimings,
 ) -> Result<TypedTrees, Vec<Diagnostic>> {
     timings.record(SYMBOL_RESOLVED_TREES_TO_TYPED_TREES, || {
-        omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees_owned(resolved)
+        psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees_owned(resolved)
             .map_err(|diagnostic| vec![diagnostic])
     })
 }

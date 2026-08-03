@@ -28,11 +28,11 @@
 use omega_core::arena::{Handle, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
 use omega_layout_plans::LayoutPlacementReport;
-use omega_syntax_trees::SyntaxTrees;
-use omega_syntax_trees::identifier::Identifier;
-use omega_syntax_trees::item::{DataDefinition, DataMember, DataProperties, Item};
-use omega_syntax_trees::types::{TypeReferenceHandle, TypeReferenceNode};
-use omega_typed_trees::{PlanLaidBitField, PlanLaidBitFragment, PlanLaidLayout, TypedTrees};
+use psi_syntax_trees::SyntaxTrees;
+use psi_syntax_trees::identifier::Identifier;
+use psi_syntax_trees::item::{DataDefinition, DataMember, DataProperties, Item};
+use psi_syntax_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use psi_typed_trees::{PlanLaidBitField, PlanLaidBitFragment, PlanLaidLayout, TypedTrees};
 use std::collections::{HashMap, HashSet};
 
 /// One plan-laid instantiation discovered by the desugar: the synthesized
@@ -298,10 +298,10 @@ pub(crate) fn compute_plan_laid_layouts(
                     .data_members(data)
                     .iter()
                     .filter_map(|member| match member {
-                        omega_typed_trees::data::DataMember::Field(field) => {
+                        psi_typed_trees::data::DataMember::Field(field) => {
                             Some(field.name.as_str().to_owned())
                         }
-                        omega_typed_trees::data::DataMember::Variant(_) => None,
+                        psi_typed_trees::data::DataMember::Variant(_) => None,
                     })
                     .collect::<Vec<_>>()
             })

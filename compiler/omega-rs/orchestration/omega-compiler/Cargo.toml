@@ -10,8 +10,8 @@ path = "src/lib.rs"
 
 [dependencies]
 omega-core = { path = "../../foundation/omega-core" }
-omega-syntax-trees = { path = "../../representations/omega-syntax-trees" }
-omega-syntax-trees-to-symbol-resolved-trees = { path = "../../pipeline/omega-syntax-trees-to-symbol-resolved-trees" }
+psi-syntax-trees = { path = "../../../psi-rs/representations/psi-syntax-trees" }
+psi-syntax-trees-to-symbol-resolved-trees = { path = "../../../psi-rs/pipeline/psi-syntax-trees-to-symbol-resolved-trees" }
 omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }
 omega-access-plans = { path = "../../foundation/omega-access-plans" }
 omega-layout-plans = { path = "../../foundation/omega-layout-plans" }
@@ -22,8 +22,8 @@ omega-external-roots = { path = "../../foundation/omega-external-roots" }
 omega-image = { path = "../../backend/images/omega-image" }
 omega-image-emission = { path = "../../backend/images/omega-image-emission" }
 omega-instruction-selection = { path = "../../backend/omega-instruction-selection" }
-omega-source-files-to-tokens = { path = "../../pipeline/omega-source-files-to-tokens" }
-omega-tokens = { path = "../../representations/omega-tokens" }
+psi-source-files-to-tokens = { path = "../../../psi-rs/pipeline/psi-source-files-to-tokens" }
+psi-tokens = { path = "../../../psi-rs/representations/psi-tokens" }
 omega-layout = { path = "../../backend/omega-layout" }
 omega-machine-bytes = { path = "../../representations/omega-machine-bytes" }
 omega-backend-pipeline = { path = "../omega-backend-pipeline" }
@@ -31,14 +31,14 @@ omega-backend-plan = { path = "../../representations/omega-backend-plan" }
 omega-backend-report = { path = "../../backend/omega-backend-report" }
 omega-artifacts = { path = "../omega-artifacts" }
 omega-object-file = { path = "../../backend/object/omega-object-file" }
-omega-checked-trees = { path = "../../representations/omega-checked-trees" }
+psi-checked-trees = { path = "../../../psi-rs/representations/psi-checked-trees" }
 omega-checked-trees-to-state-graph = { path = "../../pipeline/omega-checked-trees-to-state-graph" }
 omega-interpreter = { path = "../omega-interpreter" }
 omega-effects = { path = "../../representations/omega-effects" }
-omega-symbol-resolved-trees = { path = "../../representations/omega-symbol-resolved-trees" }
-omega-symbol-resolved-trees-to-typed-trees = { path = "../../pipeline/omega-symbol-resolved-trees-to-typed-trees" }
+psi-symbol-resolved-trees = { path = "../../../psi-rs/representations/psi-symbol-resolved-trees" }
+psi-symbol-resolved-trees-to-typed-trees = { path = "../../../psi-rs/pipeline/psi-symbol-resolved-trees-to-typed-trees" }
 omega-state-graph-to-control-flow = { path = "../../pipeline/omega-state-graph-to-control-flow" }
-omega-tokens-to-syntax-trees = { path = "../../pipeline/omega-tokens-to-syntax-trees" }
+psi-tokens-to-syntax-trees = { path = "../../../psi-rs/pipeline/psi-tokens-to-syntax-trees" }
 psi-typed-trees-to-checked-trees = { path = "../../../psi-rs/pipeline/psi-typed-trees-to-checked-trees" }
 psi-facts = { path = "../../../psi-rs/representations/psi-facts" }
 omega-platform-interface = { path = "../../backend/omega-platform-interface" }
@@ -54,7 +54,7 @@ omega-state-storage = { path = "../../backend/omega-state-storage" }
 omega-state-values = { path = "../../backend/omega-state-values" }
 omega-target = { path = "../../foundation/omega-target" }
 omega-target-operations = { path = "../../representations/omega-target-operations" }
-omega-typed-trees = { path = "../../representations/omega-typed-trees" }
+psi-typed-trees = { path = "../../../psi-rs/representations/psi-typed-trees" }
 omega-visualizations = { path = "../omega-visualizations" }
 
 [dev-dependencies]
