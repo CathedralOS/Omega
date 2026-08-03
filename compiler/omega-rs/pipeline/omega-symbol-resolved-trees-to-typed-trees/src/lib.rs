@@ -1,21 +1,5 @@
-mod data;
-mod domain;
-mod domain_constraints;
-mod equality;
-mod equatable;
-mod exhaustiveness;
-mod expression;
-mod invariant;
-mod lowerer;
-mod machine;
-mod measure;
-mod name;
-mod operator;
-mod qualification_casts;
-mod state;
-mod statement;
-mod trait_definition;
-mod type_reference;
-mod wire;
+#![forbid(unsafe_code)]
 
-pub use lowerer::{lower_symbol_resolved_trees, lower_symbol_resolved_trees_owned};
+//! Compatibility export for Psi-owned type and signature normalization.
+
+pub use psi_symbol_resolved_trees_to_typed_trees::*;

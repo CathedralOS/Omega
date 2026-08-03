@@ -972,12 +972,7 @@ dependencies = [
 name = "omega-symbol-resolved-trees-to-typed-trees"
 version = "0.1.0"
 dependencies = [
- "omega-core",
- "omega-source-files-to-tokens",
- "omega-symbol-resolved-trees",
- "omega-syntax-trees-to-symbol-resolved-trees",
- "omega-tokens-to-syntax-trees",
- "omega-typed-trees",
+ "psi-symbol-resolved-trees-to-typed-trees",
 ]
 
 [[package]]
@@ -1309,6 +1304,22 @@ dependencies = [
  "psi-symbols",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "psi-symbol-resolved-trees-to-typed-trees"
+version = "0.1.0"
+dependencies = [
+ "psi-arena",
+ "psi-diagnostics",
+ "psi-language-semantics",
+ "psi-numerics",
+ "psi-source-files-to-tokens",
+ "psi-symbol-resolved-trees",
+ "psi-symbols",
+ "psi-syntax-trees-to-symbol-resolved-trees",
+ "psi-tokens-to-syntax-trees",
+ "psi-typed-trees",
 ]
 
 [[package]]

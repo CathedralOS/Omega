@@ -1040,7 +1040,9 @@ improvements do not change public identity.
   `psi-source-files-to-tokens` owns Omega lexing and
   `psi-tokens-to-syntax-trees` owns unresolved parsing, both with no Omega
   dependency. `psi-syntax-trees-to-symbol-resolved-trees` owns name lookup,
-  source-scope resolution, and stable symbol stamping. Their former Omega
+  source-scope resolution, and stable symbol stamping;
+  `psi-symbol-resolved-trees-to-typed-trees` owns type identity,
+  compatibility, and signature normalization. Their former Omega
   crates are implementation-free compatibility re-exports for unmigrated
   orchestration. The checked-tree-to-terminal adapter is
   frozen at its single bootstrap canary; architecture coverage rejects adding
