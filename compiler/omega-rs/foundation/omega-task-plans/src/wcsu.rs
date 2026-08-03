@@ -7,19 +7,108 @@
 //! child frame to this stack and therefore has no edge in this graph.
 
 use crate::{
-    AdmittedStackContributionId, TaskPlanDiagnostic, TaskStackCompositionId, TaskStackFrameId,
-    TaskStackFrameValidationId,
+    AdmittedStackContributionId, SameStackContributionAdmissionReceiptId, TaskPlanDiagnostic,
+    TaskStackCompositionId, TaskStackFrameId, TaskStackFrameValidationId,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct AdmittedSameStackContribution {
-    pub identity: AdmittedStackContributionId,
+/// Untrusted inputs presented for one opaque same-stack contribution.
+///
+/// Admission must compare the provider-plan and requirement identities with
+/// the compiler's authoritative selection. The receipt names the independent
+/// evidence that admits this otherwise opaque byte/alignment claim.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SameStackContributionAdmissionCandidate {
+    pub provider_plan_identity: u64,
+    pub requirement_identity: String,
+    pub receipt: SameStackContributionAdmissionReceiptId,
     pub bytes: u64,
     pub alignment: u64,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+/// Sealed opaque same-stack demand accepted against an exact provider choice.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct AdmittedSameStackContribution {
+    identity: AdmittedStackContributionId,
+    provider_plan_identity: u64,
+    requirement_identity: String,
+    receipt: SameStackContributionAdmissionReceiptId,
+    bytes: u64,
+    alignment: u64,
+}
+
+impl AdmittedSameStackContribution {
+    pub const fn identity(&self) -> AdmittedStackContributionId {
+        self.identity
+    }
+
+    pub const fn provider_plan_identity(&self) -> u64 {
+        self.provider_plan_identity
+    }
+
+    pub fn requirement_identity(&self) -> &str {
+        &self.requirement_identity
+    }
+
+    pub const fn receipt(&self) -> SameStackContributionAdmissionReceiptId {
+        self.receipt
+    }
+
+    pub const fn bytes(&self) -> u64 {
+        self.bytes
+    }
+
+    pub const fn alignment(&self) -> u64 {
+        self.alignment
+    }
+}
+
+pub fn admit_same_stack_contribution(
+    candidate: SameStackContributionAdmissionCandidate,
+    selected_provider_plan_identity: u64,
+    selected_requirement_identity: &str,
+) -> Result<AdmittedSameStackContribution, TaskPlanDiagnostic> {
+    if selected_provider_plan_identity == 0 {
+        return Err(TaskPlanDiagnostic(
+            "selected provider-plan identity for same-stack admission cannot be zero".into(),
+        ));
+    }
+    if candidate.provider_plan_identity != selected_provider_plan_identity {
+        return Err(TaskPlanDiagnostic(format!(
+            "same-stack admission provider-plan identity 0x{:016x} does not match selected identity 0x{selected_provider_plan_identity:016x}",
+            candidate.provider_plan_identity
+        )));
+    }
+    if selected_requirement_identity.is_empty() {
+        return Err(TaskPlanDiagnostic(
+            "selected requirement identity for same-stack admission cannot be empty".into(),
+        ));
+    }
+    if candidate.requirement_identity != selected_requirement_identity {
+        return Err(TaskPlanDiagnostic(format!(
+            "same-stack admission requirement identity {:?} does not match selected identity {selected_requirement_identity:?}",
+            candidate.requirement_identity
+        )));
+    }
+    if candidate.bytes == 0 {
+        return Err(TaskPlanDiagnostic(
+            "same-stack admission has zero WCSU".into(),
+        ));
+    }
+    validate_alignment(candidate.alignment, "same-stack admission")?;
+
+    let identity = AdmittedStackContributionId(fingerprint_admitted_contribution(&candidate));
+    Ok(AdmittedSameStackContribution {
+        identity,
+        provider_plan_identity: candidate.provider_plan_identity,
+        requirement_identity: candidate.requirement_identity,
+        receipt: candidate.receipt,
+        bytes: candidate.bytes,
+        alignment: candidate.alignment,
+    })
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum StackCallContribution {
     Checked { callee: TaskStackFrameId },
     AdmittedSameStack(AdmittedSameStackContribution),
@@ -64,17 +153,17 @@ pub fn validate_task_stack_frame_summary(
     )?;
     for call in &summary.calls {
         if let StackCallContribution::AdmittedSameStack(contribution) = call {
-            if contribution.bytes == 0 {
+            if contribution.bytes() == 0 {
                 return Err(TaskPlanDiagnostic(format!(
                     "admitted same-stack contribution 0x{:016x} has zero WCSU",
-                    contribution.identity.normalized_identity()
+                    contribution.identity().normalized_identity()
                 )));
             }
             validate_alignment(
-                contribution.alignment,
+                contribution.alignment(),
                 &format!(
                     "admitted same-stack contribution 0x{:016x}",
-                    contribution.identity.normalized_identity()
+                    contribution.identity().normalized_identity()
                 ),
             )?;
         }
@@ -200,7 +289,7 @@ pub fn compose_task_stack_demand(
         .values()
         .flat_map(|summary| summary.summary().calls.iter())
         .filter_map(|call| match call {
-            StackCallContribution::AdmittedSameStack(contribution) => Some(contribution.identity),
+            StackCallContribution::AdmittedSameStack(contribution) => Some(contribution.identity()),
             StackCallContribution::Checked { .. } => None,
         })
         .collect();
@@ -271,7 +360,7 @@ fn compose_frame(
         let (child_bytes, child_alignment) = match call {
             StackCallContribution::Checked { callee } => compose_frame(*callee, frames, memo)?,
             StackCallContribution::AdmittedSameStack(contribution) => {
-                (contribution.bytes, contribution.alignment)
+                (contribution.bytes(), contribution.alignment())
             }
         };
         let child_base = align_up(local, child_alignment)?;
@@ -317,15 +406,25 @@ fn fingerprint_composition(
                 }
                 StackCallContribution::AdmittedSameStack(contribution) => {
                     hash.byte(2);
-                    hash.word(contribution.identity.normalized_identity());
-                    hash.word(contribution.bytes);
-                    hash.word(contribution.alignment);
+                    hash.word(contribution.identity().normalized_identity());
+                    hash.word(contribution.bytes());
+                    hash.word(contribution.alignment());
                 }
             }
         }
     }
     hash.word(bytes);
     hash.word(alignment);
+    hash.finish()
+}
+
+fn fingerprint_admitted_contribution(candidate: &SameStackContributionAdmissionCandidate) -> u64 {
+    let mut hash = Fnv1a::new();
+    hash.word(candidate.provider_plan_identity);
+    hash.string(&candidate.requirement_identity);
+    hash.word(candidate.receipt.normalized_identity());
+    hash.word(candidate.bytes);
+    hash.word(candidate.alignment);
     hash.finish()
 }
 
@@ -346,6 +445,13 @@ impl Fnv1a {
 
     fn word(&mut self, value: u64) {
         for byte in value.to_le_bytes() {
+            self.byte(byte);
+        }
+    }
+
+    fn string(&mut self, value: &str) {
+        self.word(value.len() as u64);
+        for byte in value.bytes() {
             self.byte(byte);
         }
     }
@@ -382,6 +488,30 @@ mod tests {
         .expect("valid local frame")
     }
 
+    fn admission(
+        provider_plan_identity: u64,
+        requirement_identity: &str,
+        receipt_identity: u64,
+        bytes: u64,
+        alignment: u64,
+    ) -> AdmittedSameStackContribution {
+        admit_same_stack_contribution(
+            SameStackContributionAdmissionCandidate {
+                provider_plan_identity,
+                requirement_identity: requirement_identity.into(),
+                receipt: id(
+                    receipt_identity,
+                    SameStackContributionAdmissionReceiptId::from_normalized_identity,
+                ),
+                bytes,
+                alignment,
+            },
+            provider_plan_identity,
+            requirement_identity,
+        )
+        .expect("valid same-stack admission")
+    }
+
     #[test]
     fn maximum_live_chain_uses_alignment_and_not_sibling_sum() {
         let root = id(1, TaskStackFrameId::from_normalized_identity);
@@ -414,20 +544,15 @@ mod tests {
     #[test]
     fn admitted_same_stack_leaf_is_explicit_and_composed() {
         let root = id(10, TaskStackFrameId::from_normalized_identity);
-        let admission = id(11, AdmittedStackContributionId::from_normalized_identity);
+        let admission = admission(0x100, "Codec::decode", 11, 48, 16);
+        let admission_identity = admission.identity();
         let demand = compose_task_stack_demand(
             root,
             [frame(
                 10,
                 24,
                 8,
-                vec![StackCallContribution::AdmittedSameStack(
-                    AdmittedSameStackContribution {
-                        identity: admission,
-                        bytes: 48,
-                        alignment: 16,
-                    },
-                )],
+                vec![StackCallContribution::AdmittedSameStack(admission)],
             )],
         )
         .expect("admitted foreign leaf");
@@ -436,7 +561,81 @@ mod tests {
         assert_eq!(demand.alignment(), 16);
         assert_eq!(
             demand.admitted_contributions(),
-            &BTreeSet::from([admission])
+            &BTreeSet::from([admission_identity])
+        );
+    }
+
+    #[test]
+    fn same_stack_admission_binds_selected_provider_requirement_and_receipt() {
+        let candidate = SameStackContributionAdmissionCandidate {
+            provider_plan_identity: 0x200,
+            requirement_identity: "Codec::decode".into(),
+            receipt: id(
+                30,
+                SameStackContributionAdmissionReceiptId::from_normalized_identity,
+            ),
+            bytes: 64,
+            alignment: 16,
+        };
+        let admitted = admit_same_stack_contribution(candidate.clone(), 0x200, "Codec::decode")
+            .expect("exact selection matches");
+
+        assert_eq!(admitted.provider_plan_identity(), 0x200);
+        assert_eq!(admitted.requirement_identity(), "Codec::decode");
+        assert_eq!(admitted.receipt(), candidate.receipt);
+        assert_eq!(admitted.bytes(), 64);
+        assert_eq!(admitted.alignment(), 16);
+        assert!(
+            admit_same_stack_contribution(candidate.clone(), 0x201, "Codec::decode")
+                .expect_err("provider-plan drift")
+                .0
+                .contains("does not match selected identity")
+        );
+        assert!(
+            admit_same_stack_contribution(candidate, 0x200, "Codec::encode")
+                .expect_err("requirement drift")
+                .0
+                .contains("requirement identity")
+        );
+    }
+
+    #[test]
+    fn same_stack_admission_validates_shape_and_fingerprints_exact_evidence() {
+        let first = admission(0x300, "Codec::decode", 40, 64, 16);
+        let second_receipt = admission(0x300, "Codec::decode", 41, 64, 16);
+        let second_requirement = admission(0x300, "Codec::decode.fast", 40, 64, 16);
+        assert_ne!(first.identity(), second_receipt.identity());
+        assert_ne!(first.identity(), second_requirement.identity());
+
+        let candidate = SameStackContributionAdmissionCandidate {
+            provider_plan_identity: 0x300,
+            requirement_identity: "Codec::decode".into(),
+            receipt: id(
+                42,
+                SameStackContributionAdmissionReceiptId::from_normalized_identity,
+            ),
+            bytes: 0,
+            alignment: 16,
+        };
+        assert!(
+            admit_same_stack_contribution(candidate.clone(), 0x300, "Codec::decode")
+                .expect_err("zero demand")
+                .0
+                .contains("zero WCSU")
+        );
+        assert!(
+            admit_same_stack_contribution(
+                SameStackContributionAdmissionCandidate {
+                    bytes: 1,
+                    alignment: 24,
+                    ..candidate
+                },
+                0x300,
+                "Codec::decode",
+            )
+            .expect_err("invalid alignment")
+            .0
+            .contains("nonzero power of two")
         );
     }
 
@@ -499,21 +698,18 @@ mod tests {
                     20,
                     u64::MAX,
                     8,
-                    vec![StackCallContribution::AdmittedSameStack(
-                        AdmittedSameStackContribution {
-                            identity: id(
-                                23,
-                                AdmittedStackContributionId::from_normalized_identity,
-                            ),
-                            bytes: 1,
-                            alignment: 8,
-                        },
-                    )],
+                    vec![StackCallContribution::AdmittedSameStack(admission(
+                        0x400,
+                        "Codec::decode",
+                        23,
+                        1,
+                        8
+                    ),)],
                 )],
             )
-                .expect_err("alignment overflow")
-                .0
-                .contains("alignment overflow")
+            .expect_err("alignment overflow")
+            .0
+            .contains("alignment overflow")
         );
     }
 }

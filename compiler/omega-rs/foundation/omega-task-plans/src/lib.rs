@@ -10,8 +10,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 mod wcsu;
 pub use wcsu::{
-    AdmittedSameStackContribution, ComposedTaskStackDemand, StackCallContribution,
-    TaskStackFrameSummary, ValidatedTaskStackFrameSummary, compose_task_stack_demand,
+    AdmittedSameStackContribution, ComposedTaskStackDemand,
+    SameStackContributionAdmissionCandidate, StackCallContribution, TaskStackFrameSummary,
+    ValidatedTaskStackFrameSummary, admit_same_stack_contribution, compose_task_stack_demand,
     validate_task_stack_frame_summary,
 };
 
@@ -46,6 +47,10 @@ normalized_id!(StackRepresentationId, "stack-representation");
 normalized_id!(TaskStackFrameId, "task-stack-frame");
 normalized_id!(TaskStackFrameValidationId, "task-stack-frame-validation");
 normalized_id!(AdmittedStackContributionId, "admitted-stack-contribution");
+normalized_id!(
+    SameStackContributionAdmissionReceiptId,
+    "same-stack-contribution-admission-receipt"
+);
 normalized_id!(TaskStackCompositionId, "task-stack-composition");
 normalized_id!(SuspensionCrossingId, "suspension-crossing");
 normalized_id!(TaskRuntimeId, "task-runtime");
