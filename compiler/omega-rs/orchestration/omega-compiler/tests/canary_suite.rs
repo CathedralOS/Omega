@@ -36265,11 +36265,23 @@ fn named_float_negate_and_is_nan_preserve_selected_roots_and_execute() {
 
 #[test]
 fn named_float_classification_predicates_select_and_execute() {
+    const DIFFERENTIAL_SUITE_ID: &str =
+        "omega.float.hardware.macos_arm64.classification-predicates.v1";
+    const DIFFERENTIAL_COVERAGE: &[&str] = &[
+        "binary32/binary64 finite versus infinity",
+        "binary32/binary64 infinity versus NaN",
+        "binary32/binary64 normal versus subnormal",
+        "binary32/binary64 subnormal versus zero",
+        "exactly-once unary evaluation shape",
+    ];
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0xb89e_c4b2_1c43_f9a8;
+
     let canary = pass_canary("float/named_provider_classification_predicates_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
         .expect("named float classification calls should compile to checked trees");
 
     let mut selected_intrinsics = std::collections::BTreeSet::new();
+    let mut selected_plan_identities = Vec::new();
     for operator_use in checked.facts.operators.named_uses() {
         if operator_use.provider_plan_identity == 0 {
             continue;
@@ -36287,6 +36299,7 @@ fn named_float_classification_predicates_select_and_execute() {
             panic!("named classification plan must select a compiler intrinsic");
         };
         selected_intrinsics.insert(name.clone());
+        selected_plan_identities.push(plan.identity_fingerprint());
 
         let (expected_builtin, expected_target) = if name.contains("::is_finite.") {
             (
@@ -36344,6 +36357,13 @@ fn named_float_classification_predicates_select_and_execute() {
     .map(str::to_owned)
     .collect();
     assert_eq!(selected_intrinsics, expected_intrinsics);
+    selected_plan_identities.sort_unstable();
+    selected_plan_identities.dedup();
+    assert_eq!(
+        selected_plan_identities.len(),
+        8,
+        "{DIFFERENTIAL_SUITE_ID} must bind one exact plan per predicate/format slot"
+    );
 
     let outcome = omega_interpreter::interpret(&checked, &[]);
     assert_eq!(
@@ -36400,6 +36420,21 @@ fn named_float_classification_predicates_select_and_execute() {
         });
         let _ = fs::remove_dir_all(&scratch);
     }
+
+    let result_identity = retained_float_differential_result_identity(
+        DIFFERENTIAL_SUITE_ID,
+        "macos_arm64",
+        DIFFERENTIAL_COVERAGE,
+        &selected_intrinsics,
+        &selected_plan_identities,
+        &outcome,
+        &output,
+        &["linux_x64", "linux_arm64"],
+    );
+    assert_eq!(
+        result_identity, EXPECTED_DIFFERENTIAL_RESULT_IDENTITY,
+        "{DIFFERENTIAL_SUITE_ID} result changed ({result_identity:#018x}); validate the exact plans, edge corpus, interpreter/native results, and cross-target builds before refreshing the retained identity"
+    );
 }
 
 #[test]

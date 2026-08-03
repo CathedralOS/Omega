@@ -1662,7 +1662,12 @@ and allocation handles expose no compiler-owned stack/control storage.
   `0x57aa3468298305e9`, binding its four exact plans to both-format signed-zero
   and infinity negation, NaN/infinity/finite predicate separation, selected-root
   unary evaluation shape, interpreter/native results, and both Linux
-  cross-builds. The directed-FMA slice retains
+  cross-builds. The bool-valued classification cohort retains
+  `omega.float.hardware.macos_arm64.classification-predicates.v1` /
+  `0xb89ec4b21c43f9a8`, binding its eight exact plans to both-format boundaries
+  between finite/infinite, infinite/NaN, normal/subnormal, and subnormal/zero,
+  exactly-once unary evaluation shape, interpreter/native results, and both
+  Linux cross-builds. The directed-FMA slice retains
   `omega.float.hardware.macos_arm64.directed-fma.v1` /
   `0x75be2c4963f3f15a`, binding its six exact plans to binary32/binary64 half-ULP
   edges, all three directions, one fused rounding, control-state restoration,
