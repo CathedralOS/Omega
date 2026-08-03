@@ -449,9 +449,10 @@ those rows remain absent until their actual checked proofs exist.
   slice. The terminal producer itself is now Psi-owned as
   `psi-checked-trees-to-terminal`; these checked content facts remain migration
   precursors until that producer consumes them. Before extending wrapper
-  composition, add the real content production there. Then compose identity rewrites
-  around non-direct authored-partition calls, insert sealed introduction and
-  custody-exit rows, and discharge or admit the exact frontier theorem.
+  composition, add the real content production there. Then compose identity
+  rewrites around non-direct authored-partition calls, insert sealed
+  introduction and custody-exit rows, and discharge or admit the exact frontier
+  theorem.
   Contracts call the exact
   owner-unique `Content<A>::project` conformance machine; do not add
   `content(...)`, general `old(...)`, or `retired_via(...)`. Normalize one

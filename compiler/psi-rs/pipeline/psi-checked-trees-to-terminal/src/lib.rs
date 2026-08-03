@@ -28,7 +28,7 @@ use psi_terminal_verifier::{ObligationEvidence, ProofBundle};
 use psi_typed_trees::domain::ProofFact;
 
 /// Semantic module and separate replaceable proof artifact produced by the
-/// transitional frontend adapter.
+/// Psi frontend.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoweredTerminalPsi {
     pub semantic_module: TerminalModule,
