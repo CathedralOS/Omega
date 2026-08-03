@@ -20,12 +20,9 @@ pub(super) fn runtime_text_read_source_name(
                     format!("import {symbol}")
                 }
                 Some(omega_calling_conventions::HostBindingMechanism::Syscall {
-                    number,
-                    number_register,
-                    supervisor_call,
-                    ..
+                    number, ..
                 }) => {
-                    format!("syscall {number} via x{number_register}/svc #{supervisor_call}")
+                    format!("syscall {number} via normalized call plan")
                 }
                 Some(omega_calling_conventions::HostBindingMechanism::VtableField {
                     table,

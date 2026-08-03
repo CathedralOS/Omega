@@ -439,8 +439,6 @@ fn linux_clock_gettime_syscall(
         mechanism: HostBindingMechanism::Syscall {
             name: "clock_gettime".into(),
             number,
-            number_register: 8,
-            supervisor_call: 0,
         },
         boundary_policy: std::sync::Arc::clone(policy),
         boundary_entry_plan: Some(boundary_entry_plan),
@@ -472,8 +470,6 @@ fn linux_timespec_syscall(
         mechanism: HostBindingMechanism::Syscall {
             name: name.into(),
             number,
-            number_register: 8,
-            supervisor_call: 0,
         },
         boundary_policy: std::sync::Arc::clone(policy),
         boundary_entry_plan: Some(boundary_entry_plan),
@@ -507,8 +503,6 @@ fn linux_value_syscall(
         mechanism: HostBindingMechanism::Syscall {
             name: name.into(),
             number,
-            number_register: 8,
-            supervisor_call: 0,
         },
         boundary_policy: std::sync::Arc::clone(policy),
         boundary_entry_plan: Some(boundary_entry_plan),
@@ -526,8 +520,6 @@ fn linux_syscall(
         mechanism: HostBindingMechanism::Syscall {
             name: operation.into(),
             number,
-            number_register: 8,
-            supervisor_call: 0,
         },
         boundary_policy: std::sync::Arc::clone(policy),
         boundary_entry_plan: None,
