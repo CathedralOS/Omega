@@ -1111,17 +1111,35 @@ fn aarch64_operand_shape_with_context(
     operand: omega_isa_aarch64::Aarch64CallOperand,
     expected: Option<ValueShape>,
 ) -> Result<ValueShape, Diagnostic> {
-    if matches!(
-        operand,
-        omega_isa_aarch64::Aarch64CallOperand::ImmediateInteger(_)
-    ) && expected.is_some_and(|shape| {
-        matches!(shape.class, omega_calling_conventions::ValueClass::Integer)
-            && shape.byte_size <= 8
-    }) {
-        // Integer literals have no storage width of their own. Their checked
-        // call-site type has already selected the external parameter, so the
-        // retained plan supplies the concrete ABI width at this final seam.
-        return Ok(expected.expect("checked above"));
+    use omega_isa_aarch64::Aarch64CallOperand;
+
+    if let Some(expected) = expected
+        && matches!(
+            expected.class,
+            omega_calling_conventions::ValueClass::Integer
+        )
+        && expected.byte_size <= 8
+    {
+        match operand {
+            Aarch64CallOperand::ImmediateInteger(_) => {
+                // Integer literals have no storage width of their own. Their
+                // checked call-site type has already selected the external
+                // parameter, so the retained plan supplies the concrete ABI
+                // width at this final seam.
+                return Ok(expected);
+            }
+            Aarch64CallOperand::RuntimeScalarInteger { byte_count, .. }
+                if usize::from(expected.byte_size) <= byte_count =>
+            {
+                // Runtime storage is compiler scratch capacity, not a second
+                // ABI declaration. Checked lowering has already established
+                // the call parameter's exact type (including any proved-safe
+                // narrowing), so a wider slot must not override the selected
+                // foreign parameter shape.
+                return Ok(expected);
+            }
+            _ => {}
+        }
     }
     aarch64_operand_shape(operand)
 }
@@ -2649,13 +2667,18 @@ mod aarch64_import_plan_tests {
     }
 
     #[test]
-    fn exact_i32_import_plan_accepts_typed_scratch_and_contextual_literal() {
+    fn exact_i32_import_plan_accepts_wider_typed_scratch_and_contextual_literal() {
         let plan = aapcs64_plan(vec![ValueShape::integer(4, 4)], None);
         for argument in [
             TargetInstructionOperandKind::RuntimeScalarInteger {
                 region: RuntimeStorageRegion::RuntimeFrame,
                 byte_offset: 24,
                 byte_count: 4,
+            },
+            TargetInstructionOperandKind::RuntimeScalarInteger {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 32,
+                byte_count: 8,
             },
             TargetInstructionOperandKind::ImmediateInteger(70),
         ] {

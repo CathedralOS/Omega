@@ -113,6 +113,14 @@ pub(super) fn encode_host_operation(
                     })?,
             )
         }
+        Some(HostBindingMechanism::Import { .. }) => {
+            architecture::encode_host_call_sequence_with_plan(
+                input.target,
+                operation_key,
+                operands,
+                Some(required_import_call_plan(binding)?),
+            )
+        }
         _ => architecture::encode_host_call_sequence_with_plan(
             input.target,
             operation_key,
@@ -120,6 +128,16 @@ pub(super) fn encode_host_operation(
             binding.and_then(omega_calling_conventions::HostBinding::call_plan),
         ),
     }
+}
+
+fn required_import_call_plan(
+    binding: Option<&omega_calling_conventions::HostBinding>,
+) -> Result<&omega_calling_conventions::CallPlan, Diagnostic> {
+    binding
+        .and_then(omega_calling_conventions::HostBinding::call_plan)
+        .ok_or_else(|| {
+            Diagnostic::error("selected built-in import binding has no evaluated call plan")
+        })
 }
 
 /// Whether a field-model call's operand list carries a prepended RESULT
@@ -142,5 +160,21 @@ fn field_model_result_present(
              declared parameter(s) -- expected the declared parameters, optionally led by \
              one result place"
         )))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::required_import_call_plan;
+
+    #[test]
+    fn built_in_import_cannot_reconstruct_a_missing_plan() {
+        let binding = omega_calling_conventions::HostBinding::default();
+        let error = required_import_call_plan(Some(&binding))
+            .expect_err("an import without a retained plan must reject");
+        assert_eq!(
+            error.message,
+            "selected built-in import binding has no evaluated call plan"
+        );
     }
 }

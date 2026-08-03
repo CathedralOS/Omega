@@ -832,7 +832,9 @@ Remaining:
   sites are differential-locked too. Ordinary non-variadic scalar built-in
   imports now consume the binding-retained plan in emission, layout, and relocation
   accounting; their Windows x64/macOS arm64 compatibility bytes and widths,
-  plus Windows x64 relocation sites, are differential-locked. Void imports,
+  plus Windows x64 relocation sites, are differential-locked. A selected
+  built-in import with no retained plan now rejects in layout/emission instead
+  of activating catalog-shaped compatibility placement. Void imports,
   pointer-result dereference imports, Windows key-state postprocessing, and
   AAPCS64 scalar-float returns now carry matching explicit-plan byte/width
   locks. The dead clock out-pointer compatibility classifier is retired;

@@ -209,6 +209,16 @@ fn machine_instruction_width(
                             authored_import_call_sequence_width(input.target, operands, plan)
                         })
                 }
+                Some(HostBindingMechanism::Import { .. }) => binding
+                    .and_then(omega_calling_conventions::HostBinding::call_plan)
+                    .map_or(0, |plan| {
+                        host_call_sequence_width_with_plan(
+                            input.target,
+                            host_operation.operation_key,
+                            operands,
+                            Some(plan),
+                        )
+                    }),
                 _ => host_call_sequence_width_with_plan(
                     input.target,
                     host_operation.operation_key,
@@ -223,6 +233,19 @@ fn machine_instruction_width(
         // import relocation applied, which corrupts whatever instruction
         // lands at that offset and crashes the binary at runtime.
         if width == 0 {
+            if matches!(
+                binding.map(|binding| &binding.mechanism),
+                Some(HostBindingMechanism::Import { .. })
+            ) && binding
+                .and_then(omega_calling_conventions::HostBinding::call_plan)
+                .is_none()
+            {
+                return Err(Diagnostic::error(format!(
+                    "host operation {}.{} has no encodable call sequence: selected import binding has no evaluated call plan",
+                    host_operation.operation_key.capability_name(),
+                    host_operation.operation_key.operation_name(),
+                )));
+            }
             if matches!(
                 binding.map(|binding| &binding.mechanism),
                 Some(HostBindingMechanism::Import { .. })
