@@ -178,6 +178,29 @@ ensures 134u8 == 134u8
     state finish(value: u8 in Wrapping) -> u8 in Wrapping { value - 1u8 }
 }
 
+machine terminal_runtime_multi_binding(
+    first: u8 in Wrapping,
+    second: u8 in Wrapping,
+    third: u8,
+    fourth: u8,
+    fifth: u8,
+    sixth: u8,
+    seventh: u8,
+    eighth: u8,
+    ninth: u8 in Wrapping
+) -> u8 in Wrapping
+requires 137u8 == 137u8
+ensures 137u8 == 137u8
+{
+    transition { _ -> combine(ninth + first, second + 1u8) }
+    state combine(left: u8 in Wrapping, right: u8 in Wrapping) -> u8 in Wrapping {
+        transition { _ -> finish(left * right, right - 1u8) }
+    }
+    state finish(product: u8 in Wrapping, adjustment: u8 in Wrapping) -> u8 in Wrapping {
+        product + adjustment
+    }
+}
+
 machine terminal_runtime_saturating_add(value: u8 in Saturating) -> u8 in Saturating
 requires 255u8 == 255u8
 ensures 255u8 == 255u8

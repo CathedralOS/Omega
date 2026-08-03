@@ -403,6 +403,12 @@ fn checked_source_runtime_integer_policy_operations_survive_frontend_drop() {
             134,
             8,
         ),
+        (
+            "terminal_runtime_multi_binding",
+            vec![5_u128, 2, 3, 4, 5, 6, 7, 8, 40],
+            137,
+            10,
+        ),
         ("terminal_runtime_saturating_add", vec![200], 255, 3),
         ("terminal_runtime_wrapping_subtract", vec![5], 251, 3),
         ("terminal_runtime_saturating_subtract", vec![5], 0, 3),
@@ -504,6 +510,7 @@ fn source_runtime_arithmetic_combines_register_and_stack_parameters() {
         ("terminal_runtime_nested_wrapping", 100, 3, 200, 132, 2),
         ("terminal_runtime_jump_wrapping", 5, 2, 40, 135, 3),
         ("terminal_runtime_chain_wrapping", 5, 2, 40, 134, 5),
+        ("terminal_runtime_multi_binding", 5, 2, 40, 137, 7),
     ]
     .into_iter()
     .map(

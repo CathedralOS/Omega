@@ -88,9 +88,10 @@ add/subtract/multiply operations in the settled Wrapping or Saturating domains.
 The linear integer form may declare any sequence of ordinary primitive-integer
 machine parameters, including none, and any sequence of at least two states.
 It computes a recursively nested parameter/literal add/subtract/multiply
-expression for each unconditional jump, binds one exact integer parameter in
-every non-entry state, and continues with another recursively nested expression
-over that parameter and landed literals. When the whole chain is compile-known,
+expression for each unconditional jump argument and binds the complete ordered
+sequence of ordinary integer parameters in every non-entry state. Each argument
+must exactly match its target parameter type; later expressions may use any
+same-typed bound parameter and landed literals. When the whole chain is compile-known,
 the producer independently recomputes its result and rejects an unrelated
 reflexive contract. Both integer paths use the settled Wrapping or Saturating
 domains. All three forms require a matching closed
@@ -112,7 +113,9 @@ first register and ninth stack arguments, binds that result through an
 unconditional edge, and continues arithmetic from the block parameter; its
 five-unit fixed-fuel certificate, interpretation, and emitted host result agree.
 The three-state companion carries that runtime value through a second computed
-jump and agrees at an eight-unit ceiling.
+jump and agrees at an eight-unit ceiling. A multi-binding three-state companion
+carries two independently computed values across each edge, costs ten units,
+and agrees across fixed-fuel derivation, interpretation, and native execution.
 The
 artifacts therefore have no frontend lifetime dependency.
 This is the correct ownership direction, but the accepted expression grammar
@@ -635,7 +638,8 @@ generic installation ladder. Migrating the Cathedral hard-root graph remains.
    jump binding, continues from the block parameter, and matches the same
    interpreted/native result with a five-unit fixed-fuel certificate. A
    three-state companion repeats the binding/computation step and matches with
-   an eight-unit certificate. The same exact-text image
+   an eight-unit certificate. A two-binding companion carries the complete
+   ordered pair across both edges and matches with a ten-unit certificate. The same exact-text image
    boundary is structurally exercised for all four currently supported
    architecture/format pairs.
 4. Add the remaining arithmetic variants, calls, continuations, cleanup,
