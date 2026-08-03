@@ -9,6 +9,11 @@ pub enum StateGuardOperator {
     Less,
     LessOrEqual,
     Add,
+    /// One-step floating add under an explicit rounding direction. These are
+    /// distinct named operations, never ambient-mode variants of `Add`.
+    AddTowardZero,
+    AddTowardPositive,
+    AddTowardNegative,
     Subtract,
     Multiply,
     Divide,

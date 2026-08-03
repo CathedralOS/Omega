@@ -11,6 +11,7 @@ use omega_effects::provider_plan::ProviderBinding;
 use psi_checked_trees::CheckedTrees;
 use psi_diagnostics::Diagnostic;
 use psi_numerics::arithmetic::ArithmeticDomain;
+use psi_numerics::float_semantics::RoundingDirection;
 use psi_numerics::literals::{FloatFormat, FloatLiteral};
 use psi_symbols::BuiltinFunction;
 use psi_typed_trees::expression::{BinaryOperator, ExpressionNode, TableBinaryExpression};
@@ -24,6 +25,7 @@ enum NamedFloatRealization {
     Negate(FloatFormat),
     MultiplyThenAdd(FloatFormat),
     FusedMultiplyAdd(FloatFormat),
+    DirectedAdd(FloatFormat, RoundingDirection),
     Convert(ArithmeticDomain),
 }
 
@@ -90,6 +92,7 @@ pub(crate) fn rewrite_selected_float_intrinsic_calls(
             NamedFloatRealization::Negate(_) => 1,
             NamedFloatRealization::MultiplyThenAdd(_) => 3,
             NamedFloatRealization::FusedMultiplyAdd(_) => 3,
+            NamedFloatRealization::DirectedAdd(_, _) => 2,
             NamedFloatRealization::Convert(_) => 1,
         };
         if arguments.len() != expected_arity {
@@ -206,6 +209,46 @@ pub(crate) fn rewrite_selected_float_intrinsic_calls(
                 call.target_symbol = symbol;
                 ExpressionNode::Call(call)
             }
+            NamedFloatRealization::DirectedAdd(format, direction) => {
+                let function = match (format, direction) {
+                    (FloatFormat::F32, RoundingDirection::TowardZero) => {
+                        BuiltinFunction::FloatAddTowardZeroF32
+                    }
+                    (FloatFormat::F64, RoundingDirection::TowardZero) => {
+                        BuiltinFunction::FloatAddTowardZeroF64
+                    }
+                    (FloatFormat::F32, RoundingDirection::TowardPositive) => {
+                        BuiltinFunction::FloatAddTowardPositiveF32
+                    }
+                    (FloatFormat::F64, RoundingDirection::TowardPositive) => {
+                        BuiltinFunction::FloatAddTowardPositiveF64
+                    }
+                    (FloatFormat::F32, RoundingDirection::TowardNegative) => {
+                        BuiltinFunction::FloatAddTowardNegativeF32
+                    }
+                    (FloatFormat::F64, RoundingDirection::TowardNegative) => {
+                        BuiltinFunction::FloatAddTowardNegativeF64
+                    }
+                    (_, RoundingDirection::NearestTiesToEven) => {
+                        diagnostics.push(Diagnostic::error(
+                            "directed-add realization cannot select nearest-even",
+                        ));
+                        continue;
+                    }
+                };
+                let Some(symbol) = checked.typed.symbols.builtin_function_symbol(function) else {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "compiler builtin `{}` is absent while lowering a selected directed float intrinsic",
+                        function.name()
+                    )));
+                    continue;
+                };
+                let mut call = call;
+                call.receiver = psi_typed_trees::expression::ExpressionHandle::invalid();
+                call.target = psi_typed_trees::name::Identifier::generated(function.name());
+                call.target_symbol = symbol;
+                ExpressionNode::Call(call)
+            }
             NamedFloatRealization::Convert(domain) => {
                 let Some(target_type) =
                     psi_typed_trees::operator::resolve_named_expression_call(&checked.typed, &call)
@@ -273,6 +316,30 @@ fn named_float_realization(intrinsic: &str) -> Option<NamedFloatRealization> {
         "F64::fused_multiply_add.f64" => {
             Some(NamedFloatRealization::FusedMultiplyAdd(FloatFormat::F64))
         }
+        "F32::add_toward_zero.f32" => Some(NamedFloatRealization::DirectedAdd(
+            FloatFormat::F32,
+            RoundingDirection::TowardZero,
+        )),
+        "F64::add_toward_zero.f64" => Some(NamedFloatRealization::DirectedAdd(
+            FloatFormat::F64,
+            RoundingDirection::TowardZero,
+        )),
+        "F32::add_toward_positive.f32" => Some(NamedFloatRealization::DirectedAdd(
+            FloatFormat::F32,
+            RoundingDirection::TowardPositive,
+        )),
+        "F64::add_toward_positive.f64" => Some(NamedFloatRealization::DirectedAdd(
+            FloatFormat::F64,
+            RoundingDirection::TowardPositive,
+        )),
+        "F32::add_toward_negative.f32" => Some(NamedFloatRealization::DirectedAdd(
+            FloatFormat::F32,
+            RoundingDirection::TowardNegative,
+        )),
+        "F64::add_toward_negative.f64" => Some(NamedFloatRealization::DirectedAdd(
+            FloatFormat::F64,
+            RoundingDirection::TowardNegative,
+        )),
         "F32::is_nan.f32" | "F64::is_nan.f64" => Some(NamedFloatRealization::Builtin {
             function: BuiltinFunction::FloatIsNan,
             arity: 1,
@@ -449,6 +516,13 @@ mod tests {
         assert_eq!(
             named_float_realization("F32::square_root_toward_positive.f32"),
             None
+        );
+        assert_eq!(
+            named_float_realization("F64::add_toward_negative.f64"),
+            Some(NamedFloatRealization::DirectedAdd(
+                FloatFormat::F64,
+                RoundingDirection::TowardNegative,
+            ))
         );
     }
 }

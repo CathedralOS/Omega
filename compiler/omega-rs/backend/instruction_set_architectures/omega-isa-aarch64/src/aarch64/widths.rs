@@ -751,7 +751,7 @@ pub(in crate::aarch64) fn runtime_binary_operation_width_with_domain(
 /// F5 twin: the plain float op width plus the policy guard's bytes. The
 /// guard length comes from the EMITTER itself (fixed-register call +
 /// `.len()` -- the place-copy rung-2a one-source-of-truth discipline).
-fn runtime_float_binary_operation_width_with_domain(
+pub(in crate::aarch64) fn runtime_float_binary_operation_width_with_domain(
     operator: StateGuardOperator,
     byte_size: usize,
     domain: psi_numerics::arithmetic::ArithmeticDomain,
@@ -785,6 +785,9 @@ fn runtime_float_binary_operation_width_with_domain(
 
 fn runtime_float_binary_operation_width_base(operator: StateGuardOperator) -> usize {
     8 + match operator {
+        StateGuardOperator::AddTowardZero
+        | StateGuardOperator::AddTowardPositive
+        | StateGuardOperator::AddTowardNegative => 20 + 4 + 4,
         StateGuardOperator::Max | StateGuardOperator::Min => 8 + 4,
         StateGuardOperator::Equal
         | StateGuardOperator::NotEqual

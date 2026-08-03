@@ -440,3 +440,45 @@ linux_x64 machine FloatNativeProvider::multiply_then_add64(
 ) -> f64
     satisfies F64::multiply_then_add
     via Binding::CompilerIntrinsic("F64::multiply_then_add.f64");
+
+linux_x64 machine FloatNativeProvider::add_toward_zero32(
+    left: f32,
+    right: f32
+) -> f32
+    satisfies F32::add_toward_zero
+    via Binding::CompilerIntrinsic("F32::add_toward_zero.f32");
+
+linux_x64 machine FloatNativeProvider::add_toward_zero64(
+    left: f64,
+    right: f64
+) -> f64
+    satisfies F64::add_toward_zero
+    via Binding::CompilerIntrinsic("F64::add_toward_zero.f64");
+
+linux_x64 machine FloatNativeProvider::add_toward_positive32(
+    left: f32,
+    right: f32
+) -> f32
+    satisfies F32::add_toward_positive
+    via Binding::CompilerIntrinsic("F32::add_toward_positive.f32");
+
+linux_x64 machine FloatNativeProvider::add_toward_positive64(
+    left: f64,
+    right: f64
+) -> f64
+    satisfies F64::add_toward_positive
+    via Binding::CompilerIntrinsic("F64::add_toward_positive.f64");
+
+linux_x64 machine FloatNativeProvider::add_toward_negative32(
+    left: f32,
+    right: f32
+) -> f32
+    satisfies F32::add_toward_negative
+    via Binding::CompilerIntrinsic("F32::add_toward_negative.f32");
+
+linux_x64 machine FloatNativeProvider::add_toward_negative64(
+    left: f64,
+    right: f64
+) -> f64
+    satisfies F64::add_toward_negative
+    via Binding::CompilerIntrinsic("F64::add_toward_negative.f64");

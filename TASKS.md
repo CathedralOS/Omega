@@ -1523,9 +1523,15 @@ and allocation handles expose no compiler-owned stack/control storage.
   mechanism classification. A hostile AArch64 native canary changes FPCR via
   `_fesetround(FE_UPWARD)` and proves the following half-ULP addition still
   ties nearest-even. A later admitted preservation proof may remove a redundant
-  envelope without changing call layout. Remaining rung-3 work includes
-  x86-64 FMA realization, directed-rounding families, checked software
-  fallbacks, and rung-4 differential evidence.
+  envelope without changing call layout. The first directed-rounding provider
+  cohort now selects exact F32/F64 add-toward-zero/positive/negative slots on
+  all four native targets. Each baseline ISA realization saves its complete
+  MXCSR/FPCR, installs the requested direction for one scalar add, and restores
+  the prior state before result-policy adaptation; a half-ULP dual-engine
+  canary also proves subsequent ordinary arithmetic remains nearest-even.
+  Remaining rung-3 work includes x86-64 FMA realization, the directed
+  subtract/multiply/divide/square-root/FMA cohorts, checked software fallbacks,
+  and rung-4 differential evidence.
   The first checked-software provider slice is now live independently of a
   float algorithm: an ordinary body may satisfy one exact named boundary
   operator without `via`, provided its machine-checked equality/`&&` ensures
