@@ -1,5 +1,5 @@
-use omega_core::arena::{Arena, Handle, HandleSpan};
-use omega_core::symbols::SymbolHandle;
+use psi_arena::{Arena, Handle, HandleSpan};
+use psi_symbols::SymbolHandle;
 use std::fmt;
 use std::ops::{Deref, DerefMut};
 
@@ -607,7 +607,7 @@ pub enum TypeConstraint {
         minimum: crate::expression::ExpressionHandle,
         maximum: crate::expression::ExpressionHandle,
     },
-    ArithmeticDomain(omega_core::arithmetic::ArithmeticDomain),
+    ArithmeticDomain(psi_numerics::arithmetic::ArithmeticDomain),
     /// A declared domain or closed indexed-domain family application.
     Domain(DomainConstraint),
 }
@@ -625,7 +625,7 @@ pub enum TypeConstraintNode {
         minimum: crate::expression::ExpressionHandle,
         maximum: crate::expression::ExpressionHandle,
     },
-    ArithmeticDomain(omega_core::arithmetic::ArithmeticDomain),
+    ArithmeticDomain(psi_numerics::arithmetic::ArithmeticDomain),
     /// A declared domain or closed indexed-domain family application.
     Domain(DomainConstraintNode),
 }

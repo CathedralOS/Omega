@@ -6,8 +6,8 @@ use super::{
 };
 use crate::expression::ExpressionTable;
 use crate::name::DiagnosticName;
-use omega_core::arena::Arena;
-use omega_core::symbols::SymbolHandle;
+use psi_arena::Arena;
+use psi_symbols::SymbolHandle;
 
 #[test]
 fn type_reference_table_stores_nested_typed_references_as_handles() {
@@ -67,10 +67,10 @@ fn type_reference_table_stores_typed_constraints_as_expression_handles() {
         name: DiagnosticName::generated("i32"),
     });
     let minimum = source_expressions.insert(crate::expression::ExpressionNode::Integer(
-        omega_core::literals::IntegerLiteral::from_value(0),
+        psi_numerics::literals::IntegerLiteral::from_value(0),
     ));
     let maximum = source_expressions.insert(crate::expression::ExpressionNode::Integer(
-        omega_core::literals::IntegerLiteral::from_value(10),
+        psi_numerics::literals::IntegerLiteral::from_value(10),
     ));
     let constraints = source_constraints.insert_many([TypeConstraint::Range { minimum, maximum }]);
     let type_reference = TypeReference::Constrained(ConstrainedTypeReference {

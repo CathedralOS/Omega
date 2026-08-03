@@ -12,6 +12,7 @@ members = [
     "compiler/psi-rs/foundation/psi-core",
     "compiler/psi-rs/representations/psi-tokens",
     "compiler/psi-rs/representations/psi-syntax-trees",
+    "compiler/psi-rs/representations/psi-symbol-resolved-trees",
     "compiler/psi-rs/representations/psi-terminal",
     "compiler/psi-rs/pipeline/psi-source-files-to-tokens",
     "compiler/psi-rs/pipeline/psi-tokens-to-syntax-trees",

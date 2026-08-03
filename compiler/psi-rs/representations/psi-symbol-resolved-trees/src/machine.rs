@@ -3,8 +3,8 @@ use crate::name::DiagnosticName;
 use crate::signature::SignatureContract;
 use crate::state::State;
 use crate::types::TypeReference;
-use omega_core::arena::{Handle, HandleSpan};
-use omega_core::symbols::SymbolHandle;
+use psi_arena::{Handle, HandleSpan};
+use psi_symbols::SymbolHandle;
 use std::ops::{Deref, DerefMut};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -18,7 +18,7 @@ pub struct Machine {
     /// syntax->resolved lowering, copied -- never re-derived -- downstream.
     /// Requirement/Accepted gain their own sources when their spellings
     /// reach this record.
-    pub supply_mode: omega_core::semantics::MachineSupplyMode,
+    pub supply_mode: psi_language_semantics::MachineSupplyMode,
     /// TPR2 (decision 23): the normalized termination plan -- the authored
     /// PUBLIC guarantee and the PRIVATE ranking witness as separate fields.
     /// Populated ONCE at the syntax->resolved lowering (bare `terminates;`
@@ -28,10 +28,10 @@ pub struct Machine {
     /// downstream. `checked_summary` stays `NoGuarantee` until the cycle
     /// checker establishes it. Ranking subjects remain private witness
     /// material in the storage below.
-    pub termination_plan: omega_core::semantics::MachineTerminationPlan,
+    pub termination_plan: psi_language_semantics::MachineTerminationPlan,
     /// EFX: normalized boundary-service row, populated after symbol
     /// assignment. Every member is a resolved boundary trait identity.
-    pub service_reach_row: omega_core::semantics::ServiceReachRowId,
+    pub service_reach_row: psi_language_semantics::ServiceReachRowId,
     pub storage: MachineStorage,
 }
 

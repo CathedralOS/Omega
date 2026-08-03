@@ -285,7 +285,7 @@ fn count_operator(
 fn count_type_parameter(
     program: &SymbolResolvedTrees,
     parameter: &crate::data::TypeParameter,
-    child_type_references: &omega_core::arena::Arena<crate::types::TypeReference>,
+    child_type_references: &psi_arena::Arena<crate::types::TypeReference>,
     expression_table: &ExpressionTable,
     counts: &mut IdentityStorageCounts,
 ) {
@@ -596,7 +596,7 @@ fn count_expression_node(
 
 fn count_optional_type_reference(
     type_reference: Option<&TypeReference>,
-    generic_arguments: &omega_core::arena::Arena<TypeReference>,
+    generic_arguments: &psi_arena::Arena<TypeReference>,
     expression_table: &ExpressionTable,
     counts: &mut IdentityStorageCounts,
 ) {
@@ -607,7 +607,7 @@ fn count_optional_type_reference(
 
 fn count_type_reference(
     type_reference: &TypeReference,
-    generic_arguments: &omega_core::arena::Arena<TypeReference>,
+    generic_arguments: &psi_arena::Arena<TypeReference>,
     expression_table: &ExpressionTable,
     counts: &mut IdentityStorageCounts,
 ) {
@@ -658,7 +658,7 @@ fn count_type_reference(
 
 fn count_type_constraint(
     constraint: &TypeConstraint,
-    type_references: &omega_core::arena::Arena<TypeReference>,
+    type_references: &psi_arena::Arena<TypeReference>,
     expression_table: &ExpressionTable,
     counts: &mut IdentityStorageCounts,
 ) {

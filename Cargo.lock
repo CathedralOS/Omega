@@ -961,9 +961,7 @@ dependencies = [
 name = "omega-symbol-resolved-trees"
 version = "0.1.0"
 dependencies = [
- "omega-core",
- "serde",
- "serde_json",
+ "psi-symbol-resolved-trees",
 ]
 
 [[package]]
@@ -1282,6 +1280,21 @@ version = "0.1.0"
 dependencies = [
  "psi-diagnostics",
  "psi-source",
+]
+
+[[package]]
+name = "psi-symbol-resolved-trees"
+version = "0.1.0"
+dependencies = [
+ "psi-arena",
+ "psi-diagnostics",
+ "psi-language-core",
+ "psi-language-semantics",
+ "psi-numerics",
+ "psi-source",
+ "psi-symbols",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

@@ -1,7 +1,7 @@
 use crate::name::DiagnosticName;
 use crate::types::TypeReference;
-use omega_core::arena::HandleSpan;
-use omega_core::symbols::SymbolHandle;
+use psi_arena::HandleSpan;
+use psi_symbols::SymbolHandle;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DomainDefinition {
@@ -17,21 +17,21 @@ pub struct DomainDefinition {
     /// once into `establishment_routes` after top-level symbols exist.
     pub authored_routes: Vec<Vec<DiagnosticName>>,
     /// Explicit predicate-body presence from the source declaration.
-    pub predicate_body: omega_core::semantics::DomainPredicateBody,
+    pub predicate_body: psi_language_semantics::DomainPredicateBody,
     pub facts: HandleSpan<ProofFact>,
     pub operators: HandleSpan<crate::operator::OperatorDefinition>,
     pub body_token_count: usize,
     /// STR4 checked plans, slice 1: the normalized semantic identity from
     /// the program's SemanticDomainTable (populated ONCE at
     /// syntax->resolved, copied downstream; NULL only pre-lowering).
-    pub semantic_id: omega_core::semantics::SemanticDomainId,
+    pub semantic_id: psi_language_semantics::SemanticDomainId,
     /// Role-keyed semantic contributions, populated once at syntax->resolved
     /// and copied downstream. Predicate membership remains independent in
     /// `predicate_body`.
-    pub semantic_roles: omega_core::semantics::DomainSemanticRoles,
+    pub semantic_roles: psi_language_semantics::DomainSemanticRoles,
     /// Normalized authored relationships that may introduce membership.
     /// Populated once after symbol assignment and copied downstream.
-    pub establishment_routes: Vec<omega_core::semantics::DomainEstablishmentRoute>,
+    pub establishment_routes: Vec<psi_language_semantics::DomainEstablishmentRoute>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

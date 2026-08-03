@@ -1025,6 +1025,9 @@ improvements do not change public identity.
   `psi-symbols` owns target-neutral symbol identities and hierarchy storage.
   `psi-syntax-trees` owns the parsed source representation, with the former
   Omega crate reduced to a compatibility re-export.
+  `psi-symbol-resolved-trees` owns the source-shaped representation carrying
+  resolved symbol identities, with the former Omega crate reduced to a
+  compatibility re-export.
   `psi-source-files-to-tokens` owns Omega lexing and
   `psi-tokens-to-syntax-trees` owns unresolved parsing, both with no Omega
   dependency. Their former Omega crates are implementation-free compatibility

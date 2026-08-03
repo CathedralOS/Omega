@@ -305,7 +305,7 @@ fn psi_does_not_depend_on_omega() {
 }
 
 #[test]
-fn lexical_frontend_implementation_is_psi_owned() {
+fn frontend_implementation_is_psi_owned() {
     let root = workspace_root();
     for (relative, expected_export) in [
         (
@@ -315,6 +315,10 @@ fn lexical_frontend_implementation_is_psi_owned() {
         (
             "compiler/omega-rs/representations/omega-syntax-trees/src/lib.rs",
             "pub use psi_syntax_trees::*;",
+        ),
+        (
+            "compiler/omega-rs/representations/omega-symbol-resolved-trees/src/lib.rs",
+            "pub use psi_symbol_resolved_trees::*;",
         ),
         (
             "compiler/omega-rs/pipeline/omega-source-files-to-tokens/src/lib.rs",
@@ -330,11 +334,11 @@ fn lexical_frontend_implementation_is_psi_owned() {
             .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
         assert!(
             source.contains(expected_export),
-            "legacy lexical crate must re-export its Psi-owned implementation: {relative}"
+            "legacy frontend crate must re-export its Psi-owned implementation: {relative}"
         );
         assert!(
             !source.contains("pub mod "),
-            "legacy lexical crate must not regain an implementation module: {relative}"
+            "legacy frontend crate must not regain an implementation module: {relative}"
         );
     }
 

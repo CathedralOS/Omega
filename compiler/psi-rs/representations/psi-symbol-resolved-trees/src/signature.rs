@@ -1,7 +1,7 @@
 use crate::name::DiagnosticName;
 use crate::types::TypeReference;
-use omega_core::arena::HandleSpan;
-use omega_core::symbols::SymbolHandle;
+use psi_arena::HandleSpan;
+use psi_symbols::SymbolHandle;
 use std::ops::{Deref, DerefMut};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -21,7 +21,7 @@ pub struct StateSignatureStorage {
     pub service_reaches: HandleSpan<DiagnosticName>,
     pub invokes: HandleSpan<DiagnosticName>,
     /// EFX: normalized symbol-resolved boundary-service row.
-    pub service_reach_row: omega_core::semantics::ServiceReachRowId,
+    pub service_reach_row: psi_language_semantics::ServiceReachRowId,
     pub suspends: bool,
     pub blocks: bool,
     pub contracts: HandleSpan<SignatureContract>,
@@ -72,7 +72,7 @@ impl Default for StateParameter {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct SignatureContract {
     pub kind: SignatureContractKind,
-    pub facts: omega_core::arena::HandleSpan<crate::domain::ProofFact>,
+    pub facts: psi_arena::HandleSpan<crate::domain::ProofFact>,
     pub token_count: usize,
 }
 

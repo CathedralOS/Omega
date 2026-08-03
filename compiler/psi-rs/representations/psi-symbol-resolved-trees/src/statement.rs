@@ -1,6 +1,6 @@
 use crate::name::DiagnosticName;
-use omega_core::arena::{Arena, Handle, HandleSpan};
-use omega_core::symbols::SymbolHandle;
+use psi_arena::{Arena, Handle, HandleSpan};
+use psi_symbols::SymbolHandle;
 use std::ops::{Deref, DerefMut};
 
 pub type StatementHandle = Handle<StatementNode>;
@@ -93,7 +93,7 @@ pub struct CallStorage {
     pub receiver_starts_at_self: bool,
     pub machine_arguments: Box<[crate::expression::StaticMachineArgument]>,
     pub arguments: HandleSpan<crate::expression::ExpressionHandle>,
-    pub operational_acknowledgement: omega_core::semantics::CallOperationalAcknowledgement,
+    pub operational_acknowledgement: psi_language_semantics::CallOperationalAcknowledgement,
     /// `_ = call();` -- the caller explicitly discards a non-unit result.
     pub discards_result: bool,
 }
@@ -531,7 +531,7 @@ pub struct TableCall {
     pub target: DiagnosticName,
     pub machine_arguments: Box<[crate::expression::StaticMachineArgument]>,
     pub arguments: HandleSpan<crate::expression::ExpressionHandle>,
-    pub operational_acknowledgement: omega_core::semantics::CallOperationalAcknowledgement,
+    pub operational_acknowledgement: psi_language_semantics::CallOperationalAcknowledgement,
     /// `_ = call();` -- the caller explicitly discards a non-unit result.
     pub discards_result: bool,
 }
@@ -631,20 +631,20 @@ mod tests {
     use crate::expression::{ExpressionNode, ExpressionTable};
     use crate::name::DiagnosticName;
     use crate::types::TypeReferenceTable;
-    use omega_core::arena::Arena;
-    use omega_core::symbols::SymbolHandle;
+    use psi_arena::Arena;
+    use psi_symbols::SymbolHandle;
 
     #[test]
     fn statement_table_stores_transition_payloads_as_handles() {
         let target_symbol = SymbolHandle::from_arena_index(7);
         let mut source_expressions = ExpressionTable::new();
-        let mut arguments = omega_core::arena::HandleSpan::empty();
+        let mut arguments = psi_arena::HandleSpan::empty();
         let first_argument = source_expressions.insert(ExpressionNode::Integer(
-            omega_core::literals::IntegerLiteral::from_value(1),
+            psi_numerics::literals::IntegerLiteral::from_value(1),
         ));
         source_expressions.push_expression_handle(&mut arguments, first_argument);
         let second_argument = source_expressions.insert(ExpressionNode::Integer(
-            omega_core::literals::IntegerLiteral::from_value(2),
+            psi_numerics::literals::IntegerLiteral::from_value(2),
         ));
         source_expressions.push_expression_handle(&mut arguments, second_argument);
         let guard = source_expressions.insert(ExpressionNode::Boolean(true));

@@ -50,6 +50,10 @@ Must not own:
 
 The implementation should stay split by identity task:
 
+- `compiler/psi-rs/representations/psi-symbol-resolved-trees` owns the stage
+  output. The old `omega-symbol-resolved-trees` crate is an implementation-free
+  compatibility export for later stages that have not migrated yet.
+
 - `compiler/psi-rs/foundation/psi-language-semantics` owns the resolved
   semantic identities, service/domain tables, machine supply/termination
   plans, establishment routes, and byte-sequence predicate vocabulary carried

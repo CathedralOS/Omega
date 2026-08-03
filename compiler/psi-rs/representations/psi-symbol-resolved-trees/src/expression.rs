@@ -1,8 +1,8 @@
 use crate::name::DiagnosticName;
-use omega_core::arena::{Arena, Handle, HandleSpan};
-use omega_core::literals::IntegerLiteral;
-use omega_core::source::SourceText;
-use omega_core::symbols::SymbolHandle;
+use psi_arena::{Arena, Handle, HandleSpan};
+use psi_numerics::literals::IntegerLiteral;
+use psi_source::SourceText;
+use psi_symbols::SymbolHandle;
 
 mod display;
 #[cfg(test)]
@@ -911,14 +911,14 @@ pub enum ExpressionNode {
     String(SourceText),
     Unary(TableUnaryExpression),
     /// Proof-only observation of a type's normalized all-zero home value.
-    ZeroValue(omega_core::arena::Handle<crate::types::TypeReference>),
+    ZeroValue(psi_arena::Handle<crate::types::TypeReference>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TableAtomicExpression {
     pub value: ExpressionHandle,
     pub result: ExpressionHandle,
-    pub ordering: omega_core::atomic::AtomicOrderingPlan,
+    pub ordering: psi_language_core::atomic::AtomicOrderingPlan,
 }
 
 impl Default for ExpressionNode {
@@ -944,11 +944,11 @@ pub struct TableUnaryExpression {
 pub struct TableCastExpression {
     pub value: ExpressionHandle,
     /// Root of the complete cast target in the program's child-type arena.
-    pub target_type: omega_core::arena::Handle<crate::types::TypeReference>,
+    pub target_type: psi_arena::Handle<crate::types::TypeReference>,
     /// Diagnostic spelling only; semantic identity uses `target_type`.
     pub target_label: HandleSpan<DiagnosticName>,
     /// Arithmetic domain cast (`x as u8 in Saturating`), decision 17 S2.
-    pub domain: omega_core::arithmetic::ArithmeticDomain,
+    pub domain: psi_numerics::arithmetic::ArithmeticDomain,
     /// A NON-policy `in <Name>` suffix -- the semantic-domain qualification
     /// spelling (decision 19), judged at validation. EMPTY = no suffix.
     pub semantic_domain: HandleSpan<DiagnosticName>,
@@ -958,7 +958,7 @@ pub struct TableCastExpression {
     /// typed normalization after carrier-aware domain lookup.
     pub semantic_domain_symbol: SymbolHandle,
     /// Value conversion vs §5b borrow recast (`&x as &T`).
-    pub form: omega_core::cast_form::CastForm,
+    pub form: psi_language_core::cast_form::CastForm,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -999,7 +999,7 @@ pub struct TableCallExpression {
     pub target: DiagnosticName,
     pub machine_arguments: Box<[StaticMachineArgument]>,
     pub arguments: HandleSpan<ExpressionHandle>,
-    pub operational_acknowledgement: omega_core::semantics::CallOperationalAcknowledgement,
+    pub operational_acknowledgement: psi_language_semantics::CallOperationalAcknowledgement,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1055,7 +1055,7 @@ impl Default for TableStructLiteralField {
 /// optional format landing ride every tree layer, exactly like
 /// IntegerLiteral -- per-format reads are each correctly rounded from the
 /// spelling, so f32 never routes through f64.
-pub use omega_core::literals::FloatLiteral;
+pub use psi_numerics::literals::FloatLiteral;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BinaryOperator {

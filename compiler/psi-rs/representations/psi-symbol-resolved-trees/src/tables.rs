@@ -6,7 +6,7 @@ use crate::state::State;
 use crate::statement::{Statement, StatementTable};
 use crate::types::{TypeConstraint, TypeReference, TypeReferenceTable};
 use crate::{SymbolResolvedDeclarationStorage, SymbolResolvedTrees};
-use omega_core::arena::{Arena, HandleSpan};
+use psi_arena::{Arena, HandleSpan};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SymbolResolvedTreeTables {
@@ -219,7 +219,7 @@ impl SymbolResolvedTreeTables {
         &mut self,
         machine: &Machine,
         machine_owned_data: &Arena<OwnedData>,
-        machine_state_handles: &Arena<omega_core::arena::Handle<State>>,
+        machine_state_handles: &Arena<psi_arena::Handle<State>>,
         machine_states: &mut Arena<State>,
         state_parameters: &Arena<StateParameter>,
         statement_path_members: &Arena<crate::name::DiagnosticName>,
@@ -370,8 +370,8 @@ mod tests {
     use crate::state::{State, StateStorage};
     use crate::statement::{Statement, Transition, TransitionGuard, TransitionTarget};
     use crate::types::TypeReference;
-    use omega_core::arena::HandleSpan;
-    use omega_core::symbols::SymbolHandle;
+    use psi_arena::HandleSpan;
+    use psi_symbols::SymbolHandle;
 
     #[test]
     fn rebuild_tables_collects_typed_program_payloads() {
@@ -381,7 +381,7 @@ mod tests {
             .bodies
             .expressions
             .insert(ExpressionNode::Integer(
-                omega_core::literals::IntegerLiteral::from_value(1),
+                psi_numerics::literals::IntegerLiteral::from_value(1),
             ));
         let statements =
             program

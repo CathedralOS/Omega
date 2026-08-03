@@ -2,7 +2,7 @@ use std::fmt;
 use std::ops::Deref;
 use std::sync::Arc;
 
-use omega_core::source::SourceSpan;
+use psi_source::SourceSpan;
 
 /// Diagnostic spelling wrapper.
 ///
