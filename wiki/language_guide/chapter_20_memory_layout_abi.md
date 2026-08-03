@@ -621,7 +621,12 @@ record definition across ABIs such as `struct stat`. Writing through such a
 view requires total encodability or a concrete fit proof in addition to the
 ordinary legal-transfer and observation checks. An adapter machine is optional
 policy for more involved decoding, not the canonical answer to integer-width
-variation alone.
+variation alone. The stored width is measured in bits while the offset is
+measured in bytes. The normalized vocabulary currently accepts whole-byte
+widths through 64 bits and rejects any encoding whose complete stored range
+does not fit the declared semantic carrier. Direct sign/zero-extending
+projection and proved-fit mutation remain implementation work and fail closed;
+normalization does not make `IntegerAt` interchangeable with ordinary `At`.
 Encodability alone does not authorize a transfer: sub-unit mutation must also
 have a legal implementation. Stable exclusive storage may use one bounded
 read-patch-write sequence. External storage requires a whole-container or

@@ -328,6 +328,12 @@ pub(crate) fn compute_plan_laid_layouts(
                         ))]
                     })?);
                 }
+                [entry] if matches!(entry.placement, LayoutPlacementReport::IntegerAt { .. }) => {
+                    return Err(vec![Diagnostic::error(format!(
+                        "plan-laid value type `{}`: field `{field_name}` uses normalized stored-integer placement, but direct sign/zero-extending projection lowering is not installed yet",
+                        record.synthetic_name
+                    ))]);
+                }
                 entries
                     if entries.iter().all(|entry| {
                         matches!(entry.placement, LayoutPlacementReport::Bits { .. })

@@ -6,10 +6,21 @@
 //! geometry plus compiler-issued symbolic values; source programs never
 //! receive numeric code addresses or an arbitrary byte-patching primitive.
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum IntegerInterpretation {
+    Signed,
+    Unsigned,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LayoutPlacementReport {
     At {
         offset: u64,
+    },
+    IntegerAt {
+        offset: u64,
+        stored_width: u64,
+        interpretation: IntegerInterpretation,
     },
     Bits {
         container: u64,
@@ -91,6 +102,22 @@ pub fn normalized_layout_plan_fingerprint(layout: &LayoutPlanReport) -> u64 {
                 hash_fingerprint_byte(&mut hash, 0);
                 hash_fingerprint_u64(&mut hash, offset);
             }
+            LayoutPlacementReport::IntegerAt {
+                offset,
+                stored_width,
+                interpretation,
+            } => {
+                hash_fingerprint_byte(&mut hash, 2);
+                hash_fingerprint_u64(&mut hash, offset);
+                hash_fingerprint_u64(&mut hash, stored_width);
+                hash_fingerprint_byte(
+                    &mut hash,
+                    match interpretation {
+                        IntegerInterpretation::Signed => 0,
+                        IntegerInterpretation::Unsigned => 1,
+                    },
+                );
+            }
             LayoutPlacementReport::Bits {
                 container,
                 container_width,
@@ -124,6 +151,21 @@ fn member_sort_key(entry: &LayoutFieldEntryReport) -> (u8, u64, &str) {
 fn placement_sort_key(placement: &LayoutPlacementReport) -> (u8, u64, u64, u64, u64, u64) {
     match *placement {
         LayoutPlacementReport::At { offset } => (0, offset, 0, 0, 0, 0),
+        LayoutPlacementReport::IntegerAt {
+            offset,
+            stored_width,
+            interpretation,
+        } => (
+            2,
+            offset,
+            stored_width,
+            match interpretation {
+                IntegerInterpretation::Signed => 0,
+                IntegerInterpretation::Unsigned => 1,
+            },
+            0,
+            0,
+        ),
         LayoutPlacementReport::Bits {
             container,
             container_width,
@@ -1242,6 +1284,12 @@ pub fn derive_symbolic_materialization(
                             symbolic.field, symbolic.width_bits
                         )));
                     }
+                    LayoutPlacementReport::IntegerAt { .. } => {
+                        return Err(MaterializationDiagnostic(format!(
+                            "loader consumes stored-integer field `{}` before Omega entry; symbolic materialization has no integer fit proof",
+                            symbolic.field
+                        )));
+                    }
                     LayoutPlacementReport::Bits { .. } => {
                         return Err(MaterializationDiagnostic(format!(
                             "loader consumes fragmented symbolic field `{}` before Omega entry; unresolved fragments require a fixed address or a post-handoff writer",
@@ -1274,6 +1322,12 @@ fn write_from_entry(
             0,
             u64::from(symbolic.width_bits),
         ),
+        LayoutPlacementReport::IntegerAt { .. } => {
+            return Err(MaterializationDiagnostic(format!(
+                "symbolic field `{}` uses stored-integer placement without a concrete fit proof",
+                symbolic.field
+            )));
+        }
         LayoutPlacementReport::Bits {
             container,
             container_width,
@@ -1379,6 +1433,12 @@ fn scalar_fragment(
             0,
             u64::from(source_width_bits),
         ),
+        LayoutPlacementReport::IntegerAt { .. } => {
+            return Err(MaterializationDiagnostic(format!(
+                "scalar field `{}` uses stored-integer placement without a concrete fit proof",
+                entry.field
+            )));
+        }
         LayoutPlacementReport::Bits {
             container,
             container_width,
