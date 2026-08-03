@@ -283,39 +283,63 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         ),
         // The blit path: framebuffer → CGImage via a bitmap context (all
         // integer/pointer args, no stack spill — vs `CGImageCreate`'s 11).
-        darwin_import(
+        darwin_word_import(
             "CoreGraphics",
             "color_space_rgb",
             "_CGColorSpaceCreateDeviceRGB",
+            0,
+            true,
             &policy,
         ),
-        darwin_import(
+        darwin_word_import(
             "CoreGraphics",
             "bitmap_context",
             "_CGBitmapContextCreate",
+            7,
+            true,
             &policy,
         ),
-        darwin_import(
+        darwin_word_import(
             "CoreGraphics",
             "bitmap_context_image",
             "_CGBitmapContextCreateImage",
+            1,
+            true,
             &policy,
         ),
-        darwin_import("CoreGraphics", "image_width", "_CGImageGetWidth", &policy),
+        darwin_word_import(
+            "CoreGraphics",
+            "image_width",
+            "_CGImageGetWidth",
+            1,
+            true,
+            &policy,
+        ),
         // Blit-lifecycle releases: the per-frame context and CGImage snapshot are
         // Create-rule owned; without these every presented frame leaks both.
-        darwin_import(
+        darwin_word_import(
             "CoreGraphics",
             "context_release",
             "_CGContextRelease",
+            1,
+            true,
             &policy,
         ),
-        darwin_import("CoreGraphics", "image_release", "_CGImageRelease", &policy),
+        darwin_word_import(
+            "CoreGraphics",
+            "image_release",
+            "_CGImageRelease",
+            1,
+            true,
+            &policy,
+        ),
         // `Input.key_state` backing: `CGEventSourceKeyState(state_id, keycode) -> bool`.
-        darwin_import(
+        darwin_word_import(
             "CoreGraphics",
             "event_source_key_state",
             "_CGEventSourceKeyState",
+            2,
+            true,
             &policy,
         ),
         // `Clock::sleep(milliseconds)` → libc `poll(NULL, 0, milliseconds)`: with
