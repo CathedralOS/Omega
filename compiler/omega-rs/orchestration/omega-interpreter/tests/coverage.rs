@@ -600,6 +600,9 @@ machine Square::code(&mut self) -> i32 {
     }
 }
 
+Circle satisfies Shape;
+Square satisfies Shape;
+
 data Main {
     console: Console;
     c: Circle;
@@ -667,6 +670,9 @@ machine Square::code(&mut self) -> i32 {
         _ -> 4
     }
 }
+
+Circle satisfies Shape;
+Square satisfies Shape;
 
 data Main {
     console: Console;

@@ -1099,14 +1099,12 @@ impl TypedTrees {
             .span_or_empty(machine.satisfies)
     }
 
-    /// The DATA symbol of the UNIQUE data type that structurally satisfies the
-    /// (non-boundary) trait `trait_symbol` -- i.e. for every trait method there is
-    /// a machine attached to that data type with a state of that name. Returns
-    /// `None` if zero or more than one data types satisfy it, or `trait_symbol` is
-    /// not such a trait. Used to DEVIRTUALIZE a `dyn Trait` receiver to its single
-    /// concrete implementation (Omega has no runtime vtable). The conformance
-    /// registry (`Machine::satisfies`) is not populated, so satisfaction is
-    /// computed structurally here.
+    /// The DATA symbol of the UNIQUE data type with a whole-trait nominal
+    /// conformance to the (non-boundary) trait `trait_symbol`. Returns `None`
+    /// if zero or more than one data types declare that edge, or `trait_symbol`
+    /// is not such a trait. This is the legacy single-candidate lowering path
+    /// for a `dyn Trait` receiver; it must never infer conformance from a
+    /// look-alike set of attached machines.
     pub fn single_trait_impl_data_symbol(
         &self,
         trait_symbol: psi_symbols::SymbolHandle,
@@ -1116,11 +1114,15 @@ impl TypedTrees {
         implementations.next().is_none().then_some(single)
     }
 
-    /// ALL data types that structurally satisfy the (non-boundary) trait
-    /// `trait_symbol`, in data-definition order. The CLOSED WORLD of a
-    /// `dyn Trait`: whole-program compilation knows every satisfying type, so a
-    /// dyn receiver call site can be monomorphized over this list. Empty when
-    /// the symbol is not such a trait or nothing satisfies it.
+    /// ALL data types with an explicit whole-trait nominal conformance to the
+    /// (non-boundary) trait `trait_symbol`, in data-definition order. This is
+    /// the current closed-artifact candidate set used by legacy dynamic-call
+    /// monomorphization. Matching attached-machine names alone never add a
+    /// candidate: validation checks the declared conformance's complete
+    /// requirement surface separately.
+    ///
+    /// Bare `dyn Trait` does not yet carry generic trait arguments, so generic
+    /// conformances are conservatively excluded rather than conflated.
     pub fn trait_impl_data_symbols(
         &self,
         trait_symbol: psi_symbols::SymbolHandle,
@@ -1134,21 +1136,16 @@ impl TypedTrees {
         if trait_definition.is_boundary {
             return Vec::new();
         }
-        let signatures = self.trait_machine_signatures(trait_definition);
-        if signatures.is_empty() {
+        if !self.trait_type_parameters(trait_definition).is_empty() {
             return Vec::new();
         }
         self.data_definitions()
             .iter()
             .filter(|data| {
-                signatures.iter().all(|signature| {
-                    self.machines().iter().any(|machine| {
-                        machine.attached_data.as_ref() == Some(&data.name)
-                            && self
-                                .machine_states(machine)
-                                .iter()
-                                .any(|state| state.name == signature.name)
-                    })
+                self.data_conformances().iter().any(|conformance| {
+                    conformance.type_name == data.name
+                        && conformance.trait_name == trait_definition.name
+                        && conformance.arguments.is_empty()
                 })
             })
             .map(|data| data.symbol)
@@ -1494,10 +1491,10 @@ impl DerefMut for TypedTrees {
 mod tests {
     use crate::{
         TypedTreeRoots, TypedTreeTables, TypedTrees, data, domain, invariant, machine,
-        name::Identifier, operator, trait_definition,
+        name::Identifier, operator, signature, state, trait_definition,
     };
     use psi_arena::HandleSpan;
-    use psi_symbols::SymbolTable;
+    use psi_symbols::{SymbolKind, SymbolTable};
 
     #[test]
     fn typed_tree_roots_constructor_keeps_top_level_roots_explicit() {
@@ -1562,5 +1559,74 @@ mod tests {
                 .as_str(),
             "Console"
         );
+    }
+
+    #[test]
+    fn dynamic_trait_candidates_require_nominal_data_conformances() {
+        let mut trees = TypedTrees::default();
+        let trait_symbol = trees
+            .symbols
+            .insert_generated_root(SymbolKind::Trait, "Shape");
+        let declared_symbol = trees
+            .symbols
+            .insert_generated_root(SymbolKind::Data, "Declared");
+        let lookalike_symbol = trees
+            .symbols
+            .insert_generated_root(SymbolKind::Data, "Lookalike");
+
+        let mut trait_definition = trait_definition::TraitDefinition {
+            symbol: trait_symbol,
+            name: Identifier::generated("Shape"),
+            ..Default::default()
+        };
+        trees.push_trait_machine_signature(
+            &mut trait_definition,
+            signature::StateSignature {
+                name: Identifier::generated("code"),
+                ..Default::default()
+            },
+        );
+        trees.push_trait_definition(trait_definition);
+
+        for (name, symbol) in [
+            ("Declared", declared_symbol),
+            ("Lookalike", lookalike_symbol),
+        ] {
+            trees.push_data_definition(data::DataDefinition {
+                symbol,
+                name: Identifier::generated(name),
+                ..Default::default()
+            });
+            let mut implementation = machine::Machine {
+                name: Identifier::generated(format!("{name}::code")),
+                attached_data: Some(Identifier::generated(name)),
+                ..Default::default()
+            };
+            trees.push_machine_state(
+                &mut implementation,
+                state::State {
+                    name: Identifier::generated("code"),
+                    ..Default::default()
+                },
+            );
+            trees.push_machine(implementation);
+        }
+
+        trees.push_data_conformance(trait_definition::DataConformance {
+            type_name: Identifier::generated("Declared"),
+            trait_name: Identifier::generated("Shape"),
+            ..Default::default()
+        });
+
+        assert_eq!(
+            trees.trait_impl_data_symbols(trait_symbol),
+            vec![declared_symbol],
+            "a same-named attached machine must not create a dyn conformance edge"
+        );
+        assert_eq!(
+            trees.single_trait_impl_data_symbol(trait_symbol),
+            Some(declared_symbol)
+        );
+        assert_ne!(lookalike_symbol, declared_symbol);
     }
 }

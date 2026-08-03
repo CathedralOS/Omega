@@ -17,6 +17,8 @@ machine Circle::code(&mut self) -> i32 {
     }
 }
 
+Circle satisfies Shape;
+
 data Main {
     console: Console;
     c: Circle;
