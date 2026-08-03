@@ -418,6 +418,7 @@ dependencies = [
  "psi-arena",
  "psi-diagnostics",
  "psi-language-core",
+ "psi-numerics",
  "psi-source",
  "psi-source-loader",
 ]
@@ -1242,6 +1243,10 @@ dependencies = [
 
 [[package]]
 name = "psi-language-core"
+version = "0.1.0"
+
+[[package]]
+name = "psi-numerics"
 version = "0.1.0"
 
 [[package]]

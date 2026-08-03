@@ -19,6 +19,8 @@ Current roots:
   snapshot contracts;
 - `foundation/psi-language-core`: target-neutral atomic-ordering, cast-form,
   and operator-spelling vocabulary used by source representations;
+- `foundation/psi-numerics`: exact integers/rationals, host-independent float
+  semantics, arithmetic domains, and source-literal payloads;
 - `foundation/psi-source`: loaded-source records and maps, source identities,
   coordinates, and source-backed text shared by the Psi frontend and temporary
   Omega compatibility exports;
