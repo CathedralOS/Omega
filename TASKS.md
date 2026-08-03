@@ -1875,7 +1875,15 @@ move it to a convenience library.
   fresh machine instance, fresh owned argument graphs, and snapshot-only
   results. Canonical usage schema v1 is now distinct from the evaluator-step
   schedule and records checked recursive `result_cells`; logical-word,
-  aggregate-construction, and peak-live-cell telemetry remain.
+  aggregate-construction, and peak-live-cell telemetry remain. Declared linear
+  runtime carriers in reachable machine storage, signatures, locals, and
+  opaque callable contracts now reject by structural multiplicity until an
+  exact proof/build-admission exists. **BUILD-TIME-ABNORMAL-OUTCOME — DESIGN
+  BLOCKED (`OWNER_QUESTIONS.md` Q8):** the failure/control axis is settled, but
+  its complete-contract and terminal source surface are not. Contextual `trap`
+  currently erases to an ordinary terminal transition and is not usable
+  admission evidence; do not invent an abnormal-outcome summary until the
+  distinct normalized control row and propagation rule are settled.
 - Extend `build.omg` provider plans with the normalized
   `Hermetic | Receipted | Volatile` observation ceiling. Publish static ceiling,
   realized class, replay receipts, `ReplayableFromRecord`, and transitive
@@ -1973,6 +1981,11 @@ ordinary code never receives a raw executable address.
   nominal proposition-family declaration, application, and transparent-alias
   surface over carrierless selected-conformance evidence. This blocks N6's
   ordered first rung and therefore its later quotient migration.
+- **BUILD-TIME-ABNORMAL-OUTCOME:** blocked on `OWNER_QUESTIONS.md` Q8's
+  complete-contract spelling and normalized propagation model for nuclear
+  abort, trap-capable operations, and other abnormal non-return. The legacy
+  contextual `trap` parser route erases to ordinary termination and cannot
+  support build-time admission.
 
 ## Vertical acceptance slices
 

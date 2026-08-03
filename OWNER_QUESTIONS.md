@@ -166,3 +166,25 @@ stored in a local dynamic table. Checked selection may retain the stable edge
 identity, but Psi and Omega must not emit requirement adapters or a table by
 guessing satisfiers from matching state names until this association is
 settled.
+
+## Q8 — What is the complete-contract surface for abnormal non-return?
+
+The settled model puts deliberate nuclear abort, explicit trapping arithmetic,
+and other non-returning control outcomes on a failure/control axis independent
+from service reach, suspension, blocking, and ordinary termination. It does not
+settle the source spelling or the normalized row propagated through callable
+contracts. Which surface is canonical?
+
+- add dedicated declaration and terminal-statement spellings for nuclear abort,
+  with trapping arithmetic contributing the same normalized control axis; or
+- add a general declared control-outcome row whose closed vocabulary includes
+  nuclear abort and trap, with statements and selected operations naming one
+  outcome from that row?
+
+The choice fixes contract identity and entailment, call-site propagation,
+whether trap-capable arithmetic is invocation-refined or categorically
+published, ordinary-edge versus no-cleanup terminator representation, terminal
+Psi vocabulary, and build-time admission diagnostics. The parser currently
+accepts contextual `trap` by lowering it to an ordinary terminal transition;
+that erases the required semantic distinction and must not be treated as a
+settled spelling or control-outcome fact.

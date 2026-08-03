@@ -335,6 +335,11 @@ artifact.
   boundary. Reachable explicit linear runtime carriers also reject until a
   proof/build-admission exists. Authority, trust, abnormal-outcome, and richer
   resource axes still need to complete the common admission floor.
+- Abnormal non-return admission is design-blocked on
+  `OWNER_QUESTIONS.md` Q8. The language has not selected the complete-contract
+  spelling or normalized failure/control row; contextual parser `trap`
+  currently erases to an ordinary terminal edge and cannot serve as checked
+  evidence.
 - The positive normalized termination variant, snapshots, artifacts,
   diagnostics, and code use the settled `Terminates` vocabulary.
 - Add the target semantic capsule and split semantic result keys from canonical

@@ -115,7 +115,8 @@ portable deadline or WCET.
 
 - general trace propositions, deadline/starvation contracts, and entailment
   between opaque progress profiles;
-- the exact complete-contract spelling for deliberate non-return;
+- the exact complete-contract spelling for deliberate non-return
+  (`OWNER_QUESTIONS.md` Q8);
 - target WCET proof scope and timing-model composition for profiles that require
   physical deadlines; and
 - richer productivity theorems for reactive systems.
