@@ -1624,8 +1624,10 @@ ordinary code never receives a raw executable address.
   plan, omits the Darwin-only cursor at selection, and decodes the Linux record
   offsets in both target packages. Direct syscall failures now flow as explicit
   `-errno` results into target-package classification; Linux does not acquire a
-  hidden libc-style error slot. Multi-fill directory iteration remains
-  implementation work.
+  hidden libc-style error slot. `read_dir_count` now drains every 512-byte
+  fill on both POSIX target packages, and both interpreter filesystem providers
+  retain a matching complete-record cursor. Multi-fill `read_dir_stats`,
+  `read_dir_nth`, and the fd-relative entry core remain implementation work.
 - Keep unavailable hosts structurally tested; do not claim runtime verification
   without the host.
 - Build the Windows GUI callback canary through the settled callback-requirement

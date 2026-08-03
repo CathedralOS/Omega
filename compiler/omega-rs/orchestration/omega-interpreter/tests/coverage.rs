@@ -1529,9 +1529,10 @@ machine Main::main(&mut self) {
 }
 
 /// The shipped `Filesystem::read_dir_count` (Rust `fs::read_dir(path)?.count()`
-/// minus `.`/`..`): fills one buffer of packed dirents via the raw `read_dir` op
-/// and walks them with a runtime-indexed `d_reclen` cursor. Builds `/rd` with two
-/// files + one subdir, then asserts the count is exactly 3 (children only).
+/// minus `.`/`..`): drains packed-dirent fills via the raw `read_dir` op and
+/// walks them with a runtime-indexed `d_reclen` cursor. Builds `/rd` with two
+/// files + one subdir, then asserts the count is exactly 3 (children only); the
+/// real-filesystem and native suites separately force multiple fills.
 #[test]
 fn filesystem_std_module_read_dir_count() {
     let main_path = write_program(
