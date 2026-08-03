@@ -59,7 +59,7 @@ pub(crate) fn machine_operational_summary(
 ) -> OperationalMaySummary {
     let Some(machine) = program
         .facts
-        .operations
+        .operational
         .machines()
         .iter()
         .find(|effects| effects.symbol == machine_symbol)
@@ -70,13 +70,13 @@ pub(crate) fn machine_operational_summary(
     let mut direct_may_block = false;
     for state in program
         .facts
-        .operations
+        .operational
         .states
         .span_or_empty(machine.states)
     {
         direct_may_suspend |= state.direct_may_suspend;
         direct_may_block |= state.direct_may_block;
-        for call in program.facts.operations.calls.span_or_empty(state.calls) {
+        for call in program.facts.operational.calls.span_or_empty(state.calls) {
             direct_may_suspend |= call.direct_may_suspend;
             direct_may_block |= call.direct_may_block;
         }
@@ -95,13 +95,13 @@ pub(crate) fn state_operational_summary(
 ) -> OperationalMaySummary {
     let Some(state) = program
         .facts
-        .operations
+        .operational
         .machines()
         .iter()
         .flat_map(|machine| {
             program
                 .facts
-                .operations
+                .operational
                 .states
                 .span_or_empty(machine.states)
         })
@@ -111,7 +111,7 @@ pub(crate) fn state_operational_summary(
     };
     let mut direct_may_suspend = state.direct_may_suspend;
     let mut direct_may_block = state.direct_may_block;
-    for call in program.facts.operations.calls.span_or_empty(state.calls) {
+    for call in program.facts.operational.calls.span_or_empty(state.calls) {
         direct_may_suspend |= call.direct_may_suspend;
         direct_may_block |= call.direct_may_block;
     }

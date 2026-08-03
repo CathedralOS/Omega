@@ -120,7 +120,7 @@ fn provider_keeps_service_and_operational_contract_axes_independent() {
 
     let operational = checked
         .facts
-        .operations
+        .operational
         .machines()
         .iter()
         .find(|summary| summary.symbol == machine.symbol)
@@ -136,7 +136,7 @@ fn provider_keeps_service_and_operational_contract_axes_independent() {
         .expect("finish machine");
     let finish_operational = checked
         .facts
-        .operations
+        .operational
         .machines()
         .iter()
         .find(|summary| summary.symbol == finish.symbol)

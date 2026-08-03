@@ -10,16 +10,16 @@ use psi_typed_trees::TypedTrees;
 /// operational possibilities stay independent; the legacy flat effect set is
 /// neither exposed nor consulted by report rendering.
 pub(super) struct TypedBehaviorPlan {
-    operations: OperationalPlan,
+    operational: OperationalPlan,
     service_reaches: ServiceReachInferencePlan,
 }
 
 impl TypedBehaviorPlan {
     pub(super) fn infer(program: &TypedTrees) -> Self {
-        let operations = psi_effects::infer_operational_may(program);
-        let service_reaches = psi_effects::infer_service_reaches(program, &operations);
+        let operational = psi_effects::infer_operational_may(program);
+        let service_reaches = psi_effects::infer_service_reaches(program, &operational);
         Self {
-            operations,
+            operational,
             service_reaches,
         }
     }
@@ -97,17 +97,17 @@ impl TypedBehaviorPlan {
     }
 
     fn machine_operations(&self, symbol: SymbolHandle) -> Option<&MachineOperational> {
-        self.operations
+        self.operational
             .machines()
             .iter()
             .find(|summary| summary.symbol == symbol)
     }
 
     fn state_operations(&self, symbol: SymbolHandle) -> Option<&StateOperational> {
-        self.operations
+        self.operational
             .machines()
             .iter()
-            .flat_map(|machine| self.operations.states.span_or_empty(machine.states))
+            .flat_map(|machine| self.operational.states.span_or_empty(machine.states))
             .find(|summary| summary.symbol == symbol)
     }
 
@@ -118,7 +118,7 @@ impl TypedBehaviorPlan {
         target_symbol: SymbolHandle,
     ) -> Option<&CallOperational> {
         let state = self.state_operations(state_symbol)?;
-        self.operations
+        self.operational
             .calls
             .span_or_empty(state.calls)
             .iter()
@@ -131,7 +131,7 @@ impl TypedBehaviorPlan {
     fn machine_operational(&self, machine: &MachineOperational) -> OperationalMaySummary {
         let mut direct_may_suspend = false;
         let mut direct_may_block = false;
-        for state in self.operations.states.span_or_empty(machine.states) {
+        for state in self.operational.states.span_or_empty(machine.states) {
             let direct = self.state_direct_operational(state);
             direct_may_suspend |= direct.0;
             direct_may_block |= direct.1;
@@ -157,7 +157,7 @@ impl TypedBehaviorPlan {
     fn state_direct_operational(&self, state: &StateOperational) -> (bool, bool) {
         let mut direct_may_suspend = state.direct_may_suspend;
         let mut direct_may_block = state.direct_may_block;
-        for call in self.operations.calls.span_or_empty(state.calls) {
+        for call in self.operational.calls.span_or_empty(state.calls) {
             direct_may_suspend |= call.direct_may_suspend;
             direct_may_block |= call.direct_may_block;
         }
