@@ -4536,10 +4536,15 @@ fn extent_root_provider_adapter_compiles() {
         Some(psi_source::SourceOrigin::Toolchain),
         "the target-bound predicate must be the compiler-provided declaration"
     );
-    assert!(matches!(
-        granted.establishment_routes.as_slice(),
-        [psi_language_semantics::DomainEstablishmentRoute::BoundaryRequirement { .. }]
-    ));
+    assert_eq!(
+        granted.establishment_routes.len(),
+        2,
+        "Extent::Granted must retain the provider-result and program-entry routes"
+    );
+    assert!(granted.establishment_routes.iter().all(|route| matches!(
+        route,
+        psi_language_semantics::DomainEstablishmentRoute::BoundaryRequirement { .. }
+    )));
 
     let plan = checked
         .facts

@@ -459,6 +459,45 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
 }
 
 #[test]
+fn program_storage_entry_publishes_both_core_owned_root_positions() {
+    let main_path = write_program(
+        "program-storage-entry",
+        r#"
+use omega::language::core::extent;
+
+boundary trait TestProcessEntry: ProgramStorageEntry {
+}
+
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .expect("the core program-storage entry requirement should compile");
+    let entry = checked
+        .typed
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == "TestProcessEntry")
+        .expect("test process-entry trait");
+    let schema = omega_effects::provider_plan::ServiceSchema::from_typed(&checked.typed, entry)
+        .expect("program-storage entry schema");
+    let [method] = schema.methods.as_slice() else {
+        panic!("a process-entry trait must inherit one stable core requirement");
+    };
+    assert_eq!(method.requirement_owner, "ProgramStorageEntry");
+    assert_eq!(method.name, "enter");
+    assert_eq!(method.parameter_type_identities.len(), 2);
+    for identity in &method.parameter_type_identities {
+        assert!(identity.contains("Extent"), "missing Extent carrier: {identity}");
+        assert!(
+            identity.contains("Granted"),
+            "missing exact Granted qualification: {identity}"
+        );
+    }
+}
+
+#[test]
 fn source_policy_receives_signature_and_publishes_only_validated_acceptance() {
     let main_path = write_program("accepted", POLICY);
     let checked = compile_to_checked(&main_path, None).expect("policy program should compile");

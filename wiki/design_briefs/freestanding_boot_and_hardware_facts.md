@@ -55,14 +55,17 @@ checked allocations from an existing root. It does not admit every object
 individually, and a static array cannot originate physical-memory content merely
 because its size is known.
 
-Those roots use one core-owned stable program-storage entry requirement. Its
-exact qualified parameter positions identify the image and initial storage
-roots. Target entry traits such as `UefiApplication::entry` inherit that
-semantic requirement; `Calling<C>`, target policy, and generated stubs refine
-its plan and ABI without replacing its identity. `Extent::Granted` authorizes
-the core requirement as an alternative route, and installation introduces the
-matching parameters. Core therefore never depends on a UEFI/Cathedral domain,
-and the compiler never recognizes target-friendly names as storage authority.
+Those roots use the core-owned stable `ProgramStorageEntry::enter` requirement.
+Its two exact `Extent in Granted` parameter positions identify the image and
+initial storage roots. Target entry traits such as `UefiApplication::entry`
+inherit that semantic requirement; `Calling<C>`, target policy, and generated
+stubs refine its plan and ABI without replacing its identity.
+`Extent::Granted` authorizes the core requirement as an alternative route, and
+installation introduces the matching parameters. Core therefore never depends
+on a UEFI/Cathedral domain, and the compiler never recognizes target-friendly
+names as storage authority. The source requirement and qualified-position
+identity are live; installation still needs to validate `Granted`'s `no_wrap`
+predicate before it may import either complete fact.
 
 ## Facts, authority, reach, and trust remain separate
 
