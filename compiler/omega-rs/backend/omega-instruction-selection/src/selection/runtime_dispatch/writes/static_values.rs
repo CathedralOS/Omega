@@ -1,9 +1,9 @@
 use crate::InstructionSelectionInput;
 use omega_control_flow::StateKey;
-use omega_core::literals::{IntegerLanding, IntegerLiteral};
 use psi_checked_trees::expression::{
     Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
 };
+use psi_numerics::literals::{IntegerLanding, IntegerLiteral};
 
 use super::super::super::bindings::{
     RuntimeAliasBinding, resolve_runtime_alias_expression, strip_mutable_expression,
@@ -613,10 +613,8 @@ pub(super) fn invalidate_runtime_static_collection_for_indexed_write(
 
 #[cfg(test)]
 mod tests {
-    use omega_core::{
-        arithmetic::ArithmeticDomain,
-        literals::{IntegerLanding, LandedIntegerType},
-    };
+    use omega_core::arithmetic::ArithmeticDomain;
+    use psi_numerics::literals::{IntegerLanding, LandedIntegerType};
 
     use super::{RuntimeStaticInteger, RuntimeStaticValues};
     use omega_platform_interface::PlaceKey;

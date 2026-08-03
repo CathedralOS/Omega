@@ -21,7 +21,7 @@ impl Default for Binding {
         Self {
             symbol: SymbolHandle::invalid(),
             name: psi_checked_trees::name::Identifier::generated_static(""),
-            value: Expression::Integer(omega_core::literals::IntegerLiteral::zero()),
+            value: Expression::Integer(psi_numerics::literals::IntegerLiteral::zero()),
         }
     }
 }

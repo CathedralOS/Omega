@@ -1133,7 +1133,7 @@ impl Default for HelperTransition {
     fn default() -> Self {
         Self {
             guard: Expression::Boolean(true),
-            value: Expression::Integer(omega_core::literals::IntegerLiteral::zero()),
+            value: Expression::Integer(psi_numerics::literals::IntegerLiteral::zero()),
         }
     }
 }
@@ -1206,7 +1206,7 @@ mod tests {
                         left: name("roll", roll_symbol),
                         operator: BinaryOperator::Less,
                         right: Expression::Integer(
-                            omega_core::literals::IntegerLiteral::from_value(20),
+                            psi_numerics::literals::IntegerLiteral::from_value(20),
                         ),
                     }))),
                 },
@@ -1221,7 +1221,7 @@ mod tests {
                         left: name("roll", roll_symbol),
                         operator: BinaryOperator::Less,
                         right: Expression::Integer(
-                            omega_core::literals::IntegerLiteral::from_value(30),
+                            psi_numerics::literals::IntegerLiteral::from_value(30),
                         ),
                     }))),
                 },
@@ -1236,7 +1236,7 @@ mod tests {
                         left: name("roll", roll_symbol),
                         operator: BinaryOperator::Less,
                         right: Expression::Integer(
-                            omega_core::literals::IntegerLiteral::from_value(60),
+                            psi_numerics::literals::IntegerLiteral::from_value(60),
                         ),
                     }))),
                 },
@@ -1326,7 +1326,7 @@ mod tests {
             Expression::Binary(Box::new(BinaryExpression {
                 left: name("roll", roll_symbol),
                 operator: BinaryOperator::Less,
-                right: Expression::Integer(omega_core::literals::IntegerLiteral::from_value(20)),
+                right: Expression::Integer(psi_numerics::literals::IntegerLiteral::from_value(20)),
             }))
         );
 
@@ -1368,7 +1368,7 @@ mod tests {
                 left: Expression::Binary(Box::new(BinaryExpression {
                     left: name("roll", roll_symbol),
                     operator: BinaryOperator::GreaterOrEqual,
-                    right: Expression::Integer(omega_core::literals::IntegerLiteral::from_value(
+                    right: Expression::Integer(psi_numerics::literals::IntegerLiteral::from_value(
                         20
                     )),
                 })),
@@ -1376,7 +1376,7 @@ mod tests {
                 right: Expression::Binary(Box::new(BinaryExpression {
                     left: name("roll", roll_symbol),
                     operator: BinaryOperator::Less,
-                    right: Expression::Integer(omega_core::literals::IntegerLiteral::from_value(
+                    right: Expression::Integer(psi_numerics::literals::IntegerLiteral::from_value(
                         30
                     )),
                 })),
@@ -1389,7 +1389,7 @@ mod tests {
                 left: Expression::Binary(Box::new(BinaryExpression {
                     left: name("roll", roll_symbol),
                     operator: BinaryOperator::GreaterOrEqual,
-                    right: Expression::Integer(omega_core::literals::IntegerLiteral::from_value(
+                    right: Expression::Integer(psi_numerics::literals::IntegerLiteral::from_value(
                         30
                     )),
                 })),
@@ -1397,7 +1397,7 @@ mod tests {
                 right: Expression::Binary(Box::new(BinaryExpression {
                     left: name("roll", roll_symbol),
                     operator: BinaryOperator::Less,
-                    right: Expression::Integer(omega_core::literals::IntegerLiteral::from_value(
+                    right: Expression::Integer(psi_numerics::literals::IntegerLiteral::from_value(
                         60
                     )),
                 })),
@@ -1409,7 +1409,7 @@ mod tests {
             Expression::Binary(Box::new(BinaryExpression {
                 left: name("roll", roll_symbol),
                 operator: BinaryOperator::GreaterOrEqual,
-                right: Expression::Integer(omega_core::literals::IntegerLiteral::from_value(60)),
+                right: Expression::Integer(psi_numerics::literals::IntegerLiteral::from_value(60)),
             }))
         );
     }
@@ -1434,13 +1434,13 @@ mod tests {
             left: Expression::Binary(Box::new(BinaryExpression {
                 left: name("roll", roll_symbol),
                 operator: BinaryOperator::GreaterOrEqual,
-                right: Expression::Integer(omega_core::literals::IntegerLiteral::from_value(20)),
+                right: Expression::Integer(psi_numerics::literals::IntegerLiteral::from_value(20)),
             })),
             operator: BinaryOperator::And,
             right: Expression::Binary(Box::new(BinaryExpression {
                 left: name("roll", roll_symbol),
                 operator: BinaryOperator::Less,
-                right: Expression::Integer(omega_core::literals::IntegerLiteral::from_value(20)),
+                right: Expression::Integer(psi_numerics::literals::IntegerLiteral::from_value(20)),
             })),
         }));
 
@@ -1471,13 +1471,17 @@ mod tests {
                 left: Expression::Binary(Box::new(BinaryExpression {
                     left: name("health", health_symbol),
                     operator: BinaryOperator::GreaterOrEqual,
-                    right: Expression::Integer(omega_core::literals::IntegerLiteral::from_value(0)),
+                    right: Expression::Integer(psi_numerics::literals::IntegerLiteral::from_value(
+                        0,
+                    )),
                 })),
                 operator: BinaryOperator::And,
                 right: Expression::Binary(Box::new(BinaryExpression {
                     left: name("health", health_symbol),
                     operator: BinaryOperator::Greater,
-                    right: Expression::Integer(omega_core::literals::IntegerLiteral::from_value(0)),
+                    right: Expression::Integer(psi_numerics::literals::IntegerLiteral::from_value(
+                        0,
+                    )),
                 })),
             })),
             operator: BinaryOperator::Equal,
@@ -1489,7 +1493,7 @@ mod tests {
             Expression::Binary(Box::new(BinaryExpression {
                 left: name("health", health_symbol),
                 operator: BinaryOperator::LessOrEqual,
-                right: Expression::Integer(omega_core::literals::IntegerLiteral::from_value(0)),
+                right: Expression::Integer(psi_numerics::literals::IntegerLiteral::from_value(0)),
             }))
         );
     }

@@ -1549,7 +1549,7 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
         && let Some(folded) = fold_substituted_constant_integer(value)
     {
         let folded_value =
-            Expression::Integer(omega_core::literals::IntegerLiteral::from_value(folded));
+            Expression::Integer(psi_numerics::literals::IntegerLiteral::from_value(folded));
         select_runtime_resolved_target_value_source_mutation_writes(
             input,
             dispatch_index,

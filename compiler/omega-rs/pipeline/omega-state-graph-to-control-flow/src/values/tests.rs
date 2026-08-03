@@ -14,7 +14,7 @@ fn remap_value_summary_preserves_statement_value_handles() {
         },
         arithmetic_policy_adapter: Some(
             omega_core::arithmetic::ArithmeticPolicyAdapter::FloatTrappingNonFinite {
-                format: omega_core::float_semantics::FloatFormat::BINARY64,
+                format: psi_numerics::float_semantics::FloatFormat::BINARY64,
             },
         ),
         operator_provider_plan_identity: Some(0x1234_5678_9abc_def0),
@@ -41,7 +41,7 @@ fn remap_value_summary_preserves_statement_value_handles() {
         copied.arithmetic_policy_adapter,
         Some(
             omega_core::arithmetic::ArithmeticPolicyAdapter::FloatTrappingNonFinite {
-                format: omega_core::float_semantics::FloatFormat::BINARY64,
+                format: psi_numerics::float_semantics::FloatFormat::BINARY64,
             }
         )
     );

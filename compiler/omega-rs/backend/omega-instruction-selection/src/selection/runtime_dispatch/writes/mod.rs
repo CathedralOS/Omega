@@ -385,7 +385,7 @@ fn select_runtime_storage_resolved_mutation_write_in_mutable_table(
         for offset in 0..elements.count() {
             let element = expressions.expression_handle_at_offset(elements, offset);
             let element_index = expressions.insert(ExpressionNode::Integer(
-                omega_core::literals::IntegerLiteral::from_value(i64::from(offset)),
+                psi_numerics::literals::IntegerLiteral::from_value(i64::from(offset)),
             ));
             let element_target =
                 expressions.insert(ExpressionNode::Indexed(TableIndexedExpression {
@@ -1327,7 +1327,7 @@ fn unnamed_common_field_zero_writes(
                 psi_checked_trees::expression::FloatLiteral::new(0.0),
             )),
             _ => expressions.insert(ExpressionNode::Integer(
-                omega_core::literals::IntegerLiteral::zero(),
+                psi_numerics::literals::IntegerLiteral::zero(),
             )),
         };
         zero_writes.push((field.name.clone(), zero_value));

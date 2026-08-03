@@ -2,8 +2,6 @@ pub mod allocations;
 pub mod arena;
 pub mod arithmetic;
 pub mod diagnostics;
-pub mod float_semantics;
-pub mod literals;
 pub mod operations;
 pub mod parallel;
 pub mod runtime_storage;
