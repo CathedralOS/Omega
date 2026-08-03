@@ -717,13 +717,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "omega-proof"
-version = "0.1.0"
-dependencies = [
- "psi-proof",
-]
-
-[[package]]
 name = "omega-relocations"
 version = "0.1.0"
 dependencies = [
@@ -1055,13 +1048,6 @@ dependencies = [
  "omega-core",
  "omega-effects",
  "psi-typed-trees",
-]
-
-[[package]]
-name = "omega-types"
-version = "0.1.0"
-dependencies = [
- "psi-types",
 ]
 
 [[package]]

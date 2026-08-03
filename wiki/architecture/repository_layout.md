@@ -95,10 +95,7 @@ Omega/
 |   |   `-- [CRATE] omega-core/                         # Shared primitives, ids, arenas, handles, spans, diagnostics.
 |   |
 |   |-- semantics/
-|   |   |-- [CRATE] omega-types/                        # Transitional re-export of Psi-owned source type analysis.
-|   |   |-- [CRATE] omega-graph/                        # Machine/state graph construction and graph-facing semantic facts.
-|   |   |-- [CRATE] omega-validation/                   # Transitional re-export of Psi-owned source validation.
-|   |   `-- [CRATE] omega-proof/                        # Transitional re-export of Psi-owned source proof checking.
+|   |   `-- [CRATE] omega-validation/                   # Transitional re-export of Psi-owned source validation.
 |   |
 |   |-- representations/
 |   |   |-- [CRATE] omega-typed-trees/                  # Transitional re-export of Psi-owned typed trees.
@@ -271,8 +268,8 @@ Omega/
   who may read or mutate and what a callable requires or promises. The old
   `omega-validation` name is a compatibility export; provider installation and
   approval remain in Omega.
-- `psi-proof` plans and discharges source-level obligations. The old
-  `omega-proof` name is a compatibility export.
+- `psi-proof` plans and discharges source-level obligations. The unused former
+  `omega-proof` package is retired.
 - `omega-compiler` invokes the Psi-owned source-to-checked frontend directly;
   the compatibility frontend packages are no longer part of the driver graph.
   Its checked-tree handoff to the legacy Omega state-graph lane remains an
