@@ -833,9 +833,9 @@ binds the libc-shaped zero-argument `FilesystemHost::errno` operation or gains
 a hidden last-error slot. The common wrappers now retain the failed i32/i64
 result through their error arms, while the selected target normalizes its
 native code set (including Linux EAGAIN/EWOULDBLOCK 11). POSIX
-`read_dir_count` now holds the descriptor cursor across repeated complete-record
-fills until EOF; the interpreter providers paginate the same record stream.
-Multi-fill type-aware and name-bearing iteration remains engineering work.
+directory count, stats, indexed lookup, and fd-relative lookup now hold the
+descriptor cursor across repeated complete-record fills until EOF; the
+interpreter providers paginate the same record stream.
 
 The compiler's retained source-policy identity carries the complete canonical
 `BoundaryEntryPlan` through checked lowering. Public provider schemas still
