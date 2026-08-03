@@ -684,6 +684,11 @@ sequence and layout fails closed with emission when placement drifts. Windows
 runtime byte/line imports remain composite adapters over their separately
 normalized GetStdHandle and ReadFile/WriteFile subcalls; the outer semantic
 binding plan is not substituted for those internal signatures.
+The base Linux binding rows make that retention literal: `Stdin::read`,
+`Stdout::write`, and `Stderr::write` each carry the exact three-word/result
+syscall plan, while `Process::exit_group` carries its one-word/no-result plan.
+No composite or terminal process path needs to rediscover those fixed external
+signatures from the target architecture.
 Register-resident AArch64 C/import emission now also evaluates AAPCS64 from the
 selected operand shapes and passes the exact planned X/V argument and result
 registers to the ISA encoder. Scalar stack arguments and flat HFA arguments and
