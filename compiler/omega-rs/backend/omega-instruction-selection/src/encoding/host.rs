@@ -1633,6 +1633,222 @@ mod syscall_plan_contract_tests {
     use omega_calling_conventions::RegisterSet;
     use omega_target_operations::{TargetInstructionOperand, TargetInstructionOperandKind};
 
+    fn scalar(byte_offset: usize) -> TargetInstructionOperand {
+        TargetInstructionOperand {
+            kind: TargetInstructionOperandKind::RuntimeScalarInteger {
+                region: omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                byte_offset,
+                byte_count: 8,
+            },
+        }
+    }
+
+    fn explicit_plan(
+        architecture: Architecture,
+        parameter_count: usize,
+        has_result: bool,
+    ) -> CallPlan {
+        let policy = match architecture {
+            Architecture::X86_64 => CallingPolicy::LinuxSyscallX86_64,
+            Architecture::Aarch64 => CallingPolicy::LinuxSyscallAarch64,
+        };
+        evaluate_call_plan(
+            policy,
+            &CallSignature {
+                parameters: vec![ValueShape::integer(8, 8); parameter_count],
+                result: has_result.then(|| ValueShape::integer(8, 8)),
+            },
+        )
+        .expect("explicit native syscall plan")
+    }
+
+    #[test]
+    fn syscall_compatibility_families_equal_the_explicit_native_plan() {
+        let statement_operands = [scalar(0), scalar(8)];
+        let value_operands = [scalar(16), scalar(24)];
+        let timespec_operands = [
+            scalar(32),
+            TargetInstructionOperand {
+                kind: TargetInstructionOperandKind::ImmediateInteger(1),
+            },
+        ];
+        let timespec_argument_operands = [scalar(48)];
+
+        for (architecture, number) in [(Architecture::X86_64, 228), (Architecture::Aarch64, 113)] {
+            let statement_plan = explicit_plan(architecture, 2, false);
+            let compatibility = encode_syscall_sequence(architecture, &statement_operands, number)
+                .expect("compatibility statement syscall");
+            let planned = encode_syscall_sequence_with_plan(
+                architecture,
+                &statement_operands,
+                number,
+                Some(&statement_plan),
+            )
+            .expect("explicit-plan statement syscall");
+            assert_eq!(compatibility, planned, "statement {architecture:?}");
+            assert_eq!(
+                crate::syscall_sequence_width(architecture, &statement_operands, number,),
+                crate::syscall_sequence_width_with_plan(
+                    architecture,
+                    &statement_operands,
+                    number,
+                    Some(&statement_plan),
+                ),
+                "statement {architecture:?}"
+            );
+
+            let value_plan = explicit_plan(architecture, 1, true);
+            let compatibility = encode_value_syscall_sequence_with_plan(
+                architecture,
+                &value_operands,
+                number,
+                None,
+            )
+            .expect("compatibility value syscall");
+            let planned = encode_value_syscall_sequence_with_plan(
+                architecture,
+                &value_operands,
+                number,
+                Some(&value_plan),
+            )
+            .expect("explicit-plan value syscall");
+            assert_eq!(compatibility, planned, "value {architecture:?}");
+            assert_eq!(
+                crate::value_syscall_sequence_width_with_plan(
+                    architecture,
+                    &value_operands,
+                    number,
+                    None,
+                ),
+                crate::value_syscall_sequence_width_with_plan(
+                    architecture,
+                    &value_operands,
+                    number,
+                    Some(&value_plan),
+                ),
+                "value {architecture:?}"
+            );
+            for operand_index in 0..value_operands.len() {
+                assert_eq!(
+                    value_syscall_relocation_byte_offset(
+                        architecture,
+                        &value_operands,
+                        operand_index,
+                        number,
+                        None,
+                    )
+                    .expect("compatibility value relocation"),
+                    value_syscall_relocation_byte_offset(
+                        architecture,
+                        &value_operands,
+                        operand_index,
+                        number,
+                        Some(&value_plan),
+                    )
+                    .expect("explicit-plan value relocation"),
+                    "value relocation {architecture:?} operand {operand_index}"
+                );
+            }
+
+            let timespec_plan = explicit_plan(architecture, 2, true);
+            let compatibility = encode_linux_timespec_syscall_with_plan(
+                architecture,
+                &timespec_operands,
+                number,
+                None,
+            )
+            .expect("compatibility timespec result syscall");
+            let planned = encode_linux_timespec_syscall_with_plan(
+                architecture,
+                &timespec_operands,
+                number,
+                Some(&timespec_plan),
+            )
+            .expect("explicit-plan timespec result syscall");
+            assert_eq!(compatibility, planned, "timespec result {architecture:?}");
+            assert_eq!(
+                crate::linux_timespec_syscall_sequence_width_with_plan(
+                    architecture,
+                    &timespec_operands,
+                    number,
+                    None,
+                ),
+                crate::linux_timespec_syscall_sequence_width_with_plan(
+                    architecture,
+                    &timespec_operands,
+                    number,
+                    Some(&timespec_plan),
+                ),
+                "timespec result {architecture:?}"
+            );
+            assert_eq!(
+                linux_timespec_result_relocation_byte_offset(
+                    architecture,
+                    &timespec_operands,
+                    number,
+                    None,
+                )
+                .expect("compatibility timespec result relocation"),
+                linux_timespec_result_relocation_byte_offset(
+                    architecture,
+                    &timespec_operands,
+                    number,
+                    Some(&timespec_plan),
+                )
+                .expect("explicit-plan timespec result relocation"),
+                "timespec result relocation {architecture:?}"
+            );
+
+            let compatibility = encode_linux_timespec_argument_syscall_with_plan(
+                architecture,
+                &timespec_argument_operands,
+                number,
+                None,
+            )
+            .expect("compatibility timespec argument syscall");
+            let planned = encode_linux_timespec_argument_syscall_with_plan(
+                architecture,
+                &timespec_argument_operands,
+                number,
+                Some(&timespec_plan),
+            )
+            .expect("explicit-plan timespec argument syscall");
+            assert_eq!(compatibility, planned, "timespec argument {architecture:?}");
+            assert_eq!(
+                crate::linux_timespec_argument_syscall_sequence_width_with_plan(
+                    architecture,
+                    &timespec_argument_operands,
+                    number,
+                    None,
+                ),
+                crate::linux_timespec_argument_syscall_sequence_width_with_plan(
+                    architecture,
+                    &timespec_argument_operands,
+                    number,
+                    Some(&timespec_plan),
+                ),
+                "timespec argument {architecture:?}"
+            );
+            assert_eq!(
+                linux_timespec_argument_relocation_byte_offset(
+                    architecture,
+                    &timespec_argument_operands,
+                    number,
+                    None,
+                )
+                .expect("compatibility timespec argument relocation"),
+                linux_timespec_argument_relocation_byte_offset(
+                    architecture,
+                    &timespec_argument_operands,
+                    number,
+                    Some(&timespec_plan),
+                )
+                .expect("explicit-plan timespec argument relocation"),
+                "timespec argument relocation {architecture:?}"
+            );
+        }
+    }
+
     #[test]
     fn normalized_syscall_plans_cover_their_encoder_scratch() {
         for (architecture, policy) in [
