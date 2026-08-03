@@ -99,7 +99,7 @@ dependently-typed, kernel-checked core) — the closest prior art to study.
 ## Where Omega is today (grounded)
 
 The engine is real and past where systems languages stop
-(`compiler/semantics/omega-validation/src/contract_entailment.rs`,
+(`compiler/psi-rs/semantics/psi-validation/src/contract_entailment.rs`,
 `wiki/proof_engine_roadmap.md`):
 
 - canonical polynomials over atoms (folding, congruence, distributivity);

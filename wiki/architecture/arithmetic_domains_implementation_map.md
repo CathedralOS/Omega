@@ -193,7 +193,7 @@ domain) and a non-exact domain wins. Implemented:
 - **Re-key (S2a, 8ec5a447)**: all four binary-write selection sites resolve the
   domain from the OPERAND expressions (`ArithmeticDomain::combine`), not the
   target. Canaries use operand-domained fields (`a: u8 in Saturating`).
-- **Mixed-domain rejection (S2c, 43c9b66e)**: omega-validation/arithmetic_domains.rs
+- **Mixed-domain rejection (S2c, 43c9b66e)**: psi-validation/arithmetic_domains.rs
   `domain_of` walks value expressions (LocalData init, assignment, terminal) and
   rejects a binary whose two operands carry DIFFERENT explicit domains (recursive,
   so nested mixes are caught). Reads the RAW place type via `declared_place_type_raw`
@@ -211,7 +211,7 @@ interpreter is still a documented gap.
 ## S3: exact enforcement — DONE (2026-06-15)
 
 An exact (undomained) integer `+`/`-`/`*` that is not provably in range of its
-type is a compile error. Implemented in omega-validation/arithmetic_domains.rs
+type is a compile error. Implemented in psi-validation/arithmetic_domains.rs
 (NOT contract_entailment.rs — a self-contained `Interval` engine: operand ranges
 from declared type bounds + literal exact values; the result interval is checked
 for containment in the result type's range). Wrapping/Saturating/Trapping ops are
