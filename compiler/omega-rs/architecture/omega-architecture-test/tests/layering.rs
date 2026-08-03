@@ -475,6 +475,29 @@ fn frontend_implementation_is_psi_owned() {
         "legacy byte-predicate module must re-export the Psi-owned implementation"
     );
 
+    for (relative, expected_export) in [
+        (
+            "compiler/omega-rs/foundation/omega-core/src/const_value.rs",
+            "pub use psi_language_semantics::const_value::*;",
+        ),
+        (
+            "compiler/omega-rs/foundation/omega-core/src/wire.rs",
+            "pub use psi_language_semantics::wire::*;",
+        ),
+    ] {
+        let path = root.join(relative);
+        let source = std::fs::read_to_string(&path)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
+        assert!(
+            source.contains(expected_export),
+            "legacy semantic-vocabulary module must re-export Psi ownership: {relative}"
+        );
+        assert!(
+            !source.contains("pub struct ") && !source.contains("pub enum "),
+            "legacy semantic-vocabulary module must not regain implementations: {relative}"
+        );
+    }
+
     let arena_module = root.join("compiler/omega-rs/foundation/omega-core/src/arena/mod.rs");
     let source = std::fs::read_to_string(&arena_module)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", arena_module.display()));

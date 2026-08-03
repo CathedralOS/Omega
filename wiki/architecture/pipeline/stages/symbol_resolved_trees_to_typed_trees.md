@@ -54,6 +54,11 @@ Must not own:
 
 The implementation should make typed semantic surfaces visible by file:
 
+- `compiler/psi-rs/foundation/psi-language-semantics` owns canonical
+  const-value atoms and normalized wire scalar ranges used by typed
+  normalization. The corresponding `omega-core` modules are compatibility
+  exports only.
+
 - `lowerer.rs` owns stage entry and the top-level lowering conveyor. Behavior
   coverage belongs in `lowerer/tests.rs`, not inline with the entrypoint.
 - `TypedTrees::with_roots` and `TypedTreeRoots::with_roots` are the

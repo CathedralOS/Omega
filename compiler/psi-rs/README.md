@@ -22,7 +22,8 @@ Current roots:
   vocabulary used by source representations;
 - `foundation/psi-language-semantics`: target-neutral resolved semantic
   identities, service/domain tables, termination and supply plans,
-  establishment routes, and byte-sequence predicates;
+  establishment routes, byte-sequence predicates, canonical const-value atoms,
+  and normalized wire scalar ranges;
 - `foundation/psi-numerics`: exact integers/rationals, host-independent float
   semantics, arithmetic domains, and source-literal payloads;
 - `foundation/psi-source`: loaded-source records and maps, source identities,
