@@ -1425,7 +1425,7 @@ pub fn host_call_sequence_width_no_plan<T: InstructionOperandLike>(
     }
 }
 
-pub fn host_call_data_relocation_site_for_policy<T: InstructionOperandLike>(
+pub fn host_call_data_relocation_site_no_plan<T: InstructionOperandLike>(
     policy: CallingPolicy,
     operation_key: HostOperationKey,
     operands: &[T],
@@ -2050,7 +2050,7 @@ mod syscall_plan_register_tests {
     }
 }
 
-pub fn host_call_external_relocation_site_for_policy<T: InstructionOperandLike>(
+pub fn host_call_external_relocation_site_no_plan<T: InstructionOperandLike>(
     policy: CallingPolicy,
     operation_key: HostOperationKey,
     operands: &[T],

@@ -2360,7 +2360,7 @@ mod compatibility_encoder_differential_tests {
         let plan = plan(target, 1, true);
         let policy = CallingPolicy::native_for_target(target);
         assert_eq!(
-            omega_isa_x86_64::host_call_external_relocation_site_for_policy(
+            omega_isa_x86_64::host_call_external_relocation_site_no_plan(
                 policy, operation, &operands,
             ),
             omega_isa_x86_64::host_call_external_relocation_site_with_plan(
@@ -2369,7 +2369,7 @@ mod compatibility_encoder_differential_tests {
         );
         for operand_index in 0..operands.len() {
             assert_eq!(
-                omega_isa_x86_64::host_call_data_relocation_site_for_policy(
+                omega_isa_x86_64::host_call_data_relocation_site_no_plan(
                     policy,
                     operation,
                     &operands,
