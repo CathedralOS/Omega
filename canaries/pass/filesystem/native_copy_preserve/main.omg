@@ -44,7 +44,7 @@ machine Main::main(&mut self) {
     // read the source bytes
     self.fd = self.fs.open("/tmp/omega_cp_src.txt", self.rdonly);
     self.n = self.fs.read(self.fd, &mut self.buffer, self.cap);
-    self.got = self.n as u64;
+    self.got = narrow_i64_to_u64_wrapping(self.n);
     self.discard = self.fs.close(self.fd);
     transition self.got <= 144 { true -> writeit() _ -> fail() }
     state writeit(&mut self) {

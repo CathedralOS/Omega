@@ -10,6 +10,7 @@
 // Confirms the destination is exactly the 5 source bytes ("hello", first byte 'h').
 
 use omega::language::std::filesystem_host;
+use omega::language::core::numeric_conversion;
 
 data Main {
     fs: FilesystemHost;
@@ -33,7 +34,7 @@ machine Main::main(&mut self) {
     self.n = self.fs.close(self.fd);
     self.fd = self.fs.open("/tmp/omega_ssc_src.txt", self.rdonly);
     self.n = self.fs.read(self.fd, &mut self.buffer, self.cap);
-    self.got = self.n as u64;
+    self.got = narrow_i64_to_u64_wrapping(self.n);
     self.n = self.fs.close(self.fd);
     // faithful copy: write EXACTLY the bytes read, `buffer[0..got]`, no truncate.
     transition self.got <= 64 { true -> writeit() _ -> fail() }

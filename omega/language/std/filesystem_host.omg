@@ -23,9 +23,9 @@ boundary trait FilesystemHost {
     // The CREATING open: `open(path, flags, mode)` with O_CREAT (Rust
     // `File::create_new` / `OpenOptions.create`). `flags` carries the access mode
     // + O_CREAT (512) [+ O_EXCL (2048) for create-new] [+ O_TRUNC (1024)]; `mode`
-    // is the create permission bits. Returns the new fd, or -1. NOTE: native
-    // lowering is pending (the variadic `mode` needs stack marshalling, D8-open);
-    // fully modeled in the interpreter today.
+    // is the create permission bits. Returns the new fd, or -1. On Darwin the
+    // retained Apple variadic plan places the promoted `mode` on the outgoing
+    // stack rather than treating it as a third fixed register parameter.
     machine open_create(path: &[u8] in Path, flags: i32, mode: i32) -> i32 reaches FilesystemHost;
     machine read(fd: i32, buffer: &mut [u8], count: u64) -> i64 reaches FilesystemHost;
     machine write(fd: i32, bytes: &[u8]) -> i64 reaches FilesystemHost;

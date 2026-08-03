@@ -1,6 +1,7 @@
 use crate::{
-    CallSignature, CallingPolicy, HostAbiPlan, HostBinding, HostBindingMechanism,
-    HostBoundaryPolicy, PlatformCallData, ValueShape, evaluate_ordinary_boundary_entry_plan,
+    CallSignature, CallingPolicy, ConcreteVariadicCallSignature, HostAbiPlan, HostBinding,
+    HostBindingMechanism, HostBoundaryPolicy, PlatformCallData, ValueShape,
+    evaluate_darwin_aapcs64_variadic_boundary_entry_plan, evaluate_ordinary_boundary_entry_plan,
     host_operation, insert_platform_lowering,
 };
 
@@ -60,48 +61,45 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
             },
             &policy,
         ),
-        darwin_compatibility_import("Filesystem", "open", "_open", &policy),
-        darwin_compatibility_import("Filesystem", "creat", "_creat", &policy),
-        darwin_compatibility_import("Filesystem", "read", "_read", &policy),
-        darwin_compatibility_import("Filesystem", "write", "_write", &policy),
-        darwin_compatibility_import("Filesystem", "pread", "_pread", &policy),
-        darwin_compatibility_import("Filesystem", "pwrite", "_pwrite", &policy),
-        darwin_compatibility_import("Filesystem", "close", "_close", &policy),
-        darwin_compatibility_import("Filesystem", "unlink", "_unlink", &policy),
-        darwin_compatibility_import("Filesystem", "lseek", "_lseek", &policy),
-        darwin_compatibility_import("Filesystem", "mkdir", "_mkdir", &policy),
-        darwin_compatibility_import("Filesystem", "rmdir", "_rmdir", &policy),
-        darwin_compatibility_import("Filesystem", "openat", "_openat", &policy),
-        darwin_compatibility_import("Filesystem", "unlinkat", "_unlinkat", &policy),
-        darwin_compatibility_import("Filesystem", "chmod", "_chmod", &policy),
-        darwin_compatibility_import("Filesystem", "fchmod", "_fchmod", &policy),
-        darwin_compatibility_import("Filesystem", "rename", "_rename", &policy),
-        darwin_compatibility_import("Filesystem", "link", "_link", &policy),
-        darwin_compatibility_import("Filesystem", "symlink", "_symlink", &policy),
-        darwin_compatibility_import("Filesystem", "readlink", "_readlink", &policy),
-        darwin_compatibility_import(
-            "Filesystem",
+        darwin_filesystem_import("open", "_open", &[8, 4], 4, &policy),
+        darwin_filesystem_import("creat", "_creat", &[8, 4], 4, &policy),
+        darwin_filesystem_import("read", "_read", &[4, 8, 8], 8, &policy),
+        darwin_filesystem_import("write", "_write", &[4, 8, 8], 8, &policy),
+        darwin_filesystem_import("pread", "_pread", &[4, 8, 8, 8], 8, &policy),
+        darwin_filesystem_import("pwrite", "_pwrite", &[4, 8, 8, 8], 8, &policy),
+        darwin_filesystem_import("close", "_close", &[4], 4, &policy),
+        darwin_filesystem_import("unlink", "_unlink", &[8], 4, &policy),
+        darwin_filesystem_import("lseek", "_lseek", &[4, 8, 4], 8, &policy),
+        darwin_filesystem_import("mkdir", "_mkdir", &[8, 4], 4, &policy),
+        darwin_filesystem_import("rmdir", "_rmdir", &[8], 4, &policy),
+        darwin_filesystem_import("openat", "_openat", &[4, 8, 4], 4, &policy),
+        darwin_filesystem_import("unlinkat", "_unlinkat", &[4, 8, 4], 4, &policy),
+        darwin_filesystem_import("chmod", "_chmod", &[8, 4], 4, &policy),
+        darwin_filesystem_import("fchmod", "_fchmod", &[4, 4], 4, &policy),
+        darwin_filesystem_import("rename", "_rename", &[8, 8], 4, &policy),
+        darwin_filesystem_import("link", "_link", &[8, 8], 4, &policy),
+        darwin_filesystem_import("symlink", "_symlink", &[8, 8], 4, &policy),
+        darwin_filesystem_import("readlink", "_readlink", &[8, 8, 8], 8, &policy),
+        darwin_filesystem_import(
             "getdirentries64",
             "___getdirentries64",
+            &[4, 8, 8, 8],
+            8,
             &policy,
         ),
-        darwin_compatibility_import("Filesystem", "stat", "_stat", &policy),
-        darwin_compatibility_import("Filesystem", "fstat", "_fstat", &policy),
-        darwin_compatibility_import("Filesystem", "lstat", "_lstat", &policy),
-        darwin_compatibility_import("Filesystem", "realpath", "_realpath", &policy),
-        darwin_compatibility_import("Filesystem", "ftruncate", "_ftruncate", &policy),
-        darwin_compatibility_import("Filesystem", "futimens", "_futimens", &policy),
-        darwin_compatibility_import("Filesystem", "fsync", "_fsync", &policy),
-        darwin_compatibility_import("Filesystem", "dup", "_dup", &policy),
-        darwin_compatibility_import("Filesystem", "flock", "_flock", &policy),
-        darwin_compatibility_import("Filesystem", "chown", "_chown", &policy),
-        darwin_compatibility_import("Filesystem", "lchown", "_lchown", &policy),
-        darwin_compatibility_import("Filesystem", "fchown", "_fchown", &policy),
-        // The creating `open` (variadic `mode`). NATIVE lowering PENDING (the mode
-        // must be stack-marshalled -- see D8-open); the import + lowering are
-        // wired so only the operand arm + encoder remain. The interpreter models
-        // `open_create` fully today.
-        darwin_compatibility_import("Filesystem", "open_create", "_open", &policy),
+        darwin_filesystem_import("stat", "_stat", &[8, 8], 4, &policy),
+        darwin_filesystem_import("fstat", "_fstat", &[4, 8], 4, &policy),
+        darwin_filesystem_import("lstat", "_lstat", &[8, 8], 4, &policy),
+        darwin_filesystem_import("realpath", "_realpath", &[8, 8], 8, &policy),
+        darwin_filesystem_import("ftruncate", "_ftruncate", &[4, 8], 4, &policy),
+        darwin_filesystem_import("futimens", "_futimens", &[4, 8], 4, &policy),
+        darwin_filesystem_import("fsync", "_fsync", &[4], 4, &policy),
+        darwin_filesystem_import("dup", "_dup", &[4], 4, &policy),
+        darwin_filesystem_import("flock", "_flock", &[4, 4], 4, &policy),
+        darwin_filesystem_import("chown", "_chown", &[8, 4, 4], 4, &policy),
+        darwin_filesystem_import("lchown", "_lchown", &[8, 4, 4], 4, &policy),
+        darwin_filesystem_import("fchown", "_fchown", &[4, 4, 4], 4, &policy),
+        darwin_open_create_import(&policy),
         darwin_typed_import(
             "Filesystem",
             "read_errno",
@@ -1045,22 +1043,46 @@ fn darwin_typed_import(
     }
 }
 
-/// Transitional import row whose external scalar widths are still derived from
-/// call-site operands. Retire this helper after the filesystem seam
-/// canonicalizes stored and synthesized scalars to one typed C signature.
-fn darwin_compatibility_import(
-    capability: &str,
+fn darwin_filesystem_import(
     operation: &str,
     symbol: &str,
+    parameter_widths: &[u16],
+    result_width: u16,
     policy: &std::sync::Arc<str>,
 ) -> HostBinding {
+    darwin_typed_import(
+        "Filesystem",
+        operation,
+        symbol,
+        CallSignature {
+            parameters: parameter_widths
+                .iter()
+                .copied()
+                .map(|width| ValueShape::integer(width, width))
+                .collect(),
+            result: Some(ValueShape::integer(result_width, result_width)),
+        },
+        policy,
+    )
+}
+
+fn darwin_open_create_import(policy: &std::sync::Arc<str>) -> HostBinding {
+    let signature = ConcreteVariadicCallSignature {
+        fixed_parameters: vec![ValueShape::integer(8, 8), ValueShape::integer(4, 4)],
+        variadic_parameters: vec![ValueShape::integer(4, 4)],
+        result: Some(ValueShape::integer(4, 4)),
+    };
+    let boundary_entry_plan = evaluate_darwin_aapcs64_variadic_boundary_entry_plan(&signature)
+        .expect("the built-in Darwin open_create signature must have an Apple variadic plan")
+        .plan()
+        .clone();
     HostBinding {
-        operation_key: crate::HostOperationKey::from_names(capability, operation),
+        operation_key: crate::HostOperationKey::from_names("Filesystem", "open_create"),
         mechanism: HostBindingMechanism::Import {
             library: "libSystem.B.dylib".into(),
-            symbol: symbol.into(),
+            symbol: "_open".into(),
         },
         boundary_policy: std::sync::Arc::clone(policy),
-        boundary_entry_plan: None,
+        boundary_entry_plan: Some(boundary_entry_plan),
     }
 }

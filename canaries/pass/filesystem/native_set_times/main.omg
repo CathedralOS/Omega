@@ -25,14 +25,14 @@ machine Main::main(&mut self) {
     self.mtime = 1500000000;
     self.fd = self.fs.create("/tmp/omega_times.txt", self.mode);
     // times[1].tv_sec (mtime) at byte offset 16; atime + nsec fields stay 0
-    self.times[16] = self.mtime as u8 in Wrapping;
-    self.times[17] = (self.mtime >> 8) as u8 in Wrapping;
-    self.times[18] = (self.mtime >> 16) as u8 in Wrapping;
-    self.times[19] = (self.mtime >> 24) as u8 in Wrapping;
-    self.times[20] = (self.mtime >> 32) as u8 in Wrapping;
-    self.times[21] = (self.mtime >> 40) as u8 in Wrapping;
-    self.times[22] = (self.mtime >> 48) as u8 in Wrapping;
-    self.times[23] = (self.mtime >> 56) as u8 in Wrapping;
+    self.times[16] = narrow_i64_to_u8_wrapping(self.mtime);
+    self.times[17] = narrow_i64_to_u8_wrapping(self.mtime >> 8);
+    self.times[18] = narrow_i64_to_u8_wrapping(self.mtime >> 16);
+    self.times[19] = narrow_i64_to_u8_wrapping(self.mtime >> 24);
+    self.times[20] = narrow_i64_to_u8_wrapping(self.mtime >> 32);
+    self.times[21] = narrow_i64_to_u8_wrapping(self.mtime >> 40);
+    self.times[22] = narrow_i64_to_u8_wrapping(self.mtime >> 48);
+    self.times[23] = narrow_i64_to_u8_wrapping(self.mtime >> 56);
     self.rc = self.fs.set_file_times(self.fd, &mut self.times);
     transition self.rc == 0 { true -> stat() _ -> fail() }
     state stat(&mut self) {
