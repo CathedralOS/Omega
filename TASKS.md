@@ -353,8 +353,11 @@ those rows remain absent until their actual checked proofs exist.
   only when every projected call-result claim is established at that exact
   call, survives the normalized outcome-map chain unchanged, and is published
   at one unique callable-result path. Each rewrite row binds that claim to its
-  exact source and target structural places. Aggregate argument construction
-  and states with multiple candidate partition calls remain fail-closed. These
+  exact source and target structural places. An exact record-literal argument
+  now distributes each callee entry projection to one uniquely selected
+  caller-parameter leaf whose claim reaches the exact call. Fixed-array/case
+  aggregate arguments and states with multiple candidate partition calls
+  remain fail-closed. These
   non-direct rows remain
   checked/debug evidence because
   terminal semantic v12 deliberately carries only direct composition as its
@@ -370,8 +373,8 @@ those rows remain absent until their actual checked proofs exist.
   conservation plans, exact identity reshuffles, and direct partition
   compositions into the existing v9-v12 terminal vocabulary, including dense
   claim identities and replayable place substitutions. The executable source
-  canary remains content-free and fail-closed. Next compose aggregate argument
-  and multiple-call structural rewrites around authored-partition calls,
+  canary remains content-free and fail-closed. Next compose fixed-array/case
+  aggregate arguments and multiple-call structural rewrites around authored-partition calls,
   connect a real content-bearing source slice after its separately recorded design
   blocker is resolved, insert sealed introduction and custody-exit rows, and
   discharge or admit the exact frontier theorem.

@@ -622,7 +622,22 @@ fn checked_facts_compose_partitions_through_exact_staged_result_rewrites() {
                     Owned::content(&result.right),
                 );
         }
-        data Main { splitter: Splitter; }
+        boundary trait PairSplitter {
+            machine partition(pair: Pair) -> Pair
+            ensures
+                separate(
+                    Owned::content(entry(&pair.left)),
+                    Owned::content(entry(&pair.right)),
+                )
+                == separate(
+                    Owned::content(&result.left),
+                    Owned::content(&result.right),
+                );
+        }
+        data Main {
+            splitter: Splitter;
+            pair_splitter: PairSplitter;
+        }
         machine Main::repack(&mut self, pair: Pair) -> Pair
         requires
             pair.left in Region::Owned;
@@ -648,6 +663,14 @@ fn checked_facts_compose_partitions_through_exact_staged_result_rewrites() {
             let forwarded: Pair = result;
             forwarded
         }
+        machine Main::aggregate_argument(
+            &mut self,
+            left: Region in Owned,
+            right: Region in Owned
+        ) -> Pair
+        {
+            self.pair_splitter.partition(Pair { left: left, right: right })
+        }
         machine Main::two_calls(&mut self, first: Pair, second: Pair) -> Double
         requires
             first.left in Region::Owned;
@@ -668,7 +691,7 @@ fn checked_facts_compose_partitions_through_exact_staged_result_rewrites() {
         .qualifications
         .content
         .partition_compositions;
-    assert_eq!(compositions.len(), 3, "compositions: {compositions:#?}");
+    assert_eq!(compositions.len(), 4, "compositions: {compositions:#?}");
     let state_symbol = |name: &str| {
         checked_program
             .machines()
@@ -730,6 +753,25 @@ fn checked_facts_compose_partitions_through_exact_staged_result_rewrites() {
         rewrite.claim_identity != psi_language_semantics::PermissionClaimIdentity::Unknown
             && rewrite.source == rewrite.target
     }));
+    let aggregate_argument = compositions
+        .iter()
+        .find(|composition| composition.state_symbol == state_symbol("aggregate_argument"))
+        .expect("record aggregate argument composition");
+    assert_eq!(aggregate_argument.input_claim_identities.len(), 2);
+    assert!(aggregate_argument.result_rewrites.is_empty());
+    let input_substitutions = aggregate_argument
+        .substitutions
+        .iter()
+        .filter(|substitution| {
+            matches!(substitution.source.root, ContentPlaceRoot::Parameter { .. })
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(input_substitutions.len(), 2);
+    assert!(
+        input_substitutions
+            .iter()
+            .all(|substitution| substitution.target.segments.is_empty())
+    );
     assert!(
         compositions
             .iter()

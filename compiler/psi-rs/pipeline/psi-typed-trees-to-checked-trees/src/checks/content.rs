@@ -663,15 +663,13 @@ fn instantiate_partition_subject(
                 invocation.receiver,
                 parameter.symbol,
             )?;
-            let mut actual = crate::flow::canonical_place_from_expression_in_state(
+            let actual = partition_argument_place(
                 program,
                 caller_state.symbol,
                 invocation.statement_index,
                 argument,
+                &subject.segments,
             )?;
-            actual
-                .segments
-                .extend(content_segments_to_fact_path(&subject.segments)?);
             let psi_facts::PlaceRoot::Symbol(actual_root) = actual.root else {
                 return None;
             };
@@ -876,6 +874,58 @@ fn argument_for_target_parameter(
         }
     }
     None
+}
+
+fn partition_argument_place(
+    program: &TypedTrees,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    argument: ExpressionHandle,
+    projection_path: &[ContentPlaceSegment],
+) -> Option<crate::flow::CanonicalPlace> {
+    let mut direct = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state_symbol,
+        statement_index,
+        argument,
+    )?;
+    if matches!(direct.root, psi_facts::PlaceRoot::Symbol(_)) {
+        direct
+            .segments
+            .extend(content_segments_to_fact_path(projection_path)?);
+        return Some(direct);
+    }
+    let leaf = aggregate_argument_projection(program, argument, projection_path)?;
+    let leaf = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state_symbol,
+        statement_index,
+        leaf,
+    )?;
+    matches!(leaf.root, psi_facts::PlaceRoot::Symbol(_)).then_some(leaf)
+}
+
+fn aggregate_argument_projection(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    projection_path: &[ContentPlaceSegment],
+) -> Option<ExpressionHandle> {
+    let Some((head, tail)) = projection_path.split_first() else {
+        return Some(expression);
+    };
+    match (head, program.expression_table.expression(expression)) {
+        (ContentPlaceSegment::Field(expected), ExpressionNode::StructLiteral(literal))
+            if literal.case_name.is_none() =>
+        {
+            let field = program
+                .expression_table
+                .struct_fields(literal.fields)
+                .iter()
+                .find(|field| field.name.as_str() == expected.name)?;
+            aggregate_argument_projection(program, field.value, tail)
+        }
+        _ => None,
+    }
 }
 
 fn content_segments_to_fact_path(
