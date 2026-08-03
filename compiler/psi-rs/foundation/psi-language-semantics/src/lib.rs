@@ -8,6 +8,8 @@
 
 pub mod byte_predicates;
 pub mod const_value;
+pub mod content;
+pub mod value_domain;
 pub mod wire;
 
 pub use psi_language_core::{

@@ -27,7 +27,8 @@ Current roots:
 - `foundation/psi-language-semantics`: target-neutral resolved semantic
   identities, service/domain tables, termination and supply plans,
   establishment routes, byte-sequence predicates, canonical const-value atoms,
-  and normalized wire scalar ranges;
+  content algebra/projection plans, built-in value domains, and normalized
+  wire scalar ranges;
 - `foundation/psi-layout-plans`: normalized author-selected layout geometry,
   relocation identity, and materialization plans;
 - `foundation/psi-numerics`: exact integers/rationals, host-independent float

@@ -505,6 +505,14 @@ fn frontend_implementation_is_psi_owned() {
             "pub use psi_language_semantics::const_value::*;",
         ),
         (
+            "compiler/omega-rs/foundation/omega-core/src/content.rs",
+            "pub use psi_language_semantics::content::*;",
+        ),
+        (
+            "compiler/omega-rs/foundation/omega-core/src/value_domain.rs",
+            "pub use psi_language_semantics::value_domain::*;",
+        ),
+        (
             "compiler/omega-rs/foundation/omega-core/src/wire.rs",
             "pub use psi_language_semantics::wire::*;",
         ),
