@@ -176,3 +176,33 @@ machine Main::main(&mut self) { }
 
     let _ = fs::remove_dir_all(main_path.parent().expect("temporary program has a parent"));
 }
+
+#[test]
+fn const_evaluation_rejects_an_unadmitted_linear_runtime_carrier() {
+    let error = compile_error(
+        "linear-runtime-carrier",
+        r#"
+data Ticket [linear] { code: u64; }
+machine Ticket::ack(self) -> u64 { self.code }
+
+machine length() -> u64 {
+    let ticket: Ticket = Ticket { code: 4 };
+    Ticket::ack(ticket)
+}
+
+data Buffer { bytes: [u8; length()]; }
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    );
+
+    assert!(
+        error.contains("machine `length` is not build-time admissible"),
+        "{error}"
+    );
+    assert!(
+        error.contains("state `entry` local `ticket` has linear runtime type `Ticket`"),
+        "{error}"
+    );
+    assert!(error.contains("has no proof/build-admission"), "{error}");
+}
