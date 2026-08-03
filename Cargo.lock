@@ -345,6 +345,7 @@ dependencies = [
  "omega-visualizations",
  "psi-checked-trees",
  "psi-facts",
+ "psi-source",
  "psi-source-files-to-tokens",
  "psi-symbol-resolved-trees",
  "psi-symbol-resolved-trees-to-typed-trees",
