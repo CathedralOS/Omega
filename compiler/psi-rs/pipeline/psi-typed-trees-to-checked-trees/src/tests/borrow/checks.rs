@@ -2582,6 +2582,34 @@ fn accepts_cross_state_static_leaf_across_disjoint_scalar_mutation() {
 }
 
 #[test]
+fn accepts_static_persistent_copy_across_disjoint_call_frame() {
+    let source = r#"
+        data Message {
+            body: &[u8];
+        }
+
+        data Main {
+            source: Message;
+            copy: Message;
+            code: i32;
+        }
+
+        machine Main::touch_code(&mut self) {
+            self.code = 7;
+        }
+
+        machine Main::store(&mut self) {
+            self.source.body = "program static";
+            self.touch_code();
+            self.copy = self.source;
+        }
+    "#;
+
+    check_program(source)
+        .expect("an exact disjoint call frame preserves static persistent provenance");
+}
+
+#[test]
 fn accepts_same_place_reassignment_from_static_persistent_storage() {
     let source = r#"
         data Main {
