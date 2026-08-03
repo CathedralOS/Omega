@@ -150,24 +150,19 @@ fn full_width_register(
 }
 
 /// A `Binding::VtableSlot` external-leaf call (per-object dispatch).
-pub fn encode_vtable_call_sequence<T: InstructionOperandLike>(
-    target: NativeTarget,
-    operands: &[T],
-    index: i64,
-) -> Result<Vec<u8>, Diagnostic> {
-    encode_vtable_call_sequence_with_plan(target, operands, index, None)
-}
-
 pub fn encode_vtable_call_sequence_with_plan<T: InstructionOperandLike>(
     target: NativeTarget,
     operands: &[T],
     index: i64,
-    authoritative_plan: Option<&CallPlan>,
+    authoritative_plan: &CallPlan,
 ) -> Result<Vec<u8>, Diagnostic> {
     match target.architecture {
         Architecture::Aarch64 => {
-            let (placements, result) =
-                normalized_aarch64_vtable_plan_with_plan(operands, false, authoritative_plan)?;
+            let (placements, result) = normalized_aarch64_vtable_plan_with_plan(
+                operands,
+                false,
+                Some(authoritative_plan),
+            )?;
             debug_assert!(result.is_none());
             aarch64::encode_vtable_call_sequence_from_operands(
                 operands.iter().map(aarch64_call_operand),
@@ -175,20 +170,10 @@ pub fn encode_vtable_call_sequence_with_plan<T: InstructionOperandLike>(
                 index,
             )
         }
-        Architecture::X86_64
-            if authoritative_plan
-                .map(|plan| plan.policy)
-                .unwrap_or_else(|| CallingPolicy::native_for_target(target))
-                == CallingPolicy::MicrosoftX64 =>
-        {
-            x86_64::encode_win64_vtable_call_with_plan(operands, index, authoritative_plan)
+        Architecture::X86_64 if authoritative_plan.policy == CallingPolicy::MicrosoftX64 => {
+            x86_64::encode_win64_vtable_call_with_plan(operands, index, Some(authoritative_plan))
         }
-        Architecture::X86_64
-            if authoritative_plan
-                .map(|plan| plan.policy)
-                .unwrap_or_else(|| CallingPolicy::native_for_target(target))
-                == CallingPolicy::SystemVAMD64 =>
-        {
+        Architecture::X86_64 if authoritative_plan.policy == CallingPolicy::SystemVAMD64 => {
             let byte_offset = index
                 .checked_mul(8)
                 .ok_or_else(|| Diagnostic::error("vtable slot index overflows a byte offset"))?;
@@ -196,11 +181,11 @@ pub fn encode_vtable_call_sequence_with_plan<T: InstructionOperandLike>(
                 operands,
                 byte_offset,
                 false,
-                authoritative_plan,
+                Some(authoritative_plan),
             )
         }
         Architecture::X86_64 => Err(Diagnostic::error(
-            "x86-64 vtable compatibility encoder requires Microsoft x64 or SysV AMD64",
+            "x86-64 vtable encoder requires a Microsoft x64 or SysV AMD64 plan",
         )),
     }
 }
@@ -208,34 +193,19 @@ pub fn encode_vtable_call_sequence_with_plan<T: InstructionOperandLike>(
 /// The FIELD-MODEL flavor (extern brief SS12.1): the byte offset came from
 /// the vtable struct's layout via the backend's vtable-field pass. When
 /// `result_present`, operand 0 is the RESULT place and the store tail runs.
-pub fn encode_vtable_call_sequence_at_offset<T: InstructionOperandLike>(
-    target: NativeTarget,
-    operands: &[T],
-    byte_offset: usize,
-    result_present: bool,
-) -> Result<Vec<u8>, Diagnostic> {
-    encode_vtable_call_sequence_at_offset_with_plan(
-        target,
-        operands,
-        byte_offset,
-        result_present,
-        None,
-    )
-}
-
 pub fn encode_vtable_call_sequence_at_offset_with_plan<T: InstructionOperandLike>(
     target: NativeTarget,
     operands: &[T],
     byte_offset: usize,
     result_present: bool,
-    authoritative_plan: Option<&CallPlan>,
+    authoritative_plan: &CallPlan,
 ) -> Result<Vec<u8>, Diagnostic> {
     match target.architecture {
         Architecture::Aarch64 => {
             let (arguments, result) = normalized_aarch64_vtable_plan_with_plan(
                 operands,
                 result_present,
-                authoritative_plan,
+                Some(authoritative_plan),
             )?;
             if result_present {
                 let result = result.as_ref().ok_or_else(|| {
@@ -299,36 +269,26 @@ pub fn encode_vtable_call_sequence_at_offset_with_plan<T: InstructionOperandLike
                 )
             }
         }
-        Architecture::X86_64
-            if authoritative_plan
-                .map(|plan| plan.policy)
-                .unwrap_or_else(|| CallingPolicy::native_for_target(target))
-                == CallingPolicy::MicrosoftX64 =>
-        {
+        Architecture::X86_64 if authoritative_plan.policy == CallingPolicy::MicrosoftX64 => {
             x86_64::encode_win64_vtable_call_at_offset_with_plan(
                 operands,
                 i64::try_from(byte_offset)
                     .map_err(|_| Diagnostic::error("vtable field offset overflows i64"))?,
                 result_present,
-                authoritative_plan,
+                Some(authoritative_plan),
             )
         }
-        Architecture::X86_64
-            if authoritative_plan
-                .map(|plan| plan.policy)
-                .unwrap_or_else(|| CallingPolicy::native_for_target(target))
-                == CallingPolicy::SystemVAMD64 =>
-        {
+        Architecture::X86_64 if authoritative_plan.policy == CallingPolicy::SystemVAMD64 => {
             x86_64::encode_sysv_vtable_call_with_plan(
                 operands,
                 i64::try_from(byte_offset)
                     .map_err(|_| Diagnostic::error("vtable field offset overflows i64"))?,
                 result_present,
-                authoritative_plan,
+                Some(authoritative_plan),
             )
         }
         Architecture::X86_64 => Err(Diagnostic::error(
-            "x86-64 vtable-field compatibility encoder requires Microsoft x64 or SysV AMD64",
+            "x86-64 vtable-field encoder requires a Microsoft x64 or SysV AMD64 plan",
         )),
     }
 }
@@ -336,34 +296,19 @@ pub fn encode_vtable_call_sequence_at_offset_with_plan<T: InstructionOperandLike
 /// A SERVICE-TABLE function call: field-model dispatch where the table
 /// pointer is dispatch-only, never a wire argument (EFI table services take
 /// no This; protocol/COM methods do).
-pub fn encode_table_function_call_sequence<T: InstructionOperandLike>(
-    target: NativeTarget,
-    operands: &[T],
-    byte_offset: usize,
-    result_present: bool,
-) -> Result<Vec<u8>, Diagnostic> {
-    encode_table_function_call_sequence_with_plan(
-        target,
-        operands,
-        byte_offset,
-        result_present,
-        None,
-    )
-}
-
 pub fn encode_table_function_call_sequence_with_plan<T: InstructionOperandLike>(
     target: NativeTarget,
     operands: &[T],
     byte_offset: usize,
     result_present: bool,
-    authoritative_plan: Option<&CallPlan>,
+    authoritative_plan: &CallPlan,
 ) -> Result<Vec<u8>, Diagnostic> {
     match target.architecture {
         Architecture::Aarch64 => {
             let (arguments, result) = normalized_aarch64_table_function_plan_with_plan(
                 operands,
                 result_present,
-                authoritative_plan,
+                Some(authoritative_plan),
             )?;
             match result.as_ref().map(|result| result.shape.class) {
                 None => aarch64::encode_table_function_call_sequence_from_operands(
@@ -427,36 +372,26 @@ pub fn encode_table_function_call_sequence_with_plan<T: InstructionOperandLike>(
                 ),
             }
         }
-        Architecture::X86_64
-            if authoritative_plan
-                .map(|plan| plan.policy)
-                .unwrap_or_else(|| CallingPolicy::native_for_target(target))
-                == CallingPolicy::MicrosoftX64 =>
-        {
+        Architecture::X86_64 if authoritative_plan.policy == CallingPolicy::MicrosoftX64 => {
             x86_64::encode_win64_table_function_call_with_plan(
                 operands,
                 i64::try_from(byte_offset)
                     .map_err(|_| Diagnostic::error("service table field offset overflows i64"))?,
                 result_present,
-                authoritative_plan,
+                Some(authoritative_plan),
             )
         }
-        Architecture::X86_64
-            if authoritative_plan
-                .map(|plan| plan.policy)
-                .unwrap_or_else(|| CallingPolicy::native_for_target(target))
-                == CallingPolicy::SystemVAMD64 =>
-        {
+        Architecture::X86_64 if authoritative_plan.policy == CallingPolicy::SystemVAMD64 => {
             x86_64::encode_sysv_table_function_call_with_plan(
                 operands,
                 i64::try_from(byte_offset)
                     .map_err(|_| Diagnostic::error("service table field offset overflows i64"))?,
                 result_present,
-                authoritative_plan,
+                Some(authoritative_plan),
             )
         }
         Architecture::X86_64 => Err(Diagnostic::error(
-            "x86-64 table-function compatibility encoder requires Microsoft x64 or SysV AMD64",
+            "x86-64 table-function encoder requires a Microsoft x64 or SysV AMD64 plan",
         )),
     }
 }
@@ -699,19 +634,6 @@ pub fn normalized_aarch64_host_argument_placements_with_plan<T: InstructionOpera
         .map(|(placements, _)| placements)
 }
 
-pub fn normalized_aarch64_vtable_argument_placements<T: InstructionOperandLike>(
-    operands: &[T],
-) -> Result<Vec<ValuePlacement>, Diagnostic> {
-    normalized_aarch64_vtable_plan(operands, false).map(|(placements, _)| placements)
-}
-
-pub fn normalized_aarch64_vtable_plan<T: InstructionOperandLike>(
-    operands: &[T],
-    result_present: bool,
-) -> Result<(Vec<ValuePlacement>, Option<ValuePlacement>), Diagnostic> {
-    normalized_aarch64_vtable_plan_with_plan(operands, result_present, None)
-}
-
 pub fn normalized_aarch64_vtable_plan_with_plan<T: InstructionOperandLike>(
     operands: &[T],
     result_present: bool,
@@ -745,13 +667,6 @@ pub fn normalized_aarch64_vtable_plan_with_plan<T: InstructionOperandLike>(
         validate_aarch64_field_result(result, "vtable")?;
     }
     Ok((placements, result))
-}
-
-pub fn normalized_aarch64_table_function_plan<T: InstructionOperandLike>(
-    operands: &[T],
-    result_present: bool,
-) -> Result<(Vec<ValuePlacement>, Option<ValuePlacement>), Diagnostic> {
-    normalized_aarch64_table_function_plan_with_plan(operands, result_present, None)
 }
 
 pub fn normalized_aarch64_table_function_plan_with_plan<T: InstructionOperandLike>(
@@ -2200,93 +2115,6 @@ mod compatibility_encoder_differential_tests {
     }
 
     #[test]
-    fn vtable_slot_compatibility_bytes_equal_the_explicit_native_plan() {
-        let operands = [scalar(0), scalar(8)];
-        for target in [
-            NativeTarget::windows_x64(),
-            NativeTarget::linux_x64(),
-            NativeTarget::linux_arm64(),
-        ] {
-            let plan = plan(target, 2, false);
-            let compatibility = encode_vtable_call_sequence(target, &operands, 3)
-                .expect("compatibility vtable slot encoding");
-            let planned = encode_vtable_call_sequence_with_plan(target, &operands, 3, Some(&plan))
-                .expect("explicit-plan vtable slot encoding");
-            assert_eq!(compatibility, planned, "target {target:?}");
-        }
-    }
-
-    #[test]
-    fn vtable_field_compatibility_bytes_and_width_equal_the_explicit_native_plan() {
-        // Result storage, receiver, and one declared argument.
-        let operands = [scalar(0), scalar(8), scalar(16)];
-        for target in [
-            NativeTarget::windows_x64(),
-            NativeTarget::linux_x64(),
-            NativeTarget::linux_arm64(),
-        ] {
-            let plan = plan(target, 2, true);
-            let compatibility = encode_vtable_call_sequence_at_offset(target, &operands, 24, true)
-                .expect("compatibility vtable field encoding");
-            let planned = encode_vtable_call_sequence_at_offset_with_plan(
-                target,
-                &operands,
-                24,
-                true,
-                Some(&plan),
-            )
-            .expect("explicit-plan vtable field encoding");
-            assert_eq!(compatibility, planned, "target {target:?}");
-            assert_eq!(
-                crate::vtable_call_sequence_width_at_offset(target, &operands, 24, true),
-                crate::vtable_call_sequence_width_at_offset_with_plan(
-                    target,
-                    &operands,
-                    24,
-                    true,
-                    Some(&plan),
-                ),
-                "target {target:?}"
-            );
-        }
-    }
-
-    #[test]
-    fn table_function_compatibility_bytes_and_width_equal_the_explicit_native_plan() {
-        // Result storage and the dispatch-only table pointer precede one wire argument.
-        let operands = [scalar(0), scalar(8), scalar(16)];
-        for target in [
-            NativeTarget::windows_x64(),
-            NativeTarget::linux_x64(),
-            NativeTarget::linux_arm64(),
-        ] {
-            let plan = plan(target, 1, true);
-            let compatibility = encode_table_function_call_sequence(target, &operands, 40, true)
-                .expect("compatibility table-function encoding");
-            let planned = encode_table_function_call_sequence_with_plan(
-                target,
-                &operands,
-                40,
-                true,
-                Some(&plan),
-            )
-            .expect("explicit-plan table-function encoding");
-            assert_eq!(compatibility, planned, "target {target:?}");
-            assert_eq!(
-                crate::table_function_call_sequence_width(target, &operands, 40, true),
-                crate::table_function_call_sequence_width_with_plan(
-                    target,
-                    &operands,
-                    40,
-                    true,
-                    Some(&plan),
-                ),
-                "target {target:?}"
-            );
-        }
-    }
-
-    #[test]
     fn authored_import_compatibility_bytes_and_width_equal_the_explicit_native_plan() {
         // Result storage followed by one declared scalar argument. The legacy
         // catalog key supplies only the compatibility route; placement comes
@@ -2582,16 +2410,31 @@ mod sysv_field_call_tests {
         }
     }
 
+    fn sysv_plan(parameter_count: usize, result_present: bool) -> CallPlan {
+        evaluate_call_plan(
+            CallingPolicy::SystemVAMD64,
+            &CallSignature {
+                parameters: vec![ValueShape::integer(8, 8); parameter_count],
+                result: result_present.then(|| ValueShape::integer(8, 8)),
+            },
+        )
+        .expect("explicit SysV field-call plan")
+    }
+
     #[test]
     fn linux_x64_routes_vtable_fields_through_the_sysv_encoder() {
         let operands = [scalar(0), scalar(8), scalar(16)];
         let target = omega_target::NativeTarget::linux_x64();
-        let bytes = encode_vtable_call_sequence_at_offset(target, &operands, 24, true)
-            .expect("SysV vtable-field call");
+        let plan = sysv_plan(2, true);
+        let bytes =
+            encode_vtable_call_sequence_at_offset_with_plan(target, &operands, 24, true, &plan)
+                .expect("SysV vtable-field call");
 
         assert_eq!(
             bytes.len(),
-            crate::vtable_call_sequence_width_at_offset(target, &operands, 24, true)
+            crate::vtable_call_sequence_width_at_offset_with_plan(
+                target, &operands, 24, true, &plan,
+            )
         );
         assert!(
             bytes
@@ -2610,14 +2453,9 @@ mod sysv_field_call_tests {
         let plan = evaluate_call_plan(CallingPolicy::SystemVAMD64, &signature)
             .expect("source-selected SysV field plan");
         let target = omega_target::NativeTarget::windows_x64();
-        let bytes = encode_vtable_call_sequence_at_offset_with_plan(
-            target,
-            &operands,
-            24,
-            true,
-            Some(&plan),
-        )
-        .expect("SysV vtable-field call in a PE image");
+        let bytes =
+            encode_vtable_call_sequence_at_offset_with_plan(target, &operands, 24, true, &plan)
+                .expect("SysV vtable-field call in a PE image");
 
         assert!(
             bytes
@@ -2628,11 +2466,7 @@ mod sysv_field_call_tests {
         assert_eq!(
             bytes.len(),
             crate::vtable_call_sequence_width_at_offset_with_plan(
-                target,
-                &operands,
-                24,
-                true,
-                Some(&plan),
+                target, &operands, 24, true, &plan,
             )
         );
     }
@@ -2641,12 +2475,14 @@ mod sysv_field_call_tests {
     fn linux_x64_routes_table_functions_without_passing_the_table() {
         let operands = [scalar(0), scalar(8), scalar(16)];
         let target = omega_target::NativeTarget::linux_x64();
-        let bytes = encode_table_function_call_sequence(target, &operands, 40, true)
-            .expect("SysV table-function call");
+        let plan = sysv_plan(1, true);
+        let bytes =
+            encode_table_function_call_sequence_with_plan(target, &operands, 40, true, &plan)
+                .expect("SysV table-function call");
 
         assert_eq!(
             bytes.len(),
-            crate::table_function_call_sequence_width(target, &operands, 40, true)
+            crate::table_function_call_sequence_width_with_plan(target, &operands, 40, true, &plan,)
         );
         assert!(
             bytes
@@ -2667,7 +2503,7 @@ mod sysv_field_call_tests {
             .expect("source-selected SysV table-function plan");
         let target = omega_target::NativeTarget::windows_x64();
         let bytes =
-            encode_table_function_call_sequence_with_plan(target, &operands, 40, true, Some(&plan))
+            encode_table_function_call_sequence_with_plan(target, &operands, 40, true, &plan)
                 .expect("SysV table-function call in a PE image");
 
         assert!(
@@ -2678,13 +2514,7 @@ mod sysv_field_call_tests {
         );
         assert_eq!(
             bytes.len(),
-            crate::table_function_call_sequence_width_with_plan(
-                target,
-                &operands,
-                40,
-                true,
-                Some(&plan),
-            )
+            crate::table_function_call_sequence_width_with_plan(target, &operands, 40, true, &plan,)
         );
     }
 }
@@ -2699,6 +2529,14 @@ mod aarch64_import_plan_tests {
 
     fn operand(kind: TargetInstructionOperandKind) -> TargetInstructionOperand {
         TargetInstructionOperand { kind }
+    }
+
+    fn aapcs64_plan(parameters: Vec<ValueShape>, result: Option<ValueShape>) -> CallPlan {
+        evaluate_call_plan(
+            CallingPolicy::Aapcs64,
+            &CallSignature { parameters, result },
+        )
+        .expect("explicit AAPCS64 field-call plan")
     }
 
     #[test]
@@ -2821,8 +2659,11 @@ mod aarch64_import_plan_tests {
             operand(TargetInstructionOperandKind::ImmediateInteger(7)),
         ];
 
-        let placements = normalized_aarch64_vtable_argument_placements(&operands)
-            .expect("AAPCS64 vtable placements");
+        let plan = aapcs64_plan(vec![ValueShape::integer(8, 8); 2], None);
+        let (placements, result) =
+            normalized_aarch64_vtable_plan_with_plan(&operands, false, Some(&plan))
+                .expect("AAPCS64 vtable placements");
+        assert!(result.is_none());
         assert!(matches!(
             placements[0].locations.as_slice(),
             [ValueLocation::Register {
@@ -2864,14 +2705,9 @@ mod aarch64_import_plan_tests {
         };
 
         let target = omega_target::NativeTarget::linux_arm64();
-        let bytes = encode_vtable_call_sequence_at_offset_with_plan(
-            target,
-            &operands,
-            24,
-            false,
-            Some(&plan),
-        )
-        .expect("source-selected AAPCS64 vtable plan");
+        let bytes =
+            encode_vtable_call_sequence_at_offset_with_plan(target, &operands, 24, false, &plan)
+                .expect("source-selected AAPCS64 vtable plan");
 
         assert!(
             bytes
@@ -2881,11 +2717,7 @@ mod aarch64_import_plan_tests {
         assert_eq!(
             bytes.len(),
             crate::vtable_call_sequence_width_at_offset_with_plan(
-                target,
-                &operands,
-                24,
-                false,
-                Some(&plan),
+                target, &operands, 24, false, &plan,
             )
         );
     }
@@ -2906,8 +2738,13 @@ mod aarch64_import_plan_tests {
             operand(TargetInstructionOperandKind::ImmediateInteger(7)),
         ];
 
+        let plan = aapcs64_plan(
+            vec![ValueShape::integer(8, 8); 2],
+            Some(ValueShape::integer(4, 4)),
+        );
         let (placements, result) =
-            normalized_aarch64_vtable_plan(&operands, true).expect("AAPCS64 vtable field plan");
+            normalized_aarch64_vtable_plan_with_plan(&operands, true, Some(&plan))
+                .expect("AAPCS64 vtable field plan");
         assert!(matches!(
             result.expect("result placement").locations.as_slice(),
             [ValueLocation::Register {
@@ -2933,28 +2770,31 @@ mod aarch64_import_plan_tests {
             }]
         ));
 
-        let bytes = encode_vtable_call_sequence_at_offset(
+        let bytes = encode_vtable_call_sequence_at_offset_with_plan(
             omega_target::NativeTarget::linux_arm64(),
             &operands,
             24,
             true,
+            &plan,
         )
         .expect("encode AAPCS64 vtable field result");
         assert_eq!(
             bytes.len(),
-            crate::vtable_call_sequence_width_at_offset(
+            crate::vtable_call_sequence_width_at_offset_with_plan(
                 omega_target::NativeTarget::linux_arm64(),
                 &operands,
                 24,
                 true,
+                &plan,
             )
         );
         assert_eq!(
-            crate::vtable_call_sequence_width_at_offset(
+            crate::vtable_call_sequence_width_at_offset_with_plan(
                 omega_target::NativeTarget::linux_arm64(),
                 &operands,
                 32_768,
                 true,
+                &plan,
             ),
             0
         );
@@ -2998,8 +2838,13 @@ mod aarch64_import_plan_tests {
             operand(TargetInstructionOperandKind::ImmediateInteger(7)),
         ];
 
-        let (placements, result) = normalized_aarch64_table_function_plan(&operands, true)
-            .expect("AAPCS64 table-function plan");
+        let plan = aapcs64_plan(
+            vec![ValueShape::integer(8, 8)],
+            Some(ValueShape::integer(4, 4)),
+        );
+        let (placements, result) =
+            normalized_aarch64_table_function_plan_with_plan(&operands, true, Some(&plan))
+                .expect("AAPCS64 table-function plan");
         assert!(matches!(
             result.expect("result placement").locations.as_slice(),
             [ValueLocation::Register {
@@ -3018,20 +2863,22 @@ mod aarch64_import_plan_tests {
             }]
         ));
 
-        let bytes = encode_table_function_call_sequence(
+        let bytes = encode_table_function_call_sequence_with_plan(
             omega_target::NativeTarget::linux_arm64(),
             &operands,
             24,
             true,
+            &plan,
         )
         .expect("encode AAPCS64 table-function result");
         assert_eq!(
             bytes.len(),
-            crate::table_function_call_sequence_width(
+            crate::table_function_call_sequence_width_with_plan(
                 omega_target::NativeTarget::linux_arm64(),
                 &operands,
                 24,
                 true,
+                &plan,
             )
         );
     }
@@ -3050,21 +2897,24 @@ mod aarch64_import_plan_tests {
                 byte_count: 8,
             }),
         ];
-        let vtable_bytes = encode_vtable_call_sequence_at_offset(
+        let vtable_plan = aapcs64_plan(vec![ValueShape::integer(8, 8)], Some(ValueShape::float(8)));
+        let vtable_bytes = encode_vtable_call_sequence_at_offset_with_plan(
             omega_target::NativeTarget::linux_arm64(),
             &vtable_operands,
             24,
             true,
+            &vtable_plan,
         )
         .expect("encode float-returning AAPCS64 vtable field");
         assert_eq!(vtable_bytes.len(), 36);
         assert_eq!(
             vtable_bytes.len(),
-            crate::vtable_call_sequence_width_at_offset(
+            crate::vtable_call_sequence_width_at_offset_with_plan(
                 omega_target::NativeTarget::linux_arm64(),
                 &vtable_operands,
                 24,
                 true,
+                &vtable_plan,
             )
         );
 
@@ -3084,21 +2934,27 @@ mod aarch64_import_plan_tests {
             }),
             operand(TargetInstructionOperandKind::ImmediateInteger(7)),
         ];
-        let table_bytes = encode_table_function_call_sequence(
+        let table_plan = aapcs64_plan(
+            vec![ValueShape::integer(8, 8)],
+            Some(ValueShape::homogeneous_float_aggregate(8, 2)),
+        );
+        let table_bytes = encode_table_function_call_sequence_with_plan(
             omega_target::NativeTarget::linux_arm64(),
             &table_operands,
             24,
             true,
+            &table_plan,
         )
         .expect("encode HFA-returning AAPCS64 table function");
         assert_eq!(table_bytes.len(), 48);
         assert_eq!(
             table_bytes.len(),
-            crate::table_function_call_sequence_width(
+            crate::table_function_call_sequence_width_with_plan(
                 omega_target::NativeTarget::linux_arm64(),
                 &table_operands,
                 24,
                 true,
+                &table_plan,
             )
         );
     }
@@ -3122,38 +2978,47 @@ mod aarch64_import_plan_tests {
         };
 
         let vtable_operands = [aggregate_result(), receiver()];
-        let vtable_bytes = encode_vtable_call_sequence_at_offset(
+        let vtable_plan = aapcs64_plan(
+            vec![ValueShape::integer(8, 8)],
+            Some(ValueShape::integer(16, 8)),
+        );
+        let vtable_bytes = encode_vtable_call_sequence_at_offset_with_plan(
             omega_target::NativeTarget::linux_arm64(),
             &vtable_operands,
             24,
             true,
+            &vtable_plan,
         )
         .expect("encode small-aggregate-returning AAPCS64 vtable field");
         assert_eq!(
             vtable_bytes.len(),
-            crate::vtable_call_sequence_width_at_offset(
+            crate::vtable_call_sequence_width_at_offset_with_plan(
                 omega_target::NativeTarget::linux_arm64(),
                 &vtable_operands,
                 24,
                 true,
+                &vtable_plan,
             )
         );
 
         let table_operands = [aggregate_result(), receiver()];
-        let table_bytes = encode_table_function_call_sequence(
+        let table_plan = aapcs64_plan(Vec::new(), Some(ValueShape::integer(16, 8)));
+        let table_bytes = encode_table_function_call_sequence_with_plan(
             omega_target::NativeTarget::linux_arm64(),
             &table_operands,
             24,
             true,
+            &table_plan,
         )
         .expect("encode small-aggregate-returning AAPCS64 table function");
         assert_eq!(
             table_bytes.len(),
-            crate::table_function_call_sequence_width(
+            crate::table_function_call_sequence_width_with_plan(
                 omega_target::NativeTarget::linux_arm64(),
                 &table_operands,
                 24,
                 true,
+                &table_plan,
             )
         );
     }
@@ -3177,38 +3042,47 @@ mod aarch64_import_plan_tests {
         };
 
         let vtable_operands = [aggregate_result(), pointer()];
-        let vtable_bytes = encode_vtable_call_sequence_at_offset(
+        let vtable_plan = aapcs64_plan(
+            vec![ValueShape::integer(8, 8)],
+            Some(ValueShape::integer(24, 8)),
+        );
+        let vtable_bytes = encode_vtable_call_sequence_at_offset_with_plan(
             omega_target::NativeTarget::linux_arm64(),
             &vtable_operands,
             24,
             true,
+            &vtable_plan,
         )
         .expect("encode indirect-returning AAPCS64 vtable field");
         assert_eq!(
             vtable_bytes.len(),
-            crate::vtable_call_sequence_width_at_offset(
+            crate::vtable_call_sequence_width_at_offset_with_plan(
                 omega_target::NativeTarget::linux_arm64(),
                 &vtable_operands,
                 24,
                 true,
+                &vtable_plan,
             )
         );
 
         let table_operands = [aggregate_result(), pointer()];
-        let table_bytes = encode_table_function_call_sequence(
+        let table_plan = aapcs64_plan(Vec::new(), Some(ValueShape::integer(24, 8)));
+        let table_bytes = encode_table_function_call_sequence_with_plan(
             omega_target::NativeTarget::linux_arm64(),
             &table_operands,
             24,
             true,
+            &table_plan,
         )
         .expect("encode indirect-returning AAPCS64 table function");
         assert_eq!(
             table_bytes.len(),
-            crate::table_function_call_sequence_width(
+            crate::table_function_call_sequence_width_with_plan(
                 omega_target::NativeTarget::linux_arm64(),
                 &table_operands,
                 24,
                 true,
+                &table_plan,
             )
         );
     }

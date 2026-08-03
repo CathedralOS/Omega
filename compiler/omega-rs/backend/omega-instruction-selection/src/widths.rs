@@ -10,21 +10,12 @@ use omega_target_operations::{
 };
 use psi_diagnostics::Diagnostic;
 
-pub fn vtable_call_sequence_width<T: InstructionOperandLike>(
-    target: NativeTarget,
-    operands: &[T],
-    index: i64,
-    result_present: bool,
-) -> usize {
-    vtable_call_sequence_width_with_plan(target, operands, index, result_present, None)
-}
-
 pub fn vtable_call_sequence_width_with_plan<T: InstructionOperandLike>(
     target: NativeTarget,
     operands: &[T],
     index: i64,
     result_present: bool,
-    authoritative_plan: Option<&omega_calling_conventions::CallPlan>,
+    authoritative_plan: &omega_calling_conventions::CallPlan,
 ) -> usize {
     let dispatch_width = match target.architecture {
         Architecture::Aarch64 => aarch64::vtable_call_dispatch_width(index),
@@ -40,27 +31,12 @@ pub fn vtable_call_sequence_width_with_plan<T: InstructionOperandLike>(
     )
 }
 
-pub fn vtable_call_sequence_width_at_offset<T: InstructionOperandLike>(
-    target: NativeTarget,
-    operands: &[T],
-    byte_offset: usize,
-    result_present: bool,
-) -> usize {
-    vtable_call_sequence_width_at_offset_with_plan(
-        target,
-        operands,
-        byte_offset,
-        result_present,
-        None,
-    )
-}
-
 pub fn vtable_call_sequence_width_at_offset_with_plan<T: InstructionOperandLike>(
     target: NativeTarget,
     operands: &[T],
     byte_offset: usize,
     result_present: bool,
-    authoritative_plan: Option<&omega_calling_conventions::CallPlan>,
+    authoritative_plan: &omega_calling_conventions::CallPlan,
 ) -> usize {
     let dispatch_width = match target.architecture {
         Architecture::Aarch64 => aarch64::vtable_call_dispatch_width_at_offset(byte_offset),
@@ -82,14 +58,14 @@ fn vtable_call_sequence_width_with_dispatch<T: InstructionOperandLike>(
     index_or_offset: i64,
     result_present: bool,
     dispatch_width: Option<usize>,
-    authoritative_plan: Option<&omega_calling_conventions::CallPlan>,
+    authoritative_plan: &omega_calling_conventions::CallPlan,
 ) -> usize {
     match target.architecture {
         Architecture::Aarch64 => {
             let Ok((placements, _)) = crate::normalized_aarch64_vtable_plan_with_plan(
                 operands,
                 result_present,
-                authoritative_plan,
+                Some(authoritative_plan),
             ) else {
                 return 0;
             };
@@ -101,52 +77,29 @@ fn vtable_call_sequence_width_with_dispatch<T: InstructionOperandLike>(
                 + dispatch_width
         }
         Architecture::X86_64
-            if authoritative_plan
-                .map(|plan| plan.policy)
-                .unwrap_or_else(|| {
-                    omega_calling_conventions::CallingPolicy::native_for_target(target)
-                })
+            if authoritative_plan.policy
                 == omega_calling_conventions::CallingPolicy::MicrosoftX64 =>
         {
             x86_64::win64_vtable_call_width_with_plan(
                 operands,
                 index_or_offset,
                 result_present,
-                authoritative_plan,
+                Some(authoritative_plan),
             )
         }
         Architecture::X86_64
-            if authoritative_plan
-                .map(|plan| plan.policy)
-                .unwrap_or_else(|| {
-                    omega_calling_conventions::CallingPolicy::native_for_target(target)
-                })
+            if authoritative_plan.policy
                 == omega_calling_conventions::CallingPolicy::SystemVAMD64 =>
         {
             x86_64::sysv_vtable_call_width_with_plan(
                 operands,
                 index_or_offset,
                 result_present,
-                authoritative_plan,
+                Some(authoritative_plan),
             )
         }
         Architecture::X86_64 => 0,
     }
-}
-
-pub fn table_function_call_sequence_width<T: InstructionOperandLike>(
-    target: NativeTarget,
-    operands: &[T],
-    byte_offset: usize,
-    result_present: bool,
-) -> usize {
-    table_function_call_sequence_width_with_plan(
-        target,
-        operands,
-        byte_offset,
-        result_present,
-        None,
-    )
 }
 
 pub fn table_function_call_sequence_width_with_plan<T: InstructionOperandLike>(
@@ -154,14 +107,14 @@ pub fn table_function_call_sequence_width_with_plan<T: InstructionOperandLike>(
     operands: &[T],
     byte_offset: usize,
     result_present: bool,
-    authoritative_plan: Option<&omega_calling_conventions::CallPlan>,
+    authoritative_plan: &omega_calling_conventions::CallPlan,
 ) -> usize {
     match target.architecture {
         Architecture::Aarch64 => {
             let Ok((placements, _)) = crate::normalized_aarch64_table_function_plan_with_plan(
                 operands,
                 result_present,
-                authoritative_plan,
+                Some(authoritative_plan),
             ) else {
                 return 0;
             };
@@ -174,33 +127,25 @@ pub fn table_function_call_sequence_width_with_plan<T: InstructionOperandLike>(
                 + dispatch_width
         }
         Architecture::X86_64
-            if authoritative_plan
-                .map(|plan| plan.policy)
-                .unwrap_or_else(|| {
-                    omega_calling_conventions::CallingPolicy::native_for_target(target)
-                })
+            if authoritative_plan.policy
                 == omega_calling_conventions::CallingPolicy::MicrosoftX64 =>
         {
             x86_64::win64_table_function_call_width_with_plan(
                 operands,
                 i64::try_from(byte_offset).unwrap_or(i64::MAX),
                 result_present,
-                authoritative_plan,
+                Some(authoritative_plan),
             )
         }
         Architecture::X86_64
-            if authoritative_plan
-                .map(|plan| plan.policy)
-                .unwrap_or_else(|| {
-                    omega_calling_conventions::CallingPolicy::native_for_target(target)
-                })
+            if authoritative_plan.policy
                 == omega_calling_conventions::CallingPolicy::SystemVAMD64 =>
         {
             x86_64::sysv_table_function_call_width_with_plan(
                 operands,
                 i64::try_from(byte_offset).unwrap_or(i64::MAX),
                 result_present,
-                authoritative_plan,
+                Some(authoritative_plan),
             )
         }
         Architecture::X86_64 => 0,

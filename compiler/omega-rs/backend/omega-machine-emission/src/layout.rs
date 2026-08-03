@@ -150,13 +150,17 @@ fn machine_instruction_width(
                     )
                 }
                 Some(HostBindingMechanism::VtableSlot { index }) => {
-                    vtable_call_sequence_width_with_plan(
-                        input.target,
-                        operands,
-                        *index,
-                        false,
-                        binding.and_then(omega_calling_conventions::HostBinding::call_plan),
-                    )
+                    binding
+                        .and_then(omega_calling_conventions::HostBinding::call_plan)
+                        .map_or(0, |plan| {
+                            vtable_call_sequence_width_with_plan(
+                                input.target,
+                                operands,
+                                *index,
+                                false,
+                                plan,
+                            )
+                        })
                 }
                 // A call with MORE operands than the method's declared parameters
                 // carries a prepended RESULT place (`let status = ...`). The
@@ -166,24 +170,32 @@ fn machine_instruction_width(
                     byte_offset,
                     parameter_count,
                     ..
-                }) => vtable_call_sequence_width_at_offset_with_plan(
-                    input.target,
-                    operands,
-                    *byte_offset,
-                    operands.len() > *parameter_count,
-                    binding.and_then(omega_calling_conventions::HostBinding::call_plan),
-                ),
+                }) => binding
+                    .and_then(omega_calling_conventions::HostBinding::call_plan)
+                    .map_or(0, |plan| {
+                        vtable_call_sequence_width_at_offset_with_plan(
+                            input.target,
+                            operands,
+                            *byte_offset,
+                            operands.len() > *parameter_count,
+                            plan,
+                        )
+                    }),
                 Some(HostBindingMechanism::TableFunction {
                     byte_offset,
                     parameter_count,
                     ..
-                }) => table_function_call_sequence_width_with_plan(
-                    input.target,
-                    operands,
-                    *byte_offset,
-                    operands.len() > *parameter_count,
-                    binding.and_then(omega_calling_conventions::HostBinding::call_plan),
-                ),
+                }) => binding
+                    .and_then(omega_calling_conventions::HostBinding::call_plan)
+                    .map_or(0, |plan| {
+                        table_function_call_sequence_width_with_plan(
+                            input.target,
+                            operands,
+                            *byte_offset,
+                            operands.len() > *parameter_count,
+                            plan,
+                        )
+                    }),
                 Some(HostBindingMechanism::Import { .. })
                     if matches!(
                         host_operation.operation_key.capability,
