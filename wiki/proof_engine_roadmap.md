@@ -73,8 +73,8 @@ or out-of-language conjuncts suppress rejection exactly as before.
 
 ## UPDATE 2026-06-10: L0-L6 ARE DISCHARGED
 
-The entailment engine landed in
-`compiler/semantics/omega-validation/src/contract_entailment.rs` (superseding
+The entailment engine lives in
+`compiler/psi-rs/semantics/psi-validation/src/contract_entailment.rs` (superseding
 the refutation pass). For an EMPTY-BODY proof machine whose contract lies
 inside the engine's language, every ensures fact is now PROVEN or REJECTED --
 silent acceptance of a false theorem is over. All 10 `pass/proofs/` rungs
@@ -134,9 +134,9 @@ machines.
 
 ## What Landed With This Roadmap
 
-A contract refutation pass in
-`compiler/semantics/omega-validation/src/contract_refutation.rs`. For
-empty-body machines it rejects an `ensures` fact when:
+The predecessor contract-refutation pass is now subsumed by
+`compiler/psi-rs/semantics/psi-validation/src/contract_entailment.rs`. For
+empty-body machines the original pass rejected an `ensures` fact when:
 
 - constant arithmetic disproves it (both sides fold to constants that compare
   false), or

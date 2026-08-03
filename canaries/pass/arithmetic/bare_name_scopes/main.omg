@@ -1,7 +1,7 @@
 // Locks the BARE-NAME allow-list against the two non-obvious forms that a naive
 // "unknown bare name" existence check wrongly rejected before it was scoped to the
 // WHOLE machine (see fail canary undeclared_bare_name_rejected + its check in
-// omega-validation/calls.rs `is_known_bare_name`):
+// psi-validation/calls.rs `is_known_bare_name`):
 //
 //   1. CROSS-STATE param read: `state report` reads `n`, which is a PARAMETER of a
 //      SIBLING state (`classify`), not of `report` itself. State bindings share the
