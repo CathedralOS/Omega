@@ -299,6 +299,12 @@ pub(crate) fn lower_host_call_arguments(
                     call.target.as_str(),
                     index,
                 ),
+                expects_address: call_parameter_expects_address(
+                    program,
+                    call.target_symbol,
+                    call.target.as_str(),
+                    index,
+                ),
             },
         );
     }
@@ -333,6 +339,33 @@ pub(crate) fn call_parameter_expects_reference(
     type_reference_is_reference(program, parameter.type_reference)
 }
 
+pub(crate) fn call_parameter_expects_address(
+    program: &CheckedTrees,
+    target_symbol: SymbolHandle,
+    target_name: &str,
+    index: usize,
+) -> bool {
+    let signature = program.traits().iter().find_map(|definition| {
+        program
+            .trait_machine_signatures(definition)
+            .iter()
+            .find(|signature| {
+                (target_symbol.is_valid() && signature.symbol == target_symbol)
+                    || (!target_symbol.is_valid() && signature.name.as_str() == target_name)
+            })
+    });
+    let Some(parameter) = signature.and_then(|signature| {
+        program
+            .state_signature_parameters(signature)
+            .iter()
+            .filter(|parameter| !parameter.is_self)
+            .nth(index)
+    }) else {
+        return false;
+    };
+    type_reference_is_address(program, parameter.type_reference)
+}
+
 fn type_reference_is_reference(
     program: &CheckedTrees,
     type_reference: psi_checked_trees::types::TypeReferenceHandle,
@@ -341,6 +374,19 @@ fn type_reference_is_reference(
         psi_checked_trees::types::TypeReferenceNode::Reference { .. } => true,
         psi_checked_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
             type_reference_is_reference(program, *base_type)
+        }
+        _ => false,
+    }
+}
+
+fn type_reference_is_address(
+    program: &CheckedTrees,
+    type_reference: psi_checked_trees::types::TypeReferenceHandle,
+) -> bool {
+    match program.type_reference_table.type_reference(type_reference) {
+        psi_checked_trees::types::TypeReferenceNode::Named { name, .. } => name.as_str() == "addr",
+        psi_checked_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+            type_reference_is_address(program, *base_type)
         }
         _ => false,
     }

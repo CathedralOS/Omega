@@ -6,6 +6,29 @@ use omega_calling_conventions::{
 use omega_target::{Architecture, ObjectFormat};
 use psi_diagnostics::Diagnostic;
 
+pub(super) fn field_model_result_present(
+    operand_count: usize,
+    plan: &CallPlan,
+    dispatch_only_operand_count: usize,
+    label: &str,
+) -> Result<bool, Diagnostic> {
+    let parameter_operand_count = plan
+        .parameters
+        .len()
+        .checked_add(dispatch_only_operand_count)
+        .ok_or_else(|| Diagnostic::error(format!("{label} operand count overflowed")))?;
+    if operand_count == parameter_operand_count {
+        Ok(false)
+    } else if operand_count == parameter_operand_count + 1 {
+        Ok(true)
+    } else {
+        Err(Diagnostic::error(format!(
+            "cannot encode {label} call: {operand_count} operand(s) for {} retained wire parameter(s) and {dispatch_only_operand_count} dispatch-only operand(s)",
+            plan.parameters.len()
+        )))
+    }
+}
+
 pub(super) fn host_binding<'plan>(
     input: MachineEmissionContext<'plan>,
     operation_key: HostOperationKey,
@@ -51,4 +74,43 @@ pub(super) fn instruction_requires_float_control_restore(
         .host_operation_key()
         .and_then(|operation_key| host_binding(input, operation_key))
         .is_some_and(|binding| binding.mechanism.requires_float_control_restore())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::field_model_result_present;
+    use omega_calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
+
+    fn one_parameter_result_plan() -> omega_calling_conventions::CallPlan {
+        evaluate_call_plan(
+            CallingPolicy::MicrosoftX64,
+            &CallSignature {
+                parameters: vec![ValueShape::integer(8, 8)],
+                result: Some(ValueShape::integer(8, 8)),
+            },
+        )
+        .expect("one-parameter call plan")
+    }
+
+    #[test]
+    fn field_result_detection_comes_from_the_retained_wire_signature() {
+        let plan = one_parameter_result_plan();
+        assert_eq!(
+            field_model_result_present(1, &plan, 0, "vtable").expect("statement vtable call"),
+            false
+        );
+        assert_eq!(
+            field_model_result_present(2, &plan, 0, "vtable").expect("value vtable call"),
+            true
+        );
+        assert_eq!(
+            field_model_result_present(2, &plan, 1, "table").expect("statement table call"),
+            false
+        );
+        assert_eq!(
+            field_model_result_present(3, &plan, 1, "table").expect("value table call"),
+            true
+        );
+        assert!(field_model_result_present(4, &plan, 1, "table").is_err());
+    }
 }

@@ -919,7 +919,10 @@ Remaining:
   encoder, layout width, call relocation, and data relocation now consume that
   complete concrete plan; the duplicated `+8`/`+12` accounting and trailing-mode
   operation classifier are retired; and
-- delete compatibility fields after their final consumer migrates.
+- delete compatibility fields after their final consumer migrates. The
+  vtable-field and service-table declared-parameter-count copies are retired;
+  result presence now comes from the retained wire plan plus the service
+  table's explicit dispatch-only operand topology.
 
 Acceptance: changing a normalized plan changes lowering or rejects; changing
 only policy source while producing the same canonical plan preserves contract

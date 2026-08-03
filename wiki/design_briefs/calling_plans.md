@@ -117,6 +117,11 @@ Those consumers do not reselect a native policy or catalog operation from the
 output target: a missing plan contributes no layout width and produces an
 explicit emission diagnostic, while a changed plan either changes the emitted
 placement or rejects as unrealizable.
+Field-model mechanisms retain only their dispatch recipe. They do not duplicate
+the source parameter count: layout, emission, relocation, and reporting derive
+wire arity and result presence from the retained plan, adding the service
+table's one dispatch-only operand only where the selected operand topology
+requires it.
 At the final ABI seam, a checked scalar argument's retained parameter shape is
 the foreign type; a wider compiler-owned scratch slot is only storage capacity
 and cannot redefine that type. A slot smaller than the retained shape still
@@ -987,7 +992,10 @@ The vtable-slot, vtable-field, and service-table compatibility shapes have an
 exact differential lock: on Microsoft x64, SysV AMD64, and AAPCS64, normalized
 compatibility selection must emit the same bytes as supplying the independently
 evaluated native `CallPlan`. Result-bearing field and table calls also require
-identical planned widths. The production x86-64 ISA encoder, width, and
+identical planned widths. Their mechanism records no longer carry the former
+declared-parameter-count compatibility field; the authoritative plan and the
+dispatch recipe now determine the complete call shape. The production x86-64
+ISA encoder, width, and
 field-call data-relocation APIs now require that authoritative plan directly;
 normalized Win64 reconstruction is a test-only oracle, and the unused SysV
 no-plan entry points are retired. The AArch64 vtable and service-table plan

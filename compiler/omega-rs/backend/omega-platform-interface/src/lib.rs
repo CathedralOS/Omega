@@ -125,6 +125,11 @@ pub struct HostCallArgument {
     /// Immutable `&place` syntax is erased during parsing, so this formal-type
     /// fact is required to recover borrowed-place passing honestly.
     pub expects_reference: bool,
+    /// The resolved boundary requirement expects an inert raw address at this
+    /// position. Immutable `&place` syntax is erased during parsing, so a
+    /// non-address place must contribute its storage address; an `addr`-typed
+    /// actual already contains the value and must not acquire another layer.
+    pub expects_address: bool,
 }
 
 impl Default for HostCallArgument {
@@ -133,6 +138,7 @@ impl Default for HostCallArgument {
             kind: HostCallArgumentKind::Expression(ExpressionHandle::invalid()),
             is_borrowed: false,
             expects_reference: false,
+            expects_address: false,
         }
     }
 }
