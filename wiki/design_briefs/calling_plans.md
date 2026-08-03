@@ -111,6 +111,12 @@ unnormalized construction order—enters public contract identity. Refactoring a
 policy machine without changing its normalized output therefore preserves ABI
 identity; changing an observable placement or state commitment changes it.
 
+Selected vtable-slot, vtable-field, and service-table bindings carry that
+evaluated plan all the way through layout and emission. Those consumers do not
+reselect a native policy from the output target: a missing plan contributes no
+layout width and produces an explicit emission diagnostic, while a changed plan
+either changes the emitted placement or rejects as unrealizable.
+
 Ordinary packages may author policy types under the same validation rules as
 platform packages. They choose only from the closed placement and machine-state
 vocabularies; adding a new primitive placement or state concept still requires a

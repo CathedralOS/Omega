@@ -57,7 +57,11 @@ pub(super) fn encode_host_operation(
                 input.target,
                 operands,
                 *index,
-                binding.and_then(omega_calling_conventions::HostBinding::call_plan),
+                binding
+                    .and_then(omega_calling_conventions::HostBinding::call_plan)
+                    .ok_or_else(|| {
+                        Diagnostic::error("selected vtable-slot binding has no evaluated call plan")
+                    })?,
             )
         }
         Some(HostBindingMechanism::VtableField {
@@ -69,7 +73,11 @@ pub(super) fn encode_host_operation(
             operands,
             *byte_offset,
             field_model_result_present(operands.len(), *parameter_count, "vtable-field")?,
-            binding.and_then(omega_calling_conventions::HostBinding::call_plan),
+            binding
+                .and_then(omega_calling_conventions::HostBinding::call_plan)
+                .ok_or_else(|| {
+                    Diagnostic::error("selected vtable-field binding has no evaluated call plan")
+                })?,
         ),
         Some(HostBindingMechanism::TableFunction {
             byte_offset,
@@ -80,7 +88,11 @@ pub(super) fn encode_host_operation(
             operands,
             *byte_offset,
             field_model_result_present(operands.len(), *parameter_count, "table-function")?,
-            binding.and_then(omega_calling_conventions::HostBinding::call_plan),
+            binding
+                .and_then(omega_calling_conventions::HostBinding::call_plan)
+                .ok_or_else(|| {
+                    Diagnostic::error("selected table-function binding has no evaluated call plan")
+                })?,
         ),
         Some(HostBindingMechanism::Import { .. })
             if matches!(

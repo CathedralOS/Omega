@@ -802,15 +802,16 @@ Remaining:
 - record write-only views as a focused core-type follow-up rather than hiding
   write-only foreign access in a plan;
 - extend differential checks wherever a compatibility encoder remains. The
-  current vtable-slot, vtable-field, and service-table cohort now proves exact
-  byte equality between compatibility selection and an explicit evaluated
-  native plan on Microsoft x64, SysV AMD64, and AAPCS64; both result-bearing
-  widths are pinned too. Authored scalar imports now carry the same byte/width
-  lock on Microsoft x64 and both AAPCS64 targets, while SysV AMD64 explicitly
-  fails closed without its required plan. Linux statement, value-result,
-  timespec-result, and timespec-argument syscall families now prove byte and
-  width equality on x86-64/AArch64; result/argument relocation sites are
-  differential-locked too. Ordinary non-variadic scalar built-in imports now
+  vtable-slot, vtable-field, and service-table emission and layout now require
+  the selected binding's evaluated plan; their no-plan encoders, width oracles,
+  AArch64 placement helpers, and target-policy compatibility tests are retired.
+  A malformed selected field binding without a plan fails emission explicitly
+  and cannot reserve a compatibility width. Authored scalar imports carry the
+  same byte/width lock on Microsoft x64 and both AAPCS64 targets, while SysV
+  AMD64 explicitly fails closed without its required plan. Linux statement,
+  value-result, timespec-result, and timespec-argument syscall families now
+  prove byte and width equality on x86-64/AArch64; result/argument relocation
+  sites are differential-locked too. Ordinary non-variadic scalar built-in imports now
   consume the binding-retained plan in emission, layout, and relocation
   accounting; their Windows x64/macOS arm64 compatibility bytes and widths,
   plus Windows x64 relocation sites, are differential-locked. Void imports,
