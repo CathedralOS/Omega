@@ -978,7 +978,10 @@ through machine emission, layout, and x86-64 relocation accounting instead of
 reconstructing placement at those consumers. Direct scalar Windows x64 and
 macOS arm64 calls have the same byte/width differential lock as authored
 imports, and the Windows x64 comparison includes the call, argument, and result
-relocation sites. The lock now also covers void imports, the errno-style
+relocation sites. Machine emission now rejects a selected built-in import whose
+plan is absent instead of reaching the catalog-shaped compatibility encoder;
+the no-plan route remains only an explicit differential oracle. The lock now
+also covers void imports, the errno-style
 pointer-result dereference tail, Windows key-state postprocessing, and AAPCS64
 scalar-float arguments/results. The obsolete semantic-operation classifier for
 Windows clock out-pointers is retired; the composite time encoder's concrete
