@@ -2094,13 +2094,16 @@ pub fn encode_host_call_sequence_with_plan<T: InstructionOperandLike>(
         (
             HostCapability::Stdin | HostCapability::Stdout | HostCapability::Stderr,
             HostOperation::GetStdHandle,
-        ) => encode_win64_import_call_with_plan(operands, false, false, authoritative_plan),
+        ) => {
+            validate_normalized_win64_get_std_handle_plan(authoritative_plan)?;
+            encode_win64_import_call_with_plan(operands, false, false, None)
+        }
         (
             HostCapability::Stdout | HostCapability::Stderr,
             HostOperation::Write | HostOperation::WriteFile,
-        ) => encode_file_operation(operation_key, operands),
+        ) => encode_file_operation(operation_key, operands, authoritative_plan),
         (HostCapability::Stdin, HostOperation::ReadFile) => {
-            encode_file_operation(operation_key, operands)
+            encode_file_operation(operation_key, operands, authoritative_plan)
         }
         (HostCapability::Process, HostOperation::ExitProcess)
         | (HostCapability::Clock, HostOperation::Sleep) => {
@@ -2121,7 +2124,7 @@ pub fn encode_host_call_sequence_with_plan<T: InstructionOperandLike>(
             HostOperation::MonotonicTicks
             | HostOperation::MonotonicTicksPerSecond
             | HostOperation::WallClockRaw,
-        ) => encode_win64_out_param_call(operation_key, operands),
+        ) => encode_win64_out_param_call(operation_key, operands, authoritative_plan),
         (HostCapability::Input, HostOperation::KeyState) => {
             encode_key_state_call(operands, authoritative_plan)
         }
@@ -2240,6 +2243,7 @@ fn encode_key_state_call<T: InstructionOperandLike>(
 fn encode_file_operation<T: InstructionOperandLike>(
     operation_key: HostOperationKey,
     operands: &[T],
+    authoritative_plan: Option<&CallPlan>,
 ) -> Result<Vec<u8>, Diagnostic> {
     let (pointer_index, length_index) = file_pointer_and_length_indices(operands)?;
     if operands.len() <= length_index {
@@ -2247,7 +2251,7 @@ fn encode_file_operation<T: InstructionOperandLike>(
             "cannot encode X86_64 file operation: missing pointer/length operands",
         ));
     }
-    let layout = normalized_win64_file_io_layout()?;
+    let layout = normalized_win64_file_io_layout(authoritative_plan)?;
 
     let mut bytes = Vec::new();
     append_sub_rsp(&mut bytes, layout.reserve);
@@ -2276,8 +2280,10 @@ fn encode_file_operation<T: InstructionOperandLike>(
 /// HANDLE, buffer pointer, DWORD count, transferred-count pointer, and an
 /// optional OVERLAPPED pointer. Their BOOL result is intentionally ignored by
 /// this compatibility sequence.
-fn normalized_win64_file_io_plan() -> Result<CallPlan, Diagnostic> {
-    evaluate_normalized_win64_plan(&CallSignature {
+fn normalized_win64_file_io_plan(
+    authoritative_plan: Option<&CallPlan>,
+) -> Result<CallPlan, Diagnostic> {
+    let signature = CallSignature {
         parameters: vec![
             ValueShape::integer(8, 8),
             ValueShape::integer(8, 8),
@@ -2286,7 +2292,8 @@ fn normalized_win64_file_io_plan() -> Result<CallPlan, Diagnostic> {
             ValueShape::integer(8, 8),
         ],
         result: Some(ValueShape::integer(4, 4)),
-    })
+    };
+    selected_win64_composite_plan(&signature, authoritative_plan, "ReadFile/WriteFile")
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2296,8 +2303,10 @@ struct Win64FileIoLayout {
     transferred_disp: u8,
 }
 
-fn normalized_win64_file_io_layout() -> Result<Win64FileIoLayout, Diagnostic> {
-    let plan = normalized_win64_file_io_plan()?;
+fn normalized_win64_file_io_layout(
+    authoritative_plan: Option<&CallPlan>,
+) -> Result<Win64FileIoLayout, Diagnostic> {
+    let plan = normalized_win64_file_io_plan(authoritative_plan)?;
     for (index, expected) in [
         MachineRegister::X86Rcx,
         MachineRegister::X86Rdx,
@@ -2339,11 +2348,14 @@ fn normalized_win64_file_io_layout() -> Result<Win64FileIoLayout, Diagnostic> {
     })
 }
 
-fn validate_normalized_win64_get_std_handle_plan() -> Result<(), Diagnostic> {
-    let plan = evaluate_normalized_win64_plan(&CallSignature {
+fn validate_normalized_win64_get_std_handle_plan(
+    authoritative_plan: Option<&CallPlan>,
+) -> Result<(), Diagnostic> {
+    let signature = CallSignature {
         parameters: vec![ValueShape::integer(4, 4)],
         result: Some(ValueShape::integer(8, 8)),
-    })?;
+    };
+    let plan = selected_win64_composite_plan(&signature, authoritative_plan, "GetStdHandle")?;
     let argument = win64_argument_location(&plan.parameters[0], 0)?;
     let result = normalized_win64_result_register(&plan, true)?;
     if argument != Win64ArgumentLocation::Register(MachineRegister::X86Rcx)
@@ -2354,6 +2366,24 @@ fn validate_normalized_win64_get_std_handle_plan() -> Result<(), Diagnostic> {
         )));
     }
     Ok(())
+}
+
+fn selected_win64_composite_plan(
+    signature: &CallSignature,
+    authoritative_plan: Option<&CallPlan>,
+    label: &str,
+) -> Result<CallPlan, Diagnostic> {
+    if let Some(plan) = authoritative_plan {
+        validate_win64_encoder_plan(plan)?;
+        validate_call_plan(plan, signature).map_err(|error| {
+            Diagnostic::error(format!(
+                "retained Win64 {label} plan does not match its concrete native signature: {error}"
+            ))
+        })?;
+        Ok(plan.clone())
+    } else {
+        evaluate_normalized_win64_plan(signature)
+    }
 }
 
 /// Reserve through a composite call's final local byte while preserving the
@@ -6096,9 +6126,26 @@ mod x86_import_plan_tests {
     fn simple_kernel32_calls_keep_their_exact_bytes_and_relocations() {
         let get_std = HostOperationKey::new(HostCapability::Stdout, HostOperation::GetStdHandle);
         let get_std_operands = [operand(TargetInstructionOperandKind::ImmediateInteger(-11))];
+        let get_std_plan = evaluate_normalized_win64_plan(&CallSignature {
+            parameters: vec![ValueShape::integer(4, 4)],
+            result: Some(ValueShape::integer(8, 8)),
+        })
+        .expect("GetStdHandle native plan");
+        validate_normalized_win64_get_std_handle_plan(Some(&get_std_plan))
+            .expect("retained GetStdHandle plan");
         let bytes =
             encode_host_call_sequence(CallingPolicy::MicrosoftX64, get_std, &get_std_operands)
                 .expect("plan-driven GetStdHandle");
+        assert_eq!(
+            bytes,
+            encode_host_call_sequence_with_plan(
+                CallingPolicy::MicrosoftX64,
+                get_std,
+                &get_std_operands,
+                Some(&get_std_plan),
+            )
+            .expect("retained GetStdHandle plan drives the fixed encoder")
+        );
         assert_eq!(
             bytes,
             [
@@ -6153,7 +6200,7 @@ mod x86_import_plan_tests {
 
     #[test]
     fn time_out_parameter_plans_model_the_actual_native_signatures() {
-        let qpc = normalized_win64_out_param_plan(HostOperation::MonotonicTicks)
+        let qpc = normalized_win64_out_param_plan(HostOperation::MonotonicTicks, None)
             .expect("QueryPerformanceCounter plan");
         assert_eq!(
             qpc.parameters[0].locations,
@@ -6168,17 +6215,27 @@ mod x86_import_plan_tests {
             Some(MachineRegister::X86Rax)
         );
 
-        let filetime = normalized_win64_out_param_plan(HostOperation::WallClockRaw)
+        let filetime = normalized_win64_out_param_plan(HostOperation::WallClockRaw, None)
             .expect("GetSystemTimePreciseAsFileTime plan");
         assert!(
             filetime.result.is_none(),
             "FILETIME native call returns void"
         );
+
+        let wrong = evaluate_normalized_win64_plan(&CallSignature {
+            parameters: Vec::new(),
+            result: Some(ValueShape::integer(8, 8)),
+        })
+        .expect("unrelated Win64 plan");
+        assert!(
+            normalized_win64_out_param_plan(HostOperation::MonotonicTicks, Some(&wrong)).is_err(),
+            "a retained semantic-result plan must not replace QPC's native out-pointer plan"
+        );
     }
 
     #[test]
     fn file_io_plan_models_registers_stack_argument_and_native_result() {
-        let plan = normalized_win64_file_io_plan().expect("ReadFile/WriteFile plan");
+        let plan = normalized_win64_file_io_plan(None).expect("ReadFile/WriteFile plan");
         let expected_registers = [
             MachineRegister::X86Rcx,
             MachineRegister::X86Rdx,
@@ -6204,6 +6261,19 @@ mod x86_import_plan_tests {
             win64_composite_reserve(48).expect("outgoing area plus temporary"),
             56
         );
+        assert_eq!(
+            normalized_win64_file_io_layout(Some(&plan)).expect("retained native file plan"),
+            normalized_win64_file_io_layout(None).expect("compatibility file plan")
+        );
+        let wrong = evaluate_normalized_win64_plan(&CallSignature {
+            parameters: vec![ValueShape::integer(8, 8); 3],
+            result: Some(ValueShape::integer(8, 8)),
+        })
+        .expect("unrelated three-word plan");
+        assert!(
+            normalized_win64_file_io_layout(Some(&wrong)).is_err(),
+            "a retained outer adapter plan must not replace ReadFile/WriteFile's native plan"
+        );
     }
 }
 
@@ -6226,6 +6296,7 @@ const WIN64_OUT_PARAM_CALL_WIDTH: usize = 40;
 fn encode_win64_out_param_call<T: InstructionOperandLike>(
     operation_key: HostOperationKey,
     operands: &[T],
+    authoritative_plan: Option<&CallPlan>,
 ) -> Result<Vec<u8>, Diagnostic> {
     const RESERVE: usize = 56;
     const SLOT: u8 = 40;
@@ -6238,7 +6309,7 @@ fn encode_win64_out_param_call<T: InstructionOperandLike>(
              to a runtime scalar operand",
         ));
     };
-    let plan = normalized_win64_out_param_plan(operation_key.operation)?;
+    let plan = normalized_win64_out_param_plan(operation_key.operation, authoritative_plan)?;
     match win64_argument_location(&plan.parameters[0], 0)? {
         Win64ArgumentLocation::Register(MachineRegister::X86Rcx) => {}
         location => {
@@ -6274,7 +6345,10 @@ fn encode_win64_out_param_call<T: InstructionOperandLike>(
     Ok(bytes)
 }
 
-fn normalized_win64_out_param_plan(operation: HostOperation) -> Result<CallPlan, Diagnostic> {
+fn normalized_win64_out_param_plan(
+    operation: HostOperation,
+    authoritative_plan: Option<&CallPlan>,
+) -> Result<CallPlan, Diagnostic> {
     let signature = CallSignature {
         parameters: vec![ValueShape::integer(8, 8)],
         result: match operation {
@@ -6289,7 +6363,7 @@ fn normalized_win64_out_param_plan(operation: HostOperation) -> Result<CallPlan,
             }
         },
     };
-    evaluate_normalized_win64_plan(&signature)
+    selected_win64_composite_plan(&signature, authoritative_plan, "time out-parameter")
 }
 
 /// Relocation sites for `encode_win64_out_param_call`: the import-thunk call
@@ -7073,9 +7147,10 @@ fn host_call_relocation_sites_for_policy_with_plan<T: InstructionOperandLike>(
         (
             HostCapability::Stdin | HostCapability::Stdout | HostCapability::Stderr,
             HostOperation::GetStdHandle,
-        ) => {
-            win64_import_call_relocation_sites_with_plan(operands, false, false, authoritative_plan)
-        }
+        ) => match validate_normalized_win64_get_std_handle_plan(authoritative_plan) {
+            Ok(()) => win64_import_call_relocation_sites_with_plan(operands, false, false, None),
+            Err(_) => Vec::new(),
+        },
         (HostCapability::Process, HostOperation::ExitProcess)
         | (HostCapability::Clock, HostOperation::Sleep) => {
             // Single-u32-arg kernel32 calls now share the plan-driven general
@@ -7083,6 +7158,9 @@ fn host_call_relocation_sites_for_policy_with_plan<T: InstructionOperandLike>(
             win64_import_call_relocation_sites_with_plan(operands, false, false, authoritative_plan)
         }
         (HostCapability::Input, HostOperation::KeyState) => {
+            if encode_key_state_call(operands, authoritative_plan).is_err() {
+                return Vec::new();
+            }
             // Layout: sub(4) + vk marshalling (17 runtime / 5 const) + call(5)
             // + add(4) + movzx(3) + mov r11,imm64(10) + store(7).
             let vk_is_runtime = operands
@@ -7123,7 +7201,14 @@ fn host_call_relocation_sites_for_policy_with_plan<T: InstructionOperandLike>(
             HostOperation::MonotonicTicks
             | HostOperation::MonotonicTicksPerSecond
             | HostOperation::WallClockRaw,
-        ) => win64_out_param_call_relocation_sites(),
+        ) => {
+            if normalized_win64_out_param_plan(operation_key.operation, authoritative_plan).is_err()
+            {
+                Vec::new()
+            } else {
+                win64_out_param_call_relocation_sites()
+            }
+        }
         (
             HostCapability::Clock,
             HostOperation::WallClockUnitsPerSecond | HostOperation::WallClockEpochOffsetSeconds,
@@ -7152,6 +7237,9 @@ fn host_call_relocation_sites_for_policy_with_plan<T: InstructionOperandLike>(
         )
         | (HostCapability::Stdin, HostOperation::ReadFile) => {
             let mut sites = Vec::new();
+            if normalized_win64_file_io_layout(authoritative_plan).is_err() {
+                return sites;
+            }
             let Ok((pointer_index, length_index)) = file_pointer_and_length_indices(operands)
             else {
                 return sites;
@@ -8529,8 +8617,8 @@ fn build_runtime_text_line_read(
     capacity: u32,
     target: RuntimeTextReadTarget,
 ) -> Result<(Vec<u8>, RuntimeTextLineReadLayout), Diagnostic> {
-    validate_normalized_win64_get_std_handle_plan()?;
-    let file_layout = normalized_win64_file_io_layout()?;
+    validate_normalized_win64_get_std_handle_plan(None)?;
+    let file_layout = normalized_win64_file_io_layout(None)?;
     let target_ptr_disp = disp32(target_offset)?;
     let target_len_disp = disp32(target_offset + 8)?;
     // Owned carrier: r14 must point at the inline bytes (`region + target_offset +
@@ -18285,8 +18373,8 @@ pub fn encode_runtime_byte_read_import(
     target_offset: usize,
     payload_offset: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    validate_normalized_win64_get_std_handle_plan()?;
-    let file_layout = normalized_win64_file_io_layout()?;
+    validate_normalized_win64_get_std_handle_plan(None)?;
+    let file_layout = normalized_win64_file_io_layout(None)?;
     let tag_disp = disp32(target_offset)?;
     let payload_disp = disp32(target_offset + payload_offset)?;
     let mut bytes = Vec::with_capacity(runtime_byte_read_import_width());
@@ -18368,8 +18456,8 @@ pub fn encode_runtime_byte_read_syscall(
 /// Windows import flavor: GetStdHandle(STD_OUTPUT_HANDLE) + WriteFile(handle,
 /// &source, 1, &written, NULL).
 pub fn encode_runtime_byte_write_import(source_offset: usize) -> Result<Vec<u8>, Diagnostic> {
-    validate_normalized_win64_get_std_handle_plan()?;
-    let file_layout = normalized_win64_file_io_layout()?;
+    validate_normalized_win64_get_std_handle_plan(None)?;
+    let file_layout = normalized_win64_file_io_layout(None)?;
     let source_disp = disp32(source_offset)?;
     let mut bytes = Vec::with_capacity(runtime_byte_write_import_width());
     bytes.extend([0x49, 0xbe]); // mov r14, imm64 (source region/literal, relocated)
