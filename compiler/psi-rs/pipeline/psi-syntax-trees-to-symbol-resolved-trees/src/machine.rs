@@ -130,7 +130,7 @@ pub(crate) fn lower_machine_into(
     Ok(())
 }
 
-fn lower_generic_conformance_bounds(
+pub(crate) fn lower_generic_conformance_bounds(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     bounds: &[syntax::item::GenericConformanceBound],

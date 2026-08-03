@@ -347,7 +347,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
     ))
 }
 
-fn parse_generic_conformance_bounds<'tokens, 'source>(
+pub(in crate::parser) fn parse_generic_conformance_bounds<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, Vec<GenericConformanceBound>> {

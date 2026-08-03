@@ -1,7 +1,7 @@
 use psi_symbol_resolved_trees::SymbolResolvedTrees;
 use psi_symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
-use crate::symbols::lookup::top_level_symbol;
+use crate::symbols::lookup::{child_symbol_by_kinds, top_level_symbol};
 use crate::symbols::top_level::{assign_machine_parameter_signature_symbols, next_child_of_kind};
 use crate::symbols::type_references::assign_type_reference_argument_symbols_with_constraints;
 
@@ -31,6 +31,36 @@ pub(super) fn assign_trait_symbols(
         let local_type_parameters = data_type_parameters
             .span_or_empty(trait_definition.type_parameters)
             .to_vec();
+
+        for bound in &mut trait_definition.conformance_bounds {
+            bound.subject = local_type_parameters
+                .iter()
+                .find(|parameter| parameter.name == bound.subject_name)
+                .map(|parameter| parameter.symbol)
+                .unwrap_or_else(SymbolHandle::invalid);
+            if let Some(conformance_name) = &bound.conformance_name {
+                bound.carrier =
+                    top_level_symbol(symbols, SymbolKind::Data, bound.carrier_name.as_str());
+                let selected = child_symbol_by_kinds(
+                    symbols,
+                    bound.carrier,
+                    &[SymbolKind::Conformance],
+                    conformance_name.as_str(),
+                );
+                bound.conformance = selected.is_valid().then_some(selected);
+            } else {
+                bound.carrier =
+                    top_level_symbol(symbols, SymbolKind::Trait, bound.carrier_name.as_str());
+            }
+            assign_type_reference_argument_symbols_with_constraints(
+                symbols,
+                child_type_references,
+                type_constraints,
+                &local_type_parameters,
+                trait_symbol,
+                bound.arguments,
+            );
+        }
 
         for requirement in trait_requirements.span_mut_or_empty(trait_definition.requires) {
             requirement.symbol =

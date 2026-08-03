@@ -302,11 +302,41 @@ pub(crate) fn validate_generic_conformance_bounds(
     machine: &Machine,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for bound in &machine.conformance_bounds {
+    validate_conformance_bounds(
+        program,
+        "machine",
+        machine.name.as_str(),
+        &machine.conformance_bounds,
+        diagnostics,
+    );
+}
+
+pub(crate) fn validate_trait_conformance_bounds(
+    program: &TypedTrees,
+    trait_definition: &TraitDefinition,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    validate_conformance_bounds(
+        program,
+        "trait",
+        trait_definition.name.as_str(),
+        &trait_definition.conformance_bounds,
+        diagnostics,
+    );
+}
+
+fn validate_conformance_bounds(
+    program: &TypedTrees,
+    owner_kind: &str,
+    owner_name: &str,
+    bounds: &[psi_typed_trees::machine::GenericConformanceBound],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for bound in bounds {
         if !bound.subject.is_valid() {
             diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` conformance bound names unknown type parameter `{}`",
-                machine.name, bound.subject_name
+                "{owner_kind} `{owner_name}` conformance bound names unknown type parameter `{}`",
+                bound.subject_name
             )));
             continue;
         }
@@ -318,8 +348,7 @@ pub(crate) fn validate_generic_conformance_bounds(
                 .find(|declaration| declaration.symbol == selected)
             else {
                 diagnostics.push(Diagnostic::error(format!(
-                    "machine `{}` conformance bound selects unknown conformance `{}::{}`",
-                    machine.name,
+                    "{owner_kind} `{owner_name}` conformance bound selects unknown conformance `{}::{}`",
                     bound.carrier_name,
                     bound
                         .conformance_name
@@ -330,8 +359,7 @@ pub(crate) fn validate_generic_conformance_bounds(
             };
             if declaration.type_name != bound.carrier_name {
                 diagnostics.push(Diagnostic::error(format!(
-                    "machine `{}` conformance bound selection `{}::{}` does not belong to carrier `{}`",
-                    machine.name,
+                    "{owner_kind} `{owner_name}` conformance bound selection `{}::{}` does not belong to carrier `{}`",
                     bound.carrier_name,
                     bound
                         .conformance_name
@@ -345,8 +373,7 @@ pub(crate) fn validate_generic_conformance_bounds(
 
         if bound.conformance_name.is_some() {
             diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` conformance bound selects unknown conformance `{}::{}`",
-                machine.name,
+                "{owner_kind} `{owner_name}` conformance bound selects unknown conformance `{}::{}`",
                 bound.carrier_name,
                 bound
                     .conformance_name
@@ -358,16 +385,15 @@ pub(crate) fn validate_generic_conformance_bounds(
 
         let Some(trait_definition) = trait_definition_by_symbol(program, bound.carrier) else {
             diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` conformance bound names unknown trait `{}`",
-                machine.name, bound.carrier_name
+                "{owner_kind} `{owner_name}` conformance bound names unknown trait `{}`",
+                bound.carrier_name
             )));
             continue;
         };
         let expected = program.trait_type_parameters(trait_definition).len();
         if bound.arguments.len() != expected {
             diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` conformance bound for trait `{}` expects {expected} generic argument(s), got {}",
-                machine.name,
+                "{owner_kind} `{owner_name}` conformance bound for trait `{}` expects {expected} generic argument(s), got {}",
                 bound.carrier_name,
                 bound.arguments.len(),
             )));

@@ -20,6 +20,11 @@ pub(crate) fn lower_trait_definition(
     let name = crate::name::lower_name(&trait_definition.name);
     let type_parameters =
         lower_type_parameters(lowerer, syntax_trees, trait_definition.type_parameters)?;
+    let conformance_bounds = crate::machine::lower_generic_conformance_bounds(
+        lowerer,
+        syntax_trees,
+        &trait_definition.conformance_bounds,
+    )?;
     let invariants = lower_proof_facts(lowerer, syntax_trees, trait_definition.invariants)?;
     let requires = lower_trait_requirements(
         lowerer,
@@ -41,6 +46,7 @@ pub(crate) fn lower_trait_definition(
                 .map(crate::name::lower_name)
                 .collect(),
             type_parameters,
+            conformance_bounds,
             invariants,
             requires,
             machines,

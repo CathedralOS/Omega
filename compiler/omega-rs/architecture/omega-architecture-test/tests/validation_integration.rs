@@ -269,6 +269,50 @@ fn generic_conformance_bound_rejects_unknown_named_selection() {
 }
 
 #[test]
+fn generic_trait_header_conformance_bound_survives_typing() {
+    let typed = typed_program_from_source(
+        r#"
+        trait CallingPolicy {}
+        trait Calling<C>
+        where C satisfies CallingPolicy
+        {}
+        "#,
+    );
+
+    let trait_definition = typed
+        .traits()
+        .iter()
+        .find(|trait_definition| trait_definition.name.as_str() == "Calling")
+        .expect("generic trait");
+    let [bound] = trait_definition.conformance_bounds.as_slice() else {
+        panic!("one typed trait header bound");
+    };
+    assert!(bound.subject.is_valid());
+    assert_eq!(typed.symbols.name(bound.carrier), "CallingPolicy");
+    validate_program(&typed).expect("resolved trait header bound should validate");
+}
+
+#[test]
+fn generic_trait_header_conformance_bound_rejects_unknown_subject() {
+    let typed = typed_program_from_source(
+        r#"
+        trait CallingPolicy {}
+        trait Calling<C>
+        where Missing satisfies CallingPolicy
+        {}
+        "#,
+    );
+
+    let diagnostics = validate_program(&typed)
+        .expect_err("a trait bound subject must be a declared type parameter");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("trait `Calling` conformance bound names unknown type parameter `Missing`")
+    }));
+}
+
+#[test]
 fn exact_qualification_may_publish_one_checked_content_projection() {
     let typed = typed_program_from_source(
         r#"

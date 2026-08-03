@@ -20,6 +20,7 @@ pub(crate) fn lower_trait_definition(
             .map(crate::name::lower_name)
             .collect(),
         type_parameters: psi_arena::HandleSpan::empty(),
+        conformance_bounds: Vec::new(),
         invariants: psi_arena::HandleSpan::empty(),
         requires: psi_arena::HandleSpan::empty(),
         machines: psi_arena::HandleSpan::empty(),
@@ -33,6 +34,26 @@ pub(crate) fn lower_trait_definition(
         lowerer
             .typed_trees
             .push_trait_type_parameter(&mut typed_trait, type_parameter);
+    }
+
+    for bound in &trait_definition.conformance_bounds {
+        let mut arguments = Vec::new();
+        for argument in lowerer.source_trees.child_type_references(bound.arguments) {
+            arguments.push(crate::type_reference::lower_type_reference_into_table(
+                lowerer, argument,
+            )?);
+        }
+        typed_trait
+            .conformance_bounds
+            .push(typed::machine::GenericConformanceBound {
+                subject: bound.subject,
+                subject_name: crate::name::lower_name(&bound.subject_name),
+                carrier: bound.carrier,
+                carrier_name: crate::name::lower_name(&bound.carrier_name),
+                arguments,
+                conformance: bound.conformance,
+                conformance_name: bound.conformance_name.as_ref().map(crate::name::lower_name),
+            });
     }
 
     typed_trait.invariants = lower_proof_facts(lowerer, trait_definition.invariants)?;

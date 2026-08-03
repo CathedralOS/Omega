@@ -434,6 +434,16 @@ impl SyntaxTrees {
             name: trait_definition.name.clone(),
             lifetime_parameters: trait_definition.lifetime_parameters.clone(),
             type_parameters: self.copy_type_parameter_span(other, trait_definition.type_parameters),
+            conformance_bounds: trait_definition
+                .conformance_bounds
+                .iter()
+                .map(|bound| crate::item::GenericConformanceBound {
+                    subject: bound.subject.clone(),
+                    carrier: bound.carrier.clone(),
+                    arguments: self.copy_type_reference_handle_span(other, bound.arguments),
+                    conformance: bound.conformance.clone(),
+                })
+                .collect(),
             parents: self.copy_type_reference_handle_span(other, trait_definition.parents),
             invariants: self.copy_domain_fact_span(other, trait_definition.invariants),
             requires: self.copy_item_identifier_span(other, trait_definition.requires),

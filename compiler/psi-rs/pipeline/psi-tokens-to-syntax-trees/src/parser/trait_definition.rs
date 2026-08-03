@@ -24,6 +24,14 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
     let type_parameters = generic_parameters.type_parameters;
     let (parents, next) = parse_trait_parents(syntax_trees, input)?;
     input = next;
+    let conformance_bounds = if input.at_contextual("where") {
+        let (bounds, next) =
+            crate::parser::machine::parse_generic_conformance_bounds(syntax_trees, input)?;
+        input = next;
+        bounds
+    } else {
+        Vec::new()
+    };
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let mut required_trait_start = Handle::invalid();
     let mut required_trait_count = 0u32;
@@ -120,6 +128,7 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
             name,
             lifetime_parameters: generic_parameters.lifetime_parameters,
             type_parameters,
+            conformance_bounds,
             parents,
             invariants,
             requires,

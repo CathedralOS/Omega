@@ -64,7 +64,7 @@ pub use crate::symbols::TopLevelSymbols;
 use crate::traits::{
     validate_data_conformances, validate_external_leaf_native_shapes,
     validate_generic_conformance_bounds, validate_machine_trait_conformances,
-    validate_trait_requirements,
+    validate_trait_conformance_bounds, validate_trait_requirements,
 };
 use crate::transitions::validate_transition_target_node;
 use crate::type_references::{
@@ -142,6 +142,9 @@ fn validate_program_internal(
     validate_invariant_definitions(program, &fact_plan, &mut diagnostics);
     validate_callable_state_signatures(program, &symbols, &mut diagnostics);
     validate_trait_requirements(program, &symbols, &mut diagnostics);
+    for trait_definition in program.traits() {
+        validate_trait_conformance_bounds(program, trait_definition, &mut diagnostics);
+    }
     content_projections::validate_content_projection_conformances(program, &mut diagnostics);
     content_conservation::validate_content_conservation_contracts(program, &mut diagnostics);
     qualification_evidence::validate_qualification_authorization(program, &mut diagnostics);
