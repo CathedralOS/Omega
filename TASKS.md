@@ -417,11 +417,19 @@ those rows remain absent until their actual checked proofs exist.
   and proof format v8 encode the proposition canonically, while the verifier
   restricts it to `ensures` and checks replaceable certificates. Checked
   lowering now derives exact one-to-one identity-reshuffle rows without
-  manufacturing separation between independent claims. Remaining work is to
-  carry and revalidate those rows in terminal Psi (including a structural
-  sum-case path when that vocabulary lands), compose them with authored
-  partition equations, insert sealed introduction and custody-exit rows, and
-  discharge or admit the exact frontier theorem. Contracts call the exact
+  manufacturing separation between independent claims. Terminal semantic v10
+  carries those rows canonically: the checked adapter revalidates direct
+  equality shape and fingerprints, groups exact projections by preserved claim,
+  strips arena-local identity, and emits dense machine-local claim IDs. The
+  terminal verifier requires a one-to-one parameter-entry/result-current map,
+  rejects duplicate or prefix-overlapping paths and projection/algebra drift,
+  and reconstructs one semantic content-equality axiom per exact projection for
+  certificate use.
+  Archived v1-v9 bytes retain their identities. Remaining work is to add a
+  structural sum-case path when that vocabulary lands, compose these rewrites
+  with authored partition equations, insert sealed introduction and
+  custody-exit rows, and discharge or admit the exact frontier theorem.
+  Contracts call the exact
   owner-unique `Content<A>::project` conformance machine; do not add
   `content(...)`, general `old(...)`, or `retired_via(...)`. Normalize one
   equation per content algebra and outcome row. Infer only claim-identity-
@@ -1113,10 +1121,11 @@ improvements do not change public identity.
   vocabulary; v2 adds `BooleanConstant`; v3 adds `WrappingIntegerAdd`; v4 adds
   `SaturatingIntegerAdd`; v5 adds `WrappingIntegerSubtract`; v6 adds
   `SaturatingIntegerSubtract`; v7 adds `WrappingIntegerMultiply`; v8 adds
-  `SaturatingIntegerMultiply`; current v9 adds proof-only structural places and
-  content-conservation propositions; and explicit
+  `SaturatingIntegerMultiply`; v9 adds proof-only structural places and
+  content-conservation propositions; current v10 adds canonical
+  identity-preserving claim reshuffles; and explicit
   validated migration preserves an older semantic graph while producing a new
-  v9 fingerprint. Archived v1 through v8 identities remain frozen. The clean
+  v10 fingerprint. Archived v1 through v9 identities remain frozen. The clean
   lane now also constructs an owned, semantic-identity-bound object artifact
   with canonical function spans and retained Psi provenance, emits the Omega
   object container plus ELF/AArch64, ELF/x86-64, Mach-O/AArch64, and PE/x86-64

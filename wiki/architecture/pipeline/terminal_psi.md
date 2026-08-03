@@ -23,10 +23,11 @@ v2 adds Boolean constants; v3 adds exact-width wrapping integer addition; v4
 adds exact-width saturating integer addition; v5 adds exact-width
 wrapping integer subtraction; v6 adds exact-width saturating integer
 subtraction; v7 adds exact-width wrapping integer multiplication; v8 adds
-exact-width saturating integer multiplication; current v9 adds proof-only
-structural-place declarations and content-conservation propositions without a
-new executable operation. Every executable slice uses unconditional jump and
-return edges.
+exact-width saturating integer multiplication; v9 adds proof-only
+structural-place declarations and content-conservation propositions; and
+current v10 adds canonical identity-preserving claim reshuffles without a new
+executable operation. Every executable slice uses unconditional jump and return
+edges.
 `psi-terminal-verifier` rejects malformed identities, types, contract scopes,
 cycles, unreachable fact sources, and missing/extra evidence, reconstructs the
 exact operation/edge/return axioms, and checks every `ensures` from a separate
@@ -44,6 +45,9 @@ target ownership direction: parsing and checking still need to move under Psi.
 The adapter also has a source-shape-independent content-plan translation: it
 rechecks each checked conservation fingerprint, removes arena-local symbols,
 and produces canonical v9 structural-place declarations and proposition terms.
+Its v10 identity-reshuffle translation additionally revalidates direct
+entry-parameter/current-result equality shape, groups exact projections by
+preserved source claim, and emits dense machine-local terminal claim IDs.
 Integration into general executable-machine lowering waits on the broader
 frontend migration.
 The current legacy exit prover also cannot establish an ordinary
@@ -254,10 +258,13 @@ both structural paths. The derivation requires the same terminal projection
 identity and algebra on both places, accepts type or ordinary contract
 qualification, and never synthesizes separated composition across independent
 claims. Fresh establishments, mismatched projections, runtime indices, and the
-not-yet-representable sum-case path infer nothing. Terminal
-carriage/revalidation of those rows, sealed introduction and custody-exit
-frontier rows, authored-partition composition, and the general frontier theorem
-remain to land.
+not-yet-representable sum-case path infer nothing. Terminal semantic v10
+carries these rows in canonical machine-local claim order. The verifier
+revalidates one-to-one, non-overlapping parameter-entry/result-current paths,
+exact projection and algebra identity, and reconstructs one content-equality
+semantic axiom per projection for replaceable certificates. Sealed introduction
+and custody-exit frontier rows, authored-partition composition, and the general
+frontier theorem remain to land.
 
 These normalized obligations are semantic and fingerprinted. Their proof
 derivations remain replaceable proof-bundle material.
@@ -316,19 +323,20 @@ Semantic version 1 is frozen with `IntegerConstant`; version 2 adds
 `BooleanConstant`; version 3 adds `WrappingIntegerAdd`; version 4 adds
 `SaturatingIntegerAdd`; version 5 adds `WrappingIntegerSubtract`; version 6
 adds `SaturatingIntegerSubtract`; version 7 adds `WrappingIntegerMultiply`;
-version 8 adds `SaturatingIntegerMultiply`; current version 9 adds proof-only
-structural places and content-conservation propositions.
+version 8 adds `SaturatingIntegerMultiply`; version 9 adds proof-only
+structural places and content-conservation propositions; current version 10
+adds canonical identity-preserving claim reshuffles.
 The arithmetic operations require two already defined operands of the exact
 result integer type and have distinct canonical recursive proposition terms for
 their exact logical results. Validation and execution continue to accept valid
-v1/v2/v3/v4/v5/v6/v7/v8 modules under their original meaning, while an older
+v1/v2/v3/v4/v5/v6/v7/v8/v9 modules under their original meaning, while an older
 module cannot claim a later operation or proposition tag.
-`migrate_module_to_current` is an explicit validated older-to-v9 translation:
+`migrate_module_to_current` is an explicit validated older-to-v10 translation:
 it preserves the graph and obligations, changes the version field, and therefore
 creates new canonical bytes and a new semantic fingerprint. An unchanged proof
 bundle retains its separate bytes and identity but is verified again against the
-migrated module. Golden tests retain the archived v1 through v8 fingerprints
-and independently freeze the current v9 fingerprint and content-conservation
+migrated module. Golden tests retain the archived v1 through v9 fingerprints
+and independently freeze the current v10 fingerprint and identity-reshuffle
 fixture.
 
 The same codec gives proof bundles their own canonical `PSIPRF` bytes and golden
@@ -446,8 +454,8 @@ migration remain later slices.
    wrapping/saturating addition, subtraction, and multiplication
    expressions over native register and incoming-stack ABI locations. The v9
    content slice has canonical semantic/proof bytes, checked-plan translation,
-   and certificate verification; checked identity-reshuffle rows now exist,
-   while their terminal carriage/revalidation and sealed frontier rows remain.
+   and certificate verification; v10 carries and revalidates checked
+   identity-reshuffle rows as semantic axioms, while sealed frontier rows remain.
    Executable storage places, general register assignment,
    and the other arithmetic variants remain later slices.
 3. Lower the live integer/control/contract slice from the transitional checked

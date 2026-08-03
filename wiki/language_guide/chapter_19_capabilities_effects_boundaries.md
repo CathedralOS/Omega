@@ -1144,7 +1144,9 @@ Contracts call the exact owner-unique projection machine. Proof-only
 `separate(...)` performs the closed algebra's partial n-ary composition. Neither
 has runtime representation. Identity-preserving claim reshuffles infer;
 partition-changing primitives author their theorem and checked wrappers compose
-it.
+it. Terminal Psi v10 carries each exact preserved-claim mapping and reconstructs
+its projection equality; it does not infer separated composition across
+independent claims.
 
 The current compiler accepts this surface only in `ensures`, resolves every
 projection call to the exact owner-unique `Content<A>::project` machine, and

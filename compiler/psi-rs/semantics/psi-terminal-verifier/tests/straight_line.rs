@@ -1,17 +1,18 @@
 use psi_core::{
-    BlockId, ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentDomainId,
-    ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace, ContentTerm,
-    ContractId, EdgeId, EvidenceIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
-    ObligationId, OperationId, PlaceId, Proposition, PropositionError, ScalarTerm, ScalarType,
-    StructuralPlaceKind, ValueId,
+    BlockId, ClaimId, ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentDomainId,
+    ContentPlaceSegment, ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace,
+    ContentTerm, ContractId, EdgeId, EvidenceIdentity, IntegerSign, IntegerType, IntegerValue,
+    MachineId, ObligationId, OperationId, PlaceId, Proposition, PropositionError, ScalarTerm,
+    ScalarType, StructuralPlaceKind, ValueId,
 };
 use psi_proof_kernel::{
     AdmissionProfile, CertificateEnvelope, EvidenceRoute, PrimitiveJudgment, ProofNode, ProofRule,
     ProofSystemVersion,
 };
 use psi_terminal::{
-    Block, ContractClause, MachineContract, Operation, OperationKind, SemanticVersion,
-    StructuralPlaceDeclaration, TerminalMachine, TerminalModule, Terminator, ValueDeclaration,
+    Block, ClaimContentProjection, ContentIdentityReshuffle, ContractClause, MachineContract,
+    Operation, OperationKind, SemanticVersion, StructuralPlaceDeclaration, TerminalMachine,
+    TerminalModule, Terminator, ValueDeclaration,
 };
 use psi_terminal_verifier::{
     ContractClauseKind, ModuleError, ObligationEvidence, ProofBundle, VerificationError,
@@ -65,6 +66,7 @@ fn v2_boolean_constant_axiom_proves_the_return_contract() {
                 scalar_type: ScalarType::Boolean,
             },
             structural_places: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
             entry: BlockId::new(10).expect("block"),
             blocks: vec![Block {
                 id: BlockId::new(10).expect("block"),
@@ -140,6 +142,228 @@ fn v9_content_conservation_accepts_a_replaceable_certificate() {
     let verified = verify_module(&module, &bundle, &AdmissionProfile::default())
         .expect("v9 content proposition and certificate");
     assert_eq!(verified.accepted_facts().len(), 1);
+}
+
+#[test]
+fn v10_identity_reshuffle_reconstructs_content_equality_as_a_semantic_axiom() {
+    let (module, goal, obligation) = identity_reshuffle_module();
+    let bundle = ProofBundle {
+        evidence: vec![ObligationEvidence {
+            obligation,
+            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                identity: EvidenceIdentity::new(90).expect("certificate"),
+                proof_system_version: ProofSystemVersion::CURRENT,
+                proof: ProofNode {
+                    conclusion: goal,
+                    rule: ProofRule::SemanticAxiom { index: 0 },
+                },
+            }),
+        }],
+    };
+
+    let verified = verify_module(&module, &bundle, &AdmissionProfile::default())
+        .expect("an exact identity reshuffle should establish its content equality");
+    assert_eq!(verified.accepted_facts().len(), 1);
+}
+
+#[test]
+fn v10_identity_reshuffles_fail_closed_when_malformed() {
+    let (mut old_version, _, _) = identity_reshuffle_module();
+    old_version.semantic_version = SemanticVersion::V9;
+    assert!(matches!(
+        validate_module(&old_version),
+        Err(
+            ModuleError::ContentIdentityReshufflesRequireSemanticVersion {
+                required: SemanticVersion::V10,
+                actual: SemanticVersion::V9,
+                ..
+            }
+        )
+    ));
+
+    let (mut empty, _, _) = identity_reshuffle_module();
+    empty.machines[0].content_identity_reshuffles[0]
+        .projections
+        .clear();
+    assert_eq!(
+        validate_module(&empty).expect_err("a claim must preserve named content"),
+        ModuleError::ContentIdentityReshuffleHasNoProjections(ClaimId::new(90).expect("claim"))
+    );
+
+    let (mut wrong_input, _, _) = identity_reshuffle_module();
+    wrong_input.machines[0].content_identity_reshuffles[0]
+        .input
+        .version = ContentPlaceVersion::Current;
+    assert_eq!(
+        validate_module(&wrong_input).expect_err("input must denote parameter entry content"),
+        ModuleError::ContentIdentityReshuffleRequiresEntryParameter(
+            ClaimId::new(90).expect("claim")
+        )
+    );
+
+    let (mut duplicate, _, _) = identity_reshuffle_module();
+    let mut second = duplicate.machines[0].content_identity_reshuffles[0].clone();
+    second.claim = ClaimId::new(91).expect("second claim");
+    second.output.segments = vec![ContentPlaceSegment::Field("second".to_owned())];
+    duplicate.machines[0]
+        .content_identity_reshuffles
+        .push(second);
+    assert!(matches!(
+        validate_module(&duplicate),
+        Err(ModuleError::DuplicateContentIdentityInput(_))
+    ));
+
+    let (mut overlapping_input, _, _) = identity_reshuffle_module();
+    overlapping_input.machines[0].content_identity_reshuffles[0]
+        .input
+        .segments = vec![ContentPlaceSegment::Field("payload".to_owned())];
+    let mut child = overlapping_input.machines[0].content_identity_reshuffles[0].clone();
+    child.claim = ClaimId::new(91).expect("second claim");
+    child
+        .input
+        .segments
+        .push(ContentPlaceSegment::Field("child".to_owned()));
+    child.output.segments = vec![ContentPlaceSegment::Field("second".to_owned())];
+    overlapping_input.machines[0]
+        .content_identity_reshuffles
+        .push(child);
+    assert!(matches!(
+        validate_module(&overlapping_input),
+        Err(ModuleError::OverlappingContentIdentityInput { .. })
+    ));
+
+    let (mut overlapping_output, _, _) = identity_reshuffle_module();
+    overlapping_output.machines[0].content_identity_reshuffles[0]
+        .input
+        .segments = vec![ContentPlaceSegment::Field("first".to_owned())];
+    overlapping_output.machines[0].content_identity_reshuffles[0]
+        .output
+        .segments = vec![ContentPlaceSegment::Field("payload".to_owned())];
+    let mut child = overlapping_output.machines[0].content_identity_reshuffles[0].clone();
+    child.claim = ClaimId::new(91).expect("second claim");
+    child.input.segments = vec![ContentPlaceSegment::Field("second".to_owned())];
+    child
+        .output
+        .segments
+        .push(ContentPlaceSegment::Field("child".to_owned()));
+    overlapping_output.machines[0]
+        .content_identity_reshuffles
+        .push(child);
+    assert!(matches!(
+        validate_module(&overlapping_output),
+        Err(ModuleError::OverlappingContentIdentityOutput { .. })
+    ));
+
+    let (mut mismatched_algebra, _, _) = identity_reshuffle_module();
+    mismatched_algebra.machines[0].content_identity_reshuffles[0]
+        .input
+        .segments = vec![ContentPlaceSegment::Field("first".to_owned())];
+    mismatched_algebra.machines[0].content_identity_reshuffles[0]
+        .output
+        .segments = vec![ContentPlaceSegment::Field("first".to_owned())];
+    let mut second = mismatched_algebra.machines[0].content_identity_reshuffles[0].clone();
+    second.claim = ClaimId::new(91).expect("second claim");
+    second.input.segments = vec![ContentPlaceSegment::Field("second".to_owned())];
+    second.output.segments = vec![ContentPlaceSegment::Field("second".to_owned())];
+    second.projections[0].algebra.parameter = "Element".to_owned();
+    mismatched_algebra.machines[0]
+        .content_identity_reshuffles
+        .push(second);
+    assert_eq!(
+        validate_module(&mismatched_algebra)
+            .expect_err("one projection identity cannot name two algebras"),
+        ModuleError::ContentProjectionAlgebraMismatch(ContentProjectionIdentity {
+            domain: ContentDomainId::new(90).expect("content domain"),
+            projection_fingerprint: 0x9055,
+        })
+    );
+}
+
+fn identity_reshuffle_module() -> (TerminalModule, Proposition, ObligationId) {
+    let parameter = ValueId::new(90).expect("parameter");
+    let result = ValueId::new(91).expect("result");
+    let input_root = PlaceId::new(90).expect("input place");
+    let output_root = PlaceId::new(91).expect("output place");
+    let reshuffle = ContentIdentityReshuffle {
+        claim: ClaimId::new(90).expect("claim"),
+        input: ContentStructuralPlace {
+            version: ContentPlaceVersion::Entry,
+            root: input_root,
+            segments: Vec::new(),
+        },
+        output: ContentStructuralPlace {
+            version: ContentPlaceVersion::Current,
+            root: output_root,
+            segments: Vec::new(),
+        },
+        projections: vec![ClaimContentProjection {
+            projection: ContentProjectionIdentity {
+                domain: ContentDomainId::new(90).expect("content domain"),
+                projection_fingerprint: 0x9055,
+            },
+            algebra: ContentAlgebra {
+                kind: ContentAlgebraKind::CountedQuantity,
+                parameter: "Byte".to_owned(),
+            },
+        }],
+    };
+    let goal = reshuffle
+        .inferred_propositions()
+        .next()
+        .expect("one projection yields one proposition");
+    let obligation = ObligationId::new(90).expect("obligation");
+    let machine = TerminalMachine {
+        id: MachineId::new(90).expect("machine"),
+        parameters: vec![ValueDeclaration {
+            id: parameter,
+            scalar_type: ScalarType::Boolean,
+        }],
+        result: ValueDeclaration {
+            id: result,
+            scalar_type: ScalarType::Boolean,
+        },
+        structural_places: vec![
+            StructuralPlaceDeclaration {
+                id: input_root,
+                kind: StructuralPlaceKind::Parameter {
+                    position: 0,
+                    is_self: false,
+                },
+            },
+            StructuralPlaceDeclaration {
+                id: output_root,
+                kind: StructuralPlaceKind::Result,
+            },
+        ],
+        content_identity_reshuffles: vec![reshuffle],
+        entry: BlockId::new(90).expect("block"),
+        blocks: vec![Block {
+            id: BlockId::new(90).expect("block"),
+            parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::Return {
+                edge: EdgeId::new(90).expect("edge"),
+                value: parameter,
+            },
+        }],
+        contract: MachineContract {
+            id: ContractId::new(90).expect("contract"),
+            requires: Vec::new(),
+            ensures: vec![ContractClause {
+                obligation,
+                proposition: goal.clone(),
+            }],
+        },
+    };
+    (
+        TerminalModule {
+            semantic_version: SemanticVersion::V10,
+            entry: machine.id,
+            machines: vec![machine],
+        },
+        goal,
+        obligation,
+    )
 }
 
 #[test]
@@ -240,6 +464,7 @@ fn reflexive_content_module() -> (TerminalModule, Proposition, ObligationId) {
                 is_self: false,
             },
         }],
+        content_identity_reshuffles: Vec::new(),
         entry: BlockId::new(80).expect("block"),
         blocks: vec![Block {
             id: BlockId::new(80).expect("block"),
@@ -776,6 +1001,7 @@ fn wrapping_add_module() -> (TerminalModule, Proposition, ObligationId) {
             scalar_type,
         },
         structural_places: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
         entry: BlockId::new(20).expect("block"),
         blocks: vec![Block {
             id: BlockId::new(20).expect("block"),
@@ -843,6 +1069,7 @@ fn saturating_add_module() -> (TerminalModule, Proposition, ObligationId) {
             scalar_type,
         },
         structural_places: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
         entry: BlockId::new(30).expect("block"),
         blocks: vec![Block {
             id: BlockId::new(30).expect("block"),
@@ -910,6 +1137,7 @@ fn wrapping_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
             scalar_type,
         },
         structural_places: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
         entry: BlockId::new(40).expect("block"),
         blocks: vec![Block {
             id: BlockId::new(40).expect("block"),
@@ -977,6 +1205,7 @@ fn saturating_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
             scalar_type,
         },
         structural_places: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
         entry: BlockId::new(50).expect("block"),
         blocks: vec![Block {
             id: BlockId::new(50).expect("block"),
@@ -1044,6 +1273,7 @@ fn wrapping_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
             scalar_type,
         },
         structural_places: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
         entry: BlockId::new(60).expect("block"),
         blocks: vec![Block {
             id: BlockId::new(60).expect("block"),
@@ -1111,6 +1341,7 @@ fn saturating_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
             scalar_type,
         },
         structural_places: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
         entry: BlockId::new(70).expect("block"),
         blocks: vec![Block {
             id: BlockId::new(70).expect("block"),
@@ -1176,6 +1407,7 @@ impl Fixture {
                 scalar_type,
             },
             structural_places: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
             entry: BlockId::new(1).expect("entry block"),
             blocks: vec![
                 Block {

@@ -38,6 +38,7 @@ fn verified_v1_integer_control_contract_slice_executes_directly() {
             scalar_type,
         },
         structural_places: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
         entry: BlockId::new(1).expect("entry"),
         blocks: vec![
             Block {
@@ -221,6 +222,7 @@ fn interpreter_rejects_an_out_of_range_integer_argument() {
             scalar_type,
         },
         structural_places: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
         entry: BlockId::new(10).expect("entry"),
         blocks: vec![Block {
             id: BlockId::new(10).expect("entry"),

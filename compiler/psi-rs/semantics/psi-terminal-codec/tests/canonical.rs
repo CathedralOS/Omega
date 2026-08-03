@@ -1,13 +1,14 @@
 use psi_core::{
-    BlockId, ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentDomainId,
+    BlockId, ClaimId, ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentDomainId,
     ContentPlaceSegment, ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace,
     ContentTerm, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId,
     ObligationId, OperationId, PlaceId, Proposition, PropositionId, ScalarTerm, ScalarType,
     StructuralPlaceKind, ValueId,
 };
 use psi_terminal::{
-    Block, ContractClause, MachineContract, Operation, OperationKind, SemanticVersion,
-    StructuralPlaceDeclaration, TerminalMachine, TerminalModule, Terminator, ValueDeclaration,
+    Block, ClaimContentProjection, ContentIdentityReshuffle, ContractClause, MachineContract,
+    Operation, OperationKind, SemanticVersion, StructuralPlaceDeclaration, TerminalMachine,
+    TerminalModule, Terminator, ValueDeclaration,
 };
 use psi_terminal_codec::{
     CodecError, decode_module, encode_module, migrate_module_to_current, semantic_fingerprint,
@@ -28,7 +29,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.semantic_version, SemanticVersion::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "2e7128a6b0e7e74f467a4dbbc6ee63969e2b1105707ecb4112a286ec957ff08d"
+        "77ed3e95229377c7f9a5eb6f6cff7f19802a8d05e0f7c9170d46b8c1d6f554d8"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -46,6 +47,45 @@ fn v9_content_conservation_has_stable_canonical_bytes() {
     assert_eq!(
         semantic_fingerprint(&module).unwrap().to_string(),
         "6ac425701a2d15d0531d97922f63bb85118a267d8a4d72c6f2bc787668540986"
+    );
+}
+
+#[test]
+fn v10_identity_reshuffle_has_stable_canonical_bytes() {
+    let module = identity_reshuffle_fixture(SemanticVersion::V10);
+    let bytes = encode_module(&module).expect("v10 identity reshuffle should encode");
+
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
+    assert_eq!(
+        semantic_fingerprint(&module).unwrap().to_string(),
+        "fdc2ff2c3593417f7faafa02d171028f2d417b1f248694596fc015005ce9f28e"
+    );
+}
+
+#[test]
+fn identity_reshuffle_encoding_is_v10_and_canonically_ordered() {
+    let old = identity_reshuffle_fixture(SemanticVersion::V9);
+    assert!(matches!(
+        encode_module(&old),
+        Err(CodecError::InvalidModule(
+            psi_terminal_verifier::ModuleError::ContentIdentityReshufflesRequireSemanticVersion {
+                required: SemanticVersion::V10,
+                actual: SemanticVersion::V9,
+                ..
+            }
+        ))
+    ));
+
+    let mut projections = identity_reshuffle_fixture(SemanticVersion::V10);
+    projections.machines[0].content_identity_reshuffles[0]
+        .projections
+        .swap(0, 1);
+    assert_eq!(
+        encode_module(&projections),
+        Err(CodecError::NonCanonicalOrder(
+            "claim content projections by identity and algebra"
+        ))
     );
 }
 
@@ -686,6 +726,7 @@ fn fixture() -> TerminalModule {
                 scalar_type,
             },
             structural_places: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
             entry: block_id(1),
             blocks: vec![
                 Block {
@@ -774,6 +815,7 @@ fn boolean_fixture(semantic_version: SemanticVersion) -> TerminalModule {
                 scalar_type: ScalarType::Boolean,
             },
             structural_places: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
             entry: block_id(10),
             blocks: vec![Block {
                 id: block_id(10),
@@ -854,6 +896,7 @@ fn content_conservation_fixture(semantic_version: SemanticVersion) -> TerminalMo
                     kind: StructuralPlaceKind::Result,
                 },
             ],
+            content_identity_reshuffles: Vec::new(),
             entry: block_id(80),
             blocks: vec![Block {
                 id: block_id(80),
@@ -876,6 +919,48 @@ fn content_conservation_fixture(semantic_version: SemanticVersion) -> TerminalMo
     }
 }
 
+fn identity_reshuffle_fixture(semantic_version: SemanticVersion) -> TerminalModule {
+    let mut module = content_conservation_fixture(semantic_version);
+    let input_root = module.machines[0].structural_places[0].id;
+    let output_root = module.machines[0].structural_places[1].id;
+    module.machines[0].content_identity_reshuffles = vec![ContentIdentityReshuffle {
+        claim: claim_id(1),
+        input: ContentStructuralPlace {
+            version: ContentPlaceVersion::Entry,
+            root: input_root,
+            segments: vec![ContentPlaceSegment::Field("payload".to_owned())],
+        },
+        output: ContentStructuralPlace {
+            version: ContentPlaceVersion::Current,
+            root: output_root,
+            segments: vec![ContentPlaceSegment::Field("payload".to_owned())],
+        },
+        projections: vec![
+            ClaimContentProjection {
+                projection: ContentProjectionIdentity {
+                    domain: ContentDomainId::new(7).expect("domain"),
+                    projection_fingerprint: 0x1234,
+                },
+                algebra: ContentAlgebra {
+                    kind: ContentAlgebraKind::IntervalSet,
+                    parameter: "Address".to_owned(),
+                },
+            },
+            ClaimContentProjection {
+                projection: ContentProjectionIdentity {
+                    domain: ContentDomainId::new(8).expect("domain"),
+                    projection_fingerprint: 0x5678,
+                },
+                algebra: ContentAlgebra {
+                    kind: ContentAlgebraKind::CountedQuantity,
+                    parameter: "Byte".to_owned(),
+                },
+            },
+        ],
+    }];
+    module
+}
+
 fn wrapping_add_fixture(semantic_version: SemanticVersion) -> TerminalModule {
     let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
     let scalar_type = ScalarType::Integer(integer);
@@ -890,6 +975,7 @@ fn wrapping_add_fixture(semantic_version: SemanticVersion) -> TerminalModule {
                 scalar_type,
             },
             structural_places: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
             entry: block_id(20),
             blocks: vec![Block {
                 id: block_id(20),
@@ -1014,6 +1100,7 @@ id_constructor!(value_id, ValueId);
 id_constructor!(machine_id, MachineId);
 id_constructor!(block_id, BlockId);
 id_constructor!(place_id, PlaceId);
+id_constructor!(claim_id, ClaimId);
 id_constructor!(operation_id, OperationId);
 id_constructor!(edge_id, EdgeId);
 id_constructor!(contract_id, ContractId);

@@ -20,14 +20,15 @@ pub use proof_bundle::{
 pub use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity};
 
 use psi_core::{
-    ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentDomainId, ContentPlaceSegment,
-    ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace, ContentTerm,
-    IntegerSign, IntegerType, IntegerValue, Proposition, PropositionError, PropositionId,
-    PsiSemanticId, ScalarTerm, ScalarType, StructuralPlaceKind,
+    ClaimId, ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentDomainId,
+    ContentPlaceSegment, ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace,
+    ContentTerm, IntegerSign, IntegerType, IntegerValue, Proposition, PropositionError,
+    PropositionId, PsiSemanticId, ScalarTerm, ScalarType, StructuralPlaceKind,
 };
 use psi_terminal::{
-    Block, ContractClause, MachineContract, Operation, OperationKind, SemanticVersion,
-    StructuralPlaceDeclaration, TerminalMachine, TerminalModule, Terminator, ValueDeclaration,
+    Block, ClaimContentProjection, ContentIdentityReshuffle, ContractClause, MachineContract,
+    Operation, OperationKind, SemanticVersion, StructuralPlaceDeclaration, TerminalMachine,
+    TerminalModule, Terminator, ValueDeclaration,
 };
 use psi_terminal_verifier::{ModuleError, validate_module};
 use sha2::{Digest, Sha256};
@@ -115,6 +116,25 @@ fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
         if !strictly_increasing(machine.structural_places.iter().map(|place| place.id)) {
             return Err(CodecError::NonCanonicalOrder(
                 "structural places by PlaceId",
+            ));
+        }
+        if !strictly_increasing(
+            machine
+                .content_identity_reshuffles
+                .iter()
+                .map(|reshuffle| reshuffle.claim),
+        ) {
+            return Err(CodecError::NonCanonicalOrder(
+                "content identity reshuffles by ClaimId",
+            ));
+        }
+        if machine
+            .content_identity_reshuffles
+            .iter()
+            .any(|reshuffle| !strictly_increasing(reshuffle.projections.iter()))
+        {
+            return Err(CodecError::NonCanonicalOrder(
+                "claim content projections by identity and algebra",
             ));
         }
         if !strictly_increasing(
@@ -265,12 +285,37 @@ fn encode_machine(
             encode_structural_place_kind(writer, place.kind);
         }
     }
+    if semantic_version >= SemanticVersion::V10 {
+        writer.len(
+            "content identity reshuffles",
+            machine.content_identity_reshuffles.len(),
+        )?;
+        for reshuffle in &machine.content_identity_reshuffles {
+            encode_content_identity_reshuffle(writer, reshuffle)?;
+        }
+    }
     writer.id(machine.entry);
     writer.len("blocks", machine.blocks.len())?;
     for block in &machine.blocks {
         encode_block(writer, block)?;
     }
     encode_contract(writer, &machine.contract)
+}
+
+fn encode_content_identity_reshuffle(
+    writer: &mut Writer,
+    reshuffle: &ContentIdentityReshuffle,
+) -> Result<(), CodecError> {
+    writer.id(reshuffle.claim);
+    encode_content_structural_place(writer, &reshuffle.input)?;
+    encode_content_structural_place(writer, &reshuffle.output)?;
+    writer.len("claim content projections", reshuffle.projections.len())?;
+    for content in &reshuffle.projections {
+        writer.id(content.projection.domain);
+        writer.u64(content.projection.projection_fingerprint);
+        encode_content_algebra(writer, &content.algebra)?;
+    }
+    Ok(())
 }
 
 fn encode_declarations(
@@ -465,30 +510,38 @@ fn encode_content_term(
             writer.u8(1);
             writer.id(projection.domain);
             writer.u64(projection.projection_fingerprint);
-            writer.u8(match subject.version {
-                ContentPlaceVersion::Entry => 1,
-                ContentPlaceVersion::Current => 2,
-            });
-            writer.id(subject.root);
-            writer.len("content place segments", subject.segments.len())?;
-            for segment in &subject.segments {
-                match segment {
-                    ContentPlaceSegment::Field(name) => {
-                        writer.u8(1);
-                        writer.string("content field", name)?;
-                    }
-                    ContentPlaceSegment::FixedIndex(index) => {
-                        writer.u8(2);
-                        writer.u64(*index);
-                    }
-                }
-            }
+            encode_content_structural_place(writer, subject)?;
         }
         ContentTerm::Separate(terms) => {
             writer.u8(2);
             writer.len("separated content terms", terms.len())?;
             for term in terms {
                 encode_content_term(writer, term, depth + 1)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn encode_content_structural_place(
+    writer: &mut Writer,
+    subject: &ContentStructuralPlace,
+) -> Result<(), CodecError> {
+    writer.u8(match subject.version {
+        ContentPlaceVersion::Entry => 1,
+        ContentPlaceVersion::Current => 2,
+    });
+    writer.id(subject.root);
+    writer.len("content place segments", subject.segments.len())?;
+    for segment in &subject.segments {
+        match segment {
+            ContentPlaceSegment::Field(name) => {
+                writer.u8(1);
+                writer.string("content field", name)?;
+            }
+            ContentPlaceSegment::FixedIndex(index) => {
+                writer.u8(2);
+                writer.u64(*index);
             }
         }
     }
@@ -650,6 +703,16 @@ fn decode_machine(
     } else {
         Vec::new()
     };
+    let content_identity_reshuffles = if semantic_version >= SemanticVersion::V10 {
+        let count = reader.count()?;
+        let mut reshuffles = Vec::new();
+        for _ in 0..count {
+            reshuffles.push(decode_content_identity_reshuffle(reader)?);
+        }
+        reshuffles
+    } else {
+        Vec::new()
+    };
     let entry = reader.id("BlockId")?;
     let block_count = reader.count()?;
     let mut blocks = Vec::new();
@@ -662,9 +725,35 @@ fn decode_machine(
         parameters,
         result,
         structural_places,
+        content_identity_reshuffles,
         entry,
         blocks,
         contract,
+    })
+}
+
+fn decode_content_identity_reshuffle(
+    reader: &mut Reader<'_>,
+) -> Result<ContentIdentityReshuffle, CodecError> {
+    let claim = reader.id::<ClaimId>("ClaimId")?;
+    let input = decode_content_structural_place(reader)?;
+    let output = decode_content_structural_place(reader)?;
+    let count = reader.count()?;
+    let mut projections = Vec::new();
+    for _ in 0..count {
+        projections.push(ClaimContentProjection {
+            projection: ContentProjectionIdentity {
+                domain: reader.id("ContentDomainId")?,
+                projection_fingerprint: reader.u64()?,
+            },
+            algebra: decode_content_algebra(reader)?,
+        });
+    }
+    Ok(ContentIdentityReshuffle {
+        claim,
+        input,
+        output,
+        projections,
     })
 }
 
@@ -859,28 +948,9 @@ fn decode_content_term(reader: &mut Reader<'_>, depth: usize) -> Result<ContentT
                 domain: reader.id::<ContentDomainId>("ContentDomainId")?,
                 projection_fingerprint: reader.u64()?,
             };
-            let version = match reader.u8()? {
-                1 => ContentPlaceVersion::Entry,
-                2 => ContentPlaceVersion::Current,
-                tag => return Err(CodecError::InvalidTag("ContentPlaceVersion", tag)),
-            };
-            let root = reader.id("PlaceId")?;
-            let count = reader.count()?;
-            let mut segments = Vec::new();
-            for _ in 0..count {
-                segments.push(match reader.u8()? {
-                    1 => ContentPlaceSegment::Field(reader.string("content field")?),
-                    2 => ContentPlaceSegment::FixedIndex(reader.u64()?),
-                    tag => return Err(CodecError::InvalidTag("ContentPlaceSegment", tag)),
-                });
-            }
             ContentTerm::Projection {
                 projection,
-                subject: ContentStructuralPlace {
-                    version,
-                    root,
-                    segments,
-                },
+                subject: decode_content_structural_place(reader)?,
             }
         }
         2 => {
@@ -892,6 +962,31 @@ fn decode_content_term(reader: &mut Reader<'_>, depth: usize) -> Result<ContentT
             ContentTerm::separate(terms).map_err(CodecError::MalformedProposition)?
         }
         tag => return Err(CodecError::InvalidTag("ContentTerm", tag)),
+    })
+}
+
+fn decode_content_structural_place(
+    reader: &mut Reader<'_>,
+) -> Result<ContentStructuralPlace, CodecError> {
+    let version = match reader.u8()? {
+        1 => ContentPlaceVersion::Entry,
+        2 => ContentPlaceVersion::Current,
+        tag => return Err(CodecError::InvalidTag("ContentPlaceVersion", tag)),
+    };
+    let root = reader.id("PlaceId")?;
+    let count = reader.count()?;
+    let mut segments = Vec::new();
+    for _ in 0..count {
+        segments.push(match reader.u8()? {
+            1 => ContentPlaceSegment::Field(reader.string("content field")?),
+            2 => ContentPlaceSegment::FixedIndex(reader.u64()?),
+            tag => return Err(CodecError::InvalidTag("ContentPlaceSegment", tag)),
+        });
+    }
+    Ok(ContentStructuralPlace {
+        version,
+        root,
+        segments,
     })
 }
 

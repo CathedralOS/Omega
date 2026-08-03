@@ -187,8 +187,9 @@ equality, claim identity, and input/output paths are emitted together in the
 claim-outcome proof/debug artifact. Multiple independent claims remain multiple
 rewrite rows; inference does not use whole-claim distinctness as evidence that
 their projected content is disjoint. Fresh claims and mismatched projection
-identities do not infer. Terminal revalidation, partition-theorem composition,
-and sealed frontier rows remain implementation work.
+identities do not infer. Terminal v10 revalidates and reconstructs these exact
+rewrite axioms; partition-theorem composition and sealed frontier rows remain
+implementation work.
 
 ### Content-bearing claims
 
@@ -252,8 +253,12 @@ projection identities, entry/current paths, fields, fixed indices, and flat
 separation. The checked-plan adapter rechecks the source fingerprint and drops
 arena-local symbols; canonical semantic/proof bytes and verifier-checked
 replaceable certificates pin the boundary. Identity-preserving reshuffle
-inference, sealed introduction/custody-exit rows, and frontier discharge remain
-subsequent work.
+inference now continues into terminal semantic v10: the adapter revalidates
+direct equality shape, groups exact projections by preserved claim, and emits
+canonical machine-local rows; the verifier checks one-to-one, non-overlapping
+parameter-entry/result-current paths and reconstructs their exact equalities as
+semantic axioms. Sealed introduction/custody-exit rows, authored-partition
+composition, and frontier discharge remain subsequent work.
 
 An address interval-set member uses embedded arithmetic rather than wrapping
 runtime `addr` arithmetic. Its half-open end may equal the address-space bound

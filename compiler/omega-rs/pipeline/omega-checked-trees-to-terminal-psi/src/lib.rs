@@ -8,25 +8,26 @@
 //! surface is deliberately tiny and exact; unsupported source constructs fail
 //! closed instead of being dropped.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use omega_checked_trees::{
-    CheckedTrees,
+    CheckedTrees, ContentIdentityReshuffleFact,
     expression::{BinaryOperator, ExpressionNode},
     signature::SignatureContractKind,
     statement::{StatementNode, TransitionGuardNode, TransitionTargetNode},
     types::PrimitiveType,
 };
 use omega_core::content::{
-    ContentAlgebraIdentity as OmegaContentAlgebraIdentity, ContentConservationPlan,
-    ContentConservationTerm as OmegaContentConservationTerm,
+    ContentAlgebraIdentity as OmegaContentAlgebraIdentity, ContentConservationOwnerKind,
+    ContentConservationPlan, ContentConservationTerm as OmegaContentConservationTerm,
     ContentPlaceRoot as OmegaContentPlaceRoot, ContentPlaceSegment as OmegaContentPlaceSegment,
     ContentPlaceVersion as OmegaContentPlaceVersion,
     ContentStructuralPlace as OmegaContentStructuralPlace, conservation_fingerprint,
 };
+use omega_core::semantics::PermissionClaimIdentity;
 use omega_typed_trees::domain::ProofFact;
 use psi_core::{
-    BlockId, ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentDomainId,
+    BlockId, ClaimId, ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentDomainId,
     ContentPlaceSegment, ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace,
     ContentTerm, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId,
     ObligationId, OperationId, PlaceId, Proposition, PropositionContext, PropositionError,
@@ -34,8 +35,9 @@ use psi_core::{
 };
 use psi_proof_kernel::{EvidenceRoute, PrimitiveJudgment};
 use psi_terminal::{
-    Block, ContractClause, MachineContract, Operation, OperationKind, SemanticVersion,
-    StructuralPlaceDeclaration, TerminalMachine, TerminalModule, Terminator, ValueDeclaration,
+    Block, ClaimContentProjection, ContentIdentityReshuffle, ContractClause, MachineContract,
+    Operation, OperationKind, SemanticVersion, StructuralPlaceDeclaration, TerminalMachine,
+    TerminalModule, Terminator, ValueDeclaration,
 };
 use psi_terminal_verifier::{ObligationEvidence, ProofBundle};
 
@@ -55,6 +57,16 @@ pub struct LoweredContentConservation {
     pub source_fingerprint: u64,
     pub structural_places: Vec<StructuralPlaceDeclaration>,
     pub proposition: Proposition,
+}
+
+/// Canonical terminal-Psi carrier for checker-derived one-to-one claim
+/// reshuffles. Source claim identities are used only to group exact projection
+/// facts; the emitted IDs are dense and determined by the semantic rows, so no
+/// arena-local symbol identity crosses the terminal boundary.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LoweredContentIdentityReshuffles {
+    pub structural_places: Vec<StructuralPlaceDeclaration>,
+    pub reshuffles: Vec<ContentIdentityReshuffle>,
 }
 
 /// Lower a validated checked-tree content equation into the terminal-Psi v9
@@ -103,6 +115,223 @@ pub fn lower_content_conservation_plan(
             .collect(),
         proposition,
     })
+}
+
+/// Revalidate and lower all identity facts for one checked callable.
+///
+/// Multiple exact projections of the same checked claim are grouped into one
+/// terminal row. The checked plan remains authoritative for the stable paths;
+/// diagnostic arena spans on the fact are intentionally not serialized.
+pub fn lower_content_identity_reshuffles(
+    facts: &[ContentIdentityReshuffleFact],
+) -> Result<LoweredContentIdentityReshuffles, LoweringError> {
+    #[derive(Debug)]
+    struct Group {
+        source_claim: PermissionClaimIdentity,
+        input: ContentStructuralPlace,
+        output: ContentStructuralPlace,
+        projections: Vec<ClaimContentProjection>,
+    }
+
+    let Some(first) = facts.first() else {
+        return Ok(LoweredContentIdentityReshuffles {
+            structural_places: Vec::new(),
+            reshuffles: Vec::new(),
+        });
+    };
+    let callable = (first.machine_symbol, first.state_symbol);
+    let mut structural_places = BTreeMap::new();
+    let mut projection_algebras = BTreeMap::<ContentProjectionIdentity, ContentAlgebra>::new();
+    let mut groups = Vec::<Group>::new();
+
+    for fact in facts {
+        if (fact.machine_symbol, fact.state_symbol) != callable
+            || fact.plan.owner_kind != ContentConservationOwnerKind::Machine
+            || fact.plan.owner != fact.machine_symbol
+            || fact.plan.callable != fact.state_symbol
+        {
+            return Err(LoweringError::ContentIdentityFactOwnerMismatch);
+        }
+        if fact.claim_identity == PermissionClaimIdentity::Unknown {
+            return Err(LoweringError::UnknownContentClaimIdentity);
+        }
+        validate_identity_input_symbol(fact)?;
+
+        let lowered = lower_content_conservation_plan(&fact.plan)?;
+        for declaration in lowered.structural_places {
+            if let Some(previous) = structural_places.insert(declaration.id, declaration.kind)
+                && previous != declaration.kind
+            {
+                return Err(LoweringError::ConflictingContentPlaceRoot {
+                    id: declaration.id,
+                    first: previous,
+                    second: declaration.kind,
+                });
+            }
+        }
+        let Proposition::ContentConservation(conservation) = lowered.proposition else {
+            unreachable!("content plan lowering always yields content conservation")
+        };
+        let (input, output, projection) = direct_identity_projection(&conservation)?;
+        let content = ClaimContentProjection {
+            projection,
+            algebra: conservation.algebra().clone(),
+        };
+        if let Some(previous) =
+            projection_algebras.insert(content.projection, content.algebra.clone())
+            && previous != content.algebra
+        {
+            return Err(LoweringError::ContentProjectionAlgebraMismatch(
+                content.projection,
+            ));
+        }
+
+        if let Some(group) = groups
+            .iter_mut()
+            .find(|group| group.source_claim == fact.claim_identity)
+        {
+            if group.input != input || group.output != output {
+                return Err(LoweringError::ContentIdentityClaimMapsMultiplePlaces);
+            }
+            group.projections.push(content);
+        } else {
+            groups.push(Group {
+                source_claim: fact.claim_identity,
+                input,
+                output,
+                projections: vec![content],
+            });
+        }
+    }
+
+    for group in &mut groups {
+        group.projections.sort();
+        if group.projections.windows(2).any(|pair| pair[0] == pair[1]) {
+            return Err(LoweringError::DuplicateContentIdentityProjection);
+        }
+    }
+    groups.sort_by(|left, right| {
+        (&left.input, &left.output, &left.projections).cmp(&(
+            &right.input,
+            &right.output,
+            &right.projections,
+        ))
+    });
+    let mut inputs = BTreeSet::<&ContentStructuralPlace>::new();
+    for group in &groups {
+        if !inputs.insert(&group.input) {
+            return Err(LoweringError::DuplicateContentIdentityInput);
+        }
+        if inputs.iter().any(|previous| {
+            **previous != group.input && content_places_overlap(previous, &group.input)
+        }) {
+            return Err(LoweringError::OverlappingContentIdentityInput);
+        }
+    }
+    let mut outputs = BTreeSet::<&ContentStructuralPlace>::new();
+    for group in &groups {
+        if !outputs.insert(&group.output) {
+            return Err(LoweringError::DuplicateContentIdentityOutput);
+        }
+        if outputs.iter().any(|previous| {
+            **previous != group.output && content_places_overlap(previous, &group.output)
+        }) {
+            return Err(LoweringError::OverlappingContentIdentityOutput);
+        }
+    }
+
+    let reshuffles = groups
+        .into_iter()
+        .enumerate()
+        .map(|(index, group)| ContentIdentityReshuffle {
+            claim: ClaimId::new(
+                u64::try_from(index)
+                    .expect("an in-memory fact count fits u64")
+                    .checked_add(1)
+                    .expect("an in-memory fact count cannot exhaust u64"),
+            )
+            .expect("dense claim identities begin at one"),
+            input: group.input,
+            output: group.output,
+            projections: group.projections,
+        })
+        .collect();
+    Ok(LoweredContentIdentityReshuffles {
+        structural_places: structural_places
+            .into_iter()
+            .map(|(id, kind)| StructuralPlaceDeclaration { id, kind })
+            .collect(),
+        reshuffles,
+    })
+}
+
+fn validate_identity_input_symbol(
+    fact: &ContentIdentityReshuffleFact,
+) -> Result<(), LoweringError> {
+    let roots = [fact.plan.equation.left(), fact.plan.equation.right()];
+    let has_input = roots.iter().any(|term| {
+        matches!(
+            term,
+            OmegaContentConservationTerm::Projection {
+                subject: OmegaContentStructuralPlace {
+                    version: OmegaContentPlaceVersion::Entry,
+                    root: OmegaContentPlaceRoot::Parameter { symbol, .. },
+                    ..
+                },
+                ..
+            } if *symbol == fact.input_parameter_symbol
+        )
+    });
+    if has_input {
+        Ok(())
+    } else {
+        Err(LoweringError::ContentIdentityInputParameterMismatch)
+    }
+}
+
+fn direct_identity_projection(
+    conservation: &ContentConservation,
+) -> Result<
+    (
+        ContentStructuralPlace,
+        ContentStructuralPlace,
+        ContentProjectionIdentity,
+    ),
+    LoweringError,
+> {
+    let projection = |term: &ContentTerm| match term {
+        ContentTerm::Projection {
+            projection,
+            subject,
+        } => Some((*projection, subject.clone())),
+        ContentTerm::Separate(_) => None,
+    };
+    let (left_projection, left) =
+        projection(conservation.left()).ok_or(LoweringError::ContentIdentityNotDirectEquality)?;
+    let (right_projection, right) =
+        projection(conservation.right()).ok_or(LoweringError::ContentIdentityNotDirectEquality)?;
+    if left_projection != right_projection {
+        return Err(LoweringError::ContentIdentityProjectionMismatch);
+    }
+    let (input, output) = match (left.version, right.version) {
+        (ContentPlaceVersion::Entry, ContentPlaceVersion::Current) => (left, right),
+        (ContentPlaceVersion::Current, ContentPlaceVersion::Entry) => (right, left),
+        _ => return Err(LoweringError::ContentIdentityDirectionMismatch),
+    };
+    if input.root.get() >= RESULT_STRUCTURAL_PLACE_ID
+        || output.root.get() != RESULT_STRUCTURAL_PLACE_ID
+    {
+        return Err(LoweringError::ContentIdentityRootMismatch);
+    }
+    Ok((input, output, left_projection))
+}
+
+fn content_places_overlap(left: &ContentStructuralPlace, right: &ContentStructuralPlace) -> bool {
+    if left.version != right.version || left.root != right.root {
+        return false;
+    }
+    let shared = left.segments.len().min(right.segments.len());
+    left.segments[..shared] == right.segments[..shared]
 }
 
 const MAX_CONTENT_TERM_DEPTH: usize = 256;
@@ -328,7 +557,19 @@ pub fn lower_machine(
     }
 
     validate_contract(checked, machine, return_type, value)?;
-    Ok(build_module(return_type, value))
+    let identity_facts = checked
+        .facts
+        .qualifications
+        .content
+        .identity_reshuffles
+        .iter()
+        .filter(|fact| {
+            fact.machine_symbol == machine.symbol && fact.state_symbol == entry_state.symbol
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    let identity_reshuffles = lower_content_identity_reshuffles(&identity_facts)?;
+    Ok(build_module(return_type, value, identity_reshuffles))
 }
 
 fn validate_contract(
@@ -435,7 +676,11 @@ fn integer_value(
     Ok(value)
 }
 
-fn build_module(result_type: ScalarType, value: IntegerValue) -> LoweredTerminalPsi {
+fn build_module(
+    result_type: ScalarType,
+    value: IntegerValue,
+    identity_reshuffles: LoweredContentIdentityReshuffles,
+) -> LoweredTerminalPsi {
     let jump_constant_id = value_id(1);
     let parameter_id = value_id(2);
     let return_constant_id = value_id(3);
@@ -459,7 +704,8 @@ fn build_module(result_type: ScalarType, value: IntegerValue) -> LoweredTerminal
                     id: result_id,
                     scalar_type: result_type,
                 },
-                structural_places: Vec::new(),
+                structural_places: identity_reshuffles.structural_places,
+                content_identity_reshuffles: identity_reshuffles.reshuffles,
                 entry: block_id(1),
                 blocks: vec![
                     Block {
@@ -552,6 +798,20 @@ pub enum LoweringError {
         expected: u64,
         actual: u64,
     },
+    ContentIdentityFactOwnerMismatch,
+    UnknownContentClaimIdentity,
+    ContentIdentityInputParameterMismatch,
+    ContentIdentityNotDirectEquality,
+    ContentIdentityProjectionMismatch,
+    ContentIdentityDirectionMismatch,
+    ContentIdentityRootMismatch,
+    ContentIdentityClaimMapsMultiplePlaces,
+    DuplicateContentIdentityProjection,
+    DuplicateContentIdentityInput,
+    DuplicateContentIdentityOutput,
+    OverlappingContentIdentityInput,
+    OverlappingContentIdentityOutput,
+    ContentProjectionAlgebraMismatch(ContentProjectionIdentity),
     InvalidContentDomainIdentity,
     ZeroContentProjectionFingerprint,
     ContentTermNestingTooDeep,
@@ -576,7 +836,7 @@ mod tests {
     use super::*;
     use omega_core::{
         content::{ContentConservationEquation, ContentConservationOwnerKind, ContentFieldSegment},
-        semantics::SemanticDomainId,
+        semantics::{PermissionEventSource, SemanticDomainId},
         symbols::SymbolHandle,
     };
 
@@ -653,6 +913,63 @@ mod tests {
         source_plan_with_domain(SemanticDomainId(9))
     }
 
+    fn direct_source_plan(
+        semantic_domain: SemanticDomainId,
+        output_field: &str,
+    ) -> ContentConservationPlan {
+        let entry = source_projection(
+            OmegaContentPlaceVersion::Entry,
+            OmegaContentPlaceRoot::Parameter {
+                position: 0,
+                symbol: SymbolHandle::from_arena_index(10),
+                name: "extent".to_owned(),
+                is_self: false,
+            },
+            &[],
+            semantic_domain,
+        );
+        let output = source_projection(
+            OmegaContentPlaceVersion::Current,
+            OmegaContentPlaceRoot::Result,
+            &[(output_field, 11)],
+            semantic_domain,
+        );
+        let algebra = OmegaContentAlgebraIdentity::IntervalSet {
+            coordinate_space: "Address".to_owned(),
+        };
+        let equation = ContentConservationEquation::new(entry, output);
+        let fingerprint = conservation_fingerprint(&algebra, &equation);
+        ContentConservationPlan {
+            owner_kind: ContentConservationOwnerKind::Machine,
+            owner: SymbolHandle::from_arena_index(20),
+            callable: SymbolHandle::from_arena_index(21),
+            algebra,
+            equation,
+            fingerprint,
+        }
+    }
+
+    fn identity_fact(
+        semantic_domain: SemanticDomainId,
+        output_field: &str,
+        ordinal: u32,
+    ) -> ContentIdentityReshuffleFact {
+        ContentIdentityReshuffleFact {
+            machine_symbol: SymbolHandle::from_arena_index(20),
+            state_symbol: SymbolHandle::from_arena_index(21),
+            claim_identity: PermissionClaimIdentity::Established {
+                machine_symbol: SymbolHandle::from_arena_index(20),
+                state_symbol: SymbolHandle::from_arena_index(21),
+                source: PermissionEventSource::StateEntry,
+                ordinal,
+            },
+            input_parameter_symbol: SymbolHandle::from_arena_index(10),
+            input_segments: Default::default(),
+            output_segments: Default::default(),
+            plan: direct_source_plan(semantic_domain, output_field),
+        }
+    }
+
     #[test]
     fn checked_content_plan_lowers_without_arena_local_identity() {
         let plan = source_plan();
@@ -727,6 +1044,71 @@ mod tests {
         assert_eq!(
             lower_content_conservation_plan(&plan),
             Err(LoweringError::InvalidContentDomainIdentity)
+        );
+    }
+
+    #[test]
+    fn checked_identity_facts_group_exact_projections_into_canonical_terminal_rows() {
+        let first = identity_fact(SemanticDomainId(9), "payload", 0);
+        let second = identity_fact(SemanticDomainId(10), "payload", 0);
+        let lowered = lower_content_identity_reshuffles(&[second.clone(), first.clone()])
+            .expect("exact checked identity facts lower");
+        let reordered = lower_content_identity_reshuffles(&[first, second])
+            .expect("source fact order is irrelevant");
+
+        assert_eq!(lowered, reordered);
+        assert_eq!(lowered.structural_places.len(), 2);
+        assert_eq!(lowered.reshuffles.len(), 1);
+        let row = &lowered.reshuffles[0];
+        assert_eq!(row.claim, ClaimId::new(1).expect("dense claim"));
+        assert_eq!(row.input.version, ContentPlaceVersion::Entry);
+        assert_eq!(row.input.root, PlaceId::new(1).expect("parameter root"));
+        assert_eq!(row.output.version, ContentPlaceVersion::Current);
+        assert_eq!(
+            row.output.root,
+            PlaceId::new(RESULT_STRUCTURAL_PLACE_ID).expect("result root")
+        );
+        assert_eq!(
+            row.output.segments,
+            [ContentPlaceSegment::Field("payload".to_owned())]
+        );
+        assert_eq!(
+            row.projections
+                .iter()
+                .map(|projection| projection.projection.domain.get())
+                .collect::<Vec<_>>(),
+            vec![9, 10]
+        );
+        assert_eq!(row.inferred_propositions().count(), 2);
+    }
+
+    #[test]
+    fn checked_identity_fact_lowering_revalidates_claim_and_equation_shape() {
+        let mut unknown = identity_fact(SemanticDomainId(9), "payload", 0);
+        unknown.claim_identity = PermissionClaimIdentity::Unknown;
+        assert_eq!(
+            lower_content_identity_reshuffles(&[unknown]),
+            Err(LoweringError::UnknownContentClaimIdentity)
+        );
+
+        let mut partition = identity_fact(SemanticDomainId(9), "payload", 0);
+        partition.plan = source_plan();
+        assert_eq!(
+            lower_content_identity_reshuffles(&[partition]),
+            Err(LoweringError::ContentIdentityNotDirectEquality)
+        );
+
+        let mut moved_twice = identity_fact(SemanticDomainId(9), "left", 0);
+        let second_destination = identity_fact(SemanticDomainId(10), "right", 0);
+        assert_eq!(
+            lower_content_identity_reshuffles(&[moved_twice.clone(), second_destination]),
+            Err(LoweringError::ContentIdentityClaimMapsMultiplePlaces)
+        );
+
+        moved_twice.plan.owner = SymbolHandle::from_arena_index(99);
+        assert_eq!(
+            lower_content_identity_reshuffles(&[moved_twice]),
+            Err(LoweringError::ContentIdentityFactOwnerMismatch)
         );
     }
 }
