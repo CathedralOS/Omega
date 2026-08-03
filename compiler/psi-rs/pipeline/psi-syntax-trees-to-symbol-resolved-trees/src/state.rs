@@ -1,0 +1,599 @@
+use crate::domain::lower_proof_facts;
+use crate::lowerer::Lowerer;
+use crate::statement::lower_statement_handle;
+use crate::type_reference::lower_type_reference_handle;
+use psi_arena::HandleSpan;
+use psi_diagnostics::Diagnostic;
+use psi_symbol_resolved_trees::name::DiagnosticName;
+use psi_symbol_resolved_trees::signature::{
+    SignatureContract, SignatureContractKind, StateParameter, StateSignature, StateSignatureStorage,
+};
+use psi_symbol_resolved_trees::state::{State, StateStorage};
+use psi_symbol_resolved_trees::statement::Statement;
+use psi_symbol_resolved_trees::types::TypeReference;
+use psi_symbols::SymbolHandle;
+use psi_syntax_trees::{self as syntax, SyntaxTrees};
+
+pub(crate) fn lower_state_node(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    state: &syntax::item::StateNode,
+) -> Result<State, Diagnostic> {
+    lower_state_parts(
+        lowerer,
+        syntax_trees,
+        &state.name,
+        state.parameters,
+        state.return_type,
+        state.contracts,
+        state.statements,
+    )
+}
+
+fn lower_state_parts(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    name: &syntax::identifier::Identifier,
+    parameters: HandleSpan<syntax::item::StateParameterHandle>,
+    return_type_handle: syntax::types::TypeReferenceHandle,
+    contracts: HandleSpan<syntax::item::CapabilityContract>,
+    statements: psi_arena::HandleSpan<syntax::statement::StatementHandle>,
+) -> Result<State, Diagnostic> {
+    let parameters = lower_state_parameters(lowerer, syntax_trees, parameters)?;
+    let return_type = return_type_handle
+        .is_valid()
+        .then(|| lower_type_reference_handle(lowerer, syntax_trees, return_type_handle))
+        .transpose()?;
+    // Record which of THIS state's params are shared references to a NAMED
+    // type (`table: &EfiSystemTable`): a member read through one must
+    // dereference the pointer slot, so the guard/operand hoists materialize it
+    // into a `let` (the boot-verified pointee path). `&mut` params are
+    // excluded -- their alias slots share the caller's storage and fold flat
+    // correctly. Overwrites the previous state's list.
+    lowerer.reference_struct_parameters = if lowerer.current_machine_is_boundary {
+        reference_struct_parameter_names(lowerer, &parameters)
+    } else {
+        // Non-boundary `&Struct` params are call-site alias slots sharing the
+        // caller's storage -- their member reads fold correctly and must NOT
+        // be pointee-materialized.
+        Vec::new()
+    };
+    lowerer.current_state_parameter_names = lowerer
+        .symbol_resolved_trees
+        .state_parameters(parameters)
+        .iter()
+        .map(|parameter| parameter.name.as_str().to_string())
+        .collect();
+    // The guarded-arm value-call rewrite copies parameter records (and the
+    // return type) into its synthesized continuation states.
+    lowerer.current_state_parameters = lowerer
+        .symbol_resolved_trees
+        .state_parameters(parameters)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .map(|parameter| {
+            (
+                parameter.name.as_str().to_string(),
+                parameter.type_reference.clone(),
+                parameter.is_mutable,
+            )
+        })
+        .collect();
+    lowerer.current_state_self_parameter = lowerer
+        .symbol_resolved_trees
+        .state_parameters(parameters)
+        .iter()
+        .find(|parameter| parameter.is_self)
+        .cloned();
+    lowerer.current_state_locals.clear();
+    lowerer.current_state_return_type = return_type.clone();
+    let contracts = lower_signature_contracts(lowerer, syntax_trees, contracts)?;
+    let statements = lower_state_statements(lowerer, syntax_trees, statements)?;
+    lowerer.reference_struct_parameters = Vec::new();
+    lowerer.current_state_parameter_names = Vec::new();
+    lowerer.current_state_parameters = Vec::new();
+    lowerer.current_state_self_parameter = None;
+    lowerer.current_state_locals.clear();
+    lowerer.current_state_return_type = None;
+
+    Ok(State {
+        symbol: SymbolHandle::invalid(),
+        name: crate::name::lower_name(name),
+        storage: StateStorage {
+            parameters,
+            return_type,
+            contracts,
+            statements,
+            statement_nodes: Default::default(),
+        },
+    })
+}
+
+pub(crate) fn lower_state_signature_node(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    signature: &syntax::item::StateSignatureNode,
+) -> Result<StateSignature, Diagnostic> {
+    lower_state_signature_parts(
+        lowerer,
+        syntax_trees,
+        &signature.name,
+        &signature.lifetime_parameters,
+        signature.type_parameters,
+        signature.parameters,
+        signature.return_type,
+        signature.is_default,
+        signature.service_reaches,
+        signature.invokes,
+        signature.suspends,
+        signature.blocks,
+        signature.contracts,
+        // TPR4: the bodyless requirement's authored guarantee.
+        signature.terminates_guarantee,
+    )
+}
+
+pub(crate) fn lower_state_signature_parts(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    name: &syntax::identifier::Identifier,
+    lifetime_parameters: &[syntax::identifier::Identifier],
+    type_parameters: HandleSpan<syntax::item::TypeParameter>,
+    parameters: HandleSpan<syntax::item::StateParameterHandle>,
+    return_type_handle: syntax::types::TypeReferenceHandle,
+    is_default: bool,
+    service_reaches: HandleSpan<syntax::identifier::Identifier>,
+    invokes: HandleSpan<syntax::identifier::Identifier>,
+    suspends: bool,
+    blocks: bool,
+    contracts: HandleSpan<syntax::item::CapabilityContract>,
+    terminates_guarantee: bool,
+) -> Result<StateSignature, Diagnostic> {
+    let type_parameters =
+        crate::data::lower_type_parameters(lowerer, syntax_trees, type_parameters)?;
+    let parameters = lower_state_parameters(lowerer, syntax_trees, parameters)?;
+    let return_type = return_type_handle
+        .is_valid()
+        .then(|| lower_type_reference_handle(lowerer, syntax_trees, return_type_handle))
+        .transpose()?;
+    let service_reaches = lower_signature_service_reaches(lowerer, syntax_trees, service_reaches);
+    let invokes = lower_signature_invokes(lowerer, syntax_trees, invokes);
+    let contracts = lower_signature_contracts(lowerer, syntax_trees, contracts)?;
+
+    Ok(StateSignature {
+        symbol: SymbolHandle::invalid(),
+        name: crate::name::lower_name(name),
+        storage: StateSignatureStorage {
+            lifetime_parameters: lifetime_parameters
+                .iter()
+                .map(crate::name::lower_name)
+                .collect(),
+            type_parameters,
+            is_default,
+            parameters,
+            return_type,
+            service_reaches,
+            invokes,
+            service_reach_row: psi_language_semantics::ServiceReachRowId::NULL,
+            suspends,
+            blocks,
+            contracts,
+            terminates_guarantee,
+        },
+    })
+}
+
+pub(crate) fn lower_signature_invokes(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    invokes: HandleSpan<syntax::identifier::Identifier>,
+) -> HandleSpan<psi_symbol_resolved_trees::name::DiagnosticName> {
+    let mut span = HandleSpan::empty();
+    for binding in syntax_trees.items.identifier_path_members(invokes) {
+        lowerer
+            .symbol_resolved_trees
+            .tables
+            .declarations
+            .signature_invokes
+            .append_to_span(&mut span, crate::name::lower_name(binding));
+    }
+    span
+}
+
+pub(crate) fn lower_signature_service_reaches(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    service_reaches: HandleSpan<syntax::identifier::Identifier>,
+) -> HandleSpan<psi_symbol_resolved_trees::name::DiagnosticName> {
+    let mut span = HandleSpan::empty();
+
+    for service in syntax_trees.items.identifier_path_members(service_reaches) {
+        lowerer
+            .symbol_resolved_trees
+            .tables
+            .declarations
+            .signature_service_reaches
+            .append_to_span(&mut span, crate::name::lower_name(service));
+    }
+
+    span
+}
+
+pub(crate) fn lower_signature_contracts(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    contracts: HandleSpan<syntax::item::CapabilityContract>,
+) -> Result<HandleSpan<SignatureContract>, Diagnostic> {
+    let mut span = HandleSpan::empty();
+
+    for contract in syntax_trees.items.capability_contracts(contracts) {
+        let facts = lower_proof_facts(lowerer, syntax_trees, contract.facts)?;
+        lowerer
+            .symbol_resolved_trees
+            .tables
+            .declarations
+            .signature_contracts
+            .append_to_span(
+                &mut span,
+                SignatureContract {
+                    kind: match &contract.kind {
+                        syntax::item::CapabilityContractKind::Requires => {
+                            SignatureContractKind::Requires
+                        }
+                        syntax::item::CapabilityContractKind::Ensures => {
+                            SignatureContractKind::Ensures
+                        }
+                        syntax::item::CapabilityContractKind::Boundary(_) => {
+                            SignatureContractKind::Boundary
+                        }
+                    },
+                    facts,
+                    token_count: contract.token_count,
+                },
+            );
+    }
+
+    Ok(span)
+}
+
+fn lower_state_statements(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    statements: HandleSpan<syntax::statement::StatementHandle>,
+) -> Result<HandleSpan<Statement>, Diagnostic> {
+    let mut pending: Vec<Statement> = Vec::new();
+    let mut run_start: Option<usize> = None;
+
+    for statement in syntax_trees.items.statements(statements) {
+        lower_statement_into_pending(
+            lowerer,
+            syntax_trees,
+            *statement,
+            &mut pending,
+            &mut run_start,
+        )?;
+    }
+
+    let mut span = HandleSpan::empty();
+    for lowered in pending {
+        lowerer
+            .symbol_resolved_trees
+            .tables
+            .declarations
+            .state_statements
+            .append_to_span(&mut span, lowered);
+    }
+    Ok(span)
+}
+
+fn lower_statement_into_pending(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    statement: syntax::statement::StatementHandle,
+    pending: &mut Vec<Statement>,
+    run_start: &mut Option<usize>,
+) -> Result<(), Diagnostic> {
+    // A single syntax statement can lower to MULTIPLE resolved statements: an
+    // assignment or local whose value reads a runtime-indexed element in
+    // operand position hoists synthetic `let __hoist_N = arr[i];` temps that
+    // must precede the rewritten statement in source order (later passes seed
+    // and bind their symbols by statement order).
+    //
+    // DISPATCH-RUN SPLICE: a multi-arm transition block desugars into
+    // CONSECUTIVE per-arm `Transition` statements, and both the
+    // exhaustiveness pairing and the state-graph dispatch grouping key on
+    // maximal runs of consecutive transitions. A LATER arm whose hoisted
+    // `let`s landed between two arm transitions would SPLIT the run
+    // (un-pairing `true`/`false` arms into a phantom fall-through), so the
+    // lets of every arm after the first are spliced BEFORE the run's first
+    // transition instead. The hoisted reads are pure loads; evaluating them
+    // ahead of the whole dispatch has no observable effect.
+    let mut lowered = lower_statement_handle(lowerer, syntax_trees, statement)?;
+    let ends_in_transition = matches!(lowered.last(), Some(Statement::Transition(_)));
+    if ends_in_transition {
+        let lets_count = lowered.len() - 1;
+        match *run_start {
+            Some(start) if lets_count > 0 => {
+                let transition = lowered.pop().expect("transition chunk is non-empty");
+                for (offset, hoisted) in lowered.into_iter().enumerate() {
+                    pending.insert(start + offset, hoisted);
+                }
+                pending.push(transition);
+            }
+            _ => {
+                if run_start.is_none() {
+                    *run_start = Some(pending.len() + lets_count);
+                }
+                pending.extend(lowered);
+            }
+        }
+    } else {
+        pending.extend(lowered);
+        *run_start = None;
+    }
+
+    Ok(())
+}
+
+pub(crate) fn lower_state_parameters(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    parameters: HandleSpan<syntax::item::StateParameterHandle>,
+) -> Result<HandleSpan<StateParameter>, Diagnostic> {
+    let mut span = HandleSpan::empty();
+
+    for parameter in syntax_trees.items.state_parameters(parameters) {
+        let parameter = lower_state_parameter(lowerer, syntax_trees, *parameter)?;
+        lowerer
+            .symbol_resolved_trees
+            .tables
+            .declarations
+            .state_parameters
+            .append_to_span(&mut span, parameter);
+    }
+
+    Ok(span)
+}
+
+pub(crate) fn lower_state_parameter(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    parameter: syntax::item::StateParameterHandle,
+) -> Result<StateParameter, Diagnostic> {
+    let parameter = syntax_trees.items.state_parameter(parameter);
+    Ok(StateParameter {
+        symbol: SymbolHandle::invalid(),
+        name: crate::name::lower_name(&parameter.name),
+        type_reference: lower_type_reference_handle(
+            lowerer,
+            syntax_trees,
+            parameter.type_reference,
+        )?,
+        is_const: parameter.is_const,
+        is_mutable: parameter.is_mutable,
+        is_self: parameter.is_self,
+    })
+}
+
+/// The names of parameters declared as a SHARED reference to a NAMED type
+/// (`table: &EfiSystemTable`) -- the shapes whose member reads must deref the
+/// pointer slot rather than fold flat.
+fn reference_struct_parameter_names(
+    lowerer: &Lowerer,
+    parameters: &HandleSpan<psi_symbol_resolved_trees::signature::StateParameter>,
+) -> Vec<String> {
+    lowerer
+        .symbol_resolved_trees
+        .state_parameters(*parameters)
+        .iter()
+        .filter_map(|parameter| {
+            let psi_symbol_resolved_trees::types::TypeReference::Reference(reference) =
+                &parameter.type_reference
+            else {
+                return None;
+            };
+            if reference.is_mutable {
+                return None;
+            }
+            matches!(
+                lowerer
+                    .symbol_resolved_trees
+                    .child_type_reference(reference.referee),
+                psi_symbol_resolved_trees::types::TypeReference::Named { .. }
+            )
+            .then(|| parameter.name.as_str().to_string())
+        })
+        .collect()
+}
+
+/// Build one continuation state the guarded-arm value-call rewrite
+/// synthesized: parameters copied (by name and type) from the enclosing
+/// state, and a body of exactly the served let-bound spelling --
+/// `let __hoist_N = call(..); transition { _ -> (__hoist_N) }` (the same
+/// two statements `hoist_terminal_value_machine_call` mints for Always
+/// arms; the call's Name arguments resolve against the SAME-named
+/// parameters here).
+pub(crate) fn build_synthesized_arm_state(
+    lowerer: &mut Lowerer,
+    arm: crate::lowerer::SynthesizedArmState,
+) -> State {
+    use psi_symbol_resolved_trees::expression::{ExpressionNode, TableNamePath};
+    use psi_symbol_resolved_trees::statement::{
+        LocalData, LocalDataStorage, Statement, Transition, TransitionGuard, TransitionTarget,
+    };
+
+    let mut parameters = HandleSpan::empty();
+    for (name, type_reference) in arm.parameters {
+        let parameter = StateParameter {
+            symbol: SymbolHandle::invalid(),
+            name: DiagnosticName::generated(name),
+            type_reference,
+            is_const: false,
+            is_mutable: false,
+            is_self: false,
+        };
+        lowerer
+            .symbol_resolved_trees
+            .tables
+            .declarations
+            .state_parameters
+            .append_to_span(&mut parameters, parameter);
+    }
+
+    let hoist_name = DiagnosticName::generated(lowerer.next_hoist_name());
+    let hoist_local = Statement::LocalData(LocalData {
+        symbol: SymbolHandle::invalid(),
+        name: hoist_name.clone(),
+        storage: LocalDataStorage {
+            // Unit is the inference sentinel; the resolved -> typed lowering
+            // types the temp from the callee's declared return.
+            type_reference: TypeReference::Unit,
+            initial_value: arm.call,
+            is_mutable: false,
+        },
+    });
+    let expressions = &mut lowerer.symbol_resolved_trees.tables.bodies.expressions;
+    let mut members = HandleSpan::empty();
+    expressions.push_name_path_member(&mut members, hoist_name);
+    let terminal = expressions.insert(ExpressionNode::Name(TableNamePath {
+        members,
+        is_self_value: false,
+        head_symbol: SymbolHandle::invalid(),
+        symbol: SymbolHandle::invalid(),
+    }));
+    let transition = Statement::Transition(Transition {
+        target: TransitionTarget::Value(terminal),
+        continuation: None,
+        guard: TransitionGuard::Always,
+    });
+
+    let mut statements = HandleSpan::empty();
+    for statement in [hoist_local, transition] {
+        lowerer
+            .symbol_resolved_trees
+            .tables
+            .declarations
+            .state_statements
+            .append_to_span(&mut statements, statement);
+    }
+
+    State {
+        symbol: SymbolHandle::invalid(),
+        name: DiagnosticName::generated(arm.name),
+        storage: StateStorage {
+            parameters,
+            return_type: Some(arm.return_type),
+            contracts: HandleSpan::empty(),
+            statements,
+            statement_nodes: Default::default(),
+        },
+    }
+}
+
+/// Build an arm-selected continuation for guarded named-target value calls:
+/// materialize every direct call argument in source order, then jump to the
+/// original target with those result locals substituted at their positions.
+pub(crate) fn build_synthesized_transition_argument_state(
+    lowerer: &mut Lowerer,
+    arm: crate::lowerer::SynthesizedTransitionArgumentState,
+) -> State {
+    use psi_symbol_resolved_trees::expression::{ExpressionNode, TableNamePath};
+    use psi_symbol_resolved_trees::statement::{
+        LocalData, LocalDataStorage, Statement, Transition, TransitionGuard, TransitionTarget,
+    };
+
+    let mut parameters = HandleSpan::empty();
+    if let Some(mut self_parameter) = arm.self_parameter {
+        self_parameter.symbol = SymbolHandle::invalid();
+        lowerer
+            .symbol_resolved_trees
+            .tables
+            .declarations
+            .state_parameters
+            .append_to_span(&mut parameters, self_parameter);
+    }
+    for (name, type_reference, is_mutable) in arm.parameters {
+        lowerer
+            .symbol_resolved_trees
+            .tables
+            .declarations
+            .state_parameters
+            .append_to_span(
+                &mut parameters,
+                StateParameter {
+                    symbol: SymbolHandle::invalid(),
+                    name: DiagnosticName::generated(name),
+                    type_reference,
+                    is_const: false,
+                    is_mutable,
+                    is_self: false,
+                },
+            );
+    }
+
+    let target = arm.target;
+    let mut statements = HandleSpan::empty();
+    for call in arm.calls {
+        let hoist_name = DiagnosticName::generated(lowerer.next_hoist_name());
+        let call_initializer = lowerer
+            .symbol_resolved_trees
+            .tables
+            .bodies
+            .expressions
+            .copy_from_self(call);
+        lowerer
+            .symbol_resolved_trees
+            .tables
+            .declarations
+            .state_statements
+            .append_to_span(
+                &mut statements,
+                Statement::LocalData(LocalData {
+                    symbol: SymbolHandle::invalid(),
+                    name: hoist_name.clone(),
+                    storage: LocalDataStorage {
+                        type_reference: TypeReference::Unit,
+                        initial_value: call_initializer,
+                        is_mutable: false,
+                    },
+                }),
+            );
+
+        let expressions = &mut lowerer.symbol_resolved_trees.tables.bodies.expressions;
+        let mut members = HandleSpan::empty();
+        expressions.push_name_path_member(&mut members, hoist_name);
+        let result = expressions.insert(ExpressionNode::Name(TableNamePath {
+            members,
+            is_self_value: false,
+            head_symbol: SymbolHandle::invalid(),
+            symbol: SymbolHandle::invalid(),
+        }));
+        *expressions.expression_mut(call) = expressions.expression(result).clone();
+    }
+
+    lowerer
+        .symbol_resolved_trees
+        .tables
+        .declarations
+        .state_statements
+        .append_to_span(
+            &mut statements,
+            Statement::Transition(Transition {
+                target: TransitionTarget::Named(target),
+                continuation: None,
+                guard: TransitionGuard::Always,
+            }),
+        );
+
+    State {
+        symbol: SymbolHandle::invalid(),
+        name: DiagnosticName::generated(arm.name),
+        storage: StateStorage {
+            parameters,
+            return_type: arm.return_type,
+            contracts: HandleSpan::empty(),
+            statements,
+            statement_nodes: Default::default(),
+        },
+    }
+}

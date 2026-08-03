@@ -1030,8 +1030,10 @@ improvements do not change public identity.
   compatibility re-export.
   `psi-source-files-to-tokens` owns Omega lexing and
   `psi-tokens-to-syntax-trees` owns unresolved parsing, both with no Omega
-  dependency. Their former Omega crates are implementation-free compatibility
-  re-exports for unmigrated orchestration. The checked-tree-to-terminal adapter is
+  dependency. `psi-syntax-trees-to-symbol-resolved-trees` owns name lookup,
+  source-scope resolution, and stable symbol stamping. Their former Omega
+  crates are implementation-free compatibility re-exports for unmigrated
+  orchestration. The checked-tree-to-terminal adapter is
   frozen at its single bootstrap canary; architecture coverage rejects adding
   target-neutral content producers to that reverse bridge.
   The first in-memory executable slice is also live: stable machine/block

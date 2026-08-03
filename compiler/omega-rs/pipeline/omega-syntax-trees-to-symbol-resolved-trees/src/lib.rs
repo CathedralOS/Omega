@@ -1,22 +1,5 @@
-mod constant;
-mod data;
-mod domain;
-mod domain_establishment;
-mod domain_operator_homes;
-mod expression;
-mod invariant;
-mod item;
-mod lowerer;
-mod machine;
-mod measure;
-mod name;
-mod operator;
-mod service_reaches;
-mod state;
-mod statement;
-mod symbols;
-mod trait_definition;
-mod type_reference;
-mod wire;
+#![forbid(unsafe_code)]
 
-pub use lowerer::{lower_syntax_trees, lower_syntax_trees_with_sources};
+//! Compatibility export for Psi-owned name and symbol resolution.
+
+pub use psi_syntax_trees_to_symbol_resolved_trees::*;
