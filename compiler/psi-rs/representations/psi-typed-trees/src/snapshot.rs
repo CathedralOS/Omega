@@ -394,6 +394,8 @@ pub struct TraitSnapshot {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub lifetime_parameters: Vec<String>,
     pub type_parameters: Vec<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub conformance_bounds: Vec<GenericConformanceBoundSnapshot>,
     pub invariants: Vec<ProofFactSnapshot>,
     pub requires: Vec<String>,
     pub machines: Vec<StateSignatureSnapshot>,
@@ -979,6 +981,24 @@ fn trait_definition_snapshot(
             .trait_type_parameters(trait_definition)
             .iter()
             .map(|parameter| parameter.name.to_string())
+            .collect(),
+        conformance_bounds: trait_definition
+            .conformance_bounds
+            .iter()
+            .map(|bound| GenericConformanceBoundSnapshot {
+                subject: bound.subject_name.to_string(),
+                subject_symbol: bound.subject.arena_index(),
+                carrier: bound.carrier_name.to_string(),
+                carrier_symbol: bound.carrier.arena_index(),
+                arguments: bound
+                    .arguments
+                    .iter()
+                    .copied()
+                    .map(|argument| type_reference_snapshot(program, argument))
+                    .collect(),
+                conformance: bound.conformance_name.as_ref().map(ToString::to_string),
+                conformance_symbol: bound.conformance.map(|symbol| symbol.arena_index()),
+            })
             .collect(),
         invariants: contract_fact_snapshots(program, trait_definition.invariants),
         requires: program

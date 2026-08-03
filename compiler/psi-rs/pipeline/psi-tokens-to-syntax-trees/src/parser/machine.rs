@@ -20,6 +20,7 @@ use psi_tokens::{KeywordKind, PunctuationKind};
 
 mod clauses;
 
+pub(super) use clauses::parse_generic_conformance_bounds;
 use clauses::{parse_machine_clauses, parse_satisfies_traits};
 
 pub(super) fn parse_machine<'tokens, 'source>(

@@ -787,6 +787,7 @@ pub struct TraitDefinition {
     /// Erased borrow-region parameters declared in the shared `<>` list.
     pub lifetime_parameters: Vec<Identifier>,
     pub type_parameters: HandleSpan<TypeParameter>,
+    pub conformance_bounds: Vec<GenericConformanceBound>,
     /// Header composition (`trait X: A + Policy<C>`). These normalize to the
     /// same requirement graph as body-level `requires A;`, while preserving
     /// generic arguments for policy identity and later substitution.

@@ -396,6 +396,37 @@ fn retains_generic_and_named_conformance_bounds() {
 }
 
 #[test]
+fn retains_generic_trait_header_conformance_bounds() {
+    let source = r#"
+        trait CallingPolicy { }
+        trait Calling<C>
+        where C satisfies CallingPolicy
+        { }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("trait header bound should parse");
+    let trait_definition = parsed
+        .root_items()
+        .find_map(|item| match item {
+            psi_syntax_trees::item::Item::Trait(trait_definition)
+                if trait_definition.name.as_str() == "Calling" =>
+            {
+                Some(trait_definition)
+            }
+            _ => None,
+        })
+        .expect("generic trait");
+    let [bound] = trait_definition.conformance_bounds.as_slice() else {
+        panic!("one retained trait bound");
+    };
+    assert_eq!(bound.subject.as_str(), "C");
+    assert_eq!(bound.carrier.as_str(), "CallingPolicy");
+}
+
+#[test]
 fn parses_dungeon_state_flow() {
     let source = r#"
         data Main {
