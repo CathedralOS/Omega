@@ -38,11 +38,15 @@ pub use host::{
     encode_value_syscall_sequence, encode_value_syscall_sequence_with_plan,
     encode_vtable_call_sequence_at_offset_with_plan, encode_vtable_call_sequence_with_plan,
     foreign_float_control_prefix_width, foreign_float_control_trampoline_width,
-    linux_timespec_argument_relocation_byte_offset, linux_timespec_result_relocation_byte_offset,
+    linux_timespec_argument_relocation_byte_offset_no_plan,
+    linux_timespec_argument_relocation_byte_offset_with_plan,
+    linux_timespec_result_relocation_byte_offset_no_plan,
+    linux_timespec_result_relocation_byte_offset_with_plan,
     normalized_aarch64_host_argument_placements,
     normalized_aarch64_host_argument_placements_with_plan,
     normalized_aarch64_table_function_plan_with_plan, normalized_aarch64_vtable_plan_with_plan,
-    value_syscall_relocation_byte_offset, wrap_foreign_float_control,
+    value_syscall_relocation_byte_offset_no_plan, value_syscall_relocation_byte_offset_with_plan,
+    wrap_foreign_float_control,
 };
 pub use runtime_storage::{
     CopyPlacesShape, WritePlaceShape,

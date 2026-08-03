@@ -1369,7 +1369,38 @@ pub fn encode_value_syscall_sequence_with_plan<T: InstructionOperandLike>(
     .map(|(bytes, _)| bytes)
 }
 
-pub fn value_syscall_relocation_byte_offset<T: InstructionOperandLike>(
+pub fn value_syscall_relocation_byte_offset_no_plan<T: InstructionOperandLike>(
+    architecture: Architecture,
+    operands: &[T],
+    operand_index: usize,
+    syscall_number: u32,
+) -> Result<usize, Diagnostic> {
+    value_syscall_relocation_byte_offset_optional_plan(
+        architecture,
+        operands,
+        operand_index,
+        syscall_number,
+        None,
+    )
+}
+
+pub fn value_syscall_relocation_byte_offset_with_plan<T: InstructionOperandLike>(
+    architecture: Architecture,
+    operands: &[T],
+    operand_index: usize,
+    syscall_number: u32,
+    authoritative_plan: &CallPlan,
+) -> Result<usize, Diagnostic> {
+    value_syscall_relocation_byte_offset_optional_plan(
+        architecture,
+        operands,
+        operand_index,
+        syscall_number,
+        Some(authoritative_plan),
+    )
+}
+
+fn value_syscall_relocation_byte_offset_optional_plan<T: InstructionOperandLike>(
     architecture: Architecture,
     operands: &[T],
     operand_index: usize,
@@ -1470,7 +1501,34 @@ pub fn encode_linux_timespec_syscall_with_plan<T: InstructionOperandLike>(
     .map(|(bytes, _)| bytes)
 }
 
-pub fn linux_timespec_result_relocation_byte_offset<T: InstructionOperandLike>(
+pub fn linux_timespec_result_relocation_byte_offset_no_plan<T: InstructionOperandLike>(
+    architecture: Architecture,
+    operands: &[T],
+    syscall_number: u32,
+) -> Result<usize, Diagnostic> {
+    linux_timespec_result_relocation_byte_offset_optional_plan(
+        architecture,
+        operands,
+        syscall_number,
+        None,
+    )
+}
+
+pub fn linux_timespec_result_relocation_byte_offset_with_plan<T: InstructionOperandLike>(
+    architecture: Architecture,
+    operands: &[T],
+    syscall_number: u32,
+    authoritative_plan: &CallPlan,
+) -> Result<usize, Diagnostic> {
+    linux_timespec_result_relocation_byte_offset_optional_plan(
+        architecture,
+        operands,
+        syscall_number,
+        Some(authoritative_plan),
+    )
+}
+
+fn linux_timespec_result_relocation_byte_offset_optional_plan<T: InstructionOperandLike>(
     architecture: Architecture,
     operands: &[T],
     syscall_number: u32,
@@ -1549,7 +1607,34 @@ pub fn encode_linux_timespec_argument_syscall_with_plan<T: InstructionOperandLik
     .map(|(bytes, _)| bytes)
 }
 
-pub fn linux_timespec_argument_relocation_byte_offset<T: InstructionOperandLike>(
+pub fn linux_timespec_argument_relocation_byte_offset_no_plan<T: InstructionOperandLike>(
+    architecture: Architecture,
+    operands: &[T],
+    syscall_number: u32,
+) -> Result<Option<usize>, Diagnostic> {
+    linux_timespec_argument_relocation_byte_offset_optional_plan(
+        architecture,
+        operands,
+        syscall_number,
+        None,
+    )
+}
+
+pub fn linux_timespec_argument_relocation_byte_offset_with_plan<T: InstructionOperandLike>(
+    architecture: Architecture,
+    operands: &[T],
+    syscall_number: u32,
+    authoritative_plan: &CallPlan,
+) -> Result<Option<usize>, Diagnostic> {
+    linux_timespec_argument_relocation_byte_offset_optional_plan(
+        architecture,
+        operands,
+        syscall_number,
+        Some(authoritative_plan),
+    )
+}
+
+fn linux_timespec_argument_relocation_byte_offset_optional_plan<T: InstructionOperandLike>(
     architecture: Architecture,
     operands: &[T],
     syscall_number: u32,
@@ -1941,20 +2026,19 @@ mod syscall_plan_contract_tests {
             );
             for operand_index in 0..value_operands.len() {
                 assert_eq!(
-                    value_syscall_relocation_byte_offset(
+                    value_syscall_relocation_byte_offset_no_plan(
                         architecture,
                         &value_operands,
                         operand_index,
                         number,
-                        None,
                     )
                     .expect("compatibility value relocation"),
-                    value_syscall_relocation_byte_offset(
+                    value_syscall_relocation_byte_offset_with_plan(
                         architecture,
                         &value_operands,
                         operand_index,
                         number,
-                        Some(&value_plan),
+                        &value_plan,
                     )
                     .expect("explicit-plan value relocation"),
                     "value relocation {architecture:?} operand {operand_index}"
@@ -1988,18 +2072,17 @@ mod syscall_plan_contract_tests {
                 "timespec result {architecture:?}"
             );
             assert_eq!(
-                linux_timespec_result_relocation_byte_offset(
+                linux_timespec_result_relocation_byte_offset_no_plan(
                     architecture,
                     &timespec_operands,
                     number,
-                    None,
                 )
                 .expect("compatibility timespec result relocation"),
-                linux_timespec_result_relocation_byte_offset(
+                linux_timespec_result_relocation_byte_offset_with_plan(
                     architecture,
                     &timespec_operands,
                     number,
-                    Some(&timespec_plan),
+                    &timespec_plan,
                 )
                 .expect("explicit-plan timespec result relocation"),
                 "timespec result relocation {architecture:?}"
@@ -2034,18 +2117,17 @@ mod syscall_plan_contract_tests {
                 "timespec argument {architecture:?}"
             );
             assert_eq!(
-                linux_timespec_argument_relocation_byte_offset(
+                linux_timespec_argument_relocation_byte_offset_no_plan(
                     architecture,
                     &timespec_argument_operands,
                     number,
-                    None,
                 )
                 .expect("compatibility timespec argument relocation"),
-                linux_timespec_argument_relocation_byte_offset(
+                linux_timespec_argument_relocation_byte_offset_with_plan(
                     architecture,
                     &timespec_argument_operands,
                     number,
-                    Some(&timespec_plan),
+                    &timespec_plan,
                 )
                 .expect("explicit-plan timespec argument relocation"),
                 "timespec argument relocation {architecture:?}"
@@ -2169,10 +2251,10 @@ mod syscall_plan_contract_tests {
             let bytes = encode_value_syscall_sequence(architecture, &operands, number)
                 .expect("value-returning syscall");
             let result_site =
-                value_syscall_relocation_byte_offset(architecture, &operands, 0, number, None)
+                value_syscall_relocation_byte_offset_no_plan(architecture, &operands, 0, number)
                     .expect("result relocation");
             let argument_site =
-                value_syscall_relocation_byte_offset(architecture, &operands, 1, number, None)
+                value_syscall_relocation_byte_offset_no_plan(architecture, &operands, 1, number)
                     .expect("argument relocation");
             assert!(result_site > argument_site);
             match architecture {
