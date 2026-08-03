@@ -35732,12 +35732,23 @@ fn named_float_format_conversion_requirements_execute_in_both_engines() {
 
 #[test]
 fn named_integer_to_float_requirements_execute_in_both_engines() {
+    const DIFFERENTIAL_SUITE_ID: &str = "omega.float.hardware.macos_arm64.integer-to-float.v1";
+    const DIFFERENTIAL_COVERAGE: &[&str] = &[
+        "narrow signed source extension",
+        "narrow unsigned source extension",
+        "signed binary32 precision-boundary tie",
+        "signed binary64 precision-boundary tie",
+        "maximum unsigned64 to binary32",
+        "maximum unsigned64 to binary64",
+    ];
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x2796_51cb_7ccd_80ee;
+
     let canary = pass_canary("float/runtime_named_integer_to_float_conversion_exit");
     let main_path = canary.join("main.omg");
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("public integer-to-float requirements should compile");
 
-    let selected_intrinsics = checked
+    let selected = checked
         .facts
         .operators
         .named_uses()
@@ -35754,10 +35765,21 @@ fn named_integer_to_float_requirements_execute_in_both_engines() {
                 return None;
             };
             name.contains("::from_i")
-                .then_some(name.clone())
-                .or_else(|| name.contains("::from_u").then_some(name.clone()))
+                .then_some((plan.identity_fingerprint(), name.clone()))
+                .or_else(|| {
+                    name.contains("::from_u")
+                        .then_some((plan.identity_fingerprint(), name.clone()))
+                })
         })
+        .collect::<Vec<_>>();
+    let selected_intrinsics = selected
+        .iter()
+        .map(|(_, intrinsic)| intrinsic.clone())
         .collect::<std::collections::BTreeSet<_>>();
+    let mut selected_plan_identities = selected
+        .iter()
+        .map(|(identity, _)| *identity)
+        .collect::<Vec<_>>();
     let expected_intrinsics = [
         "F32::from_i8.i8",
         "F32::from_i16.i16",
@@ -35780,6 +35802,13 @@ fn named_integer_to_float_requirements_execute_in_both_engines() {
     .map(str::to_owned)
     .collect();
     assert_eq!(selected_intrinsics, expected_intrinsics);
+    selected_plan_identities.sort_unstable();
+    selected_plan_identities.dedup();
+    assert_eq!(
+        selected_plan_identities.len(),
+        16,
+        "{DIFFERENTIAL_SUITE_ID} must bind one exact plan per source/destination slot"
+    );
 
     let outcome = omega_interpreter::interpret(&checked, &[]);
     assert_eq!(
@@ -35805,6 +35834,48 @@ fn named_integer_to_float_requirements_execute_in_both_engines() {
         .expect("public integer-to-float canary should run");
     assert_eq!(output.status.code(), Some(70));
     let _ = fs::remove_dir_all(&build_dir);
+
+    for target in ["linux_x64", "linux_arm64"] {
+        let scratch = std::env::temp_dir().join(format!(
+            "omega-named-integer-to-float-{target}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&scratch);
+        let source_dir = scratch.join("src");
+        fs::create_dir_all(&source_dir).expect("integer-to-float cross-target source directory");
+        fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
+            .expect("copy integer-to-float canary");
+        fs::write(
+            source_dir.join("build.omg"),
+            format!("target {target} {{\n}}\n"),
+        )
+        .expect("write integer-to-float target manifest");
+        compile(CompileOptions {
+            root_path: source_dir.join("main.omg"),
+            build_dir: Some(scratch.join("out")),
+            target_name: Some(target.to_owned()),
+            write_output: true,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!("integer-to-float conversions should compile for {target}: {diagnostics:#?}")
+        });
+        let _ = fs::remove_dir_all(&scratch);
+    }
+
+    let result_identity = retained_float_differential_result_identity(
+        DIFFERENTIAL_SUITE_ID,
+        "macos_arm64",
+        DIFFERENTIAL_COVERAGE,
+        &selected_intrinsics,
+        &selected_plan_identities,
+        &outcome,
+        &output,
+        &["linux_x64", "linux_arm64"],
+    );
+    assert_eq!(
+        result_identity, EXPECTED_DIFFERENTIAL_RESULT_IDENTITY,
+        "{DIFFERENTIAL_SUITE_ID} result changed ({result_identity:#018x}); validate the exact plans, edge corpus, interpreter/native results, and cross-target builds before refreshing the retained identity"
+    );
 }
 
 #[test]

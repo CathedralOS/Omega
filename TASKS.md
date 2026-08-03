@@ -1688,7 +1688,12 @@ and allocation handles expose no compiler-owned stack/control storage.
   `0xeb1e22fdac585936`, binding its two exact directional plans to the
   binary64-to-binary32 halfway and just-above edges, exact widening, infinity
   preservation, interpreter/native results, and both Linux cross-builds. The
-  directed-FMA slice retains
+  integer-to-float cohort retains
+  `omega.float.hardware.macos_arm64.integer-to-float.v1` /
+  `0x279651cb7ccd80ee`, binding all sixteen exact source/destination plans to
+  narrow signed/unsigned extension, binary32/binary64 precision-boundary ties,
+  maximum unsigned64 conversion, interpreter/native results, and both Linux
+  cross-builds. The directed-FMA slice retains
   `omega.float.hardware.macos_arm64.directed-fma.v1` /
   `0x75be2c4963f3f15a`, binding its six exact plans to binary32/binary64 half-ULP
   edges, all three directions, one fused rounding, control-state restoration,
