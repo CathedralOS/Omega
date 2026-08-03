@@ -117,3 +117,46 @@ machine Main::main(&mut self) { }
         "expected the arity message, got: {error}"
     );
 }
+
+#[test]
+fn semantic_evaluation_mutation_cannot_escape_compiler_owned_arguments() {
+    let main_path = write_program(
+        "isolated-mutation",
+        r#"
+data Box {
+    value: i64;
+}
+data Mutator { }
+machine Mutator::replace(&self, box: &mut Box) -> i64 {
+    box.value = 9;
+    box.value
+}
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    );
+
+    let checked = compile_to_checked(&main_path, None).expect("mutation pilot should compile");
+    let argument = BuildTimeValue::Struct {
+        type_name: "Box".to_owned(),
+        fields: vec![("value".to_owned(), BuildTimeValue::Int(3))],
+    };
+
+    let evaluated = evaluate_build_time_machine_measured(
+        &checked.typed,
+        "Mutator::replace",
+        vec![argument.clone()],
+    )
+    .expect("local mutation should evaluate in an isolated value graph");
+
+    assert_eq!(evaluated.value(), &BuildTimeValue::Int(9));
+    assert_eq!(evaluated.usage().result_cells(), 1);
+    assert_eq!(
+        argument,
+        BuildTimeValue::Struct {
+            type_name: "Box".to_owned(),
+            fields: vec![("value".to_owned(), BuildTimeValue::Int(3))],
+        },
+        "semantic evaluation must not retain or mutate the compiler's input value"
+    );
+}

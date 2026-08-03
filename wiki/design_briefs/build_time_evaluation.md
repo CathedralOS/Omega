@@ -170,6 +170,16 @@ call chain. If the evaluator nevertheless reaches a forbidden terminal route,
 it reports the trace as a checker/accepted-assumption consistency failure.
 Handled result sums remain ordinary values.
 
+Escaping mutation is excluded by the semantic-evaluation bridge itself. Every
+compiler-materialized argument is converted into a fresh owned interpreter
+value graph, the machine instance is freshly instantiated for the invocation,
+and the only value crossing back is a recursive value snapshot. Interpreter
+cells and references cannot cross that boundary. Local mutation that computes
+the returned value is therefore legal, while no mutation can reach compiler
+state, another invocation, or runtime state. Augmenting `build.omg` evaluation
+uses a separate API that deliberately returns snapshots of its mutated
+arguments and is not this hermetic world.
+
 Trait requirements pin the public floor. A conformance cannot grow an
 incompatible axis unnoticed; it fails at the conformance declaration.
 
@@ -312,8 +322,10 @@ artifact.
   checked. Pre-check semantic positions consume the same pure termination
   judgment later retained in checked facts; machine-entry-symbol backedges
   normalize to their entry state, so unmeasured recursion cannot masquerade as
-  an acyclic body. Authority, trust, abnormal-outcome, resource, and
-  escaping-mutation axes still need to complete the common admission floor.
+  an acyclic body. Fresh owned argument graphs, fresh machine instances, and
+  snapshot-only results enforce the no-escaping-mutation axis at the evaluator
+  boundary. Authority, trust, abnormal-outcome, and resource axes still need to
+  complete the common admission floor.
 - The positive normalized termination variant, snapshots, artifacts,
   diagnostics, and code use the settled `Terminates` vocabulary.
 - Add the target semantic capsule and split semantic result keys from canonical
