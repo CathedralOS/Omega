@@ -1225,8 +1225,10 @@ version = "0.1.0"
 dependencies = [
  "psi-checked-trees",
  "psi-core",
+ "psi-language-semantics",
  "psi-numerics",
  "psi-proof-kernel",
+ "psi-symbols",
  "psi-terminal",
  "psi-terminal-verifier",
  "psi-typed-trees",
