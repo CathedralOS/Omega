@@ -1,4 +1,4 @@
-use omega_effects::provider_plan::ProviderPlan;
+use crate::provider_plan::ProviderPlan;
 use std::collections::BTreeSet;
 
 /// The exact provider plans selected by the compiler for one checked program.
@@ -127,9 +127,7 @@ fn fingerprint_selected_plans(plans: &[ProviderPlan]) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use omega_effects::provider_plan::{
-        ProviderBinding, ProviderPlanRow, ServiceMethod, ServiceSchema,
-    };
+    use crate::provider_plan::{ProviderBinding, ProviderPlanRow, ServiceMethod, ServiceSchema};
 
     fn candidate(name: &str, method: &str) -> ProviderPlan {
         ProviderPlan {

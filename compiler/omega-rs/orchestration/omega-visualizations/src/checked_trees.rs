@@ -98,7 +98,10 @@ pub fn checked_trees_html(program: &CheckedTrees) -> String {
 /// Public checked qualification-evidence surface. The fact's program point and
 /// its establishment origin remain independent, and admitted rows retain their
 /// normalized receipt identity when provider admission supplied one.
-pub fn qualification_evidence_manifest_json(program: &CheckedTrees) -> String {
+pub fn qualification_evidence_manifest_json(
+    program: &CheckedTrees,
+    selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
+) -> String {
     use omega_core::semantics::QualificationEvidenceOrigin;
     use omega_facts::FactPayload;
 
@@ -183,8 +186,7 @@ pub fn qualification_evidence_manifest_json(program: &CheckedTrees) -> String {
         }
         json.push_str("\n    }");
     }
-    let mut boundary_authority_rows = program
-        .selected_provider_plans()
+    let mut boundary_authority_rows = selected_provider_plans
         .plans()
         .iter()
         .flat_map(|plan| {
@@ -213,8 +215,7 @@ pub fn qualification_evidence_manifest_json(program: &CheckedTrees) -> String {
                 .then_with(|| left_claim.domain.cmp(&right_claim.domain))
         },
     );
-    let mut boundary_result_rows = program
-        .selected_provider_plans()
+    let mut boundary_result_rows = selected_provider_plans
         .plans()
         .iter()
         .flat_map(|plan| {
@@ -2885,7 +2886,10 @@ mod tests {
             },
         });
 
-        let json = qualification_evidence_manifest_json(&program);
+        let json = qualification_evidence_manifest_json(
+            &program,
+            &omega_effects::SelectedProviderPlanFacts::default(),
+        );
 
         assert!(json.contains("\"subject\": \"#4\""));
         assert!(json.contains("\"domain\": \"#5\""));

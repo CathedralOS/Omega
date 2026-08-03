@@ -56,6 +56,10 @@ Must not own:
 
 - Machine instruction shape, ABI placement, final storage layout, relocation
   identity, or platform image policy.
+- Concrete provider-plan selection, target bindings, or installation state.
+  Omega orchestration carries the selected-plan sidecar separately after
+  semantic checking; `CheckedTrees` retains only semantic receipt identities
+  and checked evidence that refer to it.
 - Rewriting checked obligations into backend convenience data without preserving
   the original semantic evidence.
 

@@ -19,6 +19,7 @@ use omega_task_plans::{
 /// not become a task operation.
 pub(super) fn elaborate_task_activation_plans(
     program: &mut CheckedTrees,
+    selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
     target: NativeTarget,
 ) -> Result<(), Vec<Diagnostic>> {
     let selections = task_start_selections(program)?;
@@ -30,7 +31,8 @@ pub(super) fn elaborate_task_activation_plans(
     let mut activations = Vec::new();
 
     for selection in selections {
-        let selected_runtime = selected_task_runtime_provider(program, &selection)?;
+        let selected_runtime =
+            selected_task_runtime_provider(program, selected_provider_plans, &selection)?;
         let target_entry = selection.target_entry;
         let Some((target_machine, entry)) = program.machines().iter().find_map(|machine| {
             program
@@ -164,6 +166,7 @@ pub(super) fn elaborate_task_activation_plans(
 
 fn selected_task_runtime_provider(
     program: &CheckedTrees,
+    selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
     selection: &TaskStartSelection,
 ) -> Result<SelectedTaskRuntimeProviderFact, Vec<Diagnostic>> {
     let Some(authored_requirement_identity) = program.traits().iter().find_map(|definition| {
@@ -181,8 +184,7 @@ fn selected_task_runtime_provider(
             "TaskRuntime activation names an unknown authored requirement",
         )]);
     };
-    let matches = program
-        .selected_provider_plans()
+    let matches = selected_provider_plans
         .plans()
         .iter()
         .filter(|plan| {
@@ -868,16 +870,15 @@ mod tests {
             )
             .is_empty()
         );
-        let selected = omega_checked_trees::SelectedProviderPlanFacts::from_selection(
+        let selected = omega_effects::SelectedProviderPlanFacts::from_selection(
             &provider_plans,
             &[provider_plans[0].name.clone()],
         )
         .expect("select complete TaskRuntime provider");
         let mut checked = omega_typed_trees_to_checked_trees::lower_typed_trees(typed)
             .expect("check and specialize task start");
-        checked.retain_selected_provider_plans(selected);
 
-        elaborate_task_activation_plans(&mut checked, NativeTarget::macos_arm64())
+        elaborate_task_activation_plans(&mut checked, &selected, NativeTarget::macos_arm64())
             .expect("elaborate activation plan");
         let activations = checked.facts.contract_plans.task_activations.as_slice();
         assert_eq!(activations.len(), 2);
@@ -917,8 +918,7 @@ mod tests {
         );
         assert_eq!(
             activation.selected_runtime.runtime.normalized_identity(),
-            checked
-                .selected_provider_plans()
+            selected
                 .plans()
                 .first()
                 .expect("selected runtime plan")

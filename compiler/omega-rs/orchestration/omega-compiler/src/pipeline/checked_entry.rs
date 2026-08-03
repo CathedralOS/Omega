@@ -8,6 +8,39 @@ use omega_core::diagnostics::Diagnostic;
 use std::path::Path;
 use std::sync::Arc;
 
+/// Psi-checked semantics paired with the Omega-owned provider realization
+/// selected for one engine run. The semantic program deliberately does not
+/// retain target/provider installation state.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedCompilation {
+    program: CheckedTrees,
+    selected_provider_plans: omega_effects::SelectedProviderPlanFacts,
+}
+
+impl CheckedCompilation {
+    pub const fn selected_provider_plans(&self) -> &omega_effects::SelectedProviderPlanFacts {
+        &self.selected_provider_plans
+    }
+
+    pub fn into_program(self) -> CheckedTrees {
+        self.program
+    }
+}
+
+impl std::ops::Deref for CheckedCompilation {
+    type Target = CheckedTrees;
+
+    fn deref(&self) -> &Self::Target {
+        &self.program
+    }
+}
+
+impl std::ops::DerefMut for CheckedCompilation {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.program
+    }
+}
+
 /// Runs ONLY the four frontend stages (lex/parse -> symbol resolution -> typing ->
 /// checking) and returns the in-memory `CheckedTrees` program. No backend lowering,
 /// no file output. This is the source-of-truth semantic representation that the
@@ -16,7 +49,7 @@ use std::sync::Arc;
 pub fn compile_to_checked(
     root_path: &Path,
     target_name: Option<&str>,
-) -> Result<CheckedTrees, Vec<Diagnostic>> {
+) -> Result<CheckedCompilation, Vec<Diagnostic>> {
     let mut timings = CompileTimings::default();
 
     // `native: false` — the interpreter path keeps the abstract `boundary trait Gui`
@@ -98,19 +131,21 @@ pub fn compile_to_checked(
     let mut checked = typed_trees_to_checked_trees(typed, &mut timings)?;
     let checked_program = Arc::get_mut(&mut checked.program)
         .expect("checked program must be uniquely owned before engine handoff");
-    crate::pipeline::provider_plans::retain_selected_provider_plan_facts(
-        checked_program,
-        &provider_plans,
-        &selected_provider_plans,
-        &build_config.grants,
-    )?;
+    let selected_provider_plan_facts =
+        crate::pipeline::provider_plans::bind_selected_provider_plan_facts(
+            checked_program,
+            &provider_plans,
+            &selected_provider_plans,
+            &build_config.grants,
+        )?;
     crate::pipeline::operator_adapter_dispatch::rewrite_selected_operator_adapter_calls(
         checked_program,
+        &selected_provider_plan_facts,
     )?;
     crate::pipeline::float_intrinsic_dispatch::rewrite_selected_float_intrinsic_calls(
         checked_program,
+        &selected_provider_plan_facts,
     )?;
-    let selected_provider_plan_facts = checked_program.selected_provider_plans().clone();
     // Preserve boundary-requirement proof/evidence at checking time, then
     // redirect only execution to the selected checked adapter.
     crate::pipeline::adapter_dispatch::rewrite_adapter_calls(
@@ -119,10 +154,14 @@ pub fn compile_to_checked(
     )?;
     crate::pipeline::task_plans::elaborate_task_activation_plans(
         checked_program,
+        &selected_provider_plan_facts,
         selected_native_target,
     )?;
 
     // `typed_trees_to_checked_trees` wraps the program in an `Arc`; unwrap it for the
     // caller (this is the only owner at this point in the pipeline).
-    Ok(Arc::try_unwrap(checked.program).unwrap_or_else(|shared| (*shared).clone()))
+    Ok(CheckedCompilation {
+        program: Arc::try_unwrap(checked.program).unwrap_or_else(|shared| (*shared).clone()),
+        selected_provider_plans: selected_provider_plan_facts,
+    })
 }

@@ -31,6 +31,7 @@ enum NamedFloatRealization {
 
 pub(crate) fn rewrite_selected_float_intrinsic_calls(
     checked: &mut CheckedTrees,
+    selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut rewrites = Vec::new();
     let mut diagnostics = Vec::new();
@@ -39,9 +40,8 @@ pub(crate) fn rewrite_selected_float_intrinsic_calls(
         if operator_use.provider_plan_identity == 0 {
             continue;
         }
-        let Some(plan) = checked
-            .selected_provider_plans()
-            .plan_by_identity(operator_use.provider_plan_identity)
+        let Some(plan) =
+            selected_provider_plans.plan_by_identity(operator_use.provider_plan_identity)
         else {
             diagnostics.push(Diagnostic::error(format!(
                 "named float operator use carries unknown ProviderPlan identity {:#018x}",

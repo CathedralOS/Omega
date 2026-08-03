@@ -1042,7 +1042,10 @@ improvements do not change public identity.
   checked-fact plans; `omega-facts` is now only a compatibility export.
   `psi-effects` owns operational ceilings, service reach, synchronous
   invocation inference, and capability-flow facts. Provider declarations,
-  target/provider bindings, approval, and installation remain Omega-owned.
+  target/provider bindings, approval, installation, and the exact selected-plan
+  carrier remain Omega-owned. `CheckedTrees` no longer embeds that concrete
+  selection; Omega orchestration threads it beside checked semantics until the
+  terminal-Psi cut retires the legacy backend lane.
   `psi-source-files-to-tokens` owns Omega lexing and
   `psi-tokens-to-syntax-trees` owns unresolved parsing, both with no Omega
   dependency. `psi-syntax-trees-to-symbol-resolved-trees` owns name lookup,

@@ -592,6 +592,42 @@ fn target_neutral_effect_inference_is_psi_owned() {
 }
 
 #[test]
+fn checked_semantics_do_not_retain_provider_realization() {
+    let root = workspace_root();
+    let manifest = root.join("compiler/omega-rs/representations/omega-checked-trees/Cargo.toml");
+    let manifest_source = std::fs::read_to_string(&manifest)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", manifest.display()));
+    assert!(
+        !manifest_source.contains("omega-effects"),
+        "checked semantics must depend on Psi effect facts, not Omega provider realization"
+    );
+
+    let checked_root = root.join("compiler/omega-rs/representations/omega-checked-trees/src");
+    for relative in ["lib.rs", "trees.rs"] {
+        let path = checked_root.join(relative);
+        let source = std::fs::read_to_string(&path)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
+        for forbidden in [
+            "SelectedProviderPlanFacts",
+            "selected_provider_plans",
+            "retain_selected_provider_plans",
+        ] {
+            assert!(
+                !source.contains(forbidden),
+                "checked semantic root retained Omega provider realization {forbidden}"
+            );
+        }
+    }
+
+    let omega_provider_carrier =
+        root.join("compiler/omega-rs/representations/omega-effects/src/selected_provider_plans.rs");
+    assert!(
+        omega_provider_carrier.exists(),
+        "selected concrete provider plans must remain in the Omega provider subsystem"
+    );
+}
+
+#[test]
 fn omega_to_psi_compatibility_adapter_stays_narrow() {
     let path = workspace_root()
         .join("compiler/omega-rs/pipeline/omega-checked-trees-to-terminal-psi/src/lib.rs");

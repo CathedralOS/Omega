@@ -479,22 +479,25 @@ impl Compiler {
         );
 
         let mut checked = typed_trees_to_checked_trees(typed, &mut timings)?;
-        crate::pipeline::provider_plans::retain_selected_provider_plan_facts(
-            Arc::get_mut(&mut checked.program)
-                .expect("checked program must be uniquely owned before backend fan-out"),
-            &provider_plans,
-            &selected_provider_plans,
-            &build_config.grants,
-        )?;
+        let selected_provider_plan_facts =
+            crate::pipeline::provider_plans::bind_selected_provider_plan_facts(
+                Arc::get_mut(&mut checked.program)
+                    .expect("checked program must be uniquely owned before backend fan-out"),
+                &provider_plans,
+                &selected_provider_plans,
+                &build_config.grants,
+            )?;
+        checked.selected_provider_plans = Arc::new(selected_provider_plan_facts);
         crate::pipeline::operator_adapter_dispatch::rewrite_selected_operator_adapter_calls(
             Arc::get_mut(&mut checked.program)
                 .expect("checked program must be uniquely owned before backend fan-out"),
+            &checked.selected_provider_plans,
         )?;
         crate::pipeline::float_intrinsic_dispatch::rewrite_selected_float_intrinsic_calls(
             Arc::get_mut(&mut checked.program)
                 .expect("checked program must be uniquely owned before backend fan-out"),
+            &checked.selected_provider_plans,
         )?;
-        let selected_provider_plan_facts = checked.program.selected_provider_plans().clone();
         // PRV4 adapter dispatch (both engines, after checking): semantic facts
         // stay attached to the admitted boundary requirement, while execution
         // alone is redirected to the uniquely selected checked adapter.
@@ -502,14 +505,19 @@ impl Compiler {
             &mut Arc::get_mut(&mut checked.program)
                 .expect("checked program must be uniquely owned before backend fan-out")
                 .typed,
-            &selected_provider_plan_facts,
+            &checked.selected_provider_plans,
         )?;
         crate::pipeline::task_plans::elaborate_task_activation_plans(
             Arc::get_mut(&mut checked.program)
                 .expect("checked program must be uniquely owned before backend fan-out"),
+            &checked.selected_provider_plans,
             selected_native_target,
         )?;
-        write_checked_snapshot(&self.options, &checked.program)?;
+        write_checked_snapshot(
+            &self.options,
+            &checked.program,
+            &checked.selected_provider_plans,
+        )?;
         write_boundary_report_with_capabilities(&self.options, &syntax_trees, &checked.program)?;
         let backend_surface = build_backend_surface_report(&checked.program);
 

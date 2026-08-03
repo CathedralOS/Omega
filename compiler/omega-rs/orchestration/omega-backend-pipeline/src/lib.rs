@@ -19,6 +19,7 @@ pub use omega_backend_plan::{BackendPlan, BackendPlanPhaseTiming};
 /// thunks; boundary calls fail with the ordinary missing-lowering diagnostic).
 pub fn build_backend_plan_from_control_flow_with_workers(
     program: Arc<CheckedTrees>,
+    selected_provider_plans: Arc<omega_effects::SelectedProviderPlanFacts>,
     target: NativeTarget,
     freestanding: bool,
     external_binding_rows: &[omega_calling_conventions::ExternalBindingRow],
@@ -27,6 +28,7 @@ pub fn build_backend_plan_from_control_flow_with_workers(
 ) -> Result<BackendPlan, Diagnostic> {
     builder::build_backend_plan_from_control_flow_with_workers(
         program,
+        selected_provider_plans,
         target,
         freestanding,
         external_binding_rows,

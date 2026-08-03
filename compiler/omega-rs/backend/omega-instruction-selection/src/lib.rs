@@ -54,6 +54,7 @@ pub struct InstructionSelectionInput<'plan> {
     pub entry_key: StateKey,
     pub entry_symbol: Arc<str>,
     pub program: &'plan CheckedTrees,
+    pub selected_provider_plans: &'plan omega_effects::SelectedProviderPlanFacts,
     pub control_flow: &'plan ControlFlowPlan,
     pub host_calls: &'plan HostCallPlan,
     pub state_calls: &'plan StateCallPlan,

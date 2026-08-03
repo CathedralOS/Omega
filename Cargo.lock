@@ -172,6 +172,7 @@ dependencies = [
  "omega-control-flow-to-abstract-operations",
  "omega-core",
  "omega-data-planning",
+ "omega-effects",
  "omega-layout",
  "omega-machine-bytes",
  "omega-machine-emission",
@@ -280,10 +281,10 @@ name = "omega-checked-trees"
 version = "0.1.0"
 dependencies = [
  "omega-core",
- "omega-effects",
  "omega-facts",
  "omega-task-plans",
  "omega-typed-trees",
+ "psi-effects",
 ]
 
 [[package]]
@@ -390,6 +391,7 @@ dependencies = [
  "omega-checked-trees",
  "omega-control-flow",
  "omega-core",
+ "omega-effects",
  "omega-facts",
  "omega-instruction-selection",
  "omega-layout",
@@ -576,6 +578,7 @@ dependencies = [
  "omega-checked-trees",
  "omega-control-flow",
  "omega-core",
+ "omega-effects",
  "omega-executable-installation",
  "omega-isa-aarch64",
  "omega-isa-x86_64",

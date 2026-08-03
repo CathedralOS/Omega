@@ -1,4 +1,5 @@
 mod capabilities;
+mod selected_provider_plans;
 
 pub use psi_effects::*;
 
@@ -13,3 +14,4 @@ pub use capabilities::provider_plan;
 pub use capabilities::providers::{
     BoundaryProvider, BoundaryProviderRegistry, build_provider_registry, validate_provider_bindings,
 };
+pub use selected_provider_plans::SelectedProviderPlanFacts;

@@ -36,7 +36,7 @@ mod wire_report;
 
 pub use access_plans::{compute_access_plan, compute_placement_plan};
 pub use calling_policy_plans::evaluate_calling_policy_plan;
-pub use checked_entry::compile_to_checked;
+pub use checked_entry::{CheckedCompilation, compile_to_checked};
 pub use compile_options::CompileOptions;
 pub use compile_report::CompileReport;
 pub use compiler::compile;

@@ -4700,7 +4700,10 @@ fn empty_domain_explicit_as_qualifies_vacuously() {
     assert_eq!(uses.len(), 3, "every explicit `as` use must be retained");
     assert_eq!(uses[0].domain, uses[1].domain);
     assert_ne!(uses[1].domain, uses[2].domain);
-    let evidence = omega_visualizations::qualification_evidence_manifest_json(&checked);
+    let evidence = omega_visualizations::qualification_evidence_manifest_json(
+        &checked,
+        checked.selected_provider_plans(),
+    );
     assert!(evidence.contains("\"vacuous_qualification_uses\": ["));
     assert!(evidence.contains("\"origin\": \"vacuous_qualification\""));
     assert!(evidence.contains("\"domain\": \"i64::Km\""));
@@ -22550,7 +22553,10 @@ fn closed_indexed_domain_canaries() {
             "vacuous-use evidence must retain the exact indexed instance"
         );
     }
-    let evidence = omega_visualizations::qualification_evidence_manifest_json(&checked);
+    let evidence = omega_visualizations::qualification_evidence_manifest_json(
+        &checked,
+        checked.selected_provider_plans(),
+    );
     assert!(evidence.contains("\"semantic_domain_id\":"));
     assert!(evidence.contains("\"semantic_domain\":"));
     let retag = checked

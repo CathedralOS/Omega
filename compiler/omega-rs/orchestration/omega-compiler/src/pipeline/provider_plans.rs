@@ -109,17 +109,18 @@ impl SelectedExternalRootProviderPlan {
     }
 }
 
-/// Retain the exact validated selection on the checked program. Provider
-/// execution and compiler-generated helper machines consume this carrier;
-/// neither may reconstruct a plan by scanning authored `satisfies` rows.
-pub(crate) fn retain_selected_provider_plan_facts(
+/// Build the exact Omega-owned selection sidecar and bind its stable receipt
+/// identities into checked semantic evidence. Provider execution and
+/// compiler-generated helper machines consume the returned carrier; neither
+/// may reconstruct a plan by scanning authored `satisfies` rows.
+pub(crate) fn bind_selected_provider_plan_facts(
     checked: &mut omega_checked_trees::CheckedTrees,
     candidates: &[ProviderPlan],
     selected_names: &[String],
     root_grants: &[String],
-) -> Result<(), Vec<omega_core::diagnostics::Diagnostic>> {
+) -> Result<omega_effects::SelectedProviderPlanFacts, Vec<omega_core::diagnostics::Diagnostic>> {
     let facts =
-        omega_checked_trees::SelectedProviderPlanFacts::from_selection(candidates, selected_names)
+        omega_effects::SelectedProviderPlanFacts::from_selection(candidates, selected_names)
             .map_err(|error| vec![omega_core::diagnostics::Diagnostic::error(error)])?;
     let granted_receipts = facts
         .plans()
@@ -152,7 +153,6 @@ pub(crate) fn retain_selected_provider_plan_facts(
         })
         .collect::<Vec<_>>();
     retain_selected_operator_provider_evidence(checked, candidates, &facts)?;
-    checked.retain_selected_provider_plans(facts);
     for (fact, identity) in receipt_updates {
         checked
             .facts
@@ -162,13 +162,13 @@ pub(crate) fn retain_selected_provider_plan_facts(
             .evidence
             .receipt_identity = identity;
     }
-    Ok(())
+    Ok(facts)
 }
 
 fn retain_selected_operator_provider_evidence(
     checked: &mut omega_checked_trees::CheckedTrees,
     candidates: &[ProviderPlan],
-    selected: &omega_checked_trees::SelectedProviderPlanFacts,
+    selected: &omega_effects::SelectedProviderPlanFacts,
 ) -> Result<(), Vec<omega_core::diagnostics::Diagnostic>> {
     // Validate selected operator plans independently of use-site discovery.
     // A malformed realization is invalid policy even when dead code happens
@@ -249,7 +249,7 @@ fn retain_selected_operator_provider_evidence(
 fn selected_operator_provider_identity(
     checked: &omega_checked_trees::CheckedTrees,
     candidates: &[ProviderPlan],
-    selected: &omega_checked_trees::SelectedProviderPlanFacts,
+    selected: &omega_effects::SelectedProviderPlanFacts,
     operator_symbol: omega_core::symbols::SymbolHandle,
 ) -> Result<Option<u64>, omega_core::diagnostics::Diagnostic> {
     let Some(operator) = checked
@@ -594,10 +594,11 @@ fn evidence_source_names_boundary(
 /// normalized `ProviderPlan` fingerprint consumed by root validation; source
 /// declarations and unselected candidates are no longer in scope here.
 pub fn selected_external_root_provider_plan_id(
-    checked: &omega_checked_trees::CheckedTrees,
+    selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
     boundary_trait: &str,
 ) -> Result<omega_external_roots::ProviderPlanId, omega_external_roots::ExternalRootDiagnostic> {
-    selected_external_root_provider_plan(checked, boundary_trait).map(|selected| selected.identity)
+    selected_external_root_provider_plan(selected_provider_plans, boundary_trait)
+        .map(|selected| selected.identity)
 }
 
 /// Resolve one external-root boundary slot to the exact retained provider
@@ -605,11 +606,10 @@ pub fn selected_external_root_provider_plan_id(
 /// therefore report the authority-bearing inputs bound by the receipt chain
 /// without re-reading source or trusting display names.
 pub fn selected_external_root_provider_plan(
-    checked: &omega_checked_trees::CheckedTrees,
+    selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
     boundary_trait: &str,
 ) -> Result<SelectedExternalRootProviderPlan, omega_external_roots::ExternalRootDiagnostic> {
-    let matches = checked
-        .selected_provider_plans()
+    let matches = selected_provider_plans
         .plans()
         .iter()
         .filter(|plan| same_semantic_name(&plan.schema.trait_name, boundary_trait))
@@ -1654,22 +1654,19 @@ mod tests {
         first.schema.trait_name = "first::Pair".into();
         let mut second = selection_plan("SecondProvider", &["run"], &["run"]);
         second.schema.trait_name = "second::Pair".into();
-        let facts = omega_checked_trees::SelectedProviderPlanFacts::from_selection(
+        let facts = omega_effects::SelectedProviderPlanFacts::from_selection(
             &[first.clone(), second],
             &["FirstProvider".into(), "SecondProvider".into()],
         )
         .expect("distinct qualified boundary slots may both be selected");
-        let mut checked = omega_checked_trees::CheckedTrees::default();
-        checked.retain_selected_provider_plans(facts);
-
         assert_eq!(
-            selected_external_root_provider_plan_id(&checked, "first::Pair")
+            selected_external_root_provider_plan_id(&facts, "first::Pair")
                 .expect("qualified slot resolves")
                 .normalized_identity(),
             first.identity_fingerprint()
         );
         assert!(
-            selected_external_root_provider_plan_id(&checked, "Pair")
+            selected_external_root_provider_plan_id(&facts, "Pair")
                 .expect_err("an ambiguous leaf slot must reject")
                 .0
                 .contains("matches 2 retained selected provider plans")
@@ -1708,7 +1705,7 @@ mod tests {
         let selected = selection_plan("FirstProvider", &["first"], &["first"]);
         let identity = selected.identity_fingerprint();
 
-        retain_selected_provider_plan_facts(
+        bind_selected_provider_plan_facts(
             &mut checked,
             std::slice::from_ref(&selected),
             &["FirstProvider".to_owned()],

@@ -1286,11 +1286,7 @@ pub(in crate::selection) fn resolve_binary_operation_arithmetic_domain_in_table(
         ) {
             crate::selection::lookups::CarriedFloatProviderPlan::Invalid => return None,
             crate::selection::lookups::CarriedFloatProviderPlan::Resolved(identity) => {
-                let Some(plan) = input
-                    .program
-                    .selected_provider_plans()
-                    .plan_by_identity(identity)
-                else {
+                let Some(plan) = input.selected_provider_plans.plan_by_identity(identity) else {
                     return None;
                 };
                 if plan.rows.len() != 1 {
