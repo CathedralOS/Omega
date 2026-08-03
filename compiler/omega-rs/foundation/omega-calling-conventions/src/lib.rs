@@ -865,22 +865,26 @@ pub struct HostBinding {
     pub operation_key: HostOperationKey,
     pub mechanism: HostBindingMechanism,
     pub boundary_policy: Arc<str>,
-    /// Source-selected or built-in validated boundary plan. Compatibility
-    /// bindings may leave this empty only while their concrete signature still
-    /// has to be derived by a migrating consumer. Outbound encoders consume
-    /// `call`; inbound stub planning retains the associated state obligations
-    /// at the same selected binding seam.
-    pub boundary_entry_plan: Option<BoundaryEntryPlan>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct HostBoundaryPolicy {
-    pub path: Arc<str>,
-    pub checked: bool,
+    /// Source-selected or built-in validated boundary plan. A selected host
+    /// binding is intrinsically plan-bearing: unresolved compatibility rows
+    /// stay outside `HostAbiPlan` until their concrete signature is evaluated.
+    /// Outbound encoders consume `call`; inbound stub planning retains the
+    /// associated state obligations at the same selected binding seam.
+    pub boundary_entry_plan: BoundaryEntryPlan,
 }
 
 impl Default for HostBinding {
     fn default() -> Self {
+        // `Arena` requires one inert default payload for invalid handles and
+        // reclaimed slots. Keep even that sentinel structurally plan-bearing;
+        // active selected bindings are always inserted with their exact plan.
+        let boundary_entry_plan = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::SystemVAMD64,
+            &CallSignature::default(),
+        )
+        .expect("the inert empty System V boundary signature is representable")
+        .plan()
+        .clone();
         Self {
             operation_key: HostOperationKey::default(),
             mechanism: HostBindingMechanism::Import {
@@ -888,9 +892,15 @@ impl Default for HostBinding {
                 symbol: Arc::from(""),
             },
             boundary_policy: Arc::from(""),
-            boundary_entry_plan: None,
+            boundary_entry_plan,
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct HostBoundaryPolicy {
+    pub path: Arc<str>,
+    pub checked: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1287,11 +1297,17 @@ pub fn merge_external_binding_rows(
                 })?,
             },
         };
+        let boundary_entry_plan = row.boundary_entry_plan.clone().ok_or_else(|| {
+            format!(
+                "external binding `{}::{}` reached host selection without a retained boundary plan",
+                row.trait_name, row.method
+            )
+        })?;
         plan.bindings.insert(HostBinding {
             operation_key: key,
             mechanism,
             boundary_policy: EXTERNAL_BINDING_BOUNDARY_POLICY.into(),
-            boundary_entry_plan: row.boundary_entry_plan.clone(),
+            boundary_entry_plan,
         });
         // The call-site lowering: the receiver's boundary-trait name is the
         // platform, the method name is the state; one operation per call.
@@ -1370,10 +1386,7 @@ impl HostAbiPlan {
         binding: &HostBinding,
         signature: &CallSignature,
     ) -> Result<ValidatedBoundaryEntryPlan, PlanDiagnostic> {
-        if let Some(boundary) = &binding.boundary_entry_plan {
-            return validate_boundary_entry_plan(boundary.clone(), signature);
-        }
-        self.evaluate_binding_boundary_entry_plan(&binding.mechanism, signature)
+        validate_boundary_entry_plan(binding.boundary_entry_plan.clone(), signature)
     }
 
     /// Outbound projection of [`Self::binding_boundary_entry_plan`].
@@ -1391,13 +1404,11 @@ impl HostAbiPlan {
 }
 
 impl HostBinding {
-    /// The authoritative source-selected call half, when one exists. Keeping
-    /// this projection as a borrow prevents emission/layout/relocation from
-    /// growing a second plan carrier beside the complete boundary plan.
-    pub fn call_plan(&self) -> Option<&CallPlan> {
-        self.boundary_entry_plan
-            .as_ref()
-            .map(|boundary| &boundary.call)
+    /// The authoritative source-selected call half. Keeping this projection as
+    /// a borrow prevents emission/layout/relocation from growing a second plan
+    /// carrier beside the complete boundary plan.
+    pub fn call_plan(&self) -> &CallPlan {
+        &self.boundary_entry_plan.call
     }
 }
 
@@ -1555,10 +1566,7 @@ mod binding_plan_tests {
                         name: ref actual_name,
                     } if actual_number == number && actual_name.as_ref() == name
                 ));
-                let boundary = binding
-                    .boundary_entry_plan
-                    .as_ref()
-                    .expect("fixed Linux syscall signature must retain its plan");
+                let boundary = &binding.boundary_entry_plan;
                 assert_eq!(boundary.call.policy, expected_policy);
                 assert_eq!(boundary.call.parameters.len(), parameter_count);
                 assert_eq!(boundary.call.result.is_some(), has_result);
@@ -1608,10 +1616,7 @@ mod binding_plan_tests {
                     ..
                 } if actual_symbol.as_ref() == symbol
             ));
-            let boundary = binding
-                .boundary_entry_plan
-                .as_ref()
-                .expect("fixed Darwin import signature must retain its plan");
+            let boundary = &binding.boundary_entry_plan;
             assert_eq!(boundary.call.policy, CallingPolicy::Aapcs64);
             assert_eq!(boundary.call.parameters.len(), parameter_count);
             assert_eq!(boundary.call.result.is_some(), has_result);
@@ -1635,13 +1640,11 @@ mod binding_plan_tests {
             .map(|(_, binding)| binding)
             .collect::<Vec<_>>();
         assert_eq!(bindings.len(), 34);
-        assert!(bindings.iter().all(|binding| binding.call_plan().is_some()));
-
         let plan_for = |operation| {
             bindings
                 .iter()
                 .find(|binding| binding.operation_key.operation == operation)
-                .and_then(|binding| binding.call_plan())
+                .map(|binding| binding.call_plan())
                 .expect("typed Darwin filesystem plan")
         };
         assert_eq!(
@@ -1712,10 +1715,7 @@ mod binding_plan_tests {
                     ..
                 } if actual_symbol.as_ref() == symbol
             ));
-            let boundary = binding
-                .boundary_entry_plan
-                .as_ref()
-                .expect("fixed Darwin libm signature must retain its plan");
+            let boundary = &binding.boundary_entry_plan;
             assert_eq!(boundary.call.policy, CallingPolicy::Aapcs64);
             assert_eq!(
                 boundary
@@ -1771,10 +1771,7 @@ mod binding_plan_tests {
                     ..
                 } if actual_symbol.as_ref() == symbol
             ));
-            let boundary = binding
-                .boundary_entry_plan
-                .as_ref()
-                .expect("fixed Darwin time signature must retain its plan");
+            let boundary = &binding.boundary_entry_plan;
             assert_eq!(boundary.call.policy, CallingPolicy::Aapcs64);
             assert_eq!(boundary.call.parameters.len(), parameter_count);
             assert!(
@@ -1824,10 +1821,7 @@ mod binding_plan_tests {
                     ..
                 } if actual_symbol.as_ref() == symbol
             ));
-            let boundary = binding
-                .boundary_entry_plan
-                .as_ref()
-                .expect("fixed scalar Objective-C signature must retain its plan");
+            let boundary = &binding.boundary_entry_plan;
             assert_eq!(boundary.call.policy, CallingPolicy::Aapcs64);
             assert_eq!(boundary.call.parameters.len(), parameter_count);
             assert!(
@@ -1898,10 +1892,7 @@ mod binding_plan_tests {
                     ..
                 } if actual_symbol.as_ref() == symbol
             ));
-            let boundary = binding
-                .boundary_entry_plan
-                .as_ref()
-                .expect("fixed Darwin mixed-float signature must retain its plan");
+            let boundary = &binding.boundary_entry_plan;
             assert_eq!(boundary.call.policy, CallingPolicy::Aapcs64);
             assert_eq!(
                 boundary
@@ -1962,10 +1953,7 @@ mod binding_plan_tests {
                     ..
                 } if actual_symbol.as_ref() == symbol
             ));
-            let boundary = binding
-                .boundary_entry_plan
-                .as_ref()
-                .expect("fixed scalar Core Graphics signature must retain its plan");
+            let boundary = &binding.boundary_entry_plan;
             assert_eq!(boundary.call.policy, CallingPolicy::Aapcs64);
             assert_eq!(boundary.call.parameters.len(), parameter_count);
             assert!(
@@ -2004,10 +1992,7 @@ mod binding_plan_tests {
                 ..
             } if actual_symbol.as_ref() == "___error"
         ));
-        let boundary = binding
-            .boundary_entry_plan
-            .as_ref()
-            .expect("fixed Darwin errno result signature must retain its plan");
+        let boundary = &binding.boundary_entry_plan;
         assert_eq!(boundary.call.policy, CallingPolicy::Aapcs64);
         assert!(boundary.call.parameters.is_empty());
         assert_eq!(
@@ -2064,10 +2049,7 @@ mod binding_plan_tests {
                     ..
                 } if actual_symbol.as_ref() == symbol
             ));
-            let boundary = binding
-                .boundary_entry_plan
-                .as_ref()
-                .expect("fixed parameter-free Windows signature must retain its plan");
+            let boundary = &binding.boundary_entry_plan;
             assert_eq!(boundary.call.policy, CallingPolicy::MicrosoftX64);
             assert!(boundary.call.parameters.is_empty());
             assert_eq!(
@@ -2090,13 +2072,7 @@ mod binding_plan_tests {
                 continue;
             }
             import_count += 1;
-            let boundary = binding.boundary_entry_plan.as_ref().unwrap_or_else(|| {
-                panic!(
-                    "built-in Windows import {}.{} lost its concrete native plan",
-                    binding.operation_key.capability_name(),
-                    binding.operation_key.operation_name()
-                )
-            });
+            let boundary = &binding.boundary_entry_plan;
             assert_eq!(boundary.call.policy, CallingPolicy::MicrosoftX64);
             assert_eq!(boundary.call.entry_control, EntryControl::CallReturn);
         }
@@ -2149,14 +2125,49 @@ mod binding_plan_tests {
     }
 
     #[test]
+    fn unresolved_external_row_cannot_become_a_host_binding() {
+        let mut hosted = build_host_abi_plan(NativeTarget::windows_x64());
+        let error = merge_external_binding_rows(
+            &mut hosted,
+            &[ExternalBindingRow {
+                target_name: "windows_x64".to_owned(),
+                trait_name: "UnresolvedService".to_owned(),
+                method: "invoke".to_owned(),
+                requirement_identity: String::new(),
+                table_type: String::new(),
+                boundary_entry_plan: None,
+                binding: ExternalBindingKind::DllImport {
+                    module: "unresolved.dll".to_owned(),
+                    symbol: "invoke".to_owned(),
+                },
+            }],
+        )
+        .expect_err("selection must not create a host binding without a boundary plan");
+        assert!(error.contains("reached host selection without a retained boundary plan"));
+        assert!(hosted.bindings.iter().all(|(_, binding)| {
+            binding.operation_key.capability_name() != "UnresolvedService"
+        }));
+    }
+
+    #[test]
     fn external_result_overloads_retain_distinct_emitted_keys() {
+        let boundary_entry_plan = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::MicrosoftX64,
+            &CallSignature {
+                parameters: vec![ValueShape::integer(4, 4)],
+                result: Some(ValueShape::integer(4, 4)),
+            },
+        )
+        .expect("test external overload plan")
+        .plan()
+        .clone();
         let row = |identity: &str, symbol: &str| ExternalBindingRow {
             target_name: "windows_x64".to_owned(),
             trait_name: "Convert".to_owned(),
             method: "convert".to_owned(),
             requirement_identity: identity.to_owned(),
             table_type: String::new(),
-            boundary_entry_plan: None,
+            boundary_entry_plan: Some(boundary_entry_plan.clone()),
             binding: ExternalBindingKind::DllImport {
                 module: "convert.dll".to_owned(),
                 symbol: symbol.to_owned(),
@@ -2225,10 +2236,7 @@ mod binding_plan_tests {
                     ..
                 } if number == expected_clock_number && name.as_ref() == "clock_gettime"
             ));
-            let boundary = binding
-                .boundary_entry_plan
-                .as_ref()
-                .expect("clock_gettime carries its exact external signature");
+            let boundary = &binding.boundary_entry_plan;
             assert_eq!(boundary.call.policy, expected_policy);
             assert_eq!(boundary.call.parameters.len(), 2);
             assert!(boundary.call.result.is_some());
@@ -2272,10 +2280,7 @@ mod binding_plan_tests {
                     ..
                 } if number == expected_sleep_number && name.as_ref() == "nanosleep"
             ));
-            let sleep_boundary = sleep_binding
-                .boundary_entry_plan
-                .as_ref()
-                .expect("nanosleep carries its exact external signature");
+            let sleep_boundary = &sleep_binding.boundary_entry_plan;
             assert_eq!(sleep_boundary.call.policy, expected_policy);
             assert_eq!(sleep_boundary.call.parameters.len(), 2);
             assert!(sleep_boundary.call.result.is_some());
@@ -2372,10 +2377,7 @@ mod binding_plan_tests {
                     HostBindingMechanism::Syscall { number, ref name }
                         if number == expected_number && name.as_ref() == expected_name
                 ));
-                let boundary = binding
-                    .boundary_entry_plan
-                    .as_ref()
-                    .expect("value-returning syscall retains its exact plan");
+                let boundary = &binding.boundary_entry_plan;
                 assert_eq!(boundary.call.policy, expected_policy);
                 assert_eq!(boundary.call.parameters.len(), parameter_count);
                 assert!(boundary.call.result.is_some());
@@ -2500,11 +2502,10 @@ mod binding_plan_tests {
             .expect("authored binding");
 
         assert_eq!(
-            binding.boundary_entry_plan.as_ref(),
-            Some(&source_boundary),
+            binding.boundary_entry_plan, source_boundary,
             "the selected binding must retain inbound state beside its call plan",
         );
-        assert_eq!(binding.call_plan(), Some(&source_plan));
+        assert_eq!(binding.call_plan(), &source_plan);
         assert_eq!(
             abi.binding_boundary_entry_plan(binding, &signature)
                 .expect("authoritative source boundary plan")

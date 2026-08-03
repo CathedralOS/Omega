@@ -6,7 +6,7 @@ use super::super::offsets::{
 };
 use super::context::InstructionRelocationContext;
 use super::queries::selected_host_operation;
-use omega_calling_conventions::{CallPlan, HostBinding, HostBindingMechanism};
+use omega_calling_conventions::HostBindingMechanism;
 use omega_object_file::{RelocationRecord, object_symbol_handle_by_name};
 use omega_target_operations::{InstructionOperand, SelectedInstructionKind};
 use psi_arena::HandleSpan;
@@ -45,7 +45,7 @@ fn validate_host_relocation_plan(
         // cross no import seam and deliberately have no selected binding.
         return Ok(());
     };
-    let plan = retained_host_relocation_plan(binding, operation_key)?;
+    let plan = binding.call_plan();
     if !matches!(binding.mechanism, HostBindingMechanism::Import { .. }) {
         return Ok(());
     }
@@ -63,19 +63,6 @@ fn validate_host_relocation_plan(
     Ok(())
 }
 
-fn retained_host_relocation_plan(
-    binding: &HostBinding,
-    operation_key: omega_calling_conventions::HostOperationKey,
-) -> Result<&CallPlan, Diagnostic> {
-    binding.call_plan().ok_or_else(|| {
-        Diagnostic::error(format!(
-            "host relocation for {}.{} has no retained calling plan",
-            operation_key.capability_name(),
-            operation_key.operation_name()
-        ))
-    })
-}
-
 fn collect_host_operation_call_relocation(
     context: &mut InstructionRelocationContext<'_, '_>,
     operation_key: omega_calling_conventions::HostOperationKey,
@@ -87,9 +74,7 @@ fn collect_host_operation_call_relocation(
     let HostBindingMechanism::Import { symbol, .. } = &binding.mechanism else {
         return;
     };
-    let plan = binding
-        .call_plan()
-        .expect("import relocation plan was validated before collection");
+    let plan = binding.call_plan();
     let authored_import = matches!(
         operation_key.capability,
         omega_calling_conventions::HostCapability::Custom(_)
@@ -123,36 +108,4 @@ fn collect_host_operation_call_relocation(
             addend: 0,
             kind: external_call_relocation_kind(context.input.target.architecture),
         });
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use omega_calling_conventions::{
-        HostCapability, HostOperation, HostOperationKey, build_host_abi_plan,
-    };
-    use omega_target::NativeTarget;
-
-    #[test]
-    fn syscall_relocations_reject_a_missing_retained_plan() {
-        let operation_key = HostOperationKey::new(HostCapability::Stdout, HostOperation::Write);
-        let mut host_abi = build_host_abi_plan(NativeTarget::linux_x64());
-        let binding_handle = host_abi
-            .bindings
-            .iter()
-            .find_map(|(handle, binding)| {
-                (binding.operation_key == operation_key).then_some(handle)
-            })
-            .expect("stdout syscall binding");
-        let binding = host_abi.bindings.get_mut(binding_handle);
-        assert!(matches!(
-            binding.mechanism,
-            HostBindingMechanism::Syscall { .. }
-        ));
-        binding.boundary_entry_plan = None;
-
-        let error = retained_host_relocation_plan(binding, operation_key)
-            .expect_err("relocation planning must not reconstruct a missing syscall plan");
-        assert!(error.message.contains("no retained calling plan"));
-    }
 }

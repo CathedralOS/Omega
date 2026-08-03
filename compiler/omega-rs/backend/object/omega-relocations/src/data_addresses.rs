@@ -44,11 +44,7 @@ pub(super) fn collect_data_address_relocations(
         ) && selected_binding
             .is_some_and(|binding| matches!(binding.mechanism, HostBindingMechanism::Import { .. }))
     });
-    let authoritative_plan = selected_binding.map(|binding| {
-        binding
-            .call_plan()
-            .expect("host relocation plan was validated before data-address collection")
-    });
+    let authoritative_plan = selected_binding.map(|binding| binding.call_plan());
     // A field-model call's fixup layout depends on the mechanism's shape:
     // whether the receiver is a wire argument (This-call vtable) or
     // dispatch-only (service table), and whether a result place leads the

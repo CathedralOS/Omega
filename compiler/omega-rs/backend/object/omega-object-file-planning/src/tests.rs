@@ -1,6 +1,6 @@
 use crate::{ObjectPlanningInput, build_object_plan};
 use omega_calling_conventions::{
-    HostAbiPlan, HostBinding, HostBindingMechanism, HostOperationReference,
+    HostAbiPlan, HostBinding, HostBindingMechanism, HostOperationReference, build_host_abi_plan,
 };
 use omega_layout::{DataLayout, FieldLayout, LayoutPlan, MachineLayout, TypeLayout, VariantLayout};
 use omega_machine_bytes::{EncodedMachineFunction, EncodedMachinePlan};
@@ -52,12 +52,18 @@ fn builds_sections_and_symbols_for_runtime_frame_import_and_data() {
         platform_call_lowerings: Arena::new(),
         boundary_policies: Arena::new(),
     };
+    let retained = build_host_abi_plan(target)
+        .bindings
+        .iter()
+        .next()
+        .map(|(_, binding)| binding.clone())
+        .expect("hosted target has a plan-bearing binding");
     host_abi.bindings.insert(HostBinding {
         mechanism: HostBindingMechanism::Import {
             library: Arc::from("host"),
             symbol: Arc::from("host_write"),
         },
-        ..HostBinding::default()
+        ..retained
     });
 
     let mut data = TargetDataPlan::with_capacity(1, 3);

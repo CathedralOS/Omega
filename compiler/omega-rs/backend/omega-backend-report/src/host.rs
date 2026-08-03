@@ -139,10 +139,7 @@ fn write_host_binding(output: &mut String, binding: &HostBinding) {
 }
 
 fn retained_parameter_count(binding: &HostBinding, dispatch_only: usize) -> String {
-    binding.call_plan().map_or_else(
-        || "<missing-plan>".to_owned(),
-        |plan| (plan.parameters.len() + dispatch_only).to_string(),
-    )
+    (binding.call_plan().parameters.len() + dispatch_only).to_string()
 }
 
 fn write_platform_call_lowering(
@@ -291,12 +288,28 @@ fn write_lowered_host_operation(output: &mut String, operation: &LoweredHostOper
 #[cfg(test)]
 mod tests {
     use super::retained_parameter_count;
-    use omega_calling_conventions::HostBinding;
+    use omega_calling_conventions::{HostCapability, HostOperation, build_host_abi_plan};
+    use omega_target::NativeTarget;
 
     #[test]
-    fn missing_plan_never_fabricates_field_model_arity() {
-        let binding = HostBinding::default();
-        assert_eq!(retained_parameter_count(&binding, 0), "<missing-plan>");
-        assert_eq!(retained_parameter_count(&binding, 1), "<missing-plan>");
+    fn field_model_arity_comes_from_the_retained_plan() {
+        let host = build_host_abi_plan(NativeTarget::linux_x64());
+        let binding = host
+            .bindings
+            .iter()
+            .find_map(|(_, binding)| {
+                (binding.operation_key.capability == HostCapability::Stdout
+                    && binding.operation_key.operation == HostOperation::Write)
+                    .then_some(binding)
+            })
+            .expect("Linux stdout binding");
+        assert_eq!(
+            retained_parameter_count(binding, 0),
+            binding.call_plan().parameters.len().to_string()
+        );
+        assert_eq!(
+            retained_parameter_count(binding, 1),
+            (binding.call_plan().parameters.len() + 1).to_string()
+        );
     }
 }

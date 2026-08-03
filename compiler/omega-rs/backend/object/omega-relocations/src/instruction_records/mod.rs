@@ -136,20 +136,8 @@ fn validate_win64_runtime_adapter_plans(
             operation_key.operation_name()
         )));
     }
-    let get_std_handle_plan = get_std_handle.call_plan().ok_or_else(|| {
-        Diagnostic::error(format!(
-            "Win64 runtime adapter relocation for {}.{} has no retained GetStdHandle plan",
-            operation_key.capability_name(),
-            operation_key.operation_name()
-        ))
-    })?;
-    let file_io_plan = binding.call_plan().ok_or_else(|| {
-        Diagnostic::error(format!(
-            "Win64 runtime adapter relocation for {}.{} has no retained file-I/O plan",
-            operation_key.capability_name(),
-            operation_key.operation_name()
-        ))
-    })?;
+    let get_std_handle_plan = get_std_handle.call_plan();
+    let file_io_plan = binding.call_plan();
     omega_isa_x86_64::validate_win64_runtime_file_adapter_plans(get_std_handle_plan, file_io_plan)
 }
 
@@ -174,7 +162,7 @@ mod plan_tests {
     }
 
     #[test]
-    fn win64_runtime_adapter_relocations_require_both_catalog_plans() {
+    fn win64_runtime_adapter_relocations_require_an_imported_handle_binding() {
         let mut host_abi = build_host_abi_plan(NativeTarget::windows_x64());
         let instruction = stdin_byte_read();
         validate_win64_runtime_adapter_plans(NativeTarget::windows_x64(), &host_abi, &instruction)
@@ -189,15 +177,22 @@ mod plan_tests {
                 (binding.operation_key == get_std_handle_key).then_some(handle)
             })
             .expect("stdin GetStdHandle binding");
-        host_abi.bindings.get_mut(handle).boundary_entry_plan = None;
+        host_abi.bindings.get_mut(handle).mechanism = HostBindingMechanism::Syscall {
+            name: "invalid_get_std_handle".into(),
+            number: 0,
+        };
 
         let error = validate_win64_runtime_adapter_plans(
             NativeTarget::windows_x64(),
             &host_abi,
             &instruction,
         )
-        .expect_err("relocation planning must not reconstruct a missing subplan");
-        assert!(error.message.contains("no retained GetStdHandle plan"));
+        .expect_err("a non-import GetStdHandle binding must reject");
+        assert!(
+            error
+                .message
+                .contains("requires an imported GetStdHandle binding")
+        );
     }
 
     #[test]

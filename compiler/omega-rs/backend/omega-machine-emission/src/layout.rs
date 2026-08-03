@@ -118,13 +118,7 @@ fn machine_instruction_width(
                     host_operation.operation_key.operation_name(),
                 ))
             })?;
-            let plan = binding.call_plan().ok_or_else(|| {
-                Diagnostic::error(format!(
-                    "host operation {}.{} has no encodable call sequence: selected binding has no evaluated call plan",
-                    host_operation.operation_key.capability_name(),
-                    host_operation.operation_key.operation_name(),
-                ))
-            })?;
+            let plan = binding.call_plan();
             match &binding.mechanism {
                 HostBindingMechanism::Syscall { number, .. }
                     if host_operation.operation_key.uses_linux_timespec_result() =>
@@ -234,8 +228,8 @@ fn machine_instruction_width(
                 host_operation.operation_key,
                 operands,
                 binding
-                    .and_then(omega_calling_conventions::HostBinding::call_plan)
-                    .expect("missing import plan handled above"),
+                    .map(omega_calling_conventions::HostBinding::call_plan)
+                    .expect("selected import binding was resolved above"),
             ) {
                 return Err(Diagnostic::error(format!(
                     "host operation {}.{} has no encodable call sequence: {}",
