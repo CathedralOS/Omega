@@ -43,10 +43,41 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
 
     let syscall_numbers = linux_syscall_numbers(plan.target.architecture);
     plan.bindings.insert_many([
-        linux_syscall("Stdin", "read", syscall_numbers.read, &policy),
-        linux_syscall("Stdout", "write", syscall_numbers.write, &policy),
-        linux_syscall("Stderr", "write", syscall_numbers.write, &policy),
-        linux_syscall("Process", "exit_group", syscall_numbers.exit_group, &policy),
+        linux_value_syscall(
+            "Stdin",
+            "read",
+            "read",
+            syscall_numbers.read,
+            3,
+            &policy,
+            plan.target.architecture,
+        ),
+        linux_value_syscall(
+            "Stdout",
+            "write",
+            "write",
+            syscall_numbers.write,
+            3,
+            &policy,
+            plan.target.architecture,
+        ),
+        linux_value_syscall(
+            "Stderr",
+            "write",
+            "write",
+            syscall_numbers.write,
+            3,
+            &policy,
+            plan.target.architecture,
+        ),
+        linux_void_syscall(
+            "Process",
+            "exit_group",
+            syscall_numbers.exit_group,
+            1,
+            &policy,
+            plan.target.architecture,
+        ),
         linux_clock_gettime_syscall(
             "monotonic_ticks",
             syscall_numbers.clock_gettime,
@@ -695,12 +726,26 @@ fn linux_value_syscall(
     }
 }
 
-fn linux_syscall(
+fn linux_void_syscall(
     capability: &str,
     operation: &str,
     number: u32,
+    parameter_count: usize,
     policy: &std::sync::Arc<str>,
+    architecture: Architecture,
 ) -> HostBinding {
+    let calling_policy = match architecture {
+        Architecture::Aarch64 => CallingPolicy::LinuxSyscallAarch64,
+        Architecture::X86_64 => CallingPolicy::LinuxSyscallX86_64,
+    };
+    let signature = CallSignature {
+        parameters: vec![ValueShape::integer(8, 8); parameter_count],
+        result: None,
+    };
+    let boundary_entry_plan = evaluate_ordinary_boundary_entry_plan(calling_policy, &signature)
+        .expect("the built-in Linux void syscall signature must have a syscall plan")
+        .plan()
+        .clone();
     HostBinding {
         operation_key: crate::HostOperationKey::from_names(capability, operation),
         mechanism: HostBindingMechanism::Syscall {
@@ -708,6 +753,6 @@ fn linux_syscall(
             number,
         },
         boundary_policy: std::sync::Arc::clone(policy),
-        boundary_entry_plan: None,
+        boundary_entry_plan: Some(boundary_entry_plan),
     }
 }

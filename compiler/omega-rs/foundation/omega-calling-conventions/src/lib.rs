@@ -864,10 +864,11 @@ pub struct HostBinding {
     pub operation_key: HostOperationKey,
     pub mechanism: HostBindingMechanism,
     pub boundary_policy: Arc<str>,
-    /// Source-selected validated boundary plan. Built-in compatibility
-    /// bindings leave this empty and derive their call plan from the concrete
-    /// target. Outbound encoders consume `call`; inbound stub planning retains
-    /// the associated state obligations at the same selected binding seam.
+    /// Source-selected or built-in validated boundary plan. Compatibility
+    /// bindings may leave this empty only while their concrete signature still
+    /// has to be derived by a migrating consumer. Outbound encoders consume
+    /// `call`; inbound stub planning retains the associated state obligations
+    /// at the same selected binding seam.
     pub boundary_entry_plan: Option<BoundaryEntryPlan>,
 }
 
@@ -1496,6 +1497,85 @@ mod binding_plan_tests {
             .evaluate_binding_call_plan(&linux_binding.mechanism, &signature)
             .expect("Linux syscall plan");
         assert_eq!(linux_plan.policy, CallingPolicy::LinuxSyscallAarch64);
+    }
+
+    #[test]
+    fn linux_console_and_exit_bindings_retain_exact_syscall_plans() {
+        for (target, expected_policy, read_number, write_number, exit_number) in [
+            (
+                NativeTarget::linux_x64(),
+                CallingPolicy::LinuxSyscallX86_64,
+                0,
+                1,
+                231,
+            ),
+            (
+                NativeTarget::linux_arm64(),
+                CallingPolicy::LinuxSyscallAarch64,
+                63,
+                64,
+                94,
+            ),
+        ] {
+            let plan = build_host_abi_plan(target);
+            for (capability, operation, name, number, parameter_count, has_result) in [
+                (
+                    HostCapability::Stdin,
+                    HostOperation::Read,
+                    "read",
+                    read_number,
+                    3,
+                    true,
+                ),
+                (
+                    HostCapability::Stdout,
+                    HostOperation::Write,
+                    "write",
+                    write_number,
+                    3,
+                    true,
+                ),
+                (
+                    HostCapability::Stderr,
+                    HostOperation::Write,
+                    "write",
+                    write_number,
+                    3,
+                    true,
+                ),
+                (
+                    HostCapability::Process,
+                    HostOperation::ExitGroup,
+                    "exit_group",
+                    exit_number,
+                    1,
+                    false,
+                ),
+            ] {
+                let (_, binding) = plan
+                    .bindings
+                    .iter()
+                    .find(|(_, binding)| {
+                        binding.operation_key.capability == capability
+                            && binding.operation_key.operation == operation
+                    })
+                    .expect("built-in Linux binding");
+                assert!(matches!(
+                    binding.mechanism,
+                    HostBindingMechanism::Syscall {
+                        number: actual_number,
+                        name: ref actual_name,
+                    } if actual_number == number && actual_name.as_ref() == name
+                ));
+                let boundary = binding
+                    .boundary_entry_plan
+                    .as_ref()
+                    .expect("fixed Linux syscall signature must retain its plan");
+                assert_eq!(boundary.call.policy, expected_policy);
+                assert_eq!(boundary.call.parameters.len(), parameter_count);
+                assert_eq!(boundary.call.result.is_some(), has_result);
+            }
+        }
     }
 
     #[test]
