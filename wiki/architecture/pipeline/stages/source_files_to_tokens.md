@@ -16,6 +16,9 @@ Primary responsibility: preserve source identity and split text into tokens.
 
 - `compiler/psi-rs/foundation/psi-source` owns loaded-source records and maps,
   source identities, byte-span coordinates, and source-backed text.
+- `compiler/psi-rs/foundation/psi-diagnostics` owns source-addressable
+  diagnostics, and `compiler/psi-rs/foundation/psi-source-loader` owns root-file
+  loading. Their old `omega-core` module paths are compatibility exports.
 - `compiler/psi-rs/representations/psi-tokens` owns token kinds, text, and
   streams.
 - `compiler/psi-rs/pipeline/psi-source-files-to-tokens` owns the implementation

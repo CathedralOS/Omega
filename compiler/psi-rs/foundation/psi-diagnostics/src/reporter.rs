@@ -1,4 +1,4 @@
-use crate::diagnostics::Diagnostic;
+use crate::Diagnostic;
 
 pub fn format_diagnostics(diagnostics: &[Diagnostic]) -> String {
     let mut output = String::new();
@@ -16,7 +16,7 @@ pub fn format_diagnostics(diagnostics: &[Diagnostic]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use crate::diagnostics::{Diagnostic, format_diagnostics};
+    use crate::{Diagnostic, format_diagnostics};
 
     #[test]
     fn formats_diagnostics_without_trailing_newline() {

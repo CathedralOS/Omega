@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::source::SourceSpan;
+use psi_source::SourceSpan;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Diagnostic {
