@@ -849,7 +849,11 @@ Remaining:
   and max-Y retain four-F64/F64 plans; AAPCS64 independently assigns their X
   and V register streams from those selected shapes. The remaining scalar
   Core Graphics rows now retain exact zero-/one-/two-/seven-word parameter
-  plans with their word or source-scratch results.
+  plans with their word or source-scratch results. Darwin `___error()` retains
+  its fixed no-parameter/I32-stored-result plan. The residual Darwin filesystem
+  rows remain implementation work: canonicalize stored I32/U32 and synthesized
+  immediate operands to one typed external signature before attaching plans;
+  do not claim that engineering dependency as a language-design blocker.
   The matching AArch64 direct-import composites now validate
   that same retained native signature and reject placement drift in lockstep
   with layout; Windows composites retain their independently normalized

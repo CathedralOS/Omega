@@ -1949,6 +1949,40 @@ mod binding_plan_tests {
     }
 
     #[test]
+    fn darwin_errno_binding_retains_its_fixed_stored_result_plan() {
+        let plan = build_host_abi_plan(NativeTarget::macos_arm64());
+        let (_, binding) = plan
+            .bindings
+            .iter()
+            .find(|(_, binding)| {
+                binding.operation_key.capability == HostCapability::Filesystem
+                    && binding.operation_key.operation == HostOperation::ReadErrno
+            })
+            .expect("built-in Darwin errno binding");
+        assert!(matches!(
+            binding.mechanism,
+            HostBindingMechanism::Import {
+                symbol: ref actual_symbol,
+                ..
+            } if actual_symbol.as_ref() == "___error"
+        ));
+        let boundary = binding
+            .boundary_entry_plan
+            .as_ref()
+            .expect("fixed Darwin errno result signature must retain its plan");
+        assert_eq!(boundary.call.policy, CallingPolicy::Aapcs64);
+        assert!(boundary.call.parameters.is_empty());
+        assert_eq!(
+            boundary
+                .call
+                .result
+                .as_ref()
+                .map(|placement| placement.shape),
+            Some(ValueShape::integer(4, 4))
+        );
+    }
+
+    #[test]
     fn compiler_intrinsic_selects_only_an_exact_existing_target_lowering() {
         let row = |name: &str, method: &str| ExternalBindingRow {
             target_name: "macos_arm64".to_owned(),

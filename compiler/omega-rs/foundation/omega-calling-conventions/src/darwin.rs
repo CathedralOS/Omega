@@ -51,49 +51,58 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         darwin_word_import("Stdout", "write", "_write", 3, true, &policy),
         darwin_word_import("Stderr", "write", "_write", 3, true, &policy),
         darwin_word_import("Process", "exit", "_exit", 1, false, &policy),
-        darwin_import("Filesystem", "open", "_open", &policy),
-        darwin_import("Filesystem", "creat", "_creat", &policy),
-        darwin_import("Filesystem", "read", "_read", &policy),
-        darwin_import("Filesystem", "write", "_write", &policy),
-        darwin_import("Filesystem", "pread", "_pread", &policy),
-        darwin_import("Filesystem", "pwrite", "_pwrite", &policy),
-        darwin_import("Filesystem", "close", "_close", &policy),
-        darwin_import("Filesystem", "unlink", "_unlink", &policy),
-        darwin_import("Filesystem", "lseek", "_lseek", &policy),
-        darwin_import("Filesystem", "mkdir", "_mkdir", &policy),
-        darwin_import("Filesystem", "rmdir", "_rmdir", &policy),
-        darwin_import("Filesystem", "openat", "_openat", &policy),
-        darwin_import("Filesystem", "unlinkat", "_unlinkat", &policy),
-        darwin_import("Filesystem", "chmod", "_chmod", &policy),
-        darwin_import("Filesystem", "fchmod", "_fchmod", &policy),
-        darwin_import("Filesystem", "rename", "_rename", &policy),
-        darwin_import("Filesystem", "link", "_link", &policy),
-        darwin_import("Filesystem", "symlink", "_symlink", &policy),
-        darwin_import("Filesystem", "readlink", "_readlink", &policy),
-        darwin_import(
+        darwin_compatibility_import("Filesystem", "open", "_open", &policy),
+        darwin_compatibility_import("Filesystem", "creat", "_creat", &policy),
+        darwin_compatibility_import("Filesystem", "read", "_read", &policy),
+        darwin_compatibility_import("Filesystem", "write", "_write", &policy),
+        darwin_compatibility_import("Filesystem", "pread", "_pread", &policy),
+        darwin_compatibility_import("Filesystem", "pwrite", "_pwrite", &policy),
+        darwin_compatibility_import("Filesystem", "close", "_close", &policy),
+        darwin_compatibility_import("Filesystem", "unlink", "_unlink", &policy),
+        darwin_compatibility_import("Filesystem", "lseek", "_lseek", &policy),
+        darwin_compatibility_import("Filesystem", "mkdir", "_mkdir", &policy),
+        darwin_compatibility_import("Filesystem", "rmdir", "_rmdir", &policy),
+        darwin_compatibility_import("Filesystem", "openat", "_openat", &policy),
+        darwin_compatibility_import("Filesystem", "unlinkat", "_unlinkat", &policy),
+        darwin_compatibility_import("Filesystem", "chmod", "_chmod", &policy),
+        darwin_compatibility_import("Filesystem", "fchmod", "_fchmod", &policy),
+        darwin_compatibility_import("Filesystem", "rename", "_rename", &policy),
+        darwin_compatibility_import("Filesystem", "link", "_link", &policy),
+        darwin_compatibility_import("Filesystem", "symlink", "_symlink", &policy),
+        darwin_compatibility_import("Filesystem", "readlink", "_readlink", &policy),
+        darwin_compatibility_import(
             "Filesystem",
             "getdirentries64",
             "___getdirentries64",
             &policy,
         ),
-        darwin_import("Filesystem", "stat", "_stat", &policy),
-        darwin_import("Filesystem", "fstat", "_fstat", &policy),
-        darwin_import("Filesystem", "lstat", "_lstat", &policy),
-        darwin_import("Filesystem", "realpath", "_realpath", &policy),
-        darwin_import("Filesystem", "ftruncate", "_ftruncate", &policy),
-        darwin_import("Filesystem", "futimens", "_futimens", &policy),
-        darwin_import("Filesystem", "fsync", "_fsync", &policy),
-        darwin_import("Filesystem", "dup", "_dup", &policy),
-        darwin_import("Filesystem", "flock", "_flock", &policy),
-        darwin_import("Filesystem", "chown", "_chown", &policy),
-        darwin_import("Filesystem", "lchown", "_lchown", &policy),
-        darwin_import("Filesystem", "fchown", "_fchown", &policy),
+        darwin_compatibility_import("Filesystem", "stat", "_stat", &policy),
+        darwin_compatibility_import("Filesystem", "fstat", "_fstat", &policy),
+        darwin_compatibility_import("Filesystem", "lstat", "_lstat", &policy),
+        darwin_compatibility_import("Filesystem", "realpath", "_realpath", &policy),
+        darwin_compatibility_import("Filesystem", "ftruncate", "_ftruncate", &policy),
+        darwin_compatibility_import("Filesystem", "futimens", "_futimens", &policy),
+        darwin_compatibility_import("Filesystem", "fsync", "_fsync", &policy),
+        darwin_compatibility_import("Filesystem", "dup", "_dup", &policy),
+        darwin_compatibility_import("Filesystem", "flock", "_flock", &policy),
+        darwin_compatibility_import("Filesystem", "chown", "_chown", &policy),
+        darwin_compatibility_import("Filesystem", "lchown", "_lchown", &policy),
+        darwin_compatibility_import("Filesystem", "fchown", "_fchown", &policy),
         // The creating `open` (variadic `mode`). NATIVE lowering PENDING (the mode
         // must be stack-marshalled -- see D8-open); the import + lowering are
         // wired so only the operand arm + encoder remain. The interpreter models
         // `open_create` fully today.
-        darwin_import("Filesystem", "open_create", "_open", &policy),
-        darwin_import("Filesystem", "read_errno", "___error", &policy),
+        darwin_compatibility_import("Filesystem", "open_create", "_open", &policy),
+        darwin_typed_import(
+            "Filesystem",
+            "read_errno",
+            "___error",
+            CallSignature {
+                parameters: Vec::new(),
+                result: Some(ValueShape::integer(4, 4)),
+            },
+            &policy,
+        ),
         // First float-arg op: `Math::round_nearest(x: f64) -> i64` → libm `lround`.
         // Proves the arm64 float calling convention (double in v0, long in x0).
         darwin_typed_import(
@@ -1027,7 +1036,10 @@ fn darwin_typed_import(
     }
 }
 
-fn darwin_import(
+/// Transitional import row whose external scalar widths are still derived from
+/// call-site operands. Retire this helper after the filesystem seam
+/// canonicalizes stored and synthesized scalars to one typed C signature.
+fn darwin_compatibility_import(
     capability: &str,
     operation: &str,
     symbol: &str,
