@@ -27,17 +27,37 @@ pub fn executable_tcb_manifest_json(selected: &SelectedProviderPlanFacts) -> Str
         ScopeCompleteness::Complete {
             scope,
             selected_provider_closure_identity,
+            opaque_closure_evidence,
         } => {
             json.push_str("\n    \"status\": \"complete\",\n    \"scope\": ");
             push_json_string(&mut json, scope_name(*scope));
-            json.push_str(",\n    \"evidence\": {\n      \"kind\": \"selected_provider_closure\",\n      \"identity\": ");
+            json.push_str(",\n    \"evidence\": [\n      {\"kind\": \"selected_provider_closure\", \"identity\": ");
             push_json_string(
                 &mut json,
                 &format!("0x{selected_provider_closure_identity:016x}"),
             );
-            json.push_str("\n    }");
+            json.push('}');
+            for evidence in opaque_closure_evidence {
+                json.push_str(",\n      {\"kind\": \"admitted_opaque_executable_closure\", \"provider_plan_identity\": ");
+                push_json_string(
+                    &mut json,
+                    &format!("0x{:016x}", evidence.provider_plan_identity),
+                );
+                json.push_str(", \"method\": ");
+                push_json_string(&mut json, &evidence.method);
+                json.push_str(", \"requirement_identity\": ");
+                push_json_string(&mut json, &evidence.requirement_identity);
+                json.push_str(", \"evidence_identity\": ");
+                push_json_string(&mut json, &evidence.evidence_identity);
+                json.push('}');
+            }
+            json.push_str("\n    ]");
         }
-        ScopeCompleteness::Incomplete { scope, causes } => {
+        ScopeCompleteness::Incomplete {
+            scope,
+            causes,
+            opaque_closure_evidence,
+        } => {
             json.push_str("\n    \"status\": \"incomplete\",\n    \"scope\": ");
             push_json_string(&mut json, scope_name(*scope));
             json.push_str(",\n    \"causes\": [");
@@ -61,6 +81,29 @@ pub fn executable_tcb_manifest_json(selected: &SelectedProviderPlanFacts) -> Str
                 json.push_str("\n      }");
             }
             if !causes.is_empty() {
+                json.push('\n');
+                json.push_str("    ");
+            }
+            json.push(']');
+            json.push_str(",\n    \"evidence\": [");
+            for (index, evidence) in opaque_closure_evidence.iter().enumerate() {
+                if index > 0 {
+                    json.push(',');
+                }
+                json.push_str("\n      {\"kind\": \"admitted_opaque_executable_closure\", \"provider_plan_identity\": ");
+                push_json_string(
+                    &mut json,
+                    &format!("0x{:016x}", evidence.provider_plan_identity),
+                );
+                json.push_str(", \"method\": ");
+                push_json_string(&mut json, &evidence.method);
+                json.push_str(", \"requirement_identity\": ");
+                push_json_string(&mut json, &evidence.requirement_identity);
+                json.push_str(", \"evidence_identity\": ");
+                push_json_string(&mut json, &evidence.evidence_identity);
+                json.push('}');
+            }
+            if !opaque_closure_evidence.is_empty() {
                 json.push('\n');
                 json.push_str("    ");
             }
@@ -90,6 +133,11 @@ fn push_entry_json(json: &mut String, entry: &ExecutableTcbEntry) {
             push_json_string(json, name);
             json.push('}');
         }
+        ExecutableIdentity::PinnedOpaqueArtifact(identity) => {
+            json.push_str("{\"kind\": \"pinned_opaque_artifact\", \"identity\": ");
+            push_json_string(json, identity);
+            json.push('}');
+        }
     }
     json.push_str(",\n      \"implementation_evidence\": ");
     match &entry.implementation_evidence {
@@ -103,6 +151,11 @@ fn push_entry_json(json: &mut String, entry: &ExecutableTcbEntry) {
             push_json_string(json, target);
             json.push_str(", \"identity\": ");
             push_json_string(json, intrinsic);
+            json.push('}');
+        }
+        ImplementationEvidence::AdmittedOpaque { receipt_identity } => {
+            json.push_str("{\"class\": \"admitted_opaque\", \"receipt_identity\": ");
+            push_json_string(json, receipt_identity);
             json.push('}');
         }
     }
@@ -260,5 +313,43 @@ mod tests {
         assert!(json.contains("\"reason\": \"uncontained_opaque_in_process_provider\""));
         assert!(json.contains("\"provider_plan_identity\": \"0x"));
         assert!(!json.contains("omega_runtime_admission"));
+    }
+
+    #[test]
+    fn artifact_reports_pinned_opaque_identity_and_independent_receipts() {
+        let selected = selected(ProviderBinding::Import {
+            library: "platform".into(),
+            symbol: "read".into(),
+        });
+        let plan_identity = selected.plans()[0].identity_fingerprint();
+        let selected = selected
+            .with_opaque_executable_admissions([
+                omega_effects::OpaqueExecutableAdmissionCandidate {
+                    provider_plan_identity: plan_identity,
+                    method: "read".into(),
+                    requirement_identity: String::new(),
+                    binding: OpaqueInProcessBinding::Import {
+                        library: "platform".into(),
+                        symbol: "read".into(),
+                    },
+                    executable_identity: "platform-baseline:read-v1".into(),
+                    implementation_evidence_identity: "receipt:binary-v1".into(),
+                    execution_scope: ExecutionScope::CallerAddressSpace,
+                    containment: vec![omega_effects::ContainmentEvidence {
+                        guarantee: omega_effects::ContainmentGuarantee::BoundedResources,
+                        evidence_identity: "receipt:quota-v1".into(),
+                    }],
+                    executable_closure_evidence_identity: Some("receipt:closed-loader-v1".into()),
+                },
+            ])
+            .expect("exact opaque admission");
+
+        let json = executable_tcb_manifest_json(&selected);
+        assert!(json.contains("\"kind\": \"pinned_opaque_artifact\""));
+        assert!(json.contains("\"identity\": \"platform-baseline:read-v1\""));
+        assert!(json.contains("\"class\": \"admitted_opaque\""));
+        assert!(json.contains("\"guarantee\": \"bounded_resources\""));
+        assert!(json.contains("\"kind\": \"admitted_opaque_executable_closure\""));
+        assert!(json.contains("\"status\": \"complete\""));
     }
 }

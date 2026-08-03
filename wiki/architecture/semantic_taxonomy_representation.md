@@ -494,6 +494,17 @@ evidence agree. An opaque uncontained in-process provider forces
 not presented as exhaustive. This metadata is a selected-artifact property and
 does not enter source service-reach identity.
 
+Implementation status (2026-08-03): the selected-plan carrier derives checked
+and compiler-known entries and attributes every unadmitted opaque in-process
+row as incomplete. It now also accepts a sealed opaque admission only when its
+provider-plan, method, requirement, and binding exactly match that selected
+row. A stable pinned artifact identity then becomes a known entry with its
+independent implementation and containment evidence. Pinning alone never
+claims exhaustiveness: only a separate executable-closure receipt removes that
+row's incompleteness cause, and such receipts remain reported even when another
+opaque row keeps the overall scope incomplete. Loader paths, modules, symbols,
+and table slots remain binding locators rather than executable identities.
+
 Source `boundary` remains insufficient to reconstruct this enum: a checked
 exported callable and an accepted bodyless declaration both mention the word
 but have different supply modes. Likewise, body absence distinguishes a trait

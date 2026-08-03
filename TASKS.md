@@ -1379,8 +1379,14 @@ improvements do not change public identity.
   the exact selected-plan closure, keeps completeness separate, and attributes
   every unpinned in-process import/vtable/table row as an opaque cause instead
   of treating its loader spelling as executable identity. Pinned opaque
-  identities, admitted containment receipts, runtime-ledger union, and profile
-  enforcement remain.
+  admissions now bind the exact selected provider-plan, method, requirement,
+  and opaque binding before contributing a stable artifact identity plus
+  independent implementation and containment receipts. Pinning alone retains
+  the attributed incompleteness cause; only a separate executable-closure
+  receipt removes it, and closure evidence survives when another row keeps the
+  overall scope incomplete. Compiler/build-policy wiring for real admissions,
+  runtime-ledger union, isolated-scope manifests, and profile enforcement
+  remain.
 - **REPLACE-OPAQUE:** extend component acceptance tests with selected-provider
   manifest union across coexisting eras, process-static service handover
   contracts, and mapping reuse only after proof that no live authority reaches
