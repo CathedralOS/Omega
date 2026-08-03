@@ -482,9 +482,90 @@ pub struct FieldAccessDescriptor {
     field: String,
     container_byte_offset: u64,
     transfer_width_bits: u16,
+    logical_extent: LogicalFieldExtent,
+    effect_footprint: RelativeEffectFootprint,
     observation: ObservationModel,
     permissions: AccessPermissions,
     exposure: AccessExposure,
+}
+
+/// The exact laid bits that represent one logical field value.
+///
+/// A fragmented field may contain several pieces, but every piece remains in
+/// the one transfer container admitted for primitive placed access. The source
+/// bit offset names the corresponding position in the logical field value.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LogicalFieldExtent {
+    fragments: Vec<LogicalFieldFragment>,
+}
+
+impl LogicalFieldExtent {
+    pub fn fragments(&self) -> &[LogicalFieldFragment] {
+        &self.fragments
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct LogicalFieldFragment {
+    layout_bit_offset: u64,
+    source_bit_offset: u64,
+    width_bits: u64,
+}
+
+impl LogicalFieldFragment {
+    pub const fn layout_bit_offset(self) -> u64 {
+        self.layout_bit_offset
+    }
+
+    pub const fn source_bit_offset(self) -> u64 {
+        self.source_bit_offset
+    }
+
+    pub const fn width_bits(self) -> u64 {
+        self.width_bits
+    }
+}
+
+/// The complete relative transfer container observed or changed by an event.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct RelativeEffectFootprint {
+    byte_offset: u64,
+    length_bytes: u64,
+}
+
+impl RelativeEffectFootprint {
+    pub const fn byte_offset(self) -> u64 {
+        self.byte_offset
+    }
+
+    pub const fn length_bytes(self) -> u64 {
+        self.length_bytes
+    }
+}
+
+/// The complete concrete transfer container observed or changed by an event.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct EffectFootprint {
+    address: u64,
+    length_bytes: u64,
+}
+
+impl EffectFootprint {
+    pub const fn address(self) -> u64 {
+        self.address
+    }
+
+    pub const fn length_bytes(self) -> u64 {
+        self.length_bytes
+    }
+
+    pub const fn end(self) -> u64 {
+        self.address + self.length_bytes
+    }
+
+    pub const fn overlaps(self, other: Self) -> bool {
+        self.address < other.end() && other.address < self.end()
+    }
 }
 
 impl FieldAccessDescriptor {
@@ -502,6 +583,14 @@ impl FieldAccessDescriptor {
 
     pub const fn transfer_width_bits(&self) -> u16 {
         self.transfer_width_bits
+    }
+
+    pub const fn logical_extent(&self) -> &LogicalFieldExtent {
+        &self.logical_extent
+    }
+
+    pub const fn effect_footprint(&self) -> RelativeEffectFootprint {
+        self.effect_footprint
     }
 
     pub const fn observation(&self) -> ObservationModel {
@@ -1002,7 +1091,7 @@ pub fn validate_access_plan(
         let Some(policy) = validate_entry_policy(entry)? else {
             continue;
         };
-        let container_byte_offset = validate_entry_geometry(
+        let (container_byte_offset, logical_extent, effect_footprint) = validate_entry_geometry(
             &entry.field,
             policy.transfer_width_bits,
             layout,
@@ -1013,6 +1102,8 @@ pub fn validate_access_plan(
             field: entry.field.clone(),
             container_byte_offset,
             transfer_width_bits: policy.transfer_width_bits,
+            logical_extent,
+            effect_footprint,
             observation: policy.observation,
             permissions: policy.permissions,
             exposure: policy.exposure,
@@ -2006,6 +2097,11 @@ impl<'view, 'extent> PlacedFieldAccess<'view, 'extent> {
             primitive_address: self.primitive_address,
             field: descriptor.field,
             transfer_width_bits: descriptor.transfer_width_bits,
+            logical_extent: descriptor.logical_extent,
+            effect_footprint: EffectFootprint {
+                address: self.primitive_address,
+                length_bytes: descriptor.effect_footprint.length_bytes,
+            },
             observation: descriptor.observation,
             current_borrow,
             source_loan,
@@ -2030,6 +2126,8 @@ pub struct PrimitiveAccessRequest<'view, 'extent> {
     primitive_address: u64,
     field: String,
     transfer_width_bits: u16,
+    logical_extent: LogicalFieldExtent,
+    effect_footprint: EffectFootprint,
     observation: ObservationModel,
     current_borrow: BorrowPolarity,
     source_loan: BorrowPolarity,
@@ -2067,6 +2165,30 @@ impl PrimitiveAccessRequest<'_, '_> {
         self.transfer_width_bits
     }
 
+    pub const fn logical_extent(&self) -> &LogicalFieldExtent {
+        &self.logical_extent
+    }
+
+    pub const fn effect_footprint(&self) -> EffectFootprint {
+        self.effect_footprint
+    }
+
+    /// Whether this event and another event require mutually exclusive effect
+    /// footprints.
+    ///
+    /// Repeatable reads may share an overlapping transfer container. Atomic
+    /// events may share only the same exact atomic container; a partial or
+    /// mixed-width overlap rejects. Every destructive read, ordinary write,
+    /// or stable read-modify-write reserves its complete transfer footprint.
+    pub const fn conflicts_with(&self, other: &Self) -> bool {
+        effect_footprints_conflict(
+            self.effect_footprint,
+            self.operation,
+            other.effect_footprint,
+            other.operation,
+        )
+    }
+
     pub const fn observation(&self) -> ObservationModel {
         self.observation
     }
@@ -2085,6 +2207,24 @@ impl PrimitiveAccessRequest<'_, '_> {
 
     pub const fn reach(&self) -> &BoundaryReach {
         &self.reach
+    }
+}
+
+pub const fn effect_footprints_conflict(
+    left: EffectFootprint,
+    left_operation: AccessOperation,
+    right: EffectFootprint,
+    right_operation: AccessOperation,
+) -> bool {
+    if !left.overlaps(right) {
+        return false;
+    }
+    match (left_operation, right_operation) {
+        (AccessOperation::Read, AccessOperation::Read) => false,
+        (AccessOperation::Atomic(_), AccessOperation::Atomic(_)) => {
+            left.address != right.address || left.length_bytes != right.length_bytes
+        }
+        _ => true,
     }
 }
 
@@ -2234,7 +2374,7 @@ fn validate_entry_geometry(
     transfer_width_bits: u16,
     layout: &LayoutPlanReport,
     layout_size: u64,
-) -> Result<u64, AccessPlanDiagnostic> {
+) -> Result<(u64, LogicalFieldExtent, RelativeEffectFootprint), AccessPlanDiagnostic> {
     let placements = layout
         .entries
         .iter()
@@ -2252,15 +2392,31 @@ fn validate_entry_geometry(
         [LayoutPlacementReport::At { offset }] => {
             let offset = *offset;
             validate_transfer_range(field, offset, transfer_bytes, layout_size)?;
-            Ok(offset)
+            Ok((
+                offset,
+                LogicalFieldExtent {
+                    fragments: vec![LogicalFieldFragment {
+                        layout_bit_offset: offset * 8,
+                        source_bit_offset: 0,
+                        width_bits: u64::from(transfer_width_bits),
+                    }],
+                },
+                RelativeEffectFootprint {
+                    byte_offset: offset,
+                    length_bytes: transfer_bytes,
+                },
+            ))
         }
         placements => {
             let mut container = None;
+            let mut fragments = Vec::with_capacity(placements.len());
             for placement in placements {
                 let LayoutPlacementReport::Bits {
                     container: candidate,
                     container_width,
-                    ..
+                    destination_lsb,
+                    source_lsb,
+                    width,
                 } = placement
                 else {
                     return Err(AccessPlanDiagnostic(format!(
@@ -2282,10 +2438,29 @@ fn validate_entry_geometry(
                         field
                     )));
                 }
+                fragments.push(LogicalFieldFragment {
+                    layout_bit_offset: candidate * 8 + destination_lsb,
+                    source_bit_offset: *source_lsb,
+                    width_bits: *width,
+                });
             }
             let container = container.expect("nonempty placements");
             validate_transfer_range(field, container, transfer_bytes, layout_size)?;
-            Ok(container)
+            fragments.sort_unstable_by_key(|fragment| {
+                (
+                    fragment.source_bit_offset,
+                    fragment.layout_bit_offset,
+                    fragment.width_bits,
+                )
+            });
+            Ok((
+                container,
+                LogicalFieldExtent { fragments },
+                RelativeEffectFootprint {
+                    byte_offset: container,
+                    length_bytes: transfer_bytes,
+                },
+            ))
         }
     }
 }
@@ -2715,11 +2890,25 @@ mod tests {
         assert_eq!(status.source_loan(), BorrowPolarity::Shared);
         assert_eq!(status.operation(), AccessOperation::Read);
         assert_eq!(plan.field_descriptors().len(), 3);
+        let control = plan
+            .field_descriptor(field_key(&plan, "control"))
+            .expect("control descriptor");
+        assert_eq!(control.container_byte_offset(), 8);
         assert_eq!(
-            plan.field_descriptor(field_key(&plan, "control"))
-                .expect("control descriptor")
-                .container_byte_offset(),
-            8
+            control.logical_extent().fragments(),
+            &[LogicalFieldFragment {
+                layout_bit_offset: 64,
+                source_bit_offset: 0,
+                width_bits: 8,
+            }]
+        );
+        assert_eq!(
+            control.effect_footprint(),
+            RelativeEffectFootprint {
+                byte_offset: 8,
+                length_bytes: 4,
+            },
+            "a narrow logical bitfield retains its whole transfer container"
         );
         assert!(
             plan.authorize(
@@ -3316,6 +3505,13 @@ mod tests {
             assert_eq!(request.primitive_address(), 0x1000);
             assert_eq!(request.field(), "status");
             assert_eq!(request.transfer_width_bits(), 32);
+            assert_eq!(
+                request.effect_footprint(),
+                EffectFootprint {
+                    address: 0x1000,
+                    length_bytes: 4,
+                }
+            );
             assert_eq!(request.observation(), ObservationModel::External);
             assert_eq!(request.current_borrow(), BorrowPolarity::Shared);
             assert_eq!(request.source_loan(), BorrowPolarity::Shared);
@@ -4185,5 +4381,63 @@ mod tests {
         let (returned, _) = rejection.into_parts();
         assert_eq!(returned.base(), 0x3000);
         assert_eq!(returned.length(), 12);
+    }
+
+    #[test]
+    fn effect_conflicts_use_whole_transfer_containers() {
+        let word = EffectFootprint {
+            address: 0x1000,
+            length_bytes: 4,
+        };
+        let overlapping_half = EffectFootprint {
+            address: 0x1002,
+            length_bytes: 2,
+        };
+        let next_word = EffectFootprint {
+            address: 0x1004,
+            length_bytes: 4,
+        };
+
+        assert!(!effect_footprints_conflict(
+            word,
+            AccessOperation::Read,
+            word,
+            AccessOperation::Read,
+        ));
+        assert!(effect_footprints_conflict(
+            word,
+            AccessOperation::Read,
+            word,
+            AccessOperation::Take,
+        ));
+        assert!(effect_footprints_conflict(
+            word,
+            AccessOperation::CompoundMutation,
+            word,
+            AccessOperation::Read,
+        ));
+
+        let atomic_load =
+            AccessOperation::Atomic(AtomicAccessOperation::Load(MemoryOrdering::Receive));
+        let atomic_store =
+            AccessOperation::Atomic(AtomicAccessOperation::Store(MemoryOrdering::Publish));
+        assert!(!effect_footprints_conflict(
+            word,
+            atomic_load,
+            word,
+            atomic_store,
+        ));
+        assert!(effect_footprints_conflict(
+            word,
+            atomic_load,
+            overlapping_half,
+            atomic_store,
+        ));
+        assert!(!effect_footprints_conflict(
+            word,
+            AccessOperation::Write,
+            next_word,
+            AccessOperation::Write,
+        ));
     }
 }
