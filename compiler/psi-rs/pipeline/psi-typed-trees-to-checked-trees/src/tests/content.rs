@@ -780,6 +780,150 @@ fn checked_facts_compose_partitions_through_exact_staged_result_rewrites() {
 }
 
 #[test]
+fn checked_facts_compose_partitions_through_exact_array_and_case_arguments() {
+    let source = r#"
+        data ByteUnit {}
+        data CountedQuantity<Unit> { magnitude: u64; }
+        trait Content<A> {
+            machine project(subject: &Self) -> A;
+        }
+
+        data Region [linear] { length: u64; }
+        domain Region::Owned;
+        machine Owned::content(region: &Region) -> CountedQuantity<ByteUnit>
+        satisfies Content<CountedQuantity<ByteUnit>>::project
+        {
+            CountedQuantity { magnitude: region.length }
+        }
+
+        data Pair {
+            left: Region in Owned;
+            right: Region in Owned;
+        }
+        data SumPair {
+            case Pair(left: Region in Owned, right: Region in Owned);
+            case Mirror(left: Region in Owned, right: Region in Owned);
+        }
+        boundary trait ArraySplitter {
+            machine partition(pair: [Region in Owned; 2]) -> Pair
+            ensures
+                separate(
+                    Owned::content(entry(&pair[0])),
+                    Owned::content(entry(&pair[1])),
+                )
+                == separate(
+                    Owned::content(&result.left),
+                    Owned::content(&result.right),
+                );
+        }
+        boundary trait CaseSplitter {
+            machine partition(pair: SumPair) -> Pair
+            ensures
+                separate(
+                    Owned::content(entry(&pair.left)),
+                    Owned::content(entry(&pair.right)),
+                )
+                == separate(
+                    Owned::content(&result.left),
+                    Owned::content(&result.right),
+                );
+        }
+        data Main {
+            array_splitter: ArraySplitter;
+            case_splitter: CaseSplitter;
+        }
+        machine Main::array_argument(
+            &mut self,
+            left: Region in Owned,
+            right: Region in Owned
+        ) -> Pair
+        {
+            self.array_splitter.partition([left, right])
+        }
+        machine Main::case_argument(
+            &mut self,
+            left: Region in Owned,
+            right: Region in Owned
+        ) -> Pair
+        {
+            self.case_splitter.partition(SumPair::Pair {
+                left: left,
+                right: right,
+            })
+        }
+        machine Main::wrong_case_argument(
+            &mut self,
+            left: Region in Owned,
+            right: Region in Owned
+        ) -> Pair
+        {
+            self.case_splitter.partition(SumPair::Mirror {
+                left: left,
+                right: right,
+            })
+        }
+        machine Main::main(&mut self) {}
+    "#;
+
+    let checked_program = checked(source);
+    let compositions = &checked_program
+        .facts
+        .qualifications
+        .content
+        .partition_compositions;
+    assert_eq!(compositions.len(), 2, "compositions: {compositions:#?}");
+    let state_symbol = |name: &str| {
+        checked_program
+            .machines()
+            .iter()
+            .flat_map(|machine| checked_program.machine_states(machine))
+            .find(|state| state.name.as_str() == name)
+            .expect("named state")
+            .symbol
+    };
+    let array = compositions
+        .iter()
+        .find(|composition| composition.state_symbol == state_symbol("array_argument"))
+        .expect("fixed-array argument composition");
+    let case = compositions
+        .iter()
+        .find(|composition| composition.state_symbol == state_symbol("case_argument"))
+        .expect("active-case argument composition");
+
+    for composition in [array, case] {
+        assert_eq!(composition.input_claim_identities.len(), 2);
+        assert!(composition.result_rewrites.is_empty());
+        let input_substitutions = composition
+            .substitutions
+            .iter()
+            .filter(|substitution| {
+                matches!(substitution.source.root, ContentPlaceRoot::Parameter { .. })
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(input_substitutions.len(), 2);
+        assert!(
+            input_substitutions
+                .iter()
+                .all(|substitution| substitution.target.segments.is_empty())
+        );
+    }
+    assert!(array.substitutions.iter().any(|substitution| matches!(
+        substitution.source.segments.as_slice(),
+        [ContentPlaceSegment::FixedIndex(0)]
+    )));
+    assert!(case.substitutions.iter().any(|substitution| matches!(
+        substitution.source.segments.as_slice(),
+        [ContentPlaceSegment::Case(case), ContentPlaceSegment::Field(field)]
+            if case.name == "Pair" && field.name == "left"
+    )));
+    assert!(
+        compositions
+            .iter()
+            .all(|composition| composition.state_symbol != state_symbol("wrong_case_argument"))
+    );
+}
+
+#[test]
 fn checked_facts_infer_exact_content_reshuffles_through_sum_case_paths() {
     let source = r#"
         data ByteUnit {}
