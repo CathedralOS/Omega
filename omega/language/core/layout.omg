@@ -230,16 +230,30 @@ machine AccessPlan::inaccessible(schema: Schema) -> AccessPlan {
 // entry so compiler validation rejects it rather than silently ignoring an
 // authored mistake.
 machine AccessPlan::with(self, key: u64, access: FieldAccess) -> AccessPlan {
-    transition { _ -> seek(self, key, access, 0) }
+    AccessPlan::with_bounded(self, key, access, 128)
+}
+
+// The helper makes the finite search's ordinary termination witness explicit.
+// Fuel is compiler/library policy, not part of the public access-plan surface.
+machine AccessPlan::with_bounded(
+    plan: AccessPlan,
+    key: u64,
+    access: FieldAccess,
+    fuel: u64 [1..=128]
+) -> AccessPlan
+terminates by fuel;
+{
+    transition { _ -> seek(plan, key, access, 0, fuel) }
 
     state seek(
         plan: AccessPlan,
         key: u64,
         access: FieldAccess,
-        index: u64 [0..=32]
+        index: u64 [0..=32],
+        fuel: u64 [1..=128]
     ) -> AccessPlan {
-        transition index < plan.field_count && index < 32 {
-            true -> inspect(plan, key, access, index)
+        transition fuel > 1 && index < plan.field_count && index < 32 {
+            true -> inspect(plan, key, access, index, fuel - 1)
             _ -> invalid(plan, key, access)
         }
     }
@@ -248,11 +262,13 @@ machine AccessPlan::with(self, key: u64, access: FieldAccess) -> AccessPlan {
         plan: AccessPlan,
         key: u64,
         access: FieldAccess,
-        index: u64 [0..=31]
+        index: u64 [0..=31],
+        fuel: u64 [1..=128]
     ) -> AccessPlan {
-        transition plan.entries[index].key == key {
-            true -> replace(plan, key, access, index)
-            _ -> advance(plan, key, access, index)
+        transition {
+            fuel > 1 && plan.entries[index].key == key -> replace(plan, key, access, index)
+            fuel > 1 -> advance(plan, key, access, index, fuel - 1)
+            _ -> invalid(plan, key, access)
         }
     }
 
@@ -271,9 +287,13 @@ machine AccessPlan::with(self, key: u64, access: FieldAccess) -> AccessPlan {
         plan: AccessPlan,
         key: u64,
         access: FieldAccess,
-        index: u64 [0..=31]
+        index: u64 [0..=31],
+        fuel: u64 [1..=128]
     ) -> AccessPlan {
-        transition { _ -> seek(plan, key, access, index + 1) }
+        transition fuel > 1 {
+            true -> seek(plan, key, access, index + 1, fuel - 1)
+            _ -> invalid(plan, key, access)
+        }
     }
 
     state invalid(
