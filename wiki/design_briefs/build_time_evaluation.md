@@ -188,6 +188,13 @@ multiplicity, not type names. This is a monotone fail-closed input/resource
 rung; it does not claim that the remaining authority, trust, or
 resource-admission artifacts exist.
 
+Pre-check evaluation currently has no concrete-argument proof context. The
+common gate therefore rejects an authored `requires` premise anywhere in the
+reachable machine/callable closure rather than assuming it before the checker
+has discharged it. This is the first fail-closed trust-input rung. A later
+invocation-sensitive gate may admit the call by supplying the ordinary checked
+proof of that exact premise; it must not add a build-time-only proof rule.
+
 Trait requirements pin the public floor. A conformance cannot grow an
 incompatible axis unnoticed; it fails at the conformance declaration.
 
