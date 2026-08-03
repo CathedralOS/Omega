@@ -1,0 +1,13 @@
+[package]
+name = "psi-language-semantics"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "psi_language_semantics"
+path = "src/lib.rs"
+
+[dependencies]
+psi-language-core = { path = "../psi-language-core" }
+psi-symbols = { path = "../psi-symbols" }

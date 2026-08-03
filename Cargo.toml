@@ -4,6 +4,7 @@ members = [
     "compiler/psi-rs/foundation/psi-arena",
     "compiler/psi-rs/foundation/psi-diagnostics",
     "compiler/psi-rs/foundation/psi-language-core",
+    "compiler/psi-rs/foundation/psi-language-semantics",
     "compiler/psi-rs/foundation/psi-numerics",
     "compiler/psi-rs/foundation/psi-source",
     "compiler/psi-rs/foundation/psi-source-loader",

@@ -446,27 +446,26 @@ fn lexical_frontend_implementation_is_psi_owned() {
     let source = std::fs::read_to_string(&semantics_module)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", semantics_module.display()));
     assert!(
-        source.contains("pub use psi_language_core::{"),
-        "legacy semantics module must re-export Psi-owned grammar vocabulary"
+        source.contains("pub use psi_language_semantics::*;"),
+        "legacy semantics module must re-export the Psi-owned semantic foundation"
     );
-    for migrated in [
-        "Multiplicity",
-        "DataSupplyMode",
-        "CarryPolicy",
-        "CarryPermission",
-        "CallOperationalAcknowledgement",
-        "DomainPredicateBody",
-    ] {
-        assert!(
-            source.contains(migrated),
-            "legacy semantics compatibility export lost Psi-owned type {migrated}"
-        );
-        assert!(
-            !source.contains(&format!("pub enum {migrated}"))
-                && !source.contains(&format!("pub struct {migrated}")),
-            "legacy semantics module regained Psi-owned implementation type {migrated}"
-        );
-    }
+    assert!(
+        !source.contains("pub enum ") && !source.contains("pub struct "),
+        "legacy semantics module must not regain semantic implementations"
+    );
+
+    let byte_predicates_module =
+        root.join("compiler/omega-rs/foundation/omega-core/src/byte_predicates.rs");
+    let source = std::fs::read_to_string(&byte_predicates_module).unwrap_or_else(|error| {
+        panic!(
+            "failed to read {}: {error}",
+            byte_predicates_module.display()
+        )
+    });
+    assert!(
+        source.contains("pub use psi_language_semantics::byte_predicates::*;"),
+        "legacy byte-predicate module must re-export the Psi-owned implementation"
+    );
 
     let arena_module = root.join("compiler/omega-rs/foundation/omega-core/src/arena/mod.rs");
     let source = std::fs::read_to_string(&arena_module)
