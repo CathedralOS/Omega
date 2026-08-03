@@ -1596,10 +1596,12 @@ and allocation handles expose no compiler-owned stack/control storage.
   result-policy adaptation. Half-ULP dual-engine canaries distinguish all three
   directions and prove a following ordinary FMA remains nearest-even. Remaining
   rung-3 work includes x86-64 FMA realization, checked software fallbacks, and
-  rung-4 differential evidence. The first rung-4 slice now retains
-  `omega.float.hardware.macos_arm64.directed-add.v1` plus result identity
-  `0xeb87c478c8a1e513`. That identity binds the six exact selected directed-add
-  plans, binary32/binary64 half-ULP edges, all three directions, control-state
+  rung-4 differential evidence. The first rung-4 slices now retain
+  `omega.float.hardware.macos_arm64.directed-add.v1` /
+  `0xeb87c478c8a1e513` and
+  `omega.float.hardware.macos_arm64.directed-subtract.v1` /
+  `0xc014cab348eb363c`. Each identity binds the family's six exact selected
+  plans, binary32/binary64 midpoint edges, all three directions, control-state
   restoration, interpreter/native results, and Linux x86-64/AArch64 cross-build
   results. Every other admitted hardware realization still needs an equally
   target-specific retained suite result.
