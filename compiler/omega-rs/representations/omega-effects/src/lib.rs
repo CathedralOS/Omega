@@ -1,4 +1,5 @@
 mod capabilities;
+mod executable_tcb_manifest;
 mod selected_provider_plans;
 
 pub use capabilities::analysis::{
@@ -11,5 +12,10 @@ pub use capabilities::provider_approval::{
 pub use capabilities::provider_plan;
 pub use capabilities::providers::{
     BoundaryProvider, BoundaryProviderRegistry, build_provider_registry, validate_provider_bindings,
+};
+pub use executable_tcb_manifest::{
+    ContainmentEvidence, ContainmentGuarantee, ExecutableEntryOrigin, ExecutableIdentity,
+    ExecutableTcbEntry, ExecutableTcbManifest, ExecutionScope, ImplementationEvidence,
+    IncompleteCause, OpaqueInProcessBinding, ProviderIdentity, ScopeCompleteness,
 };
 pub use selected_provider_plans::SelectedProviderPlanFacts;

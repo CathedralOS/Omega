@@ -218,6 +218,11 @@ pub(super) fn write_checked_snapshot(
         options,
         "05_task_activations.json",
         &omega_visualizations::task_activation_manifest_json(checked, task_activations),
+    )?;
+    write_phase_json(
+        options,
+        "05_executable_tcb_manifest.json",
+        &omega_visualizations::executable_tcb_manifest_json(selected_provider_plans),
     )
 }
 
