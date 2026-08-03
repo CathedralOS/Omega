@@ -683,6 +683,16 @@ pub(crate) fn validate_call_node(
         .map(|member| member.as_str())
         .unwrap_or_default();
     let receiver_type = machine_symbols.callable_field_type(receiver);
+    let receiver_type_reference = machine_symbols.state(state_name).and_then(|state| {
+        declared_receiver_type_reference(program, current_machine, state, receiver)
+    });
+
+    if let Some(error) = receiver_type_reference.and_then(|type_reference| {
+        crate::traits::dynamic_requirement_call_error(program, type_reference, call.target.as_str())
+    }) {
+        diagnostics.push(Diagnostic::error(error));
+        return;
+    }
 
     if let Some(machine) = receiver_type
         .and_then(|type_name| symbols.machine(type_name))
@@ -4619,6 +4629,13 @@ fn validate_expression_call_bounds(
                 .and_then(|type_reference| named_type_reference_name(program, type_reference))
         });
 
+    if let Some(error) = receiver_type_reference.and_then(|type_reference| {
+        crate::traits::dynamic_requirement_call_error(program, type_reference, call.target.as_str())
+    }) {
+        diagnostics.push(Diagnostic::error(error));
+        return;
+    }
+
     // N6 attached lift: a quotient has no runtime representative or attached
     // methods of its own, but a checked pure operation attached to its carrier
     // may be used proof-side when a structural respect certificate covers the
@@ -5093,7 +5110,17 @@ fn receiver_declared_type_name<'program>(
     state: &State,
     receiver: &str,
 ) -> Option<&'program str> {
-    let handle = program
+    let handle = declared_receiver_type_reference(program, machine, state, receiver)?;
+    named_type_reference_name(program, handle)
+}
+
+fn declared_receiver_type_reference(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    receiver: &str,
+) -> Option<TypeReferenceHandle> {
+    program
         .state_parameters(state)
         .iter()
         .find(|parameter| parameter.name.as_str() == receiver)
@@ -5127,8 +5154,20 @@ fn receiver_declared_type_name<'program>(
                     .find(|parameter| parameter.name.as_str() == receiver)
                     .map(|parameter| parameter.type_reference)
             })
-        })?;
-    named_type_reference_name(program, handle)
+        })
+        .or_else(|| {
+            let attached_data = machine.attached_data.as_ref()?;
+            let definition = program
+                .data_definitions()
+                .iter()
+                .find(|definition| &definition.name == attached_data)?;
+            program.data_members(definition).iter().find_map(|member| {
+                let psi_typed_trees::data::DataMember::Field(field) = member else {
+                    return None;
+                };
+                (field.name.as_str() == receiver).then_some(field.type_reference)
+            })
+        })
 }
 
 fn named_type_reference_name<'program>(

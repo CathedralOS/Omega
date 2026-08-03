@@ -59,6 +59,71 @@ fn local_dynamic_value_rejects_unbound_generic_trait() {
 }
 
 #[test]
+fn local_dynamic_call_rejects_self_outside_receiver_without_rejecting_trait() {
+    let typed = typed_program_from_source(
+        r#"
+        trait Comparable {
+            machine compare(&self, other: &Self);
+        }
+
+        machine compare_erased(left: &dyn Comparable, right: &dyn Comparable) {
+            left.compare(right);
+        }
+        "#,
+    );
+
+    let diagnostics = validate_program(&typed)
+        .expect_err("Self outside the receiver is absent from the dyn surface");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains(
+            "requirement `Comparable::compare` is absent from `dyn Comparable`: `Self` appears outside the borrowed receiver",
+        )
+    }));
+}
+
+#[test]
+fn local_dynamic_call_keeps_eligible_sibling_available() {
+    let typed = typed_program_from_source(
+        r#"
+        trait Mixed {
+            machine run(&self);
+            machine compare(&self, other: &Self);
+        }
+
+        machine run_erased(value: &dyn Mixed) {
+            value.run();
+        }
+        "#,
+    );
+
+    validate_program(&typed)
+        .expect("an ineligible sibling must not remove an eligible dyn requirement");
+}
+
+#[test]
+fn local_dynamic_call_rejects_self_result() {
+    let typed = typed_program_from_source(
+        r#"
+        trait Cloneable {
+            machine clone(&self) -> Self;
+        }
+
+        machine clone_erased(value: &dyn Cloneable) {
+            value.clone();
+        }
+        "#,
+    );
+
+    let diagnostics =
+        validate_program(&typed).expect_err("a Self result is absent from the dyn surface");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains(
+            "requirement `Cloneable::clone` is absent from `dyn Cloneable`: `Self` appears in the result type",
+        )
+    }));
+}
+
+#[test]
 fn exact_qualification_may_publish_one_checked_content_projection() {
     let typed = typed_program_from_source(
         r#"
