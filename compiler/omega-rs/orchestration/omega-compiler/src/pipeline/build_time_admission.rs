@@ -6,9 +6,10 @@
 //! and must neither suspend nor block, every checked body in its concrete call
 //! closure must carry the ordinary termination guarantee, and no reachable
 //! checked body may declare an unadmitted linear runtime carrier. Authority,
-//! trust, finer resource admission, and failure remain independent axes and
-//! are added here as their checked plans become available. Escaping mutation
-//! is excluded by the evaluator's fresh-value/snapshot boundary.
+//! finer resource admission, and failure remain independent axes and are added
+//! here as their checked plans become available. Authored preconditions reject
+//! until the pre-check invocation supplies a checked proof context. Escaping
+//! mutation is excluded by the evaluator's fresh-value/snapshot boundary.
 
 use psi_language_semantics::{MachineSupplyMode, TerminationGuarantee};
 use psi_symbols::{SymbolHandle, SymbolKind};
@@ -133,6 +134,10 @@ impl BuildTimeAdmissionPlan {
             .find(|machine| machine.symbol == machine_symbol)?;
         path.push(machine.name.as_str().to_owned());
 
+        if let Some(violation) = machine_precondition_violation(program, machine, path) {
+            path.pop();
+            return Some(violation);
+        }
         if let Some(violation) = machine_linear_carrier_violation(program, machine, path) {
             path.pop();
             return Some(violation);
@@ -215,6 +220,35 @@ impl BuildTimeAdmissionPlan {
         path.pop();
         None
     }
+}
+
+fn machine_precondition_violation(
+    program: &TypedTrees,
+    machine: &Machine,
+    path: &[String],
+) -> Option<String> {
+    if has_authored_requires(program.machine_contracts(machine)) {
+        return Some(format!(
+            "machine `{}` has an authored `requires` premise along `{}`; pre-check semantic evaluation has no checked invocation proof for that premise",
+            machine.name,
+            path.join(" -> ")
+        ));
+    }
+    program.machine_states(machine).iter().find_map(|state| {
+        has_authored_requires(program.state_contracts(state)).then(|| {
+            format!(
+                "state `{}` has an authored `requires` premise along `{}`; pre-check semantic evaluation has no checked invocation proof for that premise",
+                state.name,
+                path.join(" -> ")
+            )
+        })
+    })
+}
+
+fn has_authored_requires(contracts: &[psi_typed_trees::signature::SignatureContract]) -> bool {
+    contracts.iter().any(|contract| {
+        contract.kind == psi_typed_trees::signature::SignatureContractKind::Requires
+    })
 }
 
 fn machine_linear_carrier_violation(
@@ -317,6 +351,14 @@ fn callable_contract_violation(
             })
         });
     let signature = signature?;
+
+    if has_authored_requires(program.state_signature_contracts(signature)) {
+        return Some(format!(
+            "callable contract `{}` has an authored `requires` premise along `{}`; pre-check semantic evaluation has no checked invocation proof for that premise",
+            signature.name,
+            path.join(" -> ")
+        ));
+    }
 
     for parameter in program.state_signature_parameters(signature) {
         if parameter.is_self {

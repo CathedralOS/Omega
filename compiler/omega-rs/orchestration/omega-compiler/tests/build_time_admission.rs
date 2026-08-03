@@ -206,3 +206,28 @@ machine Main::main(&mut self) { }
     );
     assert!(error.contains("has no proof/build-admission"), "{error}");
 }
+
+#[test]
+fn const_evaluation_rejects_an_undischarged_authored_precondition() {
+    let error = compile_error(
+        "undischarged-precondition",
+        r#"
+machine length() -> u64
+requires true;
+{
+    4
+}
+
+data Buffer { bytes: [u8; length()]; }
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    );
+
+    assert!(
+        error.contains("machine `length` is not build-time admissible"),
+        "{error}"
+    );
+    assert!(error.contains("authored `requires` premise"), "{error}");
+    assert!(error.contains("no checked invocation proof"), "{error}");
+}
