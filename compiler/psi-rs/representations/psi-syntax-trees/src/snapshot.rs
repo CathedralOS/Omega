@@ -11,7 +11,7 @@ use crate::statement::{
 };
 use crate::syntax_trees::SyntaxTrees;
 use crate::types::{FixedArrayLength, TypeConstraintNode, TypeReferenceNode};
-use omega_core::diagnostics::PhaseSnapshot;
+use psi_diagnostics::PhaseSnapshot;
 use serde::Serialize;
 
 #[cfg(test)]
@@ -538,7 +538,7 @@ pub enum ExpressionSnapshot {
         index: Box<ExpressionSnapshot>,
     },
     Integer {
-        /// Canonical literal spelling (see `omega_core::literals::IntegerLiteral`) --
+        /// Canonical literal spelling (see `psi_numerics::literals::IntegerLiteral`) --
         /// snapshots stay anonymous like the nodes they mirror (D14).
         text: String,
     },
@@ -643,8 +643,8 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
         Item::Data(value) => ItemSnapshot::Data {
             name: snapshot_identifier(&value.name),
             supply: match value.supply_mode {
-                omega_core::semantics::DataSupplyMode::CheckedShape => "checked_shape",
-                omega_core::semantics::DataSupplyMode::BoundaryOpaque => "boundary_opaque",
+                psi_language_core::DataSupplyMode::CheckedShape => "checked_shape",
+                psi_language_core::DataSupplyMode::BoundaryOpaque => "boundary_opaque",
             },
             lifetime_parameters: value
                 .lifetime_parameters
@@ -911,7 +911,7 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
 
 fn snapshot_wire_data_members(
     syntax_trees: &SyntaxTrees,
-    members: omega_core::arena::HandleSpan<WireDataMember>,
+    members: psi_arena::HandleSpan<WireDataMember>,
 ) -> Vec<WireDataMemberSnapshot> {
     syntax_trees
         .items
@@ -1002,7 +1002,7 @@ fn snapshot_type_parameter(
 }
 
 fn snapshot_data_properties(properties: crate::item::DataProperties) -> DataPropertiesSnapshot {
-    use omega_core::semantics::{
+    use psi_language_core::{
         CarryAddress, CarryCpu, CarryHostThread, CarrySuspension, Multiplicity,
     };
     DataPropertiesSnapshot {
@@ -1050,7 +1050,7 @@ fn snapshot_capability_member(
 
 fn snapshot_capability_contracts(
     syntax_trees: &SyntaxTrees,
-    contracts: omega_core::arena::HandleSpan<CapabilityContract>,
+    contracts: psi_arena::HandleSpan<CapabilityContract>,
 ) -> Vec<CapabilityContractSnapshot> {
     syntax_trees
         .items
@@ -1079,7 +1079,7 @@ fn snapshot_capability_contract(
 
 fn snapshot_proof_facts(
     syntax_trees: &SyntaxTrees,
-    facts: omega_core::arena::HandleSpan<ProofFact>,
+    facts: psi_arena::HandleSpan<ProofFact>,
 ) -> Vec<ProofFactSnapshot> {
     syntax_trees
         .items
@@ -1331,7 +1331,7 @@ fn snapshot_statement(syntax_trees: &SyntaxTrees, statement: &StatementNode) -> 
                 .map(|handle| snapshot_expression_handle(syntax_trees, *handle))
                 .collect(),
             acknowledgement_synthesized: call.operational_acknowledgement.origin
-                == omega_core::semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
+                == psi_language_core::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
             acknowledges_suspend: call.operational_acknowledgement.acknowledges_suspend,
             acknowledges_block: call.operational_acknowledgement.acknowledges_block,
         },
@@ -1636,7 +1636,7 @@ fn snapshot_call_expression(
             .map(|handle| snapshot_expression_handle(syntax_trees, *handle))
             .collect(),
         acknowledgement_synthesized: call.operational_acknowledgement.origin
-            == omega_core::semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
+            == psi_language_core::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
         acknowledges_suspend: call.operational_acknowledgement.acknowledges_suspend,
         acknowledges_block: call.operational_acknowledgement.acknowledges_block,
     }

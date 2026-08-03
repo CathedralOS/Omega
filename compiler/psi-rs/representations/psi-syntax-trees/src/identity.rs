@@ -283,7 +283,7 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
 
 fn count_wire_data_members(
     syntax_trees: &SyntaxTrees,
-    members: omega_core::arena::HandleSpan<WireDataMember>,
+    members: psi_arena::HandleSpan<WireDataMember>,
     counts: &mut AstIdentityStorageCounts,
 ) {
     for member in syntax_trees.items.wire_data_members(members) {
@@ -598,10 +598,7 @@ fn count_expression_handle(
     }
 }
 
-fn count_source_text_float(
-    value: &omega_core::source::SourceText,
-    counts: &mut AstIdentityStorageCounts,
-) {
+fn count_source_text_float(value: &psi_source::SourceText, counts: &mut AstIdentityStorageCounts) {
     counts.float_literals += 1;
     if value.is_source_backed() {
         counts.source_float_literals += 1;

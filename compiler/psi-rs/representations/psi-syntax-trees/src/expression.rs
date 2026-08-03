@@ -1,7 +1,7 @@
 use crate::identifier::Identifier;
-use omega_core::arena::{Arena, Handle, HandleSpan};
-use omega_core::literals::IntegerLiteral;
-use omega_core::source::SourceText;
+use psi_arena::{Arena, Handle, HandleSpan};
+use psi_numerics::literals::IntegerLiteral;
+use psi_source::SourceText;
 
 mod display;
 #[cfg(test)]
@@ -163,7 +163,7 @@ pub struct TableAtomicExpression {
     /// Compiler-authored destination for operations that return the value
     /// observed by the atomic instruction. Invalid for load/store.
     pub result: ExpressionHandle,
-    pub ordering: omega_core::atomic::AtomicOrderingPlan,
+    pub ordering: psi_language_core::atomic::AtomicOrderingPlan,
 }
 
 impl Default for ExpressionNode {
@@ -195,7 +195,7 @@ pub struct TableCastExpression {
     pub target_label: HandleSpan<Identifier>,
     /// Arithmetic domain cast (`x as u8 in Saturating`), decision 17 S2. `Exact`
     /// when the cast has no `in <Domain>` suffix.
-    pub domain: omega_core::arithmetic::ArithmeticDomain,
+    pub domain: psi_numerics::arithmetic::ArithmeticDomain,
     /// A NON-policy `in <Name>` suffix (`x as i64 in Km`) -- a semantic-
     /// domain qualification spelling (decision 19). Carried for the checked
     /// layers to judge; EMPTY for policy/no-suffix casts.
@@ -204,7 +204,7 @@ pub struct TableCastExpression {
     /// EMPTY for policy casts and monomorphic declared domains.
     pub semantic_domain_arguments: HandleSpan<crate::types::TypeReferenceHandle>,
     /// Value conversion vs §5b borrow recast (`&x as &T`).
-    pub form: omega_core::cast_form::CastForm,
+    pub form: psi_language_core::cast_form::CastForm,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -246,7 +246,7 @@ pub struct TableCallExpression {
     /// These are declaration identities, never runtime expression values.
     pub machine_arguments: Box<[StaticMachineArgument]>,
     pub arguments: HandleSpan<ExpressionHandle>,
-    pub operational_acknowledgement: omega_core::semantics::CallOperationalAcknowledgement,
+    pub operational_acknowledgement: psi_language_core::CallOperationalAcknowledgement,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

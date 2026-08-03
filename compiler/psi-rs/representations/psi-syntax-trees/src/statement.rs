@@ -1,5 +1,5 @@
 use crate::identifier::Identifier;
-use omega_core::arena::{Arena, Handle, HandleSpan};
+use psi_arena::{Arena, Handle, HandleSpan};
 
 pub type StatementHandle = Handle<StatementNode>;
 pub type TransitionTargetHandle = Handle<TransitionTargetNode>;
@@ -133,7 +133,7 @@ pub struct TableCall {
     pub target: Identifier,
     pub machine_arguments: Box<[crate::expression::StaticMachineArgument]>,
     pub arguments: HandleSpan<crate::expression::ExpressionHandle>,
-    pub operational_acknowledgement: omega_core::semantics::CallOperationalAcknowledgement,
+    pub operational_acknowledgement: psi_language_core::CallOperationalAcknowledgement,
     /// `_ = call();` -- the caller explicitly discards a non-unit result.
     pub discards_result: bool,
 }
@@ -221,7 +221,7 @@ mod tests {
     };
     use crate::expression::{ExpressionNode, ExpressionTable};
     use crate::identifier::Identifier;
-    use omega_core::arena::HandleSpan;
+    use psi_arena::HandleSpan;
 
     #[test]
     fn statement_table_stores_transition_payloads_as_handles() {
@@ -230,11 +230,11 @@ mod tests {
         let path_start = statements.append_identifier_path_member(Identifier::generated("next"));
         let path = HandleSpan::from_parts(path_start, 1);
         let argument_one = expressions.insert(ExpressionNode::Integer(
-            omega_core::literals::IntegerLiteral::from_value(1),
+            psi_numerics::literals::IntegerLiteral::from_value(1),
         ));
         let argument_one = statements.append_expression_handle(argument_one);
         let argument_two = expressions.insert(ExpressionNode::Integer(
-            omega_core::literals::IntegerLiteral::from_value(2),
+            psi_numerics::literals::IntegerLiteral::from_value(2),
         ));
         let _argument_two = statements.append_expression_handle(argument_two);
         let arguments = HandleSpan::from_parts(argument_one, 2);

@@ -1020,6 +1020,8 @@ improvements do not change public identity.
   numerics, host-independent float semantics, arithmetic domains, and literal
   payloads; `psi-source-loader` owns root-file loading; and
   `psi-symbols` owns target-neutral symbol identities and hierarchy storage.
+  `psi-syntax-trees` owns the parsed source representation, with the former
+  Omega crate reduced to a compatibility re-export.
   `psi-source-files-to-tokens` owns Omega lexing with no Omega dependency. The
   former Omega token and lexer crates are now implementation-free compatibility
   re-exports for the unmigrated parser. The checked-tree-to-terminal adapter is

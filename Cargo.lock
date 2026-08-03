@@ -981,9 +981,7 @@ dependencies = [
 name = "omega-syntax-trees"
 version = "0.1.0"
 dependencies = [
- "omega-core",
- "serde",
- "serde_json",
+ "psi-syntax-trees",
 ]
 
 [[package]]
@@ -1286,6 +1284,19 @@ version = "0.1.0"
 dependencies = [
  "psi-arena",
  "psi-source",
+]
+
+[[package]]
+name = "psi-syntax-trees"
+version = "0.1.0"
+dependencies = [
+ "psi-arena",
+ "psi-diagnostics",
+ "psi-language-core",
+ "psi-numerics",
+ "psi-source",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
