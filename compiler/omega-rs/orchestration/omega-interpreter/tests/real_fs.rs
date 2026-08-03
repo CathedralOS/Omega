@@ -711,7 +711,7 @@ machine Main::main(&mut self) {{
         self.passed = self.passed + 1;
         transition true {{ true -> done() _ -> done() }}
     }}
-    state done(&mut self) {{ self.console.exit_process(self.passed); }}
+    state done(&mut self) {{ self.console.exit_process(self.passed as i32); }}
 }}
 "#,
         base = omg_path(&base),
@@ -840,7 +840,7 @@ machine Main::main(&mut self) {{
         self.passed = self.passed + 1;
         transition true {{ true -> done() _ -> done() }}
     }}
-    state done(&mut self) {{ self.console.exit_process(self.passed); }}
+    state done(&mut self) {{ self.console.exit_process(self.passed as i32); }}
 }}
 "#,
         base = omg_path(&base),
