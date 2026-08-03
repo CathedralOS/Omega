@@ -65,18 +65,22 @@ the Psi check.
 The first Psi-owned terminal source producer is live as
 `psi-checked-trees-to-terminal`. It accepts two exact free-machine forms. A
 single-state direct-parameter machine may declare any nonempty sequence of
-ordinary primitive-integer parameters and return one exact named parameter. A
+ordinary primitive-integer parameters and return one exact named parameter or
+one builtin parameter-plus-parameter/literal add/subtract/multiply in the
+settled Wrapping or Saturating domains. A
 two-state machine may carry one typed integer constant through an unconditional
 jump and return either the matching literal or one builtin
 parameter-plus-literal add/subtract/multiply in the settled Wrapping or
 Saturating domains. Both forms require a matching closed
 `requires`/`ensures` pair. The producer rejects all other checked-tree shapes,
 including selected domain-owned operator meanings. The source canary lowers
-all six versioned integer-policy operations and a nine-parameter direct return,
-discards `CheckedTrees`, then verifies and executes the produced semantic
-modules. Wrapping add reaches emitted host machine code, while the ninth `u8`
-return crosses the host incoming-stack ABI. The artifacts therefore have no
-frontend lifetime dependency.
+all six versioned integer-policy operations in both constant-fed and
+runtime-parameter forms plus a nine-parameter direct return, discards
+`CheckedTrees`, then verifies and executes the produced semantic modules.
+Constant-fed wrapping add reaches emitted host machine code; the direct ninth
+`u8` return crosses the host incoming-stack ABI; and runtime wrapping add
+combines the first register argument with the ninth stack argument. The
+artifacts therefore have no frontend lifetime dependency.
 This is the correct ownership direction, but the accepted expression grammar
 remains this deliberately narrow integer/control/contract slice. An
 architecture test keeps one fail-closed `lower_machine` entry. General terminal
@@ -550,7 +554,8 @@ generic installation ladder. Migrating the Cathedral hard-root graph remains.
    return-immediate, host machine code, an owned object artifact, and a direct
    host image whose execution matches interpretation. A nine-parameter source
    machine also returns its ninth `u8` through the selected host incoming-stack
-   ABI. The same exact-text image
+   ABI, and a runtime wrapping-add source machine combines that stack argument
+   with the first register argument. The same exact-text image
    boundary is structurally exercised for all four currently supported
    architecture/format pairs.
 4. Add the remaining arithmetic variants, calls, continuations, cleanup,

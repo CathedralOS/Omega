@@ -326,8 +326,106 @@ fn checked_source_ninth_parameter_reaches_the_host_stack_abi() {
         [EdgeId::new(1).expect("return edge")]
     );
     assert_eq!(
-        run_host_machine_code_with_nine_u8(entry.bytes(&object_artifact)),
+        run_host_machine_code_with_nine_u8(entry.bytes(&object_artifact), 1, 77),
         77
+    );
+}
+
+#[test]
+fn checked_source_runtime_integer_policy_operations_survive_frontend_drop() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("terminal-Psi runtime arithmetic source canary should compile");
+    let cases = [
+        (
+            "terminal_runtime_wrapping_add",
+            vec![100_u128, 2, 3, 4, 5, 6, 7, 8, 200],
+            44_u128,
+            2_u64,
+        ),
+        ("terminal_runtime_saturating_add", vec![200], 255, 3),
+        ("terminal_runtime_wrapping_subtract", vec![5], 251, 3),
+        ("terminal_runtime_saturating_subtract", vec![5], 0, 3),
+        ("terminal_runtime_wrapping_multiply", vec![20], 4, 3),
+        ("terminal_runtime_saturating_multiply", vec![20], 255, 3),
+    ];
+    let lowered = cases
+        .into_iter()
+        .map(|(machine, arguments, expected, fuel)| {
+            (
+                machine,
+                arguments,
+                expected,
+                fuel,
+                lower_machine(&checked, machine)
+                    .unwrap_or_else(|error| panic!("{machine} should lower: {error:?}")),
+            )
+        })
+        .collect::<Vec<_>>();
+    drop(checked);
+
+    let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    for (machine, arguments, expected, fuel, lowered) in lowered {
+        let verified = verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &AdmissionProfile::default(),
+        )
+        .unwrap_or_else(|error| panic!("{machine} terminal Psi should verify: {error:?}"));
+        let fixed_fuel = derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry)
+            .unwrap_or_else(|error| panic!("{machine} should have fixed fuel: {error:?}"));
+        assert_eq!(fixed_fuel.ceiling_units(), fuel, "{machine} fuel");
+        let arguments = arguments
+            .into_iter()
+            .map(|value| TerminalScalarValue::Integer {
+                scalar_type: u8_type,
+                value: IntegerValue::Unsigned(value),
+            })
+            .collect::<Vec<_>>();
+        let measured = interpret_terminal_measured(&verified, &arguments)
+            .unwrap_or_else(|error| panic!("{machine} should execute: {error:?}"));
+        assert_eq!(measured.usage().total_units(), fuel, "{machine} usage");
+        assert_eq!(
+            measured.value(),
+            TerminalScalarValue::Integer {
+                scalar_type: u8_type,
+                value: IntegerValue::Unsigned(expected),
+            },
+            "{machine} result"
+        );
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn source_runtime_wrapping_add_combines_register_and_stack_parameters() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("terminal-Psi runtime arithmetic source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_runtime_wrapping_add")
+        .expect("runtime wrapping add source should lower to terminal Psi");
+    drop(checked);
+
+    let verified = verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("runtime wrapping add terminal Psi should verify");
+    let abstract_operations = lower_verified_module(&verified)
+        .expect("runtime wrapping add should lower without frontend state");
+    let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
+        .expect("runtime wrapping add should select host ABI locations");
+    let machine_code =
+        emit_machine_code(&target_operations).expect("runtime wrapping add should emit");
+    let object_artifact = build_terminal_object_artifact(&machine_code)
+        .expect("runtime wrapping add should form an object artifact");
+    let entry = object_artifact.entry_function();
+    assert_eq!(
+        entry.provenance.operations,
+        [OperationId::new(1).expect("wrapping add")]
+    );
+    assert_eq!(
+        run_host_machine_code_with_nine_u8(entry.bytes(&object_artifact), 100, 200),
+        44
     );
 }
 
@@ -793,7 +891,7 @@ fn run_host_machine_code(bytes: &[u8]) -> i32 {
 }
 
 #[cfg(unix)]
-fn run_host_machine_code_with_nine_u8(bytes: &[u8]) -> i32 {
+fn run_host_machine_code_with_nine_u8(bytes: &[u8], first: u8, ninth: u8) -> i32 {
     let nonce = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .expect("wall clock after epoch")
@@ -819,9 +917,11 @@ fn run_host_machine_code_with_nine_u8(bytes: &[u8]) -> i32 {
             ".text\n.globl terminal_entry\n.type terminal_entry,@function\nterminal_entry:\n.byte {bytes}\n.size terminal_entry, .-terminal_entry\n.section .note.GNU-stack,\"\",@progbits\n"
         )
     };
-    let driver = "#include <stdint.h>\n\
+    let driver = format!(
+        "#include <stdint.h>\n\
 extern uint8_t terminal_entry(uint8_t, uint8_t, uint8_t, uint8_t, uint8_t, uint8_t, uint8_t, uint8_t, uint8_t);\n\
-int main(void) { return terminal_entry(1, 2, 3, 4, 5, 6, 7, 8, 77); }\n";
+int main(void) {{ return terminal_entry({first}, 2, 3, 4, 5, 6, 7, 8, {ninth}); }}\n"
+    );
     std::fs::write(&assembly_path, assembly).expect("write parameter assembly harness");
     std::fs::write(&driver_path, driver).expect("write parameter C harness");
     let link = Command::new("cc")
