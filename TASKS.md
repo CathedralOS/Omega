@@ -1107,10 +1107,11 @@ improvements do not change public identity.
   accepts any sequence of ordinary integer machine parameters, including none,
   and any sequence of at least two states. It lowers a recursively nested
   parameter/literal add/subtract/multiply expression in the settled Wrapping or
-  Saturating domain into each unconditional jump argument and continues through
-  one exact integer block parameter per non-entry state. Optional compile-known
-  propagation crosses every binding, so a closed chain's recomputed result must
-  match its authored reflexive contract.
+  Saturating domain into every unconditional jump argument and continues
+  through the complete ordered sequence of ordinary integer parameters in each
+  non-entry state. Every argument must exactly match its target parameter type.
+  Optional compile-known propagation crosses every binding, so a closed chain's
+  recomputed result must match its authored reflexive contract.
   A second exact form lowers any sequence of ordinary primitive-integer machine
   parameters, including none, and an exact literal, named parameter, or
   recursively nested parameter/literal expression using builtin
@@ -1136,7 +1137,10 @@ improvements do not change public identity.
   derivation, interpretation, and emitted host execution. A parameterized
   three-state companion repeats the computed binding, while a closed
   three-state companion begins from a literal; both agree at their eight-unit
-  ceilings, and the closed twin with an unrelated contract rejects.
+  ceilings, and the closed twin with an unrelated contract rejects. A
+  multi-binding three-state companion carries two independently computed values
+  across both edges and agrees across its ten-unit certificate, interpretation,
+  and emitted host execution.
   Because the
   legacy exit prover cannot establish ordinary `result == literal` contracts,
   this bootstrap canary preserves a closed typed `requires`/`ensures` fact and

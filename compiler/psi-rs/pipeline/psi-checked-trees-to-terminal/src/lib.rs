@@ -759,9 +759,11 @@ fn lower_content_place(
 /// requires L == L
 /// ensures L == L
 /// {
-///     transition { _ -> next(E) }
-///     state next(value: integer) -> integer { transition { _ -> done(E) } }
-///     state done(value: integer) -> integer { E }
+///     transition { _ -> next(E0, E1, ...) }
+///     state next(v0: integer, v1: integer, ...) -> integer {
+///         transition { _ -> done(E0, E1, ...) }
+///     }
+///     state done(v0: integer, v1: integer, ...) -> integer { E }
 /// }
 /// ```
 pub fn lower_machine(
@@ -861,26 +863,33 @@ fn lower_integer_state_chain(
     let mut state_parameter_types = Vec::with_capacity(states.len());
     state_parameter_types.push(parameter_types.clone());
     for state in &states[1..] {
-        let [parameter] = checked.state_parameters(state) else {
-            return unsupported("every non-entry linear state must have exactly one parameter");
-        };
-        if parameter.is_self || parameter.is_const || parameter.is_mutable {
+        let state_parameters = checked.state_parameters(state);
+        if state_parameters
+            .iter()
+            .any(|parameter| parameter.is_self || parameter.is_const || parameter.is_mutable)
+        {
             return unsupported("qualified linear-state parameters are not supported");
         }
         if integer_scalar_type(checked.primitive_type_reference(state.return_type).ok_or(
             LoweringError::Unsupported("linear-state result must be a primitive integer"),
         )?)? != result_type
-            || integer_scalar_type(
-                checked
-                    .primitive_type_reference(parameter.type_reference)
-                    .ok_or(LoweringError::Unsupported(
-                        "linear-state parameter must be a primitive integer",
-                    ))?,
-            )? != result_type
         {
-            return unsupported("machine, state, and carried parameter types must match exactly");
+            return unsupported("machine and state result types must match exactly");
         }
-        state_parameter_types.push(vec![result_type]);
+        state_parameter_types.push(
+            state_parameters
+                .iter()
+                .map(|parameter| {
+                    integer_scalar_type(
+                        checked
+                            .primitive_type_reference(parameter.type_reference)
+                            .ok_or(LoweringError::Unsupported(
+                                "linear-state parameters must be primitive integers",
+                            ))?,
+                    )
+                })
+                .collect::<Result<Vec<_>, _>>()?,
+        );
     }
     if states
         .iter()
@@ -909,24 +918,39 @@ fn lower_integer_state_chain(
         if path.symbol != states[index + 1].symbol {
             return unsupported("a linear-state transition must target the next declared state");
         }
-        let [argument] = checked.statement_table.expression_handles(*arguments) else {
-            return unsupported("a linear-state transition must carry exactly one argument");
-        };
-        let (expression, _) = lower_direct_return_expression(
-            checked,
-            *argument,
-            checked.state_parameters(state),
-            &state_parameter_types[index],
-            result_type,
-        )?;
-        let known_value =
-            evaluate_direct_expression(&expression, &known_parameters, result_integer_type);
-        jump_expressions.push(expression);
-        known_parameters = vec![known_value];
+        let arguments = checked.statement_table.expression_handles(*arguments);
+        let target_types = &state_parameter_types[index + 1];
+        if arguments.len() != target_types.len() {
+            return unsupported(
+                "a linear-state transition must bind every next-state parameter exactly once",
+            );
+        }
+        let mut expressions = Vec::with_capacity(arguments.len());
+        let mut next_known_parameters = Vec::with_capacity(arguments.len());
+        for (argument, target_type) in arguments.iter().zip(target_types) {
+            let (expression, _) = lower_direct_return_expression(
+                checked,
+                *argument,
+                checked.state_parameters(state),
+                &state_parameter_types[index],
+                *target_type,
+            )?;
+            let ScalarType::Integer(target_integer_type) = target_type else {
+                unreachable!("linear state parameters were restricted to integers");
+            };
+            next_known_parameters.push(evaluate_direct_expression(
+                &expression,
+                &known_parameters,
+                *target_integer_type,
+            ));
+            expressions.push(expression);
+        }
+        jump_expressions.push(expressions);
+        known_parameters = next_known_parameters;
     }
 
     let return_state = states.last().expect("linear chain is nonempty");
-    let return_parameter = &checked.state_parameters(return_state)[0];
+    let return_parameters = checked.state_parameters(return_state);
     let return_statements = checked
         .statement_table
         .statements(return_state.statement_nodes);
@@ -936,8 +960,10 @@ fn lower_integer_state_chain(
     let (return_expression, _) = lower_direct_return_expression(
         checked,
         *return_expression,
-        std::slice::from_ref(return_parameter),
-        &[result_type],
+        return_parameters,
+        state_parameter_types
+            .last()
+            .expect("linear chain retains final parameter types"),
         result_type,
     )?;
     let expected_value =
@@ -947,7 +973,7 @@ fn lower_integer_state_chain(
     let (identity_reshuffles, partition_compositions) =
         lower_content_evidence(checked, machine, entry_state)?;
     Ok(build_integer_state_chain_module(
-        &parameter_types,
+        &state_parameter_types,
         jump_expressions,
         return_expression,
         result_type,
@@ -2001,14 +2027,17 @@ fn emit_direct_expression(
 }
 
 fn build_integer_state_chain_module(
-    parameter_types: &[ScalarType],
-    jump_expressions: Vec<LoweredDirectExpression>,
+    state_parameter_types: &[Vec<ScalarType>],
+    jump_expressions: Vec<Vec<LoweredDirectExpression>>,
     return_expression: LoweredDirectExpression,
     result_type: ScalarType,
     contract_value: IntegerValue,
     identity_reshuffles: LoweredContentIdentityReshuffles,
     partition_compositions: LoweredContentPartitionCompositions,
 ) -> LoweredTerminalPsi {
+    let parameter_types = state_parameter_types
+        .first()
+        .expect("linear state chain has an entry state");
     let terminal_parameters = parameter_types
         .iter()
         .enumerate()
@@ -2029,22 +2058,35 @@ fn build_integer_state_chain_module(
     let mut all_operations = Vec::new();
     let mut blocks = Vec::with_capacity(jump_expressions.len() + 1);
     let mut current_parameters = terminal_parameters.clone();
-    for (index, jump_expression) in jump_expressions.iter().enumerate() {
+    for (index, jump_expressions) in jump_expressions.iter().enumerate() {
         let operation_start = all_operations.len();
-        let jump_value = emit_direct_expression(
-            jump_expression,
-            &current_parameters,
-            result_type,
-            &mut next_value_identity,
-            &mut all_operations,
-        );
-        let next_parameter = ValueDeclaration {
-            id: value_id(next_value_identity),
-            scalar_type: result_type,
-        };
-        next_value_identity = next_value_identity
-            .checked_add(1)
-            .expect("generated identities advance after a block parameter");
+        let target_types = &state_parameter_types[index + 1];
+        let jump_values = jump_expressions
+            .iter()
+            .zip(target_types)
+            .map(|(jump_expression, scalar_type)| {
+                emit_direct_expression(
+                    jump_expression,
+                    &current_parameters,
+                    *scalar_type,
+                    &mut next_value_identity,
+                    &mut all_operations,
+                )
+            })
+            .collect::<Vec<_>>();
+        let next_parameters = target_types
+            .iter()
+            .map(|scalar_type| {
+                let parameter = ValueDeclaration {
+                    id: value_id(next_value_identity),
+                    scalar_type: *scalar_type,
+                };
+                next_value_identity = next_value_identity
+                    .checked_add(1)
+                    .expect("generated identities advance after a block parameter");
+                parameter
+            })
+            .collect::<Vec<_>>();
         blocks.push(Block {
             id: block_id(
                 u64::try_from(index)
@@ -2071,10 +2113,10 @@ fn build_integer_state_chain_module(
                         .checked_add(2)
                         .expect("target block identity follows its source"),
                 ),
-                arguments: vec![jump_value],
+                arguments: jump_values,
             },
         });
-        current_parameters = vec![next_parameter];
+        current_parameters = next_parameters;
     }
     let return_operation_start = all_operations.len();
     let return_value = emit_direct_expression(

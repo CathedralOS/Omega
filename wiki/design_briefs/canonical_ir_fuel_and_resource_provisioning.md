@@ -57,7 +57,9 @@ all other shapes. Its canaries drop the frontend trees before terminal
 verification and interpretation; ninth-parameter `bool` and `u8` machines
 additionally cross the selected host incoming-stack ABI, while runtime wrapping
 add combines its ninth stack argument with its first register argument and a
-nested add-then-multiply expression reaches the same native lane. Parsing
+nested add-then-multiply expression reaches the same native lane. A three-state
+companion also carries two independently computed bindings across each
+unconditional edge. Parsing
 through checked semantics and this first terminal producer are now Psi-owned;
 general terminal vocabulary must extend the same direction. The same producer
 independently revalidates checked content
@@ -82,9 +84,10 @@ The next continuation lowers recursive parameter-fed wrapping/saturating
 integer expressions and emits signed or unsigned 8/16/32/64-bit native
 arithmetic on both architectures. A nested `u8` register/stack canary and a
 signed `i64` two-bound canary agree with interpretation through real C ABI
-calls. General register assignment remains separate implementation work; this
-terminal slice uses bounded scratch registers and an aligned AArch64 argument
-spill frame.
+calls. An explicit assigned-target stage validates exact target register homes
+and assigns stable aligned AArch64 plus scratch-conflicting x86-64 input spills
+before terminal emission. Broader liveness allocation, spill reuse, and
+non-scalar homes remain implementation work.
 Semantic v5 and proof format v4 add recursive wrapping-subtract vocabulary;
 semantic v6 and proof format v5 add recursive saturating-subtract vocabulary;
 semantic v7 and proof format v6 add recursive wrapping-multiply vocabulary;
