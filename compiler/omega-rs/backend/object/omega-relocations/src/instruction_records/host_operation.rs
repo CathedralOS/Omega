@@ -6,7 +6,7 @@ use super::super::offsets::{
 };
 use super::context::InstructionRelocationContext;
 use super::queries::selected_host_operation;
-use omega_calling_conventions::HostBindingMechanism;
+use omega_calling_conventions::{HostAbiPlan, HostBinding, HostBindingMechanism, HostOperationKey};
 use omega_object_file::{RelocationRecord, object_symbol_handle_by_name};
 use omega_target_operations::{InstructionOperand, SelectedInstructionKind};
 use psi_arena::HandleSpan;
@@ -40,11 +40,7 @@ fn validate_host_relocation_plan(
     operation_key: omega_calling_conventions::HostOperationKey,
     operands: HandleSpan<InstructionOperand>,
 ) -> Result<(), Diagnostic> {
-    let Some(binding) = find_host_binding(context.input, operation_key) else {
-        // Compiler-materialized constants share the HostOperation carrier but
-        // cross no import seam and deliberately have no selected binding.
-        return Ok(());
-    };
+    let binding = retained_host_binding(context.input.host_abi, operation_key)?;
     let plan = binding.call_plan();
     if !matches!(binding.mechanism, HostBindingMechanism::Import { .. }) {
         return Ok(());
@@ -61,6 +57,23 @@ fn validate_host_relocation_plan(
         plan,
     )?;
     Ok(())
+}
+
+fn retained_host_binding(
+    host_abi: &HostAbiPlan,
+    operation_key: HostOperationKey,
+) -> Result<&HostBinding, Diagnostic> {
+    host_abi
+        .bindings
+        .iter()
+        .find_map(|(_, binding)| (binding.operation_key == operation_key).then_some(binding))
+        .ok_or_else(|| {
+            Diagnostic::error(format!(
+                "cannot plan relocation for selected host operation `{}.{}` without its retained binding",
+                operation_key.capability_name(),
+                operation_key.operation_name()
+            ))
+        })
 }
 
 fn collect_host_operation_call_relocation(
@@ -108,4 +121,22 @@ fn collect_host_operation_call_relocation(
             addend: 0,
             kind: external_call_relocation_kind(context.input.target.architecture),
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::retained_host_binding;
+    use omega_calling_conventions::{
+        HostCapability, HostOperation, HostOperationKey, build_host_abi_plan,
+    };
+    use omega_target::NativeTarget;
+
+    #[test]
+    fn selected_host_operation_without_retained_binding_rejects() {
+        let host_abi = build_host_abi_plan(NativeTarget::linux_x64());
+        let missing = HostOperationKey::new(HostCapability::Unknown, HostOperation::Unknown);
+        let error = retained_host_binding(&host_abi, missing)
+            .expect_err("a selected host operation cannot use the compatibility layout");
+        assert!(error.message.contains("without its retained binding"));
+    }
 }
