@@ -15,8 +15,8 @@ source-backed text;
 `psi-source-files-to-tokens` owns the Omega lexer without depending on any
 Omega crate. The old Omega-named source-to-checked pipeline packages are
 retired; every workspace harness invokes the Psi stages directly. Some
-Omega-named source representation packages remain thin compatibility exports
-for legacy consumers. `omega-compiler` invokes the Psi-owned lexer, parser,
+former Omega-named source representation adapters are retired; legacy
+consumers depend on the Psi owners directly. `omega-compiler` invokes the Psi-owned lexer, parser,
 resolver, typer, checker, and source representations directly, although its
 legacy backend still consumes checked semantics until general terminal
 production replaces that early cut. `psi-core` provides nonzero stable semantic identities, the
@@ -495,10 +495,10 @@ migration remain later slices.
 
 ## Migration plan
 
-1. Continue the established workspace boundary: move or rename the current
-   target-neutral parsing-through-lowering crates under Psi ownership while
-   retaining temporary compatibility adapters. No parser or semantic checker
-   remains on an Omega-to-Psi path.
+1. **Ownership migration complete for source-to-checked packages:** the
+   target-neutral parsing-through-checking crates and representations live
+   under Psi ownership, and their former Omega compatibility packages are
+   retired. No parser or semantic checker remains on an Omega-to-Psi path.
 2. Extend the live stable Psi value, proposition, proof, and place identities
    into the first terminal semantic module without changing the current backend.
    **Initial scalar subsets complete:** frozen v1 integer constants, v2 Boolean

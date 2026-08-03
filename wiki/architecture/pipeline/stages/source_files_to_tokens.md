@@ -55,6 +55,6 @@ Primary responsibility: preserve source identity and split text into tokens.
 
 ## Known Gaps
 
-The next parser stage still consumes the legacy package name through the thin
-compatibility export. Its implementation must move under Psi without moving
-language semantics back into the wrapper.
+The lexer and next parser stage both consume Psi-owned packages directly. Some
+nonfrontend consumers still use `omega-core::source` compatibility module paths;
+that shared-foundation migration is independent of this stage's ownership.

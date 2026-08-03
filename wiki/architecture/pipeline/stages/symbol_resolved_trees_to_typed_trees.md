@@ -59,8 +59,8 @@ Must not own:
 The implementation should make typed semantic surfaces visible by file:
 
 - `compiler/psi-rs/pipeline/psi-symbol-resolved-trees-to-typed-trees` owns the
-  stage implementation. The old Omega package is an implementation-free
-  compatibility export for unmigrated orchestration.
+  stage implementation. The old Omega compatibility package is retired; all
+  workspace consumers invoke the Psi stage directly.
 
 - `compiler/psi-rs/foundation/psi-language-semantics` owns canonical
   const-value atoms and normalized wire scalar ranges used by typed
