@@ -49,6 +49,10 @@ semantic_id!(
     "Stable identity of one terminal-Psi structural place."
 );
 semantic_id!(
+    ClaimId,
+    "Stable machine-local identity of one owned claim in a terminal-Psi claim frontier."
+);
+semantic_id!(
     ContentDomainId,
     "Stable identity of one exact content-bearing semantic domain."
 );
@@ -93,5 +97,6 @@ mod tests {
     fn semantic_ids_reject_the_reserved_zero_value() {
         assert!(ValueId::new(0).is_none());
         assert_eq!(ValueId::new(7).expect("nonzero identity").get(), 7);
+        assert!(ClaimId::new(0).is_none());
     }
 }

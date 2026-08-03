@@ -1,8 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use psi_core::{
-    BlockId, ContractId, EdgeId, MachineId, ObligationId, OperationId, PlaceId, Proposition,
-    PropositionContext, PropositionError, ScalarTerm, ScalarType, ValueId,
+    BlockId, ClaimId, ContentAlgebra, ContentProjectionIdentity, ContentStructuralPlace,
+    ContractId, EdgeId, MachineId, ObligationId, OperationId, PlaceId, Proposition,
+    PropositionContext, PropositionError, ScalarTerm, ScalarType, StructuralPlaceKind, ValueId,
 };
 use psi_terminal::{OperationKind, SemanticVersion, TerminalMachine, TerminalModule, Terminator};
 
@@ -49,6 +50,7 @@ pub fn validate_module(
             | SemanticVersion::V7
             | SemanticVersion::V8
             | SemanticVersion::V9
+            | SemanticVersion::V10
     ) {
         return Err(ModuleError::UnsupportedSemanticVersion(
             module.semantic_version,
@@ -89,6 +91,7 @@ struct IdRegistry {
     obligations: BTreeSet<ObligationId>,
     values: BTreeSet<ValueId>,
     places: BTreeSet<PlaceId>,
+    content_projection_algebras: BTreeMap<ContentProjectionIdentity, ContentAlgebra>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -116,6 +119,16 @@ fn validate_machine(
             actual: semantic_version,
         });
     }
+    if semantic_version < SemanticVersion::V10 && !machine.content_identity_reshuffles.is_empty() {
+        return Err(
+            ModuleError::ContentIdentityReshufflesRequireSemanticVersion {
+                machine: machine.id,
+                required: SemanticVersion::V10,
+                actual: semantic_version,
+            },
+        );
+    }
+    let mut structural_place_kinds = BTreeMap::new();
     for place in &machine.structural_places {
         insert_unique(&mut registry.places, place.id, ModuleError::DuplicatePlace)?;
         let root = match place.kind {
@@ -130,6 +143,7 @@ fn validate_machine(
                 kind: place.kind,
             });
         }
+        structural_place_kinds.insert(place.id, place.kind);
     }
     for declaration in machine
         .parameters
@@ -304,6 +318,7 @@ fn validate_machine(
             .map(|place| (place.id, place.kind)),
     )
     .map_err(ModuleError::MalformedProposition)?;
+    validate_content_identity_reshuffles(machine, registry, &structural_place_kinds, &context)?;
     let requires_values = machine
         .parameters
         .iter()
@@ -352,6 +367,111 @@ fn validate_machine(
     }
 
     validate_straight_line_flow(machine, &blocks, &value_types)
+}
+
+fn validate_content_identity_reshuffles(
+    machine: &TerminalMachine,
+    registry: &mut IdRegistry,
+    structural_place_kinds: &BTreeMap<PlaceId, StructuralPlaceKind>,
+    context: &PropositionContext,
+) -> Result<(), ModuleError> {
+    let mut claims = BTreeSet::<ClaimId>::new();
+    let mut inputs = BTreeSet::<ContentStructuralPlace>::new();
+    let mut outputs = BTreeSet::<ContentStructuralPlace>::new();
+    for reshuffle in &machine.content_identity_reshuffles {
+        insert_unique(&mut claims, reshuffle.claim, ModuleError::DuplicateClaim)?;
+        if reshuffle.projections.is_empty() {
+            return Err(ModuleError::ContentIdentityReshuffleHasNoProjections(
+                reshuffle.claim,
+            ));
+        }
+        if reshuffle
+            .projections
+            .windows(2)
+            .any(|pair| pair[0] >= pair[1])
+        {
+            return Err(ModuleError::NonCanonicalContentIdentityProjectionOrder(
+                reshuffle.claim,
+            ));
+        }
+        if reshuffle.input.version != psi_core::ContentPlaceVersion::Entry
+            || !matches!(
+                structural_place_kinds.get(&reshuffle.input.root),
+                Some(StructuralPlaceKind::Parameter { .. })
+            )
+        {
+            return Err(ModuleError::ContentIdentityReshuffleRequiresEntryParameter(
+                reshuffle.claim,
+            ));
+        }
+        if reshuffle.output.version != psi_core::ContentPlaceVersion::Current
+            || !matches!(
+                structural_place_kinds.get(&reshuffle.output.root),
+                Some(StructuralPlaceKind::Result)
+            )
+        {
+            return Err(ModuleError::ContentIdentityReshuffleRequiresCurrentResult(
+                reshuffle.claim,
+            ));
+        }
+        if inputs.contains(&reshuffle.input) {
+            return Err(ModuleError::DuplicateContentIdentityInput(
+                reshuffle.input.clone(),
+            ));
+        }
+        if let Some(previous) = inputs
+            .iter()
+            .find(|previous| content_places_overlap(previous, &reshuffle.input))
+        {
+            return Err(ModuleError::OverlappingContentIdentityInput {
+                first: previous.clone(),
+                second: reshuffle.input.clone(),
+            });
+        }
+        inputs.insert(reshuffle.input.clone());
+        if outputs.contains(&reshuffle.output) {
+            return Err(ModuleError::DuplicateContentIdentityOutput(
+                reshuffle.output.clone(),
+            ));
+        }
+        if let Some(previous) = outputs
+            .iter()
+            .find(|previous| content_places_overlap(previous, &reshuffle.output))
+        {
+            return Err(ModuleError::OverlappingContentIdentityOutput {
+                first: previous.clone(),
+                second: reshuffle.output.clone(),
+            });
+        }
+        outputs.insert(reshuffle.output.clone());
+        for (content, proposition) in reshuffle
+            .projections
+            .iter()
+            .zip(reshuffle.inferred_propositions())
+        {
+            if let Some(previous) = registry
+                .content_projection_algebras
+                .insert(content.projection, content.algebra.clone())
+                && previous != content.algebra
+            {
+                return Err(ModuleError::ContentProjectionAlgebraMismatch(
+                    content.projection,
+                ));
+            }
+            context
+                .validate(&proposition)
+                .map_err(ModuleError::MalformedProposition)?;
+        }
+    }
+    Ok(())
+}
+
+fn content_places_overlap(left: &ContentStructuralPlace, right: &ContentStructuralPlace) -> bool {
+    if left.version != right.version || left.root != right.root {
+        return false;
+    }
+    let shared = left.segments.len().min(right.segments.len());
+    left.segments[..shared] == right.segments[..shared]
 }
 
 fn validate_proposition_semantic_version(
@@ -800,6 +920,7 @@ pub enum ModuleError {
     DuplicateObligation(ObligationId),
     DuplicateValue(ValueId),
     DuplicatePlace(PlaceId),
+    DuplicateClaim(ClaimId),
     DuplicateStructuralPlaceRoot {
         machine: MachineId,
         kind: psi_core::StructuralPlaceKind,
@@ -821,6 +942,26 @@ pub enum ModuleError {
         required: SemanticVersion,
         actual: SemanticVersion,
     },
+    ContentIdentityReshufflesRequireSemanticVersion {
+        machine: MachineId,
+        required: SemanticVersion,
+        actual: SemanticVersion,
+    },
+    ContentIdentityReshuffleHasNoProjections(ClaimId),
+    NonCanonicalContentIdentityProjectionOrder(ClaimId),
+    ContentIdentityReshuffleRequiresEntryParameter(ClaimId),
+    ContentIdentityReshuffleRequiresCurrentResult(ClaimId),
+    DuplicateContentIdentityInput(ContentStructuralPlace),
+    DuplicateContentIdentityOutput(ContentStructuralPlace),
+    OverlappingContentIdentityInput {
+        first: ContentStructuralPlace,
+        second: ContentStructuralPlace,
+    },
+    OverlappingContentIdentityOutput {
+        first: ContentStructuralPlace,
+        second: ContentStructuralPlace,
+    },
+    ContentProjectionAlgebraMismatch(ContentProjectionIdentity),
     ContentConservationRequiresEnsures {
         contract: ContractId,
     },

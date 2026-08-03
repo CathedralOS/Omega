@@ -127,7 +127,11 @@ fn reconstruct_semantic_axioms(machine: &TerminalMachine) -> Vec<Proposition> {
         )
     };
 
-    let mut axioms = Vec::new();
+    let mut axioms = machine
+        .content_identity_reshuffles
+        .iter()
+        .flat_map(|reshuffle| reshuffle.inferred_propositions())
+        .collect::<Vec<_>>();
     let mut current = machine.entry;
     loop {
         let block = blocks

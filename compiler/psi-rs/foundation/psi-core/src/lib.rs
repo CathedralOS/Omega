@@ -18,8 +18,9 @@ pub use content::{
     StructuralPlaceKind,
 };
 pub use identity::{
-    AdmissionSiteId, BlockId, ContentDomainId, ContractId, EdgeId, EvidenceIdentity, MachineId,
-    ObligationId, OperationId, PlaceId, ProfileDecisionId, PropositionId, PsiSemanticId, ValueId,
+    AdmissionSiteId, BlockId, ClaimId, ContentDomainId, ContractId, EdgeId, EvidenceIdentity,
+    MachineId, ObligationId, OperationId, PlaceId, ProfileDecisionId, PropositionId, PsiSemanticId,
+    ValueId,
 };
 pub use proposition::{
     IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext, PropositionError,

@@ -1,8 +1,9 @@
 use std::num::NonZeroU16;
 
 use psi_core::{
-    BlockId, ContractId, EdgeId, IntegerValue, MachineId, ObligationId, OperationId, PlaceId,
-    Proposition, ScalarType, StructuralPlaceKind, ValueId,
+    BlockId, ClaimId, ContentAlgebra, ContentConservation, ContentProjectionIdentity,
+    ContentStructuralPlace, ContentTerm, ContractId, EdgeId, IntegerValue, MachineId, ObligationId,
+    OperationId, PlaceId, Proposition, ScalarType, StructuralPlaceKind, ValueId,
 };
 
 /// Version of the in-memory terminal-Psi semantic vocabulary.
@@ -15,6 +16,8 @@ use psi_core::{
 /// `WrappingIntegerMultiply`; version 8 adds `SaturatingIntegerMultiply`.
 /// Version 9 adds structural-place declarations and content-conservation
 /// propositions without adding an executable operation.
+/// Version 10 adds canonical identity-preserving claim reshuffles from which
+/// the verifier reconstructs one-to-one content equalities.
 /// Older bytes retain their original meaning and identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SemanticVersion(NonZeroU16);
@@ -29,7 +32,8 @@ impl SemanticVersion {
     pub const V7: Self = Self(NonZeroU16::new(7).expect("seven is nonzero"));
     pub const V8: Self = Self(NonZeroU16::new(8).expect("eight is nonzero"));
     pub const V9: Self = Self(NonZeroU16::new(9).expect("nine is nonzero"));
-    pub const CURRENT: Self = Self::V9;
+    pub const V10: Self = Self(NonZeroU16::new(10).expect("ten is nonzero"));
+    pub const CURRENT: Self = Self::V10;
 
     pub fn new(raw: u16) -> Option<Self> {
         NonZeroU16::new(raw).map(Self)
@@ -62,6 +66,10 @@ pub struct TerminalMachine {
     /// Proof-visible roots for structural-place propositions. Runtime scalar
     /// parameters remain independently declared above.
     pub structural_places: Vec<StructuralPlaceDeclaration>,
+    /// Canonical one-to-one claim mappings. These are semantic ownership facts,
+    /// not authored algebra theorems: each exact projection below yields one
+    /// verifier-reconstructed equality between `input` and `output`.
+    pub content_identity_reshuffles: Vec<ContentIdentityReshuffle>,
     pub entry: BlockId,
     pub blocks: Vec<Block>,
     pub contract: MachineContract,
@@ -71,6 +79,39 @@ pub struct TerminalMachine {
 pub struct StructuralPlaceDeclaration {
     pub id: PlaceId,
     pub kind: StructuralPlaceKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ClaimContentProjection {
+    pub projection: ContentProjectionIdentity,
+    pub algebra: ContentAlgebra,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContentIdentityReshuffle {
+    pub claim: ClaimId,
+    pub input: ContentStructuralPlace,
+    pub output: ContentStructuralPlace,
+    /// Strictly ordered by `(projection, algebra)` in canonical modules.
+    pub projections: Vec<ClaimContentProjection>,
+}
+
+impl ContentIdentityReshuffle {
+    pub fn inferred_propositions(&self) -> impl Iterator<Item = Proposition> + '_ {
+        self.projections.iter().map(|content| {
+            Proposition::ContentConservation(ContentConservation::new(
+                content.algebra.clone(),
+                ContentTerm::Projection {
+                    projection: content.projection,
+                    subject: self.input.clone(),
+                },
+                ContentTerm::Projection {
+                    projection: content.projection,
+                    subject: self.output.clone(),
+                },
+            ))
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

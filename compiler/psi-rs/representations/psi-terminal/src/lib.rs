@@ -7,8 +7,9 @@
 //! explicit wrapping integer addition, v4 adds saturating integer addition,
 //! v5 adds wrapping integer subtraction, v6 adds saturating integer
 //! subtraction, v7 adds wrapping integer multiplication, v8 adds saturating
-//! integer multiplication, and current v9 adds proof-only structural-place
-//! content conservation. This small executable slice
+//! integer multiplication, v9 adds proof-only structural-place content
+//! conservation, and current v10 adds identity-preserving claim reshuffles.
+//! This small executable slice
 //! exercises values, control, bodyful contracts, and one width-relative
 //! arithmetic policy without pretending that branching or other arithmetic
 //! policies have already been specified. Every later operation extends this
