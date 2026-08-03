@@ -74,6 +74,7 @@ Omega/
 |   |   |   |-- [CRATE] psi-symbol-resolved-trees/      # Source trees with resolved symbol identity.
 |   |   |   |-- [CRATE] psi-typed-trees/                # Typed source semantics without target realization state.
 |   |   |   |-- [CRATE] psi-facts/                      # Durable checked places, contexts, and semantic fact plans.
+|   |   |   |-- [CRATE] psi-effects/                    # Target-neutral operational, reach, invocation, and capability-flow facts.
 |   |   |   `-- [CRATE] psi-terminal/                   # Self-contained terminal module and closed operation vocabulary.
 |   |   |-- pipeline/
 |   |   |   |-- [CRATE] psi-source-files-to-tokens/     # Psi-owned Omega source lexer.
@@ -99,7 +100,7 @@ Omega/
 |   |   |-- [CRATE] omega-symbol-resolved-trees/        # SymbolResolvedTrees: syntax shape with declaration/reference symbols resolved.
 |   |   |-- [CRATE] omega-typed-trees/                  # Transitional re-export of Psi-owned typed trees.
 |   |   |-- [CRATE] omega-facts/                        # Transitional re-export of Psi-owned checked fact vocabulary.
-|   |   |-- [CRATE] omega-effects/                      # Effect-set, capability, and provider data shapes embedded in later IRs.
+|   |   |-- [CRATE] omega-effects/                      # Omega provider bindings/admission plus transitional Psi-effect exports.
 |   |   |-- [CRATE] omega-checked-trees/                # Typed trees plus checked semantic facts after validation/proof-facing checks.
 |   |   |-- [CRATE] omega-state-graph/                  # Explicit machine/state graph for proof and scheduling.
 |   |   |-- [CRATE] omega-control-flow/                 # Control-flow/data-flow graph.
@@ -259,9 +260,11 @@ Omega/
 - `psi-facts` carries checked facts, invariants, and refinement data: what
   remains true. The old `omega-facts` name is a compatibility export while
   downstream Omega consumers migrate to terminal Psi.
-- `omega-effects` remains a temporary mixed-ownership data-shape crate. Split
-  target-neutral operational/reach/invocation semantics into Psi before moving
-  it; provider bindings and installation evidence remain Omega-owned.
+- `psi-effects` carries target-neutral operational ceilings, service reach,
+  synchronous invocation summaries, and capability-flow facts. `omega-effects`
+  retains provider declarations, target/provider bindings, approval, and
+  installation-facing records while re-exporting the Psi facts for legacy
+  consumers.
 - `omega-validation` answers cross-semantic obligations, including who may read
   or mutate and what a callable requires or promises.
 - `omega-proof` discharges obligations.

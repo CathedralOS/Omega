@@ -5,13 +5,13 @@
 //! parameters through checked helpers: `Parameter(n)` always denotes the
 //! nth non-`self` entry parameter of the machine whose summary carries it.
 
-use omega_core::symbols::SymbolHandle;
-use omega_typed_trees::TypedTrees;
-use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
-use omega_typed_trees::machine::Machine;
-use omega_typed_trees::signature::StateSignature;
-use omega_typed_trees::state::State;
-use omega_typed_trees::statement::{StatementNode, TableCall};
+use psi_symbols::SymbolHandle;
+use psi_typed_trees::TypedTrees;
+use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
+use psi_typed_trees::machine::Machine;
+use psi_typed_trees::signature::StateSignature;
+use psi_typed_trees::state::State;
+use psi_typed_trees::statement::{StatementNode, TableCall};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InvocationTarget {
@@ -202,7 +202,7 @@ fn build_machine_work(program: &TypedTrees, machine: &Machine) -> MachineWork {
         symbol: machine.symbol,
         published: published.clone(),
         uses_published: machine.supply_mode
-            != omega_core::semantics::MachineSupplyMode::CheckedBody
+            != psi_language_semantics::MachineSupplyMode::CheckedBody
             || !program.machine_invokes(machine).is_empty(),
         direct: direct.clone(),
         transitive: direct,
@@ -237,8 +237,7 @@ fn collect_statement_calls(
             collect_expression_calls(program, machine, state, local.initial_value, direct, calls);
         }
         StatementNode::Transition(transition) => {
-            if let omega_typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard
-            {
+            if let psi_typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard {
                 collect_expression_calls(program, machine, state, guard, direct, calls);
             }
             collect_transition_target_expression_calls(
@@ -268,7 +267,7 @@ fn collect_transition_target_expression_calls(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
-    target: omega_typed_trees::statement::TransitionTargetHandle,
+    target: psi_typed_trees::statement::TransitionTargetHandle,
     direct: &mut Vec<InvocationTarget>,
     calls: &mut Vec<CallWork>,
 ) {
@@ -276,16 +275,16 @@ fn collect_transition_target_expression_calls(
         return;
     }
     match program.statement_table.transition_target(target) {
-        omega_typed_trees::statement::TransitionTargetNode::Named { arguments, .. } => {
+        psi_typed_trees::statement::TransitionTargetNode::Named { arguments, .. } => {
             for argument in program.statement_table.expression_handles(*arguments) {
                 collect_expression_calls(program, machine, state, *argument, direct, calls);
             }
         }
-        omega_typed_trees::statement::TransitionTargetNode::Value(expression) => {
+        psi_typed_trees::statement::TransitionTargetNode::Value(expression) => {
             collect_expression_calls(program, machine, state, *expression, direct, calls);
         }
-        omega_typed_trees::statement::TransitionTargetNode::SelfTarget
-        | omega_typed_trees::statement::TransitionTargetNode::Terminal => {}
+        psi_typed_trees::statement::TransitionTargetNode::SelfTarget
+        | psi_typed_trees::statement::TransitionTargetNode::Terminal => {}
     }
 }
 
@@ -402,7 +401,7 @@ fn boundary_service_for_receiver_path(
     machine: &Machine,
     state: &State,
     head_symbol: SymbolHandle,
-    path: &[omega_typed_trees::name::Identifier],
+    path: &[psi_typed_trees::name::Identifier],
 ) -> Option<SymbolHandle> {
     let mut type_reference = type_reference_for_symbol(program, machine, state, head_symbol)
         .or_else(|| {
@@ -430,7 +429,7 @@ fn boundary_service_for_receiver_path(
             .iter()
             .find(|definition| definition.symbol == owner_symbol)?;
         let field = program.data_members(definition).iter().find_map(|member| {
-            let omega_typed_trees::data::DataMember::Field(field) = member else {
+            let psi_typed_trees::data::DataMember::Field(field) = member else {
                 return None;
             };
             (field.name.as_str() == member_name.as_str()).then_some(field)
@@ -445,7 +444,7 @@ fn type_reference_for_symbol(
     machine: &Machine,
     state: &State,
     symbol: SymbolHandle,
-) -> Option<omega_typed_trees::types::TypeReferenceHandle> {
+) -> Option<psi_typed_trees::types::TypeReferenceHandle> {
     program
         .state_parameters(state)
         .iter()
@@ -466,7 +465,7 @@ fn type_reference_for_symbol(
                     .find(|definition| definition.name.as_str() == name.as_str())
             })?;
             program.data_members(definition).iter().find_map(|member| {
-                let omega_typed_trees::data::DataMember::Field(field) = member else {
+                let psi_typed_trees::data::DataMember::Field(field) = member else {
                     return None;
                 };
                 (field.symbol == symbol).then_some(field.type_reference)
@@ -588,8 +587,8 @@ fn machine_symbol_for_state(program: &TypedTrees, state: SymbolHandle) -> Symbol
 
 fn declared_targets(
     program: &TypedTrees,
-    names: &[omega_typed_trees::name::Identifier],
-    parameters: &[&omega_typed_trees::signature::StateParameter],
+    names: &[psi_typed_trees::name::Identifier],
+    parameters: &[&psi_typed_trees::signature::StateParameter],
 ) -> Vec<InvocationTarget> {
     let mut targets = Vec::new();
     for name in names {
@@ -614,7 +613,7 @@ fn declared_targets(
 fn machine_entry_parameters<'a>(
     program: &'a TypedTrees,
     machine: &Machine,
-) -> Vec<&'a omega_typed_trees::signature::StateParameter> {
+) -> Vec<&'a psi_typed_trees::signature::StateParameter> {
     program
         .machine_states(machine)
         .first()
@@ -693,7 +692,7 @@ fn origin_for_symbol(
                 .data_members(definition)
                 .iter()
                 .find_map(|member| match member {
-                    omega_typed_trees::data::DataMember::Field(field) if field.symbol == symbol => {
+                    psi_typed_trees::data::DataMember::Field(field) if field.symbol == symbol => {
                         Some(field)
                     }
                     _ => None,
@@ -705,7 +704,7 @@ fn origin_for_symbol(
 
 fn boundary_service_for_type(
     program: &TypedTrees,
-    type_reference: omega_typed_trees::types::TypeReferenceHandle,
+    type_reference: psi_typed_trees::types::TypeReferenceHandle,
 ) -> Option<SymbolHandle> {
     let symbol = program
         .type_reference_table

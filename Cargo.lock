@@ -444,6 +444,7 @@ dependencies = [
  "omega-core",
  "omega-syntax-trees",
  "omega-typed-trees",
+ "psi-effects",
 ]
 
 [[package]]
@@ -1236,6 +1237,16 @@ name = "psi-diagnostics"
 version = "0.1.0"
 dependencies = [
  "psi-source",
+]
+
+[[package]]
+name = "psi-effects"
+version = "0.1.0"
+dependencies = [
+ "psi-arena",
+ "psi-language-semantics",
+ "psi-symbols",
+ "psi-typed-trees",
 ]
 
 [[package]]
