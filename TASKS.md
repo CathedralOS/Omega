@@ -960,10 +960,13 @@ improvements do not change public identity.
   task-stack composer now validates exact local frame summaries and derives the
   maximum aligned live chain over acyclic same-stack calls; sibling calls share
   capacity, opaque same-stack leaves require explicit admissions, and malformed
-  graphs reject. Compiler call-graph collection, binding that evidence into the
-  emitted `StackPlan`, fixed-stack reservation, cancellation conformance,
-  transactional argument custody, routed task-claim establishment, and
-  task-claim provenance remain.
+  graphs reject. Opaque leaf admissions are now sealed results: their identity
+  binds the exact selected provider plan, authored requirement, independent
+  admission receipt, bytes, and alignment; provider/requirement drift and
+  malformed demand reject before graph composition. Compiler call-graph
+  collection, binding that evidence into the emitted `StackPlan`, fixed-stack
+  reservation, cancellation conformance, transactional argument custody,
+  routed task-claim establishment, and task-claim provenance remain.
 - **PSIIR — IMPLEMENTATION WORK:** build the terminal Psi boundary settled in
   `wiki/architecture/pipeline/terminal_psi.md`. Psi owns Omega-file parsing
   through one concrete, post-instantiation semantic module; Omega starts at
@@ -1808,11 +1811,16 @@ move it to a convenience library.
   only their selected trait. Concrete specialization requires one matching
   nominal conformance (or the exact named carrier), checks conformance
   arguments, pins the obligation in the template fingerprint, rewrites the
-  selected attached-state symbol, and erases the discharged bound. The Psi
-  interpreter and native backend both carry a mutable generic receiver's exact
+  selected attached-state symbol, and erases the discharged bound. Generic
+  trait-header obligations are now enforced at every static application site:
+  standalone data conformances, machine conformances, trait parents, and
+  generic bounds all discharge nested or exact-named obligations from nominal
+  conformances or the enclosing generic evidence, and ambiguous or absent
+  evidence rejects at the authored relationship. The Psi interpreter and
+  native backend both carry a mutable generic receiver's exact
   caller-field base through receiverless helpers; the static-dispatch canary
-  runs without a dictionary in either engine. Enforcing generic trait-header
-  obligations at each trait application and coercion consumption remain.
+  runs without a dictionary in either engine. Dynamic coercion consumption of
+  the selected complete conformance remains.
   Local descriptors must not cross replaceable component boundaries. Add owned
   erased **runtime** values only after general storage ownership,
   size/alignment metadata, and cleanup contracts can support them; N6's
