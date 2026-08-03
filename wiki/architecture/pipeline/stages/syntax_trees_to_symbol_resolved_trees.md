@@ -51,8 +51,8 @@ Must not own:
 The implementation should stay split by identity task:
 
 - `compiler/psi-rs/pipeline/psi-syntax-trees-to-symbol-resolved-trees` owns the
-  stage implementation. The old Omega package is an implementation-free
-  compatibility export for unmigrated orchestration.
+  stage implementation. The old Omega compatibility package is retired; all
+  workspace consumers invoke the Psi stage directly.
 
 - `compiler/psi-rs/representations/psi-symbol-resolved-trees` owns the stage
   output. The unused `omega-symbol-resolved-trees` compatibility package is

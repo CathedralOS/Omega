@@ -963,7 +963,8 @@ improvements do not change public identity.
   `psi-proof` owns source proof-surface collection, obligation planning, and
   checking; the unused former `omega-proof` package is retired.
   `psi-typed-trees-to-checked-trees` owns semantic checking and checked-fact
-  construction; the old Omega package is a compatibility export. Boundary
+  construction; the unused former Omega compatibility package is retired.
+  Boundary
   provider approval now runs explicitly in Omega orchestration after the Psi
   check instead of entering the checker dependency graph.
   `psi-effects` owns operational ceilings, service reach, synchronous
@@ -1168,10 +1169,12 @@ improvements do not change public identity.
   and producer state are discarded, and produces identical interpreted and
   native behavior; no Omega-side lowering crate used by that path depends on
   `TypedTrees` or `ExpressionHandle`. **Initial acceptance canary complete;**
-  continue vocabulary and ownership migration rather than widening the
-  compatibility adapter. The adapter is now restored to that one exact
-  integer/control/contract `lower_machine` entry; an architecture test rejects
-  content-plan, identity-reshuffle, or partition-composition APIs there.
+  continue vocabulary and ownership migration in the Psi producer rather than
+  reintroducing a reverse bridge. The producer exposes one exact executable
+  integer/control/contract `lower_machine` entry plus independent checked
+  content-plan, identity-reshuffle, and partition-composition translators. An
+  architecture test pins exactly one `lower_machine` entry and rejects return
+  of the deleted Omega-to-Psi package.
 - **IRFUEL — IMPLEMENTATION WORK:** implement the settled
   `wiki/design_briefs/canonical_ir_fuel_and_resource_provisioning.md` sequence:
   versioned terminal Psi and fuel schedule, evaluator/interpreter metering,

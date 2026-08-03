@@ -41,7 +41,9 @@ current packages.
 > `foundation/psi-source`, `foundation/psi-core`, `representations/psi-tokens`,
 > `representations/psi-terminal`, `pipeline/psi-source-files-to-tokens`,
 > `semantics/psi-proof-kernel`, and `semantics/psi-terminal-verifier`; parsing-through-
-> lowering crates move there incrementally with compatibility adapters. The
+> lowering crates now live there; their former Omega package adapters are
+> retired. Shared `omega-core` module re-exports remain a separate incremental
+> foundation migration. The
 > diagram still uses the old unprefixed shorthand for the larger Omega tree.
 > `compiler/` also holds the bootstrap lattice rungs documented in
 > [TASKS_BOOTSTRAP.md](../../TASKS_BOOTSTRAP.md).
