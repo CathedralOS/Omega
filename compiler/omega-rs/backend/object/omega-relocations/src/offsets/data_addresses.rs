@@ -13,8 +13,32 @@ pub(crate) struct FieldModelCallShape {
 }
 
 #[allow(clippy::too_many_arguments)]
-#[cfg(test)]
-pub(crate) fn data_address_relocation_offset_for_target(
+pub(crate) fn data_address_relocation_offset_for_target_with_plan(
+    target: NativeTarget,
+    operation_key: Option<HostOperationKey>,
+    operands: &[InstructionOperand],
+    selected_text_offset: usize,
+    operand_index: usize,
+    is_syscall: bool,
+    field_model_shape: Option<FieldModelCallShape>,
+    authored_import: bool,
+    authoritative_plan: &omega_calling_conventions::CallPlan,
+) -> usize {
+    data_address_relocation_offset_for_target_optional_plan(
+        target,
+        operation_key,
+        operands,
+        selected_text_offset,
+        operand_index,
+        is_syscall,
+        field_model_shape,
+        authored_import,
+        Some(authoritative_plan),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn data_address_relocation_offset_for_target_no_plan(
     target: NativeTarget,
     operation_key: Option<HostOperationKey>,
     operands: &[InstructionOperand],
@@ -24,7 +48,7 @@ pub(crate) fn data_address_relocation_offset_for_target(
     field_model_shape: Option<FieldModelCallShape>,
     authored_import: bool,
 ) -> usize {
-    data_address_relocation_offset_for_target_with_plan(
+    data_address_relocation_offset_for_target_optional_plan(
         target,
         operation_key,
         operands,
@@ -38,7 +62,7 @@ pub(crate) fn data_address_relocation_offset_for_target(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn data_address_relocation_offset_for_target_with_plan(
+fn data_address_relocation_offset_for_target_optional_plan(
     target: NativeTarget,
     operation_key: Option<HostOperationKey>,
     operands: &[InstructionOperand],
@@ -579,7 +603,7 @@ fn data_address_relocation_offset_with_plan(
 mod tests {
     use super::{
         FieldModelCallShape, data_address_relocation_offset,
-        data_address_relocation_offset_for_target,
+        data_address_relocation_offset_for_target_no_plan,
         data_address_relocation_offset_for_target_with_plan,
     };
     use omega_assigned_target_operations::{InstructionOperand, InstructionOperandKind};
@@ -623,7 +647,7 @@ mod tests {
         ));
 
         assert_eq!(
-            data_address_relocation_offset_for_target(
+            data_address_relocation_offset_for_target_no_plan(
                 NativeTarget::macos_arm64(),
                 operation,
                 &operands,
@@ -636,7 +660,7 @@ mod tests {
             24
         );
         assert_eq!(
-            data_address_relocation_offset_for_target(
+            data_address_relocation_offset_for_target_no_plan(
                 NativeTarget::macos_arm64(),
                 operation,
                 &operands,
@@ -772,7 +796,7 @@ mod tests {
                 false,
                 None,
                 true,
-                Some(&plan),
+                &plan,
             ),
             24
         );
@@ -808,7 +832,7 @@ mod tests {
                 false,
                 None,
                 false,
-                Some(&plan),
+                &plan,
             ),
             24
         );
@@ -875,7 +899,7 @@ mod tests {
         let operation = Some(omega_calling_conventions::HostOperationKey::default());
 
         assert_eq!(
-            data_address_relocation_offset_for_target(
+            data_address_relocation_offset_for_target_no_plan(
                 NativeTarget::linux_x64(),
                 operation,
                 &operands,
@@ -888,7 +912,7 @@ mod tests {
             26
         );
         assert_eq!(
-            data_address_relocation_offset_for_target(
+            data_address_relocation_offset_for_target_no_plan(
                 NativeTarget::linux_x64(),
                 operation,
                 &operands,
@@ -901,7 +925,7 @@ mod tests {
             43
         );
         assert_eq!(
-            data_address_relocation_offset_for_target(
+            data_address_relocation_offset_for_target_no_plan(
                 NativeTarget::linux_x64(),
                 operation,
                 &operands,
@@ -947,7 +971,7 @@ mod tests {
                 false,
                 vtable,
                 false,
-                Some(&source_plan),
+                &source_plan,
             ),
             26
         );
@@ -961,7 +985,7 @@ mod tests {
                 false,
                 vtable,
                 false,
-                Some(&source_plan),
+                &source_plan,
             ),
             73
         );
@@ -975,7 +999,7 @@ mod tests {
                 false,
                 vtable,
                 false,
-                Some(&source_plan),
+                &source_plan,
             ),
             26
         );
@@ -989,7 +1013,7 @@ mod tests {
                 false,
                 vtable,
                 false,
-                Some(&source_plan),
+                &source_plan,
             ),
             73
         );
@@ -1014,7 +1038,7 @@ mod tests {
                 false,
                 table,
                 false,
-                Some(&table_plan),
+                &table_plan,
             ),
             26
         );
@@ -1028,7 +1052,7 @@ mod tests {
                 false,
                 table,
                 false,
-                Some(&table_plan),
+                &table_plan,
             ),
             43
         );
@@ -1042,7 +1066,7 @@ mod tests {
                 false,
                 table,
                 false,
-                Some(&table_plan),
+                &table_plan,
             ),
             73
         );
@@ -1130,7 +1154,7 @@ mod tests {
                 false,
                 shape,
                 false,
-                Some(&plan),
+                &plan,
             ),
             44
         );
@@ -1144,7 +1168,7 @@ mod tests {
                 false,
                 shape,
                 false,
-                Some(&plan),
+                &plan,
             ),
             20
         );
@@ -1175,7 +1199,7 @@ mod tests {
                 false,
                 shape,
                 false,
-                Some(&source_plan),
+                &source_plan,
             ),
             36
         );
@@ -1212,7 +1236,7 @@ mod tests {
                 false,
                 shape,
                 false,
-                Some(&float_plan),
+                &float_plan,
             ),
             44
         );
@@ -1264,7 +1288,7 @@ mod tests {
                     false,
                     shape,
                     false,
-                    Some(&plan),
+                    &plan,
                 ),
                 20
             );
@@ -1278,7 +1302,7 @@ mod tests {
                     false,
                     shape,
                     false,
-                    Some(&plan),
+                    &plan,
                 ),
                 32
             );
@@ -1327,7 +1351,7 @@ mod tests {
                 false,
                 shape,
                 false,
-                Some(&plan),
+                &plan,
             ),
             24
         );
@@ -1341,7 +1365,7 @@ mod tests {
                 false,
                 shape,
                 false,
-                Some(&plan),
+                &plan,
             ),
             44
         );

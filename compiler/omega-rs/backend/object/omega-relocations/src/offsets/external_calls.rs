@@ -4,14 +4,14 @@ use omega_target::{Architecture, NativeTarget};
 use omega_target_operations::InstructionOperandLike;
 
 #[cfg(test)]
-pub(crate) fn external_call_relocation_offset<T: InstructionOperandLike>(
+pub(crate) fn external_call_relocation_offset_no_plan<T: InstructionOperandLike>(
     target: NativeTarget,
     operation_key: HostOperationKey,
     selected_text_offset: usize,
     operands: &[T],
     authored_import: bool,
 ) -> usize {
-    external_call_relocation_offset_with_plan(
+    external_call_relocation_offset_optional_plan(
         target,
         operation_key,
         selected_text_offset,
@@ -22,6 +22,24 @@ pub(crate) fn external_call_relocation_offset<T: InstructionOperandLike>(
 }
 
 pub(crate) fn external_call_relocation_offset_with_plan<T: InstructionOperandLike>(
+    target: NativeTarget,
+    operation_key: HostOperationKey,
+    selected_text_offset: usize,
+    operands: &[T],
+    authored_import: bool,
+    authoritative_plan: &omega_calling_conventions::CallPlan,
+) -> usize {
+    external_call_relocation_offset_optional_plan(
+        target,
+        operation_key,
+        selected_text_offset,
+        operands,
+        authored_import,
+        Some(authoritative_plan),
+    )
+}
+
+fn external_call_relocation_offset_optional_plan<T: InstructionOperandLike>(
     target: NativeTarget,
     operation_key: HostOperationKey,
     selected_text_offset: usize,
@@ -152,7 +170,9 @@ pub(crate) fn external_call_relocation_kind(architecture: Architecture) -> Reloc
 
 #[cfg(test)]
 mod tests {
-    use super::{external_call_relocation_offset, external_call_relocation_offset_with_plan};
+    use super::{
+        external_call_relocation_offset_no_plan, external_call_relocation_offset_with_plan,
+    };
     use omega_assigned_target_operations::{InstructionOperand, InstructionOperandKind};
     use omega_calling_conventions::{
         CallSignature, CallingPolicy, HostCapability, HostOperation, HostOperationKey,
@@ -186,7 +206,7 @@ mod tests {
         ];
 
         assert_eq!(
-            external_call_relocation_offset(
+            external_call_relocation_offset_no_plan(
                 NativeTarget::macos_arm64(),
                 HostOperationKey::new(HostCapability::Filesystem, HostOperation::OpenCreate),
                 20,
@@ -226,7 +246,7 @@ mod tests {
         ];
 
         assert_eq!(
-            external_call_relocation_offset(
+            external_call_relocation_offset_no_plan(
                 NativeTarget::linux_x64(),
                 omega_calling_conventions::HostOperationKey::default(),
                 20,
@@ -273,7 +293,7 @@ mod tests {
                 20,
                 &operands,
                 true,
-                Some(&plan),
+                &plan,
             ),
             36
         );
@@ -306,7 +326,7 @@ mod tests {
                 20,
                 &operands,
                 false,
-                Some(&plan),
+                &plan,
             ),
             36
         );

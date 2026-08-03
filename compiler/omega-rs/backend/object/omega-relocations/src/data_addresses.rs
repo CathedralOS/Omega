@@ -2,7 +2,10 @@ use crate::RelocationPlanningInput;
 use crate::data_address_records::insert_data_address_relocations;
 use crate::lookups::find_host_binding;
 use crate::offsets::FieldModelCallShape;
-use crate::offsets::data_address_relocation_offset_for_target_with_plan;
+use crate::offsets::{
+    data_address_relocation_offset_for_target_no_plan,
+    data_address_relocation_offset_for_target_with_plan,
+};
 use omega_calling_conventions::{HostBindingMechanism, HostOperationKey};
 use omega_object_file::{
     ObjectSymbolHandle, RelocationPlan, object_symbol_handle_by_name, storage_region_symbol_name,
@@ -84,17 +87,29 @@ pub(super) fn collect_data_address_relocations(
                 relocation_plan,
                 function_symbol_handle,
                 selected_instruction_index,
-                data_address_relocation_offset_for_target_with_plan(
-                    input.target,
-                    operation_key,
-                    operands,
-                    selected_text_offset,
-                    operand_index,
-                    is_syscall,
-                    field_model_shape,
-                    authored_import,
-                    authoritative_plan,
-                ),
+                match authoritative_plan {
+                    Some(plan) => data_address_relocation_offset_for_target_with_plan(
+                        input.target,
+                        operation_key,
+                        operands,
+                        selected_text_offset,
+                        operand_index,
+                        is_syscall,
+                        field_model_shape,
+                        authored_import,
+                        plan,
+                    ),
+                    None => data_address_relocation_offset_for_target_no_plan(
+                        input.target,
+                        operation_key,
+                        operands,
+                        selected_text_offset,
+                        operand_index,
+                        is_syscall,
+                        field_model_shape,
+                        authored_import,
+                    ),
+                },
                 symbol,
             );
             continue;
@@ -145,17 +160,29 @@ pub(super) fn collect_data_address_relocations(
                 relocation_plan,
                 function_symbol_handle,
                 selected_instruction_index,
-                data_address_relocation_offset_for_target_with_plan(
-                    input.target,
-                    operation_key,
-                    operands,
-                    selected_text_offset,
-                    operand_index,
-                    is_syscall,
-                    field_model_shape,
-                    authored_import,
-                    authoritative_plan,
-                ),
+                match authoritative_plan {
+                    Some(plan) => data_address_relocation_offset_for_target_with_plan(
+                        input.target,
+                        operation_key,
+                        operands,
+                        selected_text_offset,
+                        operand_index,
+                        is_syscall,
+                        field_model_shape,
+                        authored_import,
+                        plan,
+                    ),
+                    None => data_address_relocation_offset_for_target_no_plan(
+                        input.target,
+                        operation_key,
+                        operands,
+                        selected_text_offset,
+                        operand_index,
+                        is_syscall,
+                        field_model_shape,
+                        authored_import,
+                    ),
+                },
                 symbol,
             );
         }
