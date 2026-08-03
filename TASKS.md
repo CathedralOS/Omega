@@ -936,11 +936,11 @@ improvements do not change public identity.
   numerics, host-independent float semantics, arithmetic domains, and literal
   payloads; `psi-source-loader` owns root-file loading; and
   `psi-symbols` owns target-neutral symbol identities and hierarchy storage.
-  `psi-syntax-trees` owns the parsed source representation, with the former
-  Omega crate reduced to a compatibility re-export.
+  `psi-syntax-trees` owns the parsed source representation; the unused former
+  Omega compatibility package is retired.
   `psi-symbol-resolved-trees` owns the source-shaped representation carrying
-  resolved symbol identities, with the former Omega crate reduced to a
-  compatibility re-export.
+  resolved symbol identities; the unused former Omega compatibility package
+  is retired.
   `psi-typed-trees` owns the target-neutral typed source representation, with
   the former Omega crate reduced to a compatibility re-export. Typed boundary
   identities retain semantic keys and canonical fingerprints only; concrete
@@ -955,10 +955,10 @@ improvements do not change public identity.
   `psi-validation` owns target-neutral cross-semantic source validation;
   `omega-validation` is a compatibility export whose retained tests also cover
   the separate Omega provider-admission subsystem.
-  `psi-types` owns the unresolved source type-surface analysis;
-  `omega-types` is now only a compatibility export.
+  `psi-types` owns the unresolved source type-surface analysis; the unused
+  former `omega-types` package is retired.
   `psi-proof` owns source proof-surface collection, obligation planning, and
-  checking; `omega-proof` is now only a compatibility export.
+  checking; the unused former `omega-proof` package is retired.
   `psi-typed-trees-to-checked-trees` owns semantic checking and checked-fact
   construction; the old Omega package is a compatibility export. Boundary
   provider approval now runs explicitly in Omega orchestration after the Psi

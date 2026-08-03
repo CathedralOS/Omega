@@ -320,14 +320,6 @@ fn frontend_implementation_is_psi_owned() {
             "compiler/omega-rs/semantics/omega-validation/src/lib.rs",
             "pub use psi_validation::*;",
         ),
-        (
-            "compiler/omega-rs/semantics/omega-proof/src/lib.rs",
-            "pub use psi_proof::*;",
-        ),
-        (
-            "compiler/omega-rs/semantics/omega-types/src/lib.rs",
-            "pub use psi_types::*;",
-        ),
     ] {
         let path = root.join(relative);
         let source = std::fs::read_to_string(&path)
@@ -550,6 +542,8 @@ fn retired_omega_frontend_adapters_do_not_return() {
         "compiler/omega-rs/representations/omega-tokens",
         "compiler/omega-rs/representations/omega-symbol-resolved-trees",
         "compiler/omega-rs/representations/omega-syntax-trees",
+        "compiler/omega-rs/semantics/omega-proof",
+        "compiler/omega-rs/semantics/omega-types",
     ] {
         assert!(
             !root.join(relative).join("Cargo.toml").exists(),
