@@ -336,7 +336,13 @@ interpreter edges distinguish the three meanings and prove following ordinary
 arithmetic remains nearest-even. AArch64 also selects the six directed FMA
 slots and balances each requested FPCR direction around one scalar `FMADD`.
 x86-64 FMA, checked software fallbacks, and admitted-hardware differential
-evidence remain.
+evidence remain. The first retained differential result is
+`omega.float.hardware.macos_arm64.directed-add.v1` /
+`0xeb87c478c8a1e513`: it binds the six exact selected plan identities to
+binary32/binary64 half-ULP cases, the three requested directions, control-state
+restoration, interpreter/native outputs, and Linux x86-64/AArch64 cross-build
+success. This is one target/family slice, not evidence for the remaining
+hardware realizations.
 
 ## 2. Domains: the value/policy split
 
