@@ -804,6 +804,12 @@ identity.
 
 #### ENT3 — final state-footprint validation
 
+**DESIGN BLOCKED (OWNER_QUESTIONS Q2).** The exact final executable-region
+inventory, compiler-text relocation envelope, checked-assembly validation, and
+format-owned import-thunk validators are live. Completing the general
+compiler-function decoder and composing admitted leaves requires the canonical
+certificate/decoder trust boundary for static and dynamically loaded artifacts.
+
 - Finish enumeration of compiler-generated entry/body regions.
 - Validate final placed bytes after relocation, thunks, veneers, and generated
   stubs against `StatePlan`.
@@ -1578,6 +1584,9 @@ ordinary code never receives a raw executable address.
 
 - **ENTRY-CONTENT-ROOTS:** blocked on `OWNER_QUESTIONS.md` Q1's stable semantic
   owner/identity for image and initial-storage handoff roots.
+- **ENT3:** blocked on `OWNER_QUESTIONS.md` Q2's final artifact-footprint
+  certificate format, trusted decoder surface, and admitted-leaf composition
+  boundary.
 - **TERMINAL-CONTENT-CLAIMS:** blocked on a versioned terminal-Psi entry-claim
   binding that identifies a partition theorem's consumed inputs without
   asserting the stronger, false one-to-one input/output equality. This also

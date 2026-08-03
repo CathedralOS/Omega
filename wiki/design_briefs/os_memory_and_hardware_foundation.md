@@ -1647,7 +1647,7 @@ These are the remaining design questions, not permission to invent local
 syntax while implementing:
 
 - the final artifact-footprint certificate format and validation boundary for
-  static and dynamically loaded admitted artifacts.
+  static and dynamically loaded admitted artifacts (`OWNER_QUESTIONS.md` Q2).
 
 Dynamic source-visible entry references, movable continuations, asynchronous
 revocation, live patching policy, general quantitative resource/WCET algebra,
