@@ -342,10 +342,12 @@ evidence remain. The first retained differential results are
 `omega.float.hardware.macos_arm64.directed-subtract.v1` /
 `0xc014cab348eb363c`, plus
 `omega.float.hardware.macos_arm64.directed-multiply.v1` /
-`0xec7e7bae35b056cb`. Each binds its six exact selected plan identities to
+`0xec7e7bae35b056cb` and
+`omega.float.hardware.macos_arm64.directed-divide.v1` /
+`0xb6dc18215e0c4019`. Each binds its six exact selected plan identities to
 binary32/binary64 rounding-edge cases, the three requested directions,
 control-state restoration, interpreter/native outputs, and Linux
-x86-64/AArch64 cross-build success. These are three target/family slices, not
+x86-64/AArch64 cross-build success. These are four target/family slices, not
 evidence for the remaining hardware realizations.
 
 ## 2. Domains: the value/policy split

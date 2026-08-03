@@ -1604,8 +1604,10 @@ and allocation handles expose no compiler-owned stack/control storage.
   `omega.float.hardware.macos_arm64.directed-subtract.v1` /
   `0xc014cab348eb363c`, plus
   `omega.float.hardware.macos_arm64.directed-multiply.v1` /
-  `0xec7e7bae35b056cb`. Each identity binds the family's six exact selected
-  plans, binary32/binary64 rounding edges, all three directions, control-state
+  `0xec7e7bae35b056cb` and
+  `omega.float.hardware.macos_arm64.directed-divide.v1` /
+  `0xb6dc18215e0c4019`. Each identity binds the family's six exact selected plans,
+  binary32/binary64 rounding edges, all three directions, control-state
   restoration, interpreter/native results, and Linux x86-64/AArch64 cross-build
   results. Every other admitted hardware realization still needs an equally
   target-specific retained suite result.
