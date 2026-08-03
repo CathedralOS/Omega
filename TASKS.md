@@ -829,9 +829,11 @@ Remaining:
   accidentally select hardcoded placement. The AArch64 ordinary, authored,
   vtable, and table-function normalizer carries the same explicit mode through
   its final plan validation/evaluation choice; optional plan context no longer
-  selects the production-versus-oracle route there either. The x86-64
-  external/data relocation walker consumes the same explicit mode, keeping
-  encoded bytes and relocation accounting on one authority route.
+  selects the production-versus-oracle route there either. The x86-64 Win64
+  and SysV ordinary-import marshallers and their relocation planners now carry
+  that mode through their final plan validation/evaluation choice as well. The
+  x86-64 external/data relocation walker consumes the same explicit mode,
+  keeping encoded bytes and relocation accounting on one authority route.
   The crate-local object call/data offset helpers enforce the same
   required-plan/named-no-plan split.
   AArch64 vtable/service-table plan normalization and field-call data
