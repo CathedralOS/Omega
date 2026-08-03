@@ -893,7 +893,7 @@ fn evaluate_materialized_calling_policy_plan(
         .iter()
         .find(|machine| machine.name.as_str() == policy_machine)
         .ok_or_else(|| format!("no calling-policy machine named `{policy_machine}` exists"))?;
-    admission.require_service_and_operational_floor(typed, machine)?;
+    admission.require_common_floor(typed, machine)?;
 
     let value = omega_interpreter::evaluate_build_time_machine(
         typed,

@@ -108,7 +108,7 @@ fn evaluate_policy(
         .iter()
         .find(|machine| machine.name.as_str() == policy_machine)
         .ok_or_else(|| format!("no machine named `{policy_machine}` exists"))?;
-    BuildTimeAdmissionPlan::infer(typed).require_service_and_operational_floor(typed, machine)?;
+    BuildTimeAdmissionPlan::infer(typed).require_common_floor(typed, machine)?;
     omega_interpreter::evaluate_build_time_machine(typed, policy_machine, arguments).map_err(
         |reason| {
             format!(

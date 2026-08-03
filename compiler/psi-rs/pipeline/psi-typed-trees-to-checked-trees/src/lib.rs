@@ -46,6 +46,25 @@ pub fn specialize_static_machine_calls(
     monomorphization::monomorphize_generic_machine_value_calls(program)
 }
 
+/// Derive the checked body-local termination summary for one typed machine.
+///
+/// Constant and plan positions must run before checked lowering because their
+/// values refine the typed program. This exposes the checker's pure judgment
+/// for those admission sites while keeping the proof implementation single-
+/// sourced with the facts produced by [`lower_typed_trees`].
+pub fn infer_machine_termination_summary(
+    program: &psi_typed_trees::TypedTrees,
+    machine_symbol: psi_symbols::SymbolHandle,
+) -> Option<psi_language_semantics::TerminationGuarantee> {
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == machine_symbol)?;
+    Some(checks::termination::infer_machine_checked_summary(
+        program, machine,
+    ))
+}
+
 pub use monomorphization::{
     generic_machine_template_fingerprint, refresh_closed_domain_instance_identities,
 };

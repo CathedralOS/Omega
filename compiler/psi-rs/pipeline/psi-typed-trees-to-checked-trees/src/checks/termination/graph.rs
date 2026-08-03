@@ -193,6 +193,20 @@ fn target_state_index(
         TransitionTargetNode::Value(_) | TransitionTargetNode::Terminal => return None,
     };
 
+    if target_symbol == machine.symbol {
+        let entry_name = machine
+            .name
+            .as_str()
+            .rsplit("::")
+            .next()
+            .unwrap_or_default();
+        return program
+            .machine_states(machine)
+            .iter()
+            .position(|state| state.name.as_str() == entry_name)
+            .or_else(|| (!program.machine_states(machine).is_empty()).then_some(0));
+    }
+
     program
         .machine_states(machine)
         .iter()

@@ -117,11 +117,33 @@ pub(crate) fn check_machine_termination(
 pub(crate) fn build_termination_facts(
     program: &psi_typed_trees::TypedTrees,
 ) -> psi_checked_trees::TerminationFacts {
-    use psi_language_semantics::TerminationGuarantee;
-
     let mut machines = Vec::new();
     for machine in program.machines() {
-        let established = if retired_subtraction_message(program, machine).is_some() {
+        machines.push(psi_checked_trees::MachineTerminationFact {
+            machine: machine.symbol,
+            checked_summary: infer_machine_checked_summary(program, machine),
+            resolved_view_path: ranking::machine_resolved_view_path(program, machine),
+        });
+    }
+    psi_checked_trees::TerminationFacts { machines }
+}
+
+/// Derive the same body-local termination summary retained in checked facts.
+///
+/// This query deliberately shares the graph and ranking implementation with
+/// checked lowering. Pre-check consumers such as semantic-evaluation admission
+/// need the judgment before they can materialize constants into the typed
+/// program; they must not grow a second approximation of termination.
+pub(crate) fn infer_machine_checked_summary(
+    program: &psi_typed_trees::TypedTrees,
+    machine: &psi_typed_trees::machine::Machine,
+) -> psi_language_semantics::TerminationGuarantee {
+    use psi_language_semantics::TerminationGuarantee;
+
+    let established =
+        if machine.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody {
+            false
+        } else if retired_subtraction_message(program, machine).is_some() {
             false
         } else if !graph::machine_has_cycle(program, machine) {
             true
@@ -133,19 +155,14 @@ pub(crate) fn build_termination_facts(
         } else {
             false
         };
-        machines.push(psi_checked_trees::MachineTerminationFact {
-            machine: machine.symbol,
-            checked_summary: if established {
-                TerminationGuarantee::Terminates {
-                    premises: Vec::new(),
-                }
-            } else {
-                TerminationGuarantee::NoGuarantee
-            },
-            resolved_view_path: ranking::machine_resolved_view_path(program, machine),
-        });
+
+    if established {
+        TerminationGuarantee::Terminates {
+            premises: Vec::new(),
+        }
+    } else {
+        TerminationGuarantee::NoGuarantee
     }
-    psi_checked_trees::TerminationFacts { machines }
 }
 
 /// Render the diagnostic for a plain `terminates by value` clause whose value has
