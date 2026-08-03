@@ -1199,6 +1199,16 @@ impl AdmittedEntryQualification {
         &self.abi_placement
     }
 
+    /// Match the semantic subject and exact normalized placement consumed by
+    /// one generated entry-prologue parameter capture.
+    pub fn matches_parameter_placement(
+        &self,
+        parameter_index: usize,
+        placement: &ValuePlacement,
+    ) -> bool {
+        self.parameter_index == parameter_index && self.abi_placement == *placement
+    }
+
     pub fn domain(&self) -> &str {
         &self.domain
     }
@@ -3652,6 +3662,17 @@ mod tests {
             &interrupt_boundary().plan().call.parameters[0],
             "the live admitted occurrence must retain the exact ABI placement for its semantic parameter"
         );
+        assert!(
+            pending_qualification
+                .matches_parameter_placement(0, &interrupt_boundary().plan().call.parameters[0])
+        );
+        assert!(
+            !pending_qualification
+                .matches_parameter_placement(1, &interrupt_boundary().plan().call.parameters[0])
+        );
+        let mut drifted_placement = interrupt_boundary().plan().call.parameters[0].clone();
+        drifted_placement.locations.clear();
+        assert!(!pending_qualification.matches_parameter_placement(0, &drifted_placement));
         assert_eq!(
             pending_qualification.domain,
             "InterruptAcknowledgement::Pending"

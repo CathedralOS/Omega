@@ -45,9 +45,9 @@ pub use layout_plans::{
     LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport, compute_layout_plan,
 };
 pub use provider_plans::{
-    SelectedExternalRootEntryFactBinding, SelectedExternalRootProviderPlan,
-    selected_external_root_entry_fact_bindings, selected_external_root_provider_plan,
-    selected_external_root_provider_plan_id,
+    AdmittedExternalRootEntryFactHandoff, SelectedExternalRootEntryFactBinding,
+    SelectedExternalRootProviderPlan, selected_external_root_entry_fact_bindings,
+    selected_external_root_provider_plan, selected_external_root_provider_plan_id,
 };
 pub use psi_access_plans::{ValidatedAccessPlan, ValidatedPlacementPlan};
 pub use psi_layout_plans::{

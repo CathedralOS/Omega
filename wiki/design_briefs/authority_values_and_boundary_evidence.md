@@ -655,8 +655,13 @@ parameter fact and admits the occurrence only when plan, requirement, semantic
 parameter position, domain, and carry policy all match. The admitted occurrence
 retains that semantic position beside the exact placement from the validated
 boundary plan, and an out-of-range position rejects before installation.
-Concrete compiler entry lowering still must consume that admitted match before
-entering the checked adapter body; the selected schema alone remains
+Generated entry-prologue derivation now retains the exact semantic parameter
+position, normalized ABI placement, destination, and generated write range.
+The Omega sidecar can produce a borrowed body-handoff carrier only by joining
+that row and propagated checked parameter fact to the matching live occurrence;
+index or placement drift rejects, and no detachable receipt is created. The
+concrete provider entry executor still must require this carrier when it
+dispatches the checked adapter body; the selected schema alone remains
 insufficient.
 
 Mask transitions use the ordinary routed-result path. Core's `Active` domain

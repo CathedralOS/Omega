@@ -1758,7 +1758,9 @@ fn select_normalized_entry_argument_writes(
         indirect_result_pointer_byte_offset,
     )
     .expect("runtime entry must lower from its validated boundary plan");
-    let crate::DerivedBoundaryEntryStorage { writes, footprint } = entry_storage;
+    let crate::DerivedBoundaryEntryStorage {
+        writes, footprint, ..
+    } = entry_storage;
     for kind in writes {
         selected_instructions.push(SelectedInstruction {
             kind,

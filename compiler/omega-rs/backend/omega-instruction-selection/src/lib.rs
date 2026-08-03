@@ -7,7 +7,7 @@ pub mod widths;
 
 pub use encoding::*;
 pub use entry::{
-    DerivedBoundaryEntryStorage, DerivedBoundaryExit,
+    DerivedBoundaryEntryParameterStorage, DerivedBoundaryEntryStorage, DerivedBoundaryExit,
     derive_boundary_call_return_mechanics_footprint, derive_boundary_dispatch_scaffold_footprint,
     derive_boundary_entry_slice_descriptor_footprint, derive_boundary_entry_storage,
     derive_boundary_entry_storage_writes, derive_boundary_exit,
