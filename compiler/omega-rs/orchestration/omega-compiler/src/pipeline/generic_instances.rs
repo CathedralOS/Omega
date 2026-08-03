@@ -1411,7 +1411,7 @@ fn validate_const_index_type(
         TypeReferenceNode::Unit => Ok(()),
         TypeReferenceNode::Reference { .. }
         | TypeReferenceNode::Slice { .. }
-        | TypeReferenceNode::DynamicTrait(_)
+        | TypeReferenceNode::DynamicTrait { .. }
         | TypeReferenceNode::Generic { .. }
         | TypeReferenceNode::FixedArray { .. }
         | TypeReferenceNode::ConstExpression(_)
@@ -1930,7 +1930,7 @@ fn normalize_template_type_reference(
             );
             Ok(())
         }
-        TypeReferenceNode::DynamicTrait(_)
+        TypeReferenceNode::DynamicTrait { .. }
         | TypeReferenceNode::Named(_)
         | TypeReferenceNode::SelfType
         | TypeReferenceNode::Unit => Ok(()),
