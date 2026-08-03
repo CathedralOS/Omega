@@ -28,6 +28,7 @@ struct Candidate {
     state_symbols: Vec<SymbolHandle>,
     type_parameters: Vec<(SymbolHandle, String)>,
     parameter_bounds: Vec<Vec<psi_validation::DeclaredPropertyRequirement>>,
+    conformance_bounds: Vec<psi_typed_trees::machine::GenericConformanceBound>,
     type_bindings: Vec<Option<TypeReferenceHandle>>,
     const_parameters: Vec<(SymbolHandle, String, TypeReferenceHandle)>,
     const_bindings: Vec<Option<TypeReferenceHandle>>,
@@ -143,6 +144,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
             machine_bindings: vec![None; machine_parameters.len()],
             type_parameters,
             parameter_bounds,
+            conformance_bounds: machine.conformance_bounds.clone(),
             const_parameters,
             machine_parameters,
             conflicted: false,
@@ -311,8 +313,20 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         })
         .collect();
 
-    let approved = approved_type_bounds(program, &candidates);
     let mut diagnostics = Vec::new();
+    let approved = approved_type_bounds(program, &candidates);
+    let conformance_approved = candidates
+        .iter()
+        .map(
+            |candidate| match validate_candidate_conformance_bounds(program, candidate) {
+                Ok(()) => true,
+                Err(mut errors) => {
+                    diagnostics.append(&mut errors);
+                    false
+                }
+            },
+        )
+        .collect::<Vec<_>>();
     let mut applied_any = false;
     for (candidate_index, approved) in approved.into_iter().enumerate() {
         if multi_tuple_candidates.contains(&candidate_index) {
@@ -360,6 +374,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
             continue;
         }
         if !approved
+            || !conformance_approved[candidate_index]
             || candidate.type_bindings.iter().any(Option::is_none)
             || candidate.const_bindings.iter().any(Option::is_none)
             || candidate.machine_bindings.iter().any(Option::is_none)
@@ -1344,6 +1359,141 @@ fn approved_type_bounds(program: &TypedTrees, candidates: &[Candidate]) -> Vec<b
         .collect()
 }
 
+fn validate_candidate_conformance_bounds(
+    program: &TypedTrees,
+    candidate: &Candidate,
+) -> Result<(), Vec<Diagnostic>> {
+    let mut diagnostics = Vec::new();
+    for bound in &candidate.conformance_bounds {
+        let Some(parameter_index) = candidate
+            .type_parameters
+            .iter()
+            .position(|(symbol, _)| *symbol == bound.subject)
+        else {
+            continue;
+        };
+        let Some(binding) = candidate.type_bindings[parameter_index] else {
+            continue;
+        };
+        let Some(type_name) = concrete_data_type_name(program, binding) else {
+            diagnostics.push(Diagnostic::error(format!(
+                "generic machine `{}` binds `{}` to `{}`, which is not a nominal data type and cannot satisfy conformance bound `{}`",
+                candidate.template_name,
+                bound.subject_name,
+                program.display_type_reference(binding),
+                bound.carrier_name,
+            )));
+            continue;
+        };
+
+        if bound.conformance.is_some() {
+            if type_name != bound.carrier_name.as_str() {
+                diagnostics.push(Diagnostic::error(format!(
+                    "generic machine `{}` binds `{}` to `{type_name}`, but named conformance `{}::{}` belongs to `{}`",
+                    candidate.template_name,
+                    bound.subject_name,
+                    bound.carrier_name,
+                    bound
+                        .conformance_name
+                        .as_ref()
+                        .map_or("<missing>", |name| name.as_str()),
+                    bound.carrier_name,
+                )));
+            }
+            continue;
+        }
+
+        let matches = program
+            .data_conformances()
+            .iter()
+            .filter(|conformance| {
+                conformance.type_name.as_str() == type_name
+                    && conformance.trait_name == bound.carrier_name
+                    && conformance_arguments_match_candidate(program, candidate, bound, conformance)
+            })
+            .count();
+        match matches {
+            1 => {}
+            0 => diagnostics.push(Diagnostic::error(format!(
+                "generic machine `{}` binds `{}` to `{type_name}`, which has no nominal conformance to `{}`",
+                candidate.template_name, bound.subject_name, bound.carrier_name,
+            ))),
+            count => diagnostics.push(Diagnostic::error(format!(
+                "generic machine `{}` binds `{}` to `{type_name}`, which has {count} conformances to `{}`; select one with `where {} satisfies {type_name}::Name`",
+                candidate.template_name,
+                bound.subject_name,
+                bound.carrier_name,
+                bound.subject_name,
+            ))),
+        }
+    }
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
+
+fn concrete_data_type_name(program: &TypedTrees, handle: TypeReferenceHandle) -> Option<&str> {
+    match program.type_reference_table.type_reference(handle) {
+        TypeReferenceNode::Reference { referee, .. } => concrete_data_type_name(program, *referee),
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            concrete_data_type_name(program, *base_type)
+        }
+        TypeReferenceNode::Named { symbol, name }
+            if symbol.is_valid() && program.symbols.get(*symbol).kind == SymbolKind::Data =>
+        {
+            Some(name.as_str())
+        }
+        TypeReferenceNode::Generic {
+            base_symbol,
+            base_name,
+            ..
+        } if base_symbol.is_valid()
+            && program.symbols.get(*base_symbol).kind == SymbolKind::Data =>
+        {
+            Some(base_name.as_str())
+        }
+        _ => None,
+    }
+}
+
+fn conformance_arguments_match_candidate(
+    program: &TypedTrees,
+    candidate: &Candidate,
+    bound: &psi_typed_trees::machine::GenericConformanceBound,
+    conformance: &psi_typed_trees::trait_definition::DataConformance,
+) -> bool {
+    let actual = program
+        .type_reference_table
+        .type_reference_handles(conformance.arguments);
+    actual.len() == bound.arguments.len()
+        && bound
+            .arguments
+            .iter()
+            .zip(actual.iter())
+            .all(|(required, actual)| {
+                let required = candidate
+                    .type_parameters
+                    .iter()
+                    .zip(candidate.type_bindings.iter())
+                    .find_map(|((symbol, _), binding)| {
+                        let TypeReferenceNode::Named {
+                            symbol: required_symbol,
+                            ..
+                        } = program.type_reference_table.type_reference(*required)
+                        else {
+                            return None;
+                        };
+                        (*symbol == *required_symbol)
+                            .then_some(binding.as_ref().copied())
+                            .flatten()
+                    })
+                    .unwrap_or(*required);
+                same_type_identity(program, required, *actual)
+            })
+}
+
 fn apply_multiple_specializations(
     program: &mut TypedTrees,
     template: &Candidate,
@@ -1367,6 +1517,15 @@ fn apply_multiple_specializations(
             "generic machine `{}` has a concrete specialization tuple that does not satisfy its authored type bounds",
             template.template_name
         ))]);
+    }
+    let mut conformance_diagnostics = Vec::new();
+    for candidate in &concrete_candidates {
+        if let Err(mut errors) = validate_candidate_conformance_bounds(program, candidate) {
+            conformance_diagnostics.append(&mut errors);
+        }
+    }
+    if !conformance_diagnostics.is_empty() {
+        return Err(conformance_diagnostics);
     }
 
     if selections
@@ -1591,6 +1750,7 @@ fn clone_specialized_machine(
     cloned.symbol = machine_symbol;
     cloned.name = psi_typed_trees::name::Identifier::generated(generated_name);
     cloned.type_parameters = HandleSpan::empty();
+    cloned.conformance_bounds.clear();
     cloned.owned_data = HandleSpan::empty();
     cloned.satisfies = HandleSpan::empty();
     cloned.decreases = copy_expression_span(source, program, source_machine.decreases, &symbol_map);
@@ -1692,6 +1852,7 @@ fn clone_specialized_machine(
         expression_start,
         cloned.states,
     );
+    resolve_specialized_receiver_calls(program, &cloned);
     let instance_symbol = cloned.symbol;
     program.push_machine(cloned);
     program
@@ -2682,7 +2843,82 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
         }
     }
 
-    program.machines_mut()[candidate.machine_index].type_parameters = HandleSpan::empty();
+    let specialized = program.machines()[candidate.machine_index].clone();
+    resolve_specialized_receiver_calls(program, &specialized);
+
+    let specialized = &mut program.machines_mut()[candidate.machine_index];
+    specialized.type_parameters = HandleSpan::empty();
+    specialized.conformance_bounds.clear();
+}
+
+fn resolve_specialized_receiver_calls(
+    program: &mut TypedTrees,
+    machine: &psi_typed_trees::machine::Machine,
+) {
+    let states = program.machine_states(machine).to_vec();
+    let mut statement_updates = Vec::new();
+    let mut expression_updates = Vec::new();
+    for state in &states {
+        let mut expression_handles = Vec::new();
+        for (index, statement) in program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .enumerate()
+        {
+            collect_statement_expression_trees(program, statement, &mut expression_handles);
+            let StatementNode::Call(call) = statement else {
+                continue;
+            };
+            let target = crate::lookup::resolve_state_call_target(
+                program,
+                machine,
+                state,
+                call.receiver_symbol,
+                call.target_symbol,
+                crate::lookup::statement_call_receiver_members(program, call),
+                &call.target,
+            );
+            if target.is_valid() {
+                statement_updates.push((state.statement_nodes, index, target));
+            }
+        }
+        for handle in expression_handles {
+            let ExpressionNode::Call(call) = program.expression_table.expression(handle) else {
+                continue;
+            };
+            let (receiver_symbol, receiver_path) =
+                crate::lookup::call_receiver_parts(program, call.receiver);
+            let target = crate::lookup::resolve_state_call_target(
+                program,
+                machine,
+                state,
+                receiver_symbol,
+                call.target_symbol,
+                receiver_path.as_deref(),
+                &call.target,
+            );
+            if target.is_valid() {
+                expression_updates.push((handle, target));
+            }
+        }
+    }
+    for (span, index, target) in statement_updates {
+        let StatementNode::Call(call) = &mut program.statement_table.statements_mut(span)[index]
+        else {
+            continue;
+        };
+        call.target_symbol = target;
+    }
+
+    expression_updates.sort_unstable_by_key(|(handle, _)| handle.arena_index());
+    expression_updates.dedup_by_key(|(handle, _)| handle.arena_index());
+    for (handle, target) in expression_updates {
+        let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle) else {
+            continue;
+        };
+        call.target_symbol = target;
+    }
 }
 
 /// MP5's pre-specialization template identity. The in-place specialization
@@ -2753,6 +2989,43 @@ fn template_contract_fingerprint(program: &TypedTrees, machine_index: usize) -> 
             TypeParameterKind::Type => {}
         }
         bytes.push(0xfe);
+    }
+    let mut conformance_bounds = Vec::new();
+    for bound in &machine.conformance_bounds {
+        let mut encoded = Vec::new();
+        let subject_index = parameters
+            .iter()
+            .position(|parameter| parameter.symbol == bound.subject)
+            .unwrap_or(usize::MAX);
+        encoded.extend((subject_index as u64).to_le_bytes());
+        if bound.conformance.is_some() {
+            encoded.push(2);
+            encoded.extend(bound.carrier_name.as_str().as_bytes());
+            encoded.push(0);
+            if let Some(name) = &bound.conformance_name {
+                encoded.extend(name.as_str().as_bytes());
+            }
+        } else {
+            encoded.push(1);
+            encoded.extend(bound.carrier_name.as_str().as_bytes());
+        }
+        encoded.push(0);
+        for argument in &bound.arguments {
+            encode_normalized_text(
+                program
+                    .normalized_type_identity_with_binders(*argument, &type_binders)
+                    .as_str(),
+                &binders,
+                &mut encoded,
+            );
+            encoded.push(0);
+        }
+        conformance_bounds.push(encoded);
+    }
+    conformance_bounds.sort();
+    for bound in conformance_bounds {
+        bytes.extend(bound);
+        bytes.push(0xfb);
     }
     let mut state_shapes = Vec::new();
     for state in program.machine_states(machine) {

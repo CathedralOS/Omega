@@ -1786,9 +1786,18 @@ move it to a convenience library.
   child conformance symbol; unknown subjects, traits, arity mismatches, and
   named selections reject instead of disappearing at the parser. Generic trait
   headers now retain and resolve the same conformance-bound carrier, including
-  exact named selections, with the same declaration diagnostics. Enforcing
-  those header obligations at each trait application, static generic-call
-  dispatch, and coercion consumption remain.
+  exact named selections, with the same declaration diagnostics. Generic
+  machine bodies now consume every bound's statically known requirement
+  surface: unconstrained, absent, and ambiguous calls reject, trait generic
+  arguments instantiate requirement parameters, and exact named bounds expose
+  only their selected trait. Concrete specialization requires one matching
+  nominal conformance (or the exact named carrier), checks conformance
+  arguments, pins the obligation in the template fingerprint, rewrites the
+  selected attached-state symbol, and erases the discharged bound. The Psi
+  interpreter and native backend both carry a mutable generic receiver's exact
+  caller-field base through receiverless helpers; the static-dispatch canary
+  runs without a dictionary in either engine. Enforcing generic trait-header
+  obligations at each trait application and coercion consumption remain.
   Local descriptors must not cross replaceable component boundaries. Add owned
   erased **runtime** values only after general storage ownership,
   size/alignment metadata, and cleanup contracts can support them; N6's

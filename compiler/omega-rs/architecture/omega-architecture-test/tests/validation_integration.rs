@@ -313,6 +313,183 @@ fn generic_trait_header_conformance_bound_rejects_unknown_subject() {
 }
 
 #[test]
+fn generic_bound_authorizes_requirement_call_in_body() {
+    let typed = typed_program_from_source(
+        r#"
+        trait Incrementable {
+            machine increment(&mut self);
+        }
+        machine step<T>(subject: &mut T)
+        where T satisfies Incrementable
+        {
+            subject.increment();
+        }
+        "#,
+    );
+
+    validate_program(&typed).expect("the bound trait requirement should authorize the call");
+}
+
+#[test]
+fn generic_call_searches_all_conformance_bounds() {
+    let typed = typed_program_from_source(
+        r#"
+        trait Observable {
+            machine observe(&self) -> i32;
+        }
+        trait Incrementable {
+            machine increment(&mut self);
+        }
+        machine step<T>(subject: &mut T)
+        where T satisfies Observable, T satisfies Incrementable
+        {
+            subject.increment();
+        }
+        "#,
+    );
+
+    validate_program(&typed)
+        .expect("a requirement on any declared bound should authorize the call");
+}
+
+#[test]
+fn generic_bound_arguments_specialize_requirement_parameters() {
+    let typed = typed_program_from_source(
+        r#"
+        trait Encoder<Message> {
+            machine encode(&self, out: &mut Message);
+        }
+        machine encode<T, M>(subject: &T, out: &mut M)
+        where T satisfies Encoder<M>
+        {
+            subject.encode(out);
+        }
+        "#,
+    );
+
+    validate_program(&typed)
+        .expect("the bound argument M should instantiate Encoder's Message parameter");
+}
+
+#[test]
+fn generic_bound_arguments_reject_wrong_requirement_argument_type() {
+    let typed = typed_program_from_source(
+        r#"
+        trait Encoder<Message> {
+            machine encode(&self, out: &mut Message);
+        }
+        data Expected {}
+        data Wrong {}
+        machine encode<T>(subject: &T, out: &mut Wrong)
+        where T satisfies Encoder<Expected>
+        {
+            subject.encode(out);
+        }
+        "#,
+    );
+
+    let diagnostics = validate_program(&typed)
+        .expect_err("the concrete bound argument must instantiate the requirement signature");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains(
+            "argument `out` for bounded trait requirement `Encoder::encode` does not match",
+        )
+    }));
+}
+
+#[test]
+fn generic_call_rejects_ambiguous_bound_requirements() {
+    let typed = typed_program_from_source(
+        r#"
+        trait First {
+            machine inspect(&self) -> i32;
+        }
+        trait Second {
+            machine inspect(&self) -> i32;
+        }
+        machine inspect<T>(subject: &T) -> i32
+        where T satisfies First, T satisfies Second
+        {
+            subject.inspect()
+        }
+        "#,
+    );
+
+    let diagnostics =
+        validate_program(&typed).expect_err("same-named requirements need an exact selection");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("generic call `inspect` is ambiguous across its conformance bounds")
+    }));
+}
+
+#[test]
+fn generic_call_rejects_unconstrained_subject() {
+    let typed = typed_program_from_source(
+        r#"
+        machine step<T>(subject: &mut T) {
+            subject.increment();
+        }
+        "#,
+    );
+
+    let diagnostics = validate_program(&typed)
+        .expect_err("a call through an unconstrained generic parameter must reject");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot call `increment` through unconstrained generic parameter `T`")
+    }));
+}
+
+#[test]
+fn generic_call_rejects_requirement_absent_from_bound_trait() {
+    let typed = typed_program_from_source(
+        r#"
+        trait Incrementable {
+            machine increment(&mut self);
+        }
+        machine step<T>(subject: &mut T)
+        where T satisfies Incrementable
+        {
+            subject.reset();
+        }
+        "#,
+    );
+
+    let diagnostics = validate_program(&typed)
+        .expect_err("a bound only authorizes requirements in its trait surface");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("trait `Incrementable`, which has no requirement `reset`")
+    }));
+}
+
+#[test]
+fn named_generic_bound_authorizes_its_selected_trait_surface() {
+    let typed = typed_program_from_source(
+        r#"
+        trait Ranked {
+            machine rank(&self) -> i32;
+        }
+        data Card {}
+        machine Card::rank(&self) -> i32 satisfies Ranked { 1 }
+        Card satisfies Ranked as PowerOrder;
+
+        machine rank_selected<C>(card: &C) -> i32
+        where C satisfies Card::PowerOrder
+        {
+            card.rank()
+        }
+        "#,
+    );
+
+    validate_program(&typed).expect("the exact named conformance should expose its trait surface");
+}
+
+#[test]
 fn exact_qualification_may_publish_one_checked_content_projection() {
     let typed = typed_program_from_source(
         r#"

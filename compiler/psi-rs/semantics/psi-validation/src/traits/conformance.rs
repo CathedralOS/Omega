@@ -10,6 +10,162 @@ use psi_typed_trees::state::State;
 use psi_typed_trees::trait_definition::TraitDefinition;
 use psi_typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
+pub(crate) struct GenericBoundRequirement<'program> {
+    pub(crate) signature: &'program StateSignature,
+    pub(crate) trait_definition: &'program TraitDefinition,
+    pub(crate) bound: &'program psi_typed_trees::machine::GenericConformanceBound,
+}
+
+pub(crate) fn generic_bound_argument_matches(
+    program: &TypedTrees,
+    actual: TypeReferenceHandle,
+    required: TypeReferenceHandle,
+    receiver: TypeReferenceHandle,
+    requirement: &GenericBoundRequirement<'_>,
+) -> bool {
+    let mut bindings = vec![TraitTypeBinding {
+        parameter_symbol: SymbolHandle::invalid(),
+        parameter_name: "Self".to_owned(),
+        target: TraitTypeBindingTarget::Type(receiver),
+    }];
+    bindings.extend(
+        program
+            .trait_type_parameters(requirement.trait_definition)
+            .iter()
+            .zip(requirement.bound.arguments.iter())
+            .map(|(parameter, argument)| TraitTypeBinding {
+                parameter_symbol: parameter.symbol,
+                parameter_name: parameter.name.to_string(),
+                target: TraitTypeBindingTarget::Type(*argument),
+            }),
+    );
+    type_references_match_with_trait_bindings(
+        program,
+        actual,
+        required,
+        program.trait_type_parameters(requirement.trait_definition),
+        &mut bindings,
+    )
+}
+
+pub(crate) fn generic_bound_requirement_call<'program>(
+    program: &'program TypedTrees,
+    machine: &'program Machine,
+    receiver_type: TypeReferenceHandle,
+    target: &str,
+) -> Result<Option<GenericBoundRequirement<'program>>, String> {
+    let Some(subject) = generic_subject_symbol(program, receiver_type) else {
+        return Ok(None);
+    };
+    let is_type_parameter = program
+        .machine_type_parameters(machine)
+        .iter()
+        .any(|parameter| parameter.symbol == subject);
+    if !is_type_parameter {
+        return Ok(None);
+    }
+
+    let bounds = machine
+        .conformance_bounds
+        .iter()
+        .filter(|bound| bound.subject == subject)
+        .collect::<Vec<_>>();
+    if bounds.is_empty() {
+        let subject_name = program.symbols.name(subject);
+        return Err(format!(
+            "machine `{}` cannot call `{target}` through unconstrained generic parameter `{subject_name}`; add `where {subject_name} satisfies Trait`",
+            machine.name,
+        ));
+    }
+
+    let mut trait_names = Vec::new();
+    let mut requirements = Vec::new();
+    for bound in &bounds {
+        let trait_definition = if let Some(selected) = bound.conformance {
+            let declaration = program
+                .data_conformances()
+                .iter()
+                .find(|declaration| declaration.symbol == selected)
+                .ok_or_else(|| {
+                    format!(
+                        "machine `{}` generic call uses unresolved conformance `{}::{}`",
+                        machine.name,
+                        bound.carrier_name,
+                        bound
+                            .conformance_name
+                            .as_ref()
+                            .map_or("<missing>", |name| name.as_str())
+                    )
+                })?;
+            program
+                .traits()
+                .iter()
+                .find(|candidate| candidate.name == declaration.trait_name)
+        } else {
+            trait_definition_by_symbol(program, bound.carrier)
+        }
+        .ok_or_else(|| {
+            format!(
+                "machine `{}` generic call has no resolved trait for bound on `{}`",
+                machine.name, bound.subject_name
+            )
+        })?;
+        trait_names.push(trait_definition.name.as_str());
+        requirements.extend(
+            program
+                .trait_machine_signatures(trait_definition)
+                .iter()
+                .filter(|requirement| requirement.name.as_str() == target)
+                .map(|signature| GenericBoundRequirement {
+                    signature,
+                    trait_definition,
+                    bound,
+                }),
+        );
+    }
+
+    let Some(requirement) = requirements.pop() else {
+        let subject_name = bounds[0].subject_name.as_str();
+        if trait_names.len() == 1 {
+            return Err(format!(
+                "machine `{}` generic parameter `{subject_name}` is bounded by trait `{}`, which has no requirement `{target}`",
+                machine.name, trait_names[0],
+            ));
+        }
+        return Err(format!(
+            "machine `{}` generic parameter `{subject_name}` is bounded by traits {}, none of which has requirement `{target}`",
+            machine.name,
+            trait_names
+                .iter()
+                .map(|name| format!("`{name}`"))
+                .collect::<Vec<_>>()
+                .join(", "),
+        ));
+    };
+    if !requirements.is_empty() {
+        return Err(format!(
+            "machine `{}` generic call `{target}` is ambiguous across its conformance bounds",
+            machine.name,
+        ));
+    }
+    Ok(Some(requirement))
+}
+
+fn generic_subject_symbol(
+    program: &TypedTrees,
+    handle: TypeReferenceHandle,
+) -> Option<SymbolHandle> {
+    match program.type_reference_table.type_reference(handle) {
+        TypeReferenceNode::Reference { referee, .. } => generic_subject_symbol(program, *referee),
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            generic_subject_symbol(program, *base_type)
+        }
+        TypeReferenceNode::Named { symbol, .. } => Some(*symbol),
+        TypeReferenceNode::Generic { base_symbol, .. } => Some(*base_symbol),
+        _ => None,
+    }
+}
+
 /// Default native leaves may only expose types whose public shape determines
 /// every ABI fact. A source-selected `Calling<C>` policy is the explicit escape
 /// hatch: its checked plan can publish a canonical descriptor representation.

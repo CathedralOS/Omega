@@ -1,3 +1,9 @@
+// A generic body may call only the statically known trait surface promised by
+// its nominal bound. Specialization selects Counter's authored conformance and
+// lowers subject.increment() to Counter::increment; there is no runtime trait
+// dictionary. Expected exit: 1.
+use omega::language::std::console;
+
 trait Incrementable {
     machine increment(&mut self);
 }
@@ -6,22 +12,21 @@ data Counter {
     value: i32 in Wrapping;
 }
 
-data Scheduler {
-}
-
 machine Counter::increment(&mut self) satisfies Incrementable {
     self.value = self.value + 1;
 }
+Counter satisfies Incrementable;
 
-machine Scheduler::step<T>(subject: &mut T)
+machine step<T>(subject: &mut T)
 where
-    T: Incrementable
+    T satisfies Incrementable
 {
     subject.increment();
 }
 
-data Main {
-}
+data Main { console: Console; counter: Counter; }
 
 machine Main::main(&mut self) {
+    step(&mut self.counter);
+    self.console.exit_process(self.counter.value as i32);
 }

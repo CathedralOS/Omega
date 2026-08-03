@@ -81,8 +81,10 @@ pub(in crate::selection) fn receiver_base_for(
     // ROOT-context states are the identity base by definition). A case
     // with no composed base cannot anchor a recovery -- refuse, the
     // by-type fallback and the fence keep their old behavior.
+    let contextual_anchor = context_anchor_and_env(input, state.context, 64);
     let Some(case_base) = dispatch_receiver_base(input, dispatch_index)
         .or_else(|| (state.key.machine == input.entry_key.machine).then_some(0))
+        .or_else(|| contextual_anchor.as_ref().map(|(base, _)| *base))
     else {
         return None;
     };
@@ -104,6 +106,9 @@ pub(in crate::selection) fn receiver_base_for(
     // The call graph is acyclic by language rule (no recursion); the fuel
     // is a backstop, not a semantic bound.
     let source_attached = attached_data_of(input, source_machine);
+    let case_env = contextual_anchor
+        .map(|(_, environment)| environment)
+        .unwrap_or_default();
     let mut frontier: Vec<(omega_control_flow::StateKey, usize, ParamEnv)> = vec![(
         omega_control_flow::StateKey {
             machine: state.key.machine,
@@ -111,7 +116,7 @@ pub(in crate::selection) fn receiver_base_for(
             segment_index: 0,
         },
         case_base,
-        ParamEnv::new(),
+        case_env,
     )];
     let mut recovered: Option<usize> = None;
     let mut fuel = 64usize;
@@ -178,6 +183,44 @@ pub(in crate::selection) fn receiver_base_for(
 /// named at the (unique) call that brought the walk here. Small and cloned
 /// per descent -- chains are shallow and the walk is compile-time.
 type ParamEnv = Vec<(psi_checked_trees::name::Identifier, usize)>;
+
+fn context_anchor_and_env(
+    input: &InstructionSelectionInput<'_>,
+    context: omega_state_graph::CallContext,
+    fuel: usize,
+) -> Option<(usize, ParamEnv)> {
+    if context.0 == 0 {
+        return Some((0, ParamEnv::new()));
+    }
+    if fuel == 0 {
+        return None;
+    }
+    let (call_key, statement_index, call_ordinal, parent) = input
+        .runtime_flow
+        .context_call_sites
+        .get(context.0 as usize)
+        .copied()?;
+    let (parent_base, parent_env) = context_anchor_and_env(input, parent, fuel - 1)?;
+    let call = input
+        .state_calls
+        .calls
+        .iter()
+        .map(|(_, call)| call)
+        .find(|call| {
+            call.source_key == call_key
+                && call.statement_index == statement_index
+                && call.call_ordinal == call_ordinal
+        })?;
+    let environment = descend_param_env(input, call_key.machine, call, parent_base, &parent_env);
+    let base = if call.receiver_name.as_str().is_empty() {
+        attached_data_of(input, call.target_key.machine)
+            .is_none()
+            .then_some(parent_base)
+    } else {
+        call_receiver_base(input, call_key.machine, call, parent_base, &parent_env)
+    }?;
+    Some((base, environment))
+}
 
 /// The ABSOLUTE storage base a call's receiver refers to, given the source
 /// position's own `base` and param environment: `base` itself for a

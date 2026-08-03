@@ -691,6 +691,153 @@ fn forwarded_generic_calls_specialize_after_their_caller() {
 }
 
 #[test]
+fn concrete_specialization_must_satisfy_nominal_conformance_bound() {
+    let source = r#"
+        trait Marker {}
+        data Good {}
+        data Bad {}
+        Good satisfies Marker;
+
+        machine accept<T>(value: &T)
+        where T satisfies Marker
+        {}
+
+        machine caller(good: &Good, bad: &Bad) {
+            accept(good);
+            accept(bad);
+        }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let diagnostics = lower_typed_trees(typed)
+        .expect_err("the Bad specialization has no authored nominal conformance");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("binds `T` to `Bad`, which has no nominal conformance to `Marker`")
+    }));
+}
+
+#[test]
+fn bounded_generic_call_specializes_to_concrete_attached_state() {
+    let source = r#"
+        trait Incrementable {
+            machine increment(&mut self);
+        }
+        data Counter { value: i32 in Wrapping; }
+        machine Counter::increment(&mut self) satisfies Incrementable {
+            self.value = self.value + 1;
+        }
+        Counter satisfies Incrementable;
+
+        machine step<T>(subject: &mut T)
+        where T satisfies Incrementable
+        {
+            subject.increment();
+        }
+        data Main { counter: Counter; }
+        machine Main::run(&mut self) {
+            step(&mut self.counter);
+        }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let checked = lower_typed_trees(typed).expect("the nominal bound should specialize");
+
+    let step = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "step")
+        .expect("specialized step machine");
+    assert!(checked.machine_type_parameters(step).is_empty());
+    assert!(step.conformance_bounds.is_empty());
+    let state = checked
+        .machine_states(step)
+        .first()
+        .expect("step entry state");
+    let call = checked
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .find_map(|statement| {
+            let psi_typed_trees::statement::StatementNode::Call(call) = statement else {
+                return None;
+            };
+            (call.target.as_str() == "increment").then_some(call)
+        })
+        .expect("bounded requirement call");
+    assert_eq!(
+        checked
+            .statement_table
+            .name_path_members(call.receiver)
+            .iter()
+            .map(|member| member.as_str())
+            .collect::<Vec<_>>(),
+        ["subject"]
+    );
+
+    let concrete_target = crate::lookup::resolve_state_call_target(
+        &checked,
+        step,
+        state,
+        call.receiver_symbol,
+        call.target_symbol,
+        crate::lookup::statement_call_receiver_members(&checked, call),
+        &call.target,
+    );
+    let increment = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Counter::increment")
+        .and_then(|machine| checked.machine_states(machine).first())
+        .expect("Counter increment state");
+    assert_eq!(call.target_symbol, increment.symbol);
+    assert_eq!(concrete_target, increment.symbol);
+}
+
+#[test]
+fn named_conformance_bound_rejects_a_different_concrete_carrier() {
+    let source = r#"
+        trait Marker {}
+        data Good {}
+        data Bad {}
+        Good satisfies Marker as Primary;
+
+        machine accept<T>(value: &T)
+        where T satisfies Good::Primary
+        {}
+
+        machine caller(bad: &Bad) {
+            accept(bad);
+        }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let diagnostics =
+        lower_typed_trees(typed).expect_err("the selected conformance belongs only to Good");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("binds `T` to `Bad`, but named conformance `Good::Primary` belongs to `Good`")
+    }));
+}
+
+#[test]
 fn accepted_template_instances_share_one_commitment_and_pin_argument_contracts() {
     let source = r#"
         data Light {}
@@ -835,6 +982,37 @@ fn generic_template_identity_is_positional_across_parameter_renames() {
         fingerprint("F", "value", "item"),
         fingerprint("Operation", "input", "candidate")
     );
+}
+
+#[test]
+fn generic_template_identity_pins_conformance_bounds_positionally() {
+    fn fingerprint(parameter: &str, trait_name: &str) -> u64 {
+        let source = format!(
+            r#"
+                trait First {{ machine inspect(value: &Self); }}
+                trait Second {{ machine inspect(value: &Self); }}
+                machine admitted<{parameter}>(value: &{parameter})
+                where {parameter} satisfies {trait_name}
+                {{}}
+            "#
+        );
+        let tokens = Lexer::new(&source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+        let admitted = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "admitted")
+            .expect("generic template should exist");
+        crate::monomorphization::generic_machine_template_fingerprint(&typed, admitted.symbol)
+            .expect("generic template should have an identity")
+    }
+
+    assert_eq!(fingerprint("T", "First"), fingerprint("Item", "First"));
+    assert_ne!(fingerprint("T", "First"), fingerprint("T", "Second"));
 }
 
 #[test]

@@ -5,6 +5,7 @@ mod requirements;
 mod shared;
 
 pub(crate) use conformance::{
+    GenericBoundRequirement, generic_bound_argument_matches, generic_bound_requirement_call,
     validate_external_leaf_native_shapes, validate_generic_conformance_bounds,
     validate_machine_trait_conformances, validate_trait_conformance_bounds,
 };

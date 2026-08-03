@@ -694,6 +694,53 @@ pub(crate) fn validate_call_node(
         return;
     }
 
+    if let Some(type_reference) = receiver_type_reference {
+        match crate::traits::generic_bound_requirement_call(
+            program,
+            current_machine,
+            type_reference,
+            call.target.as_str(),
+        ) {
+            Ok(Some(requirement)) => {
+                let signature = requirement.signature;
+                validate_result_use(
+                    program,
+                    call,
+                    signature.name.as_str(),
+                    signature.return_type,
+                    diagnostics,
+                );
+                validate_generic_bound_argument_types(
+                    program,
+                    current_machine,
+                    machine_symbols.state(state_name),
+                    type_reference,
+                    arguments,
+                    &requirement,
+                    diagnostics,
+                );
+                validate_call_arguments_handles(
+                    program,
+                    current_machine,
+                    machine_symbols.state(state_name),
+                    value_env,
+                    arguments,
+                    signature.name.as_str(),
+                    program.state_signature_parameters(signature),
+                    None,
+                    writable_roots,
+                    diagnostics,
+                );
+                return;
+            }
+            Ok(None) => {}
+            Err(error) => {
+                diagnostics.push(Diagnostic::error(error));
+                return;
+            }
+        }
+    }
+
     if let Some(machine) = receiver_type
         .and_then(|type_name| symbols.machine(type_name))
         .or_else(|| symbols.machine(receiver))
@@ -1811,6 +1858,46 @@ pub(crate) fn validate_call_arguments_handles(
         false,
         diagnostics,
     );
+}
+
+fn validate_generic_bound_argument_types(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    current_state: Option<&State>,
+    receiver_type: TypeReferenceHandle,
+    arguments: &[ExpressionHandle],
+    requirement: &crate::traits::GenericBoundRequirement<'_>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let parameters = program
+        .state_signature_parameters(requirement.signature)
+        .iter()
+        .filter(|parameter| !parameter.is_self);
+    for (argument, parameter) in arguments.iter().zip(parameters) {
+        let Some(actual) = declared_place_type(program, current_machine, current_state, *argument)
+        else {
+            continue;
+        };
+        let required = crate::places::unwrapped_type_reference(program, parameter.type_reference)
+            .unwrap_or(parameter.type_reference);
+        let receiver = crate::places::unwrapped_type_reference(program, receiver_type)
+            .unwrap_or(receiver_type);
+        if !crate::traits::generic_bound_argument_matches(
+            program,
+            actual,
+            required,
+            receiver,
+            requirement,
+        ) {
+            diagnostics.push(Diagnostic::error(format!(
+                "argument `{}` for bounded trait requirement `{}::{}` does not match `{}` after applying the bound's generic arguments",
+                parameter.name,
+                requirement.trait_definition.name,
+                requirement.signature.name,
+                program.display_type_reference_with_constraints(parameter.type_reference),
+            )));
+        }
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -4634,6 +4721,60 @@ fn validate_expression_call_bounds(
     }) {
         diagnostics.push(Diagnostic::error(error));
         return;
+    }
+
+    if let Some(type_reference) = receiver_type_reference {
+        match crate::traits::generic_bound_requirement_call(
+            program,
+            current_machine,
+            type_reference,
+            call.target.as_str(),
+        ) {
+            Ok(Some(requirement)) => {
+                let signature = requirement.signature;
+                if !signature.return_type.is_valid()
+                    || matches!(
+                        program
+                            .type_reference_table
+                            .type_reference(signature.return_type),
+                        TypeReferenceNode::Unit
+                    )
+                {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "trait requirement `{}::{}` does not return a value but is used in a VALUE position",
+                        requirement.trait_definition.name,
+                        signature.name,
+                    )));
+                }
+                validate_generic_bound_argument_types(
+                    program,
+                    current_machine,
+                    Some(current_state),
+                    type_reference,
+                    arguments,
+                    &requirement,
+                    diagnostics,
+                );
+                validate_call_arguments_handles(
+                    program,
+                    current_machine,
+                    Some(current_state),
+                    value_env,
+                    arguments,
+                    signature.name.as_str(),
+                    program.state_signature_parameters(signature),
+                    None,
+                    writable_roots,
+                    diagnostics,
+                );
+                return;
+            }
+            Ok(None) => {}
+            Err(error) => {
+                diagnostics.push(Diagnostic::error(error));
+                return;
+            }
+        }
     }
 
     // N6 attached lift: a quotient has no runtime representative or attached
