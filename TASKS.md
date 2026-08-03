@@ -909,7 +909,9 @@ Remaining:
   partial, or incompatible composite evidence rejects; their shared production
   encoder/width surface now represents either one retained direct plan or the
   complete Windows plan pair, so a partial adapter cannot be constructed.
-  Independent normalization remains only the differential oracle. Object
+  Its singular `with_plan` APIs require the direct plan, the ISA Windows-pair
+  validator requires both plans, and explicitly named no-plan functions retain
+  the differential oracle. Object
   relocation planning independently validates the same retained pair before
   recording either native call and rejects a missing GetStdHandle binding or
   plan instead of silently omitting that call record.
@@ -1712,7 +1714,12 @@ and allocation handles expose no compiler-owned stack/control storage.
   retains `omega.float.hardware.macos_arm64.primitive-arithmetic-comparison.v1` /
   `0xab789e8539fe9f96`, binding all twenty exact operation/format plans to finite
   add/subtract/multiply/divide and all six equality/ordered comparisons in both
-  formats, interpreter/native results, and both Linux cross-builds. The
+  formats, interpreter/native results, and both Linux cross-builds. The policy-
+  adapter cohort retains `omega.float.hardware.macos_arm64.policy-adapters.v1` /
+  `0x72c8984fc8703b9b`, binding all eight primitive arithmetic plans to both
+  result adapters in both formats, finite and nested success paths, overflow-
+  only saturation, unclamped division by zero, every Trapping non-finite class,
+  interpreter/native observations, and both Linux builds for every case. The
   directed-FMA slice retains
   `omega.float.hardware.macos_arm64.directed-fma.v1` /
   `0x75be2c4963f3f15a`, binding its six exact plans to binary32/binary64 half-ULP

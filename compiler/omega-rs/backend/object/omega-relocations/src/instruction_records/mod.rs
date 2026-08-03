@@ -136,10 +136,21 @@ fn validate_win64_runtime_adapter_plans(
             operation_key.operation_name()
         )));
     }
-    omega_isa_x86_64::validate_win64_runtime_file_adapter_plans(
-        get_std_handle.call_plan(),
-        binding.call_plan(),
-    )
+    let get_std_handle_plan = get_std_handle.call_plan().ok_or_else(|| {
+        Diagnostic::error(format!(
+            "Win64 runtime adapter relocation for {}.{} has no retained GetStdHandle plan",
+            operation_key.capability_name(),
+            operation_key.operation_name()
+        ))
+    })?;
+    let file_io_plan = binding.call_plan().ok_or_else(|| {
+        Diagnostic::error(format!(
+            "Win64 runtime adapter relocation for {}.{} has no retained file-I/O plan",
+            operation_key.capability_name(),
+            operation_key.operation_name()
+        ))
+    })?;
+    omega_isa_x86_64::validate_win64_runtime_file_adapter_plans(get_std_handle_plan, file_io_plan)
 }
 
 #[cfg(test)]
@@ -186,7 +197,7 @@ mod plan_tests {
             &instruction,
         )
         .expect_err("relocation planning must not reconstruct a missing subplan");
-        assert!(error.message.contains("requires both retained"));
+        assert!(error.message.contains("no retained GetStdHandle plan"));
     }
 
     #[test]
