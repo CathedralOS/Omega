@@ -707,13 +707,13 @@ dependencies = [
  "omega-checked-trees",
  "omega-control-flow",
  "omega-core",
- "omega-source-files-to-tokens",
- "omega-symbol-resolved-trees-to-typed-trees",
- "omega-syntax-trees-to-symbol-resolved-trees",
  "omega-target",
- "omega-tokens-to-syntax-trees",
  "omega-typed-trees",
- "omega-typed-trees-to-checked-trees",
+ "psi-source-files-to-tokens",
+ "psi-symbol-resolved-trees-to-typed-trees",
+ "psi-syntax-trees-to-symbol-resolved-trees",
+ "psi-tokens-to-syntax-trees",
+ "psi-typed-trees-to-checked-trees",
 ]
 
 [[package]]
@@ -833,14 +833,14 @@ dependencies = [
  "omega-control-flow",
  "omega-core",
  "omega-platform-interface",
- "omega-source-files-to-tokens",
  "omega-state-graph",
  "omega-state-graph-to-control-flow",
- "omega-symbol-resolved-trees-to-typed-trees",
- "omega-syntax-trees-to-symbol-resolved-trees",
  "omega-target",
- "omega-tokens-to-syntax-trees",
- "omega-typed-trees-to-checked-trees",
+ "psi-source-files-to-tokens",
+ "psi-symbol-resolved-trees-to-typed-trees",
+ "psi-syntax-trees-to-symbol-resolved-trees",
+ "psi-tokens-to-syntax-trees",
+ "psi-typed-trees-to-checked-trees",
 ]
 
 [[package]]
@@ -1127,13 +1127,13 @@ dependencies = [
  "omega-core",
  "omega-effects",
  "omega-facts",
- "omega-source-files-to-tokens",
- "omega-symbol-resolved-trees-to-typed-trees",
  "omega-syntax-trees",
- "omega-syntax-trees-to-symbol-resolved-trees",
- "omega-tokens-to-syntax-trees",
  "omega-typed-trees",
  "psi-access-plans",
+ "psi-source-files-to-tokens",
+ "psi-symbol-resolved-trees-to-typed-trees",
+ "psi-syntax-trees-to-symbol-resolved-trees",
+ "psi-tokens-to-syntax-trees",
  "psi-validation",
 ]
 
