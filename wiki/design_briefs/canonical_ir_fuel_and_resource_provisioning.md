@@ -27,9 +27,9 @@ wrapping integer subtraction, v6 exact-width saturating integer subtraction,
 v7 exact-width wrapping integer multiplication, and v8 exact-width saturating
 integer multiplication, unconditional jump/return control, and bodyful
 contracts. Semantic v9 adds proof-only structural places and content
-conservation, v10 adds identity-preserving claim reshuffles, and current v11
-adds stable sum-case content-path segments without adding executable
-operations. The
+conservation, v10 adds identity-preserving claim reshuffles, v11 adds stable
+sum-case content-path segments, and current v12 adds exact authored-partition
+substitution rows without adding executable operations. The
 verifier reconstructs operation, edge-binding, and return-binding axioms from
 the executable path, rejects unreachable fact sources and out-of-scope contract
 values, and requires evidence for every `ensures`; the proof kernel checks
@@ -117,14 +117,17 @@ identity, exact target facts, PE subsystem, profile decision, selected
 provider-plan set, complete image digest, and compiler text-validation evidence;
 its exact bytes enter the installation role of the artifact manifest. The
 provider-free scalar canaries use an empty selected set. This metadata does not
-replace the native executable admission/placement state machine. Typed
-debug/source maps remain. General register assignment remains on the legacy
-backend.
+replace the native executable admission/placement state machine. Canonical
+typed debug-map v1 now binds the exact semantic identity to ordered source-file
+metadata and bounded spans for stable terminal subjects, rejects unknown
+subjects and wrong-module attachment, and remains replaceable presentation
+evidence. Producer span population remains. General register assignment remains
+on the legacy backend.
 
 Semantic v1 integer, v2 Boolean, v3 wrapping-add, v4 saturating-add, v5
 wrapping-subtract, v6 saturating-subtract, v7 wrapping-multiply, v8
 saturating-multiply, v9 content, and v10 reshuffle modules retain their frozen
-bytes and execution semantics; explicit migration produces a new current-v11
+bytes and execution semantics; explicit migration produces a new current-v12
 fingerprint. The v3 wrapping slice round-trips, verifies,
 meters, lowers, emits,
 and executes `u8` 200+100 as 44. The v4 saturating slice traverses the

@@ -7,11 +7,17 @@
 //! without changing [`TerminalPsiIdentity`].
 
 mod artifact_manifest;
+mod debug_map;
 mod proof_bundle;
 
 pub use artifact_manifest::{
     ArtifactManifestError, SectionFingerprint, TerminalArtifactIdentity, TerminalArtifactManifest,
     build_artifact_manifest, validate_artifact_manifest,
+};
+pub use debug_map::{
+    DebugFileId, DebugMapError, DebugSite, DebugSourceDigest, DebugSourceFile, DebugSourceOrigin,
+    DebugSourceSpan, DebugSubject, TerminalDebugMap, decode_debug_map, encode_debug_map,
+    source_digest, validate_debug_map,
 };
 pub use proof_bundle::{
     ProofBundleFingerprint, ProofCodecError, decode_proof_bundle, encode_proof_bundle,

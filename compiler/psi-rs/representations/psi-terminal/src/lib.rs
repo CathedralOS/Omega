@@ -8,8 +8,9 @@
 //! v5 adds wrapping integer subtraction, v6 adds saturating integer
 //! subtraction, v7 adds wrapping integer multiplication, v8 adds saturating
 //! integer multiplication, v9 adds proof-only structural-place content
-//! conservation, v10 adds identity-preserving claim reshuffles, and current
-//! v11 adds stable sum-case structural paths.
+//! conservation, v10 adds identity-preserving claim reshuffles, v11 adds
+//! stable sum-case structural paths, and current v12 adds exact authored
+//! partition substitutions.
 //! This small executable slice
 //! exercises values, control, bodyful contracts, and one width-relative
 //! arithmetic policy without pretending that branching or other arithmetic
