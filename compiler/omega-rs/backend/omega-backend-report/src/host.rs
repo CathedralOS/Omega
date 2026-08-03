@@ -115,20 +115,13 @@ fn write_host_binding(output: &mut String, binding: &HostBinding) {
                 binding.boundary_policy
             ));
         }
-        HostBindingMechanism::Syscall {
-            name,
-            number,
-            number_register,
-            supervisor_call,
-        } => {
+        HostBindingMechanism::Syscall { name, number } => {
             output.push_str(&format!(
-                "- {}.{} syscall {}({}) register x{} svc #{} boundary `{}`\n",
+                "- {}.{} syscall {}({}) control from normalized plan boundary `{}`\n",
                 binding.operation_key.capability_name(),
                 binding.operation_key.operation_name(),
                 name,
                 number,
-                number_register,
-                supervisor_call,
                 binding.boundary_policy
             ));
         }

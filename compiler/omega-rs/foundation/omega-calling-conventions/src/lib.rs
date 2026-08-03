@@ -924,8 +924,6 @@ pub enum HostBindingMechanism {
     Syscall {
         name: Arc<str>,
         number: u32,
-        number_register: u8,
-        supervisor_call: u16,
     },
     /// COM/UEFI per-object dispatch (extern brief §12.1): the callee address
     /// is read from the RECEIVER at call time -- `mov rax, [this + index*8];
@@ -1261,13 +1259,6 @@ pub fn merge_external_binding_rows(
                         u32::MAX,
                     )
                 })?,
-                // The current Linux x86-64 and AArch64 plans both place the
-                // number in their abstract register 8 and use supervisor-call
-                // immediate zero. The authored binding reaches the same
-                // backend mechanism as the built-in Linux table rather than a
-                // second syscall encoder.
-                number_register: 8,
-                supervisor_call: 0,
             },
         };
         plan.bindings.insert(HostBinding {
@@ -1326,43 +1317,6 @@ impl HostAbiPlan {
             }
         };
         let boundary = evaluate_ordinary_boundary_entry_plan(policy, signature)?;
-        let plan = &boundary.plan().call;
-
-        // The compatibility syscall row still carries encoder facts in its
-        // historical architecture-neutral numbering (slot 8 is x8 on
-        // AArch64 and rax on x86-64). Validate them against the normalized
-        // plan on both architectures while both paths coexist.
-        if let HostBindingMechanism::Syscall {
-            number_register,
-            supervisor_call,
-            ..
-        } = mechanism
-        {
-            let compatibility_number_register = match (self.target.architecture, number_register) {
-                (omega_target::Architecture::Aarch64, register) => {
-                    MachineRegister::Aarch64X(*register)
-                }
-                (omega_target::Architecture::X86_64, 8) => MachineRegister::X86Rax,
-                (omega_target::Architecture::X86_64, register) => {
-                    return Err(PlanDiagnostic(format!(
-                        "compatibility x86-64 syscall binding uses unknown abstract number-register slot {register}"
-                    )));
-                }
-            };
-            match plan.entry_control {
-                EntryControl::SupervisorCall {
-                    number_register: expected_register,
-                    immediate,
-                } if expected_register == compatibility_number_register
-                    && immediate == *supervisor_call => {}
-                _ => {
-                    return Err(PlanDiagnostic(
-                        "compatibility syscall binding disagrees with its normalized calling plan"
-                            .into(),
-                    ));
-                }
-            }
-        }
         Ok(boundary)
     }
 
@@ -1462,10 +1416,10 @@ pub fn host_operation_fixed_leading_immediate(
 #[cfg(test)]
 mod binding_plan_tests {
     use super::{
-        CallSignature, CallingPolicy, ExternalBindingKind, ExternalBindingRow,
-        HostBindingMechanism, HostCapability, HostOperation, PlatformCallData, ValueShape,
-        build_freestanding_abi_plan, build_host_abi_plan, evaluate_ordinary_boundary_entry_plan,
-        merge_external_binding_rows,
+        CallSignature, CallingPolicy, EntryControl, ExternalBindingKind, ExternalBindingRow,
+        HostBindingMechanism, HostCapability, HostOperation, MachineRegister, PlatformCallData,
+        ValueShape, build_freestanding_abi_plan, build_host_abi_plan,
+        evaluate_ordinary_boundary_entry_plan, merge_external_binding_rows,
     };
     use omega_target::NativeTarget;
 
@@ -1867,8 +1821,6 @@ mod binding_plan_tests {
         let mechanism = HostBindingMechanism::Syscall {
             name: "probe".into(),
             number: 1,
-            number_register: 8,
-            supervisor_call: 0,
         };
 
         for target in [
@@ -1884,36 +1836,31 @@ mod binding_plan_tests {
     }
 
     #[test]
-    fn compatibility_syscall_facts_match_normalized_plans_on_both_architectures() {
+    fn normalized_syscall_plans_own_control_placement_on_both_architectures() {
         let signature = CallSignature {
             parameters: vec![ValueShape::integer(8, 8); 3],
             result: Some(ValueShape::integer(8, 8)),
         };
 
-        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        for (target, expected_number_register) in [
+            (NativeTarget::linux_x64(), MachineRegister::X86Rax),
+            (NativeTarget::linux_arm64(), MachineRegister::Aarch64X(8)),
+        ] {
             let abi = build_host_abi_plan(target);
             for (_, binding) in abi.bindings.iter().filter(|(_, binding)| {
                 matches!(binding.mechanism, HostBindingMechanism::Syscall { .. })
             }) {
-                abi.evaluate_binding_call_plan(&binding.mechanism, &signature)
-                    .expect("compatibility syscall facts must match the normalized target plan");
+                let plan = abi
+                    .evaluate_binding_call_plan(&binding.mechanism, &signature)
+                    .expect("syscall mechanism must select a normalized target plan");
+                assert_eq!(
+                    plan.entry_control,
+                    EntryControl::SupervisorCall {
+                        number_register: expected_number_register,
+                        immediate: 0,
+                    }
+                );
             }
         }
-
-        let abi = build_host_abi_plan(NativeTarget::linux_x64());
-        let incompatible = HostBindingMechanism::Syscall {
-            name: "bad".into(),
-            number: 0,
-            number_register: 7,
-            supervisor_call: 0,
-        };
-        let error = abi
-            .evaluate_binding_call_plan(&incompatible, &signature)
-            .expect_err("an unknown legacy x86 register slot must fail closed");
-        assert!(
-            error
-                .to_string()
-                .contains("unknown abstract number-register slot 7")
-        );
     }
 }

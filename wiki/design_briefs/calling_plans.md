@@ -823,10 +823,11 @@ need a separate placement path. Its matching exit derivation returns the
 canonical result fragments and call/return control from the same validated
 plan; process-entry result lowering uses that shared consumer as well.
 
-While compatibility syscall rows coexist with normalized plans, evaluation
-differentially checks their historical register-slot and supervisor-call facts
-on both x86-64 and AArch64. Unknown x86 register slots fail closed instead of
-being ignored by the plan-driven encoder.
+Syscall bindings now retain only syscall identity and number. Register
+placement and supervisor-call control come exclusively from the normalized
+plan on both x86-64 and AArch64; the historical duplicate register-slot and
+immediate fields are retired, so reports and encoders cannot treat mechanism
+metadata as a second placement oracle.
 
 Remaining order:
 
