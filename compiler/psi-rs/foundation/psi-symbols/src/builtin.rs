@@ -121,10 +121,16 @@ pub enum BuiltinFunction {
     FloatSubtractTowardPositiveF64,
     FloatSubtractTowardNegativeF32,
     FloatSubtractTowardNegativeF64,
+    FloatMultiplyTowardZeroF32,
+    FloatMultiplyTowardZeroF64,
+    FloatMultiplyTowardPositiveF32,
+    FloatMultiplyTowardPositiveF64,
+    FloatMultiplyTowardNegativeF32,
+    FloatMultiplyTowardNegativeF64,
 }
 
 impl BuiltinFunction {
-    pub const COUNT: usize = 47;
+    pub const COUNT: usize = 53;
 
     pub fn name(self) -> &'static str {
         match self {
@@ -173,6 +179,12 @@ impl BuiltinFunction {
             Self::FloatSubtractTowardPositiveF64 => "float#subtract_toward_positive_f64",
             Self::FloatSubtractTowardNegativeF32 => "float#subtract_toward_negative_f32",
             Self::FloatSubtractTowardNegativeF64 => "float#subtract_toward_negative_f64",
+            Self::FloatMultiplyTowardZeroF32 => "float#multiply_toward_zero_f32",
+            Self::FloatMultiplyTowardZeroF64 => "float#multiply_toward_zero_f64",
+            Self::FloatMultiplyTowardPositiveF32 => "float#multiply_toward_positive_f32",
+            Self::FloatMultiplyTowardPositiveF64 => "float#multiply_toward_positive_f64",
+            Self::FloatMultiplyTowardNegativeF32 => "float#multiply_toward_negative_f32",
+            Self::FloatMultiplyTowardNegativeF64 => "float#multiply_toward_negative_f64",
             Self::ContentEntry => "entry",
             Self::ContentSeparate => "separate",
         }
@@ -227,6 +239,12 @@ impl BuiltinFunction {
             Self::FloatSubtractTowardPositiveF64 => 44,
             Self::FloatSubtractTowardNegativeF32 => 45,
             Self::FloatSubtractTowardNegativeF64 => 46,
+            Self::FloatMultiplyTowardZeroF32 => 47,
+            Self::FloatMultiplyTowardZeroF64 => 48,
+            Self::FloatMultiplyTowardPositiveF32 => 49,
+            Self::FloatMultiplyTowardPositiveF64 => 50,
+            Self::FloatMultiplyTowardNegativeF32 => 51,
+            Self::FloatMultiplyTowardNegativeF64 => 52,
         }
     }
 
@@ -276,6 +294,12 @@ impl BuiltinFunction {
             | Self::FloatSubtractTowardPositiveF64
             | Self::FloatSubtractTowardNegativeF32
             | Self::FloatSubtractTowardNegativeF64
+            | Self::FloatMultiplyTowardZeroF32
+            | Self::FloatMultiplyTowardZeroF64
+            | Self::FloatMultiplyTowardPositiveF32
+            | Self::FloatMultiplyTowardPositiveF64
+            | Self::FloatMultiplyTowardNegativeF32
+            | Self::FloatMultiplyTowardNegativeF64
             | Self::ContentEntry
             | Self::ContentSeparate
             | Self::AsmLoadFence
@@ -570,6 +594,30 @@ pub fn builtin_function_symbols() -> [(SymbolKind, SymbolNameRef<'static>); Buil
             SymbolKind::BuiltinFunction,
             SymbolNameRef::Static(BuiltinFunction::FloatSubtractTowardNegativeF64.name()),
         ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::FloatMultiplyTowardZeroF32.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::FloatMultiplyTowardZeroF64.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::FloatMultiplyTowardPositiveF32.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::FloatMultiplyTowardPositiveF64.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::FloatMultiplyTowardNegativeF32.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::FloatMultiplyTowardNegativeF64.name()),
+        ),
     ]
 }
 
@@ -647,6 +695,12 @@ mod builtin_ordinal_tests {
             BuiltinFunction::FloatSubtractTowardPositiveF64,
             BuiltinFunction::FloatSubtractTowardNegativeF32,
             BuiltinFunction::FloatSubtractTowardNegativeF64,
+            BuiltinFunction::FloatMultiplyTowardZeroF32,
+            BuiltinFunction::FloatMultiplyTowardZeroF64,
+            BuiltinFunction::FloatMultiplyTowardPositiveF32,
+            BuiltinFunction::FloatMultiplyTowardPositiveF64,
+            BuiltinFunction::FloatMultiplyTowardNegativeF32,
+            BuiltinFunction::FloatMultiplyTowardNegativeF64,
         ] {
             assert_eq!(
                 table[function.ordinal()].1.as_str(),

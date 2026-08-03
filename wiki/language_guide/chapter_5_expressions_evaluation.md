@@ -613,7 +613,7 @@ explicit AArch64 satisfiers and lowers to one scalar `FMADD`; its interpreter
 path consumes the same `FloatSemantics::fused_multiply_add` identity. Generic
 x86-64 remains SSE2-baseline and therefore does not claim FMA3: that target
 requires a feature-qualified or checked software satisfier. The first explicit
-directed cohorts supply F32/F64 add/subtract-toward-zero/positive/negative
+directed cohorts supply F32/F64 add/subtract/multiply-toward-zero/positive/negative
 satisfiers on all four native targets. Each operation saves the complete floating control
 state, installs its requested direction for one scalar operation, and restores the
 prior state before returning the result; directed rounding never becomes an

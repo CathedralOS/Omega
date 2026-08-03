@@ -1,0 +1,79 @@
+// Products of the adjacent values around one land just below the upper
+// midpoint. Directed modes choose the neighboring representable result while
+// ordinary multiplication remains nearest-even after each local envelope.
+
+use omega::language::core::float_operations;
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    one32: f32;
+    above_one32: f32;
+    below_one32: f32;
+    negative_above_one32: f32;
+    positive32: f32;
+    zero32: f32;
+    negative32: f32;
+    ordinary32: f32;
+    one64: f64;
+    above_one64: f64;
+    below_one64: f64;
+    negative_above_one64: f64;
+    positive64: f64;
+    zero64: f64;
+    negative64: f64;
+    ordinary64: f64;
+}
+
+machine Main::main(&mut self) {
+    self.one32 = 1.0f32;
+    self.above_one32 = 1.00000011920928955078125f32;
+    self.below_one32 = 0.999999940395355224609375f32;
+    self.negative_above_one32 = 0.0f32 - self.above_one32;
+    self.positive32 = F32::multiply_toward_positive(
+        self.above_one32,
+        self.below_one32
+    );
+    self.zero32 = F32::multiply_toward_zero(
+        self.above_one32,
+        self.below_one32
+    );
+    self.negative32 = F32::multiply_toward_negative(
+        self.negative_above_one32,
+        self.below_one32
+    );
+    self.ordinary32 = self.above_one32 * self.below_one32;
+
+    self.one64 = 1.0;
+    self.above_one64 = 1.0000000000000002220446049250313080847263336181640625;
+    self.below_one64 = 0.99999999999999988897769753748434595763683319091796875;
+    self.negative_above_one64 = 0.0 - self.above_one64;
+    self.positive64 = F64::multiply_toward_positive(
+        self.above_one64,
+        self.below_one64
+    );
+    self.zero64 = F64::multiply_toward_zero(
+        self.above_one64,
+        self.below_one64
+    );
+    self.negative64 = F64::multiply_toward_negative(
+        self.negative_above_one64,
+        self.below_one64
+    );
+    self.ordinary64 = self.above_one64 * self.below_one64;
+
+    transition self.positive32 == self.above_one32
+        && self.zero32 == self.one32
+        && self.negative32 == self.negative_above_one32
+        && self.ordinary32 == self.one32
+        && self.positive64 == self.above_one64
+        && self.zero64 == self.one64
+        && self.negative64 == self.negative_above_one64
+        && self.ordinary64 == self.one64 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(77); }
+}

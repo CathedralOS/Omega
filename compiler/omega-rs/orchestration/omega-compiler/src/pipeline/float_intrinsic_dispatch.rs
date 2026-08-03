@@ -33,6 +33,7 @@ enum NamedFloatRealization {
 enum DirectedFloatBinaryOperation {
     Add,
     Subtract,
+    Multiply,
 }
 
 pub(crate) fn rewrite_selected_float_intrinsic_calls(
@@ -277,6 +278,36 @@ pub(crate) fn rewrite_selected_float_intrinsic_calls(
                         FloatFormat::F64,
                         RoundingDirection::TowardNegative,
                     ) => BuiltinFunction::FloatSubtractTowardNegativeF64,
+                    (
+                        DirectedFloatBinaryOperation::Multiply,
+                        FloatFormat::F32,
+                        RoundingDirection::TowardZero,
+                    ) => BuiltinFunction::FloatMultiplyTowardZeroF32,
+                    (
+                        DirectedFloatBinaryOperation::Multiply,
+                        FloatFormat::F64,
+                        RoundingDirection::TowardZero,
+                    ) => BuiltinFunction::FloatMultiplyTowardZeroF64,
+                    (
+                        DirectedFloatBinaryOperation::Multiply,
+                        FloatFormat::F32,
+                        RoundingDirection::TowardPositive,
+                    ) => BuiltinFunction::FloatMultiplyTowardPositiveF32,
+                    (
+                        DirectedFloatBinaryOperation::Multiply,
+                        FloatFormat::F64,
+                        RoundingDirection::TowardPositive,
+                    ) => BuiltinFunction::FloatMultiplyTowardPositiveF64,
+                    (
+                        DirectedFloatBinaryOperation::Multiply,
+                        FloatFormat::F32,
+                        RoundingDirection::TowardNegative,
+                    ) => BuiltinFunction::FloatMultiplyTowardNegativeF32,
+                    (
+                        DirectedFloatBinaryOperation::Multiply,
+                        FloatFormat::F64,
+                        RoundingDirection::TowardNegative,
+                    ) => BuiltinFunction::FloatMultiplyTowardNegativeF64,
                     (_, _, RoundingDirection::NearestTiesToEven) => {
                         diagnostics.push(Diagnostic::error(
                             "directed float realization cannot select nearest-even",
@@ -421,6 +452,36 @@ fn named_float_realization(intrinsic: &str) -> Option<NamedFloatRealization> {
         )),
         "F64::subtract_toward_negative.f64" => Some(NamedFloatRealization::DirectedBinary(
             DirectedFloatBinaryOperation::Subtract,
+            FloatFormat::F64,
+            RoundingDirection::TowardNegative,
+        )),
+        "F32::multiply_toward_zero.f32" => Some(NamedFloatRealization::DirectedBinary(
+            DirectedFloatBinaryOperation::Multiply,
+            FloatFormat::F32,
+            RoundingDirection::TowardZero,
+        )),
+        "F64::multiply_toward_zero.f64" => Some(NamedFloatRealization::DirectedBinary(
+            DirectedFloatBinaryOperation::Multiply,
+            FloatFormat::F64,
+            RoundingDirection::TowardZero,
+        )),
+        "F32::multiply_toward_positive.f32" => Some(NamedFloatRealization::DirectedBinary(
+            DirectedFloatBinaryOperation::Multiply,
+            FloatFormat::F32,
+            RoundingDirection::TowardPositive,
+        )),
+        "F64::multiply_toward_positive.f64" => Some(NamedFloatRealization::DirectedBinary(
+            DirectedFloatBinaryOperation::Multiply,
+            FloatFormat::F64,
+            RoundingDirection::TowardPositive,
+        )),
+        "F32::multiply_toward_negative.f32" => Some(NamedFloatRealization::DirectedBinary(
+            DirectedFloatBinaryOperation::Multiply,
+            FloatFormat::F32,
+            RoundingDirection::TowardNegative,
+        )),
+        "F64::multiply_toward_negative.f64" => Some(NamedFloatRealization::DirectedBinary(
+            DirectedFloatBinaryOperation::Multiply,
             FloatFormat::F64,
             RoundingDirection::TowardNegative,
         )),
@@ -615,6 +676,14 @@ mod tests {
                 DirectedFloatBinaryOperation::Subtract,
                 FloatFormat::F32,
                 RoundingDirection::TowardPositive,
+            ))
+        );
+        assert_eq!(
+            named_float_realization("F64::multiply_toward_zero.f64"),
+            Some(NamedFloatRealization::DirectedBinary(
+                DirectedFloatBinaryOperation::Multiply,
+                FloatFormat::F64,
+                RoundingDirection::TowardZero,
             ))
         );
     }
