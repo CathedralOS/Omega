@@ -2028,15 +2028,15 @@ mod tests {
                 ..Default::default()
             });
         let place = checked.facts.semantic.append_symbol_place(subject_symbol);
-        let fact = checked.facts.semantic.append_fact(omega_facts::Fact {
-            place: omega_facts::FactPlace::Place(place),
-            point: omega_facts::ProgramPoint::Global,
-            origin: omega_facts::FactOrigin::CallEnsures,
-            evidence: omega_facts::QualificationEvidence::from_origin(
+        let fact = checked.facts.semantic.append_fact(psi_facts::Fact {
+            place: psi_facts::FactPlace::Place(place),
+            point: psi_facts::ProgramPoint::Global,
+            origin: psi_facts::FactOrigin::CallEnsures,
+            evidence: psi_facts::QualificationEvidence::from_origin(
                 omega_core::semantics::QualificationEvidenceOrigin::AdmittedReceipt,
                 boundary_symbol,
             ),
-            payload: omega_facts::FactPayload::DomainMembership {
+            payload: psi_facts::FactPayload::DomainMembership {
                 value: Default::default(),
                 domain: Default::default(),
                 domain_symbol,

@@ -16,7 +16,7 @@ fn remaps_ownership_summary_from_source_roots_into_target_roots() {
 
     segments.append_to_span(
         &mut segment_span,
-        omega_facts::PlaceSegment::Field {
+        psi_facts::PlaceSegment::Field {
             symbol: SymbolHandle::from_arena_index(1),
         },
     );
@@ -28,7 +28,7 @@ fn remaps_ownership_summary_from_source_roots_into_target_roots() {
                 call_ordinal: 3,
                 target_symbol: SymbolHandle::from_arena_index(4),
             },
-            root: omega_facts::PlaceRoot::Symbol(SymbolHandle::from_arena_index(5)),
+            root: psi_facts::PlaceRoot::Symbol(SymbolHandle::from_arena_index(5)),
             segments: segment_span,
         },
     );
@@ -36,7 +36,7 @@ fn remaps_ownership_summary_from_source_roots_into_target_roots() {
         &mut drop_span,
         StateDropEvent {
             source: omega_state_graph::StateOwnershipEventSource::StateExit,
-            root: omega_facts::PlaceRoot::Symbol(SymbolHandle::from_arena_index(6)),
+            root: psi_facts::PlaceRoot::Symbol(SymbolHandle::from_arena_index(6)),
             segments: segment_span,
         },
     );
@@ -49,7 +49,7 @@ fn remaps_ownership_summary_from_source_roots_into_target_roots() {
             access: omega_core::semantics::PermissionAccess::Owned,
             claim_identity: omega_core::semantics::PermissionClaimIdentity::Unknown,
             provenance: omega_core::semantics::PermissionProvenance::Unknown,
-            root: omega_facts::PlaceRoot::Symbol(SymbolHandle::from_arena_index(7)),
+            root: psi_facts::PlaceRoot::Symbol(SymbolHandle::from_arena_index(7)),
             segments: segment_span,
             obligation_live: true,
         },
@@ -88,7 +88,7 @@ fn remaps_ownership_summary_from_source_roots_into_target_roots() {
     assert_eq!(move_event.segments.count(), 1);
     assert_eq!(
         move_event.root,
-        omega_facts::PlaceRoot::Symbol(SymbolHandle::from_arena_index(5))
+        psi_facts::PlaceRoot::Symbol(SymbolHandle::from_arena_index(5))
     );
     let permission = target
         .semantics

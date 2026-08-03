@@ -25,7 +25,7 @@ pub enum StateBorrowAccessKind {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateBorrowArgumentAccess {
     pub root_symbol: SymbolHandle,
-    pub segments: HandleSpan<omega_facts::PlaceSegment>,
+    pub segments: HandleSpan<psi_facts::PlaceSegment>,
     pub kind: StateBorrowAccessKind,
 }
 
@@ -45,7 +45,7 @@ pub struct StateBorrowLoan {
     pub last_use_statement_index: usize,
     pub owner_symbol: SymbolHandle,
     pub root_symbol: SymbolHandle,
-    pub segments: HandleSpan<omega_facts::PlaceSegment>,
+    pub segments: HandleSpan<psi_facts::PlaceSegment>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -100,7 +100,7 @@ pub struct StateBorrowSummary {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateGraphBorrowRoots {
     pub writable_roots: Arena<StateBorrowWritableRoot>,
-    pub access_segments: Arena<omega_facts::PlaceSegment>,
+    pub access_segments: Arena<psi_facts::PlaceSegment>,
     pub argument_accesses: Arena<StateBorrowArgumentAccess>,
     pub calls: Arena<StateBorrowCall>,
     pub loans: Arena<StateBorrowLoan>,
@@ -111,7 +111,7 @@ pub struct StateGraphBorrowRoots {
 impl StateGraphBorrowRoots {
     pub fn with_roots(
         writable_roots: Arena<StateBorrowWritableRoot>,
-        access_segments: Arena<omega_facts::PlaceSegment>,
+        access_segments: Arena<psi_facts::PlaceSegment>,
         argument_accesses: Arena<StateBorrowArgumentAccess>,
         calls: Arena<StateBorrowCall>,
         loans: Arena<StateBorrowLoan>,
@@ -141,7 +141,7 @@ mod tests {
     #[test]
     fn borrow_roots_constructor_keeps_borrow_noun_roots_explicit() {
         let writable_roots = Arena::<StateBorrowWritableRoot>::with_capacity(1);
-        let access_segments = Arena::<omega_facts::PlaceSegment>::with_capacity(2);
+        let access_segments = Arena::<psi_facts::PlaceSegment>::with_capacity(2);
         let argument_accesses = Arena::<StateBorrowArgumentAccess>::with_capacity(3);
         let calls = Arena::<StateBorrowCall>::with_capacity(4);
         let loans = Arena::<StateBorrowLoan>::with_capacity(5);

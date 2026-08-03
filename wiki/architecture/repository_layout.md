@@ -98,7 +98,6 @@ Omega/
 |   |   `-- [CRATE] omega-validation/                   # Transitional re-export of Psi-owned source validation.
 |   |
 |   |-- representations/
-|   |   |-- [CRATE] omega-facts/                        # Transitional re-export of Psi-owned checked fact vocabulary.
 |   |   |-- [CRATE] omega-effects/                      # Omega provider bindings/admission plus transitional Psi-effect exports.
 |   |   |-- [CRATE] omega-checked-trees/                # Transitional re-export of Psi-owned checked trees.
 |   |   |-- [CRATE] omega-state-graph/                  # Explicit machine/state graph for proof and scheduling.
@@ -252,8 +251,9 @@ Omega/
   inside the existing semantic crates (chiefly `psi-types`, `psi-facts`,
   `psi-validation`, and `psi-proof`).
 - `psi-facts` carries checked facts, invariants, and refinement data: what
-  remains true. The old `omega-facts` name is a compatibility export while
-  downstream Omega consumers migrate to terminal Psi.
+  remains true. The unused former `omega-facts` compatibility package is
+  retired; legacy backend consumers depend on the Psi owner directly while
+  they migrate to terminal Psi.
 - `psi-checked-trees` owns the durable checked semantic representation and its
   proof, borrow, flow, reach, value-origin, and admissibility evidence. The old
   `omega-checked-trees` name is an implementation-free compatibility export.

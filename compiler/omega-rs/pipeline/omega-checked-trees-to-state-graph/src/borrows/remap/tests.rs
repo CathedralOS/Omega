@@ -29,7 +29,7 @@ fn remaps_borrow_summary_from_source_roots_into_target_roots() {
     );
     access_segments.append_to_span(
         &mut segment_span,
-        omega_facts::PlaceSegment::Field {
+        psi_facts::PlaceSegment::Field {
             symbol: SymbolHandle::from_arena_index(2),
         },
     );

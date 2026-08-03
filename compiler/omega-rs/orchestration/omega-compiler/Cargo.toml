@@ -59,4 +59,4 @@ psi-typed-trees = { path = "../../../psi-rs/representations/psi-typed-trees" }
 omega-visualizations = { path = "../omega-visualizations" }
 
 [dev-dependencies]
-omega-facts = { path = "../../representations/omega-facts" }
+psi-facts = { path = "../../../psi-rs/representations/psi-facts" }

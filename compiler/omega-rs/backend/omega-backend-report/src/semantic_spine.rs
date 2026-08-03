@@ -160,17 +160,17 @@ fn permission_provenance_text(
 fn ownership_place_text(
     backend_plan: &BackendReportInput<'_>,
     source_key: omega_control_flow::StateKey,
-    root: omega_facts::PlaceRoot,
-    segments: HandleSpan<omega_facts::PlaceSegment>,
+    root: psi_facts::PlaceRoot,
+    segments: HandleSpan<psi_facts::PlaceSegment>,
 ) -> String {
     let mut text = match root {
-        omega_facts::PlaceRoot::Symbol(symbol) => {
+        psi_facts::PlaceRoot::Symbol(symbol) => {
             ownership_symbol_name(backend_plan, source_key, symbol)
                 .unwrap_or_else(|| "<unnamed>".to_owned())
         }
-        omega_facts::PlaceRoot::Unknown
-        | omega_facts::PlaceRoot::Expression(_)
-        | omega_facts::PlaceRoot::TypeReference(_) => "<unnamed>".to_owned(),
+        psi_facts::PlaceRoot::Unknown
+        | psi_facts::PlaceRoot::Expression(_)
+        | psi_facts::PlaceRoot::TypeReference(_) => "<unnamed>".to_owned(),
     };
 
     for segment in backend_plan
@@ -179,26 +179,26 @@ fn ownership_place_text(
         .span_or_empty(segments)
     {
         match segment {
-            omega_facts::PlaceSegment::Field { symbol } => {
+            psi_facts::PlaceSegment::Field { symbol } => {
                 text.push('.');
                 text.push_str(
                     &ownership_symbol_name(backend_plan, source_key, *symbol)
                         .unwrap_or_else(|| "<field>".to_owned()),
                 );
             }
-            omega_facts::PlaceSegment::Case { variant } => {
+            psi_facts::PlaceSegment::Case { variant } => {
                 text.push_str("::");
                 text.push_str(
                     &ownership_symbol_name(backend_plan, source_key, *variant)
                         .unwrap_or_else(|| "<case>".to_owned()),
                 );
             }
-            omega_facts::PlaceSegment::FixedIndex { index } => {
+            psi_facts::PlaceSegment::FixedIndex { index } => {
                 text.push('[');
                 text.push_str(&index.to_string());
                 text.push(']');
             }
-            omega_facts::PlaceSegment::Index { .. } => text.push_str("[..]"),
+            psi_facts::PlaceSegment::Index { .. } => text.push_str("[..]"),
         }
     }
 

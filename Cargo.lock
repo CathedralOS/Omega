@@ -90,7 +90,7 @@ dependencies = [
  "omega-calling-conventions",
  "omega-control-flow",
  "omega-core",
- "omega-facts",
+ "psi-facts",
  "psi-typed-trees",
 ]
 
@@ -234,7 +234,6 @@ dependencies = [
  "omega-checked-trees",
  "omega-control-flow",
  "omega-core",
- "omega-facts",
  "omega-layout",
  "omega-machine-bytes",
  "omega-machine-instructions",
@@ -254,6 +253,7 @@ dependencies = [
  "omega-state-values",
  "omega-target",
  "omega-target-operations",
+ "psi-facts",
 ]
 
 [[package]]
@@ -286,8 +286,8 @@ dependencies = [
  "omega-checked-trees",
  "omega-core",
  "omega-effects",
- "omega-facts",
  "omega-state-graph",
+ "psi-facts",
 ]
 
 [[package]]
@@ -313,7 +313,6 @@ dependencies = [
  "omega-effects",
  "omega-emission-planning",
  "omega-external-roots",
- "omega-facts",
  "omega-image",
  "omega-image-emission",
  "omega-instruction-selection",
@@ -359,7 +358,7 @@ version = "0.1.0"
 dependencies = [
  "omega-checked-trees",
  "omega-core",
- "omega-facts",
+ "psi-facts",
  "psi-typed-trees",
 ]
 
@@ -373,7 +372,6 @@ dependencies = [
  "omega-control-flow",
  "omega-core",
  "omega-effects",
- "omega-facts",
  "omega-instruction-selection",
  "omega-layout",
  "omega-platform-interface",
@@ -389,6 +387,7 @@ dependencies = [
  "omega-state-storage",
  "omega-target",
  "omega-target-operations",
+ "psi-facts",
 ]
 
 [[package]]
@@ -480,13 +479,6 @@ dependencies = [
  "omega-target",
  "psi-extents",
  "psi-layout-plans",
-]
-
-[[package]]
-name = "omega-facts"
-version = "0.1.0"
-dependencies = [
- "psi-facts",
 ]
 
 [[package]]
@@ -849,7 +841,7 @@ dependencies = [
  "omega-checked-trees",
  "omega-control-flow",
  "omega-core",
- "omega-facts",
+ "psi-facts",
  "psi-typed-trees",
 ]
 
