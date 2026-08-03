@@ -168,6 +168,7 @@ pub(super) fn write_typed_snapshot(
 pub(super) fn write_checked_snapshot(
     options: &CompileOptions,
     checked: &omega_checked_trees::CheckedTrees,
+    selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     write_phase_diagram(
         options,
@@ -192,7 +193,10 @@ pub(super) fn write_checked_snapshot(
     write_phase_json(
         options,
         "05_qualification_evidence.json",
-        &omega_visualizations::qualification_evidence_manifest_json(checked),
+        &omega_visualizations::qualification_evidence_manifest_json(
+            checked,
+            selected_provider_plans,
+        ),
     )?;
     write_phase_json(
         options,

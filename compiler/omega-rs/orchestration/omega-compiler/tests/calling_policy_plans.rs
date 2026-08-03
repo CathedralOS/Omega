@@ -233,8 +233,11 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
         missing_active.identity_fingerprint(),
         "the mask provider receipt must bind its routed Active result claim"
     );
-    let mask_selection = selected_external_root_provider_plan(&checked, "InterruptMaskControl")
-        .expect("mask transition bridge should retain its selected provider plan");
+    let mask_selection = selected_external_root_provider_plan(
+        checked.selected_provider_plans(),
+        "InterruptMaskControl",
+    )
+    .expect("mask transition bridge should retain its selected provider plan");
     let runtime_active = mask_selection
         .result_claims(&mask_save.requirement_identity)
         .expect("exact Active result claim should lower into the runtime receipt contract");
@@ -294,8 +297,9 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
         unreported.identity_fingerprint(),
         "the provider-plan receipt must bind the compiler-owned accepted-authority row"
     );
-    let root_selection = selected_external_root_provider_plan(&checked, "TimerRoot")
-        .expect("external-root bridge should retain the qualified timer schema");
+    let root_selection =
+        selected_external_root_provider_plan(checked.selected_provider_plans(), "TimerRoot")
+            .expect("external-root bridge should retain the qualified timer schema");
     assert_eq!(
         root_selection.identity.normalized_identity(),
         selected.identity_fingerprint()
@@ -322,12 +326,15 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
         omega_core::semantics::CarryPolicy::STRICT
     );
     assert_eq!(
-        selected_external_root_provider_plan_id(&checked, "TimerRoot")
+        selected_external_root_provider_plan_id(checked.selected_provider_plans(), "TimerRoot")
             .expect("external-root bridge should retain the selected timer plan")
             .normalized_identity(),
         selected.identity_fingerprint()
     );
-    let qualification = omega_visualizations::qualification_evidence_manifest_json(&checked);
+    let qualification = omega_visualizations::qualification_evidence_manifest_json(
+        &checked,
+        checked.selected_provider_plans(),
+    );
     assert!(qualification.contains("\"boundary_authority_flow\": ["));
     assert!(qualification.contains("\"flow\": \"accepts\""));
     assert!(qualification.contains("\"flow\": \"returns\""));

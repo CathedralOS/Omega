@@ -36,7 +36,7 @@ struct AdapterRow {
 
 pub(crate) fn rewrite_adapter_calls(
     typed: &mut TypedTrees,
-    selected_plans: &omega_checked_trees::SelectedProviderPlanFacts,
+    selected_plans: &omega_effects::SelectedProviderPlanFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     // (trait leaf, method) -> selected adapter row: machines with a body and a
     // requirement-named satisfies edge (no via) over a BOUNDARY trait. A

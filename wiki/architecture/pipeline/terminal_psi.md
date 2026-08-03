@@ -41,6 +41,11 @@ exact operation/edge/return axioms, and checks every `ensures` from a separate
 proof bundle. `omega-interpreter` executes only a `VerifiedTerminalModule` on
 this path.
 
+The checked-frontend migration also keeps the ownership firewall explicit:
+target-neutral facts and effect summaries are Psi-owned, while concrete
+selected provider plans are Omega-owned and travel as an orchestration sidecar.
+`CheckedTrees` does not embed that target/provider realization state.
+
 The first transitional source producer is now live as
 `omega-checked-trees-to-terminal-psi`. It accepts one exact free-machine slice:
 typed integer constants, one unconditional literal-carrying state jump, one

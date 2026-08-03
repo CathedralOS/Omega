@@ -34,6 +34,7 @@ pub(super) struct AssembledSyntax {
 
 pub(super) struct CheckedProgramSurface {
     pub(super) program: Arc<CheckedProgram>,
+    pub(super) selected_provider_plans: Arc<omega_effects::SelectedProviderPlanFacts>,
 }
 
 pub(super) struct BackendPlanningSurface {
@@ -425,6 +426,7 @@ pub(super) fn typed_trees_to_checked_trees(
         let program = omega_typed_trees_to_checked_trees::lower_typed_trees(typed)?;
         Ok(CheckedProgramSurface {
             program: Arc::new(program),
+            selected_provider_plans: Arc::new(omega_effects::SelectedProviderPlanFacts::default()),
         })
     })
 }
@@ -467,6 +469,7 @@ pub(super) fn control_flow_to_backend_plan(
 
     let plan = omega_backend_pipeline::build_backend_plan_from_control_flow_with_workers(
         checked.program,
+        checked.selected_provider_plans,
         target,
         freestanding,
         external_binding_rows,

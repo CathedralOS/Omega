@@ -101,7 +101,7 @@ Omega/
 |   |   |-- [CRATE] omega-typed-trees/                  # Transitional re-export of Psi-owned typed trees.
 |   |   |-- [CRATE] omega-facts/                        # Transitional re-export of Psi-owned checked fact vocabulary.
 |   |   |-- [CRATE] omega-effects/                      # Omega provider bindings/admission plus transitional Psi-effect exports.
-|   |   |-- [CRATE] omega-checked-trees/                # Typed trees plus checked semantic facts after validation/proof-facing checks.
+|   |   |-- [CRATE] omega-checked-trees/                # Transitional checked semantic tree; concrete provider selection is external.
 |   |   |-- [CRATE] omega-state-graph/                  # Explicit machine/state graph for proof and scheduling.
 |   |   |-- [CRATE] omega-control-flow/                 # Control-flow/data-flow graph.
 |   |   |-- [CRATE] omega-abstract-operations/          # Target-independent abstract operations with virtual registers.
@@ -263,8 +263,9 @@ Omega/
 - `psi-effects` carries target-neutral operational ceilings, service reach,
   synchronous invocation summaries, and capability-flow facts. `omega-effects`
   retains provider declarations, target/provider bindings, approval, and
-  installation-facing records while re-exporting the Psi facts for legacy
-  consumers.
+  installation-facing records—including the exact selected-plan carrier—while
+  re-exporting the Psi facts for legacy consumers. Checked semantic trees do
+  not retain that Omega realization sidecar.
 - `omega-validation` answers cross-semantic obligations, including who may read
   or mutate and what a callable requires or promises.
 - `omega-proof` discharges obligations.

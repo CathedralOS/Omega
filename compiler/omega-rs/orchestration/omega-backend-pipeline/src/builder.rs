@@ -53,6 +53,7 @@ use std::sync::Arc;
 
 pub(super) fn build_backend_plan_from_control_flow_with_workers(
     program: Arc<CheckedTrees>,
+    selected_provider_plans: Arc<omega_effects::SelectedProviderPlanFacts>,
     target: NativeTarget,
     freestanding: bool,
     external_binding_rows: &[omega_calling_conventions::ExternalBindingRow],
@@ -414,6 +415,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
                 entry_key: backend_plan.entry_key,
                 entry_symbol: object_entry_symbol_name(&backend_plan.object).into(),
                 program: program.as_ref(),
+                selected_provider_plans: selected_provider_plans.as_ref(),
                 control_flow: &backend_plan.control_flow,
                 host_calls: &backend_plan.host_calls,
                 state_calls: &backend_plan.state_calls,

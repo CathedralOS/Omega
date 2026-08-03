@@ -14,8 +14,8 @@ pub struct CheckFacts {
     pub domains: DomainFacts,
     pub operators: CheckedOperatorFacts,
     /// Grouped machine/state/call suspension and blocking inference.
-    pub operations: omega_effects::OperationalPlan,
-    pub capabilities: omega_effects::CapabilityFlowPlan,
+    pub operations: psi_effects::OperationalPlan,
+    pub capabilities: psi_effects::CapabilityFlowPlan,
     pub flow: FlowFacts,
     /// PDI3 named equality verification conditions and their exact discharge
     /// evidence. These rows never participate in semantic type identity.
@@ -47,8 +47,8 @@ impl CheckFacts {
         invariants: InvariantFacts,
         domains: DomainFacts,
         operators: CheckedOperatorFacts,
-        operations: omega_effects::OperationalPlan,
-        capabilities: omega_effects::CapabilityFlowPlan,
+        operations: psi_effects::OperationalPlan,
+        capabilities: psi_effects::CapabilityFlowPlan,
         flow: FlowFacts,
         index_compatibility: IndexCompatibilityFacts,
         termination: TerminationFacts,
@@ -82,30 +82,11 @@ impl CheckFacts {
 pub struct CheckedTrees {
     pub typed: omega_typed_trees::TypedTrees,
     pub facts: CheckFacts,
-    /// Exact validated provider plans selected for this concrete checked
-    /// program. Kept separate from authored candidates so backend/provider
-    /// consumers cannot accidentally combine rows from different plans.
-    selected_provider_plans: crate::SelectedProviderPlanFacts,
 }
 
 impl CheckedTrees {
     pub fn with_roots(typed: omega_typed_trees::TypedTrees, facts: CheckFacts) -> Self {
-        Self {
-            typed,
-            facts,
-            selected_provider_plans: crate::SelectedProviderPlanFacts::default(),
-        }
-    }
-
-    pub const fn selected_provider_plans(&self) -> &crate::SelectedProviderPlanFacts {
-        &self.selected_provider_plans
-    }
-
-    /// Install a normalized selection produced from the compiler's validated
-    /// candidate set. The wrapper's private storage prevents later consumers
-    /// from mutating retained plan rows after checked lowering.
-    pub fn retain_selected_provider_plans(&mut self, plans: crate::SelectedProviderPlanFacts) {
-        self.selected_provider_plans = plans;
+        Self { typed, facts }
     }
 }
 

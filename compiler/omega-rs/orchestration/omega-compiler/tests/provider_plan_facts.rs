@@ -41,11 +41,11 @@ machine Main::main(&mut self) { }
             .map(|selected| selected.name.as_str()),
         Some("satisfies::Pair")
     );
-    let root_plan = selected_external_root_provider_plan_id(&checked, "Pair")
+    let root_plan = selected_external_root_provider_plan_id(facts, "Pair")
         .expect("external-root bridge must consume the retained Pair selection");
     assert_eq!(root_plan.normalized_identity(), plan.identity_fingerprint());
     assert!(
-        selected_external_root_provider_plan_id(&checked, "Missing")
+        selected_external_root_provider_plan_id(facts, "Missing")
             .expect_err("an unselected root slot must fail closed")
             .0
             .contains("no retained selected provider plan")
