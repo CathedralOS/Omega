@@ -154,8 +154,9 @@ operational reach-row member. The outcome is:
 
 The contagion is the deterrent: aborting is annoying to opt into by design,
 reserved for services whose owner restarts them. It is not for ordinary error
-handling. The exact source spelling remains open in the totality brief; this
-chapter does not introduce an `abort` effect keyword.
+handling. The exact source spelling remains open in the totality brief and
+[`OWNER_QUESTIONS.md` Q8](../../OWNER_QUESTIONS.md#q8--what-is-the-complete-contract-surface-for-abnormal-non-return);
+this chapter does not introduce an `abort` effect keyword.
 
 The control outcome and service reach are separate contract axes. Calling the
 process-exit boundary contributes the `ProcessExit` boundary-trait identity to
