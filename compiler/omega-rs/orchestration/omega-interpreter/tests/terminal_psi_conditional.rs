@@ -1,10 +1,12 @@
 use omega_interpreter::{TerminalScalarValue, interpret_terminal_measured};
 use omega_target::NativeTarget;
 use omega_terminal_abstract_operations::TerminalAbstractOperation;
-use omega_terminal_abstract_operations_to_target_operations::{
-    LoweringError, lower_to_target_operations,
-};
+use omega_terminal_abstract_operations_to_target_operations::lower_to_target_operations;
+use omega_terminal_assigned_target_operations::TerminalAssignedOperation;
+use omega_terminal_machine_emission::emit_machine_code;
 use omega_terminal_psi_to_abstract_operations::lower_verified_module;
+use omega_terminal_target_operations::TerminalTargetOperation;
+use omega_terminal_target_operations_to_assigned_target_operations::assign_registers;
 use psi_core::{
     BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
     ScalarType, ValueId,
@@ -125,12 +127,29 @@ fn v13_conditional_round_trips_executes_and_lowers_both_ordered_successors() {
     assert_eq!(when_false.psi_edge, false_edge);
     assert_eq!(when_false.target, BlockId::new(3).unwrap());
     assert_eq!(when_false.bindings[0].argument, ValueId::new(3).unwrap());
-    assert_eq!(
-        lower_to_target_operations(&abstract_plan, NativeTarget::host()),
-        Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(
-            MachineId::new(1).unwrap()
-        ))
-    );
+    let target_plan = lower_to_target_operations(&abstract_plan, NativeTarget::host())
+        .expect("direct-binding conditional should lower for the host");
+    let TerminalTargetOperation::ReturnIntegerConditionalParameters {
+        condition_source,
+        when_true,
+        when_false,
+        ..
+    } = &target_plan.functions[0].operation
+    else {
+        panic!("target plan must retain a conditional return")
+    };
+    assert_eq!(*condition_source, ValueId::new(1).unwrap());
+    assert_eq!(when_true.psi_edge, true_edge);
+    assert_eq!(when_true.psi_return_edge, EdgeId::new(3).unwrap());
+    assert_eq!(when_false.psi_edge, false_edge);
+    assert_eq!(when_false.psi_return_edge, EdgeId::new(4).unwrap());
+    let assigned = assign_registers(&target_plan).expect("conditional homes assign");
+    assert!(matches!(
+        assigned.functions[0].operation,
+        TerminalAssignedOperation::ReturnIntegerConditionalParameters { .. }
+    ));
+    let machine_code = emit_machine_code(&assigned).expect("conditional machine code emits");
+    assert!(!machine_code.functions[0].bytes.is_empty());
 }
 
 #[test]

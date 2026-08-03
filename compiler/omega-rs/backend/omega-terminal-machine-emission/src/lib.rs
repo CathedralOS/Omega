@@ -100,12 +100,106 @@ fn emit_function(
                 }
             }
         }
+        TerminalAssignedOperation::ReturnIntegerConditionalParameters {
+            condition_source,
+            condition_location,
+            scalar_type,
+            when_true,
+            when_false,
+            ..
+        } => {
+            require_native_integer_width(when_true.argument_value, *scalar_type)?;
+            require_native_integer_width(when_false.argument_value, *scalar_type)?;
+            match architecture {
+                Architecture::Aarch64 => emit_aarch64_conditional_parameter_return(
+                    *condition_source,
+                    *condition_location,
+                    *scalar_type,
+                    when_true,
+                    when_false,
+                )?,
+                Architecture::X86_64 => emit_x86_64_conditional_parameter_return(
+                    *condition_source,
+                    *condition_location,
+                    *scalar_type,
+                    when_true,
+                    when_false,
+                )?,
+            }
+        }
     };
     Ok(TerminalMachineCodeFunction {
         machine: function.machine,
         provenance: function.provenance.clone(),
         bytes,
     })
+}
+
+fn emit_x86_64_conditional_parameter_return(
+    condition_source: ValueId,
+    condition_location: TerminalAssignedScalarLocation,
+    scalar_type: IntegerType,
+    when_true: &omega_terminal_assigned_target_operations::TerminalAssignedConditionalIntegerParameter,
+    when_false: &omega_terminal_assigned_target_operations::TerminalAssignedConditionalIntegerParameter,
+) -> Result<Vec<u8>, EmissionError> {
+    let mut bytes = emit_x86_64_parameter_return(condition_source, false, condition_location)?;
+    if bytes.pop() != Some(0xc3) {
+        return Err(EmissionError::ConditionalBranchEncodingInvalid);
+    }
+    bytes.extend_from_slice(&[0x85, 0xc0]); // test eax, eax
+    let true_bytes = emit_x86_64_parameter_return(
+        when_true.argument_value,
+        scalar_type.bits() > 32,
+        when_true.location,
+    )?;
+    let false_bytes = emit_x86_64_parameter_return(
+        when_false.argument_value,
+        scalar_type.bits() > 32,
+        when_false.location,
+    )?;
+    let displacement = i32::try_from(true_bytes.len())
+        .map_err(|_| EmissionError::ConditionalBranchDistanceNotEncodable)?;
+    bytes.extend_from_slice(&[0x0f, 0x84]); // jz false arm
+    bytes.extend_from_slice(&displacement.to_le_bytes());
+    bytes.extend_from_slice(&true_bytes);
+    bytes.extend_from_slice(&false_bytes);
+    Ok(bytes)
+}
+
+fn emit_aarch64_conditional_parameter_return(
+    condition_source: ValueId,
+    condition_location: TerminalAssignedScalarLocation,
+    scalar_type: IntegerType,
+    when_true: &omega_terminal_assigned_target_operations::TerminalAssignedConditionalIntegerParameter,
+    when_false: &omega_terminal_assigned_target_operations::TerminalAssignedConditionalIntegerParameter,
+) -> Result<Vec<u8>, EmissionError> {
+    let mut bytes = emit_aarch64_parameter_return(condition_source, false, condition_location)?;
+    if bytes.len() < 4 || bytes.split_off(bytes.len() - 4) != 0xd65f_03c0_u32.to_le_bytes() {
+        return Err(EmissionError::ConditionalBranchEncodingInvalid);
+    }
+    let true_bytes = emit_aarch64_parameter_return(
+        when_true.argument_value,
+        scalar_type.bits() > 32,
+        when_true.location,
+    )?;
+    let false_bytes = emit_aarch64_parameter_return(
+        when_false.argument_value,
+        scalar_type.bits() > 32,
+        when_false.location,
+    )?;
+    let branch_words = true_bytes
+        .len()
+        .checked_div(4)
+        .and_then(|words| words.checked_add(1))
+        .ok_or(EmissionError::ConditionalBranchDistanceNotEncodable)?;
+    if branch_words > 0x3ffff {
+        return Err(EmissionError::ConditionalBranchDistanceNotEncodable);
+    }
+    let cbz_w0 = 0x3400_0000_u32 | ((branch_words as u32) << 5);
+    bytes.extend_from_slice(&cbz_w0.to_le_bytes());
+    bytes.extend_from_slice(&true_bytes);
+    bytes.extend_from_slice(&false_bytes);
+    Ok(bytes)
 }
 
 fn emit_x86_64_boolean_return(value: bool) -> Vec<u8> {
@@ -981,6 +1075,8 @@ pub enum EmissionError {
     AssignedFrameSpillOutsideExpression(ValueId),
     AssignedFrameArchitectureMismatch(Architecture),
     AssignedFrameSizeMismatch,
+    ConditionalBranchDistanceNotEncodable,
+    ConditionalBranchEncodingInvalid,
     EntryFunctionMissing(MachineId),
 }
 
@@ -997,7 +1093,8 @@ mod tests {
     use super::*;
     use omega_target::NativeTarget;
     use omega_terminal_target_operations::{
-        TerminalPsiProvenance, TerminalScalarParameterLocation, TerminalTargetFunction,
+        TerminalPsiProvenance, TerminalScalarParameterLocation,
+        TerminalTargetConditionalIntegerParameter, TerminalTargetFunction,
         TerminalTargetIntegerExpression, TerminalTargetOperation, TerminalTargetOperationPlan,
     };
     use omega_terminal_target_operations_to_assigned_target_operations::assign_registers;
@@ -1025,6 +1122,48 @@ mod tests {
                     source_value: ValueId::new(1).expect("value"),
                     scalar_type: i32_type,
                     value: IntegerValue::Signed(7),
+                },
+            }],
+        }
+    }
+
+    fn conditional_plan(target: NativeTarget) -> TerminalTargetOperationPlan {
+        let locations = match target.architecture {
+            Architecture::X86_64 => [
+                MachineRegister::X86Rdi,
+                MachineRegister::X86Rsi,
+                MachineRegister::X86Rdx,
+            ],
+            Architecture::Aarch64 => [
+                MachineRegister::Aarch64X(0),
+                MachineRegister::Aarch64X(1),
+                MachineRegister::Aarch64X(2),
+            ],
+        };
+        let arm = |edge, return_edge, source_value, parameter_index, register| {
+            TerminalTargetConditionalIntegerParameter {
+                psi_edge: EdgeId::new(edge).expect("edge"),
+                psi_return_edge: EdgeId::new(return_edge).expect("return edge"),
+                source_value: ValueId::new(source_value).expect("source value"),
+                argument_value: ValueId::new(source_value).expect("argument value"),
+                parameter_index,
+                location: TerminalScalarParameterLocation::Register(register),
+            }
+        };
+        TerminalTargetOperationPlan {
+            terminal_psi: identity(),
+            target,
+            entry: MachineId::new(1).expect("machine"),
+            functions: vec![TerminalTargetFunction {
+                machine: MachineId::new(1).expect("machine"),
+                provenance: TerminalPsiProvenance::default(),
+                operation: TerminalTargetOperation::ReturnIntegerConditionalParameters {
+                    condition_source: ValueId::new(1).expect("condition"),
+                    condition_parameter_index: 0,
+                    condition_location: TerminalScalarParameterLocation::Register(locations[0]),
+                    scalar_type: IntegerType::new(IntegerSign::Unsigned, 8).expect("u8"),
+                    when_true: arm(1, 3, 2, 1, locations[1]),
+                    when_false: arm(2, 4, 3, 2, locations[2]),
                 },
             }],
         }
@@ -1075,6 +1214,34 @@ mod tests {
                 .functions[0]
                 .bytes,
             [0x00, 0x00, 0x80, 0x52, 0xc0, 0x03, 0x5f, 0xd6]
+        );
+    }
+
+    #[test]
+    fn emits_direct_parameter_conditionals_for_both_architectures() {
+        assert_eq!(
+            emit_machine_code(&conditional_plan(NativeTarget::linux_x64()))
+                .unwrap()
+                .functions[0]
+                .bytes,
+            [
+                0x89, 0xf8, // mov eax, edi
+                0x85, 0xc0, // test eax, eax
+                0x0f, 0x84, 3, 0, 0, 0, // jz false
+                0x89, 0xf0, 0xc3, // mov eax, esi; ret
+                0x89, 0xd0, 0xc3, // mov eax, edx; ret
+            ]
+        );
+        let aarch64 = emit_machine_code(&conditional_plan(NativeTarget::linux_arm64())).unwrap();
+        assert_eq!(
+            aarch64_instructions(&aarch64.functions[0].bytes),
+            [
+                0x3400_0060, // cbz w0, false
+                0x2a01_03e0, // mov w0, w1
+                0xd65f_03c0, // ret
+                0x2a02_03e0, // mov w0, w2
+                0xd65f_03c0, // ret
+            ]
         );
     }
 

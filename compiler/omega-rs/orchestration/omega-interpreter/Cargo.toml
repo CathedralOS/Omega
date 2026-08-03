@@ -29,6 +29,8 @@ psi-checked-trees-to-terminal = { path = "../../../psi-rs/pipeline/psi-checked-t
 omega-compiler = { path = "../omega-compiler" }
 omega-target = { path = "../../foundation/omega-target" }
 omega-terminal-abstract-operations = { path = "../../representations/omega-terminal-abstract-operations" }
+omega-terminal-target-operations = { path = "../../representations/omega-terminal-target-operations" }
+omega-terminal-assigned-target-operations = { path = "../../representations/omega-terminal-assigned-target-operations" }
 omega-terminal-abstract-operations-to-target-operations = { path = "../../pipeline/omega-terminal-abstract-operations-to-target-operations" }
 omega-terminal-target-operations-to-assigned-target-operations = { path = "../../pipeline/omega-terminal-target-operations-to-assigned-target-operations" }
 omega-terminal-machine-emission = { path = "../../backend/omega-terminal-machine-emission" }

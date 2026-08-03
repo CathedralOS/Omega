@@ -15,7 +15,8 @@ use omega_terminal_abstract_operations::{
     TerminalAbstractParameter,
 };
 use omega_terminal_target_operations::{
-    TerminalPsiProvenance, TerminalScalarParameterLocation, TerminalTargetFunction,
+    TerminalPsiProvenance, TerminalScalarParameterLocation,
+    TerminalTargetConditionalIntegerParameter, TerminalTargetFunction,
     TerminalTargetIntegerExpression, TerminalTargetOperation, TerminalTargetOperationPlan,
 };
 use psi_core::{IntegerType, IntegerValue, MachineId, ScalarType, ValueId};
@@ -92,6 +93,14 @@ fn lower_function(
             },
         };
         insert_value(&mut values, parameter.value, value)?;
+    }
+
+    if function
+        .operations
+        .iter()
+        .any(|operation| matches!(operation, TerminalAbstractOperation::Conditional { .. }))
+    {
+        return lower_direct_parameter_conditional(function, &values);
     }
 
     for operation in &function.operations {
@@ -590,6 +599,142 @@ fn lower_function(
     })
 }
 
+fn lower_direct_parameter_conditional(
+    function: &TerminalAbstractFunction,
+    values: &BTreeMap<ValueId, KnownScalar>,
+) -> Result<TerminalTargetFunction, LoweringError> {
+    let [entry, _, _] = function.block_entries.as_slice() else {
+        return Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(
+            function.machine,
+        ));
+    };
+    if entry.block != function.entry || entry.operation_offset != 0 {
+        return Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(
+            function.machine,
+        ));
+    }
+    let TerminalAbstractOperation::Conditional {
+        condition,
+        when_true,
+        when_false,
+    } = function.operations.first().ok_or(
+        LoweringError::ConditionalControlFlowRequiresBlockLowering(function.machine),
+    )?
+    else {
+        return Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(
+            function.machine,
+        ));
+    };
+    let KnownScalar::BooleanParameter {
+        parameter_index: condition_parameter_index,
+        location: condition_location,
+    } = values
+        .get(condition)
+        .ok_or(LoweringError::UnknownValue(*condition))?
+    else {
+        return Err(LoweringError::ConditionalConditionMustBeRuntimeParameter(
+            *condition,
+        ));
+    };
+    let ScalarType::Integer(result_type) = function.result.scalar_type else {
+        return Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(
+            function.machine,
+        ));
+    };
+
+    let lower_arm = |successor: &omega_terminal_abstract_operations::TerminalAbstractSuccessor|
+     -> Result<TerminalTargetConditionalIntegerParameter, LoweringError> {
+        let Some((entry_index, block_entry)) = function
+            .block_entries
+            .iter()
+            .enumerate()
+            .find(|(_, block_entry)| block_entry.block == successor.target)
+        else {
+            return Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(
+                function.machine,
+            ));
+        };
+        let block_end = function
+            .block_entries
+            .get(entry_index + 1)
+            .map_or(function.operations.len(), |next| next.operation_offset);
+        let [TerminalAbstractOperation::Return {
+            psi_edge: psi_return_edge,
+            result,
+            value,
+            scalar_type,
+        }] = &function.operations[block_entry.operation_offset..block_end]
+        else {
+            return Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(
+                function.machine,
+            ));
+        };
+        let [binding] = successor.bindings.as_slice() else {
+            return Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(
+                function.machine,
+            ));
+        };
+        if *result != function.result.value
+            || *scalar_type != function.result.scalar_type
+            || *value != binding.parameter
+            || binding.scalar_type != function.result.scalar_type
+        {
+            return Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(
+                function.machine,
+            ));
+        }
+        let KnownScalar::Integer {
+            scalar_type,
+            value:
+                KnownInteger::Runtime(TerminalTargetIntegerExpression::Parameter {
+                    source_value,
+                    parameter_index,
+                    location,
+                }),
+        } = values
+            .get(&binding.argument)
+            .ok_or(LoweringError::UnknownValue(binding.argument))?
+        else {
+            return Err(LoweringError::ConditionalArmMustReturnRuntimeParameter(
+                successor.psi_edge,
+            ));
+        };
+        if *scalar_type != result_type || *source_value != binding.argument {
+            return Err(LoweringError::ValueTypeMismatch(binding.argument));
+        }
+        Ok(TerminalTargetConditionalIntegerParameter {
+            psi_edge: successor.psi_edge,
+            psi_return_edge: *psi_return_edge,
+            source_value: *value,
+            argument_value: binding.argument,
+            parameter_index: *parameter_index,
+            location: *location,
+        })
+    };
+    let when_true = lower_arm(when_true)?;
+    let when_false = lower_arm(when_false)?;
+    Ok(TerminalTargetFunction {
+        machine: function.machine,
+        provenance: TerminalPsiProvenance {
+            operations: Vec::new(),
+            edges: vec![
+                when_true.psi_edge,
+                when_false.psi_edge,
+                when_true.psi_return_edge,
+                when_false.psi_return_edge,
+            ],
+        },
+        operation: TerminalTargetOperation::ReturnIntegerConditionalParameters {
+            condition_source: *condition,
+            condition_parameter_index: *condition_parameter_index,
+            condition_location: *condition_location,
+            scalar_type: result_type,
+            when_true,
+            when_false,
+        },
+    })
+}
+
 fn scalar_shape(
     value: ValueId,
     scalar_type: ScalarType,
@@ -698,6 +843,8 @@ pub enum LoweringError {
     FunctionHasNoReturn(MachineId),
     FunctionResultMismatch(MachineId),
     ConditionalControlFlowRequiresBlockLowering(MachineId),
+    ConditionalConditionMustBeRuntimeParameter(ValueId),
+    ConditionalArmMustReturnRuntimeParameter(psi_core::EdgeId),
     DuplicateValue(ValueId),
     UnknownValue(ValueId),
     ValueTypeMismatch(ValueId),

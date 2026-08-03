@@ -546,6 +546,24 @@ fn checked_source_conditional_survives_frontend_drop() {
         abstract_operations.functions[0].operations[0],
         TerminalAbstractOperation::Conditional { .. }
     ));
+    let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
+        .expect("direct-binding source conditional should lower for the host");
+    let assigned = assign_registers(&target_operations)
+        .expect("source conditional parameter homes should assign");
+    let machine_code =
+        emit_machine_code(&assigned).expect("source conditional machine code should emit");
+    #[cfg(unix)]
+    for (condition, expected) in [(true, 17), (false, 29)] {
+        assert_eq!(
+            run_host_machine_code_with_conditional_u8(
+                &machine_code.functions[0].bytes,
+                condition,
+                17,
+                29,
+            ),
+            expected
+        );
+    }
 }
 
 #[cfg(unix)]
@@ -1335,6 +1353,57 @@ int main(void) { return terminal_entry(false, false, false, false, false, false,
         .expect("execute terminal Boolean canary")
         .code()
         .expect("terminal Boolean canary exited normally")
+}
+
+#[cfg(unix)]
+fn run_host_machine_code_with_conditional_u8(
+    bytes: &[u8],
+    condition: bool,
+    when_true: u8,
+    when_false: u8,
+) -> i32 {
+    let directory = fresh_scratch_directory("omega-terminal-conditional");
+    let _cleanup = ScratchDirectory(directory.clone());
+    let assembly_path = directory.join("entry.s");
+    let driver_path = directory.join("driver.c");
+    let executable_path = directory.join("entry");
+    let bytes = bytes
+        .iter()
+        .map(|byte| format!("0x{byte:02x}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let assembly = if cfg!(target_os = "macos") {
+        format!(".text\n.globl _terminal_entry\n.p2align 2\n_terminal_entry:\n.byte {bytes}\n")
+    } else {
+        format!(
+            ".text\n.globl terminal_entry\n.type terminal_entry,@function\nterminal_entry:\n.byte {bytes}\n.size terminal_entry, .-terminal_entry\n.section .note.GNU-stack,\"\",@progbits\n"
+        )
+    };
+    let driver = format!(
+        "#include <stdbool.h>\n#include <stdint.h>\n\
+extern uint8_t terminal_entry(bool, uint8_t, uint8_t);\n\
+int main(void) {{ return terminal_entry({}, {when_true}, {when_false}); }}\n",
+        if condition { "true" } else { "false" }
+    );
+    std::fs::write(&assembly_path, assembly).expect("write conditional assembly harness");
+    std::fs::write(&driver_path, driver).expect("write conditional C harness");
+    let link = Command::new("cc")
+        .arg(&assembly_path)
+        .arg(&driver_path)
+        .arg("-o")
+        .arg(&executable_path)
+        .output()
+        .expect("invoke host C linker driver");
+    assert!(
+        link.status.success(),
+        "host linker rejected conditional terminal machine code:\n{}",
+        String::from_utf8_lossy(&link.stderr)
+    );
+    Command::new(&executable_path)
+        .status()
+        .expect("execute terminal conditional canary")
+        .code()
+        .expect("terminal conditional canary exited normally")
 }
 
 #[cfg(unix)]

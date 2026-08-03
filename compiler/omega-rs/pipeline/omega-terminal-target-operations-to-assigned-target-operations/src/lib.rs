@@ -7,9 +7,9 @@ use std::collections::BTreeMap;
 
 use omega_target::Architecture;
 use omega_terminal_assigned_target_operations::{
-    TerminalAssignedFunction, TerminalAssignedIntegerExpression, TerminalAssignedOperation,
-    TerminalAssignedOperationPlan, TerminalAssignedScalarLocation, TerminalEntryRegisterSpill,
-    TerminalExpressionFrame,
+    TerminalAssignedConditionalIntegerParameter, TerminalAssignedFunction,
+    TerminalAssignedIntegerExpression, TerminalAssignedOperation, TerminalAssignedOperationPlan,
+    TerminalAssignedScalarLocation, TerminalEntryRegisterSpill, TerminalExpressionFrame,
 };
 use omega_terminal_target_operations::{
     MachineRegister, TerminalScalarParameterLocation, TerminalTargetFunction,
@@ -103,6 +103,41 @@ fn assign_function(
                 scalar_type: *scalar_type,
                 frame,
                 expression: assign_expression(expression, &assigned_locations)?,
+            }
+        }
+        TerminalTargetOperation::ReturnIntegerConditionalParameters {
+            condition_source,
+            condition_parameter_index,
+            condition_location,
+            scalar_type,
+            when_true,
+            when_false,
+        } => {
+            let assign_arm = |arm: &omega_terminal_target_operations::TerminalTargetConditionalIntegerParameter| {
+                Ok(TerminalAssignedConditionalIntegerParameter {
+                    psi_edge: arm.psi_edge,
+                    psi_return_edge: arm.psi_return_edge,
+                    source_value: arm.source_value,
+                    argument_value: arm.argument_value,
+                    parameter_index: arm.parameter_index,
+                    location: assign_direct_location(
+                        arm.argument_value,
+                        arm.location,
+                        architecture,
+                    )?,
+                })
+            };
+            TerminalAssignedOperation::ReturnIntegerConditionalParameters {
+                condition_source: *condition_source,
+                condition_parameter_index: *condition_parameter_index,
+                condition_location: assign_direct_location(
+                    *condition_source,
+                    *condition_location,
+                    architecture,
+                )?,
+                scalar_type: *scalar_type,
+                when_true: assign_arm(when_true)?,
+                when_false: assign_arm(when_false)?,
             }
         }
     };
