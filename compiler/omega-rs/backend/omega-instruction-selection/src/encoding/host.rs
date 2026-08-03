@@ -516,16 +516,15 @@ pub fn encode_host_call_sequence_with_plan<T: InstructionOperandLike>(
 /// itself (windows-session verified).
 pub fn encode_authored_import_call_sequence<T: InstructionOperandLike>(
     target: NativeTarget,
-    operation_key: HostOperationKey,
     operands: &[T],
-    authoritative_plan: Option<&CallPlan>,
+    authoritative_plan: &CallPlan,
 ) -> Result<Vec<u8>, Diagnostic> {
     match target.architecture {
         Architecture::Aarch64 => {
             let (arguments, result) = normalized_aarch64_import_plan_with_authoritative(
                 operands,
                 Aarch64ImportResult::Authored,
-                authoritative_plan,
+                Some(authoritative_plan),
             )?;
             let result = result.as_ref().ok_or_else(|| {
                 Diagnostic::error("AArch64 authored import has no normalized result placement")
@@ -572,14 +571,9 @@ pub fn encode_authored_import_call_sequence<T: InstructionOperandLike>(
                 ),
             }
         }
-        Architecture::X86_64 => match authoritative_plan {
-            Some(plan) => x86_64::encode_authored_import_call_sequence(plan, operands),
-            None => x86_64::encode_host_call_sequence(
-                CallingPolicy::native_for_target(target),
-                operation_key,
-                operands,
-            ),
-        },
+        Architecture::X86_64 => {
+            x86_64::encode_authored_import_call_sequence(authoritative_plan, operands)
+        }
     }
 }
 
@@ -2115,51 +2109,6 @@ mod compatibility_encoder_differential_tests {
     }
 
     #[test]
-    fn authored_import_compatibility_bytes_and_width_equal_the_explicit_native_plan() {
-        // Result storage followed by one declared scalar argument. The legacy
-        // catalog key supplies only the compatibility route; placement comes
-        // independently from the evaluated native plan in the comparison arm.
-        let operands = [scalar(0), scalar(8)];
-        let operation = HostOperationKey::from_names("Filesystem", "open");
-        for target in [
-            NativeTarget::windows_x64(),
-            NativeTarget::linux_arm64(),
-            NativeTarget::macos_arm64(),
-        ] {
-            let plan = plan(target, 1, true);
-            let compatibility =
-                encode_authored_import_call_sequence(target, operation, &operands, None)
-                    .expect("compatibility authored-import encoding");
-            let planned =
-                encode_authored_import_call_sequence(target, operation, &operands, Some(&plan))
-                    .expect("explicit-plan authored-import encoding");
-            assert_eq!(compatibility, planned, "target {target:?}");
-            assert_eq!(
-                crate::authored_import_call_sequence_width(target, operation, &operands, None,),
-                crate::authored_import_call_sequence_width(
-                    target,
-                    operation,
-                    &operands,
-                    Some(&plan),
-                ),
-                "target {target:?}"
-            );
-        }
-
-        let linux_x64 = NativeTarget::linux_x64();
-        let error = encode_authored_import_call_sequence(linux_x64, operation, &operands, None)
-            .expect_err("SysV authored imports have no compatibility encoder");
-        assert!(error.message.contains("not SystemVAMD64"));
-        encode_authored_import_call_sequence(
-            linux_x64,
-            operation,
-            &operands,
-            Some(&plan(linux_x64, 1, true)),
-        )
-        .expect("the explicit SysV plan remains supported");
-    }
-
-    #[test]
     fn built_in_import_compatibility_bytes_widths_and_x86_sites_equal_the_explicit_plan() {
         // A scalar built-in import exercises both argument and result storage
         // without crossing an adapter-internal composite native call.
@@ -3216,17 +3165,22 @@ mod aarch64_import_plan_tests {
 
         let bytes = encode_authored_import_call_sequence(
             omega_target::NativeTarget::linux_arm64(),
-            HostOperationKey::default(),
             &operands,
-            None,
+            &aapcs64_plan(
+                vec![ValueShape::integer(24, 8)],
+                Some(ValueShape::integer(24, 8)),
+            ),
         )
         .expect("authored indirect aggregate call");
         assert_eq!(
             bytes.len(),
-            crate::host_call_sequence_width(
+            crate::authored_import_call_sequence_width(
                 omega_target::NativeTarget::linux_arm64(),
-                HostOperationKey::default(),
                 &operands,
+                &aapcs64_plan(
+                    vec![ValueShape::integer(24, 8)],
+                    Some(ValueShape::integer(24, 8)),
+                ),
             )
         );
     }
@@ -3241,21 +3195,21 @@ mod aarch64_import_plan_tests {
             }),
             operand(TargetInstructionOperandKind::ImmediateInteger(7)),
         ];
+        let plan = aapcs64_plan(vec![ValueShape::integer(8, 8)], Some(ValueShape::float(8)));
         let bytes = encode_authored_import_call_sequence(
             omega_target::NativeTarget::linux_arm64(),
-            HostOperationKey::default(),
             &operands,
-            None,
+            &plan,
         )
         .expect("authored scalar-float import");
 
         assert_eq!(bytes.len(), 24);
         assert_eq!(
             bytes.len(),
-            crate::host_call_sequence_width(
+            crate::authored_import_call_sequence_width(
                 omega_target::NativeTarget::linux_arm64(),
-                HostOperationKey::default(),
                 &operands,
+                &plan,
             )
         );
     }
@@ -3284,9 +3238,8 @@ mod aarch64_import_plan_tests {
 
         let bytes = encode_authored_import_call_sequence(
             omega_target::NativeTarget::linux_arm64(),
-            HostOperationKey::default(),
             &operands,
-            Some(&plan),
+            &plan,
         )
         .expect("authored import with source-selected x3 argument");
 
@@ -3295,9 +3248,8 @@ mod aarch64_import_plan_tests {
             bytes.len(),
             crate::authored_import_call_sequence_width(
                 omega_target::NativeTarget::linux_arm64(),
-                HostOperationKey::default(),
                 &operands,
-                Some(&plan),
+                &plan,
             )
         );
     }

@@ -103,9 +103,14 @@ pub(super) fn encode_host_operation(
         {
             architecture::encode_authored_import_call_sequence(
                 input.target,
-                operation_key,
                 operands,
-                binding.and_then(omega_calling_conventions::HostBinding::call_plan),
+                binding
+                    .and_then(omega_calling_conventions::HostBinding::call_plan)
+                    .ok_or_else(|| {
+                        Diagnostic::error(
+                            "selected authored-import binding has no evaluated call plan",
+                        )
+                    })?,
             )
         }
         _ => architecture::encode_host_call_sequence_with_plan(

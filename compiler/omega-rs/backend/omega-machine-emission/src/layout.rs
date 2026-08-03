@@ -203,12 +203,11 @@ fn machine_instruction_width(
                             | omega_calling_conventions::HostCapability::Unknown
                     ) =>
                 {
-                    authored_import_call_sequence_width(
-                        input.target,
-                        host_operation.operation_key,
-                        operands,
-                        binding.and_then(omega_calling_conventions::HostBinding::call_plan),
-                    )
+                    binding
+                        .and_then(omega_calling_conventions::HostBinding::call_plan)
+                        .map_or(0, |plan| {
+                            authored_import_call_sequence_width(input.target, operands, plan)
+                        })
                 }
                 _ => host_call_sequence_width_with_plan(
                     input.target,

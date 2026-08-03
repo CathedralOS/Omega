@@ -806,13 +806,14 @@ Remaining:
   the selected binding's evaluated plan; their no-plan encoders, width oracles,
   AArch64 placement helpers, and target-policy compatibility tests are retired.
   A malformed selected field binding without a plan fails emission explicitly
-  and cannot reserve a compatibility width. Authored scalar imports carry the
-  same byte/width lock on Microsoft x64 and both AAPCS64 targets, while SysV
-  AMD64 explicitly fails closed without its required plan. Linux statement,
+  and cannot reserve a compatibility width. Source-authored imports now have
+  the same mandatory-plan encoder and width surface; their operation-key and
+  no-plan fallback are retired across Microsoft x64, SysV AMD64, and AAPCS64.
+  Linux statement,
   value-result, timespec-result, and timespec-argument syscall families now
   prove byte and width equality on x86-64/AArch64; result/argument relocation
-  sites are differential-locked too. Ordinary non-variadic scalar built-in imports now
-  consume the binding-retained plan in emission, layout, and relocation
+  sites are differential-locked too. Ordinary non-variadic scalar built-in
+  imports now consume the binding-retained plan in emission, layout, and relocation
   accounting; their Windows x64/macOS arm64 compatibility bytes and widths,
   plus Windows x64 relocation sites, are differential-locked. Void imports,
   pointer-result dereference imports, Windows key-state postprocessing, and
