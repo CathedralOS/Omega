@@ -894,6 +894,29 @@ impl InstalledCode {
         self.validated.frozen.artifact.artifact.0.identity
     }
 
+    /// Test whether this exact installed realization came from one
+    /// relocation-free artifact whose canonical and frozen bytes both equal
+    /// the expected bytes. The bytes remain provider-side: callers receive
+    /// only the sealed equality result needed to bind higher-level
+    /// certificates.
+    pub fn binds_exact_unrelocated_artifact_bytes(&self, expected: &[u8]) -> bool {
+        let frozen = &self.validated.frozen;
+        frozen.artifact.artifact.0.relocations.is_empty()
+            && frozen.artifact.artifact.0.code == expected
+            && frozen.materialized.bytes() == expected
+    }
+
+    /// Test the exact admitted code offset of one selected entry without
+    /// exposing a resolved address.
+    pub fn binds_entry_offset(&self, entry: EntryStubId, expected_offset: u64) -> bool {
+        self.validated
+            .frozen
+            .artifact
+            .artifact
+            .entry(entry)
+            .is_some_and(|candidate| candidate.code_offset == expected_offset)
+    }
+
     pub fn architecture(&self) -> Architecture {
         self.validated.frozen.artifact.artifact.0.architecture
     }

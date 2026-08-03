@@ -91,7 +91,7 @@ pub(crate) fn wire_decode_repeated_count_page_offset(
     target_offset: usize,
     byte_size: usize,
     zigzag: bool,
-    range: Option<omega_core::wire::WireScalarRange>,
+    range: Option<psi_language_semantics::wire::WireScalarRange>,
 ) -> usize {
     omega_instruction_selection::wire_decode_repeated_count_page_offset(
         architecture,

@@ -1,7 +1,6 @@
 pub mod allocations;
 pub mod arena;
 pub mod arithmetic;
-pub mod byte_predicates;
 pub mod diagnostics;
 pub mod float_semantics;
 pub mod literals;
@@ -11,4 +10,3 @@ pub mod runtime_storage;
 pub mod semantics;
 pub mod symbols;
 pub mod trust;
-pub mod wire;

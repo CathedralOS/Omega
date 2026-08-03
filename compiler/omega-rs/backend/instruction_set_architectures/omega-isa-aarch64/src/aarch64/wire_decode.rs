@@ -237,7 +237,7 @@ fn append_wire_byte_predicate_checks(
     bytes: &mut Vec<u8>,
     predicate_mask: u8,
 ) -> Result<(), Diagnostic> {
-    use omega_core::byte_predicates::ByteSequencePredicate;
+    use psi_language_semantics::byte_predicates::ByteSequencePredicate;
     for predicate in ByteSequencePredicate::in_mask(predicate_mask) {
         match predicate {
             ByteSequencePredicate::NonEmpty => {
@@ -458,7 +458,7 @@ pub fn encode_read_wire_scalar_varint(
     target_offset: usize,
     byte_size: usize,
     zigzag: bool,
-    range: Option<omega_core::wire::WireScalarRange>,
+    range: Option<psi_language_semantics::wire::WireScalarRange>,
 ) -> Result<Vec<u8>, Diagnostic> {
     if !matches!(byte_size, 1 | 4 | 8) {
         return Err(Diagnostic::error(format!(
@@ -574,7 +574,7 @@ pub fn encode_read_wire_repeated_scalar_varint(
     target_offset: usize,
     byte_size: usize,
     zigzag: bool,
-    range: Option<omega_core::wire::WireScalarRange>,
+    range: Option<psi_language_semantics::wire::WireScalarRange>,
 ) -> Result<Vec<u8>, Diagnostic> {
     if !matches!(byte_size, 1 | 4 | 8) {
         return Err(Diagnostic::error(format!(
@@ -837,17 +837,17 @@ mod tests {
     fn ranged_scalar_decode_widths_match_encoded_bytes() {
         let ranges = [
             None,
-            Some(omega_core::wire::WireScalarRange {
+            Some(psi_language_semantics::wire::WireScalarRange {
                 minimum: 0,
                 maximum: 100,
                 signed: false,
             }),
-            Some(omega_core::wire::WireScalarRange {
+            Some(psi_language_semantics::wire::WireScalarRange {
                 minimum: -40,
                 maximum: 9000,
                 signed: true,
             }),
-            Some(omega_core::wire::WireScalarRange {
+            Some(psi_language_semantics::wire::WireScalarRange {
                 minimum: i64::MIN,
                 maximum: i64::MAX,
                 signed: true,
@@ -884,7 +884,7 @@ mod tests {
     // paths and confirms the target-page adrp sits within the emitted bytes.
     #[test]
     fn byte_slice_decode_widths_match_encoded_bytes() {
-        use omega_core::byte_predicates::ByteSequencePredicate;
+        use psi_language_semantics::byte_predicates::ByteSequencePredicate;
         let all_predicates: u8 = ByteSequencePredicate::ALL
             .iter()
             .map(|p| p.mask_bit())

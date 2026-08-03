@@ -232,7 +232,7 @@ pub enum AbstractOperationKind {
         /// Inclusive destination range established from hostile bytes before
         /// the constrained field is written. Out-of-range input clears `ok`
         /// and leaves the prior target value untouched.
-        range: Option<omega_core::wire::WireScalarRange>,
+        range: Option<psi_language_semantics::wire::WireScalarRange>,
     },
     /// compact_binary v0 wire decoding (#43, borrowed `&[u8]` fields): read a
     /// byte-LENGTH varint, bounds-check it, then store a fat `{ptr, len}`
@@ -347,7 +347,7 @@ pub enum AbstractOperationKind {
         /// Inclusive range established for each decoded destination element.
         /// Out-of-range input clears `ok` and preserves that element's prior
         /// valid value.
-        range: Option<omega_core::wire::WireScalarRange>,
+        range: Option<psi_language_semantics::wire::WireScalarRange>,
     },
     /// The ENTRY PROLOGUE's inbound calling plan: store the platform's incoming
     /// argument register selected by the normalized boundary `CallPlan` into

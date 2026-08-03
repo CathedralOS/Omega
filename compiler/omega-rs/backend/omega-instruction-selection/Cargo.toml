@@ -15,6 +15,7 @@ psi-checked-trees = { path = "../../../psi-rs/representations/psi-checked-trees"
 omega-control-flow = { path = "../../representations/omega-control-flow" }
 omega-core = { path = "../../foundation/omega-core" }
 psi-language-core = { path = "../../../psi-rs/foundation/psi-language-core" }
+psi-language-semantics = { path = "../../../psi-rs/foundation/psi-language-semantics" }
 omega-effects = { path = "../../representations/omega-effects" }
 omega-executable-installation = { path = "../../foundation/omega-executable-installation" }
 omega-isa-aarch64 = { path = "../instruction_set_architectures/omega-isa-aarch64" }

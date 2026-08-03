@@ -16,6 +16,7 @@ use omega_calling_conventions::{
 };
 pub use omega_executable_installation::{ArtifactId, InstalledCodeId};
 use omega_executable_installation::{InstalledCode, InstalledCodeContext};
+use omega_terminal_image_emission::TerminalObjectArtifact;
 pub use psi_core::FuelScheduleIdentity;
 use psi_layout_plans::EntryStubId;
 
@@ -550,6 +551,198 @@ pub struct FixedFuelCall {
     pub maximum_invocations: u64,
 }
 
+/// A recomputable terminal-Psi entry theorem bound to the exact
+/// relocation-free bytes and selected entry of one installed realization.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InstalledTerminalEntryFuelCertificate {
+    certificate: psi_terminal_fixed_fuel::FixedEntryFuelCertificate,
+    installed_code: InstalledCodeId,
+    installed_code_context: InstalledCodeContext,
+    artifact: ArtifactId,
+    entry: EntryStubId,
+}
+
+impl InstalledTerminalEntryFuelCertificate {
+    pub const fn certificate(&self) -> &psi_terminal_fixed_fuel::FixedEntryFuelCertificate {
+        &self.certificate
+    }
+
+    pub const fn installed_code(&self) -> InstalledCodeId {
+        self.installed_code
+    }
+
+    pub const fn artifact(&self) -> ArtifactId {
+        self.artifact
+    }
+
+    pub const fn entry(&self) -> EntryStubId {
+        self.entry
+    }
+
+    fn matches_installed_entry(&self, installed_code: &InstalledCode, entry: EntryStubId) -> bool {
+        self.entry == entry
+            && self.installed_code == installed_code.identity()
+            && self.installed_code_context == installed_code.receipt_context()
+            && self.artifact == installed_code.artifact()
+    }
+}
+
+/// A recomputable terminal-Psi path-segment theorem bound to the exact
+/// relocation-free bytes and selected function entry of one installed
+/// realization.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InstalledTerminalSegmentFuelCertificate {
+    certificate: psi_terminal_fixed_fuel::FixedSegmentFuelCertificate,
+    installed_code: InstalledCodeId,
+    installed_code_context: InstalledCodeContext,
+    artifact: ArtifactId,
+    entry: EntryStubId,
+}
+
+impl InstalledTerminalSegmentFuelCertificate {
+    pub const fn certificate(&self) -> &psi_terminal_fixed_fuel::FixedSegmentFuelCertificate {
+        &self.certificate
+    }
+
+    pub const fn installed_code(&self) -> InstalledCodeId {
+        self.installed_code
+    }
+
+    pub const fn artifact(&self) -> ArtifactId {
+        self.artifact
+    }
+
+    pub const fn entry(&self) -> EntryStubId {
+        self.entry
+    }
+}
+
+/// Bind a checked terminal-Psi entry theorem to one exact installed function.
+///
+/// The terminal artifact is already the checked result of Omega lowering. The
+/// generic installation ladder must contain byte-for-byte identical,
+/// relocation-free text, and the selected stub must name the exact function
+/// offset certified here.
+pub fn bind_installed_terminal_entry_fuel(
+    certificate: psi_terminal_fixed_fuel::FixedEntryFuelCertificate,
+    terminal_artifact: &TerminalObjectArtifact,
+    installed_code: &InstalledCode,
+    entry: EntryStubId,
+) -> Result<InstalledTerminalEntryFuelCertificate, ExternalRootDiagnostic> {
+    if certificate.terminal_psi() != terminal_artifact.terminal_psi() {
+        return Err(ExternalRootDiagnostic(
+            "terminal fixed-fuel certificate does not name the terminal artifact's semantic identity"
+                .into(),
+        ));
+    }
+    let function = terminal_artifact
+        .functions()
+        .iter()
+        .find(|function| function.machine == certificate.entry())
+        .ok_or_else(|| {
+            ExternalRootDiagnostic(
+                "terminal fixed-fuel entry is not present in the emitted artifact".into(),
+            )
+        })?;
+    bind_terminal_function(
+        terminal_artifact,
+        installed_code,
+        entry,
+        function.text_offset,
+    )?;
+    Ok(InstalledTerminalEntryFuelCertificate {
+        certificate,
+        installed_code: installed_code.identity(),
+        installed_code_context: installed_code.receipt_context(),
+        artifact: installed_code.artifact(),
+        entry,
+    })
+}
+
+/// Recheck a previously sealed whole-entry theorem against the exact code and
+/// entry selected for an external root.
+pub fn validate_installed_terminal_entry_fuel(
+    binding: &InstalledTerminalEntryFuelCertificate,
+    installed_code: &InstalledCode,
+    entry: EntryStubId,
+) -> Result<(), ExternalRootDiagnostic> {
+    if !binding.matches_installed_entry(installed_code, entry) {
+        return Err(ExternalRootDiagnostic(
+            "terminal fixed-fuel entry does not bind the selected installed code and entry".into(),
+        ));
+    }
+    Ok(())
+}
+
+/// Bind a checked terminal-Psi path-segment theorem to one exact installed
+/// function. The stub identifies the function containing the segment; the
+/// certificate retains its semantic block/edge endpoints.
+pub fn bind_installed_terminal_segment_fuel(
+    certificate: psi_terminal_fixed_fuel::FixedSegmentFuelCertificate,
+    terminal_artifact: &TerminalObjectArtifact,
+    installed_code: &InstalledCode,
+    entry: EntryStubId,
+) -> Result<InstalledTerminalSegmentFuelCertificate, ExternalRootDiagnostic> {
+    if certificate.terminal_psi() != terminal_artifact.terminal_psi() {
+        return Err(ExternalRootDiagnostic(
+            "terminal fixed-fuel certificate does not name the terminal artifact's semantic identity"
+                .into(),
+        ));
+    }
+    let function = terminal_artifact
+        .functions()
+        .iter()
+        .find(|function| function.machine == certificate.machine())
+        .ok_or_else(|| {
+            ExternalRootDiagnostic(
+                "terminal fixed-fuel segment machine is not present in the emitted artifact".into(),
+            )
+        })?;
+    bind_terminal_function(
+        terminal_artifact,
+        installed_code,
+        entry,
+        function.text_offset,
+    )?;
+    Ok(InstalledTerminalSegmentFuelCertificate {
+        certificate,
+        installed_code: installed_code.identity(),
+        installed_code_context: installed_code.receipt_context(),
+        artifact: installed_code.artifact(),
+        entry,
+    })
+}
+
+fn bind_terminal_function(
+    terminal_artifact: &TerminalObjectArtifact,
+    installed_code: &InstalledCode,
+    entry: EntryStubId,
+    text_offset: usize,
+) -> Result<(), ExternalRootDiagnostic> {
+    if terminal_artifact.target().architecture != installed_code.architecture() {
+        return Err(ExternalRootDiagnostic(
+            "terminal artifact architecture does not match the installed executable".into(),
+        ));
+    }
+    if !installed_code.binds_exact_unrelocated_artifact_bytes(terminal_artifact.text_bytes()) {
+        return Err(ExternalRootDiagnostic(
+            "installed executable does not retain the exact relocation-free terminal artifact bytes"
+                .into(),
+        ));
+    }
+    let text_offset = u64::try_from(text_offset).map_err(|_| {
+        ExternalRootDiagnostic(
+            "terminal function offset cannot be represented by installation metadata".into(),
+        )
+    })?;
+    if !installed_code.binds_entry_offset(entry, text_offset) {
+        return Err(ExternalRootDiagnostic(
+            "selected installed entry does not name the certified terminal function offset".into(),
+        ));
+    }
+    Ok(())
+}
+
 /// Exact evidence for the local part of one fixed-fuel summary.
 ///
 /// Checked terminal Psi contributes a sealed recomputable entry or segment
@@ -558,8 +751,8 @@ pub struct FixedFuelCall {
 /// a provider-authored number can no longer masquerade as an IR certificate.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FixedFuelLocalEvidence {
-    TerminalEntry(psi_terminal_fixed_fuel::FixedEntryFuelCertificate),
-    TerminalSegment(psi_terminal_fixed_fuel::FixedSegmentFuelCertificate),
+    TerminalEntry(InstalledTerminalEntryFuelCertificate),
+    TerminalSegment(InstalledTerminalSegmentFuelCertificate),
     AdmittedProvider {
         schedule: FuelScheduleIdentity,
         units: u64,
@@ -570,16 +763,16 @@ pub enum FixedFuelLocalEvidence {
 impl FixedFuelLocalEvidence {
     pub const fn schedule(&self) -> FuelScheduleIdentity {
         match self {
-            Self::TerminalEntry(certificate) => certificate.schedule(),
-            Self::TerminalSegment(certificate) => certificate.schedule(),
+            Self::TerminalEntry(binding) => binding.certificate.schedule(),
+            Self::TerminalSegment(binding) => binding.certificate.schedule(),
             Self::AdmittedProvider { schedule, .. } => *schedule,
         }
     }
 
     pub const fn units(&self) -> u64 {
         match self {
-            Self::TerminalEntry(certificate) => certificate.ceiling_units(),
-            Self::TerminalSegment(certificate) => certificate.ceiling_units(),
+            Self::TerminalEntry(binding) => binding.certificate.ceiling_units(),
+            Self::TerminalSegment(binding) => binding.certificate.ceiling_units(),
             Self::AdmittedProvider { units, .. } => *units,
         }
     }
@@ -631,7 +824,7 @@ impl FixedFuelProviderSummary {
     pub fn from_terminal_entry(
         identity: ProviderFuelSummaryId,
         provider: RootProviderId,
-        certificate: psi_terminal_fixed_fuel::FixedEntryFuelCertificate,
+        certificate: InstalledTerminalEntryFuelCertificate,
         calls: BTreeSet<FixedFuelCall>,
     ) -> Self {
         Self {
@@ -645,7 +838,7 @@ impl FixedFuelProviderSummary {
     pub fn from_terminal_segment(
         identity: ProviderFuelSummaryId,
         provider: RootProviderId,
-        certificate: psi_terminal_fixed_fuel::FixedSegmentFuelCertificate,
+        certificate: InstalledTerminalSegmentFuelCertificate,
         calls: BTreeSet<FixedFuelCall>,
     ) -> Self {
         Self {
@@ -876,8 +1069,12 @@ fn fingerprint_fixed_fuel_composition(
 
 fn fingerprint_fixed_fuel_local_evidence(hash: &mut Fnv1a, evidence: &FixedFuelLocalEvidence) {
     match evidence {
-        FixedFuelLocalEvidence::TerminalEntry(certificate) => {
+        FixedFuelLocalEvidence::TerminalEntry(binding) => {
             hash.u64(0);
+            hash.u64(binding.installed_code.normalized_identity());
+            hash.u64(binding.artifact.normalized_identity());
+            hash.u64(binding.entry.normalized_identity());
+            let certificate = &binding.certificate;
             let terminal_psi = certificate.terminal_psi();
             hash.u64(u64::from(terminal_psi.semantic_version.get()));
             hash.bytes(terminal_psi.program_fingerprint.as_bytes());
@@ -887,8 +1084,12 @@ fn fingerprint_fixed_fuel_local_evidence(hash: &mut Fnv1a, evidence: &FixedFuelL
             hash.u64(certificate.relevant_preconditions().len() as u64);
             hash.u64(certificate.ceiling_units());
         }
-        FixedFuelLocalEvidence::TerminalSegment(certificate) => {
+        FixedFuelLocalEvidence::TerminalSegment(binding) => {
             hash.u64(1);
+            hash.u64(binding.installed_code.normalized_identity());
+            hash.u64(binding.artifact.normalized_identity());
+            hash.u64(binding.entry.normalized_identity());
+            let certificate = &binding.certificate;
             let terminal_psi = certificate.terminal_psi();
             hash.u64(u64::from(terminal_psi.semantic_version.get()));
             hash.bytes(terminal_psi.program_fingerprint.as_bytes());
@@ -2350,6 +2551,37 @@ impl InstalledRootLedger {
             return reject(
                 ExternalRootDiagnostic(
                     "external-root entry is not in the admitted installed artifact".into(),
+                ),
+                root,
+                slot,
+                admission,
+            );
+        }
+        let root_fuel_summary = root
+            .candidate
+            .logical_fuel
+            .realization
+            .composition_evidence
+            .summaries
+            .get(&root.candidate.logical_fuel.realization.root)
+            .expect("fixed-fuel composition retains its root summary");
+        let fuel_binding_matches = match &root_fuel_summary.local_evidence {
+            FixedFuelLocalEvidence::TerminalEntry(binding) => {
+                validate_installed_terminal_entry_fuel(
+                    binding,
+                    installed_code,
+                    root.candidate.entry,
+                )
+                .is_ok()
+            }
+            FixedFuelLocalEvidence::TerminalSegment(_) => false,
+            FixedFuelLocalEvidence::AdmittedProvider { .. } => true,
+        };
+        if !fuel_binding_matches {
+            return reject(
+                ExternalRootDiagnostic(
+                    "terminal fixed-fuel root evidence is not a whole-entry certificate bound to the exact installed code and selected entry"
+                        .into(),
                 ),
                 root,
                 slot,

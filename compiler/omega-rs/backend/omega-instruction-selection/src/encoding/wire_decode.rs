@@ -43,7 +43,7 @@ pub fn encode_read_wire_scalar_varint(
     target_offset: usize,
     byte_size: usize,
     zigzag: bool,
-    range: Option<omega_core::wire::WireScalarRange>,
+    range: Option<psi_language_semantics::wire::WireScalarRange>,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => aarch64::encode_read_wire_scalar_varint(
@@ -164,7 +164,7 @@ pub fn encode_read_wire_repeated_scalar_varint(
     target_offset: usize,
     byte_size: usize,
     zigzag: bool,
-    range: Option<omega_core::wire::WireScalarRange>,
+    range: Option<psi_language_semantics::wire::WireScalarRange>,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => aarch64::encode_read_wire_repeated_scalar_varint(
@@ -344,12 +344,12 @@ mod tests {
     fn wire_repeated_scalar_varint_read_widths_match_encoded_bytes() {
         let ranges = [
             None,
-            Some(omega_core::wire::WireScalarRange {
+            Some(psi_language_semantics::wire::WireScalarRange {
                 minimum: 0,
                 maximum: 100,
                 signed: false,
             }),
-            Some(omega_core::wire::WireScalarRange {
+            Some(psi_language_semantics::wire::WireScalarRange {
                 minimum: -10,
                 maximum: 10,
                 signed: true,

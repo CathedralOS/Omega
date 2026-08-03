@@ -13,5 +13,6 @@ omega-calling-conventions = { path = "../../foundation/omega-calling-conventions
 omega-control-flow = { path = "../omega-control-flow" }
 omega-core = { path = "../../foundation/omega-core" }
 psi-language-core = { path = "../../../psi-rs/foundation/psi-language-core" }
+psi-language-semantics = { path = "../../../psi-rs/foundation/psi-language-semantics" }
 psi-facts = { path = "../../../psi-rs/representations/psi-facts" }
 psi-typed-trees = { path = "../../../psi-rs/representations/psi-typed-trees" }
