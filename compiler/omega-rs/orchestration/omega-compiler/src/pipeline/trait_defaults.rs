@@ -429,7 +429,10 @@ fn type_reference_key(syntax: &SyntaxTrees, handle: TypeReferenceHandle) -> Stri
                 .join(", ")
         ),
         TypeReferenceNode::ConstExpression(expression) => format!("const#{:?}", expression),
-        TypeReferenceNode::DynamicTrait(name) => format!("dyn {}", name.as_str()),
+        TypeReferenceNode::DynamicTrait { name, conformance } => conformance
+            .as_ref()
+            .map(|selection| format!("dyn {}::{}", name.as_str(), selection.as_str()))
+            .unwrap_or_else(|| format!("dyn {}", name.as_str())),
         TypeReferenceNode::Named(name) => name.as_str().to_string(),
         TypeReferenceNode::SelfType => "Self".to_string(),
         TypeReferenceNode::Unit => "()".to_string(),
@@ -532,7 +535,7 @@ fn substitute_type_reference(
             }
         }
         TypeReferenceNode::ConstExpression(_)
-        | TypeReferenceNode::DynamicTrait(_)
+        | TypeReferenceNode::DynamicTrait { .. }
         | TypeReferenceNode::SelfType
         | TypeReferenceNode::Unit => handle,
     }

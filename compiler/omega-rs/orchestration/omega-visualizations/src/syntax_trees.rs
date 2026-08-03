@@ -627,7 +627,10 @@ fn type_reference_label(syntax: &SyntaxTrees, handle: TypeReferenceHandle) -> St
             format!("const {}", syntax.expressions.display_name(*expression))
         }
         TypeReferenceNode::Named(name) => name.to_string(),
-        TypeReferenceNode::DynamicTrait(name) => format!("dyn {name}"),
+        TypeReferenceNode::DynamicTrait { name, conformance } => conformance
+            .as_ref()
+            .map(|selection| format!("dyn {name}::{selection}"))
+            .unwrap_or_else(|| format!("dyn {name}")),
         TypeReferenceNode::SelfType => "Self".to_owned(),
         TypeReferenceNode::Unit => "()".to_owned(),
     }
