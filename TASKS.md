@@ -937,6 +937,8 @@ Remaining:
   Instruction selection preserves that sum after binding resolution as one of
   direct, complete Windows adapter, or explicitly named compatibility oracle;
   it no longer flattens the pair back into independently optional plans.
+  AArch64 runtime-text import validation now consumes that resolved sum
+  directly rather than projecting an optional direct plan.
   Its singular `with_plan` APIs require the direct plan, the ISA Windows-pair
   validator requires both plans, and explicitly named no-plan functions retain
   the differential oracle. Object
