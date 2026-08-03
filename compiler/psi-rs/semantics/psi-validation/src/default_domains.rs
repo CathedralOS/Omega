@@ -1,0 +1,2160 @@
+//! R2 rung 3 slice 1 (ch12 "Dependent Data"): the default-domain WRITE
+//! obligation -- every store to a `where`-mentioned field of a
+//! domain-carrying place must leave the facts TRUE at the post-write
+//! valuation. This is the strict pre-window semantics (ch11's
+//! consumption-point windows are the sanctioned ADDITIVE relaxation);
+//! obligations land BEFORE hypotheses on purpose -- over-refusal is safe,
+//! over-assumption is not, so readers may not assume the facts until the
+//! obligation net is total.
+//!
+//! V1 tracking model: per-state linear walk over `self`-rooted places
+//! (machine-owned data is BORN ZEROED -- ch12's machine-owned rule -- so
+//! untracked fields read 0). An integer-literal store tracks its value; a
+//! runtime-valued store to a where-mentioned field refuses (the entailment
+//! integration relaxes this later); a whole-place struct-literal store
+//! reseeds the valuation from the literal (already proven at construction
+//! by rung 2b). Resolved calls invalidate valuations overlapping their R5
+//! may-write paths; opaque calls retain the conservative whole-state fence.
+
+use psi_diagnostics::Diagnostic;
+use psi_typed_trees::TypedTrees;
+use psi_typed_trees::data::DataDefinition;
+use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use psi_typed_trees::machine::Machine;
+use psi_typed_trees::state::State;
+use psi_typed_trees::statement::StatementNode;
+
+pub(crate) fn validate_default_domain_writes(
+    program: &TypedTrees,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    // R2 rung 3 slice 11 (+ multi-state extension): per-machine
+    // establishment SUMMARIES -- the self places a callee DEFINITELY
+    // establishes, walked with born_zero=false (a callee runs at arbitrary
+    // times) and no nested summaries (conservative). Establishment is
+    // globally monotone, so a call can only ADD it at the call site.
+    // Multi-state callees run the same must-fixpoint the main pass uses
+    // (intersection meet over predecessors), and the summary INTERSECTS the
+    // exit sets of the TERMINAL states (no outgoing transition -- the only
+    // places the callee can return from); a dispatch state's own exit is
+    // not a return point. No terminal states (a cyclic graph) summarizes
+    // as nothing -- conservative.
+    let mut summaries: Vec<(psi_symbols::SymbolHandle, Vec<String>)> = Vec::new();
+    let mut throwaway = Vec::new();
+    for machine in program.machines() {
+        let states = program.machine_states(machine);
+        if states.is_empty() {
+            continue;
+        }
+        let (exits, terminal): (Vec<Vec<String>>, Vec<usize>) = if states.len() == 1 {
+            (
+                vec![
+                    walk_state(
+                        program,
+                        machine,
+                        &states[0],
+                        &[],
+                        &[],
+                        &[],
+                        &[],
+                        false,
+                        true,
+                        &mut throwaway,
+                    )
+                    .0,
+                ],
+                vec![0],
+            )
+        } else {
+            let edges = state_edges(program, states);
+            let mut entry: Vec<Vec<String>> = vec![Vec::new(); states.len()];
+            let exits = loop {
+                let exits: Vec<Vec<String>> = states
+                    .iter()
+                    .enumerate()
+                    .map(|(index, state)| {
+                        walk_state(
+                            program,
+                            machine,
+                            state,
+                            &entry[index],
+                            &[],
+                            &[],
+                            &[],
+                            false,
+                            true,
+                            &mut throwaway,
+                        )
+                        .0
+                    })
+                    .collect();
+                let mut changed = false;
+                for index in 1..states.len() {
+                    let predecessors: Vec<usize> = edges
+                        .iter()
+                        .filter(|(_, to)| *to == index)
+                        .map(|(from, _)| *from)
+                        .collect();
+                    if predecessors.is_empty() {
+                        continue;
+                    }
+                    let mut meet: Option<Vec<String>> = None;
+                    for predecessor in &predecessors {
+                        let exit = &exits[*predecessor];
+                        meet = Some(match meet {
+                            None => exit.clone(),
+                            Some(current) => current
+                                .into_iter()
+                                .filter(|place| exit.contains(place))
+                                .collect(),
+                        });
+                    }
+                    let meet = meet.unwrap_or_default();
+                    if meet != entry[index] {
+                        entry[index] = meet;
+                        changed = true;
+                    }
+                }
+                if !changed {
+                    break exits;
+                }
+            };
+            let terminal: Vec<usize> = (0..states.len())
+                .filter(|index| !edges.iter().any(|(from, _)| from == index))
+                .collect();
+            (exits, terminal)
+        };
+        if terminal.is_empty() {
+            continue;
+        }
+        let mut definite: Option<Vec<String>> = None;
+        for index in &terminal {
+            let exit = &exits[*index];
+            definite = Some(match definite {
+                None => exit.clone(),
+                Some(current) => current
+                    .into_iter()
+                    .filter(|place| exit.contains(place))
+                    .collect(),
+            });
+        }
+        let self_rooted: Vec<String> = definite
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|spelling| is_self_rooted(spelling))
+            .collect();
+        if !self_rooted.is_empty() {
+            summaries.push((machine.symbol, self_rooted));
+        }
+    }
+
+    for machine in program.machines() {
+        let states = program.machine_states(machine);
+        // Bodyless machines (boundary/requirement declarations) own no
+        // states -- nothing to walk.
+        if states.is_empty() {
+            continue;
+        }
+        // R2 rung 3 slice 3: CROSS-STATE establishment. Establishment is
+        // globally monotone in the strict model (every accepted write
+        // anywhere re-proves the domain), so a MUST analysis over the
+        // state graph is sound: established at entry of S = established at
+        // exit of EVERY predecessor. Bottom-start iteration converges to
+        // the LEAST fixpoint -- an UNDER-approximation (loop-carried
+        // establishment stays conservative), which only over-refuses.
+        let edges = state_edges(program, states);
+        // R2 rung 3 slice 4 (SOUNDNESS): untracked fields read the born
+        // zero ONLY in the boot state when nothing can re-enter it --
+        // machine-owned fields persist, so in any other state an untracked
+        // field may hold a prior value and must fold as UNKNOWN (poison ->
+        // directed refusal; cross-state valuation transport is the
+        // precision rung).
+        let born_zero = |index: usize| index == 0 && !edges.iter().any(|(_, to)| *to == 0);
+        // R2 rung 3 slice 5: the combined MUST fixpoint -- establishment
+        // (as slice 3) and per-place field VALUATIONS (Kildall constant
+        // propagation: non-boot entries start TOP/unvisited; meet keeps a
+        // field only when every visited predecessor exits it with the SAME
+        // literal; establishment survives calls, valuations do not).
+        let mut entry_established: Vec<Vec<String>> = vec![Vec::new(); states.len()];
+        let mut entry_valuations: Vec<Option<Vec<PlaceValuation>>> = vec![None; states.len()];
+        entry_valuations[0] = Some(Vec::new());
+        // WINDOW TRANSPORT: open windows at each state's entry -- the
+        // MAY-union of predecessor exits (an obligation from ANY path in).
+        let mut entry_windows: Vec<Vec<(String, String)>> = vec![Vec::new(); states.len()];
+        // A TERMINAL state (no outgoing transition) is where the machine
+        // returns: its exit is a hard consumption point for open windows.
+        let is_terminal = |index: usize| !edges.iter().any(|(from, _)| *from == index);
+        loop {
+            let mut changed = false;
+            let exits: Vec<(Vec<String>, Vec<PlaceValuation>, Vec<(String, String)>)> = states
+                .iter()
+                .enumerate()
+                .map(|(index, state)| {
+                    walk_state(
+                        program,
+                        machine,
+                        state,
+                        &entry_established[index],
+                        entry_valuations[index].as_deref().unwrap_or(&[]),
+                        &entry_windows[index],
+                        &summaries,
+                        born_zero(index),
+                        is_terminal(index),
+                        &mut throwaway,
+                    )
+                })
+                .collect();
+            for index in 1..states.len() {
+                let predecessors: Vec<usize> = edges
+                    .iter()
+                    .filter(|(_, to)| *to == index)
+                    .map(|(from, _)| *from)
+                    .collect();
+                if predecessors.is_empty() {
+                    continue;
+                }
+                // Establishment meet (intersection over ALL predecessors).
+                let mut established_meet: Option<Vec<String>> = None;
+                for predecessor in &predecessors {
+                    let exit = &exits[*predecessor].0;
+                    established_meet = Some(match established_meet {
+                        None => exit.clone(),
+                        Some(current) => current
+                            .into_iter()
+                            .filter(|place| exit.contains(place))
+                            .collect(),
+                    });
+                }
+                let established_meet = established_meet.unwrap_or_default();
+                if established_meet != entry_established[index] {
+                    entry_established[index] = established_meet;
+                    changed = true;
+                }
+                // Window MAY-union: open from ANY predecessor -> open here.
+                let mut window_union: Vec<(String, String)> = Vec::new();
+                for predecessor in &predecessors {
+                    for window in &exits[*predecessor].2 {
+                        if !window_union.contains(window) {
+                            window_union.push(window.clone());
+                        }
+                    }
+                }
+                window_union.sort();
+                if window_union != entry_windows[index] {
+                    entry_windows[index] = window_union;
+                    changed = true;
+                }
+                // Valuation meet (over VISITED predecessors only -- the
+                // Kildall optimism; unvisited preds resolve as iteration
+                // reaches them, only ever REMOVING knowledge).
+                let visited: Vec<usize> = predecessors
+                    .iter()
+                    .copied()
+                    .filter(|predecessor| entry_valuations[*predecessor].is_some())
+                    .collect();
+                if visited.is_empty() {
+                    continue;
+                }
+                let mut valuation_meet: Option<Vec<PlaceValuation>> = None;
+                for predecessor in visited {
+                    let exit = &exits[predecessor].1;
+                    valuation_meet = Some(match valuation_meet {
+                        None => exit.clone(),
+                        Some(current) => meet_valuations(&current, exit),
+                    });
+                }
+                let valuation_meet = valuation_meet.unwrap_or_default();
+                if entry_valuations[index].as_ref() != Some(&valuation_meet) {
+                    entry_valuations[index] = Some(valuation_meet);
+                    changed = true;
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+        for (index, state) in states.iter().enumerate() {
+            walk_state(
+                program,
+                machine,
+                state,
+                &entry_established[index],
+                entry_valuations[index].as_deref().unwrap_or(&[]),
+                &entry_windows[index],
+                &summaries,
+                born_zero(index),
+                is_terminal(index),
+                diagnostics,
+            );
+        }
+    }
+}
+
+/// One place's transported field valuation (`None` value = known-unknown).
+type PlaceValuation = (String, Vec<(String, Option<i128>)>);
+
+/// MUST meet of two exit valuations: a place survives only when present in
+/// both; a field survives only when both sides agree on the SAME literal.
+fn meet_valuations(left: &[PlaceValuation], right: &[PlaceValuation]) -> Vec<PlaceValuation> {
+    let mut result = Vec::new();
+    for (spelling, left_fields) in left {
+        let Some((_, right_fields)) = right.iter().find(|(name, _)| name == spelling) else {
+            continue;
+        };
+        let mut fields = Vec::new();
+        for (field, left_value) in left_fields {
+            if let Some((_, right_value)) = right_fields.iter().find(|(name, _)| name == field)
+                && left_value == right_value
+                && left_value.is_some()
+            {
+                fields.push((field.clone(), *left_value));
+            }
+        }
+        result.push((spelling.clone(), fields));
+    }
+    result
+}
+
+/// The machine's state-transition edges by state INDEX (Named targets
+/// matched by simple state name; Value/Terminal/SelfTarget edges carry no
+/// establishment transfer -- SelfTarget re-enters with the same entry set,
+/// modeled as a self-edge).
+fn state_edges(program: &TypedTrees, states: &[State]) -> Vec<(usize, usize)> {
+    use psi_typed_trees::statement::{StatementNode, TransitionTargetNode};
+    let mut edges = Vec::new();
+    for (from, state) in states.iter().enumerate() {
+        for statement in program.statement_table.statements(state.statement_nodes) {
+            let StatementNode::Transition(transition) = statement else {
+                continue;
+            };
+            for handle in [transition.target, transition.continuation] {
+                if !handle.is_valid() {
+                    continue;
+                }
+                match program.statement_table.transition_target(handle) {
+                    // Resolve by SYMBOL first (the termination graph's proven
+                    // rule), name as the fallback.
+                    TransitionTargetNode::Named { path, .. } => {
+                        let to = states
+                            .iter()
+                            .position(|candidate| candidate.symbol == path.symbol)
+                            .or_else(|| {
+                                program
+                                    .expression_table
+                                    .name_path_members(path.members)
+                                    .last()
+                                    .and_then(|target_name| {
+                                        states
+                                            .iter()
+                                            .position(|candidate| candidate.name == *target_name)
+                                    })
+                            });
+                        if let Some(to) = to {
+                            edges.push((from, to));
+                        }
+                    }
+                    TransitionTargetNode::SelfTarget => edges.push((from, from)),
+                    _ => {}
+                }
+            }
+        }
+    }
+    edges
+}
+
+/// One tracked place: its rendered spelling, its data definition, and the
+/// per-field valuation (`None` value = written with a non-literal).
+struct TrackedPlace<'program> {
+    spelling: String,
+    definition: &'program DataDefinition,
+    fields: Vec<(String, Option<i128>)>,
+    symbols: Vec<(String, SymbolicValue)>,
+    measures: Vec<(String, Option<i128>, Option<i128>)>,
+    /// R2 rung 3 slice 2: the ACCESS GATE. A `zero_gated` place starts
+    /// UNESTABLISHED (its zero violates the domain); a proven whole-place
+    /// literal or an accepted constrained write establishes it (every
+    /// accepted write leaves the facts true). Reads before establishment
+    /// refuse. Zero-satisfying places are born established.
+    established: bool,
+    /// R2 rung 3 slice 6: whether THIS place's untracked fields read the
+    /// born zero -- true only for self-rooted machine-owned places in the
+    /// never-re-entered boot state. Parameter/local-rooted places arrive
+    /// with UNKNOWN valuations (poison until a whole-place literal
+    /// reseeds).
+    born_zero: bool,
+    /// R2 rung 3 slice 8 (ch11): an INVARIANT WINDOW -- a checkable write
+    /// left the facts FALSE; every consumption point (a read of the place,
+    /// a call, state exit) refuses until a later write folds them true.
+    window_open: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum SymbolicValue {
+    Atom(psi_symbols::SymbolHandle),
+    Integer(i128),
+    Add(Vec<SymbolicValue>),
+    Multiply(Vec<SymbolicValue>),
+    Subtract(Box<SymbolicValue>, Box<SymbolicValue>),
+}
+
+/// Walk one state (write obligations + the access gate), seeded with the
+/// places ESTABLISHED AT ENTRY (the cross-state fixpoint). Returns the
+/// EXIT-established spellings (entry-established places stay established:
+/// monotone).
+fn walk_state(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    entry_established: &[String],
+    entry_valuations: &[PlaceValuation],
+    entry_windows: &[(String, String)],
+    summaries: &[(psi_symbols::SymbolHandle, Vec<String>)],
+    born_zero: bool,
+    exit_is_terminal: bool,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> (Vec<String>, Vec<PlaceValuation>, Vec<(String, String)>) {
+    let mut tracked: Vec<TrackedPlace> = Vec::new();
+    // Known calls poison only transported valuations they may write. An
+    // opaque call poisons every valuation; establishment survives either
+    // case because it is globally monotone.
+    let mut poisoned_all = false;
+    let mut poisoned_paths: Vec<String> = Vec::new();
+    let mut call_frames = None;
+    let mut call_frames_initialized = false;
+    // Slice 11: establishment ADDED by callee summaries at call sites.
+    let mut call_established: Vec<String> = Vec::new();
+    // WINDOW TRANSPORT: windows still open from predecessor states
+    // ((spelling, data name) pairs, MAY-union over predecessors). A write
+    // in this state that re-proves the facts closes the inherited window;
+    // calls and TERMINAL exits stay hard consumption points.
+    let mut inherited_windows: Vec<(String, String)> = entry_windows.to_vec();
+
+    for statement in program.statement_table.statements(state.statement_nodes) {
+        // R2 rung 3 slice 2: reads of an unestablished GATED place refuse
+        // BEFORE this statement's own write effect is applied.
+        scan_statement_reads(
+            program,
+            machine,
+            state,
+            statement,
+            &tracked,
+            entry_established,
+            &call_established,
+            &inherited_windows,
+            diagnostics,
+        );
+        match statement {
+            StatementNode::Assignment(assignment) => {
+                handle_assignment(
+                    program,
+                    machine,
+                    state,
+                    assignment.target,
+                    assignment.value,
+                    &mut tracked,
+                    entry_valuations,
+                    poisoned_all,
+                    &poisoned_paths,
+                    born_zero,
+                    diagnostics,
+                );
+                // A write that re-proved the facts (tracked window CLOSED)
+                // closes the inherited window on the same place.
+                inherited_windows.retain(|(spelling, _)| {
+                    !tracked
+                        .iter()
+                        .any(|place| place.spelling == *spelling && !place.window_open)
+                });
+            }
+            // A call OBSERVES state, so it remains a hard consumption point
+            // (ch11): every open window must have closed. After that check,
+            // R5 summaries preserve exact valuations outside known writes.
+            StatementNode::Call(call) => {
+                refuse_open_windows(&tracked, &inherited_windows, "a call", diagnostics);
+                preserve_proven_establishment(&tracked, &mut call_established);
+                if !call_frames_initialized {
+                    call_frames = crate::calls::CallFrameResolver::new(program);
+                    call_frames_initialized = true;
+                }
+                let written = call_frames
+                    .as_ref()
+                    .and_then(|frames| frames.may_write_paths(machine, call));
+                if let Some(written) = written {
+                    tracked.retain(|place| {
+                        !written.iter().any(|written| {
+                            crate::calls::frame_paths_overlap(&place.spelling, written)
+                        })
+                    });
+                    for written in written {
+                        if !poisoned_paths.contains(&written) {
+                            poisoned_paths.push(written);
+                        }
+                    }
+                } else {
+                    tracked.clear();
+                    poisoned_all = true;
+                }
+                // Slice 11: the callee's establishment summary joins
+                // (call.target_symbol is the target STATE's symbol; resolve
+                // to its owning machine).
+                let target_machine = machine_symbol_for_state(program, call.target_symbol);
+                if let Some((_, established)) = summaries
+                    .iter()
+                    .find(|(symbol, _)| *symbol == target_machine)
+                {
+                    call_established.extend(established.iter().cloned());
+                }
+            }
+            StatementNode::Expression(expression) => {
+                if expression_contains_call(program, *expression) {
+                    refuse_open_windows(&tracked, &inherited_windows, "a call", diagnostics);
+                    preserve_proven_establishment(&tracked, &mut call_established);
+                    tracked.clear();
+                    poisoned_all = true;
+                    collect_call_summaries(program, *expression, summaries, &mut call_established);
+                }
+            }
+            StatementNode::LocalData(local) => {
+                if local.initial_value.is_valid()
+                    && expression_contains_call(program, local.initial_value)
+                {
+                    refuse_open_windows(&tracked, &inherited_windows, "a call", diagnostics);
+                    preserve_proven_establishment(&tracked, &mut call_established);
+                    tracked.clear();
+                    poisoned_all = true;
+                    collect_call_summaries(
+                        program,
+                        local.initial_value,
+                        summaries,
+                        &mut call_established,
+                    );
+                }
+            }
+            _ => {}
+        }
+    }
+
+    // Ch11 (slice 8, transport-relaxed): a TERMINAL exit is a consumption
+    // point -- an open window may not escape the machine. A non-terminal
+    // exit passes its open windows to the successors (the fixpoint
+    // MAY-unions them), whose own consumption points police closure.
+    if exit_is_terminal {
+        refuse_open_windows(&tracked, &inherited_windows, "state exit", diagnostics);
+    }
+
+    let mut exit_established: Vec<String> = entry_established.to_vec();
+    exit_established.extend(call_established.iter().cloned());
+    exit_established.extend(
+        tracked
+            .iter()
+            // Slice 6: parameters are per-invocation -- only machine-owned
+            // places transport across states.
+            .filter(|place| place.established && is_self_rooted(&place.spelling))
+            .map(|place| place.spelling.clone()),
+    );
+    if attached_value_established(
+        program,
+        machine,
+        &tracked,
+        entry_established,
+        &call_established,
+    ) {
+        exit_established.push("self".to_owned());
+    }
+    exit_established.sort();
+    exit_established.dedup();
+
+    // Exit valuations: in-state tracked places, plus entry places that no
+    // known write overlaps. An opaque call poisons every untouched entry.
+    let mut exit_valuations: Vec<PlaceValuation> = tracked
+        .iter()
+        .filter(|place| is_self_rooted(&place.spelling))
+        .map(|place| (place.spelling.clone(), place.fields.clone()))
+        .collect();
+    if !poisoned_all {
+        for (spelling, fields) in entry_valuations {
+            let poisoned = poisoned_paths
+                .iter()
+                .any(|written| crate::calls::frame_paths_overlap(spelling, written));
+            if !poisoned && !exit_valuations.iter().any(|(name, _)| name == spelling) {
+                exit_valuations.push((spelling.clone(), fields.clone()));
+            }
+        }
+    }
+    // Exit windows: inherited ones not closed here, plus windows this
+    // state's own writes opened (self-rooted only -- parameters are
+    // per-invocation).
+    let mut exit_windows = inherited_windows;
+    for place in tracked
+        .iter()
+        .filter(|place| place.window_open && is_self_rooted(&place.spelling))
+    {
+        if !exit_windows
+            .iter()
+            .any(|(spelling, _)| *spelling == place.spelling)
+        {
+            exit_windows.push((
+                place.spelling.clone(),
+                place.definition.name.as_str().to_owned(),
+            ));
+        }
+    }
+    (exit_established, exit_valuations, exit_windows)
+}
+
+/// A call invalidates exact field valuations through aliasing, but it cannot
+/// invalidate establishment: every accepted write in every checked callee must
+/// leave the default domain true. Preserve that monotone fact before clearing
+/// the more precise tracked valuation.
+fn preserve_proven_establishment(tracked: &[TrackedPlace<'_>], established: &mut Vec<String>) {
+    established.extend(
+        tracked
+            .iter()
+            .filter(|place| place.established && is_self_rooted(&place.spelling))
+            .map(|place| place.spelling.clone()),
+    );
+}
+
+/// Slice 11: the machine owning a state symbol (call targets carry the
+/// STATE's symbol -- the effects builder's proven resolution rule).
+fn machine_symbol_for_state(
+    program: &TypedTrees,
+    state_symbol: psi_symbols::SymbolHandle,
+) -> psi_symbols::SymbolHandle {
+    if !state_symbol.is_valid() {
+        return psi_symbols::SymbolHandle::invalid();
+    }
+    for machine in program.machines() {
+        if program
+            .machine_states(machine)
+            .iter()
+            .any(|state| state.symbol == state_symbol)
+        {
+            return machine.symbol;
+        }
+    }
+    psi_symbols::SymbolHandle::invalid()
+}
+
+/// Slice 11: find call targets inside an expression and join their
+/// establishment summaries.
+fn collect_call_summaries(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    summaries: &[(psi_symbols::SymbolHandle, Vec<String>)],
+    call_established: &mut Vec<String>,
+) {
+    if !expression.is_valid() {
+        return;
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Call(call) => {
+            let target_machine = machine_symbol_for_state(program, call.target_symbol);
+            if let Some((_, established)) = summaries
+                .iter()
+                .find(|(symbol, _)| *symbol == target_machine)
+            {
+                call_established.extend(established.iter().cloned());
+            }
+            for argument in program.expression_table.expression_handles(call.arguments) {
+                collect_call_summaries(program, *argument, summaries, call_established);
+            }
+        }
+        ExpressionNode::Binary(binary) => {
+            collect_call_summaries(program, binary.left, summaries, call_established);
+            collect_call_summaries(program, binary.right, summaries, call_established);
+        }
+        ExpressionNode::Member(member) => {
+            collect_call_summaries(program, member.receiver, summaries, call_established);
+        }
+        ExpressionNode::Mutable(inner) => {
+            collect_call_summaries(program, *inner, summaries, call_established);
+        }
+        _ => {}
+    }
+}
+
+/// Ch11 (slice 8): refuse every open invariant window at a consumption
+/// point, naming the place and the point -- both this state's own open
+/// windows and the ones transported from predecessor states.
+fn refuse_open_windows(
+    tracked: &[TrackedPlace<'_>],
+    inherited_windows: &[(String, String)],
+    consumption_point: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for place in tracked.iter().filter(|place| place.window_open) {
+        diagnostics.push(Diagnostic::error(format!(
+            "data `{}`'s default domain is still FALSE at {consumption_point}: the \
+             invariant window opened on `{}` must close first -- restore the \
+             `where` facts before this consumption point (ch11)",
+            place.definition.name.as_str(),
+            place.spelling
+        )));
+    }
+    for (spelling, data_name) in inherited_windows {
+        if tracked.iter().any(|place| place.spelling == *spelling) {
+            // The tracked entry already reported (open) or closed it.
+            continue;
+        }
+        diagnostics.push(Diagnostic::error(format!(
+            "data `{data_name}`'s default domain is still FALSE at {consumption_point}: \
+             the invariant window opened on `{spelling}` in a predecessor state must \
+             close first -- restore the `where` facts before this consumption point \
+             (ch11 window transport)"
+        )));
+    }
+}
+
+fn handle_assignment<'program>(
+    program: &'program TypedTrees,
+    machine: &Machine,
+    state: &State,
+    target: ExpressionHandle,
+    value: ExpressionHandle,
+    tracked: &mut Vec<TrackedPlace<'program>>,
+    entry_valuations: &[PlaceValuation],
+    poisoned_all: bool,
+    poisoned_paths: &[String],
+    born_zero: bool,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    // A whole-place store of a struct literal reseeds the valuation (the
+    // literal itself was proven at construction, rung 2b).
+    if let ExpressionNode::StructLiteral(literal) = program.expression_table.expression(value)
+        && let Some(spelling) = self_place_spelling(program, target)
+        && let Some(definition) = domain_definition_by_name(program, literal.type_name.as_str())
+    {
+        let fields = program
+            .expression_table
+            .struct_fields(literal.fields)
+            .iter()
+            .map(|field| {
+                (
+                    field.name.as_str().to_string(),
+                    integer_literal_value(program, field.value),
+                )
+            })
+            .collect();
+        let symbols = program
+            .expression_table
+            .struct_fields(literal.fields)
+            .iter()
+            .filter_map(|field| {
+                expression_symbolic_value(program, field.value)
+                    .map(|symbol| (field.name.as_str().to_string(), symbol))
+            })
+            .collect();
+        let measures = program
+            .expression_table
+            .struct_fields(literal.fields)
+            .iter()
+            .filter_map(|field| {
+                expression_sequence_measures(program, field.value)
+                    .map(|(length, capacity)| (field.name.as_str().to_string(), length, capacity))
+            })
+            .collect();
+        tracked.retain(|place| place.spelling != spelling);
+        let place_born_zero = born_zero && is_self_rooted(&spelling);
+        tracked.push(TrackedPlace {
+            spelling,
+            definition,
+            fields,
+            symbols,
+            measures,
+            // Rung 2b proved this literal against the domain.
+            established: true,
+            born_zero: place_born_zero,
+            window_open: false,
+        });
+        return;
+    }
+
+    // A FIELD store: `<self-place>.field = value` where the receiver's type
+    // carries where facts.
+    let ExpressionNode::Member(member) = program.expression_table.expression(target) else {
+        return;
+    };
+    let Some(receiver_spelling) = self_place_spelling(program, member.receiver) else {
+        return;
+    };
+    let Some(definition) =
+        data_definition_for_expression(program, machine, Some(state), member.receiver)
+    else {
+        return;
+    };
+    if definition.where_facts.is_empty()
+        && !crate::data::data_requires_establishment(program, definition)
+    {
+        return;
+    }
+    let field_name = member.member.as_str().to_string();
+    let written = integer_literal_value(program, value);
+
+    let place = if let Some(position) = tracked
+        .iter()
+        .position(|place| place.spelling == receiver_spelling)
+    {
+        &mut tracked[position]
+    } else {
+        // R2 rung 3 slice 5: seed the fresh place from its transported entry
+        // valuation unless an opaque call, or a known overlapping write,
+        // poisoned this place's view.
+        let poisoned = poisoned_all
+            || poisoned_paths
+                .iter()
+                .any(|written| crate::calls::frame_paths_overlap(&receiver_spelling, written));
+        let seeded_fields = if poisoned {
+            Vec::new()
+        } else {
+            entry_valuations
+                .iter()
+                .find(|(name, _)| *name == receiver_spelling)
+                .map(|(_, fields)| fields.clone())
+                .unwrap_or_default()
+        };
+        let self_rooted = is_self_rooted(&receiver_spelling);
+        tracked.push(TrackedPlace {
+            spelling: receiver_spelling,
+            definition,
+            fields: seeded_fields,
+            symbols: Vec::new(),
+            measures: Vec::new(),
+            // Zero-satisfying data is born established; gated data must
+            // earn it (the accepted write below does, since it re-proves
+            // the whole domain). A parameter place arrives ALREADY VALID
+            // (the caller's net enforced its domain), so it counts as
+            // established for the access gate; its VALUATION stays unknown.
+            established: !crate::data::data_requires_establishment(program, definition)
+                || !self_rooted,
+            born_zero: born_zero && self_rooted,
+            window_open: false,
+        });
+        let last = tracked.len() - 1;
+        &mut tracked[last]
+    };
+    place.fields.retain(|(name, _)| *name != field_name);
+    place.fields.push((field_name.clone(), written));
+    place.symbols.retain(|(name, _)| *name != field_name);
+    if let Some(symbol) = expression_symbolic_value(program, value) {
+        place.symbols.push((field_name.clone(), symbol));
+    }
+    place.measures.retain(|(name, _, _)| *name != field_name);
+    if let Some((length, capacity)) = expression_sequence_measures(program, value) {
+        place.measures.push((field_name.clone(), length, capacity));
+    }
+
+    // Obligation: a field participating in either an authored `where` fact or
+    // an implicit range/containment gate must help re-establish the whole
+    // value. Unrelated writes preserve the current establishment state.
+    let field_type =
+        program
+            .data_members(place.definition)
+            .iter()
+            .find_map(|member| match member {
+                psi_typed_trees::data::DataMember::Field(field)
+                    if field.name.as_str() == field_name =>
+                {
+                    Some(field.type_reference)
+                }
+                _ => None,
+            });
+    if !field_is_where_mentioned(program, place.definition, &field_name)
+        && !field_type
+            .is_some_and(|field_type| crate::data::type_requires_establishment(program, field_type))
+    {
+        return;
+    }
+    let valuation: Vec<(&str, Option<i128>)> = place
+        .fields
+        .iter()
+        .map(|(name, value)| (name.as_str(), *value))
+        .collect();
+    let mut all_hold = range_gates_hold(program, place);
+    for fact in program
+        .proof_facts
+        .span_or_empty(place.definition.where_facts)
+    {
+        match fact {
+            psi_typed_trees::domain::ProofFact::Expression(expression) => {
+                match fold_with_valuation(
+                    program,
+                    &valuation,
+                    &place.symbols,
+                    &place.measures,
+                    place.born_zero,
+                    *expression,
+                ) {
+                    Some(value) if value != 0 => {}
+                    // Ch11 (slice 8): a checkable violation OPENS a window instead
+                    // of refusing -- the consumption points demand closure.
+                    Some(_) => all_hold = false,
+                    None => {
+                        all_hold = false;
+                        // A named runtime value may be written into multiple
+                        // correlated fields inside one invariant window. Its
+                        // stable symbol lets a later write prove equality; do
+                        // not reject before that closing write arrives.
+                        if expression_symbol(program, value).is_none() {
+                            diagnostics.push(Diagnostic::error(format!(
+                                "write to `{}.{field_name}` cannot PROVE data `{}`'s default domain: \
+                                 a `where`-mentioned field's value is not a literal known here (a \
+                                 runtime value, or a co-field last written in another state) -- \
+                                 restructure with literal stores in one state for now (the \
+                                 entailment integration and cross-state valuation transport relax \
+                                 this)",
+                                place.spelling,
+                                place.definition.name.as_str()
+                            )));
+                        }
+                    }
+                }
+            }
+            psi_typed_trees::domain::ProofFact::Membership(membership) => {
+                let mentioned = membership_field_name(program, membership.value);
+                if mentioned == Some(field_name.as_str()) {
+                    if !crate::proof_facts::string_literal_grants_domain(
+                        program,
+                        value,
+                        membership.domain_symbol,
+                    ) {
+                        all_hold = false;
+                    }
+                } else if !place.established || place.window_open {
+                    // A write to another field preserves a previously true
+                    // membership, but cannot manufacture a missing one.
+                    all_hold = false;
+                }
+            }
+        }
+    }
+    // Every fact re-proven at the post-write valuation: the place
+    // satisfies its domain again (any open window CLOSES; a gated place
+    // establishes). A checkable violation leaves the window OPEN for the
+    // consumption points to police (ch11).
+    if all_hold {
+        place.established = true;
+        place.window_open = false;
+    } else {
+        place.window_open = true;
+    }
+}
+
+/// R2 rung 3 slice 2: refuse reads of an unestablished GATED place. V1
+/// scans value-position expressions for member chains whose self-rooted
+/// receiver names a tracked-or-fresh gated place; cross-state
+/// establishment is not trackable yet and refuses with direction.
+fn scan_statement_reads(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    statement: &StatementNode,
+    tracked: &[TrackedPlace<'_>],
+    entry_established: &[String],
+    call_established: &[String],
+    inherited_windows: &[(String, String)],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut reads: Vec<ExpressionHandle> = Vec::new();
+    match statement {
+        // An assembly fact is itself a checked consumption point. Its proof
+        // checker handles establishment; this runtime-read scan must not
+        // interpret it as an executed expression.
+        StatementNode::AssemblyFact(_) => {}
+        StatementNode::Assignment(assignment) => reads.push(assignment.value),
+        StatementNode::Expression(expression) => reads.push(*expression),
+        StatementNode::LocalData(local) => {
+            if local.initial_value.is_valid() {
+                reads.push(local.initial_value);
+            }
+        }
+        StatementNode::Call(call) => {
+            let receiver = program.statement_table.name_path_members(call.receiver);
+            if receiver.len() > 1
+                && receiver[0].as_str() == "self"
+                && let Some(definition) = machine.attached_data.as_ref().and_then(|attached| {
+                    program
+                        .data_definitions()
+                        .iter()
+                        .find(|definition| definition.name == *attached)
+                })
+                && crate::data::data_requires_establishment(program, definition)
+            {
+                validate_data_read(
+                    program,
+                    machine,
+                    definition,
+                    "self",
+                    receiver[1].as_str(),
+                    tracked,
+                    entry_established,
+                    call_established,
+                    inherited_windows,
+                    diagnostics,
+                );
+            }
+            reads.extend(
+                program
+                    .expression_table
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .copied(),
+            );
+        }
+        StatementNode::Transition(transition) => {
+            if let psi_typed_trees::statement::TransitionGuardNode::When(guard) = &transition.guard
+            {
+                reads.push(*guard);
+            }
+        }
+    }
+    for read in reads {
+        scan_expression_reads(
+            program,
+            machine,
+            state,
+            read,
+            tracked,
+            entry_established,
+            call_established,
+            inherited_windows,
+            diagnostics,
+        );
+    }
+}
+
+fn scan_expression_reads(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    tracked: &[TrackedPlace<'_>],
+    entry_established: &[String],
+    call_established: &[String],
+    inherited_windows: &[(String, String)],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if !expression.is_valid() {
+        return;
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(path) => {
+            let members = program.expression_table.name_path_members(path.members);
+            if members.len() == 1
+                && members[0].as_str() == "self"
+                && let Some(definition) = machine.attached_data.as_ref().and_then(|attached| {
+                    program
+                        .data_definitions()
+                        .iter()
+                        .find(|definition| definition.name == *attached)
+                })
+                && let Some(place) = tracked.iter().find(|place| place.spelling == "self")
+                && place.window_open
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "the next whole-value read of `self` occurs inside an OPEN invariant \
+                     window: a prior write left data `{}`'s default domain FALSE -- \
+                     restore the facts before copying or exposing the value (ch11)",
+                    definition.name.as_str()
+                )));
+            }
+            if members.len() > 1 {
+                let receiver_spelling = members[..members.len() - 1]
+                    .iter()
+                    .map(|member| member.as_str())
+                    .collect::<Vec<_>>()
+                    .join(".");
+                if let Some(place) = tracked
+                    .iter()
+                    .find(|place| place.spelling == receiver_spelling)
+                {
+                    validate_data_read(
+                        program,
+                        machine,
+                        place.definition,
+                        &receiver_spelling,
+                        members.last().expect("non-empty path").as_str(),
+                        tracked,
+                        entry_established,
+                        call_established,
+                        inherited_windows,
+                        diagnostics,
+                    );
+                }
+            }
+            // A machine call such as `self.console.exit_process(..)` stores
+            // `self.console` as the call receiver Name path. It still consumes
+            // the attached `self` value, so it must not bypass establishment
+            // merely because no standalone Member node was built.
+            if members.len() > 1
+                && members[0].as_str() == "self"
+                && let Some(definition) = machine.attached_data.as_ref().and_then(|attached| {
+                    program
+                        .data_definitions()
+                        .iter()
+                        .find(|definition| definition.name == *attached)
+                })
+            {
+                validate_data_read(
+                    program,
+                    machine,
+                    definition,
+                    "self",
+                    members[1].as_str(),
+                    tracked,
+                    entry_established,
+                    call_established,
+                    inherited_windows,
+                    diagnostics,
+                );
+            }
+        }
+        ExpressionNode::Member(member) => {
+            if let Some(receiver_spelling) = self_place_spelling(program, member.receiver) {
+                let tracked_receiver = tracked
+                    .iter()
+                    .find(|place| place.spelling == receiver_spelling);
+                let definition = tracked_receiver.map(|place| place.definition).or_else(|| {
+                    data_definition_for_expression(program, machine, Some(state), member.receiver)
+                });
+                if let Some(definition) = definition
+                    && crate::data::data_requires_establishment(program, definition)
+                {
+                    validate_data_read(
+                        program,
+                        machine,
+                        definition,
+                        &receiver_spelling,
+                        member.member.as_str(),
+                        tracked,
+                        entry_established,
+                        call_established,
+                        inherited_windows,
+                        diagnostics,
+                    );
+                }
+            }
+            if !is_bare_self_name(program, member.receiver) {
+                scan_expression_reads(
+                    program,
+                    machine,
+                    state,
+                    member.receiver,
+                    tracked,
+                    entry_established,
+                    call_established,
+                    inherited_windows,
+                    diagnostics,
+                );
+            }
+        }
+        ExpressionNode::Indexed(indexed) => {
+            scan_expression_reads(
+                program,
+                machine,
+                state,
+                indexed.collection,
+                tracked,
+                entry_established,
+                call_established,
+                inherited_windows,
+                diagnostics,
+            );
+            scan_expression_reads(
+                program,
+                machine,
+                state,
+                indexed.index,
+                tracked,
+                entry_established,
+                call_established,
+                inherited_windows,
+                diagnostics,
+            );
+        }
+        ExpressionNode::Binary(binary) => {
+            scan_expression_reads(
+                program,
+                machine,
+                state,
+                binary.left,
+                tracked,
+                entry_established,
+                call_established,
+                inherited_windows,
+                diagnostics,
+            );
+            scan_expression_reads(
+                program,
+                machine,
+                state,
+                binary.right,
+                tracked,
+                entry_established,
+                call_established,
+                inherited_windows,
+                diagnostics,
+            );
+        }
+        ExpressionNode::Mutable(inner) => {
+            if let ExpressionNode::Member(member) = program.expression_table.expression(*inner)
+                && let Some(receiver_spelling) = self_place_spelling(program, member.receiver)
+                && let Some(place) = tracked
+                    .iter()
+                    .find(|place| place.spelling == receiver_spelling && place.window_open)
+            {
+                validate_data_read(
+                    program,
+                    machine,
+                    place.definition,
+                    &receiver_spelling,
+                    member.member.as_str(),
+                    tracked,
+                    entry_established,
+                    call_established,
+                    inherited_windows,
+                    diagnostics,
+                );
+            }
+            scan_expression_reads(
+                program,
+                machine,
+                state,
+                *inner,
+                tracked,
+                entry_established,
+                call_established,
+                inherited_windows,
+                diagnostics,
+            );
+        }
+        ExpressionNode::Call(call) => {
+            scan_expression_reads(
+                program,
+                machine,
+                state,
+                call.receiver,
+                tracked,
+                entry_established,
+                call_established,
+                inherited_windows,
+                diagnostics,
+            );
+            for argument in program.expression_table.expression_handles(call.arguments) {
+                scan_expression_reads(
+                    program,
+                    machine,
+                    state,
+                    *argument,
+                    tracked,
+                    entry_established,
+                    call_established,
+                    inherited_windows,
+                    diagnostics,
+                );
+            }
+        }
+        _ => {}
+    }
+}
+
+fn is_bare_self_name(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    let members = program.expression_table.name_path_members(path.members);
+    members.len() == 1 && members[0].as_str() == "self"
+}
+
+fn validate_data_read(
+    program: &TypedTrees,
+    machine: &Machine,
+    definition: &DataDefinition,
+    receiver_spelling: &str,
+    member_name: &str,
+    tracked: &[TrackedPlace<'_>],
+    entry_established: &[String],
+    call_established: &[String],
+    inherited_windows: &[(String, String)],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let place = tracked
+        .iter()
+        .find(|place| place.spelling == receiver_spelling);
+    let established = place.map(|place| place.established).unwrap_or_else(|| {
+        // Parameters and locals arrive domain-valid from their caller or
+        // initializer; machine-owned `self` storage starts as representation
+        // only and must earn establishment on every incoming path.
+        entry_established
+            .iter()
+            .any(|established| established == receiver_spelling)
+            || call_established
+                .iter()
+                .any(|established| established == receiver_spelling)
+            || !is_self_rooted(receiver_spelling)
+    });
+    let established = established
+        || (receiver_spelling == "self"
+            && attached_value_established(
+                program,
+                machine,
+                tracked,
+                entry_established,
+                call_established,
+            ));
+    if !established {
+        diagnostics.push(Diagnostic::error(format!(
+            "reading `{receiver_spelling}.{member_name}` crosses an open default-domain \
+             invariant window before data `{}` is established: the zeroed representation \
+             is not yet a `{}` (ch12's access gate) -- construct it on every path first \
+             (the cross-state must-analysis carries establishment)",
+            definition.name.as_str(),
+            definition.name.as_str()
+        )));
+    }
+    if place.is_some_and(|place| place.window_open) {
+        diagnostics.push(Diagnostic::error(format!(
+            "reading `{receiver_spelling}.{member_name}` inside an OPEN invariant window: \
+             a prior write left data `{}`'s default domain FALSE -- restore the facts \
+             before this consumption point (ch11)",
+            definition.name.as_str()
+        )));
+    }
+    if place.is_none()
+        && inherited_windows
+            .iter()
+            .any(|(spelling, _)| spelling == receiver_spelling)
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "reading `{receiver_spelling}.{member_name}` inside an OPEN invariant window \
+             carried from a predecessor state: data `{}`'s default domain is FALSE -- \
+             restore the facts before this consumption point (ch11 window transport)",
+            definition.name.as_str()
+        )));
+    }
+}
+
+/// A nested gated field gates its containing machine value, but establishing
+/// that child must in turn establish the parent once every gated child is
+/// ready. This is the establishment analogue of structural ZII composition:
+/// the parent carries no independent ceremony when its own authored default
+/// domain accepts zero.
+fn attached_value_established(
+    program: &TypedTrees,
+    machine: &Machine,
+    tracked: &[TrackedPlace<'_>],
+    entry_established: &[String],
+    call_established: &[String],
+) -> bool {
+    if direct_place_established("self", tracked, entry_established, call_established) {
+        return true;
+    }
+    let Some(attached) = machine.attached_data.as_ref() else {
+        return false;
+    };
+    let Some(definition) = program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name == *attached)
+    else {
+        return false;
+    };
+    // An authored default domain that rejects zero must be established by its
+    // own proof net; child establishment cannot manufacture that evidence.
+    if definition.zero_gated {
+        return false;
+    }
+    let root = tracked.iter().find(|place| place.spelling == "self");
+    for member in program.data_members(definition) {
+        let psi_typed_trees::data::DataMember::Field(field) = member else {
+            continue;
+        };
+        if !crate::data::type_requires_establishment(program, field.type_reference) {
+            continue;
+        }
+        if let Some(interval) =
+            crate::arithmetic_domains::range_constraint_interval(program, field.type_reference)
+        {
+            let Some(value) = root
+                .and_then(|place| {
+                    place
+                        .fields
+                        .iter()
+                        .find(|(name, _)| name == field.name.as_str())
+                })
+                .and_then(|(_, value)| *value)
+            else {
+                return false;
+            };
+            if interval.low().is_some_and(|low| value < i128::from(low))
+                || interval.high().is_some_and(|high| value > i128::from(high))
+            {
+                return false;
+            }
+        } else {
+            let child = format!("self.{}", field.name.as_str());
+            if !direct_place_established(&child, tracked, entry_established, call_established) {
+                return false;
+            }
+        }
+    }
+    true
+}
+
+fn direct_place_established(
+    spelling: &str,
+    tracked: &[TrackedPlace<'_>],
+    entry_established: &[String],
+    call_established: &[String],
+) -> bool {
+    tracked
+        .iter()
+        .any(|place| place.spelling == spelling && place.established)
+        || entry_established.iter().any(|place| place == spelling)
+        || call_established.iter().any(|place| place == spelling)
+}
+
+/// Implicit range/containment gates hold only after every zero-excluding
+/// common field has a known established value. Scalar ranges can be discharged
+/// by the ordinary literal valuation. Nested data and arrays are established
+/// by whole-value construction for now; a scalar field write cannot fabricate
+/// evidence for them.
+fn range_gates_hold(program: &TypedTrees, place: &TrackedPlace<'_>) -> bool {
+    for member in program.data_members(place.definition) {
+        let psi_typed_trees::data::DataMember::Field(field) = member else {
+            continue;
+        };
+        if !crate::data::type_requires_establishment(program, field.type_reference) {
+            continue;
+        }
+        let Some(interval) =
+            crate::arithmetic_domains::range_constraint_interval(program, field.type_reference)
+        else {
+            // Nested records and arrays require whole-value establishment in
+            // this first slice.
+            return false;
+        };
+        let Some(value) = place
+            .fields
+            .iter()
+            .find(|(name, _)| name == field.name.as_str())
+            .and_then(|(_, value)| *value)
+        else {
+            return false;
+        };
+        if interval.low().is_some_and(|low| value < i128::from(low))
+            || interval.high().is_some_and(|high| value > i128::from(high))
+        {
+            return false;
+        }
+    }
+    true
+}
+
+/// Render a Name-rooted place (`self.map`, `target`, `local.a`); `None`
+/// for computed receivers. Slice 6: parameter/local roots are tracked too
+/// -- their writes carry the same obligation; only their VALUATION model
+/// differs (no born zero).
+fn self_place_spelling(program: &TypedTrees, expression: ExpressionHandle) -> Option<String> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(path) => {
+            let members = program.expression_table.name_path_members(path.members);
+            members.first()?;
+            Some(
+                members
+                    .iter()
+                    .map(|member| member.as_str())
+                    .collect::<Vec<_>>()
+                    .join("."),
+            )
+        }
+        ExpressionNode::Member(member) => {
+            let receiver = self_place_spelling(program, member.receiver)?;
+            Some(format!("{receiver}.{}", member.member.as_str()))
+        }
+        ExpressionNode::Indexed(indexed) => {
+            let collection = self_place_spelling(program, indexed.collection)?;
+            let index = match program.expression_table.expression(indexed.index) {
+                ExpressionNode::Integer(value) => value.text().to_owned(),
+                _ => return None,
+            };
+            Some(format!("{collection}[{index}]"))
+        }
+        ExpressionNode::Mutable(inner) => self_place_spelling(program, *inner),
+        _ => None,
+    }
+}
+
+/// Slice 6: the born-zero valuation model applies only to machine-owned
+/// (self-rooted) storage.
+fn is_self_rooted(spelling: &str) -> bool {
+    spelling == "self" || spelling.starts_with("self.")
+}
+
+fn domain_definition_by_name<'program>(
+    program: &'program TypedTrees,
+    name: &str,
+) -> Option<&'program DataDefinition> {
+    program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == name)
+        .filter(|definition| {
+            !definition.where_facts.is_empty()
+                || crate::data::data_requires_establishment(program, definition)
+        })
+}
+
+/// Resolve the data value denoted by an expression. `declared_place_type`
+/// intentionally treats bare `self` as a root rather than a value with an
+/// authored local type, so machine-attached storage needs this explicit arm.
+/// Keeping the arm here also makes `self.field` and nested local/parameter
+/// receivers share the same establishment analysis without manufacturing a
+/// synthetic type-reference handle for `self`.
+fn data_definition_for_expression<'program>(
+    program: &'program TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    expression: ExpressionHandle,
+) -> Option<&'program DataDefinition> {
+    if self_place_spelling(program, expression).as_deref() == Some("self") {
+        let attached = machine.attached_data.as_ref()?;
+        return program
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.name == *attached);
+    }
+    if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) {
+        let mut collection_type =
+            crate::places::declared_place_type_raw(program, machine, state, indexed.collection)?;
+        loop {
+            match program.type_reference_table.type_reference(collection_type) {
+                psi_typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
+                    collection_type = *referee;
+                }
+                psi_typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+                    collection_type = *base_type;
+                }
+                psi_typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. }
+                | psi_typed_trees::types::TypeReferenceNode::Slice { element_type } => {
+                    return data_definition_for_type(program, *element_type);
+                }
+                _ => return None,
+            }
+        }
+    }
+    let receiver_type = crate::places::declared_place_type(program, machine, state, expression)?;
+    data_definition_for_type(program, receiver_type)
+}
+
+fn data_definition_for_type<'program>(
+    program: &'program TypedTrees,
+    handle: psi_typed_trees::types::TypeReferenceHandle,
+) -> Option<&'program DataDefinition> {
+    use psi_typed_trees::types::TypeReferenceNode;
+    match program.type_reference_table.type_reference(handle) {
+        TypeReferenceNode::Named { name, .. } => program
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.name == *name),
+        TypeReferenceNode::Reference { referee, .. } => data_definition_for_type(program, *referee),
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            data_definition_for_type(program, *base_type)
+        }
+        _ => None,
+    }
+}
+
+fn field_is_where_mentioned(
+    program: &TypedTrees,
+    definition: &DataDefinition,
+    field: &str,
+) -> bool {
+    program
+        .proof_facts
+        .span_or_empty(definition.where_facts)
+        .iter()
+        .any(|fact| match fact {
+            psi_typed_trees::domain::ProofFact::Expression(expression) => {
+                expression_mentions_name(program, *expression, field)
+            }
+            psi_typed_trees::domain::ProofFact::Membership(membership) => {
+                membership_field_name(program, membership.value) == Some(field)
+            }
+        })
+}
+
+fn membership_field_name(program: &TypedTrees, value: ExpressionHandle) -> Option<&str> {
+    let ExpressionNode::Name(path) = program.expression_table.expression(value) else {
+        return None;
+    };
+    program
+        .expression_table
+        .name_path_members(path.members)
+        .last()
+        .map(|member| member.as_str())
+}
+
+fn expression_mentions_name(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    name: &str,
+) -> bool {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(path) => program
+            .expression_table
+            .name_path_members(path.members)
+            .last()
+            .is_some_and(|member| member.as_str() == name),
+        ExpressionNode::Binary(binary) => {
+            expression_mentions_name(program, binary.left, name)
+                || expression_mentions_name(program, binary.right, name)
+        }
+        ExpressionNode::Member(member) => expression_mentions_name(program, member.receiver, name),
+        _ => false,
+    }
+}
+
+fn integer_literal_value(program: &TypedTrees, expression: ExpressionHandle) -> Option<i128> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Integer(value) => value.text().parse::<i128>().ok(),
+        ExpressionNode::Mutable(inner) => integer_literal_value(program, *inner),
+        _ => None,
+    }
+}
+
+/// Fold a where fact over the tracked valuation: tracked fields read their
+/// value (a non-literal write poisons), untracked fields read the ZII zero
+/// (machine-owned data is born zeroed).
+fn fold_with_valuation(
+    program: &TypedTrees,
+    valuation: &[(&str, Option<i128>)],
+    symbols: &[(String, SymbolicValue)],
+    measures: &[(String, Option<i128>, Option<i128>)],
+    born_zero: bool,
+    expression: ExpressionHandle,
+) -> Option<i128> {
+    use psi_typed_trees::expression::BinaryOperator;
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(path) => {
+            let last = program
+                .expression_table
+                .name_path_members(path.members)
+                .last()?
+                .as_str();
+            match valuation.iter().find(|(name, _)| *name == last) {
+                Some((_, value)) => *value,
+                // SOUNDNESS (slice 4): the born zero is real only in the
+                // never-re-entered boot state; elsewhere an untracked field
+                // may hold any prior value -- poison the fold.
+                None if born_zero => Some(0),
+                None => None,
+            }
+        }
+        ExpressionNode::Integer(value) => value.text().parse::<i128>().ok(),
+        ExpressionNode::Member(member) if matches!(member.member.as_str(), "len" | "capacity") => {
+            let ExpressionNode::Name(path) = program.expression_table.expression(member.receiver)
+            else {
+                return None;
+            };
+            let field = program
+                .expression_table
+                .name_path_members(path.members)
+                .last()?
+                .as_str();
+            match measures.iter().find(|(name, _, _)| name == field) {
+                Some((_, length, capacity)) => match member.member.as_str() {
+                    "len" => *length,
+                    "capacity" => *capacity,
+                    _ => None,
+                },
+                None if born_zero => Some(0),
+                None => None,
+            }
+        }
+        ExpressionNode::Binary(binary) => {
+            if matches!(
+                binary.operator,
+                BinaryOperator::Equal | BinaryOperator::NotEqual
+            ) && let (Some(left), Some(right)) = (
+                symbolic_operand(program, symbols, binary.left),
+                symbolic_operand(program, symbols, binary.right),
+            ) && left == right
+            {
+                return Some(i128::from(matches!(binary.operator, BinaryOperator::Equal)));
+            }
+            let left = fold_with_valuation(
+                program,
+                valuation,
+                symbols,
+                measures,
+                born_zero,
+                binary.left,
+            )?;
+            let right = fold_with_valuation(
+                program,
+                valuation,
+                symbols,
+                measures,
+                born_zero,
+                binary.right,
+            )?;
+            match binary.operator {
+                BinaryOperator::Add => left.checked_add(right),
+                BinaryOperator::Subtract => left.checked_sub(right),
+                BinaryOperator::Multiply => left.checked_mul(right),
+                BinaryOperator::LessOrEqual => Some(i128::from(left <= right)),
+                BinaryOperator::Less => Some(i128::from(left < right)),
+                BinaryOperator::GreaterOrEqual => Some(i128::from(left >= right)),
+                BinaryOperator::Greater => Some(i128::from(left > right)),
+                BinaryOperator::Equal => Some(i128::from(left == right)),
+                BinaryOperator::NotEqual => Some(i128::from(left != right)),
+                BinaryOperator::And => Some(i128::from(left != 0 && right != 0)),
+                BinaryOperator::Or => Some(i128::from(left != 0 || right != 0)),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
+fn expression_symbol(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<psi_symbols::SymbolHandle> {
+    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    path.symbol.is_valid().then_some(path.symbol)
+}
+
+fn expression_symbolic_value(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<SymbolicValue> {
+    use psi_typed_trees::expression::BinaryOperator;
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(path) if path.symbol.is_valid() => {
+            Some(SymbolicValue::Atom(path.symbol))
+        }
+        ExpressionNode::Integer(value) => value
+            .text()
+            .parse::<i128>()
+            .ok()
+            .map(SymbolicValue::Integer),
+        ExpressionNode::Binary(binary) => {
+            let left = expression_symbolic_value(program, binary.left)?;
+            let right = expression_symbolic_value(program, binary.right)?;
+            match binary.operator {
+                BinaryOperator::Add => Some(commutative_symbolic_value(true, left, right)),
+                BinaryOperator::Multiply => Some(commutative_symbolic_value(false, left, right)),
+                BinaryOperator::Subtract => {
+                    Some(SymbolicValue::Subtract(Box::new(left), Box::new(right)))
+                }
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
+fn commutative_symbolic_value(
+    add: bool,
+    left: SymbolicValue,
+    right: SymbolicValue,
+) -> SymbolicValue {
+    // Canonicalize commutation only. Do not flatten/reassociate: signed
+    // saturating addition is commutative but not associative, and symbolic
+    // provenance must not silently strengthen the selected arithmetic theory.
+    let mut operands = vec![left, right];
+    operands.sort_by_key(symbolic_sort_key);
+    if add {
+        SymbolicValue::Add(operands)
+    } else {
+        SymbolicValue::Multiply(operands)
+    }
+}
+
+fn symbolic_sort_key(value: &SymbolicValue) -> String {
+    match value {
+        SymbolicValue::Atom(symbol) => {
+            format!("a:{}:{}", symbol.arena_index(), symbol.generation())
+        }
+        SymbolicValue::Integer(value) => format!("i:{value}"),
+        SymbolicValue::Add(values) => format!(
+            "+({})",
+            values
+                .iter()
+                .map(symbolic_sort_key)
+                .collect::<Vec<_>>()
+                .join(",")
+        ),
+        SymbolicValue::Multiply(values) => format!(
+            "*({})",
+            values
+                .iter()
+                .map(symbolic_sort_key)
+                .collect::<Vec<_>>()
+                .join(",")
+        ),
+        SymbolicValue::Subtract(left, right) => {
+            format!(
+                "-({},{})",
+                symbolic_sort_key(left),
+                symbolic_sort_key(right)
+            )
+        }
+    }
+}
+
+fn symbolic_operand(
+    program: &TypedTrees,
+    symbols: &[(String, SymbolicValue)],
+    expression: ExpressionHandle,
+) -> Option<SymbolicValue> {
+    use psi_typed_trees::expression::BinaryOperator;
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(path) => {
+            let field = program
+                .expression_table
+                .name_path_members(path.members)
+                .last()?
+                .as_str();
+            symbols
+                .iter()
+                .find(|(name, _)| name == field)
+                .map(|(_, value)| value.clone())
+                .or_else(|| {
+                    path.symbol
+                        .is_valid()
+                        .then_some(SymbolicValue::Atom(path.symbol))
+                })
+        }
+        ExpressionNode::Integer(value) => value
+            .text()
+            .parse::<i128>()
+            .ok()
+            .map(SymbolicValue::Integer),
+        ExpressionNode::Binary(binary) => {
+            let left = symbolic_operand(program, symbols, binary.left)?;
+            let right = symbolic_operand(program, symbols, binary.right)?;
+            match binary.operator {
+                BinaryOperator::Add => Some(commutative_symbolic_value(true, left, right)),
+                BinaryOperator::Multiply => Some(commutative_symbolic_value(false, left, right)),
+                BinaryOperator::Subtract => {
+                    Some(SymbolicValue::Subtract(Box::new(left), Box::new(right)))
+                }
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
+fn expression_sequence_measures(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<(Option<i128>, Option<i128>)> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::String(literal) => {
+            let measure = i128::try_from(literal.as_bytes().len()).ok();
+            Some((measure, measure))
+        }
+        _ => None,
+    }
+}
+
+fn expression_contains_call(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+    if !expression.is_valid() {
+        return false;
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Call(_) => true,
+        ExpressionNode::Binary(binary) => {
+            expression_contains_call(program, binary.left)
+                || expression_contains_call(program, binary.right)
+        }
+        ExpressionNode::Member(member) => expression_contains_call(program, member.receiver),
+        ExpressionNode::Mutable(inner) => expression_contains_call(program, *inner),
+        _ => false,
+    }
+}
+
+/// R2 rung 3 slice 7 -- READER HYPOTHESES: the standing where facts refine
+/// a field READ's interval. Sound because the write net is TOTAL (every
+/// write path re-proves the facts) and gated reads are access-gated, so
+/// the facts hold at every legal observation. Bounds come from literals or
+/// the co-field's DECLARED range (declared ranges always hold), never from
+/// flow values.
+pub(crate) fn where_fact_interval(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    expression: ExpressionHandle,
+) -> Option<crate::arithmetic_domains::Interval> {
+    let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    let definition = data_definition_for_expression(program, machine, state, member.receiver)?;
+    field_fact_interval(program, definition, member.member.as_str(), 0)
+}
+
+/// The per-field core of the reader hypotheses: the interval the
+/// definition's standing where facts pin on `field`. `depth` bounds the
+/// TRANSITIVE chain (`count <= mid, mid <= capacity[0..=100]` chains
+/// through the unranged middle field); a cyclic pair exhausts the cap and
+/// resolves to None -- over-refusal only.
+fn field_fact_interval(
+    program: &TypedTrees,
+    definition: &DataDefinition,
+    field: &str,
+    depth: usize,
+) -> Option<crate::arithmetic_domains::Interval> {
+    use psi_typed_trees::expression::BinaryOperator;
+
+    if depth >= 4 || definition.where_facts.is_empty() {
+        return None;
+    }
+
+    let mut interval = crate::arithmetic_domains::Interval {
+        low: None,
+        high: None,
+    };
+    let mut refined = false;
+    for fact in program.proof_facts.span_or_empty(definition.where_facts) {
+        let psi_typed_trees::domain::ProofFact::Expression(fact_expression) = fact else {
+            continue;
+        };
+        let ExpressionNode::Binary(binary) = program.expression_table.expression(*fact_expression)
+        else {
+            continue;
+        };
+        // R2 rung 3 slice 10 -- PRODUCT hypotheses (`count * stride <= len`,
+        // ch12's canonical shape): when OUR field is one FACTOR of a
+        // product bounded above, the field's upper bound is
+        // bound.high / co-factor.low (floor) -- SOUND iff the co-factor's
+        // lower bound is >= 1 (from its declared range or a sibling
+        // literal fact) and the field's primitive is UNSIGNED (>= 0).
+        if matches!(
+            binary.operator,
+            psi_typed_trees::expression::BinaryOperator::LessOrEqual
+                | psi_typed_trees::expression::BinaryOperator::Less
+        ) && let ExpressionNode::Binary(product) =
+            program.expression_table.expression(binary.left)
+            && matches!(
+                product.operator,
+                psi_typed_trees::expression::BinaryOperator::Multiply
+            )
+        {
+            let factor = if side_names_field(program, product.left, field) {
+                Some(product.right)
+            } else if side_names_field(program, product.right, field) {
+                Some(product.left)
+            } else {
+                None
+            };
+            if let Some(factor) = factor
+                && field_is_unsigned(program, definition, field)
+                && let Some(factor_low) = factor_lower_bound(program, definition, factor)
+                && factor_low >= 1
+                && let Some(bound) = bound_source_interval(program, definition, binary.right, depth)
+                && let Some(mut bound_high) = bound.high
+            {
+                if matches!(
+                    binary.operator,
+                    psi_typed_trees::expression::BinaryOperator::Less
+                ) {
+                    bound_high = bound_high.saturating_sub(1);
+                }
+                let high = bound_high.div_euclid(factor_low);
+                interval.high = Some(interval.high.map_or(high, |current| current.min(high)));
+                refined = true;
+                continue;
+            }
+        }
+        // Identify which side names OUR field; the other side supplies the
+        // bound (a literal, or a co-field's declared interval end).
+        let (field_side_left, other) = if side_names_field(program, binary.left, field) {
+            (true, binary.right)
+        } else if side_names_field(program, binary.right, field) {
+            (false, binary.left)
+        } else {
+            continue;
+        };
+        let Some(other_interval) = bound_source_interval(program, definition, other, depth) else {
+            continue;
+        };
+        // Normalize to `field OP other`.
+        let operator = if field_side_left {
+            binary.operator
+        } else {
+            match binary.operator {
+                BinaryOperator::Less => BinaryOperator::Greater,
+                BinaryOperator::LessOrEqual => BinaryOperator::GreaterOrEqual,
+                BinaryOperator::Greater => BinaryOperator::Less,
+                BinaryOperator::GreaterOrEqual => BinaryOperator::LessOrEqual,
+                other_operator => other_operator,
+            }
+        };
+        match operator {
+            BinaryOperator::LessOrEqual => {
+                if let Some(high) = other_interval.high {
+                    interval.high = Some(interval.high.map_or(high, |current| current.min(high)));
+                    refined = true;
+                }
+            }
+            BinaryOperator::Less => {
+                if let Some(high) = other_interval.high.and_then(|high| high.checked_sub(1)) {
+                    interval.high = Some(interval.high.map_or(high, |current| current.min(high)));
+                    refined = true;
+                }
+            }
+            BinaryOperator::GreaterOrEqual => {
+                if let Some(low) = other_interval.low {
+                    interval.low = Some(interval.low.map_or(low, |current| current.max(low)));
+                    refined = true;
+                }
+            }
+            BinaryOperator::Greater => {
+                if let Some(low) = other_interval.low.and_then(|low| low.checked_add(1)) {
+                    interval.low = Some(interval.low.map_or(low, |current| current.max(low)));
+                    refined = true;
+                }
+            }
+            _ => {}
+        }
+    }
+    refined.then_some(interval)
+}
+
+fn side_names_field(program: &TypedTrees, expression: ExpressionHandle, field: &str) -> bool {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(path) => program
+            .expression_table
+            .name_path_members(path.members)
+            .last()
+            .is_some_and(|member| member.as_str() == field),
+        _ => false,
+    }
+}
+
+/// The bound-supplying side's SOUND interval: a literal is itself; a
+/// co-field name reads its DECLARED range (or full type width) from the
+/// data definition's own members.
+fn bound_source_interval(
+    program: &TypedTrees,
+    definition: &DataDefinition,
+    expression: ExpressionHandle,
+    depth: usize,
+) -> Option<crate::arithmetic_domains::Interval> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Integer(value) => {
+            let literal = value.text().parse::<i64>().ok()?;
+            Some(crate::arithmetic_domains::Interval {
+                low: Some(literal),
+                high: Some(literal),
+            })
+        }
+        ExpressionNode::Name(path) => {
+            let name = program
+                .expression_table
+                .name_path_members(path.members)
+                .last()?;
+            let handle =
+                program
+                    .data_members(definition)
+                    .iter()
+                    .find_map(|member| match member {
+                        psi_typed_trees::data::DataMember::Field(data_field)
+                            if data_field.name == *name =>
+                        {
+                            Some(data_field.type_reference)
+                        }
+                        _ => None,
+                    })?;
+            // Declared range first; an UNRANGED co-field chains through its
+            // own where-fact interval (depth-capped -- cycles resolve None).
+            crate::arithmetic_domains::range_constraint_interval(program, handle)
+                .or_else(|| field_fact_interval(program, definition, name.as_str(), depth + 1))
+        }
+        _ => None,
+    }
+}
+
+/// Slice 10: is the definition's named field an UNSIGNED primitive (its
+/// values are >= 0 -- the product-division soundness guard)?
+fn field_is_unsigned(program: &TypedTrees, definition: &DataDefinition, field: &str) -> bool {
+    use psi_typed_trees::types::PrimitiveType;
+    program
+        .data_members(definition)
+        .iter()
+        .find_map(|member| match member {
+            psi_typed_trees::data::DataMember::Field(data_field)
+                if data_field.name.as_str() == field =>
+            {
+                program.primitive_type_reference(data_field.type_reference)
+            }
+            _ => None,
+        })
+        .is_some_and(|primitive| {
+            matches!(
+                primitive,
+                PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64
+            )
+        })
+}
+
+/// Slice 10: a co-factor's LOWER bound -- its declared range, or a sibling
+/// literal fact (`stride >= 40` / `40 <= stride`), single level.
+fn factor_lower_bound(
+    program: &TypedTrees,
+    definition: &DataDefinition,
+    factor: ExpressionHandle,
+) -> Option<i64> {
+    use psi_typed_trees::expression::BinaryOperator;
+    let ExpressionNode::Name(path) = program.expression_table.expression(factor) else {
+        return None;
+    };
+    let factor_name = program
+        .expression_table
+        .name_path_members(path.members)
+        .last()?
+        .as_str();
+    if let Some(interval) = bound_source_interval(program, definition, factor, 4)
+        && let Some(low) = interval.low
+    {
+        return Some(low);
+    }
+    for fact in program.proof_facts.span_or_empty(definition.where_facts) {
+        let psi_typed_trees::domain::ProofFact::Expression(expression) = fact else {
+            continue;
+        };
+        let ExpressionNode::Binary(binary) = program.expression_table.expression(*expression)
+        else {
+            continue;
+        };
+        let bound = match binary.operator {
+            BinaryOperator::GreaterOrEqual
+                if side_names_field(program, binary.left, factor_name) =>
+            {
+                integer_literal_value(program, binary.right).map(|value| value as i64)
+            }
+            BinaryOperator::Greater if side_names_field(program, binary.left, factor_name) => {
+                integer_literal_value(program, binary.right)
+                    .map(|value| (value as i64).saturating_add(1))
+            }
+            BinaryOperator::LessOrEqual if side_names_field(program, binary.right, factor_name) => {
+                integer_literal_value(program, binary.left).map(|value| value as i64)
+            }
+            BinaryOperator::Less if side_names_field(program, binary.right, factor_name) => {
+                integer_literal_value(program, binary.left)
+                    .map(|value| (value as i64).saturating_add(1))
+            }
+            _ => None,
+        };
+        if let Some(bound) = bound {
+            return Some(bound);
+        }
+    }
+    None
+}

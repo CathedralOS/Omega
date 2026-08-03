@@ -1180,6 +1180,7 @@ dependencies = [
  "omega-syntax-trees-to-symbol-resolved-trees",
  "omega-tokens-to-syntax-trees",
  "omega-typed-trees",
+ "psi-validation",
 ]
 
 [[package]]
@@ -1478,6 +1479,23 @@ dependencies = [
  "psi-symbols",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "psi-validation"
+version = "0.1.0"
+dependencies = [
+ "psi-access-plans",
+ "psi-arena",
+ "psi-diagnostics",
+ "psi-effects",
+ "psi-facts",
+ "psi-language-core",
+ "psi-language-semantics",
+ "psi-numerics",
+ "psi-source",
+ "psi-symbols",
+ "psi-typed-trees",
 ]
 
 [[package]]

@@ -1,0 +1,140 @@
+use super::shared::trait_definition_by_symbol;
+use crate::symbols::TopLevelSymbols;
+use crate::type_references::{
+    TypeReferenceOwner, validate_type_reference_handle_with_type_parameters,
+};
+use psi_diagnostics::Diagnostic;
+use psi_symbols::SymbolHandle;
+use psi_typed_trees::TypedTrees;
+use psi_typed_trees::trait_definition::TraitDefinition;
+
+pub(crate) fn validate_trait_requirements(
+    program: &TypedTrees,
+    symbols: &TopLevelSymbols<'_>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for trait_definition in program.traits() {
+        let mut seen = Vec::new();
+        for requirement in program.trait_requirements(trait_definition) {
+            let Some(required_trait) = trait_definition_by_symbol(program, requirement.symbol)
+            else {
+                diagnostics.push(Diagnostic::error(format!(
+                    "trait `{}` requires unknown trait `{}`",
+                    trait_definition.name, requirement.name
+                )));
+                continue;
+            };
+
+            if seen.contains(&requirement.symbol) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "trait `{}` names parent `{}` more than once",
+                    trait_definition.name, requirement.name
+                )));
+            } else {
+                seen.push(requirement.symbol);
+            }
+
+            let expected = program.trait_type_parameters(required_trait).len();
+            let actual = requirement.arguments.len();
+            if expected != actual {
+                diagnostics.push(Diagnostic::error(format!(
+                    "trait `{}` parent `{}` expects {expected} generic argument(s), got {actual}",
+                    trait_definition.name, requirement.name
+                )));
+            }
+
+            for argument in program
+                .type_reference_table
+                .type_reference_handles(requirement.arguments)
+            {
+                validate_type_reference_handle_with_type_parameters(
+                    program,
+                    *argument,
+                    symbols,
+                    diagnostics,
+                    TypeReferenceOwner::TraitParent {
+                        trait_name: trait_definition.name.as_str(),
+                        parent: requirement.name.as_str(),
+                        generic_depth: 0,
+                    },
+                    program.trait_type_parameters(trait_definition),
+                    &trait_definition.lifetime_parameters,
+                );
+            }
+
+            if !trait_definition.is_boundary && required_trait.is_boundary {
+                diagnostics.push(Diagnostic::error(format!(
+                    "ordinary trait `{}` cannot inherit boundary service `{}`; declare the child as `boundary trait`",
+                    trait_definition.name, requirement.name
+                )));
+            }
+        }
+    }
+
+    let mut reported_cycle_symbols = Vec::new();
+    for trait_definition in program.traits() {
+        let mut path = Vec::new();
+        validate_trait_requirement_cycles(
+            program,
+            trait_definition,
+            &mut path,
+            &mut reported_cycle_symbols,
+            diagnostics,
+        );
+    }
+}
+
+fn validate_trait_requirement_cycles(
+    program: &TypedTrees,
+    trait_definition: &TraitDefinition,
+    path: &mut Vec<SymbolHandle>,
+    reported_cycle_symbols: &mut Vec<SymbolHandle>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if reported_cycle_symbols
+        .iter()
+        .any(|symbol| *symbol == trait_definition.symbol)
+    {
+        return;
+    }
+
+    if let Some(cycle_start) = path
+        .iter()
+        .position(|symbol| *symbol == trait_definition.symbol)
+    {
+        let cycle_symbols = path[cycle_start..]
+            .iter()
+            .copied()
+            .chain(std::iter::once(trait_definition.symbol))
+            .collect::<Vec<_>>();
+        let mut cycle = path[cycle_start..]
+            .iter()
+            .filter_map(|symbol| trait_definition_by_symbol(program, *symbol))
+            .map(|trait_definition| trait_definition.name.to_string())
+            .collect::<Vec<_>>();
+        cycle.push(trait_definition.name.to_string());
+
+        diagnostics.push(Diagnostic::error(format!(
+            "trait requirement cycle detected: {}",
+            cycle.join(" -> ")
+        )));
+        reported_cycle_symbols.extend(cycle_symbols);
+        return;
+    }
+
+    path.push(trait_definition.symbol);
+    for requirement in program.trait_requirements(trait_definition) {
+        let Some(required_trait) = trait_definition_by_symbol(program, requirement.symbol) else {
+            continue;
+        };
+
+        validate_trait_requirement_cycles(
+            program,
+            required_trait,
+            path,
+            reported_cycle_symbols,
+            diagnostics,
+        );
+    }
+    path.pop();
+}
