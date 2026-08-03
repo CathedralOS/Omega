@@ -1433,8 +1433,13 @@ improvements do not change public identity.
   any incomplete source weaken the live report without fabricating a combined
   selected-provider closure identity, and counts a containment axis only when
   every contributing row carries independent evidence. Process-static
-  handover, gateway/unregister validation, and the concrete era entry ledger
-  remain.
+  services now publish and enforce one exact duplicate-key, versioned-key, or
+  atomic-transfer policy. Failed registrations return their candidate; exact
+  version pairs reject; and atomic handover requires a non-replayed receipt
+  binding service contract, old/new era and registration identities, atomic
+  publication, old-registration retirement, and explicit obligation transfer.
+  Completion records that obligations moved rather than disappeared.
+  Gateway/unregister validation and the concrete era entry ledger remain.
 - **BLOCKEXEC:** provide an ordinary package-level blocking executor for
   codec-style native calls using activations, bounded queues, moved custody,
   linear completion claims, suspension, and provider selection. It is not a

@@ -3,6 +3,7 @@ mod coexisting_executable_eras;
 mod executable_tcb_manifest;
 mod executable_tcb_profile;
 mod isolated_executable_scopes;
+mod process_static_services;
 mod selected_provider_plans;
 
 pub use capabilities::analysis::{
@@ -36,5 +37,10 @@ pub use executable_tcb_profile::{
 };
 pub use isolated_executable_scopes::{
     AdmittedIsolatedExecutableScope, ExecutableTcbManifestSet, IsolatedExecutableScopeCandidate,
+};
+pub use process_static_services::{
+    ActiveServiceRegistration, AtomicServiceHandoverReceipt, ProcessStaticServiceContract,
+    ProcessStaticServicePolicy, ProcessStaticServiceRegistry, ServiceHandoverCompletion,
+    ServiceHandoverError, ServiceRegistrationCandidate, ServiceRegistrationError,
 };
 pub use selected_provider_plans::SelectedProviderPlanFacts;
