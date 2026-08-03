@@ -307,16 +307,10 @@ fn psi_does_not_depend_on_omega() {
 #[test]
 fn frontend_implementation_is_psi_owned() {
     let root = workspace_root();
-    for (relative, expected_export) in [
-        (
-            "compiler/omega-rs/representations/omega-facts/src/lib.rs",
-            "pub use psi_facts::*;",
-        ),
-        (
-            "compiler/omega-rs/semantics/omega-validation/src/lib.rs",
-            "pub use psi_validation::*;",
-        ),
-    ] {
+    for (relative, expected_export) in [(
+        "compiler/omega-rs/semantics/omega-validation/src/lib.rs",
+        "pub use psi_validation::*;",
+    )] {
         let path = root.join(relative);
         let source = std::fs::read_to_string(&path)
             .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
@@ -539,6 +533,7 @@ fn retired_omega_frontend_adapters_do_not_return() {
         "compiler/omega-rs/representations/omega-symbol-resolved-trees",
         "compiler/omega-rs/representations/omega-syntax-trees",
         "compiler/omega-rs/representations/omega-typed-trees",
+        "compiler/omega-rs/representations/omega-facts",
         "compiler/omega-rs/semantics/omega-proof",
         "compiler/omega-rs/semantics/omega-types",
     ] {

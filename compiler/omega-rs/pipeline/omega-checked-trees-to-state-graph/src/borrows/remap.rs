@@ -6,7 +6,7 @@ use omega_state_graph::{
 
 pub(crate) struct SourceBorrowArenas<'a> {
     pub(crate) writable_roots: &'a Arena<StateBorrowWritableRoot>,
-    pub(crate) access_segments: &'a Arena<omega_facts::PlaceSegment>,
+    pub(crate) access_segments: &'a Arena<psi_facts::PlaceSegment>,
     pub(crate) argument_accesses: &'a Arena<StateBorrowArgumentAccess>,
     pub(crate) calls: &'a Arena<StateBorrowCall>,
     pub(crate) loans: &'a Arena<StateBorrowLoan>,

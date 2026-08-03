@@ -947,7 +947,8 @@ improvements do not change public identity.
   semantic keys and canonical fingerprints only; concrete register/stack/ABI
   calling plans remain in Omega orchestration for selected native realization.
   `psi-facts` owns durable target-neutral places, contexts, propositions, and
-  checked-fact plans; `omega-facts` is now only a compatibility export.
+  checked-fact plans; the unused former Omega compatibility package is retired,
+  and legacy backend consumers depend on the Psi owner directly.
   `psi-checked-trees` owns the checked semantic representation, including
   proof, borrow, flow, reach, value-origin, and admissibility evidence;
   `omega-checked-trees` is now only a compatibility export for unmigrated

@@ -23,15 +23,15 @@ impl Default for StateOwnershipEventSource {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateMoveEvent {
     pub source: StateOwnershipEventSource,
-    pub root: omega_facts::PlaceRoot,
-    pub segments: HandleSpan<omega_facts::PlaceSegment>,
+    pub root: psi_facts::PlaceRoot,
+    pub segments: HandleSpan<psi_facts::PlaceSegment>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateDropEvent {
     pub source: StateOwnershipEventSource,
-    pub root: omega_facts::PlaceRoot,
-    pub segments: HandleSpan<omega_facts::PlaceSegment>,
+    pub root: psi_facts::PlaceRoot,
+    pub segments: HandleSpan<psi_facts::PlaceSegment>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -42,8 +42,8 @@ pub struct StatePermissionEvent {
     pub access: omega_core::semantics::PermissionAccess,
     pub claim_identity: omega_core::semantics::PermissionClaimIdentity,
     pub provenance: omega_core::semantics::PermissionProvenance,
-    pub root: omega_facts::PlaceRoot,
-    pub segments: HandleSpan<omega_facts::PlaceSegment>,
+    pub root: psi_facts::PlaceRoot,
+    pub segments: HandleSpan<psi_facts::PlaceSegment>,
     pub obligation_live: bool,
 }
 
@@ -56,7 +56,7 @@ pub struct StateOwnershipSummary {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateGraphOwnershipRoots {
-    pub segments: Arena<omega_facts::PlaceSegment>,
+    pub segments: Arena<psi_facts::PlaceSegment>,
     pub moves: Arena<StateMoveEvent>,
     pub drops: Arena<StateDropEvent>,
     pub permissions: Arena<StatePermissionEvent>,
@@ -64,7 +64,7 @@ pub struct StateGraphOwnershipRoots {
 
 impl StateGraphOwnershipRoots {
     pub fn with_roots(
-        segments: Arena<omega_facts::PlaceSegment>,
+        segments: Arena<psi_facts::PlaceSegment>,
         moves: Arena<StateMoveEvent>,
         drops: Arena<StateDropEvent>,
         permissions: Arena<StatePermissionEvent>,

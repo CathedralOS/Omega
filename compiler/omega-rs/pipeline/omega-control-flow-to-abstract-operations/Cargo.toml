@@ -15,7 +15,7 @@ omega-checked-trees = { path = "../../representations/omega-checked-trees" }
 omega-control-flow = { path = "../../representations/omega-control-flow" }
 omega-core = { path = "../../foundation/omega-core" }
 omega-effects = { path = "../../representations/omega-effects" }
-omega-facts = { path = "../../representations/omega-facts" }
+psi-facts = { path = "../../../psi-rs/representations/psi-facts" }
 omega-instruction-selection = { path = "../../backend/omega-instruction-selection" }
 omega-layout = { path = "../../backend/omega-layout" }
 omega-platform-interface = { path = "../../backend/omega-platform-interface" }

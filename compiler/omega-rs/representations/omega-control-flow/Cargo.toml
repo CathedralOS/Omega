@@ -11,5 +11,5 @@ path = "src/lib.rs"
 [dependencies]
 omega-core = { path = "../../foundation/omega-core" }
 omega-checked-trees = { path = "../omega-checked-trees" }
-omega-facts = { path = "../omega-facts" }
+psi-facts = { path = "../../../psi-rs/representations/psi-facts" }
 psi-typed-trees = { path = "../../../psi-rs/representations/psi-typed-trees" }

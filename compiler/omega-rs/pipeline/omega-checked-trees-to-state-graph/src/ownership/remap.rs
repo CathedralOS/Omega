@@ -4,7 +4,7 @@ use omega_state_graph::{
 };
 
 pub(crate) struct SourceOwnershipArenas<'a> {
-    pub(crate) segments: &'a Arena<omega_facts::PlaceSegment>,
+    pub(crate) segments: &'a Arena<psi_facts::PlaceSegment>,
     pub(crate) moves: &'a Arena<StateMoveEvent>,
     pub(crate) drops: &'a Arena<StateDropEvent>,
     pub(crate) permissions: &'a Arena<StatePermissionEvent>,

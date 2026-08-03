@@ -22845,11 +22845,11 @@ fn open_index_exact_local_fact_canary_runs() {
     assert!(
         evidence
             .iter()
-            .any(|fact| matches!(fact.point, omega_facts::ProgramPoint::CallEnsures { .. }))
+            .any(|fact| matches!(fact.point, psi_facts::ProgramPoint::CallEnsures { .. }))
     );
     assert!(evidence.iter().any(|fact| !matches!(
         fact.point,
-        omega_facts::ProgramPoint::CallEnsures { .. } | omega_facts::ProgramPoint::Global
+        psi_facts::ProgramPoint::CallEnsures { .. } | psi_facts::ProgramPoint::Global
     )));
     let compatibility = omega_visualizations::index_compatibility_manifest_json(&checked);
     assert!(compatibility.contains("\"discharge\": \"established_local_fact\""));

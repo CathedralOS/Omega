@@ -15,8 +15,8 @@ pub struct AbstractPermissionEvent {
     pub access: omega_core::semantics::PermissionAccess,
     pub claim_identity: omega_core::semantics::PermissionClaimIdentity,
     pub provenance: omega_core::semantics::PermissionProvenance,
-    pub root: omega_facts::PlaceRoot,
-    pub segments: HandleSpan<omega_facts::PlaceSegment>,
+    pub root: psi_facts::PlaceRoot,
+    pub segments: HandleSpan<psi_facts::PlaceSegment>,
     pub obligation_live: bool,
 }
 
@@ -85,7 +85,7 @@ pub enum PermissionRealizationError {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct AbstractOwnershipSummary {
-    pub segments: Arena<omega_facts::PlaceSegment>,
+    pub segments: Arena<psi_facts::PlaceSegment>,
     pub permissions: Arena<AbstractPermissionEvent>,
     pub realization_instruction_indices: Arena<u32>,
     pub realizations: Arena<AbstractPermissionRealization>,

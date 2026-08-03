@@ -9,7 +9,7 @@ use omega_core::symbols::SymbolHandle;
 #[test]
 fn lowers_only_semantic_permission_events() {
     let mut control_flow = ControlFlowPlan::default();
-    let segment = omega_facts::PlaceSegment::Field {
+    let segment = psi_facts::PlaceSegment::Field {
         symbol: SymbolHandle::from_arena_index(7),
     };
     let segments = control_flow
@@ -35,7 +35,7 @@ fn lowers_only_semantic_permission_events() {
         &mut state.ownership.moves,
         StateMoveEvent {
             source: StateOwnershipEventSource::Statement { statement_index: 3 },
-            root: omega_facts::PlaceRoot::Symbol(SymbolHandle::from_arena_index(9)),
+            root: psi_facts::PlaceRoot::Symbol(SymbolHandle::from_arena_index(9)),
             segments,
         },
     );
@@ -43,7 +43,7 @@ fn lowers_only_semantic_permission_events() {
         &mut state.ownership.drops,
         StateDropEvent {
             source: StateOwnershipEventSource::StateExit,
-            root: omega_facts::PlaceRoot::Symbol(SymbolHandle::from_arena_index(10)),
+            root: psi_facts::PlaceRoot::Symbol(SymbolHandle::from_arena_index(10)),
             segments: HandleSpan::empty(),
         },
     );
@@ -56,7 +56,7 @@ fn lowers_only_semantic_permission_events() {
             access: omega_core::semantics::PermissionAccess::Owned,
             claim_identity,
             provenance: omega_core::semantics::PermissionProvenance::Unknown,
-            root: omega_facts::PlaceRoot::Symbol(SymbolHandle::from_arena_index(11)),
+            root: psi_facts::PlaceRoot::Symbol(SymbolHandle::from_arena_index(11)),
             segments,
             obligation_live: true,
         },
