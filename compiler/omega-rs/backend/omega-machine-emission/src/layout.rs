@@ -8,13 +8,13 @@ use omega_calling_conventions::HostBindingMechanism;
 use omega_instruction_selection::{
     authored_import_call_sequence_width, control_register_read_width, control_register_write_width,
     dispatch_case_enter_width, dispatch_case_leave_width, dispatch_guard_compare_static_width,
-    dispatch_loop_enter_width, dispatch_state_write_width, entry_argument_register_write_width,
-    entry_arguments_slice_descriptor_write_width, entry_indirect_argument_write_width,
-    entry_stack_argument_write_width, flags_restore_width, flags_snapshot_width,
-    function_enter_width, host_call_sequence_width_with_plan, interrupt_control_width,
-    machine_halt_width, memory_fence_width, msr_read_width, msr_write_width, port_read_width,
-    port_write_width, return_register_integer_write_width, return_width,
-    runtime_atomic_compare_exchange_width, runtime_atomic_fetch_add_width,
+    dispatch_loop_enter_width, dispatch_state_write_width, encode_host_call_sequence_with_plan,
+    entry_argument_register_write_width, entry_arguments_slice_descriptor_write_width,
+    entry_indirect_argument_write_width, entry_stack_argument_write_width, flags_restore_width,
+    flags_snapshot_width, function_enter_width, host_call_sequence_width_with_plan,
+    interrupt_control_width, machine_halt_width, memory_fence_width, msr_read_width,
+    msr_write_width, port_read_width, port_write_width, return_register_integer_write_width,
+    return_width, runtime_atomic_compare_exchange_width, runtime_atomic_fetch_add_width,
     runtime_atomic_fetch_and_width, runtime_atomic_fetch_or_width, runtime_atomic_fetch_sub_width,
     runtime_atomic_fetch_xor_width, runtime_atomic_load_to_storage_width,
     runtime_atomic_store_from_operand_width, runtime_atomic_swap_width,
@@ -223,6 +223,26 @@ fn machine_instruction_width(
         // import relocation applied, which corrupts whatever instruction
         // lands at that offset and crashes the binary at runtime.
         if width == 0 {
+            if matches!(
+                binding.map(|binding| &binding.mechanism),
+                Some(HostBindingMechanism::Import { .. })
+            ) && !matches!(
+                host_operation.operation_key.capability,
+                omega_calling_conventions::HostCapability::Custom(_)
+                    | omega_calling_conventions::HostCapability::Unknown
+            ) && let Err(error) = encode_host_call_sequence_with_plan(
+                input.target,
+                host_operation.operation_key,
+                operands,
+                binding.and_then(omega_calling_conventions::HostBinding::call_plan),
+            ) {
+                return Err(Diagnostic::error(format!(
+                    "host operation {}.{} has no encodable call sequence: {}",
+                    host_operation.operation_key.capability_name(),
+                    host_operation.operation_key.operation_name(),
+                    error.message,
+                )));
+            }
             return Err(Diagnostic::error(format!(
                 "host operation {}.{} has no encodable call sequence: a host-call argument \
                  must be a simple value (a local, field, parameter, or literal). Bind a computed \

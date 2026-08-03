@@ -717,10 +717,13 @@ Graphics rows—color-space creation, bitmap-context creation/snapshot, image
 width, release calls, and event-source key state—retain their exact zero-,
 one-, two-, or seven-word parameter plans and word/source-scratch results.
 The no-argument Darwin `___error()` row retains an I32 stored-result plan for
-its pointer-dereference adapter. Other Darwin filesystem imports remain on an
-explicitly named compatibility helper until their seam canonicalizes a stored
-I32/U32 and a synthesized immediate to the same typed external scalar; binding
-one plan before that normalization would reject a valid call-site spelling.
+its pointer-dereference adapter. Every Darwin filesystem import now retains its
+typed libc signature. Integer literals adopt the selected parameter width at
+the final ABI seam, while an oversized compiler scratch slot is only result
+capacity: the retained result shape selects the actual return-register store
+width. The creating `open(path, flags, mode)` row retains one concrete Apple
+variadic plan, including the fixed/anonymous boundary and the anonymous I32
+mode at outgoing stack offset zero; flattening it into `x2` rejects.
 On Microsoft x64, the parameter-free `GetTickCount64` and
 `GetForegroundWindow` rows retain word-result plans, while `_errno` and
 `GetLastError` retain I32 stored-result plans. These rows need no compatibility

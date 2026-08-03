@@ -567,9 +567,23 @@ pub fn evaluate_ordinary_boundary_entry_plan(
     signature: &CallSignature,
 ) -> Result<ValidatedBoundaryEntryPlan, PlanDiagnostic> {
     let call = evaluate_call_plan(policy, signature)?;
+    evaluate_ordinary_boundary_entry_plan_from_call(call, signature)
+}
+
+pub fn evaluate_darwin_aapcs64_variadic_boundary_entry_plan(
+    signature: &ConcreteVariadicCallSignature,
+) -> Result<ValidatedBoundaryEntryPlan, PlanDiagnostic> {
+    let call = evaluate_darwin_aapcs64_variadic_call_plan(signature)?;
+    evaluate_ordinary_boundary_entry_plan_from_call(call, &signature.flattened())
+}
+
+fn evaluate_ordinary_boundary_entry_plan_from_call(
+    call: CallPlan,
+    signature: &CallSignature,
+) -> Result<ValidatedBoundaryEntryPlan, PlanDiagnostic> {
     let permitted_transitive_use = machine_state_for_registers(&call.ordinary_clobbers)
         .union(MachineStateSet::new([MachineState::Flags]));
-    let initial_regime = match policy.architecture() {
+    let initial_regime = match call.policy.architecture() {
         Architecture::X86_64 => MachineRegime::X86Long64,
         Architecture::Aarch64 => MachineRegime::Aarch64A64 { exception_level: 0 },
     };

@@ -862,10 +862,12 @@ Remaining:
   and V register streams from those selected shapes. The remaining scalar
   Core Graphics rows now retain exact zero-/one-/two-/seven-word parameter
   plans with their word or source-scratch results. Darwin `___error()` retains
-  its fixed no-parameter/I32-stored-result plan. The residual Darwin filesystem
-  rows remain implementation work: canonicalize stored I32/U32 and synthesized
-  immediate operands to one typed external signature before attaching plans;
-  do not claim that engineering dependency as a language-design blocker.
+  its fixed no-parameter/I32-stored-result plan. Every Darwin filesystem row now
+  retains its typed libc signature. Integer literals take their selected
+  parameter width at the ABI seam, compiler scratch remains result capacity
+  rather than ABI type, and the retained result shape selects the actual store
+  width. The creating `open` row retains its concrete Apple variadic plan and
+  rejects loss of the fixed/anonymous parameter boundary.
   Windows' parameter-free `GetTickCount64`, `GetForegroundWindow`, `_errno`,
   and `GetLastError` rows now retain exact Microsoft x64 result plans.
   The matching AArch64 direct-import composites now validate

@@ -687,6 +687,7 @@ pub fn encode_host_call_sequence_value_returning_from_operands(
     operands: impl Iterator<Item = Aarch64CallOperand> + Clone,
     argument_placements: &[ValuePlacement],
     result_register: MachineRegister,
+    result_byte_count: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
     let all: Vec<Aarch64CallOperand> = operands.collect();
     let Some((result, args)) = all.split_first() else {
@@ -696,13 +697,14 @@ pub fn encode_host_call_sequence_value_returning_from_operands(
     };
     let RuntimeScalarInteger {
         byte_offset,
-        byte_count,
+        byte_count: storage_byte_count,
     } = *result
     else {
         return Err(Diagnostic::error(
             "AArch64 value-returning host call result place did not lower to a runtime scalar",
         ));
     };
+    validate_scalar_result_storage_width(storage_byte_count, result_byte_count)?;
     let mut bytes = Vec::with_capacity(host_call_sequence_width_from_operands(all.iter().copied()));
     let stack_bytes = append_call_operands(&mut bytes, args.iter().copied(), argument_placements)?;
     bytes.extend(encode_branch_link_placeholder());
@@ -720,7 +722,14 @@ pub fn encode_host_call_sequence_value_returning_from_operands(
     // x17 (caller-saved; the planned register holds the result, x16 the region base).
     // Kept in lockstep
     // with operand_width's store_data_offset_width accounting + the relocation planner.
-    append_store_data_to_x_offset(&mut bytes, result_register, 16, byte_offset, byte_count, 17)?;
+    append_store_data_to_x_offset(
+        &mut bytes,
+        result_register,
+        16,
+        byte_offset,
+        result_byte_count,
+        17,
+    )?;
     Ok(bytes)
 }
 
@@ -939,6 +948,7 @@ pub fn encode_host_call_sequence_value_returning_deref_from_operands(
     operands: impl Iterator<Item = Aarch64CallOperand> + Clone,
     argument_placements: &[ValuePlacement],
     result_register: MachineRegister,
+    result_byte_count: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
     let all: Vec<Aarch64CallOperand> = operands.collect();
     let Some((result, args)) = all.split_first() else {
@@ -948,13 +958,14 @@ pub fn encode_host_call_sequence_value_returning_deref_from_operands(
     };
     let RuntimeScalarInteger {
         byte_offset,
-        byte_count,
+        byte_count: storage_byte_count,
     } = *result
     else {
         return Err(Diagnostic::error(
             "AArch64 deref host call result place did not lower to a runtime scalar",
         ));
     };
+    validate_scalar_result_storage_width(storage_byte_count, result_byte_count)?;
     let mut bytes =
         Vec::with_capacity(host_call_sequence_width_from_operands(all.iter().copied()) + 4);
     let stack_bytes = append_call_operands(&mut bytes, args.iter().copied(), argument_placements)?;
@@ -979,7 +990,14 @@ pub fn encode_host_call_sequence_value_returning_deref_from_operands(
     // x17 (caller-saved; the planned register holds the result, x16 the region base).
     // Kept in lockstep
     // with operand_width's store_data_offset_width accounting + the relocation planner.
-    append_store_data_to_x_offset(&mut bytes, result_register, 16, byte_offset, byte_count, 17)?;
+    append_store_data_to_x_offset(
+        &mut bytes,
+        result_register,
+        16,
+        byte_offset,
+        result_byte_count,
+        17,
+    )?;
     Ok(bytes)
 }
 
@@ -999,6 +1017,7 @@ pub fn encode_host_call_sequence_value_returning_float_from_operands(
     operands: impl Iterator<Item = Aarch64CallOperand> + Clone,
     argument_placements: &[ValuePlacement],
     result_register: MachineRegister,
+    result_byte_count: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
     let all: Vec<Aarch64CallOperand> = operands.collect();
     let Some((result, args)) = all.split_first() else {
@@ -1008,13 +1027,14 @@ pub fn encode_host_call_sequence_value_returning_float_from_operands(
     };
     let RuntimeScalarInteger {
         byte_offset,
-        byte_count,
+        byte_count: storage_byte_count,
     } = *result
     else {
         return Err(Diagnostic::error(
             "AArch64 float-returning host call result place did not lower to a runtime scalar",
         ));
     };
+    validate_scalar_result_storage_width(storage_byte_count, result_byte_count)?;
     let mut bytes =
         Vec::with_capacity(host_call_sequence_width_from_operands(all.iter().copied()) + 4);
     let stack_bytes = append_call_operands(&mut bytes, args.iter().copied(), argument_placements)?;
@@ -1028,7 +1048,7 @@ pub fn encode_host_call_sequence_value_returning_float_from_operands(
     // Move the float return from the plan-selected vector register into `x0` so
     // the integer result-store can spill the raw bits.
     bytes.extend(encode_float_move_to_gpr(
-        byte_count.max(4),
+        result_byte_count.max(4),
         0,
         result_register,
     )?);
@@ -1039,7 +1059,7 @@ pub fn encode_host_call_sequence_value_returning_float_from_operands(
     // x17 (caller-saved; the planned vector register was copied to x0, x16 holds
     // the region base). Kept in lockstep
     // with operand_width's store_data_offset_width accounting + the relocation planner.
-    append_store_data_to_x_offset(&mut bytes, 0, 16, byte_offset, byte_count, 17)?;
+    append_store_data_to_x_offset(&mut bytes, 0, 16, byte_offset, result_byte_count, 17)?;
     Ok(bytes)
 }
 
@@ -1056,6 +1076,7 @@ pub fn encode_host_call_sequence_value_returning_open_create_from_operands(
     operands: impl Iterator<Item = Aarch64CallOperand> + Clone,
     argument_placements: &[ValuePlacement],
     result_register: MachineRegister,
+    result_byte_count: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
     let all: Vec<Aarch64CallOperand> = operands.collect();
     let Some((result, args)) = all.split_first() else {
@@ -1065,13 +1086,14 @@ pub fn encode_host_call_sequence_value_returning_open_create_from_operands(
     };
     let RuntimeScalarInteger {
         byte_offset,
-        byte_count,
+        byte_count: storage_byte_count,
     } = *result
     else {
         return Err(Diagnostic::error(
             "AArch64 open_create result place did not lower to a runtime scalar",
         ));
     };
+    validate_scalar_result_storage_width(storage_byte_count, result_byte_count)?;
     // args = [path, flags, mode]; the complete plan owns the fixed/anonymous
     // boundary and the trailing stack placement.
     let Some((_, _)) = args.split_last() else {
@@ -1135,8 +1157,27 @@ pub fn encode_host_call_sequence_value_returning_open_create_from_operands(
     // x17 (caller-saved; the planned register holds the result, x16 the region base).
     // Kept in lockstep
     // with operand_width's store_data_offset_width accounting + the relocation planner.
-    append_store_data_to_x_offset(&mut bytes, result_register, 16, byte_offset, byte_count, 17)?;
+    append_store_data_to_x_offset(
+        &mut bytes,
+        result_register,
+        16,
+        byte_offset,
+        result_byte_count,
+        17,
+    )?;
     Ok(bytes)
+}
+
+fn validate_scalar_result_storage_width(
+    storage_byte_count: usize,
+    result_byte_count: usize,
+) -> Result<(), Diagnostic> {
+    if !matches!(result_byte_count, 1 | 2 | 4 | 8) || result_byte_count > storage_byte_count {
+        return Err(Diagnostic::error(format!(
+            "AArch64 scalar result width {result_byte_count} does not fit its {storage_byte_count}-byte destination"
+        )));
+    }
+    Ok(())
 }
 
 pub fn encode_syscall_sequence(
@@ -2119,6 +2160,7 @@ mod host_call_plan_register_tests {
                 },
             )],
             MachineRegister::Aarch64X(5),
+            8,
         )
         .expect("noncanonical AAPCS result register should encode");
 

@@ -13,6 +13,7 @@ pub use plans::{
     PlanDiagnostic, Preemption, ProviderExitRealization, RegisterSet, StateFootprintEvidence,
     StatePlan, SystemVEightbyteClass, ValidatedBoundaryEntryPlan, ValueClass, ValueLocation,
     ValuePlacement, ValueShape, compose_state_footprints, evaluate_call_plan,
+    evaluate_darwin_aapcs64_variadic_boundary_entry_plan,
     evaluate_darwin_aapcs64_variadic_call_plan, evaluate_ordinary_boundary_entry_plan,
     validate_boundary_entry_plan, validate_boundary_plan_result, validate_call_plan,
     validate_call_return_mechanics_footprint, validate_composed_state_footprint,
@@ -462,8 +463,8 @@ pub enum HostOperation {
     /// `File::create_new`, `OpenOptions.create`/`.create_new`). Unlike `creat`
     /// (fixed O_WRONLY|O_CREAT|O_TRUNC, register mode) this passes ARBITRARY flags
     /// (O_CREAT|O_EXCL|O_RDWR|...) plus a `mode`. `mode` is VARIADIC on darwin, so
-    /// the native lowering must marshal it on the STACK (see D8-open turnkey plan)
-    /// -- native lowering is PENDING; the interpreter models it fully today.
+    /// the retained Apple AAPCS64 plan marshals it on the outgoing stack rather
+    /// than in the next fixed-parameter register.
     OpenCreate,
     /// `___error()` -- darwin's thread-local errno accessor; returns `int*`.
     /// Takes NO args and its result is DEREFERENCED once (see
@@ -1456,7 +1457,7 @@ mod binding_plan_tests {
     use super::{
         CallSignature, CallingPolicy, EntryControl, ExternalBindingKind, ExternalBindingRow,
         HostBindingMechanism, HostCapability, HostOperation, MachineRegister, PlatformCallData,
-        ValueShape, build_freestanding_abi_plan, build_host_abi_plan,
+        ValueLocation, ValueShape, build_freestanding_abi_plan, build_host_abi_plan,
         evaluate_ordinary_boundary_entry_plan, merge_external_binding_rows,
     };
     use omega_target::NativeTarget;
@@ -1635,6 +1636,49 @@ mod binding_plan_tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn darwin_filesystem_bindings_retain_typed_import_plans() {
+        let host = build_host_abi_plan(NativeTarget::macos_arm64());
+        let bindings = host
+            .bindings
+            .iter()
+            .filter(|(_, binding)| binding.operation_key.capability == HostCapability::Filesystem)
+            .map(|(_, binding)| binding)
+            .collect::<Vec<_>>();
+        assert_eq!(bindings.len(), 34);
+        assert!(bindings.iter().all(|binding| binding.call_plan().is_some()));
+
+        let plan_for = |operation| {
+            bindings
+                .iter()
+                .find(|binding| binding.operation_key.operation == operation)
+                .and_then(|binding| binding.call_plan())
+                .expect("typed Darwin filesystem plan")
+        };
+        assert_eq!(
+            plan_for(HostOperation::Close).parameters[0].shape,
+            ValueShape::integer(4, 4)
+        );
+        assert_eq!(
+            plan_for(HostOperation::Read)
+                .result
+                .as_ref()
+                .map(|result| result.shape),
+            Some(ValueShape::integer(8, 8))
+        );
+        assert!(matches!(
+            plan_for(HostOperation::OpenCreate).parameters[2]
+                .locations
+                .as_slice(),
+            [ValueLocation::Stack {
+                stack_byte_offset: 0,
+                byte_size: 4,
+                alignment: 8,
+                ..
+            }]
+        ));
     }
 
     #[test]
