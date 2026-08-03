@@ -2036,13 +2036,17 @@ pub fn runtime_byte_read_width_with_plan(
     payload_offset: usize,
     authoritative_plan: Option<&omega_calling_conventions::CallPlan>,
 ) -> usize {
-    runtime_byte_read_width_with_plans(
-        architecture,
-        binding,
-        target_offset,
-        payload_offset,
-        authoritative_plan,
-        None,
+    authoritative_plan.map_or_else(
+        || runtime_byte_read_width(architecture, binding),
+        |plan| {
+            runtime_byte_read_width_with_plans(
+                architecture,
+                binding,
+                target_offset,
+                payload_offset,
+                crate::RuntimeTextCallPlans::Direct(plan),
+            )
+        },
     )
 }
 
@@ -2051,22 +2055,17 @@ pub fn runtime_byte_read_width_with_plans(
     binding: &HostBindingMechanism,
     target_offset: usize,
     payload_offset: usize,
-    authoritative_plan: Option<&omega_calling_conventions::CallPlan>,
-    get_std_handle_plan: Option<&omega_calling_conventions::CallPlan>,
+    plans: crate::RuntimeTextCallPlans<'_>,
 ) -> usize {
-    match (authoritative_plan, get_std_handle_plan) {
-        (None, None) => runtime_byte_read_width(architecture, binding),
-        (plan, handle_plan) => crate::encode_runtime_byte_read_with_plans(
-            architecture,
-            target_offset,
-            payload_offset,
-            binding,
-            plan,
-            handle_plan,
-        )
-        .map(|bytes| bytes.len())
-        .unwrap_or(0),
-    }
+    crate::encode_runtime_byte_read_with_plans(
+        architecture,
+        target_offset,
+        payload_offset,
+        binding,
+        plans,
+    )
+    .map(|bytes| bytes.len())
+    .unwrap_or(0)
 }
 
 /// Width of the stdout byte write; same conventions as the read.
@@ -2103,12 +2102,16 @@ pub fn runtime_byte_write_width_with_plan(
     source_offset: usize,
     authoritative_plan: Option<&omega_calling_conventions::CallPlan>,
 ) -> usize {
-    runtime_byte_write_width_with_plans(
-        architecture,
-        binding,
-        source_offset,
-        authoritative_plan,
-        None,
+    authoritative_plan.map_or_else(
+        || runtime_byte_write_width(architecture, binding, source_offset),
+        |plan| {
+            runtime_byte_write_width_with_plans(
+                architecture,
+                binding,
+                source_offset,
+                crate::RuntimeTextCallPlans::Direct(plan),
+            )
+        },
     )
 }
 
@@ -2116,21 +2119,11 @@ pub fn runtime_byte_write_width_with_plans(
     architecture: Architecture,
     binding: &HostBindingMechanism,
     source_offset: usize,
-    authoritative_plan: Option<&omega_calling_conventions::CallPlan>,
-    get_std_handle_plan: Option<&omega_calling_conventions::CallPlan>,
+    plans: crate::RuntimeTextCallPlans<'_>,
 ) -> usize {
-    match (authoritative_plan, get_std_handle_plan) {
-        (None, None) => runtime_byte_write_width(architecture, binding, source_offset),
-        (plan, handle_plan) => crate::encode_runtime_byte_write_with_plans(
-            architecture,
-            source_offset,
-            binding,
-            plan,
-            handle_plan,
-        )
+    crate::encode_runtime_byte_write_with_plans(architecture, source_offset, binding, plans)
         .map(|bytes| bytes.len())
-        .unwrap_or(0),
-    }
+        .unwrap_or(0)
 }
 
 pub fn runtime_text_line_read_width(
@@ -2214,14 +2207,26 @@ pub fn runtime_text_line_read_width_with_plan(
     target_offset: usize,
     authoritative_plan: Option<&omega_calling_conventions::CallPlan>,
 ) -> usize {
-    runtime_text_line_read_width_with_plans(
-        architecture,
-        byte_capacity,
-        binding,
-        target,
-        target_offset,
-        authoritative_plan,
-        None,
+    authoritative_plan.map_or_else(
+        || {
+            runtime_text_line_read_width(
+                architecture,
+                byte_capacity,
+                binding,
+                target,
+                target_offset,
+            )
+        },
+        |plan| {
+            runtime_text_line_read_width_with_plans(
+                architecture,
+                byte_capacity,
+                binding,
+                target,
+                target_offset,
+                crate::RuntimeTextCallPlans::Direct(plan),
+            )
+        },
     )
 }
 
@@ -2231,29 +2236,18 @@ pub fn runtime_text_line_read_width_with_plans(
     binding: &HostBindingMechanism,
     target: RuntimeTextReadTarget,
     target_offset: usize,
-    authoritative_plan: Option<&omega_calling_conventions::CallPlan>,
-    get_std_handle_plan: Option<&omega_calling_conventions::CallPlan>,
+    plans: crate::RuntimeTextCallPlans<'_>,
 ) -> usize {
-    match (authoritative_plan, get_std_handle_plan) {
-        (None, None) => runtime_text_line_read_width(
-            architecture,
-            byte_capacity,
-            binding,
-            target,
-            target_offset,
-        ),
-        (plan, handle_plan) => crate::encode_runtime_text_line_read_with_plans(
-            architecture,
-            target_offset,
-            byte_capacity,
-            binding,
-            target,
-            plan,
-            handle_plan,
-        )
-        .map(|bytes| bytes.len())
-        .unwrap_or(0),
-    }
+    crate::encode_runtime_text_line_read_with_plans(
+        architecture,
+        target_offset,
+        byte_capacity,
+        binding,
+        target,
+        plans,
+    )
+    .map(|bytes| bytes.len())
+    .unwrap_or(0)
 }
 
 pub fn runtime_text_line_read_target_address_offset(

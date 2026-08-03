@@ -1,7 +1,7 @@
 use crate::MachineEmissionContext;
 use crate::host_bindings::{
     field_model_result_present, host_binding, instruction_requires_float_control_restore,
-    windows_get_std_handle_plan,
+    runtime_text_call_plans,
 };
 use crate::selected_instruction_queries::{selected_host_operation, selected_host_text_read};
 use omega_assigned_target_operations::{
@@ -903,8 +903,7 @@ fn machine_instruction_width(
                 &binding.mechanism,
                 read.target,
                 read.target_offset,
-                binding.call_plan(),
-                windows_get_std_handle_plan(input, read.operation_key)?,
+                runtime_text_call_plans(input, read.operation_key, binding)?,
             )
         }
         SelectedInstructionKind::ReadRuntimeByte {
@@ -927,8 +926,7 @@ fn machine_instruction_width(
                 &binding.mechanism,
                 *target_offset,
                 *payload_offset,
-                binding.call_plan(),
-                windows_get_std_handle_plan(input, *operation_key)?,
+                runtime_text_call_plans(input, *operation_key, binding)?,
             )
         }
         SelectedInstructionKind::WriteRuntimeByte {
@@ -949,8 +947,7 @@ fn machine_instruction_width(
                 input.target.architecture,
                 &binding.mechanism,
                 *source_offset,
-                binding.call_plan(),
-                windows_get_std_handle_plan(input, *operation_key)?,
+                runtime_text_call_plans(input, *operation_key, binding)?,
             )
         }
         SelectedInstructionKind::CopyPlaces {

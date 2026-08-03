@@ -10,6 +10,53 @@ use psi_diagnostics::Diagnostic;
 
 use super::host::normalized_syscall_registers_with_plan;
 
+#[derive(Debug, Clone, Copy)]
+pub enum RuntimeTextCallPlans<'plan> {
+    Direct(&'plan CallPlan),
+    WindowsFileAdapter {
+        get_std_handle: &'plan CallPlan,
+        file_io: &'plan CallPlan,
+    },
+}
+
+impl<'plan> RuntimeTextCallPlans<'plan> {
+    fn for_binding(
+        self,
+        architecture: Architecture,
+        binding: &HostBindingMechanism,
+    ) -> Result<(Option<&'plan CallPlan>, Option<&'plan CallPlan>), Diagnostic> {
+        match (self, architecture, binding) {
+            (
+                Self::WindowsFileAdapter {
+                    get_std_handle,
+                    file_io,
+                },
+                Architecture::X86_64,
+                HostBindingMechanism::Import { .. },
+            ) => Ok((Some(file_io), Some(get_std_handle))),
+            (
+                Self::Direct(plan),
+                Architecture::Aarch64,
+                HostBindingMechanism::Import { .. } | HostBindingMechanism::Syscall { .. },
+            )
+            | (Self::Direct(plan), Architecture::X86_64, HostBindingMechanism::Syscall { .. }) => {
+                Ok((Some(plan), None))
+            }
+            (Self::Direct(_), Architecture::X86_64, HostBindingMechanism::Import { .. }) => {
+                Err(Diagnostic::error(
+                    "Win64 runtime text imports require the complete GetStdHandle and file-I/O call-plan pair",
+                ))
+            }
+            (Self::WindowsFileAdapter { .. }, _, _) => Err(Diagnostic::error(
+                "the Windows runtime text adapter plan pair can only encode an x86-64 import",
+            )),
+            (Self::Direct(_), _, _) => Err(Diagnostic::error(
+                "runtime text direct calls cannot use a vtable or service-table binding",
+            )),
+        }
+    }
+}
+
 fn validate_aarch64_runtime_import_plan(
     authoritative_plan: Option<&CallPlan>,
 ) -> Result<(), Diagnostic> {
@@ -378,7 +425,7 @@ pub fn encode_runtime_byte_read_with_plan(
     binding: &HostBindingMechanism,
     authoritative_plan: Option<&CallPlan>,
 ) -> Result<Vec<u8>, Diagnostic> {
-    encode_runtime_byte_read_with_plans(
+    encode_runtime_byte_read_with_optional_plans(
         architecture,
         target_offset,
         payload_offset,
@@ -389,6 +436,24 @@ pub fn encode_runtime_byte_read_with_plan(
 }
 
 pub fn encode_runtime_byte_read_with_plans(
+    architecture: Architecture,
+    target_offset: usize,
+    payload_offset: usize,
+    binding: &HostBindingMechanism,
+    plans: RuntimeTextCallPlans<'_>,
+) -> Result<Vec<u8>, Diagnostic> {
+    let (authoritative_plan, get_std_handle_plan) = plans.for_binding(architecture, binding)?;
+    encode_runtime_byte_read_with_optional_plans(
+        architecture,
+        target_offset,
+        payload_offset,
+        binding,
+        authoritative_plan,
+        get_std_handle_plan,
+    )
+}
+
+fn encode_runtime_byte_read_with_optional_plans(
     architecture: Architecture,
     target_offset: usize,
     payload_offset: usize,
@@ -475,7 +540,7 @@ pub fn encode_runtime_byte_write_with_plan(
     binding: &HostBindingMechanism,
     authoritative_plan: Option<&CallPlan>,
 ) -> Result<Vec<u8>, Diagnostic> {
-    encode_runtime_byte_write_with_plans(
+    encode_runtime_byte_write_with_optional_plans(
         architecture,
         source_offset,
         binding,
@@ -485,6 +550,22 @@ pub fn encode_runtime_byte_write_with_plan(
 }
 
 pub fn encode_runtime_byte_write_with_plans(
+    architecture: Architecture,
+    source_offset: usize,
+    binding: &HostBindingMechanism,
+    plans: RuntimeTextCallPlans<'_>,
+) -> Result<Vec<u8>, Diagnostic> {
+    let (authoritative_plan, get_std_handle_plan) = plans.for_binding(architecture, binding)?;
+    encode_runtime_byte_write_with_optional_plans(
+        architecture,
+        source_offset,
+        binding,
+        authoritative_plan,
+        get_std_handle_plan,
+    )
+}
+
+fn encode_runtime_byte_write_with_optional_plans(
     architecture: Architecture,
     source_offset: usize,
     binding: &HostBindingMechanism,
@@ -577,7 +658,7 @@ pub fn encode_runtime_text_line_read_with_plan(
     target: RuntimeTextReadTarget,
     authoritative_plan: Option<&CallPlan>,
 ) -> Result<Vec<u8>, Diagnostic> {
-    encode_runtime_text_line_read_with_plans(
+    encode_runtime_text_line_read_with_optional_plans(
         architecture,
         target_offset,
         byte_capacity,
@@ -589,6 +670,26 @@ pub fn encode_runtime_text_line_read_with_plan(
 }
 
 pub fn encode_runtime_text_line_read_with_plans(
+    architecture: Architecture,
+    target_offset: usize,
+    byte_capacity: usize,
+    binding: &HostBindingMechanism,
+    target: RuntimeTextReadTarget,
+    plans: RuntimeTextCallPlans<'_>,
+) -> Result<Vec<u8>, Diagnostic> {
+    let (authoritative_plan, get_std_handle_plan) = plans.for_binding(architecture, binding)?;
+    encode_runtime_text_line_read_with_optional_plans(
+        architecture,
+        target_offset,
+        byte_capacity,
+        binding,
+        target,
+        authoritative_plan,
+        get_std_handle_plan,
+    )
+}
+
+fn encode_runtime_text_line_read_with_optional_plans(
     architecture: Architecture,
     target_offset: usize,
     byte_capacity: usize,
@@ -966,8 +1067,10 @@ mod plan_differential_tests {
                 16,
                 24,
                 &binding,
-                Some(&file_io),
-                Some(&get_std_handle),
+                RuntimeTextCallPlans::WindowsFileAdapter {
+                    get_std_handle: &get_std_handle,
+                    file_io: &file_io,
+                },
             )
             .expect("planned byte read")
         );
@@ -978,8 +1081,10 @@ mod plan_differential_tests {
                 Architecture::X86_64,
                 32,
                 &binding,
-                Some(&file_io),
-                Some(&get_std_handle),
+                RuntimeTextCallPlans::WindowsFileAdapter {
+                    get_std_handle: &get_std_handle,
+                    file_io: &file_io,
+                },
             )
             .expect("planned byte write")
         );
@@ -997,8 +1102,10 @@ mod plan_differential_tests {
                     64,
                     &binding,
                     target,
-                    Some(&file_io),
-                    Some(&get_std_handle),
+                    RuntimeTextCallPlans::WindowsFileAdapter {
+                        get_std_handle: &get_std_handle,
+                        file_io: &file_io,
+                    },
                 )
                 .expect("planned line read")
             );
@@ -1009,19 +1116,17 @@ mod plan_differential_tests {
             16,
             24,
             &binding,
-            Some(&file_io),
-            None,
+            RuntimeTextCallPlans::Direct(&file_io),
         )
-        .expect_err("a partial composite plan must reject");
-        assert!(partial.message.contains("requires both retained"));
+        .expect_err("a direct plan cannot stand in for a composite adapter");
+        assert!(partial.message.contains("complete GetStdHandle"));
         assert_eq!(
             crate::runtime_byte_read_width_with_plans(
                 Architecture::X86_64,
                 &binding,
                 16,
                 24,
-                Some(&file_io),
-                None,
+                RuntimeTextCallPlans::Direct(&file_io),
             ),
             0,
             "layout must fail closed with emission"
@@ -1032,8 +1137,10 @@ mod plan_differential_tests {
             Architecture::X86_64,
             32,
             &binding,
-            Some(&file_io),
-            Some(&wrong_get_std_handle),
+            RuntimeTextCallPlans::WindowsFileAdapter {
+                get_std_handle: &wrong_get_std_handle,
+                file_io: &file_io,
+            },
         )
         .expect_err("a changed native subcall signature must reject");
         assert!(error.message.contains("GetStdHandle"));

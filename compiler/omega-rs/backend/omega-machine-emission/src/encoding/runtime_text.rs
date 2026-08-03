@@ -7,7 +7,7 @@ use omega_assigned_target_operations::{RuntimeTextReadSource, RuntimeTextReadTar
 use omega_instruction_selection as architecture;
 use psi_diagnostics::Diagnostic;
 
-use crate::host_bindings::windows_get_std_handle_plan;
+use crate::host_bindings::runtime_text_call_plans;
 
 pub(super) fn encode_runtime_text_literal_compare(
     input: MachineEmissionContext<'_>,
@@ -227,8 +227,7 @@ pub(super) fn encode_runtime_text_line_read(
         byte_capacity,
         &binding.mechanism,
         target,
-        binding.call_plan(),
-        windows_get_std_handle_plan(input, *operation_key)?,
+        runtime_text_call_plans(input, *operation_key, binding)?,
     )
 }
 
@@ -254,8 +253,7 @@ pub(super) fn encode_runtime_byte_read(
         target_offset,
         payload_offset,
         &binding.mechanism,
-        binding.call_plan(),
-        windows_get_std_handle_plan(input, *operation_key)?,
+        runtime_text_call_plans(input, *operation_key, binding)?,
     )
 }
 
@@ -279,7 +277,6 @@ pub(super) fn encode_runtime_byte_write(
         input.target.architecture,
         source_offset,
         &binding.mechanism,
-        binding.call_plan(),
-        windows_get_std_handle_plan(input, *operation_key)?,
+        runtime_text_call_plans(input, *operation_key, binding)?,
     )
 }

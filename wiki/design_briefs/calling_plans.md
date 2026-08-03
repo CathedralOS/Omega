@@ -692,10 +692,13 @@ three-word/result AAPCS64 signature against their fixed `x0`/`x1`/`x2`/`x0`
 sequence and layout fails closed with emission when placement drifts. Windows
 runtime byte/line imports remain composite adapters over their separate
 GetStdHandle and ReadFile/WriteFile subcalls. Production layout and emission
-take both concrete plans from the retained catalog bindings and reject if
-either is absent or changes incompatibly; independent normalization remains
-only the no-plan differential oracle. The outer semantic binding plan is not
-substituted for either internal signature.
+take a structurally complete plan set from the retained catalog bindings: a
+direct call carries exactly one plan, while the Windows file adapter carries
+both GetStdHandle and ReadFile/WriteFile plans. A partial adapter is therefore
+not representable at that boundary; a mismatched variant or incompatible plan
+still rejects. Independent normalization remains only the no-plan differential
+oracle. The outer semantic binding plan is not substituted for either internal
+signature.
 The base Linux binding rows make that retention literal: `Stdin::read`,
 `Stdout::write`, and `Stderr::write` each carry the exact three-word/result
 syscall plan, while `Process::exit_group` carries its one-word/no-result plan.
