@@ -41,6 +41,7 @@ fn collects_nested_state_call_ordinals_for_checked_borrow_facts() {
         type_parameters: Default::default(),
         owned_data: Default::default(),
         satisfies: Default::default(),
+        conformance_bounds: Vec::new(),
         decreases: Default::default(),
         decrease_order: Default::default(),
         decrease_view_arguments: Default::default(),

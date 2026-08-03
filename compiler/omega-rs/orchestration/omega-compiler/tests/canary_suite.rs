@@ -22232,6 +22232,39 @@ fn runtime_generic_value_call_exit_canary_runs() {
 }
 
 #[test]
+fn trait_generic_bound_static_dispatch_canary_runs() {
+    let canary = pass_canary("traits/trait_generic_bound_static_dispatch");
+    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+        .expect("bounded generic call should specialize to its nominal conformance");
+    let interpreted = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(interpreted.error, None);
+    assert_eq!(interpreted.exit_code, 1);
+
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-trait-bound-static-dispatch-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("bounded generic call should compile natively");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("bounded generic call canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected Counter::increment to run through static generic dispatch; stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_generic_param_position_inference_exit_canary_runs() {
     let canary = pass_canary("generics/runtime_generic_param_position_inference_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)

@@ -1054,12 +1054,18 @@ fn compute_receiver_bases(
     // sees every parent finished.
     let sites = &runtime_flow.context_call_sites;
     let mut context_bases: Vec<Option<usize>> = vec![None; sites.len()];
+    let mut context_anchors: Vec<Option<usize>> = vec![None; sites.len()];
+    let mut context_parameters: Vec<Vec<(String, usize)>> = vec![Vec::new(); sites.len()];
     if let Some(root) = context_bases.first_mut() {
         *root = Some(0); // ROOT: the entry machine's own region.
     }
+    if let Some(root) = context_anchors.first_mut() {
+        *root = Some(0);
+    }
     for index in 1..sites.len() {
         let (call_key, statement_index, call_ordinal, parent) = sites[index];
-        let Some(parent_base) = context_bases.get(parent.0 as usize).copied().flatten() else {
+        let parent_index = parent.0 as usize;
+        let Some(parent_base) = context_anchors.get(parent_index).copied().flatten() else {
             continue;
         };
         let Some(state_call) = state_calls.calls.iter().map(|(_, call)| call).find(|call| {
@@ -1073,6 +1079,18 @@ fn compute_receiver_bases(
         let Some(caller_layout) = machine_layout_of(call_key.machine) else {
             continue;
         };
+        let parent_parameters = context_parameters
+            .get(parent_index)
+            .cloned()
+            .unwrap_or_default();
+        context_parameters[index] = bind_context_parameters(
+            state_calls,
+            state_call,
+            layouts,
+            caller_layout,
+            parent_base,
+            &parent_parameters,
+        );
         if receiver_name == "self" {
             // A machine-to-machine SELF call (D10) runs on the CALLER's own
             // region: inherit the parent's composed base -- this is what lets
@@ -1087,6 +1105,7 @@ fn compute_receiver_bases(
                 });
             if same_data {
                 context_bases[index] = Some(parent_base);
+                context_anchors[index] = Some(parent_base);
                 if std::env::var_os("OMEGA_DEBUG_RECEIVER").is_some() {
                     eprintln!(
                         "CTXBASE: ctx {index} self-inherit parent {} (base {parent_base})",
@@ -1097,6 +1116,15 @@ fn compute_receiver_bases(
             continue;
         }
         if receiver_name.is_empty() {
+            // A receiverless FREE machine has no storage region of its own,
+            // but its mutable parameters still name caller storage. Preserve
+            // the caller anchor for descendants while keeping this context's
+            // emitted receiver override absent.
+            if machine_layout_of(state_call.target_key.machine)
+                .is_some_and(|layout| layout.attached_data.is_none())
+            {
+                context_anchors[index] = Some(parent_base);
+            }
             continue; // static/receiverless: keep the by-type fallback
         }
         let segments = state_calls
@@ -1107,16 +1135,28 @@ fn compute_receiver_bases(
             Some(root) if root.as_str() == "self" => &segments[1..],
             _ => segments,
         };
-        let offset_in_caller = if field_segments.is_empty() {
-            omega_layout::field_path_offset(
-                layouts,
-                caller_layout.fields,
-                std::slice::from_ref(&state_call.receiver_name),
-            )
+        let offset_in_caller = if field_segments.len() <= 1 {
+            context_parameters
+                .get(parent_index)
+                .and_then(|parameters| {
+                    parameters
+                        .iter()
+                        .find(|(name, _)| name == receiver_name)
+                        .map(|(_, absolute)| absolute.saturating_sub(parent_base))
+                })
+                .or_else(|| {
+                    let field = field_segments.first().unwrap_or(&state_call.receiver_name);
+                    omega_layout::field_path_offset(
+                        layouts,
+                        caller_layout.fields,
+                        std::slice::from_ref(field),
+                    )
+                })
         } else {
             omega_layout::field_path_offset(layouts, caller_layout.fields, field_segments)
         };
         context_bases[index] = offset_in_caller.map(|offset| parent_base + offset);
+        context_anchors[index] = context_bases[index];
         if std::env::var_os("OMEGA_DEBUG_RECEIVER").is_some() {
             eprintln!(
                 "CTXBASE: ctx {index} site m{} s{} seg{} stmt {statement_index} parent {} \
@@ -1173,6 +1213,89 @@ fn compute_receiver_bases(
         bases[index] = Some(base);
     }
     bases
+}
+
+fn bind_context_parameters(
+    state_calls: &StateCallPlan,
+    call: &omega_state_calls::StateCall,
+    layouts: &omega_layout::LayoutPlan,
+    caller_layout: &omega_layout::MachineLayout,
+    caller_base: usize,
+    caller_parameters: &[(String, usize)],
+) -> Vec<(String, usize)> {
+    let Some(arguments) = state_calls.arguments.span(call.arguments) else {
+        return Vec::new();
+    };
+    let mut bindings = Vec::new();
+    for argument in arguments {
+        if argument.kind != omega_state_calls::StateCallArgumentKind::MutableAlias {
+            continue;
+        }
+        let mut segments = Vec::new();
+        if !collect_state_call_expression_path(
+            &state_calls.expressions,
+            argument.expression,
+            &mut segments,
+        ) {
+            continue;
+        }
+        let fields = match segments.first() {
+            Some(root) if root.as_str() == "self" => &segments[1..],
+            _ => segments.as_slice(),
+        };
+        let absolute = match fields {
+            [single] => caller_parameters
+                .iter()
+                .find(|(name, _)| name == single.as_str())
+                .map(|(_, base)| *base)
+                .or_else(|| {
+                    omega_layout::field_path_offset(
+                        layouts,
+                        caller_layout.fields,
+                        std::slice::from_ref(*single),
+                    )
+                    .map(|offset| caller_base + offset)
+                }),
+            [] => None,
+            path => {
+                let owned = path
+                    .iter()
+                    .map(|segment| (*segment).clone())
+                    .collect::<Vec<_>>();
+                omega_layout::field_path_offset(layouts, caller_layout.fields, &owned)
+                    .map(|offset| caller_base + offset)
+            }
+        };
+        if let Some(absolute) = absolute {
+            bindings.push((argument.parameter_name.as_str().to_owned(), absolute));
+        }
+    }
+    bindings
+}
+
+fn collect_state_call_expression_path<'plan>(
+    expressions: &'plan psi_checked_trees::expression::ExpressionTable,
+    expression: psi_checked_trees::expression::ExpressionHandle,
+    segments: &mut Vec<&'plan psi_checked_trees::name::Identifier>,
+) -> bool {
+    use psi_checked_trees::expression::ExpressionNode;
+    match expressions.expression(expression) {
+        ExpressionNode::Mutable(inner) => {
+            collect_state_call_expression_path(expressions, *inner, segments)
+        }
+        ExpressionNode::Name(path) => {
+            segments.extend(expressions.name_path_members(path.members));
+            true
+        }
+        ExpressionNode::Member(member) => {
+            if !collect_state_call_expression_path(expressions, member.receiver, segments) {
+                return false;
+            }
+            segments.push(&member.member);
+            true
+        }
+        _ => false,
+    }
 }
 
 /// Resolve every table-field binding's byte offset from its attached provider

@@ -2112,7 +2112,7 @@ impl<'program> Evaluator<'program> {
 
         // Only treat this as a sub-machine call if the receiver is NOT just `self` (a bare
         // self receiver is handled by the sibling-state path).
-        let bare_self = members.len() == start && start == 1;
+        let bare_self = members.len() == 1 && members[0] == "self";
         if bare_self {
             return Ok(None);
         }

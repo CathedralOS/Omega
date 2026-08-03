@@ -73,6 +73,50 @@ pub(crate) fn collect_contained_receiver_blockers(
             continue;
         };
 
+        // A receiver parameter whose exact caller-field base was retained in
+        // the composed environment is served by receiver_base_for's context
+        // walk. Keep the same uniqueness condition as the spliced-call path:
+        // two calls into one attached-data family from the same source state
+        // could select different parameter instances and must remain fenced.
+        let receiver_is_source_field =
+            input
+                .layouts
+                .fields
+                .span(source_layout.fields)
+                .is_some_and(|fields| {
+                    fields
+                        .iter()
+                        .any(|field| field.name == state_call.receiver_name)
+                });
+        let parameter_base_is_bound = !receiver_is_source_field
+            && machine_bases
+                .iter()
+                .find(|(machine, _)| *machine == state_call.source_key.machine)
+                .is_some_and(|(_, anchor)| {
+                    anchor
+                        .params
+                        .iter()
+                        .any(|(name, base)| name == &state_call.receiver_name && base.is_some())
+                });
+        let unique_parameter_target = input
+            .state_calls
+            .calls
+            .iter()
+            .filter(|(_, other)| {
+                (other.reachable || live_machines.contains(&other.source_key.machine))
+                    && other.source_key.machine == state_call.source_key.machine
+                    && other.source_key.state == state_call.source_key.state
+                    && (other.target_key.machine == state_call.target_key.machine
+                        || machine_layout_by_symbol(input.layouts, other.target_key.machine)
+                            .and_then(|layout| layout.attached_data.as_deref())
+                            == Some(target_attached_data))
+            })
+            .count()
+            == 1;
+        if parameter_base_is_bound && unique_parameter_target {
+            continue;
+        }
+
         // PER-INSTANCE RECEIVERS (TASKS_FS "Stolen work #2"), BOTH routes:
         // - DISPATCH-ROUTED calls (state_call_routed_to_dispatch) run their
         //   clones on the receiver's true storage via the per-dispatch table
@@ -555,9 +599,7 @@ fn composed_machine_bases(
             };
             let (source_base, hop_base, bindings) = {
                 let source = &anchors[source_position].1;
-                let hop_base = source
-                    .base
-                    .and_then(|base| hop_receiver_base(input, call, base, &source.params));
+                let hop_base = hop_receiver_base(input, call, source.base, &source.params);
                 (source.base, hop_base, param_bindings(input, call, source))
             };
             let _ = source_base;
@@ -705,7 +747,7 @@ fn collect_expression_path_segments<'table>(
 fn hop_receiver_base(
     input: &EmissionPlanningInput<'_>,
     call: &omega_state_calls::StateCall,
-    base: usize,
+    base: Option<usize>,
     params: &[(psi_checked_trees::name::Identifier, Option<usize>)],
 ) -> Option<usize> {
     let receiver_name = call.receiver_name.as_str();
@@ -714,7 +756,9 @@ fn hop_receiver_base(
         let source_attached = source_layout.attached_data.as_deref();
         let target_attached = machine_layout_by_symbol(input.layouts, call.target_key.machine)
             .and_then(|layout| layout.attached_data.as_deref());
-        return (source_attached.is_some() && source_attached == target_attached).then_some(base);
+        return (source_attached.is_some() && source_attached == target_attached)
+            .then_some(base)
+            .flatten();
     }
     if receiver_name.is_empty() {
         return None;
@@ -735,6 +779,7 @@ fn hop_receiver_base(
     {
         return *bound;
     }
+    let base = base?;
     if field_segments.is_empty() {
         return omega_layout::field_path_offset(
             input.layouts,

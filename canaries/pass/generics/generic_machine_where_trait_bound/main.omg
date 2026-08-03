@@ -1,12 +1,14 @@
 // Chapter 12 "Where Clauses": constraints on generic parameters live in a
-// `where` clause. A trait requirement `T: CounterLike` is the common form.
+// `where` clause. A trait requirement uses `T satisfies CounterLike`.
+
+trait CounterLike {}
 
 data Main {
 }
 
 machine Main::sample<T>(source: &T, out: &mut i32)
 where
-    T: CounterLike
+    T satisfies CounterLike
 {
 }
 
