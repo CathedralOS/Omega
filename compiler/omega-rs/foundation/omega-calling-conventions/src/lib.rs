@@ -1700,6 +1700,63 @@ mod binding_plan_tests {
     }
 
     #[test]
+    fn darwin_time_bindings_retain_exact_adapter_call_plans() {
+        let plan = build_host_abi_plan(NativeTarget::macos_arm64());
+        for (operation, symbol, parameter_count, has_result) in [
+            (HostOperation::SleepPoll, "_poll", 3, false),
+            (
+                HostOperation::MonotonicTicks,
+                "_clock_gettime_nsec_np",
+                1,
+                true,
+            ),
+            (
+                HostOperation::WallClockRaw,
+                "_clock_gettime_nsec_np",
+                1,
+                true,
+            ),
+        ] {
+            let (_, binding) = plan
+                .bindings
+                .iter()
+                .find(|(_, binding)| {
+                    binding.operation_key.capability == HostCapability::Clock
+                        && binding.operation_key.operation == operation
+                })
+                .expect("built-in Darwin time binding");
+            assert!(matches!(
+                binding.mechanism,
+                HostBindingMechanism::Import {
+                    symbol: ref actual_symbol,
+                    ..
+                } if actual_symbol.as_ref() == symbol
+            ));
+            let boundary = binding
+                .boundary_entry_plan
+                .as_ref()
+                .expect("fixed Darwin time signature must retain its plan");
+            assert_eq!(boundary.call.policy, CallingPolicy::Aapcs64);
+            assert_eq!(boundary.call.parameters.len(), parameter_count);
+            assert!(
+                boundary
+                    .call
+                    .parameters
+                    .iter()
+                    .all(|placement| placement.shape == ValueShape::integer(8, 8))
+            );
+            assert_eq!(
+                boundary
+                    .call
+                    .result
+                    .as_ref()
+                    .map(|placement| placement.shape),
+                has_result.then_some(ValueShape::integer(8, 8))
+            );
+        }
+    }
+
+    #[test]
     fn compiler_intrinsic_selects_only_an_exact_existing_target_lowering() {
         let row = |name: &str, method: &str| ExternalBindingRow {
             target_name: "macos_arm64".to_owned(),

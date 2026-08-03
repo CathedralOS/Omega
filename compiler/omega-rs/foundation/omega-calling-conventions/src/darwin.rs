@@ -231,18 +231,27 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         // its operand arm places `[NULL, 0, ms]` in x0/x1/x2 (the shared `Sleep`
         // arm marshals a single arg into x0 for Win32 `Sleep`). `_poll` is in the
         // libSystem umbrella, so no new dylib.
-        darwin_import("Clock", "sleep_poll", "_poll", &policy),
+        darwin_word_import("Clock", "sleep_poll", "_poll", 3, false, &policy),
         // std::time seam (TASKS_TIME.md rung 10): ONE symbol serves both the
         // monotonic and wall reads; the clockid argument comes from each
         // lowering row's ConstantArgument. The calibration ops are
         // ConstantResult rows (no import at all): POSIX nanosecond units.
-        darwin_import(
+        darwin_word_import(
             "Clock",
             "monotonic_ticks",
             "_clock_gettime_nsec_np",
+            1,
+            true,
             &policy,
         ),
-        darwin_import("Clock", "wall_clock_raw", "_clock_gettime_nsec_np", &policy),
+        darwin_word_import(
+            "Clock",
+            "wall_clock_raw",
+            "_clock_gettime_nsec_np",
+            1,
+            true,
+            &policy,
+        ),
         // The inline-Clock `tick_count()` spelling (the pre-std samples/
         // canaries): same symbol, same CLOCK_UPTIME_RAW clockid. RAW HOST
         // UNITS by doctrine (a boundary trait is the host's own surface):
