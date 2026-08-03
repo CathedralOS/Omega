@@ -47,12 +47,12 @@ The checked-frontend migration also keeps the ownership firewall explicit:
 effect summaries are likewise Psi-owned, while concrete selected provider
 plans and target/layout-specific task activation plans are Omega-owned and
 travel as orchestration sidecars. `CheckedTrees` does not embed that
-target/provider realization state. The checking transform itself remains the
-next frontend-ownership migration boundary. Its target-neutral validation
-dependency has already moved to `psi-validation`; `omega-validation` is a
-compatibility export, while provider installation and approval remain Omega
-concerns. Source proof planning and checking likewise live in `psi-proof`, with
-`omega-proof` retained only as a compatibility export.
+target/provider realization state. `psi-typed-trees-to-checked-trees` now owns
+semantic checking and checked-fact construction. Its validation and proof
+dependencies live in `psi-validation` and `psi-proof`; the corresponding Omega
+packages are compatibility exports. Provider installation and approval remain
+Omega concerns, and Omega orchestration runs that admission explicitly after
+the Psi check.
 
 The first transitional source producer is now live as
 `omega-checked-trees-to-terminal-psi`. It accepts one exact free-machine slice:
@@ -61,7 +61,8 @@ literal return, and a matching closed `requires`/`ensures` pair. It rejects all
 other checked-tree shapes. The source canary discards `CheckedTrees` before it
 verifies and executes the produced semantic module, proving the artifact has no
 frontend lifetime dependency. This is explicitly a migration adapter, not the
-target ownership direction: parsing and checking still need to move under Psi.
+target ownership direction: direct checked-semantics-to-terminal-Psi production
+still needs to replace this bootstrap-only bridge.
 That adapter is frozen at the original integer/control/contract canary. An
 architecture test permits only its single `lower_machine` entry and rejects
 content-conservation, identity-reshuffle, or partition-composition APIs there.

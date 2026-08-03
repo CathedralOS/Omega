@@ -102,7 +102,7 @@ quantified facts and lowering proof views beyond opaque equality.
 The contract surface is theorem-shaped (Chapter 10: empty-body machines with
 `requires`/`ensures` are proof artifacts), but requires->ensures entailment is
 NOT discharged. The structural reason, located in
-`compiler/pipeline/omega-typed-trees-to-checked-trees/src/proof/contracts/calls.rs`
+`compiler/psi-rs/pipeline/psi-typed-trees-to-checked-trees/src/proof/contracts/calls.rs`
 (`build_contract_exit_facts`): an ensures obligation is only anchored to an
 exit when the state's LAST statement is an `Expression` statement. An
 empty-body proof machine has no statements, so no `ContractExitFact` is

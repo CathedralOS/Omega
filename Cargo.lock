@@ -364,8 +364,8 @@ dependencies = [
  "omega-tokens",
  "omega-tokens-to-syntax-trees",
  "omega-typed-trees",
- "omega-typed-trees-to-checked-trees",
  "omega-visualizations",
+ "psi-typed-trees-to-checked-trees",
 ]
 
 [[package]]
@@ -1142,17 +1142,7 @@ dependencies = [
 name = "omega-typed-trees-to-checked-trees"
 version = "0.1.0"
 dependencies = [
- "omega-checked-trees",
- "omega-core",
- "omega-effects",
- "omega-facts",
- "omega-proof",
- "omega-source-files-to-tokens",
- "omega-symbol-resolved-trees-to-typed-trees",
- "omega-syntax-trees-to-symbol-resolved-trees",
- "omega-tokens-to-syntax-trees",
- "omega-typed-trees",
- "omega-validation",
+ "psi-typed-trees-to-checked-trees",
 ]
 
 [[package]]
@@ -1490,6 +1480,28 @@ dependencies = [
  "psi-symbols",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "psi-typed-trees-to-checked-trees"
+version = "0.1.0"
+dependencies = [
+ "psi-arena",
+ "psi-checked-trees",
+ "psi-diagnostics",
+ "psi-effects",
+ "psi-facts",
+ "psi-language-core",
+ "psi-language-semantics",
+ "psi-numerics",
+ "psi-proof",
+ "psi-source-files-to-tokens",
+ "psi-symbol-resolved-trees-to-typed-trees",
+ "psi-symbols",
+ "psi-syntax-trees-to-symbol-resolved-trees",
+ "psi-tokens-to-syntax-trees",
+ "psi-typed-trees",
+ "psi-validation",
 ]
 
 [[package]]

@@ -21,6 +21,7 @@ mod output;
 mod placed_views;
 mod plan_laid;
 mod project;
+mod provider_approval;
 mod provider_plans;
 pub mod source;
 mod stage;

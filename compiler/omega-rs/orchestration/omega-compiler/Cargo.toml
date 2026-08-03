@@ -39,7 +39,7 @@ omega-symbol-resolved-trees = { path = "../../representations/omega-symbol-resol
 omega-symbol-resolved-trees-to-typed-trees = { path = "../../pipeline/omega-symbol-resolved-trees-to-typed-trees" }
 omega-state-graph-to-control-flow = { path = "../../pipeline/omega-state-graph-to-control-flow" }
 omega-tokens-to-syntax-trees = { path = "../../pipeline/omega-tokens-to-syntax-trees" }
-omega-typed-trees-to-checked-trees = { path = "../../pipeline/omega-typed-trees-to-checked-trees" }
+psi-typed-trees-to-checked-trees = { path = "../../../psi-rs/pipeline/psi-typed-trees-to-checked-trees" }
 omega-platform-interface = { path = "../../backend/omega-platform-interface" }
 omega-runtime-bodies = { path = "../../backend/omega-runtime-bodies" }
 omega-runtime-branching = { path = "../../backend/omega-runtime-branching" }

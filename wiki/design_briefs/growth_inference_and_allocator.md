@@ -90,7 +90,7 @@ That widening *is* the automatic "needs a refinement or a higher rung" trigger.
 
 ### 2.2 What the existing engine discharges — and the one honest gap
 
-Omega's engine (`omega-typed-trees-to-checked-trees`: `semantic.rs`,
+Psi's checker (`psi-typed-trees-to-checked-trees`: `semantic.rs`,
 `flow/transfers.rs`, `field_domains.rs`) is **non-relational interval abstract
 interpretation** in the Liquid-Types lineage: exact-by-default ints, `a..b`
 refinements, flow-sensitive narrowing via interval merge, dominating-`.len`-guard
