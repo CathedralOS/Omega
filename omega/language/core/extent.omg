@@ -31,13 +31,20 @@ requires
     no_wrap(self.base, self.length)
 {
     ExtentRootProvider::grant;
+    ProgramStorageEntry::enter;
 }
 
-// A second settled route will name the core-owned program-storage entry
-// requirement for image and initial stack/storage parameters. Target entry
-// traits inherit that exact requirement; they do not define target-owned
-// look-alike Granted domains. The declaration above remains transitional until
-// parameter-route implementation adds that core requirement.
+// One stable semantic entry requirement owns the loader-provisioned image and
+// initial stack/storage roots. Target entry traits inherit this exact
+// requirement and may refine only its Calling<C>/target plan. Installation
+// introduces these parameter occurrences; an ordinary call merely has to
+// supply their Granted preconditions and cannot mint either fact.
+pub boundary trait ProgramStorageEntry {
+    machine enter(
+        image: Extent in Granted,
+        initial_storage: Extent in Granted
+    );
+}
 
 // `Granted` owns one canonical half-open address interval. Runtime address
 // arithmetic must not define the one-past end: proof-level naturals retain an

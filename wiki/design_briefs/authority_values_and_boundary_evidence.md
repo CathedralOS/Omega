@@ -434,13 +434,16 @@ while externally rooted conduits require admitted backing identity, fresh
 issuance, and custody evidence.
 
 Entry-provisioned image and initial-storage extents use the same inbound route
-rule as other admitted parameters. Core owns one stable program-storage entry
-requirement and `Extent::Granted` lists it as an alternative route. Target
-entry traits inherit that exact requirement and may refine its selected plan;
-they do not replace its semantic identity or declare look-alike root domains.
-The requirement's exact semantic parameter positions are the portable keys by
-which the compiler derives image sections, statics, and initial stack/storage
-subextents after installation.
+rule as other admitted parameters. Core owns the stable
+`ProgramStorageEntry::enter` requirement, whose two exact `Extent in Granted`
+positions name the image and initial storage roots, and `Extent::Granted` lists
+it as an alternative route. Target entry traits inherit that exact requirement
+and may refine its selected plan; they do not replace its semantic identity or
+declare look-alike root domains. Those exact semantic parameter positions are
+the portable keys by which the compiler derives image sections, statics, and
+initial stack/storage subextents after installation. The declaration and
+position identities are live; installation must still discharge `Granted`'s
+`no_wrap` predicate before importing either complete qualified fact.
 
 The admitted root is a scoped hypothesis import, not a proof that external
 reality equals the compiler model. A selected provider states the exact
