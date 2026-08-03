@@ -35,6 +35,10 @@ machine CLayout::plan(schema: Schema) -> Plan
 }
 ```
 
+`offset` is byte-denominated and `stored_width` is bit-denominated. The first
+normalized slice accepts positive whole-byte widths through 64 bits; wider or
+sub-byte stored integers require an explicit later lowering capability.
+
 `plan` must be build-time-admissible under the complete machine contract. It
 returns a description composed from a closed compiler-known placement
 vocabulary. The compiler validates the result before using it for type layout,
@@ -411,6 +415,13 @@ lifecycle. The inverse scalar decoder consumes compiler-materialized field
 widths and the same named geometry, reconstructs complete logical fields, and
 rejects incomplete or overlapping source fragments. Decoding establishes no
 domain, trust, or authority fact. Source establishment remains separate work.
+The `IntegerAt` source case and normalized report are also live: validation
+retains byte offset, whole-byte stored bit width, and signed/unsigned
+interpretation, rejects non-integer or non-total decode ranges, includes the
+encoding in plan identity and overlap checks, and exposes exact stored-width
+access geometry. Direct plan-laid projection/sign extension and proved-fit
+mutation are still outstanding; those consumers reject rather than treating
+`IntegerAt` as `At` or truncating through the scalar materializer.
 The admitted `compact_binary` realization now derives bounded repeated framing
 from carrier semantics: `[T; N]` contributes exactly `N` elements and
 `FixedVec<T, N>` contributes its intrinsic live length up to `N`; the retired

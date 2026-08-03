@@ -8,10 +8,10 @@
 //! arithmetic may honestly declare Wrapping: plan validation owns soundness.
 
 use omega_compiler::{
-    ByteOrder, ConsumptionInstant, EntryStubId, LayoutPlacementReport, MaterializationAction,
-    MaterializationContext, RelocationTarget, ScalarFieldSchema, ScalarFieldValue,
-    SymbolicFieldValue, compile_to_checked, compute_layout_plan, decode_scalar_layout,
-    derive_symbolic_materialization, materialize_scalar_layout_into,
+    ByteOrder, ConsumptionInstant, EntryStubId, IntegerInterpretation, LayoutPlacementReport,
+    MaterializationAction, MaterializationContext, RelocationTarget, ScalarFieldSchema,
+    ScalarFieldValue, SymbolicFieldValue, compile_to_checked, compute_layout_plan,
+    decode_scalar_layout, derive_symbolic_materialization, materialize_scalar_layout_into,
 };
 use omega_layout::{DataShape, build_layout_plan};
 use omega_target::NativeTarget;
@@ -344,6 +344,7 @@ data FieldPlan {
     case At(offset: u64);
     case Bits(container: u64, container_width: u64, destination_lsb: u64, source_lsb: u64, width: u64);
 }
+
 data FieldEntry { key: u64; placement: FieldPlan; }
 data Plan { entries: [FieldEntry; 64]; entry_count: u64; size_fixed: u64; size_is_dynamic: bool; align: u64; }
 data SplitAddress { entries: [FieldEntry; 64]; }
@@ -400,6 +401,92 @@ machine Main::main(&mut self) { }
             .actions
             .iter()
             .all(|action| matches!(action, MaterializationAction::RuntimeWriter(_)))
+    );
+}
+
+#[test]
+fn integer_at_retains_stored_width_and_extension_interpretation() {
+    let main_path = write_program(
+        "stored-integer-policy",
+        r#"
+data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
+data SchemaField { key: u64; size: u64 [0..=4096]; align: u64 [1..=16]; number: i64; kind: FieldKind; }
+data Schema { fields: [SchemaField; 32]; field_count: u64 [0..=32]; }
+data IntegerInterpretation { case Signed; case Unsigned; }
+data FieldPlan {
+    case At(offset: u64);
+    case IntegerAt(offset: u64, stored_width: u64, interpretation: IntegerInterpretation);
+}
+data FieldEntry { key: u64; placement: FieldPlan; }
+data Plan { entries: [FieldEntry; 64]; entry_count: u64; size_fixed: u64; size_is_dynamic: bool; align: u64; }
+data ForeignIntegers { entries: [FieldEntry; 64]; }
+machine ForeignIntegers::plan(&mut self, schema: Schema) -> Plan {
+    self.entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::IntegerAt {
+        offset: 0, stored_width: 32, interpretation: IntegerInterpretation::Signed } };
+    self.entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::IntegerAt {
+        offset: 4, stored_width: 32, interpretation: IntegerInterpretation::Unsigned } };
+    Plan { entries: self.entries, entry_count: 2, size_fixed: 8, size_is_dynamic: false, align: 1 }
+}
+data PortableStat { seconds: i64; inode: u64; }
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    );
+    let checked =
+        compile_to_checked(&main_path, None).expect("stored integer policy should compile");
+    let report = compute_layout_plan(&checked.typed, "ForeignIntegers::plan", "PortableStat")
+        .expect("both stored integer ranges fit their semantic carriers");
+
+    assert_eq!(report.offsets, None);
+    assert_eq!(report.entries.len(), 2);
+    assert!(matches!(
+        report.entries[0].placement,
+        LayoutPlacementReport::IntegerAt {
+            offset: 0,
+            stored_width: 32,
+            interpretation: IntegerInterpretation::Signed,
+        }
+    ));
+    assert!(matches!(
+        report.entries[1].placement,
+        LayoutPlacementReport::IntegerAt {
+            offset: 4,
+            stored_width: 32,
+            interpretation: IntegerInterpretation::Unsigned,
+        }
+    ));
+}
+
+#[test]
+fn integer_at_rejects_a_stored_range_the_semantic_carrier_cannot_hold() {
+    let main_path = write_program(
+        "stored-integer-range-rejection",
+        r#"
+data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
+data SchemaField { key: u64; size: u64 [0..=4096]; align: u64 [1..=16]; number: i64; kind: FieldKind; }
+data Schema { fields: [SchemaField; 32]; field_count: u64 [0..=32]; }
+data IntegerInterpretation { case Signed; case Unsigned; }
+data FieldPlan { case IntegerAt(offset: u64, stored_width: u64, interpretation: IntegerInterpretation); }
+data FieldEntry { key: u64; placement: FieldPlan; }
+data Plan { entries: [FieldEntry; 64]; entry_count: u64; size_fixed: u64; size_is_dynamic: bool; align: u64; }
+data BadInteger { entries: [FieldEntry; 64]; }
+machine BadInteger::plan(&mut self, schema: Schema) -> Plan {
+    self.entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::IntegerAt {
+        offset: 0, stored_width: 32, interpretation: IntegerInterpretation::Signed } };
+    Plan { entries: self.entries, entry_count: 1, size_fixed: 4, size_is_dynamic: false, align: 1 }
+}
+data UnsignedOnly { value: u64; }
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    );
+    let checked =
+        compile_to_checked(&main_path, None).expect("stored integer policy should compile");
+    let error = compute_layout_plan(&checked.typed, "BadInteger::plan", "UnsignedOnly")
+        .expect_err("a signed stored range cannot totally decode into an unsigned carrier");
+    assert!(
+        error.contains("cannot totally decode a 32-bit signed integer into `u64`"),
+        "unexpected diagnostic: {error}"
     );
 }
 

@@ -7,7 +7,9 @@
 //! field.
 
 use omega_interpreter::BuildTimeValue;
-pub use psi_layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport};
+pub use psi_layout_plans::{
+    IntegerInterpretation, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,
+};
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::types::PrimitiveType;
 
@@ -24,6 +26,8 @@ pub(super) struct SchemaFieldInfo {
     pub(super) size: u64,
     pub(super) align: u64,
     pub(super) source_bits: u64,
+    pub(super) primitive: PrimitiveType,
+    pub(super) declared_range: Option<(i64, i64)>,
 }
 
 pub fn compute_layout_plan(
@@ -79,6 +83,9 @@ pub(super) fn schema_fields(
             )
         })?;
         let source_bits = declared_source_bits(typed, field.type_reference, primitive, size);
+        let declared_range =
+            psi_typed_trees::wire::scalar_representation_range(typed, field.type_reference)
+                .map(|range| (range.minimum, range.maximum));
         let key = field_key(schema_data, field.name.as_str());
         if fields
             .iter()
@@ -96,6 +103,8 @@ pub(super) fn schema_fields(
             size,
             align: size,
             source_bits,
+            primitive,
+            declared_range,
         });
     }
     if fields.is_empty()
@@ -399,6 +408,12 @@ pub(super) fn build_schema_value(
                                 declared_source_bits(typed, field.type_reference, primitive, size)
                             })
                             .unwrap_or(0),
+                        primitive: primitive.unwrap_or(PrimitiveType::Bool),
+                        declared_range: psi_typed_trees::wire::scalar_representation_range(
+                            typed,
+                            field.type_reference,
+                        )
+                        .map(|range| (range.minimum, range.maximum)),
                     }
                 });
                 build_schema_field_value(info.as_ref())
@@ -610,10 +625,78 @@ pub(super) fn validate_plan(
                     placement: LayoutPlacementReport::At { offset },
                 });
             }
-            "Bits" => {
-                if matches!(kinds_by_field[field_index], Some("At")) {
+            "IntegerAt" => {
+                if kinds_by_field[field_index].replace("IntegerAt").is_some() {
                     return Err(fail(format!(
-                        "field `{}` mixes `At` and `Bits` placements",
+                        "field `{}` has more than one placement",
+                        schema_field.name
+                    )));
+                }
+                let offset = payload_uint(payload, "offset")?;
+                let stored_width = payload_uint(payload, "stored_width")?;
+                if stored_width == 0 || stored_width > 64 || !stored_width.is_multiple_of(8) {
+                    return Err(fail(format!(
+                        "field `{}` stored integer width {stored_width} is not a supported whole-byte width in 8..=64",
+                        schema_field.name
+                    )));
+                }
+                if !schema_field.primitive.accepts_integer_literal()
+                    || schema_field.primitive == PrimitiveType::Addr
+                {
+                    return Err(fail(format!(
+                        "field `{}` uses `IntegerAt`, but its semantic type `{}` is not a fixed-width integer carrier",
+                        schema_field.name,
+                        schema_field.primitive.name()
+                    )));
+                }
+                let interpretation = match payload
+                    .iter()
+                    .find(|(field, _)| field == "interpretation")
+                {
+                    Some((_, BuildTimeValue::Case { variant, payload })) if payload.is_empty() => {
+                        match case_name(variant).as_str() {
+                            "Signed" => psi_layout_plans::IntegerInterpretation::Signed,
+                            "Unsigned" => psi_layout_plans::IntegerInterpretation::Unsigned,
+                            other => {
+                                return Err(fail(format!(
+                                    "field `{}` has unknown integer interpretation `{other}`",
+                                    schema_field.name
+                                )));
+                            }
+                        }
+                    }
+                    other => {
+                        return Err(fail(format!(
+                            "field `{}` carries no signed/unsigned integer interpretation: {other:?}",
+                            schema_field.name
+                        )));
+                    }
+                };
+                validate_integer_decode_range(schema_field, stored_width, interpretation)?;
+                let end = offset.checked_add(stored_width / 8).ok_or_else(|| {
+                    fail(format!("field `{}` placement overflows", schema_field.name))
+                })?;
+                let start_bit = offset.checked_mul(8).ok_or_else(|| {
+                    fail(format!("field `{}` placement overflows", schema_field.name))
+                })?;
+                let end_bit = end.checked_mul(8).ok_or_else(|| {
+                    fail(format!("field `{}` placement overflows", schema_field.name))
+                })?;
+                destination_spans.push((start_bit, end_bit, schema_field.name.clone()));
+                entries.push(LayoutFieldEntryReport {
+                    field: schema_field.name.clone(),
+                    member_identity: schema_field.identity,
+                    placement: LayoutPlacementReport::IntegerAt {
+                        offset,
+                        stored_width,
+                        interpretation,
+                    },
+                });
+            }
+            "Bits" => {
+                if matches!(kinds_by_field[field_index], Some("At" | "IntegerAt")) {
+                    return Err(fail(format!(
+                        "field `{}` mixes a whole-field and `Bits` placement",
                         schema_field.name
                     )));
                 }
@@ -685,6 +768,7 @@ pub(super) fn validate_plan(
                 )));
             }
             Some("At") => {}
+            Some("IntegerAt") => {}
             Some("Bits") => {
                 let spans = &mut source_spans[index];
                 spans.sort_unstable();
@@ -747,6 +831,7 @@ pub(super) fn validate_plan(
             .unwrap_or(usize::MAX);
         let source_lsb = match &entry.placement {
             LayoutPlacementReport::At { .. } => 0,
+            LayoutPlacementReport::IntegerAt { .. } => 0,
             LayoutPlacementReport::Bits { source_lsb, .. } => *source_lsb,
         };
         (field_index, source_lsb)
@@ -764,4 +849,52 @@ pub(super) fn validate_plan(
         size: (!size_is_dynamic).then_some(size_fixed),
         align,
     })
+}
+
+fn validate_integer_decode_range(
+    field: &SchemaFieldInfo,
+    stored_width: u64,
+    interpretation: psi_layout_plans::IntegerInterpretation,
+) -> Result<(), String> {
+    let semantic_width = field.size * 8;
+    let carrier_fits = match interpretation {
+        psi_layout_plans::IntegerInterpretation::Signed => {
+            field.primitive.is_signed_integer() && stored_width <= semantic_width
+        }
+        psi_layout_plans::IntegerInterpretation::Unsigned => {
+            if field.primitive.is_signed_integer() {
+                stored_width < semantic_width
+            } else {
+                stored_width <= semantic_width
+            }
+        }
+    };
+    if !carrier_fits {
+        return Err(format!(
+            "field `{}` cannot totally decode a {stored_width}-bit {} integer into `{}`",
+            field.name,
+            match interpretation {
+                psi_layout_plans::IntegerInterpretation::Signed => "signed",
+                psi_layout_plans::IntegerInterpretation::Unsigned => "unsigned",
+            },
+            field.primitive.name()
+        ));
+    }
+
+    if let Some((minimum, maximum)) = field.declared_range {
+        let (stored_minimum, stored_maximum) = match interpretation {
+            psi_layout_plans::IntegerInterpretation::Signed => (
+                -(1i128 << (stored_width - 1)),
+                (1i128 << (stored_width - 1)) - 1,
+            ),
+            psi_layout_plans::IntegerInterpretation::Unsigned => (0, (1i128 << stored_width) - 1),
+        };
+        if stored_minimum < i128::from(minimum) || stored_maximum > i128::from(maximum) {
+            return Err(format!(
+                "field `{}` stored integer range {stored_minimum}..={stored_maximum} does not fit its declared semantic range {minimum}..={maximum}",
+                field.name
+            ));
+        }
+    }
+    Ok(())
 }

@@ -44,7 +44,8 @@ pub use compile_policy::ExecutableTcbBuildPolicy;
 pub use compile_report::CompileReport;
 pub use compiler::{compile, compile_with_policy};
 pub use layout_plans::{
-    LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport, compute_layout_plan,
+    IntegerInterpretation, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,
+    compute_layout_plan,
 };
 pub use provider_plans::{
     AdmittedExternalRootEntryFactHandoff, SelectedExternalRootEntryFactBinding,

@@ -13,7 +13,7 @@ use psi_access_plans::{
     ExternalRead, FieldAccess, PlacementPlan, ValidatedAccessPlan, ValidatedPlacementPlan,
     validate_access_plan, validate_placement_plan,
 };
-use psi_layout_plans::{LayoutPlacementReport, LayoutPlanReport};
+use psi_layout_plans::{IntegerInterpretation, LayoutPlacementReport, LayoutPlanReport};
 use psi_typed_trees::TypedTrees;
 
 use super::build_time_admission::BuildTimeAdmissionPlan;
@@ -296,6 +296,7 @@ fn transfer_width_bits(
             .size
             .checked_mul(8)
             .ok_or_else(|| format!("field `{}` transfer width overflows", schema_field.name))?,
+        [LayoutPlacementReport::IntegerAt { stored_width, .. }] => *stored_width,
         [
             LayoutPlacementReport::Bits {
                 container_width, ..
@@ -420,6 +421,30 @@ fn build_layout_plan_value(
                         LayoutPlacementReport::At { offset } => BuildTimeValue::Case {
                             variant: "At".into(),
                             payload: vec![("offset".into(), BuildTimeValue::Int(offset as i64))],
+                        },
+                        LayoutPlacementReport::IntegerAt {
+                            offset,
+                            stored_width,
+                            interpretation,
+                        } => BuildTimeValue::Case {
+                            variant: "IntegerAt".into(),
+                            payload: vec![
+                                ("offset".into(), BuildTimeValue::Int(offset as i64)),
+                                (
+                                    "stored_width".into(),
+                                    BuildTimeValue::Int(stored_width as i64),
+                                ),
+                                (
+                                    "interpretation".into(),
+                                    BuildTimeValue::Case {
+                                        variant: match interpretation {
+                                            IntegerInterpretation::Signed => "Signed".into(),
+                                            IntegerInterpretation::Unsigned => "Unsigned".into(),
+                                        },
+                                        payload: Vec::new(),
+                                    },
+                                ),
+                            ],
                         },
                         LayoutPlacementReport::Bits {
                             container,

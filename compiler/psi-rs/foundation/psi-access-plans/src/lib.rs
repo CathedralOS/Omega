@@ -2533,6 +2533,35 @@ fn validate_entry_geometry(
                 },
             ))
         }
+        [
+            LayoutPlacementReport::IntegerAt {
+                offset,
+                stored_width,
+                ..
+            },
+        ] => {
+            if *stored_width != u64::from(transfer_width_bits) {
+                return Err(AccessPlanDiagnostic(format!(
+                    "access field `{field}` requests a {transfer_width_bits}-bit transfer over a {stored_width}-bit stored integer"
+                )));
+            }
+            let offset = *offset;
+            validate_transfer_range(field, offset, transfer_bytes, layout_size)?;
+            Ok((
+                offset,
+                LogicalFieldExtent {
+                    fragments: vec![LogicalFieldFragment {
+                        layout_bit_offset: offset * 8,
+                        source_bit_offset: 0,
+                        width_bits: *stored_width,
+                    }],
+                },
+                RelativeEffectFootprint {
+                    byte_offset: offset,
+                    length_bytes: transfer_bytes,
+                },
+            ))
+        }
         placements => {
             let mut container = None;
             let mut fragments = Vec::with_capacity(placements.len());
@@ -2700,7 +2729,41 @@ fn validate_operation_ordering(operation: AccessOperation) -> Result<(), AccessP
 #[cfg(test)]
 mod tests {
     use super::*;
-    use psi_layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport};
+    use psi_layout_plans::{
+        IntegerInterpretation, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,
+    };
+
+    #[test]
+    fn stored_integer_geometry_uses_the_exact_encoded_width() {
+        let layout = LayoutPlanReport {
+            schema_identity: 1,
+            entries: vec![LayoutFieldEntryReport {
+                field: "value".into(),
+                member_identity: None,
+                placement: LayoutPlacementReport::IntegerAt {
+                    offset: 3,
+                    stored_width: 16,
+                    interpretation: IntegerInterpretation::Signed,
+                },
+            }],
+            offsets: None,
+            size: Some(8),
+            align: 1,
+        };
+        let (offset, logical, effect) = validate_entry_geometry("value", 16, &layout, 8)
+            .expect("the access transfer matches the stored integer width");
+        assert_eq!(offset, 3);
+        assert_eq!(logical.fragments[0].layout_bit_offset, 24);
+        assert_eq!(logical.fragments[0].width_bits, 16);
+        assert_eq!(effect.length_bytes, 2);
+        let error = validate_entry_geometry("value", 32, &layout, 8)
+            .expect_err("semantic carrier width is not the stored transfer width");
+        assert!(
+            error
+                .0
+                .contains("32-bit transfer over a 16-bit stored integer")
+        );
+    }
 
     fn reach() -> BoundaryServiceReachId {
         BoundaryServiceReachId::from_normalized_identity(7).expect("normalized reach")
