@@ -3,9 +3,10 @@
 //! Recomputable restricted fixed-fuel certificates for terminal Psi.
 //!
 //! The current terminal verifier accepts only an acyclic straight-line path,
-//! so the first checker can derive an exact entry-to-return cost without any
-//! precondition assumption. Branch-sensitive and safe-point segment outcomes
-//! join this surface only when those semantic vocabularies exist.
+//! so the checker derives exact entry-to-return costs without precondition
+//! assumptions and partitions that path at every explicit jump/return edge.
+//! Branch-sensitive outcomes join this surface only when that semantic
+//! vocabulary exists.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -183,6 +184,66 @@ pub fn validate_fixed_segment_fuel(
         certificate.end_edge,
     )?;
     if expected != *certificate {
+        return Err(FixedFuelError::CertificateMismatch);
+    }
+    Ok(())
+}
+
+/// Select the complete current-vocabulary safe-point partition for one
+/// machine. Every explicit unconditional jump or return edge is a semantic
+/// safe point in this slice: operations are total, no partial call/suspension
+/// state can cross the edge, and the successor block begins the next segment.
+/// The returned order is execution order from the machine entry.
+pub fn derive_fixed_safe_point_segments(
+    verified: &VerifiedTerminalModule<'_>,
+    machine: MachineId,
+) -> Result<Vec<FixedSegmentFuelCertificate>, FixedFuelError> {
+    let machine_semantics = verified
+        .module()
+        .machines
+        .iter()
+        .find(|candidate| candidate.id == machine)
+        .ok_or(FixedFuelError::UnknownEntry(machine))?;
+    let blocks = machine_semantics
+        .blocks
+        .iter()
+        .map(|block| (block.id, block))
+        .collect::<BTreeMap<_, _>>();
+    let mut visited = BTreeSet::new();
+    let mut current = machine_semantics.entry;
+    let mut segments = Vec::new();
+
+    loop {
+        if !visited.insert(current) {
+            return Err(FixedFuelError::ControlCycle(current));
+        }
+        let block = blocks
+            .get(&current)
+            .copied()
+            .ok_or(FixedFuelError::UnknownBlock(current))?;
+        segments.push(derive_fixed_segment_fuel(
+            verified,
+            machine,
+            current,
+            block.terminator.edge(),
+        )?);
+        match block.terminator {
+            Terminator::Jump { target, .. } => current = target,
+            Terminator::Return { .. } => return Ok(segments),
+        }
+    }
+}
+
+/// Recompute the whole ordered safe-point partition. Validating certificates
+/// one at a time is insufficient because a producer could omit a reachable
+/// segment or present a different order.
+pub fn validate_fixed_safe_point_segments(
+    verified: &VerifiedTerminalModule<'_>,
+    machine: MachineId,
+    certificates: &[FixedSegmentFuelCertificate],
+) -> Result<(), FixedFuelError> {
+    let expected = derive_fixed_safe_point_segments(verified, machine)?;
+    if expected != certificates {
         return Err(FixedFuelError::CertificateMismatch);
     }
     Ok(())

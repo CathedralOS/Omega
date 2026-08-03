@@ -1292,7 +1292,9 @@ improvements do not change public identity.
   canary's four-unit certificate equals measured usage. Exact selected
   block-to-edge segment certificates also recompute against that identity and
   schedule, include the endpoint charge, and reject an edge not reached before
-  return. Semantic safe-point selection, build-time migration, branch/loop
+  return. The current-vocabulary semantic safe-point selector partitions the
+  complete reachable path at every explicit jump/return edge and validation
+  rejects omitted or reordered segments. Build-time migration, branch/loop
   certificates, response outcomes, and trusted native metering remain.
   External-root provider summaries and provisions now use the Psi-owned fuel
   schedule identity directly. Local summary evidence now separates sealed
