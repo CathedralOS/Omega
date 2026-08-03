@@ -50,7 +50,7 @@ pub(crate) struct PlanLaidRecord {
 
 struct IndexedData {
     has_type_parameters: bool,
-    supply_mode: omega_core::semantics::DataSupplyMode,
+    supply_mode: psi_language_semantics::DataSupplyMode,
     lifetime_parameters: Vec<Identifier>,
     members: HandleSpan<DataMember>,
     properties: DataProperties,
@@ -170,7 +170,7 @@ pub(crate) fn desugar_plan_laid_value_types(
             )));
             continue;
         }
-        if schema_info.supply_mode == omega_core::semantics::DataSupplyMode::BoundaryOpaque {
+        if schema_info.supply_mode == psi_language_semantics::DataSupplyMode::BoundaryOpaque {
             diagnostics.push(Diagnostic::error(format!(
                 "layout policy `{base}` cannot inspect opaque boundary data `{schema_name}`"
             )));
@@ -230,7 +230,7 @@ pub(crate) fn desugar_plan_laid_value_types(
         }
         syntax.push_root_item(Item::Data(DataDefinition {
             name: Identifier::generated(record.synthetic_name.as_str()),
-            supply_mode: omega_core::semantics::DataSupplyMode::CheckedShape,
+            supply_mode: psi_language_semantics::DataSupplyMode::CheckedShape,
             lifetime_parameters: schema_info.lifetime_parameters.clone(),
             type_parameters: HandleSpan::default(),
             properties: schema_info.properties,

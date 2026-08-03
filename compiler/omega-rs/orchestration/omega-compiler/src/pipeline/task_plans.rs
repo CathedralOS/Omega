@@ -1,5 +1,4 @@
 use omega_core::diagnostics::Diagnostic;
-use omega_core::semantics::{CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension};
 use omega_layout::TypeLayout;
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_task_plans::{
@@ -10,6 +9,7 @@ use omega_task_plans::{
     ValueLayoutId, validate_activation_plan,
 };
 use psi_checked_trees::{CheckedTrees, SuspensionCrossingStorage};
+use psi_language_semantics::{CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension};
 
 /// Elaborate every concrete `TaskRuntime::{start,try_start}<M>` specialization
 /// into a provider-independent activation demand. The source classifier is
@@ -523,8 +523,8 @@ fn canonical_suspension_crossing(
         crossing.effective.host_thread == CarryHostThread::Origin,
     ));
     hash.byte(match crossing.effective.address {
-        omega_core::semantics::CarryAddress::Movable => 1,
-        omega_core::semantics::CarryAddress::Stable => 2,
+        psi_language_semantics::CarryAddress::Movable => 1,
+        psi_language_semantics::CarryAddress::Stable => 2,
     });
     for live in &crossing.live_values {
         hash.string(
@@ -546,8 +546,8 @@ fn canonical_suspension_crossing(
             live.effective.host_thread == CarryHostThread::Origin,
         ));
         hash.byte(match live.effective.address {
-            omega_core::semantics::CarryAddress::Movable => 1,
-            omega_core::semantics::CarryAddress::Stable => 2,
+            psi_language_semantics::CarryAddress::Movable => 1,
+            psi_language_semantics::CarryAddress::Stable => 2,
         });
     }
     Ok(CanonicalSuspensionCrossing {
@@ -712,7 +712,7 @@ mod tests {
                 suspension: CarrySuspension::Allowed,
                 cpu: CarryCpu::Origin,
                 host_thread: CarryHostThread::Origin,
-                address: omega_core::semantics::CarryAddress::Stable,
+                address: psi_language_semantics::CarryAddress::Stable,
             }),
             ActivationCarryObligations {
                 preserve_cpu: true,
@@ -757,7 +757,7 @@ mod tests {
             suspension: CarrySuspension::Allowed,
             cpu: CarryCpu::Origin,
             host_thread: CarryHostThread::Any,
-            address: omega_core::semantics::CarryAddress::Movable,
+            address: psi_language_semantics::CarryAddress::Movable,
         };
         program.facts.carry.suspension_crossings.push(
             psi_checked_trees::SuspensionCrossingCarryFact {

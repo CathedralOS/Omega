@@ -132,7 +132,7 @@ mod tests {
             .ownership
             .permissions
             .insert(AbstractPermissionEvent {
-                source: omega_core::semantics::PermissionEventSource::Call {
+                source: psi_language_semantics::PermissionEventSource::Call {
                     statement_index: 22,
                     call_ordinal: 3,
                     target_symbol,
@@ -153,7 +153,7 @@ mod tests {
             .expect("machine-program ownership event");
         assert_eq!(
             event.source,
-            omega_core::semantics::PermissionEventSource::Call {
+            psi_language_semantics::PermissionEventSource::Call {
                 statement_index: 22,
                 call_ordinal: 3,
                 target_symbol,

@@ -114,7 +114,7 @@ fn copies_assigned_permission_summary_to_machine_instruction_plan() {
         .ownership
         .permissions
         .insert(AbstractPermissionEvent {
-            source: omega_core::semantics::PermissionEventSource::Call {
+            source: psi_language_semantics::PermissionEventSource::Call {
                 statement_index: 13,
                 call_ordinal: 2,
                 target_symbol,
@@ -139,7 +139,7 @@ fn copies_assigned_permission_summary_to_machine_instruction_plan() {
         .expect("machine ownership event");
     assert_eq!(
         event.source,
-        omega_core::semantics::PermissionEventSource::Call {
+        psi_language_semantics::PermissionEventSource::Call {
             statement_index: 13,
             call_ordinal: 2,
             target_symbol,

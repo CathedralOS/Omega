@@ -11,6 +11,7 @@ path = "src/lib.rs"
 [dependencies]
 psi-checked-trees = { path = "../../../psi-rs/representations/psi-checked-trees" }
 omega-core = { path = "../../foundation/omega-core" }
+psi-language-semantics = { path = "../../../psi-rs/foundation/psi-language-semantics" }
 psi-numerics = { path = "../../../psi-rs/foundation/psi-numerics" }
 omega-runtime-abi = { path = "../../foundation/omega-runtime-abi" }
 omega-target = { path = "../../foundation/omega-target" }

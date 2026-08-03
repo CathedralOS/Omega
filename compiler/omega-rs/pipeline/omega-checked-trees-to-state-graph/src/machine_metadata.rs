@@ -1,8 +1,8 @@
 use omega_core::arena::HandleSpan;
-use omega_core::semantics::{OperationalMaySummary, ServiceReachSummary};
 use omega_state_graph::{ContainedGraph, MachineOwnedDataGraph, StateGraph};
 use psi_checked_trees::CheckedTrees;
 use psi_checked_trees::machine::Machine;
+use psi_language_semantics::{OperationalMaySummary, ServiceReachSummary};
 
 pub(crate) fn machine_owned_data(
     state_graph: &mut StateGraph,

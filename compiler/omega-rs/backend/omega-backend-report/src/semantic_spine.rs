@@ -67,9 +67,9 @@ fn write_ownership_events(output: &mut String, backend_plan: &BackendReportInput
 
 fn permission_claim_identity_text(
     backend_plan: &BackendReportInput<'_>,
-    identity: omega_core::semantics::PermissionClaimIdentity,
+    identity: psi_language_semantics::PermissionClaimIdentity,
 ) -> String {
-    use omega_core::semantics::PermissionClaimIdentity;
+    use psi_language_semantics::PermissionClaimIdentity;
     match identity {
         PermissionClaimIdentity::Unknown => "unknown".to_owned(),
         PermissionClaimIdentity::Established {
@@ -119,26 +119,26 @@ fn permission_realization_text(
     }
 }
 
-fn permission_source_text(source: omega_core::semantics::PermissionEventSource) -> String {
+fn permission_source_text(source: psi_language_semantics::PermissionEventSource) -> String {
     match source {
-        omega_core::semantics::PermissionEventSource::StateEntry => "state entry".to_owned(),
-        omega_core::semantics::PermissionEventSource::Statement { statement_index } => {
+        psi_language_semantics::PermissionEventSource::StateEntry => "state entry".to_owned(),
+        psi_language_semantics::PermissionEventSource::Statement { statement_index } => {
             format!("statement {statement_index}")
         }
-        omega_core::semantics::PermissionEventSource::Call {
+        psi_language_semantics::PermissionEventSource::Call {
             statement_index,
             call_ordinal,
             ..
         } => format!("call ordinal {call_ordinal} in statement {statement_index}"),
-        omega_core::semantics::PermissionEventSource::StateExit => "state exit".to_owned(),
+        psi_language_semantics::PermissionEventSource::StateExit => "state exit".to_owned(),
     }
 }
 
 fn permission_provenance_text(
     backend_plan: &BackendReportInput<'_>,
-    provenance: omega_core::semantics::PermissionProvenance,
+    provenance: psi_language_semantics::PermissionProvenance,
 ) -> String {
-    use omega_core::semantics::PermissionProvenance;
+    use psi_language_semantics::PermissionProvenance;
     match provenance {
         PermissionProvenance::Unknown => "unknown".to_owned(),
         PermissionProvenance::Established {
@@ -335,17 +335,17 @@ mod tests {
     #[test]
     fn renders_permission_event_sources() {
         assert_eq!(
-            permission_source_text(omega_core::semantics::PermissionEventSource::StateEntry),
+            permission_source_text(psi_language_semantics::PermissionEventSource::StateEntry),
             "state entry"
         );
         assert_eq!(
-            permission_source_text(omega_core::semantics::PermissionEventSource::Statement {
+            permission_source_text(psi_language_semantics::PermissionEventSource::Statement {
                 statement_index: 2,
             }),
             "statement 2"
         );
         assert_eq!(
-            permission_source_text(omega_core::semantics::PermissionEventSource::Call {
+            permission_source_text(psi_language_semantics::PermissionEventSource::Call {
                 statement_index: 1,
                 call_ordinal: 0,
                 target_symbol: omega_core::symbols::SymbolHandle::invalid(),
@@ -353,7 +353,7 @@ mod tests {
             "call ordinal 0 in statement 1"
         );
         assert_eq!(
-            permission_source_text(omega_core::semantics::PermissionEventSource::StateExit),
+            permission_source_text(psi_language_semantics::PermissionEventSource::StateExit),
             "state exit"
         );
     }

@@ -57,7 +57,7 @@ struct GenericData {
     where_facts: HandleSpan<ProofFact>,
     members: HandleSpan<DataMember>,
     properties: psi_syntax_trees::item::DataProperties,
-    supply_mode: omega_core::semantics::DataSupplyMode,
+    supply_mode: psi_language_semantics::DataSupplyMode,
 }
 
 struct PendingRewrite {
@@ -1368,7 +1368,7 @@ fn validate_const_index_type(
                     _ => None,
                 })
                 .ok_or_else(|| format!("`{name}` is not a declared canonical data type"))?;
-            if definition.supply_mode == omega_core::semantics::DataSupplyMode::BoundaryOpaque {
+            if definition.supply_mode == psi_language_semantics::DataSupplyMode::BoundaryOpaque {
                 return Err(format!(
                     "boundary-opaque data `{name}` is not eligible as a const index"
                 ));

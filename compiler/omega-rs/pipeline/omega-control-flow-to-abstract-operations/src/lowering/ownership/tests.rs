@@ -17,10 +17,10 @@ fn lowers_only_semantic_permission_events() {
         .ownership
         .segments
         .insert_many([segment]);
-    let claim_identity = omega_core::semantics::PermissionClaimIdentity::Established {
+    let claim_identity = psi_language_semantics::PermissionClaimIdentity::Established {
         machine_symbol: SymbolHandle::from_arena_index(1),
         state_symbol: SymbolHandle::from_arena_index(2),
-        source: omega_core::semantics::PermissionEventSource::Statement { statement_index: 4 },
+        source: psi_language_semantics::PermissionEventSource::Statement { statement_index: 4 },
         ordinal: 7,
     };
     let mut state = StateFlow {
@@ -50,12 +50,12 @@ fn lowers_only_semantic_permission_events() {
     control_flow.semantics.ownership.permissions.append_to_span(
         &mut state.ownership.permissions,
         StatePermissionEvent {
-            source: omega_core::semantics::PermissionEventSource::Statement { statement_index: 4 },
-            kind: omega_core::semantics::PermissionEventKind::Consume,
-            multiplicity: omega_core::semantics::Multiplicity::Linear,
-            access: omega_core::semantics::PermissionAccess::Owned,
+            source: psi_language_semantics::PermissionEventSource::Statement { statement_index: 4 },
+            kind: psi_language_semantics::PermissionEventKind::Consume,
+            multiplicity: psi_language_semantics::Multiplicity::Linear,
+            access: psi_language_semantics::PermissionAccess::Owned,
             claim_identity,
-            provenance: omega_core::semantics::PermissionProvenance::Unknown,
+            provenance: psi_language_semantics::PermissionProvenance::Unknown,
             root: psi_facts::PlaceRoot::Symbol(SymbolHandle::from_arena_index(11)),
             segments,
             obligation_live: true,
@@ -74,7 +74,7 @@ fn lowers_only_semantic_permission_events() {
         .unwrap();
     assert_eq!(
         permission.kind,
-        omega_core::semantics::PermissionEventKind::Consume
+        psi_language_semantics::PermissionEventKind::Consume
     );
     assert!(permission.obligation_live);
     assert_eq!(permission.claim_identity, claim_identity);

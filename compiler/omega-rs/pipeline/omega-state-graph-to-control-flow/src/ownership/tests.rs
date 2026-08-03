@@ -30,12 +30,12 @@ fn remap_ownership_summary_preserves_all_event_handles() {
     permissions.append_to_span(
         &mut permission_span,
         omega_state_graph::StatePermissionEvent {
-            source: omega_core::semantics::PermissionEventSource::StateEntry,
-            kind: omega_core::semantics::PermissionEventKind::Establish,
-            multiplicity: omega_core::semantics::Multiplicity::Linear,
-            access: omega_core::semantics::PermissionAccess::Owned,
-            claim_identity: omega_core::semantics::PermissionClaimIdentity::Unknown,
-            provenance: omega_core::semantics::PermissionProvenance::Unknown,
+            source: psi_language_semantics::PermissionEventSource::StateEntry,
+            kind: psi_language_semantics::PermissionEventKind::Establish,
+            multiplicity: psi_language_semantics::Multiplicity::Linear,
+            access: psi_language_semantics::PermissionAccess::Owned,
+            claim_identity: psi_language_semantics::PermissionClaimIdentity::Unknown,
+            provenance: psi_language_semantics::PermissionProvenance::Unknown,
             root: Default::default(),
             segments: Default::default(),
             obligation_live: true,

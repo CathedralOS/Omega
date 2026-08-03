@@ -59,7 +59,7 @@ fn copies_target_permission_summary_to_assigned_plan() {
         .ownership
         .permissions
         .insert(AbstractPermissionEvent {
-            source: omega_core::semantics::PermissionEventSource::Call {
+            source: psi_language_semantics::PermissionEventSource::Call {
                 statement_index: 9,
                 call_ordinal: 3,
                 target_symbol,
@@ -80,7 +80,7 @@ fn copies_target_permission_summary_to_assigned_plan() {
         .expect("assigned ownership event");
     assert_eq!(
         event.source,
-        omega_core::semantics::PermissionEventSource::Call {
+        psi_language_semantics::PermissionEventSource::Call {
             statement_index: 9,
             call_ordinal: 3,
             target_symbol,

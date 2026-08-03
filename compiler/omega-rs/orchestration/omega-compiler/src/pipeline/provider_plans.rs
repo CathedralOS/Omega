@@ -33,7 +33,7 @@ pub struct SelectedExternalRootEntryFactBinding {
     requirement_identity: String,
     parameter_index: usize,
     domain: String,
-    effective_carry: omega_core::semantics::CarryPolicy,
+    effective_carry: psi_language_semantics::CarryPolicy,
     implementation_machine: omega_core::symbols::SymbolHandle,
     implementation_state: omega_core::symbols::SymbolHandle,
     parameter_symbol: omega_core::symbols::SymbolHandle,
@@ -93,7 +93,7 @@ impl SelectedExternalRootEntryFactBinding {
         &self.domain
     }
 
-    pub const fn effective_carry(&self) -> omega_core::semantics::CarryPolicy {
+    pub const fn effective_carry(&self) -> psi_language_semantics::CarryPolicy {
         self.effective_carry
     }
 
@@ -307,7 +307,7 @@ pub(crate) fn bind_selected_provider_plan_facts(
         .iter()
         .filter(|(_, fact)| {
             fact.evidence.origin
-                == omega_core::semantics::QualificationEvidenceOrigin::AdmittedReceipt
+                == psi_language_semantics::QualificationEvidenceOrigin::AdmittedReceipt
                 && fact.evidence.receipt_identity == 0
                 && fact.evidence.source_symbol.is_valid()
         })
@@ -914,7 +914,7 @@ pub fn selected_external_root_entry_fact_bindings(
                                 state_symbol: state.symbol,
                             }
                         && fact.evidence.origin
-                            == omega_core::semantics::QualificationEvidenceOrigin::Propagated
+                            == psi_language_semantics::QualificationEvidenceOrigin::Propagated
                         && matches!(
                             fact.payload,
                             FactPayload::DomainMembership { domain_symbol, .. }
@@ -2103,7 +2103,7 @@ mod tests {
             point: psi_facts::ProgramPoint::Global,
             origin: psi_facts::FactOrigin::CallEnsures,
             evidence: psi_facts::QualificationEvidence::from_origin(
-                omega_core::semantics::QualificationEvidenceOrigin::AdmittedReceipt,
+                psi_language_semantics::QualificationEvidenceOrigin::AdmittedReceipt,
                 boundary_symbol,
             ),
             payload: psi_facts::FactPayload::DomainMembership {

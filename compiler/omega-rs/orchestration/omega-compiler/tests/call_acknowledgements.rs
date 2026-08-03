@@ -1,5 +1,5 @@
 use omega_compiler::compile_to_checked;
-use omega_core::semantics::CallOperationalAcknowledgementOrigin;
+use psi_language_semantics::CallOperationalAcknowledgementOrigin;
 use std::fs;
 use std::path::PathBuf;
 

@@ -1460,7 +1460,7 @@ fn opaque_boundary_data_reaches_checked_facts_without_a_layout_claim() {
 
     assert_eq!(
         opaque.supply_mode,
-        omega_core::semantics::DataSupplyMode::BoundaryOpaque
+        psi_language_semantics::DataSupplyMode::BoundaryOpaque
     );
     assert_eq!(
         checked
@@ -1469,7 +1469,7 @@ fn opaque_boundary_data_reaches_checked_facts_without_a_layout_claim() {
             .for_data(opaque.symbol)
             .expect("opaque carry fact")
             .effective,
-        omega_core::semantics::CarryPolicy::STRICT,
+        psi_language_semantics::CarryPolicy::STRICT,
         "opacity must fail closed rather than deriving permissive carry from an empty visible shape"
     );
 }
@@ -4517,7 +4517,7 @@ fn extent_root_provider_adapter_compiles() {
     );
     assert!(matches!(
         granted.establishment_routes.as_slice(),
-        [omega_core::semantics::DomainEstablishmentRoute::BoundaryRequirement { .. }]
+        [psi_language_semantics::DomainEstablishmentRoute::BoundaryRequirement { .. }]
     ));
 
     let plan = checked

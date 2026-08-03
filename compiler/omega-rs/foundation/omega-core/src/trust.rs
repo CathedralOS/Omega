@@ -15,7 +15,7 @@
 //! (GR4); a statement that drifts under a grant fails the build until
 //! re-approved.
 
-use crate::semantics::{ProgressProfileId, SemanticDomainId};
+use psi_language_semantics::{ProgressProfileId, SemanticDomainId};
 
 /// What a grant admits: one semantic commitment, identified by the
 /// consumer's own identity type. The carrier never interprets the

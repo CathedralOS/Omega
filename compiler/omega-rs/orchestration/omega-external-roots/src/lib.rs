@@ -1141,7 +1141,7 @@ pub struct MachineStateResourceColumn {
 pub struct ExternalRootEntryClaim {
     pub parameter_index: usize,
     pub domain: String,
-    pub effective_carry: omega_core::semantics::CarryPolicy,
+    pub effective_carry: psi_language_semantics::CarryPolicy,
 }
 
 /// Invocation-specific evidence that one runtime subject entered through an
@@ -1153,7 +1153,7 @@ pub struct AdmittedEntryQualification {
     parameter_index: usize,
     abi_placement: ValuePlacement,
     domain: String,
-    effective_carry: omega_core::semantics::CarryPolicy,
+    effective_carry: psi_language_semantics::CarryPolicy,
     entry_receipt: InterruptEntryReceiptId,
     invocation: InterruptInvocationId,
     subject: AdmittedEntrySubject,
@@ -1169,7 +1169,7 @@ impl AdmittedEntryQualification {
         requirement_identity: &str,
         parameter_index: usize,
         domain: &str,
-        effective_carry: omega_core::semantics::CarryPolicy,
+        effective_carry: psi_language_semantics::CarryPolicy,
     ) -> bool {
         self.provider_plan == provider_plan
             && self.requirement_identity == requirement_identity
@@ -1213,7 +1213,7 @@ impl AdmittedEntryQualification {
         &self.domain
     }
 
-    pub const fn effective_carry(&self) -> omega_core::semantics::CarryPolicy {
+    pub const fn effective_carry(&self) -> psi_language_semantics::CarryPolicy {
         self.effective_carry
     }
 
@@ -1242,7 +1242,7 @@ pub struct ExternalRootResultClaim {
     pub provider_plan: ProviderPlanId,
     pub requirement_identity: String,
     pub domain: String,
-    pub effective_carry: omega_core::semantics::CarryPolicy,
+    pub effective_carry: psi_language_semantics::CarryPolicy,
 }
 
 /// Concrete result evidence minted only after the provider's exact transition
@@ -1252,7 +1252,7 @@ pub struct AdmittedResultQualification {
     pub provider_plan: ProviderPlanId,
     pub requirement_identity: String,
     pub domain: String,
-    pub effective_carry: omega_core::semantics::CarryPolicy,
+    pub effective_carry: psi_language_semantics::CarryPolicy,
     pub transition_receipt: InterruptMaskTransitionReceiptId,
     pub invocation: InterruptInvocationId,
     pub subject: AdmittedResultSubject,
@@ -2148,7 +2148,7 @@ impl InterruptAcknowledgement {
         requirement_identity: &str,
         parameter_index: usize,
         domain: &str,
-        effective_carry: omega_core::semantics::CarryPolicy,
+        effective_carry: psi_language_semantics::CarryPolicy,
     ) -> Result<&AdmittedEntryQualification, ExternalRootDiagnostic> {
         let matches = self
             .qualifications
@@ -3072,8 +3072,8 @@ impl Fnv1a {
     }
 }
 
-fn fingerprint_carry_policy(hash: &mut Fnv1a, policy: omega_core::semantics::CarryPolicy) {
-    use omega_core::semantics::{CarryAddress, CarryCpu, CarryHostThread, CarrySuspension};
+fn fingerprint_carry_policy(hash: &mut Fnv1a, policy: psi_language_semantics::CarryPolicy) {
+    use psi_language_semantics::{CarryAddress, CarryCpu, CarryHostThread, CarrySuspension};
 
     hash.u64(match policy.suspension {
         CarrySuspension::Forbidden => 0,
@@ -3466,14 +3466,14 @@ mod tests {
         candidate.entry_claims = vec![ExternalRootEntryClaim {
             parameter_index: 0,
             domain: "InterruptAcknowledgement::Pending".into(),
-            effective_carry: omega_core::semantics::CarryPolicy::STRICT,
+            effective_carry: psi_language_semantics::CarryPolicy::STRICT,
         }];
         candidate.acknowledgement_parameter_index = Some(0);
         candidate.interrupt_mask_guard_claim = Some(ExternalRootResultClaim {
             provider_plan: root_id(56, ProviderPlanId::from_normalized_identity),
             requirement_identity: "InterruptMaskControl::save_and_mask".into(),
             domain: "InterruptMaskGuard::Active".into(),
-            effective_carry: omega_core::semantics::CarryPolicy::STRICT,
+            effective_carry: psi_language_semantics::CarryPolicy::STRICT,
         });
         candidate.stack.realization = stack_demand(
             candidate.identity,
@@ -3567,7 +3567,7 @@ mod tests {
                 provider_plan: root_id(56, ProviderPlanId::from_normalized_identity),
                 requirement_identity: "InterruptMaskControl::save_and_mask".into(),
                 domain: "InterruptMaskGuard::Active".into(),
-                effective_carry: omega_core::semantics::CarryPolicy::STRICT,
+                effective_carry: psi_language_semantics::CarryPolicy::STRICT,
                 transition_receipt: root_id(
                     94,
                     InterruptMaskTransitionReceiptId::from_normalized_identity
@@ -3679,7 +3679,7 @@ mod tests {
         );
         assert_eq!(
             pending_qualification.effective_carry,
-            omega_core::semantics::CarryPolicy::STRICT
+            psi_language_semantics::CarryPolicy::STRICT
         );
         assert_eq!(
             pending_qualification.entry_receipt,
@@ -3697,42 +3697,42 @@ mod tests {
             "TimerRoot::tick",
             0,
             "InterruptAcknowledgement::Pending",
-            omega_core::semantics::CarryPolicy::STRICT,
+            psi_language_semantics::CarryPolicy::STRICT,
         ));
         assert!(!pending_qualification.matches_contract(
             root_id(56, ProviderPlanId::from_normalized_identity),
             "TimerRoot::tick",
             0,
             "InterruptAcknowledgement::Pending",
-            omega_core::semantics::CarryPolicy::STRICT,
+            psi_language_semantics::CarryPolicy::STRICT,
         ));
         assert!(!pending_qualification.matches_contract(
             root_id(55, ProviderPlanId::from_normalized_identity),
             "LookalikeRoot::tick",
             0,
             "InterruptAcknowledgement::Pending",
-            omega_core::semantics::CarryPolicy::STRICT,
+            psi_language_semantics::CarryPolicy::STRICT,
         ));
         assert!(!pending_qualification.matches_contract(
             root_id(55, ProviderPlanId::from_normalized_identity),
             "TimerRoot::tick",
             1,
             "InterruptAcknowledgement::Pending",
-            omega_core::semantics::CarryPolicy::STRICT,
+            psi_language_semantics::CarryPolicy::STRICT,
         ));
         assert!(!pending_qualification.matches_contract(
             root_id(55, ProviderPlanId::from_normalized_identity),
             "TimerRoot::tick",
             0,
             "InterruptAcknowledgement::Forged",
-            omega_core::semantics::CarryPolicy::STRICT,
+            psi_language_semantics::CarryPolicy::STRICT,
         ));
         assert!(!pending_qualification.matches_contract(
             root_id(55, ProviderPlanId::from_normalized_identity),
             "TimerRoot::tick",
             0,
             "InterruptAcknowledgement::Pending",
-            omega_core::semantics::CarryPolicy::PERMISSIVE,
+            psi_language_semantics::CarryPolicy::PERMISSIVE,
         ));
         assert_eq!(
             acknowledgement
@@ -3741,7 +3741,7 @@ mod tests {
                     "TimerRoot::tick",
                     0,
                     "InterruptAcknowledgement::Pending",
-                    omega_core::semantics::CarryPolicy::STRICT,
+                    psi_language_semantics::CarryPolicy::STRICT,
                 )
                 .expect("linear acknowledgement must resolve its exact accepted contract"),
             pending_qualification
@@ -3753,7 +3753,7 @@ mod tests {
                     "TimerRoot::tick",
                     0,
                     "InterruptAcknowledgement::Pending",
-                    omega_core::semantics::CarryPolicy::STRICT,
+                    psi_language_semantics::CarryPolicy::STRICT,
                 )
                 .expect_err("a different provider plan cannot reuse the occurrence")
                 .0

@@ -118,7 +118,7 @@ fn append_trivial_affine_drop_realizations(
         {
             if !matches!(
                 event.kind,
-                omega_core::semantics::PermissionEventKind::AffineDrop
+                psi_language_semantics::PermissionEventKind::AffineDrop
             ) || event.obligation_live
             {
                 continue;

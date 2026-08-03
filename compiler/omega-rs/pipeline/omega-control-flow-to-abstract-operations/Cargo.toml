@@ -32,3 +32,6 @@ omega-state-guards = { path = "../../backend/omega-state-guards" }
 omega-state-storage = { path = "../../backend/omega-state-storage" }
 omega-target = { path = "../../foundation/omega-target" }
 omega-target-operations = { path = "../../representations/omega-target-operations" }
+
+[dev-dependencies]
+psi-language-semantics = { path = "../../../psi-rs/foundation/psi-language-semantics" }
