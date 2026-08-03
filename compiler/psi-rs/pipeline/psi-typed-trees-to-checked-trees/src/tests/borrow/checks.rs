@@ -2550,6 +2550,32 @@ fn accepts_cross_state_static_aggregate_frontier_accumulation() {
 }
 
 #[test]
+fn accepts_cross_state_static_fixed_index_copy() {
+    let source = r#"
+        data Message {
+            body: &[u8];
+        }
+
+        data Main {
+            messages: [Message; 2];
+            copy: Message;
+        }
+
+        machine Main::store(&mut self) {
+            self.messages[1].body = "program static";
+            transition { _ -> copy_element() }
+
+            state copy_element(&mut self) {
+                self.copy = self.messages[1];
+            }
+        }
+    "#;
+
+    check_program(source)
+        .expect("a literal fixed-index path retains static provenance across states");
+}
+
+#[test]
 fn accepts_cross_state_static_leaf_across_disjoint_scalar_mutation() {
     let source = r#"
         data Message {
