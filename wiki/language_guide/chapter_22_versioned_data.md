@@ -175,6 +175,11 @@ cannot recreate such authority. An incomplete drain or a possible untracked
 opaque holder leaves the mapping reserved and
 unmapped/trapping until the containing execution domain retires. That
 quarantine detects stale entry; it does not discharge outstanding obligations.
+The installation carrier enforces this distinction directly: only proved
+quiescence returns reusable placement. Incomplete drain or possible opaque
+custody instead consumes the installed realization into a reserved trapping
+range, preserves the attributed reason and exact capacity loss, and can produce
+only a non-discharging stale-entry fault.
 
 Arena-backed pools, era ledgers, coexistence policy, migration graphs, and
 replacement orchestration are runtime/package concerns. Cathedral is the

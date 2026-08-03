@@ -202,6 +202,16 @@ stale entry but discharges no lock, claim, or protocol obligation. Repeated
 incomplete replacements consume reserved virtual-address capacity and report
 the attributed loss.
 
+Implementation status (2026-08-03): the executable-installation carrier now
+separates these terminal outcomes. A quiescence receipt consumes installed code
+and returns its placement for ordinary W+NX reuse. An exact quarantine receipt
+instead proves execute removal, unmapping/trapping, and continued reservation;
+it consumes the installation without returning placement, retains the admitted
+artifact and attributed incomplete-drain or opaque-holder cause, and reports
+the exact reserved extent as capacity loss. A stale-entry fault can be derived
+only for that installation and explicitly discharges no obligations. Concrete
+era entry accounting and wider-domain retirement policy remain runtime work.
+
 ## Claim custody and retention reporting
 
 Claim metadata separates historical origin from current custody. Origin remains

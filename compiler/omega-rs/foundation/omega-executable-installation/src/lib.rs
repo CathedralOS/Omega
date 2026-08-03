@@ -50,6 +50,7 @@ normalized_id!(FinalBytesId, "final-bytes");
 normalized_id!(FinalValidationId, "final-validation");
 normalized_id!(InstalledCodeId, "installed-code");
 normalized_id!(RetirementFactId, "retirement-fact");
+normalized_id!(MappingQuarantineId, "mapping-quarantine");
 normalized_id!(RelocationSetId, "relocation-set");
 normalized_id!(ProofPayloadId, "proof-payload");
 normalized_id!(InformationalSectionId, "informational-section");
@@ -57,10 +58,12 @@ normalized_id!(InformationalSectionId, "informational-section");
 mod container;
 mod container_bytes;
 mod materializer;
+mod replacement_quarantine;
 
 pub use container::*;
 pub use container_bytes::*;
 pub use materializer::*;
+pub use replacement_quarantine::*;
 
 #[derive(Debug, PartialEq, Eq)]
 struct ArtifactRecord {
@@ -2225,6 +2228,103 @@ mod tests {
             ),
         )
         .expect("placement reusable only after quiescent retirement");
+    }
+
+    #[test]
+    fn incomplete_drain_quarantines_capacity_without_returning_placement() {
+        let admitted = admit(&artifact(1));
+        let installed = installed_code(&admitted, 117, 0xe000);
+        let installed_identity = installed.identity();
+        let quarantine = id(401, MappingQuarantineId::from_normalized_identity);
+        let receipt = MappingQuarantineReceipt::from_provider(
+            &installed,
+            quarantine,
+            true,
+            true,
+            true,
+            MappingQuarantineCause::IncompleteDrain {
+                residual_authority_count: 2,
+            },
+        );
+
+        let quarantined = quarantine_installed(installed, receipt).expect("fail-closed quarantine");
+        assert_eq!(quarantined.installed_code(), installed_identity);
+        assert_eq!(quarantined.attributed_capacity_loss(), 4096);
+        assert!(matches!(
+            quarantined.cause(),
+            MappingQuarantineCause::IncompleteDrain {
+                residual_authority_count: 2
+            }
+        ));
+        let fault = quarantined
+            .stale_entry_fault(installed_identity)
+            .expect("stale entry names quarantined realization");
+        assert_eq!(fault.quarantine(), quarantine);
+        assert!(!fault.discharged_obligations());
+    }
+
+    #[test]
+    fn quarantine_requires_execute_removal_unmapping_and_reservation() {
+        let admitted = admit(&artifact(1));
+        let installed = installed_code(&admitted, 118, 0xf000);
+        let quarantine = id(402, MappingQuarantineId::from_normalized_identity);
+        let incomplete = MappingQuarantineReceipt::from_provider(
+            &installed,
+            quarantine,
+            true,
+            false,
+            true,
+            MappingQuarantineCause::PossibleOpaqueHolder {
+                provider_identity: "OpaqueCodec".into(),
+            },
+        );
+        let error = quarantine_installed(installed, incomplete)
+            .expect_err("still-mapped range cannot become quarantine");
+        assert!(error.diagnostic().0.contains("unmapped/trapping"));
+        let (installed, _) = (*error).into_parts();
+
+        let complete = MappingQuarantineReceipt::from_provider(
+            &installed,
+            quarantine,
+            true,
+            true,
+            true,
+            MappingQuarantineCause::PossibleOpaqueHolder {
+                provider_identity: "OpaqueCodec".into(),
+            },
+        );
+        let quarantined =
+            quarantine_installed(installed, complete).expect("opaque holder stays quarantined");
+        assert!(matches!(
+            quarantined.cause(),
+            MappingQuarantineCause::PossibleOpaqueHolder { provider_identity }
+                if provider_identity == "OpaqueCodec"
+        ));
+    }
+
+    #[test]
+    fn quarantine_fault_rejects_an_unrelated_installed_identity() {
+        let admitted = admit(&artifact(1));
+        let installed = installed_code(&admitted, 119, 0xc000);
+        let receipt = MappingQuarantineReceipt::from_provider(
+            &installed,
+            id(403, MappingQuarantineId::from_normalized_identity),
+            true,
+            true,
+            true,
+            MappingQuarantineCause::IncompleteDrain {
+                residual_authority_count: 1,
+            },
+        );
+        let quarantined = quarantine_installed(installed, receipt).expect("quarantined");
+        let unrelated = id(999, InstalledCodeId::from_normalized_identity);
+        assert!(
+            quarantined
+                .stale_entry_fault(unrelated)
+                .expect_err("unrelated identity is not this stale entry")
+                .0
+                .contains("does not name")
+        );
     }
 
     #[test]
