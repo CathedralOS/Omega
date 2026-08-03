@@ -847,7 +847,9 @@ Remaining:
   sends, and autorelease-pool push/pop. The mixed rectangle/image-size message
   forms retain their exact interleaved word/F64 signatures, while CGRect max-X
   and max-Y retain four-F64/F64 plans; AAPCS64 independently assigns their X
-  and V register streams from those selected shapes.
+  and V register streams from those selected shapes. The remaining scalar
+  Core Graphics rows now retain exact zero-/one-/two-/seven-word parameter
+  plans with their word or source-scratch results.
   The matching AArch64 direct-import composites now validate
   that same retained native signature and reject placement drift in lockstep
   with layout; Windows composites retain their independently normalized
