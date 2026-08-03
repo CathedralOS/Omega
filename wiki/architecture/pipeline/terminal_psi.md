@@ -294,6 +294,18 @@ represents that proposition. Composition through surrounding non-direct
 rewrites, sealed introduction and custody-exit frontier rows, and the general
 frontier theorem remain to land.
 
+Design block discovered by the first real-source integration attempt
+(2026-08-03): a direct partition wrapper has checked entry claim identities and
+an exact partition substitution, but correctly has no one-to-one identity
+reshuffles. Aggregate conservation does not establish that either input equals
+a particular output. Terminal v12 currently declares `input_claims` only by
+referencing `ContentIdentityReshuffle` rows and requires each derived entry
+projection to match one, which would force that stronger and potentially false
+equality. The producer must continue to fail closed. Before a content-bearing
+source canary lands, terminal Psi needs a versioned entry-claim binding that
+records claim, projection, algebra, and structural place without asserting an
+output equality, or an equivalent reviewed redesign of partition input claims.
+
 Correction checkpoint (2026-08-02): checked-to-terminal content production now
 lives in `psi-checked-trees-to-terminal`. It consumes Psi-owned checked facts;
 the v9-v12 terminal vocabulary, canonical codec, and verifier remain Psi-owned

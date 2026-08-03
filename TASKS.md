@@ -453,6 +453,18 @@ those rows remain absent until their actual checked proofs exist.
   around non-direct authored-partition calls, connect a real content-bearing
   source slice, insert sealed introduction and custody-exit rows, and discharge
   or admit the exact frontier theorem.
+- **TERMINAL-CONTENT-CLAIMS — BLOCKED on language/IR design:** a real direct
+  partition wrapper exposes a gap hidden by the synthetic terminal fixture.
+  Checked composition correctly carries distinct entry claim identities but no
+  identity reshuffles: aggregate conservation does not prove either input is
+  individually equal to one output. Terminal v12 can name an input claim only
+  through `ContentIdentityReshuffle`, and its verifier therefore requires the
+  stronger one-to-one equality. Do not synthesize that unsound evidence. Settle
+  and version an independent entry-claim binding (or enrich partition input
+  rows with claim, projection, algebra, and structural place without an output
+  equality) before adding the content-bearing source canary. This blocks only
+  source integration and the dependent frontier work; the Psi-owned checked
+  plan translators, canonical v9-v12 bytes, and verifier remain live.
   Contracts call the exact
   owner-unique `Content<A>::project` conformance machine; do not add
   `content(...)`, general `old(...)`, or `retired_via(...)`. Normalize one
