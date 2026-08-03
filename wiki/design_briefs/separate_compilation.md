@@ -171,6 +171,17 @@ An opaque process-static platform provider remains a deployment baseline rather
 than becoming private to either era; component-owned registrations and handles
 still receive complete disposition.
 
+Implementation status (2026-08-03): the live executable-TCB carrier accepts
+only manifests already sealed by their scope profile. It retains the
+process-static baseline separately from sorted exact component-era identities,
+unions equal executable subjects with source attribution, and preserves every
+source's original completeness and closure evidence. One incomplete source
+makes the live scope incomplete; no synthetic selected-provider closure
+identity is invented. A containment axis applies to a shared executable only
+when every contributing row retains independent evidence for that axis. Era
+removal remains unavailable until the concrete entry ledger can prove closing
+and quiescence.
+
 ## Opaque providers and mapping quarantine
 
 An uncontained opaque library private to a component defeats provable native

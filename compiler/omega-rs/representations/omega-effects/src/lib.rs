@@ -1,4 +1,5 @@
 mod capabilities;
+mod coexisting_executable_eras;
 mod executable_tcb_manifest;
 mod executable_tcb_profile;
 mod isolated_executable_scopes;
@@ -14,6 +15,11 @@ pub use capabilities::provider_approval::{
 pub use capabilities::provider_plan;
 pub use capabilities::providers::{
     BoundaryProvider, BoundaryProviderRegistry, build_provider_registry, validate_provider_bindings,
+};
+pub use coexisting_executable_eras::{
+    AdmittedExecutableEra, AttributedContainmentEvidence, AttributedManifestCompleteness,
+    CoexistingExecutableTcbEntry, CoexistingExecutableTcbReport, CoexistingExecutableTcbSet,
+    CoexistingScopeCompleteness, ExecutableManifestSource,
 };
 pub use executable_tcb_manifest::{
     ContainmentEvidence, ContainmentGuarantee, ExecutableEntryOrigin, ExecutableIdentity,
