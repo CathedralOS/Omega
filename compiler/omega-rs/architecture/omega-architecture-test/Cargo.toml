@@ -25,5 +25,6 @@ psi-syntax-trees = { path = "../../../psi-rs/representations/psi-syntax-trees" }
 psi-syntax-trees-to-symbol-resolved-trees = { path = "../../../psi-rs/pipeline/psi-syntax-trees-to-symbol-resolved-trees" }
 psi-tokens-to-syntax-trees = { path = "../../../psi-rs/pipeline/psi-tokens-to-syntax-trees" }
 psi-typed-trees = { path = "../../../psi-rs/representations/psi-typed-trees" }
+psi-typed-trees-to-checked-trees = { path = "../../../psi-rs/pipeline/psi-typed-trees-to-checked-trees" }
 psi-validation = { path = "../../../psi-rs/semantics/psi-validation" }
 serde_json = "1.0"

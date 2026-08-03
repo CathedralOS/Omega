@@ -131,6 +131,7 @@ dependencies = [
  "psi-syntax-trees-to-symbol-resolved-trees",
  "psi-tokens-to-syntax-trees",
  "psi-typed-trees",
+ "psi-typed-trees-to-checked-trees",
  "psi-validation",
  "serde_json",
 ]

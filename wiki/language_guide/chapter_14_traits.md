@@ -416,6 +416,13 @@ The coercion is an `as` operation: the compiler proves that the named
 conformance fits and packages the same referent with a statically selected
 table. It runs no user code and cannot fail.
 
+The checked implementation now retains the first selection rung for a direct
+place coercion bound to a borrowed local. A bare `&T as &dyn Trait` selects only
+when one complete nominal conformance is unique and records the exact data,
+trait, and optional named-conformance symbols for later descriptor lowering;
+missing or ambiguous selection rejects. Named coercion-path retention and the
+runtime table/adapter lowering are subsequent implementation rungs.
+
 The table is a private realization. Logical identity records the trait,
 selected conformance, and normalized contracts rather than a table address.
 Adding a conformance therefore does not change the layout of the concrete

@@ -86,6 +86,7 @@ use psi_diagnostics::Diagnostic;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::statement::{StatementNode, TransitionTargetNode};
 pub use result_overloads::resolve_named_result_overloads;
+pub use traits::{DynamicConformanceSelection, collect_dynamic_conformance_selections};
 pub use type_references::normalize_open_index_expressions;
 
 pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
@@ -149,6 +150,9 @@ fn validate_program_internal(
     content_conservation::validate_content_conservation_contracts(program, &mut diagnostics);
     qualification_evidence::validate_qualification_authorization(program, &mut diagnostics);
     validate_data_conformances(program, &symbols, &mut diagnostics);
+    if let Err(mut dynamic_diagnostics) = collect_dynamic_conformance_selections(program) {
+        diagnostics.append(&mut dynamic_diagnostics);
+    }
     validate_data_field_types(program, &symbols, &mut diagnostics);
     // Math roster N1: recursive data is legal and PROOF-ONLY (computed, never
     // spelled); every runtime consumption face refuses with the

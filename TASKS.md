@@ -1819,8 +1819,12 @@ move it to a convenience library.
   evidence rejects at the authored relationship. The Psi interpreter and
   native backend both carry a mutable generic receiver's exact
   caller-field base through receiverless helpers; the static-dispatch canary
-  runs without a dictionary in either engine. Dynamic coercion consumption of
-  the selected complete conformance remains.
+  runs without a dictionary in either engine. The first checked dynamic-
+  coercion selection rung is live for a direct place bound to a borrowed local:
+  a bare `&T as &dyn Trait` consumes the unique complete nominal conformance,
+  retains the exact data/trait/optional named-conformance symbols in checked
+  facts, and rejects missing or ambiguous conformances. Named coercion syntax,
+  the two-word descriptor, requirement adapters, and envelope inference remain.
   Local descriptors must not cross replaceable component boundaries. Add owned
   erased **runtime** values only after general storage ownership,
   size/alignment metadata, and cleanup contracts can support them; N6's

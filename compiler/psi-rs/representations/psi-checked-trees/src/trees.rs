@@ -1,7 +1,7 @@
 use crate::{
-    BorrowFacts, CarryFacts, CheckedOperatorFacts, CheckedValueFacts, DomainFacts, FlowFacts,
-    IndexCompatibilityFacts, InvariantFacts, MachineContractPlans, ProofFacts, QualificationFacts,
-    ServiceReachFacts, TerminationFacts,
+    BorrowFacts, CarryFacts, CheckedOperatorFacts, CheckedValueFacts, DomainFacts,
+    DynamicConformanceFacts, FlowFacts, IndexCompatibilityFacts, InvariantFacts,
+    MachineContractPlans, ProofFacts, QualificationFacts, ServiceReachFacts, TerminationFacts,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -12,6 +12,9 @@ pub struct CheckFacts {
     pub values: CheckedValueFacts,
     pub invariants: InvariantFacts,
     pub domains: DomainFacts,
+    /// Exact complete nominal conformance selected by each admitted local
+    /// dynamic coercion.
+    pub dynamic_conformances: DynamicConformanceFacts,
     pub operators: CheckedOperatorFacts,
     /// Grouped machine/state/call suspension and blocking inference.
     pub operational: psi_effects::OperationalPlan,
@@ -46,6 +49,7 @@ impl CheckFacts {
         values: CheckedValueFacts,
         invariants: InvariantFacts,
         domains: DomainFacts,
+        dynamic_conformances: DynamicConformanceFacts,
         operators: CheckedOperatorFacts,
         operational: psi_effects::OperationalPlan,
         capabilities: psi_effects::CapabilityFlowPlan,
@@ -64,6 +68,7 @@ impl CheckFacts {
             values,
             invariants,
             domains,
+            dynamic_conformances,
             operators,
             operational,
             capabilities,
