@@ -695,7 +695,10 @@ these are the actual external calls made by the runtime-text and process paths.
 Darwin's scalar libm cohort also carries typed plans: `_lround` retains its
 F64-to-I64 signature, while `_sqrt`, `_hypot`, and `_fma` retain one, two, and
 three F64 parameters respectively with an F64 result. Their vector argument and
-result placement is selected once at binding construction.
+result placement is selected once at binding construction. The Darwin time
+adapters retain exact scalar plans as well: `poll(NULL, 0, milliseconds)` has
+three word parameters and no consumed result, while each calibrated
+`clock_gettime_nsec_np(clockid)` read has one word parameter and one word result.
 Register-resident AArch64 C/import emission now also evaluates AAPCS64 from the
 selected operand shapes and passes the exact planned X/V argument and result
 registers to the ISA encoder. Scalar stack arguments and flat HFA arguments and
