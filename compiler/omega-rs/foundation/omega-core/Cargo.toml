@@ -12,5 +12,6 @@ path = "src/lib.rs"
 arc-swap = "1.7"
 psi-arena = { path = "../../../psi-rs/foundation/psi-arena" }
 psi-diagnostics = { path = "../../../psi-rs/foundation/psi-diagnostics" }
+psi-language-core = { path = "../../../psi-rs/foundation/psi-language-core" }
 psi-source = { path = "../../../psi-rs/foundation/psi-source" }
 psi-source-loader = { path = "../../../psi-rs/foundation/psi-source-loader" }

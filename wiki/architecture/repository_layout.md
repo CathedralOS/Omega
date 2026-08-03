@@ -58,6 +58,7 @@ Omega/
 |   |   |-- foundation/
 |   |   |   |-- [CRATE] psi-arena/                      # Typed arena storage for Psi source representations.
 |   |   |   |-- [CRATE] psi-diagnostics/                # Source diagnostics and phase-snapshot contracts.
+|   |   |   |-- [CRATE] psi-language-core/              # Target-neutral source-language vocabulary.
 |   |   |   |-- [CRATE] psi-source/                     # Loaded-source data and coordinates owned by the Psi frontend.
 |   |   |   |-- [CRATE] psi-source-loader/              # Root-file loading into Psi-owned source maps.
 |   |   |   `-- [CRATE] psi-core/                       # Stable semantic ids and typed proposition vocabulary.

@@ -25,6 +25,9 @@ source shape without turning nested syntax into scattered heap objects.
   for unmigrated frontend consumers.
 - `compiler/psi-rs/foundation/psi-diagnostics` owns the target-neutral
   `PhaseSnapshot` contract used to materialize readable source-shaped trees.
+- `compiler/psi-rs/foundation/psi-language-core` owns the grammar-facing
+  atomic-ordering plans, cast forms, and operator spelling. The corresponding
+  `omega-core` modules are compatibility exports during parser migration.
 - `parser.rs` owns public entrypoints and whole-file parse completion checks.
 - `parser/input.rs` owns token cursor movement, span mapping, and parser
   lookahead helpers.

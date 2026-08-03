@@ -17,6 +17,8 @@ Current roots:
   by Psi-owned source representations;
 - `foundation/psi-diagnostics`: target-neutral diagnostic values and phase
   snapshot contracts;
+- `foundation/psi-language-core`: target-neutral atomic-ordering, cast-form,
+  and operator-spelling vocabulary used by source representations;
 - `foundation/psi-source`: loaded-source records and maps, source identities,
   coordinates, and source-backed text shared by the Psi frontend and temporary
   Omega compatibility exports;
