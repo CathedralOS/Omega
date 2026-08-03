@@ -1211,9 +1211,12 @@ improvements do not change public identity.
   exact, producer-independent entry-to-return certificate for the current
   acyclic single path, keyed by canonical semantic identity, entry, return
   edge, and schedule; validation recomputes every field, and the source
-  canary's four-unit certificate equals measured usage. Build-time migration,
-  branch/loop and safe-point segment certificates, response outcomes,
-  provider-summary migration, and trusted native metering remain.
+  canary's four-unit certificate equals measured usage. Exact selected
+  block-to-edge segment certificates also recompute against that identity and
+  schedule, include the endpoint charge, and reject an edge not reached before
+  return. Semantic safe-point selection, build-time migration, branch/loop
+  certificates, response outcomes, provider-summary migration, and trusted
+  native metering remain.
 - **FFIVAL:** validate the settled boundary model before adding any new
   construct. The returned-custody-from-borrow rejection canary now lands
   through content-algebra facts. The provider-independent executor-selection

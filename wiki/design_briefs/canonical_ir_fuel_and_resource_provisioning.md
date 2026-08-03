@@ -128,8 +128,10 @@ in-memory execution state resumes at that exact site after checked allowance
 replenishment without replaying prior work. The current acyclic single-path
 vocabulary also has an exact entry-to-return certificate keyed by semantic
 identity, entry, return edge, and fuel schedule; consumers recompute every field
-without trusting the producer. Build-time migration, branch/loop/safe-point
-certificates, and native metering remain.
+without trusting the producer. The same checker now derives exact selected
+block-to-edge segment certificates, including the endpoint charge, so adjacent
+segments neither omit nor double-charge a jump. Semantic safe-point selection,
+build-time migration, branch/loop certificates, and native metering remain.
 
 ## Context
 

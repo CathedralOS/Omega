@@ -8,7 +8,10 @@ use psi_terminal::{
     TerminalMachine, TerminalModule, Terminator, ValueDeclaration,
 };
 use psi_terminal_codec::{CodecError, decode_module, encode_module, terminal_psi_identity};
-use psi_terminal_fixed_fuel::{FixedFuelError, derive_fixed_entry_fuel, validate_fixed_entry_fuel};
+use psi_terminal_fixed_fuel::{
+    FixedFuelError, derive_fixed_entry_fuel, derive_fixed_segment_fuel, validate_fixed_entry_fuel,
+    validate_fixed_segment_fuel,
+};
 use psi_terminal_verifier::{ObligationEvidence, ProofBundle, verify_module};
 
 #[test]
@@ -73,6 +76,45 @@ fn certificate_derivation_requires_canonical_semantic_identity() {
         Err(FixedFuelError::SemanticIdentity(
             CodecError::NonCanonicalOrder("blocks by BlockId")
         ))
+    );
+}
+
+#[test]
+fn selected_segments_include_their_exact_terminal_edge() {
+    let (module, proof) = fixture();
+    let verified = verify_module(&module, &proof, &AdmissionProfile::default()).unwrap();
+
+    let entry_to_jump =
+        derive_fixed_segment_fuel(&verified, machine_id(1), block_id(1), edge_id(1)).unwrap();
+    assert_eq!(
+        entry_to_jump.terminal_psi(),
+        terminal_psi_identity(&module).unwrap()
+    );
+    assert_eq!(entry_to_jump.schedule().schedule_version(), 1);
+    assert_eq!(entry_to_jump.machine(), machine_id(1));
+    assert_eq!(entry_to_jump.start_block(), block_id(1));
+    assert_eq!(entry_to_jump.end_edge(), edge_id(1));
+    assert!(entry_to_jump.relevant_preconditions().is_empty());
+    assert_eq!(entry_to_jump.ceiling_units(), 2);
+    validate_fixed_segment_fuel(&verified, &entry_to_jump).unwrap();
+
+    let jump_target_to_return =
+        derive_fixed_segment_fuel(&verified, machine_id(1), block_id(2), edge_id(2)).unwrap();
+    assert_eq!(jump_target_to_return.ceiling_units(), 1);
+    validate_fixed_segment_fuel(&verified, &jump_target_to_return).unwrap();
+}
+
+#[test]
+fn a_segment_cannot_cross_the_reached_return_to_find_an_unrelated_edge() {
+    let (module, proof) = fixture();
+    let verified = verify_module(&module, &proof, &AdmissionProfile::default()).unwrap();
+
+    assert_eq!(
+        derive_fixed_segment_fuel(&verified, machine_id(1), block_id(2), edge_id(1)),
+        Err(FixedFuelError::SegmentEndNotReached {
+            requested: edge_id(1),
+            reached_return: edge_id(2),
+        })
     );
 }
 
