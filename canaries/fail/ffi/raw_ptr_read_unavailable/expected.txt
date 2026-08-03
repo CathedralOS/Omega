@@ -1,0 +1,1 @@
+machine `read_raw` state `entry`: value call `Ptr.read(..)` does not resolve to any machine state, attached machine, platform state, or boundary-trait method -- it would silently bind 0 (ZII) at runtime. Check the receiver and method names.

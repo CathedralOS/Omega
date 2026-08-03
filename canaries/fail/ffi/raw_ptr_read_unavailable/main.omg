@@ -1,0 +1,14 @@
+// A raw Ptr<T> is an inert ABI carrier. Possession of it does not establish a
+// readable view, so core deliberately publishes no Ptr::read operation.
+
+use omega::language::core::ptr;
+
+machine read_raw(ptr: Ptr<u8>) -> u8 {
+    Ptr::read(ptr)
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

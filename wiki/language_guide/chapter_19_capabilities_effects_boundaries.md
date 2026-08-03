@@ -1067,6 +1067,12 @@ and when it returns. A selected provider era is retained only by values whose
 meaning depends on that exact era; a rebindable service binding names a slot
 and creates no old-era pin.
 
+Accordingly, core does not publish raw `Ptr::read` or `Ptr::write` operations.
+Pointer offset/range primitives transform an inert carrier only. A
+`PointerAccess` provider category is reserved for authority-bearing view
+implementations; registering such a provider never turns possession of a raw
+pointer into access authority.
+
 The rule is one test: when the semantic type determines the ABI, the policy may
 classify it; when ABI facts remain choices, the leaf must declare them. A custom
 `Calling<C>` policy may explicitly publish a canonical descriptor ABI, but the
