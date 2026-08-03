@@ -424,8 +424,12 @@ missing or ambiguous selection rejects. Exact `&dyn Type::Conformance`
 coercion targets now retain that path through parsing, resolved and typed
 identity, derive the dynamic trait from the named declaration, and consume its
 stable child symbol during checked selection. Unknown paths and paths belonging
-to a different source carrier reject. Runtime table/adapter lowering remains a
-subsequent implementation rung.
+to a different source carrier reject. Omega now owns a distinct target ABI view
+for the two-word `{ instance, selected-conformance table }` carrier and retains
+the trait plus authored named selection in physical layout descriptors; it no
+longer models the second word as a slice length. Descriptor materialization,
+private table emission, and adapter lowering remain subsequent implementation
+rungs.
 
 The table is a private realization. Logical identity records the trait,
 selected conformance, and normalized contracts rather than a table address.
