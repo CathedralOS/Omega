@@ -153,6 +153,18 @@ fn named_whole_trait_conformance_survives_typing() {
         conformance.alias.as_ref().map(|alias| alias.as_str()),
         Some("Primary")
     );
+    assert!(conformance.symbol.is_valid());
+    assert_eq!(
+        typed.symbols.get(conformance.symbol).kind,
+        psi_symbols::SymbolKind::Conformance
+    );
+    assert_eq!(typed.symbols.name(conformance.symbol), "Primary");
+    assert_eq!(
+        typed
+            .symbols
+            .name(typed.symbols.get(conformance.symbol).parent),
+        "Item"
+    );
     validate_program(&typed).expect("one named conformance should validate");
 }
 

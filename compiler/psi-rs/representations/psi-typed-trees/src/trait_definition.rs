@@ -35,6 +35,7 @@ impl Default for TraitDefinition {
 /// validation checks its written/default attached machines.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DataConformance {
+    pub symbol: SymbolHandle,
     pub type_name: Identifier,
     pub trait_name: Identifier,
     pub arguments: HandleSpan<crate::types::TypeReferenceHandle>,

@@ -90,4 +90,29 @@ pub(super) fn assign_data_symbols(
                 }
             }
         });
+
+    let assigned_conformances = program
+        .conformances
+        .iter()
+        .map(|conformance| {
+            let alias = conformance.alias.as_ref()?;
+            let data_symbol = program
+                .data_definitions
+                .iter()
+                .find(|definition| definition.name == conformance.type_name)
+                .map(|definition| definition.symbol)?;
+            symbols.find_child_by_name_and_kind(
+                data_symbol,
+                alias.as_str(),
+                SymbolKind::Conformance,
+            )
+        })
+        .collect::<Vec<_>>();
+    let mut assigned_conformances = assigned_conformances.into_iter();
+    program.conformances.for_each_mut(|conformance| {
+        conformance.symbol = assigned_conformances
+            .next()
+            .flatten()
+            .unwrap_or_else(SymbolHandle::invalid);
+    });
 }
