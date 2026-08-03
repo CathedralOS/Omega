@@ -690,7 +690,7 @@ syscall plan, while `Process::exit_group` carries its one-word/no-result plan.
 No composite or terminal process path needs to rediscover those fixed external
 signatures from the target architecture. The direct Darwin libc rows retain
 the corresponding three-word/result AAPCS64 plans for `_read` and `_write`,
-and the one-word/no-result plan for `_exit`; unlike Windows' composite adapter,
+and the exact I32/no-result plan for `_exit`; unlike Windows' composite adapter,
 these are the actual external calls made by the runtime-text and process paths.
 Darwin's scalar libm cohort also carries typed plans: `_lround` retains its
 F64-to-I64 signature, while `_sqrt`, `_hypot`, and `_fma` retain one, two, and
