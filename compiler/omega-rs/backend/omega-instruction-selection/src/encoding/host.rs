@@ -2058,6 +2058,16 @@ mod compatibility_encoder_differential_tests {
         }
     }
 
+    fn float(byte_offset: usize) -> TargetInstructionOperand {
+        TargetInstructionOperand {
+            kind: TargetInstructionOperandKind::RuntimeScalarFloat {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset,
+                byte_count: 8,
+            },
+        }
+    }
+
     fn plan(target: NativeTarget, parameter_count: usize, result_present: bool) -> CallPlan {
         evaluate_call_plan(
             CallingPolicy::native_for_target(target),
@@ -2259,6 +2269,130 @@ mod compatibility_encoder_differential_tests {
                 "operand {operand_index}"
             );
         }
+    }
+
+    #[test]
+    fn specialized_built_in_imports_equal_their_explicit_native_plans() {
+        let void_operands = [scalar(8)];
+        for (target, operation) in [
+            (
+                NativeTarget::windows_x64(),
+                HostOperationKey::from_names("Process", "exit_process"),
+            ),
+            (
+                NativeTarget::macos_arm64(),
+                HostOperationKey::from_names("Process", "exit"),
+            ),
+        ] {
+            let plan = plan(target, 1, false);
+            assert_eq!(
+                encode_host_call_sequence(target, operation, &void_operands)
+                    .expect("compatibility void import"),
+                encode_host_call_sequence_with_plan(
+                    target,
+                    operation,
+                    &void_operands,
+                    Some(&plan),
+                )
+                .expect("planned void import"),
+                "void target {target:?}"
+            );
+            assert_eq!(
+                crate::host_call_sequence_width(target, operation, &void_operands),
+                crate::host_call_sequence_width_with_plan(
+                    target,
+                    operation,
+                    &void_operands,
+                    Some(&plan),
+                ),
+                "void width target {target:?}"
+            );
+        }
+
+        let result_only = [scalar(0)];
+        let dereference = HostOperationKey::from_names("Filesystem", "read_errno");
+        for target in [NativeTarget::windows_x64(), NativeTarget::macos_arm64()] {
+            let plan = plan(target, 0, true);
+            assert_eq!(
+                encode_host_call_sequence(target, dereference, &result_only)
+                    .expect("compatibility pointer-dereference import"),
+                encode_host_call_sequence_with_plan(
+                    target,
+                    dereference,
+                    &result_only,
+                    Some(&plan),
+                )
+                .expect("planned pointer-dereference import"),
+                "dereference target {target:?}"
+            );
+            assert_eq!(
+                crate::host_call_sequence_width(target, dereference, &result_only),
+                crate::host_call_sequence_width_with_plan(
+                    target,
+                    dereference,
+                    &result_only,
+                    Some(&plan),
+                ),
+                "dereference width target {target:?}"
+            );
+        }
+
+        let key_operands = [scalar(0), scalar(8)];
+        let key_target = NativeTarget::windows_x64();
+        let key_operation = HostOperationKey::from_names("Input", "key_state");
+        let key_plan = plan(key_target, 1, true);
+        assert_eq!(
+            encode_host_call_sequence(key_target, key_operation, &key_operands)
+                .expect("compatibility key-state import"),
+            encode_host_call_sequence_with_plan(
+                key_target,
+                key_operation,
+                &key_operands,
+                Some(&key_plan),
+            )
+            .expect("planned key-state import")
+        );
+        assert_eq!(
+            crate::host_call_sequence_width(key_target, key_operation, &key_operands),
+            crate::host_call_sequence_width_with_plan(
+                key_target,
+                key_operation,
+                &key_operands,
+                Some(&key_plan),
+            )
+        );
+
+        let float_operands = [scalar(0), float(8)];
+        let float_target = NativeTarget::macos_arm64();
+        let float_operation = HostOperationKey::from_names("Math", "square_root");
+        let float_plan = evaluate_call_plan(
+            CallingPolicy::Aapcs64,
+            &CallSignature {
+                parameters: vec![ValueShape::float(8)],
+                result: Some(ValueShape::float(8)),
+            },
+        )
+        .expect("AAPCS64 float import plan");
+        assert_eq!(
+            encode_host_call_sequence(float_target, float_operation, &float_operands)
+                .expect("compatibility float import"),
+            encode_host_call_sequence_with_plan(
+                float_target,
+                float_operation,
+                &float_operands,
+                Some(&float_plan),
+            )
+            .expect("planned float import")
+        );
+        assert_eq!(
+            crate::host_call_sequence_width(float_target, float_operation, &float_operands),
+            crate::host_call_sequence_width_with_plan(
+                float_target,
+                float_operation,
+                &float_operands,
+                Some(&float_plan),
+            )
+        );
     }
 }
 

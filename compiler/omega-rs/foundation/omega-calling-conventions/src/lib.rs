@@ -128,25 +128,6 @@ impl HostOperationKey {
     /// add is AFTER it) so the external-call relocation adds 8. The `mode` must be
     /// an immediate (no relocation of its own). MUST stay in lockstep across those
     /// three sites + the encoder.
-    /// Whether this op's callee writes its u64 result THROUGH AN OUT-POINTER
-    /// argument rather than returning it: windows `QueryPerformanceCounter`/
-    /// `QueryPerformanceFrequency`/`GetSystemTimePreciseAsFileTime` all take
-    /// `&u64` and return a status the seam ignores. The x86_64 lowering
-    /// brackets the call with a 16-byte stack extension: `lea rcx,[rsp+40]`
-    /// before the call and `mov rax,[rsp+40]` after it, then the normal
-    /// store-rax tail. The x86_64 width/relocation functions live in the same
-    /// crate as the encoder (omega-isa-x86_64) and are parameterized together;
-    /// aarch64 does not use this shape (darwin's `_nsec_np` returns directly).
-    pub fn writes_result_through_out_pointer(self) -> bool {
-        matches!(self.capability, HostCapability::Clock)
-            && matches!(
-                self.operation,
-                HostOperation::MonotonicTicks
-                    | HostOperation::MonotonicTicksPerSecond
-                    | HostOperation::WallClockRaw
-            )
-    }
-
     /// Whether a Linux syscall binding returns a semantic nanosecond clock
     /// value through a caller-owned `timespec` rather than directly in the
     /// syscall result register. The composite lowering owns the temporary,
@@ -620,8 +601,7 @@ pub enum HostOperation {
     SleepPoll,
     TickCount,
     /// std::time monotonic source (TimeHost seam, TASKS_TIME.md rung 5).
-    /// windows: `QueryPerformanceCounter(&ticks)` -- an OUT-PARAM u64 (see
-    /// `writes_result_through_out_pointer`); darwin (later):
+    /// windows: `QueryPerformanceCounter(&ticks)` -- an OUT-PARAM u64; darwin:
     /// `clock_gettime_nsec_np(CLOCK_UPTIME_RAW)` returns the u64 directly.
     MonotonicTicks,
     /// Ticks-per-second calibration for `MonotonicTicks`. windows:
