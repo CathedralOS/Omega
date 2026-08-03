@@ -9,7 +9,7 @@
 
 use omega_checked_trees::{
     CheckFacts, ContentIdentityReshuffleFact, ContentPartitionCompositionFact,
-    FlowClaimOutcomeSource,
+    ContentPartitionPlaceSubstitution, FlowClaimOutcomeSource,
 };
 use omega_core::content::{
     ContentCaseSegment, ContentConservationEquation, ContentConservationOwnerKind,
@@ -207,6 +207,7 @@ enum DirectReturnedInvocationForm {
 struct PartitionCompositionEvidence {
     call_ordinal: Option<usize>,
     input_claim_identities: Vec<PermissionClaimIdentity>,
+    substitutions: Vec<ContentPartitionPlaceSubstitution>,
     observed_entry_projection: bool,
 }
 
@@ -427,6 +428,13 @@ fn instantiate_partition_wrapper(
         .input_claim_identities
         .sort_by_key(|identity| format!("{identity:?}"));
     evidence.input_claim_identities.dedup();
+    evidence.substitutions.sort_by_key(|substitution| {
+        (
+            format!("{:?}", substitution.source),
+            format!("{:?}", substitution.target),
+        )
+    });
+    evidence.substitutions.dedup();
     let equation = ContentConservationEquation::new(left, right);
     let fingerprint = conservation_fingerprint(&source.algebra, &equation);
     let plan = ContentConservationPlan {
@@ -442,9 +450,11 @@ fn instantiate_partition_wrapper(
         state_symbol: state.symbol,
         source_callable: source.callable,
         source_fingerprint: source.fingerprint,
+        source_plan: source.clone(),
         statement_index: invocation.statement_index,
         call_ordinal,
         input_claim_identities: evidence.input_claim_identities,
+        substitutions: evidence.substitutions,
         plan,
     })
 }
@@ -567,8 +577,8 @@ fn instantiate_partition_subject(
     subject: &ContentStructuralPlace,
     evidence: &mut PartitionCompositionEvidence,
 ) -> Option<ContentStructuralPlace> {
-    match (&subject.root, subject.version) {
-        (ContentPlaceRoot::Result, ContentPlaceVersion::Current) => Some(subject.clone()),
+    let target = match (&subject.root, subject.version) {
+        (ContentPlaceRoot::Result, ContentPlaceVersion::Current) => subject.clone(),
         (
             ContentPlaceRoot::Parameter {
                 position, symbol, ..
@@ -649,7 +659,7 @@ fn instantiate_partition_subject(
                 return None;
             }
             evidence.input_claim_identities.push(claim_identity);
-            Some(ContentStructuralPlace {
+            ContentStructuralPlace {
                 version: ContentPlaceVersion::Entry,
                 root: ContentPlaceRoot::Parameter {
                     position: u32::try_from(caller_position).ok()?,
@@ -658,10 +668,27 @@ fn instantiate_partition_subject(
                     is_self: caller_parameter.is_self,
                 },
                 segments: content_path(program, &actual.segments)?,
-            })
+            }
         }
-        _ => None,
+        _ => return None,
+    };
+    if let Some(previous) = evidence
+        .substitutions
+        .iter()
+        .find(|substitution| substitution.source == *subject)
+    {
+        if previous.target != target {
+            return None;
+        }
+    } else {
+        evidence
+            .substitutions
+            .push(ContentPartitionPlaceSubstitution {
+                source: subject.clone(),
+                target: target.clone(),
+            });
     }
+    Some(target)
 }
 
 fn argument_for_target_parameter(

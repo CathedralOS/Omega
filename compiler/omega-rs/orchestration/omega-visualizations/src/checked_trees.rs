@@ -577,6 +577,22 @@ pub fn claim_outcome_manifest_json(program: &CheckedTrees) -> String {
         push_json_string(&mut json, &symbol_label(program, row.source_callable));
         json.push_str(",\n      \"source_fingerprint\": ");
         push_json_string(&mut json, &format!("0x{:016x}", row.source_fingerprint));
+        json.push_str(",\n      \"source_equation\": {\"left\": ");
+        push_content_conservation_term_json(&mut json, program, row.source_plan.equation.left());
+        json.push_str(", \"right\": ");
+        push_content_conservation_term_json(&mut json, program, row.source_plan.equation.right());
+        json.push_str("},\n      \"substitutions\": [");
+        for (substitution_index, substitution) in row.substitutions.iter().enumerate() {
+            if substitution_index > 0 {
+                json.push_str(", ");
+            }
+            json.push_str("{\"source\": ");
+            push_content_structural_place_json(&mut json, &substitution.source);
+            json.push_str(", \"target\": ");
+            push_content_structural_place_json(&mut json, &substitution.target);
+            json.push('}');
+        }
+        json.push(']');
         json.push_str(",\n      \"call\": {\"statement_index\": ");
         json.push_str(&row.statement_index.to_string());
         json.push_str(", \"call_ordinal\": ");
@@ -757,9 +773,7 @@ fn push_content_conservation_term_json(
     program: &CheckedTrees,
     term: &omega_core::content::ContentConservationTerm,
 ) {
-    use omega_core::content::{
-        ContentConservationTerm, ContentPlaceRoot, ContentPlaceSegment, ContentPlaceVersion,
-    };
+    use omega_core::content::ContentConservationTerm;
 
     match term {
         ContentConservationTerm::Projection {
@@ -780,56 +794,9 @@ fn push_content_conservation_term_json(
             );
             json.push_str(", \"projection_fingerprint\": ");
             push_json_string(json, &format!("0x{projection_fingerprint:016x}"));
-            json.push_str(", \"place\": {\"version\": ");
-            push_json_string(
-                json,
-                match subject.version {
-                    ContentPlaceVersion::Entry => "entry",
-                    ContentPlaceVersion::Current => "current",
-                },
-            );
-            json.push_str(", \"root\": ");
-            match &subject.root {
-                ContentPlaceRoot::Parameter {
-                    position,
-                    name,
-                    is_self,
-                    ..
-                } => {
-                    json.push_str("{\"kind\": ");
-                    push_json_string(json, if *is_self { "self" } else { "parameter" });
-                    json.push_str(", \"position\": ");
-                    json.push_str(&position.to_string());
-                    json.push_str(", \"name\": ");
-                    push_json_string(json, name);
-                    json.push('}');
-                }
-                ContentPlaceRoot::Result => json.push_str("{\"kind\": \"result\"}"),
-            }
-            json.push_str(", \"path\": [");
-            for (index, segment) in subject.segments.iter().enumerate() {
-                if index > 0 {
-                    json.push_str(", ");
-                }
-                match segment {
-                    ContentPlaceSegment::Case(case) => {
-                        json.push_str("{\"kind\": \"case\", \"name\": ");
-                        push_json_string(json, &case.name);
-                        json.push('}');
-                    }
-                    ContentPlaceSegment::Field(field) => {
-                        json.push_str("{\"kind\": \"field\", \"name\": ");
-                        push_json_string(json, &field.name);
-                        json.push('}');
-                    }
-                    ContentPlaceSegment::FixedIndex(index) => {
-                        json.push_str("{\"kind\": \"fixed_index\", \"index\": ");
-                        json.push_str(&index.to_string());
-                        json.push('}');
-                    }
-                }
-            }
-            json.push_str("]}}");
+            json.push_str(", \"place\": ");
+            push_content_structural_place_json(json, subject);
+            json.push('}');
         }
         ContentConservationTerm::Separate(terms) => {
             json.push_str("{\"kind\": \"separate\", \"terms\": [");
@@ -842,6 +809,64 @@ fn push_content_conservation_term_json(
             json.push_str("]}");
         }
     }
+}
+
+fn push_content_structural_place_json(
+    json: &mut String,
+    subject: &omega_core::content::ContentStructuralPlace,
+) {
+    use omega_core::content::{ContentPlaceRoot, ContentPlaceSegment, ContentPlaceVersion};
+
+    json.push_str("{\"version\": ");
+    push_json_string(
+        json,
+        match subject.version {
+            ContentPlaceVersion::Entry => "entry",
+            ContentPlaceVersion::Current => "current",
+        },
+    );
+    json.push_str(", \"root\": ");
+    match &subject.root {
+        ContentPlaceRoot::Parameter {
+            position,
+            name,
+            is_self,
+            ..
+        } => {
+            json.push_str("{\"kind\": ");
+            push_json_string(json, if *is_self { "self" } else { "parameter" });
+            json.push_str(", \"position\": ");
+            json.push_str(&position.to_string());
+            json.push_str(", \"name\": ");
+            push_json_string(json, name);
+            json.push('}');
+        }
+        ContentPlaceRoot::Result => json.push_str("{\"kind\": \"result\"}"),
+    }
+    json.push_str(", \"path\": [");
+    for (index, segment) in subject.segments.iter().enumerate() {
+        if index > 0 {
+            json.push_str(", ");
+        }
+        match segment {
+            ContentPlaceSegment::Case(case) => {
+                json.push_str("{\"kind\": \"case\", \"name\": ");
+                push_json_string(json, &case.name);
+                json.push('}');
+            }
+            ContentPlaceSegment::Field(field) => {
+                json.push_str("{\"kind\": \"field\", \"name\": ");
+                push_json_string(json, &field.name);
+                json.push('}');
+            }
+            ContentPlaceSegment::FixedIndex(index) => {
+                json.push_str("{\"kind\": \"fixed_index\", \"index\": ");
+                json.push_str(&index.to_string());
+                json.push('}');
+            }
+        }
+    }
+    json.push_str("]}");
 }
 
 fn push_claim_outcome_source_json(
@@ -2587,9 +2612,9 @@ mod tests {
     };
     use omega_checked_trees::{
         CheckedTrees, ClaimCarryPolicyFact, ContentIdentityReshuffleFact,
-        ContentPartitionCompositionFact, DataCarryFact, FlowClaimOutcomeEntryFact,
-        FlowClaimOutcomeMapFact, FlowClaimOutcomeSource, MachineActivationCarryFact,
-        MachineContractPlan, MachineTerminationFact,
+        ContentPartitionCompositionFact, ContentPartitionPlaceSubstitution, DataCarryFact,
+        FlowClaimOutcomeEntryFact, FlowClaimOutcomeMapFact, FlowClaimOutcomeSource,
+        MachineActivationCarryFact, MachineContractPlan, MachineTerminationFact,
     };
     use omega_core::content::{
         ContentAlgebraIdentity, ContentArithmeticOperator, ContentConservationEquation,
@@ -2723,6 +2748,30 @@ mod tests {
         let algebra = ContentAlgebraIdentity::CountedQuantity {
             unit: "named(name(ByteUnit))".to_owned(),
         };
+        let ContentConservationTerm::Projection {
+            subject: input_subject,
+            ..
+        } = &input
+        else {
+            unreachable!("fixture input is a projection")
+        };
+        let ContentConservationTerm::Projection {
+            subject: output_subject,
+            ..
+        } = &output
+        else {
+            unreachable!("fixture output is a projection")
+        };
+        let substitutions = vec![
+            ContentPartitionPlaceSubstitution {
+                source: input_subject.clone(),
+                target: input_subject.clone(),
+            },
+            ContentPartitionPlaceSubstitution {
+                source: output_subject.clone(),
+                target: output_subject.clone(),
+            },
+        ];
         let equation = ContentConservationEquation::new(input, output);
         let fingerprint = conservation_fingerprint(&algebra, &equation);
         let plan = ContentConservationPlan {
@@ -2761,7 +2810,8 @@ mod tests {
                 machine_symbol: SymbolHandle::invalid(),
                 state_symbol: SymbolHandle::invalid(),
                 source_callable: SymbolHandle::invalid(),
-                source_fingerprint: 0xfeed_face_dead_beef,
+                source_fingerprint: plan.fingerprint,
+                source_plan: plan.clone(),
                 statement_index: 4,
                 call_ordinal: 2,
                 input_claim_identities: vec![
@@ -2772,6 +2822,7 @@ mod tests {
                         ordinal: 11,
                     },
                 ],
+                substitutions,
                 plan,
             });
 
@@ -2789,7 +2840,8 @@ mod tests {
         assert!(json.contains("\"content_projections\""));
         assert!(json.contains("\"content_identity_reshuffles\": [\n    {"));
         assert!(json.contains("\"content_partition_compositions\": [\n    {"));
-        assert!(json.contains("\"source_fingerprint\": \"0xfeedfacedeadbeef\""));
+        assert!(json.contains("\"source_equation\": {\"left\":"));
+        assert!(json.contains("\"substitutions\": [{\"source\": {\"version\": \"entry\""));
         assert!(json.contains("\"call\": {\"statement_index\": 4, \"call_ordinal\": 2}"));
         assert!(json.contains("\"input_claim_identities\": [{\"kind\": \"established\""));
         assert!(json.contains("\"ordinal\": 11"));

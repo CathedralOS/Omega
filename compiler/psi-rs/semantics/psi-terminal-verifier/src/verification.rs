@@ -132,6 +132,12 @@ fn reconstruct_semantic_axioms(machine: &TerminalMachine) -> Vec<Proposition> {
         .iter()
         .flat_map(|reshuffle| reshuffle.inferred_propositions())
         .collect::<Vec<_>>();
+    axioms.extend(
+        machine
+            .content_partition_compositions
+            .iter()
+            .map(|composition| composition.inferred_proposition()),
+    );
     let mut current = machine.entry;
     loop {
         let block = blocks

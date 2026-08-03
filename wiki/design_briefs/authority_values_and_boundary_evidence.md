@@ -193,9 +193,12 @@ partition theorem only when every source entry projection binds to an exact
 caller-entry claim transferred into that call. The derivation retains the source
 fingerprint, call site, input claim identities, and substituted equation, while
 preserving rather than creating the theorem's `separate(...)` tree. General
-composition through surrounding structural rewrites, terminal-Psi
-partition-composition vocabulary, and sealed frontier rows remain implementation
-work.
+composition through surrounding structural rewrites and sealed frontier rows
+remain implementation work. Terminal semantic v12 now retains the exact source
+theorem, its fingerprint, dense input-claim references, the total place
+substitution, and the derived equation. The verifier binds every substituted
+entry projection to a listed identity-reshuffle claim, replays the substitution,
+and exposes only the replayed theorem as a semantic axiom.
 
 ### Content-bearing claims
 
@@ -268,8 +271,10 @@ sum-case segments, so active payload paths retain case-plus-field identity
 without exporting arena-local symbols. Checked facts additionally retain exact
 direct-wrapper instantiations of authored partition equations with their source
 theorem, call, and transfer-stable input claims. Composition through non-direct
-rewrites, terminal partition-composition evidence, sealed introduction/custody-
-exit rows, and frontier discharge remain subsequent work.
+rewrites, sealed introduction/custody-exit rows, and frontier discharge remain
+subsequent work. Terminal semantic v12 carries each direct instantiation as an
+exact source-to-derived place substitution and rejects theorem-shape, algebra,
+claim-binding, or substitution drift before reconstructing the result.
 
 An address interval-set member uses embedded arithmetic rather than wrapping
 runtime `addr` arithmetic. Its half-open end may equal the address-space bound

@@ -642,6 +642,7 @@ fn semantic_module() -> TerminalModule {
             },
             structural_places: Vec::new(),
             content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
             entry: block_id(1),
             blocks: vec![Block {
                 id: block_id(1),
