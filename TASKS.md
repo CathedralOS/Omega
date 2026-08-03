@@ -877,6 +877,9 @@ Remaining:
   rather than ABI type, and the retained result shape selects the actual store
   width. The creating `open` row retains its concrete Apple variadic plan and
   rejects loss of the fixed/anonymous parameter boundary.
+  Checked AArch64 scalar arguments likewise take their exact retained parameter
+  shape at the ABI seam when compiler scratch has greater capacity; a wider
+  internal slot no longer overrides a proved-safe narrower call type.
   Windows' parameter-free `GetTickCount64`, `GetForegroundWindow`, `_errno`,
   and `GetLastError` rows now retain exact Microsoft x64 result plans.
   The matching AArch64 direct-import composites now validate
@@ -1628,7 +1631,11 @@ and allocation handles expose no compiler-owned stack/control storage.
   `0x8b87625fd5e9f1b7`. Each identity binds the family's six exact selected plans,
   binary32/binary64 rounding edges, all three directions, control-state
   restoration, interpreter/native results, and Linux x86-64/AArch64 cross-build
-  results. The directed-FMA slice separately retains
+  results. The nearest-even FMA slice separately retains
+  `omega.float.hardware.macos_arm64.nearest-fma.v1` /
+  `0xa1b8c9cb16855a61`, binding its two exact plans to binary32/binary64
+  cancellation edges, one fused rounding, interpreter/native results, and Linux
+  AArch64 cross-build success. The directed-FMA slice retains
   `omega.float.hardware.macos_arm64.directed-fma.v1` /
   `0x75be2c4963f3f15a`, binding its six exact plans to binary32/binary64 half-ULP
   edges, all three directions, one fused rounding, control-state restoration,
