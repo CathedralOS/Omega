@@ -66,14 +66,15 @@ fn validate_boundary_providers(
 fn extract_external_binding_rows(
     syntax_trees: &psi_syntax_trees::SyntaxTrees,
     selected_target: Option<&str>,
+    native_target: omega_target::NativeTarget,
     selected_plan_names: &[String],
     provider_plans: &[omega_effects::provider_plan::ProviderPlan],
     boundary_calling_plan_realizations: &[
         crate::pipeline::calling_policy_plans::BoundaryCallingPlanRealization
     ],
     typed: &psi_typed_trees::TypedTrees,
-) -> Vec<omega_calling_conventions::ExternalBindingRow> {
-    use omega_calling_conventions::{ExternalBindingKind, ExternalBindingRow};
+) -> Result<Vec<omega_calling_conventions::ExternalBindingRow>, Vec<Diagnostic>> {
+    use omega_calling_conventions::{CallingPolicy, ExternalBindingKind, ExternalBindingRow};
 
     let mut rows = Vec::new();
     // A bodyless
@@ -144,6 +145,48 @@ fn extract_external_binding_rows(
                     clause.trait_name.as_str(),
                     requirement.as_str(),
                 );
+            let boundary_entry_plan = selected_source_boundary_entry_plan(
+                typed,
+                provider_plans,
+                selected_plan_names,
+                boundary_calling_plan_realizations,
+                &plan_name,
+                clause.trait_name.as_str(),
+                requirement.as_str(),
+                &requirement_identity,
+            );
+            let compatibility_policy = match &binding {
+                ExternalBindingKind::CompilerIntrinsic { .. } => None,
+                ExternalBindingKind::Syscall { .. } => {
+                    match (native_target.object_format, native_target.architecture) {
+                        (omega_target::ObjectFormat::Elf, omega_target::Architecture::X86_64) => {
+                            Some(CallingPolicy::LinuxSyscallX86_64)
+                        }
+                        (omega_target::ObjectFormat::Elf, omega_target::Architecture::Aarch64) => {
+                            Some(CallingPolicy::LinuxSyscallAarch64)
+                        }
+                        _ => None,
+                    }
+                }
+                _ => Some(CallingPolicy::native_for_target(native_target)),
+            };
+            let boundary_entry_plan = match (boundary_entry_plan, compatibility_policy) {
+                (Some(plan), _) => Some(plan),
+                (None, Some(policy)) => crate::pipeline::calling_policy_plans::evaluate_compatibility_boundary_entry_plan(
+                    typed,
+                    clause.trait_name.as_str(),
+                    requirement.as_str(),
+                    &requirement_identity,
+                    policy,
+                )
+                .map_err(|reason| {
+                    vec![Diagnostic::error(format!(
+                        "cannot evaluate compatibility calling plan for `{}::{}`: {reason}",
+                        clause.trait_name, requirement
+                    ))]
+                })?,
+                (None, None) => None,
+            };
             rows.push(ExternalBindingRow {
                 // Target-machine filtering clears the selected machine's
                 // marker so it can participate as an ordinary implementation.
@@ -166,21 +209,12 @@ fn extract_external_binding_rows(
                     requirement.as_str(),
                     &requirement_identity,
                 ),
-                boundary_entry_plan: selected_source_boundary_entry_plan(
-                    typed,
-                    provider_plans,
-                    selected_plan_names,
-                    boundary_calling_plan_realizations,
-                    &plan_name,
-                    clause.trait_name.as_str(),
-                    requirement.as_str(),
-                    &requirement_identity,
-                ),
+                boundary_entry_plan,
                 binding,
             });
         }
     }
-    rows
+    Ok(rows)
 }
 
 /// Resolve implementation evidence only through the provider candidate that
@@ -472,11 +506,12 @@ impl Compiler {
         let external_binding_rows = extract_external_binding_rows(
             &syntax_trees,
             self.options.target_name.as_deref(),
+            selected_native_target,
             &selected_provider_plans,
             &provider_plans,
             &boundary_calling_plan_realizations,
             &typed,
-        );
+        )?;
 
         let mut checked = typed_trees_to_checked_trees(typed, &mut timings)?;
         let selected_provider_plan_facts =

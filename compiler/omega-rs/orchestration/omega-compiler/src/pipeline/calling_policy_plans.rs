@@ -9,7 +9,7 @@ use omega_calling_conventions::{
     CallingPolicyRejection, EntryControl, EntryStack, IndirectPointerLocation, MachineRegime,
     MachineRegister, MachineState, MachineStateSet, Preemption, RegisterSet, StatePlan,
     SystemVEightbyteClass, ValidatedBoundaryEntryPlan, ValueClass, ValueLocation, ValuePlacement,
-    ValueShape, validate_boundary_plan_result,
+    ValueShape, evaluate_ordinary_boundary_entry_plan, validate_boundary_plan_result,
 };
 use omega_interpreter::BuildTimeValue;
 use psi_diagnostics::Diagnostic;
@@ -62,6 +62,90 @@ struct MaterializedBoundarySignature {
     fields: Vec<BoundaryValueField>,
     parameters: Vec<u16>,
     result: Option<u16>,
+}
+
+pub(crate) fn evaluate_compatibility_boundary_entry_plan(
+    typed: &TypedTrees,
+    trait_name: &str,
+    method_name: &str,
+    requirement_identity: &str,
+    policy: CallingPolicy,
+) -> Result<Option<BoundaryEntryPlan>, String> {
+    let trait_leaf = trait_name.rsplit("::").next().unwrap_or(trait_name);
+    let Some(signature) = typed.traits().iter().find_map(|definition| {
+        (definition.name.as_str().rsplit("::").next() == Some(trait_leaf)).then(|| {
+            typed
+                .trait_machine_signatures(definition)
+                .iter()
+                .find(|signature| {
+                    signature.name.as_str() == method_name
+                        && (requirement_identity.is_empty()
+                            || typed
+                                .normalized_trait_requirement_overload_identity(
+                                    definition, signature,
+                                )
+                                .identity()
+                                == requirement_identity)
+                })
+        })?
+    }) else {
+        return Ok(None);
+    };
+    let materialized = call_signature_from_typed(typed, signature, &[])?;
+    let syscall_words = matches!(
+        policy,
+        CallingPolicy::LinuxSyscallX86_64 | CallingPolicy::LinuxSyscallAarch64
+    );
+    let classified = CallSignature {
+        parameters: materialized
+            .parameters
+            .iter()
+            .copied()
+            .map(|root| {
+                if syscall_words {
+                    Ok(ValueShape::integer(8, 8))
+                } else {
+                    classified_boundary_shape(&materialized, root, policy)
+                }
+            })
+            .collect::<Result<Vec<_>, _>>()?,
+        result: materialized
+            .result
+            .map(|root| {
+                if syscall_words {
+                    Ok(ValueShape::integer(8, 8))
+                } else {
+                    classified_boundary_shape(&materialized, root, policy)
+                }
+            })
+            .transpose()?,
+    };
+    evaluate_ordinary_boundary_entry_plan(policy, &classified)
+        .map(|validated| Some(validated.plan().clone()))
+        .map_err(|diagnostic| diagnostic.to_string())
+}
+
+fn classified_boundary_shape(
+    signature: &MaterializedBoundarySignature,
+    root: u16,
+    policy: CallingPolicy,
+) -> Result<ValueShape, String> {
+    let shape = signature
+        .shapes
+        .get(usize::from(root))
+        .ok_or_else(|| format!("shape root {root} is outside the normalized graph"))?;
+    let class = match shape.class {
+        BoundaryValueClass::Integer | BoundaryValueClass::Reference => ValueClass::Integer,
+        BoundaryValueClass::Float => ValueClass::Float,
+        BoundaryValueClass::FixedArray { .. } | BoundaryValueClass::Record { .. } => {
+            classify_boundary_aggregate(signature, root, policy)?
+        }
+    };
+    Ok(ValueShape {
+        class,
+        byte_size: shape.byte_size,
+        alignment: shape.alignment,
+    })
 }
 
 /// Omega-owned realization state for one canonical source boundary contract.

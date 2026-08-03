@@ -4736,7 +4736,8 @@ fn validate_win64_call_plan_operand_shapes<T: InstructionOperandLike>(
         .get(arg_start..)
         .ok_or_else(|| Diagnostic::error("Microsoft x64 call has no argument slice"))?
         .iter()
-        .map(win64_operand_shape)
+        .zip(&plan.parameters)
+        .map(|(operand, placement)| win64_operand_shape_for_plan(operand, placement))
         .collect::<Result<Vec<_>, _>>()?;
     let result = result_index
         .map(|index| {
@@ -4751,6 +4752,28 @@ fn validate_win64_call_plan_operand_shapes<T: InstructionOperandLike>(
             "Microsoft x64 source calling plan does not match the selected call operands: {error}"
         ))
     })
+}
+
+fn win64_operand_shape_for_plan<T: InstructionOperandLike>(
+    operand: &T,
+    placement: &ValuePlacement,
+) -> Result<ValueShape, Diagnostic> {
+    // Literals and compiler-derived byte counts have no independent storage
+    // width. Their selected foreign parameter is the type at this ABI seam;
+    // the marshaller separately proves that the concrete value fits its imm32
+    // encoding. Treating every such operand as an eight-byte scratch value
+    // would let compatibility reconstruction override an exact DWORD plan.
+    if operand.immediate_integer().is_some() || operand.byte_length().is_some() {
+        if matches!(placement.shape.class, ValueClass::Integer)
+            && matches!(placement.shape.byte_size, 1 | 2 | 4 | 8)
+        {
+            return Ok(placement.shape);
+        }
+        return Err(Diagnostic::error(
+            "Microsoft x64 contextual integer operand has a non-scalar planned shape",
+        ));
+    }
+    win64_operand_shape(operand)
 }
 
 fn evaluate_normalized_win64_plan(signature: &CallSignature) -> Result<CallPlan, Diagnostic> {
@@ -6094,6 +6117,26 @@ mod x86_import_plan_tests {
         );
 
         let exit = HostOperationKey::new(HostCapability::Process, HostOperation::ExitProcess);
+        let dword_literal_operands = [operand(TargetInstructionOperandKind::ImmediateInteger(70))];
+        let dword_plan = evaluate_call_plan(
+            CallingPolicy::MicrosoftX64,
+            &CallSignature {
+                parameters: vec![ValueShape::integer(4, 4)],
+                result: None,
+            },
+        )
+        .expect("DWORD literal plan");
+        assert_eq!(
+            encode_host_call_sequence_with_plan(
+                CallingPolicy::MicrosoftX64,
+                exit,
+                &dword_literal_operands,
+                Some(&dword_plan),
+            )
+            .expect("the selected DWORD plan types its contextual literal"),
+            encode_host_call_sequence(CallingPolicy::MicrosoftX64, exit, &dword_literal_operands,)
+                .expect("compatibility literal encoding"),
+        );
         let exit_operands = [operand(
             TargetInstructionOperandKind::RuntimeScalarInteger {
                 region: RuntimeStorageRegion::RuntimeFrame,

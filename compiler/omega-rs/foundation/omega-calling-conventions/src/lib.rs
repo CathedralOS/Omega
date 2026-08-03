@@ -2095,6 +2095,31 @@ mod binding_plan_tests {
     }
 
     #[test]
+    fn every_built_in_windows_import_retains_its_concrete_native_plan() {
+        let plan = build_host_abi_plan(NativeTarget::windows_x64());
+        let mut import_count = 0usize;
+        for (_, binding) in plan.bindings.iter() {
+            if !matches!(binding.mechanism, HostBindingMechanism::Import { .. }) {
+                continue;
+            }
+            import_count += 1;
+            let boundary = binding.boundary_entry_plan.as_ref().unwrap_or_else(|| {
+                panic!(
+                    "built-in Windows import {}.{} lost its concrete native plan",
+                    binding.operation_key.capability_name(),
+                    binding.operation_key.operation_name()
+                )
+            });
+            assert_eq!(boundary.call.policy, CallingPolicy::MicrosoftX64);
+            assert_eq!(boundary.call.entry_control, EntryControl::CallReturn);
+        }
+        assert!(
+            import_count > 0,
+            "Windows import catalog unexpectedly empty"
+        );
+    }
+
+    #[test]
     fn compiler_intrinsic_selects_only_an_exact_existing_target_lowering() {
         let row = |name: &str, method: &str| ExternalBindingRow {
             target_name: "macos_arm64".to_owned(),
