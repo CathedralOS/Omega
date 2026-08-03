@@ -373,7 +373,12 @@ cross-builds. The bool-valued classification cohort retains
 `0xb89ec4b21c43f9a8`, binding its eight exact plan identities to both-format
 boundaries between finite/infinite, infinite/NaN, normal/subnormal, and
 subnormal/zero, exactly-once unary evaluation shape, interpreter/native outputs,
-and both Linux cross-builds. Directed FMA separately
+and both Linux cross-builds. The enum-valued classification cohort retains
+`omega.float.hardware.macos_arm64.classify-enum.v1` /
+`0xf63a865e9bbb85f2`, binding its two exact plan identities to the eight-byte
+source-order `FloatClass` carrier, sign payload at byte four, every tag and
+signed payload in both formats, exactly-once unary evaluation shape,
+interpreter/native outputs, and both Linux cross-builds. Directed FMA separately
 retains `omega.float.hardware.macos_arm64.directed-fma.v1` /
 `0x75be2c4963f3f15a`, binding its six exact plan identities to binary32/binary64
 half-ULP cases, all three requested directions, one fused rounding,
