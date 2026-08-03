@@ -189,39 +189,45 @@ pub(crate) fn infer_identity_preserving_reshuffles(program: &TypedTrees, facts: 
 }
 
 #[derive(Debug, Clone)]
-struct DirectReturnedInvocation {
+struct ReturnedPartitionInvocation {
     statement_index: usize,
     target_symbol: SymbolHandle,
     receiver: Option<ExpressionHandle>,
     arguments: Vec<ExpressionHandle>,
-    form: DirectReturnedInvocationForm,
+    form: ReturnedPartitionInvocationForm,
 }
 
 #[derive(Debug, Clone, Copy)]
-enum DirectReturnedInvocationForm {
+enum ReturnedPartitionInvocationForm {
     Expression(ExpressionHandle),
     NamedTransition,
+    StagedLocal {
+        call_expression: ExpressionHandle,
+        local_symbol: SymbolHandle,
+        return_statement_index: usize,
+    },
 }
 
 #[derive(Debug, Default)]
 struct PartitionCompositionEvidence {
     call_ordinal: Option<usize>,
     input_claim_identities: Vec<PermissionClaimIdentity>,
+    result_rewrite_claim_identities: Vec<PermissionClaimIdentity>,
     substitutions: Vec<ContentPartitionPlaceSubstitution>,
     observed_entry_projection: bool,
 }
 
-/// Instantiate an already-authored partition theorem through an exact direct
-/// wrapper. This pass can substitute caller-entry paths and the wrapper result;
+/// Instantiate an already-authored partition theorem through an exact wrapper.
+/// This pass can substitute caller-entry paths and either a directly returned
+/// result or a result staged through one exact local identity rewrite;
 /// it cannot construct a `separate(...)` node. Every entry projection must bind
 /// to one caller parameter claim whose transfer-stable identity reaches the
 /// exact returned call site.
 ///
-/// Derived rows are made available to later rounds so direct wrapper chains
-/// close to a fixed point. Structural argument/result rewrites beyond exact
-/// direct places remain the responsibility of the later general frontier
-/// composition pass.
-pub(crate) fn compose_direct_partition_wrappers(program: &TypedTrees, facts: &mut CheckFacts) {
+/// Derived rows are made available to later rounds so wrapper chains close to
+/// a fixed point. Aggregate construction and other non-identity result rewrites
+/// remain the responsibility of the later general frontier composition pass.
+pub(crate) fn compose_partition_wrappers(program: &TypedTrees, facts: &mut CheckFacts) {
     let mut available = facts.qualifications.content.conservation_plans.clone();
     let state_count = program
         .machines()
@@ -236,7 +242,7 @@ pub(crate) fn compose_direct_partition_wrappers(program: &TypedTrees, facts: &mu
 
         for machine in program.machines() {
             for state in program.machine_states(machine) {
-                let Some(invocation) = direct_returned_invocation(program, state) else {
+                let Some(invocation) = returned_partition_invocation(program, state) else {
                     continue;
                 };
                 for source in sources.iter().filter(|source| {
@@ -299,11 +305,26 @@ pub(crate) fn compose_direct_partition_wrappers(program: &TypedTrees, facts: &mu
     facts.qualifications.content.partition_compositions = compositions;
 }
 
-fn direct_returned_invocation(
+fn returned_partition_invocation(
     program: &TypedTrees,
     state: &psi_typed_trees::state::State,
-) -> Option<DirectReturnedInvocation> {
+) -> Option<ReturnedPartitionInvocation> {
     let statements = program.statement_table.statements(state.statement_nodes);
+    if let [
+        StatementNode::LocalData(local),
+        StatementNode::Expression(return_expression),
+    ] = statements
+        && local.initial_value.is_valid()
+        && expression_names_symbol(program, state.symbol, 1, *return_expression, local.symbol)
+    {
+        let mut invocation = direct_expression_invocation(program, 0, local.initial_value)?;
+        invocation.form = ReturnedPartitionInvocationForm::StagedLocal {
+            call_expression: local.initial_value,
+            local_symbol: local.symbol,
+            return_statement_index: 1,
+        };
+        return Some(invocation);
+    }
     let mut invocations = Vec::new();
 
     for (statement_index, statement) in statements.iter().enumerate() {
@@ -322,7 +343,7 @@ fn direct_returned_invocation(
                 {
                     match program.statement_table.transition_target(target) {
                         TransitionTargetNode::Named { path, arguments } => {
-                            invocations.push(DirectReturnedInvocation {
+                            invocations.push(ReturnedPartitionInvocation {
                                 statement_index,
                                 target_symbol: path.symbol,
                                 receiver: None,
@@ -330,7 +351,7 @@ fn direct_returned_invocation(
                                     .statement_table
                                     .expression_handles(*arguments)
                                     .to_vec(),
-                                form: DirectReturnedInvocationForm::NamedTransition,
+                                form: ReturnedPartitionInvocationForm::NamedTransition,
                             });
                         }
                         TransitionTargetNode::Value(expression) => {
@@ -357,15 +378,33 @@ fn direct_returned_invocation(
         .then(|| invocation.clone())
 }
 
+fn expression_names_symbol(
+    program: &TypedTrees,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    symbol: SymbolHandle,
+) -> bool {
+    crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state_symbol,
+        statement_index,
+        expression,
+    )
+    .is_some_and(|place| {
+        place.root == psi_facts::PlaceRoot::Symbol(symbol) && place.segments.is_empty()
+    })
+}
+
 fn direct_expression_invocation(
     program: &TypedTrees,
     statement_index: usize,
     expression: ExpressionHandle,
-) -> Option<DirectReturnedInvocation> {
+) -> Option<ReturnedPartitionInvocation> {
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
         return None;
     };
-    Some(DirectReturnedInvocation {
+    Some(ReturnedPartitionInvocation {
         statement_index,
         target_symbol: call.target_symbol,
         receiver: call.receiver.is_valid().then_some(call.receiver),
@@ -373,7 +412,7 @@ fn direct_expression_invocation(
             .expression_table
             .expression_handles(call.arguments)
             .to_vec(),
-        form: DirectReturnedInvocationForm::Expression(expression),
+        form: ReturnedPartitionInvocationForm::Expression(expression),
     })
 }
 
@@ -393,12 +432,17 @@ fn instantiate_partition_wrapper(
     facts: &CheckFacts,
     machine_symbol: SymbolHandle,
     state: &psi_typed_trees::state::State,
-    invocation: &DirectReturnedInvocation,
+    invocation: &ReturnedPartitionInvocation,
     source: &ContentConservationPlan,
 ) -> Option<ContentPartitionCompositionFact> {
     let target_parameters = crate::call_target_parameters(program, invocation.target_symbol)?;
-    let call_ordinal =
-        direct_invocation_call_ordinal(program, facts, machine_symbol, state.symbol, invocation)?;
+    let call_ordinal = partition_invocation_call_ordinal(
+        program,
+        facts,
+        machine_symbol,
+        state.symbol,
+        invocation,
+    )?;
     let mut evidence = PartitionCompositionEvidence {
         call_ordinal: Some(call_ordinal),
         ..PartitionCompositionEvidence::default()
@@ -428,6 +472,10 @@ fn instantiate_partition_wrapper(
         .input_claim_identities
         .sort_by_key(|identity| format!("{identity:?}"));
     evidence.input_claim_identities.dedup();
+    evidence
+        .result_rewrite_claim_identities
+        .sort_by_key(|identity| format!("{identity:?}"));
+    evidence.result_rewrite_claim_identities.dedup();
     evidence.substitutions.sort_by_key(|substitution| {
         (
             format!("{:?}", substitution.source),
@@ -454,17 +502,18 @@ fn instantiate_partition_wrapper(
         statement_index: invocation.statement_index,
         call_ordinal,
         input_claim_identities: evidence.input_claim_identities,
+        result_rewrite_claim_identities: evidence.result_rewrite_claim_identities,
         substitutions: evidence.substitutions,
         plan,
     })
 }
 
-fn direct_invocation_call_ordinal(
+fn partition_invocation_call_ordinal(
     program: &TypedTrees,
     facts: &CheckFacts,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
-    invocation: &DirectReturnedInvocation,
+    invocation: &ReturnedPartitionInvocation,
 ) -> Option<usize> {
     let state_flow = facts.flow.control.states.iter().find_map(|(_, state)| {
         (state.machine_symbol == machine_symbol && state.state_symbol == state_symbol)
@@ -490,16 +539,22 @@ fn direct_invocation_call_ordinal(
             )?;
             let exact = match (&invocation.form, call_site) {
                 (
-                    DirectReturnedInvocationForm::Expression(expected),
+                    ReturnedPartitionInvocationForm::Expression(expected),
                     crate::CallSite::Expression { expression, .. },
                 ) => *expected == expression,
                 (
-                    DirectReturnedInvocationForm::NamedTransition,
+                    ReturnedPartitionInvocationForm::NamedTransition,
                     crate::CallSite::TransitionNamed(arguments),
                 ) => {
                     program.statement_table.expression_handles(arguments)
                         == invocation.arguments.as_slice()
                 }
+                (
+                    ReturnedPartitionInvocationForm::StagedLocal {
+                        call_expression, ..
+                    },
+                    crate::CallSite::Expression { expression, .. },
+                ) => *call_expression == expression,
                 _ => false,
             };
             exact.then_some(call.call_ordinal)
@@ -521,7 +576,7 @@ fn instantiate_partition_term(
     program: &TypedTrees,
     facts: &CheckFacts,
     caller_state: &psi_typed_trees::state::State,
-    invocation: &DirectReturnedInvocation,
+    invocation: &ReturnedPartitionInvocation,
     target_parameters: &[StateParameter],
     term: &ContentConservationTerm,
     evidence: &mut PartitionCompositionEvidence,
@@ -572,13 +627,22 @@ fn instantiate_partition_subject(
     program: &TypedTrees,
     facts: &CheckFacts,
     caller_state: &psi_typed_trees::state::State,
-    invocation: &DirectReturnedInvocation,
+    invocation: &ReturnedPartitionInvocation,
     target_parameters: &[StateParameter],
     subject: &ContentStructuralPlace,
     evidence: &mut PartitionCompositionEvidence,
 ) -> Option<ContentStructuralPlace> {
     let target = match (&subject.root, subject.version) {
-        (ContentPlaceRoot::Result, ContentPlaceVersion::Current) => subject.clone(),
+        (ContentPlaceRoot::Result, ContentPlaceVersion::Current) => {
+            instantiate_partition_result_subject(
+                program,
+                facts,
+                caller_state,
+                invocation,
+                subject,
+                evidence,
+            )?
+        }
         (
             ContentPlaceRoot::Parameter {
                 position, symbol, ..
@@ -689,6 +753,127 @@ fn instantiate_partition_subject(
             });
     }
     Some(target)
+}
+
+fn instantiate_partition_result_subject(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    caller_state: &psi_typed_trees::state::State,
+    invocation: &ReturnedPartitionInvocation,
+    subject: &ContentStructuralPlace,
+    evidence: &mut PartitionCompositionEvidence,
+) -> Option<ContentStructuralPlace> {
+    let ReturnedPartitionInvocationForm::StagedLocal {
+        local_symbol,
+        return_statement_index,
+        ..
+    } = invocation.form
+    else {
+        return Some(subject.clone());
+    };
+    let local_segments = content_segments_to_fact_path(&subject.segments)?;
+    let call_ordinal = evidence.call_ordinal?;
+    let identities = facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .filter(|(_, event)| {
+            let source_matches = matches!(
+                event.source,
+                PermissionEventSource::Call {
+                    statement_index,
+                    call_ordinal: event_call_ordinal,
+                    target_symbol,
+                    ..
+                } if statement_index == invocation.statement_index
+                    && event_call_ordinal == call_ordinal
+                    && target_symbol == invocation.target_symbol
+            ) || event.source
+                == PermissionEventSource::Statement {
+                    statement_index: invocation.statement_index,
+                };
+            event.state_symbol == caller_state.symbol
+                && source_matches
+                && event.kind == PermissionEventKind::Establish
+                && event.access == PermissionAccess::Owned
+                && event.obligation_live
+                && event.claim_identity != PermissionClaimIdentity::Unknown
+                && event.root == psi_facts::PlaceRoot::Symbol(local_symbol)
+                && facts.flow.ownership.segments.span_or_empty(event.segments) == local_segments
+        })
+        .map(|(_, event)| event.claim_identity)
+        .fold(Vec::new(), |mut identities, identity| {
+            if !identities.contains(&identity) {
+                identities.push(identity);
+            }
+            identities
+        });
+    let [claim_identity] = identities.as_slice() else {
+        return None;
+    };
+    let reaches_return = facts.flow.ownership.permissions.iter().any(|(_, event)| {
+        event.state_symbol == caller_state.symbol
+            && event.source
+                == PermissionEventSource::Statement {
+                    statement_index: return_statement_index,
+                }
+            && event.kind == PermissionEventKind::Transfer
+            && event.access == PermissionAccess::Owned
+            && event.obligation_live
+            && event.claim_identity == *claim_identity
+            && event.root == psi_facts::PlaceRoot::Symbol(local_symbol)
+            && facts.flow.ownership.segments.span_or_empty(event.segments) == local_segments
+    });
+    if !reaches_return {
+        return None;
+    }
+    let output_paths = facts
+        .flow
+        .ownership
+        .claim_outcome_maps
+        .iter()
+        .filter(|(_, map)| map.state_symbol == caller_state.symbol)
+        .flat_map(|(_, map)| {
+            facts
+                .flow
+                .ownership
+                .claim_outcome_entries
+                .span_or_empty(map.entries)
+        })
+        .filter_map(|entry| match entry.source {
+            FlowClaimOutcomeSource::Established {
+                claim_identity: outcome_identity,
+                ..
+            } if outcome_identity == *claim_identity => Some(
+                facts
+                    .flow
+                    .ownership
+                    .segments
+                    .span_or_empty(entry.output_segments)
+                    .to_vec(),
+            ),
+            FlowClaimOutcomeSource::Input { .. }
+            | FlowClaimOutcomeSource::Established { .. }
+            | FlowClaimOutcomeSource::Unknown => None,
+        })
+        .fold(Vec::new(), |mut paths, path| {
+            if !paths.contains(&path) {
+                paths.push(path);
+            }
+            paths
+        });
+    let [output_path] = output_paths.as_slice() else {
+        return None;
+    };
+    evidence
+        .result_rewrite_claim_identities
+        .push(*claim_identity);
+    Some(ContentStructuralPlace {
+        version: ContentPlaceVersion::Current,
+        root: ContentPlaceRoot::Result,
+        segments: content_path(program, output_path)?,
+    })
 }
 
 fn argument_for_target_parameter(

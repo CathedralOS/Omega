@@ -57,9 +57,10 @@ all other shapes. Its canaries drop the frontend trees before terminal
 verification and interpretation; ninth-parameter `bool` and `u8` machines
 additionally cross the selected host incoming-stack ABI, while runtime wrapping
 add combines its ninth stack argument with its first register argument and a
-nested add-then-multiply expression reaches the same native lane. Parsing through checked semantics
-and this first terminal producer are now Psi-owned; general terminal vocabulary
-must extend the same direction. The same producer independently revalidates checked content
+nested add-then-multiply expression reaches the same native lane. Parsing
+through checked semantics and this first terminal producer are now Psi-owned;
+general terminal vocabulary must extend the same direction. The same producer
+independently revalidates checked content
 conservation fingerprints, exact claim-preserving reshuffles, and direct
 partition-composition substitutions before emitting their canonical terminal
 v9-v12 evidence rows; the executable canary remains content-free. A

@@ -559,6 +559,7 @@ fn checked_facts_compose_authored_partitions_through_a_direct_wrapper() {
     );
     assert_eq!(forward_row.call_ordinal, 0);
     assert_eq!(forward_row.input_claim_identities.len(), 2);
+    assert!(forward_row.result_rewrite_claim_identities.is_empty());
     assert_eq!(
         forward_row.substitutions.len(),
         4,
@@ -583,7 +584,7 @@ fn checked_facts_compose_authored_partitions_through_a_direct_wrapper() {
 }
 
 #[test]
-fn checked_facts_do_not_compose_partitions_through_unproved_staged_result_rewrites() {
+fn checked_facts_compose_partitions_through_exact_staged_result_rewrites() {
     let source = r#"
         data ByteUnit {}
         data CountedQuantity<Unit> { magnitude: u64; }
@@ -631,15 +632,56 @@ fn checked_facts_do_not_compose_partitions_through_unproved_staged_result_rewrit
         machine Main::main(&mut self) {}
     "#;
 
-    let checked = checked(source);
+    let checked_program = checked(source);
+    let [composition] = checked_program
+        .facts
+        .qualifications
+        .content
+        .partition_compositions
+        .as_slice()
+    else {
+        panic!(
+            "the staged local should retain one exact partition composition: {:#?}",
+            checked_program
+                .facts
+                .qualifications
+                .content
+                .partition_compositions
+        );
+    };
+    assert_eq!(composition.statement_index, 0);
+    assert_eq!(composition.call_ordinal, 0);
+    assert_eq!(composition.input_claim_identities.len(), 2);
+    assert_eq!(composition.result_rewrite_claim_identities.len(), 2);
+    assert_eq!(composition.substitutions.len(), 4);
     assert!(
-        checked
+        composition
+            .result_rewrite_claim_identities
+            .iter()
+            .all(|identity| *identity != psi_language_semantics::PermissionClaimIdentity::Unknown)
+    );
+    assert!(matches!(
+        composition.plan.equation.left(),
+        ContentConservationTerm::Separate(children) if children.len() == 2
+    ));
+    assert!(matches!(
+        composition.plan.equation.right(),
+        ContentConservationTerm::Separate(children) if children.len() == 2
+    ));
+
+    let repacked_source = source.replace(
+        "            result\n",
+        "            Pair { left: result.left, right: result.right }\n",
+    );
+    let repacked = checked(&repacked_source);
+    assert!(
+        repacked
             .facts
             .qualifications
             .content
             .partition_compositions
             .is_empty(),
-        "a staged result requires explicit structural rewrite composition"
+        "aggregate result reconstruction remains fail-closed until its exact structural rewrite is composed"
     );
 }
 
