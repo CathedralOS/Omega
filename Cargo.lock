@@ -420,6 +420,7 @@ dependencies = [
  "psi-numerics",
  "psi-source",
  "psi-source-loader",
+ "psi-symbols",
 ]
 
 [[package]]
@@ -1276,6 +1277,14 @@ name = "psi-source-loader"
 version = "0.1.0"
 dependencies = [
  "psi-diagnostics",
+ "psi-source",
+]
+
+[[package]]
+name = "psi-symbols"
+version = "0.1.0"
+dependencies = [
+ "psi-arena",
  "psi-source",
 ]
 

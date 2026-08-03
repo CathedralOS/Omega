@@ -15,3 +15,4 @@ psi-language-core = { path = "../../../psi-rs/foundation/psi-language-core" }
 psi-numerics = { path = "../../../psi-rs/foundation/psi-numerics" }
 psi-source = { path = "../../../psi-rs/foundation/psi-source" }
 psi-source-loader = { path = "../../../psi-rs/foundation/psi-source-loader" }
+psi-symbols = { path = "../../../psi-rs/foundation/psi-symbols" }

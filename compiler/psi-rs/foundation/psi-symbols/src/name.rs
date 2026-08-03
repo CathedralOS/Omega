@@ -1,5 +1,6 @@
-use crate::source::{SourceMap, SourceSpan};
 use std::sync::Arc;
+
+use psi_source::{SourceMap, SourceSpan};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SymbolName {

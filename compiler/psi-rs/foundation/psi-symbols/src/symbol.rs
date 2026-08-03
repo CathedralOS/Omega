@@ -1,4 +1,4 @@
-use crate::arena::{Handle, HandleSpan, HierarchyNode};
+use psi_arena::{Handle, HandleSpan, HierarchyNode};
 
 use super::{SymbolKind, SymbolName};
 

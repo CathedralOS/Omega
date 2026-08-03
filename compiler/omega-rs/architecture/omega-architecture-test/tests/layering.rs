@@ -430,6 +430,32 @@ fn lexical_frontend_implementation_is_psi_owned() {
         );
     }
 
+    let semantics_module = root.join("compiler/omega-rs/foundation/omega-core/src/semantics.rs");
+    let source = std::fs::read_to_string(&semantics_module)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", semantics_module.display()));
+    assert!(
+        source.contains("pub use psi_language_core::{"),
+        "legacy semantics module must re-export Psi-owned grammar vocabulary"
+    );
+    for migrated in [
+        "Multiplicity",
+        "DataSupplyMode",
+        "CarryPolicy",
+        "CarryPermission",
+        "CallOperationalAcknowledgement",
+        "DomainPredicateBody",
+    ] {
+        assert!(
+            source.contains(migrated),
+            "legacy semantics compatibility export lost Psi-owned type {migrated}"
+        );
+        assert!(
+            !source.contains(&format!("pub enum {migrated}"))
+                && !source.contains(&format!("pub struct {migrated}")),
+            "legacy semantics module regained Psi-owned implementation type {migrated}"
+        );
+    }
+
     let arena_module = root.join("compiler/omega-rs/foundation/omega-core/src/arena/mod.rs");
     let source = std::fs::read_to_string(&arena_module)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", arena_module.display()));
@@ -452,6 +478,18 @@ fn lexical_frontend_implementation_is_psi_owned() {
             "legacy arena module must not regain Psi-owned implementation module {forbidden}"
         );
     }
+
+    let symbols_module = root.join("compiler/omega-rs/foundation/omega-core/src/symbols/mod.rs");
+    let source = std::fs::read_to_string(&symbols_module)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", symbols_module.display()));
+    assert!(
+        source.contains("pub use psi_symbols::*;"),
+        "legacy symbols module must re-export the Psi-owned symbol foundation"
+    );
+    assert!(
+        !source.contains("mod "),
+        "legacy symbols module must not regain implementation modules"
+    );
 }
 
 #[test]

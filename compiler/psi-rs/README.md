@@ -17,14 +17,17 @@ Current roots:
   ordered-root arena storage used by Psi-owned source representations;
 - `foundation/psi-diagnostics`: target-neutral diagnostic values and phase
   snapshot contracts;
-- `foundation/psi-language-core`: target-neutral atomic-ordering, cast-form,
-  and operator-spelling vocabulary used by source representations;
+- `foundation/psi-language-core`: target-neutral grammar semantics plus
+  atomic-ordering, cast-form, and operator-spelling vocabulary used by source
+  representations;
 - `foundation/psi-numerics`: exact integers/rationals, host-independent float
   semantics, arithmetic domains, and source-literal payloads;
 - `foundation/psi-source`: loaded-source records and maps, source identities,
   coordinates, and source-backed text shared by the Psi frontend and temporary
   Omega compatibility exports;
 - `foundation/psi-source-loader`: root-file loading into Psi-owned source maps;
+- `foundation/psi-symbols`: stable source symbol identities, names, paths, and
+  hierarchy storage used by resolution and later semantic stages;
 - `foundation/psi-core`: stable terminal semantic identities and the initial
   typed proposition vocabulary;
 - `representations/psi-tokens`: the spelling-level Omega token stream;
