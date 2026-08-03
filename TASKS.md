@@ -928,8 +928,8 @@ improvements do not change public identity.
   domains, and normalized wire scalar ranges;
   `psi-extents`, `psi-layout-plans`, and `psi-access-plans` own target-neutral
   extent authority plus normalized author-selected layout and placed-access
-  semantics; their old Omega package names are compatibility exports.
-  No workspace package consumes those adapters now; Omega orchestration,
+  semantics; their old Omega package names and unused compatibility exports
+  are retired. Omega orchestration,
   provider, installation, relocation, instruction-selection, and ISA consumers
   depend on the Psi owners directly;
   `psi-numerics` owns exact

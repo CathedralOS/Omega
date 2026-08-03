@@ -190,7 +190,7 @@ nonblocking. Otherwise the extent stays linear and exposes explicit terminal
 Safety profiles may reject abandonment; capacity loss must not hide behind an
 ordinary silent drop.
 
-The normalized conservation model is live in `omega-extents`. Its Rust carrier
+The normalized conservation model is live in `psi-extents`. Its Rust carrier
 is non-clonable; an admitted one-shot root receipt establishes the first claim;
 space, provenance, era, and lineage identities are normalized; rights are an
 open set of normalized identities; and split, attenuation, sibling merge, and
@@ -267,7 +267,7 @@ unreclaimed loans is deferred to provider quiescence/lifecycle machinery when a
 customer requires it; translation edits, shootdowns, and process teardown remain
 ordinary runtime provider work.
 
-The provider-neutral mapping lifecycle is live in `omega-extents`. An admitted
+The provider-neutral mapping lifecycle is live in `psi-extents`. An admitted
 mapping grant pins source custody, source/destination spaces and required
 rights, provider-established mapped facts, and open sets of translation
 activation and release facts. Fixed mapping consumes the destination Extent and
@@ -745,7 +745,7 @@ layout and evaluates `Placement::plan` machines into one validated
 layout/access/reach result. It derives transfer widths from layout geometry
 rather than accepting a second authored copy.
 
-The `omega-access-plans` foundation validates normalized field geometry, exact
+The `psi-access-plans` foundation validates normalized field geometry, exact
 widths, operation and observation compatibility, borrow polarity, atomic
 orderings, exact loan facts, and sealed lowering requests. It normalizes to one
 inaccessible-defaulted slot per schema field, binds opaque field keys to the
@@ -825,7 +825,7 @@ The token may remain live across suspension; waiting for completion is normal.
 The provider receipt is the accepted claim that completion really means the
 device has stopped using the range.
 
-This conservation model is live in `omega-extents`. A reusable admitted grant
+This conservation model is live in `psi-extents`. A reusable admitted grant
 pins the borrower, direction, space, provenance, required open-set rights, and
 an open set of completion facts (including target fence/cache facts where
 needed). Starting a transfer accepts an actual Extent loan and

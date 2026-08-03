@@ -1,8 +1,8 @@
 use super::{validate_behavior_plan, validate_program};
-use omega_source_files_to_tokens::Lexer;
-use omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-use omega_tokens_to_syntax_trees::parse_syntax_trees;
+use psi_source_files_to_tokens::Lexer;
+use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use psi_tokens_to_syntax_trees::parse_syntax_trees;
 
 fn typed_program_from_source(source: &str) -> omega_typed_trees::TypedTrees {
     let source = format!("data Main {{}} machine Main::run(&mut self) {{}} {source}");
@@ -3353,10 +3353,10 @@ mod effects_analysis {
     };
     use omega_typed_trees::TypedTrees;
 
-    use omega_source_files_to_tokens::Lexer;
-    use omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-    use omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-    use omega_tokens_to_syntax_trees::parse_syntax_trees;
+    use psi_source_files_to_tokens::Lexer;
+    use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+    use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+    use psi_tokens_to_syntax_trees::parse_syntax_trees;
 
     fn lower(source: &str) -> TypedTrees {
         let tokens = Lexer::new(source).tokenize().expect("tokenize");
@@ -3544,8 +3544,8 @@ mod provider_registry {
     use omega_effects::build_provider_registry;
     use omega_syntax_trees::SyntaxTrees;
 
-    use omega_source_files_to_tokens::Lexer;
-    use omega_tokens_to_syntax_trees::parse_syntax_trees;
+    use psi_source_files_to_tokens::Lexer;
+    use psi_tokens_to_syntax_trees::parse_syntax_trees;
 
     fn parse(source: &str) -> SyntaxTrees {
         let tokens = Lexer::new(source).tokenize().expect("tokenize");
@@ -3646,10 +3646,10 @@ mod provider_registry {
 
 mod structural_entailment {
     use super::super::validate_program;
-    use omega_source_files_to_tokens::Lexer;
-    use omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-    use omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-    use omega_tokens_to_syntax_trees::parse_syntax_trees;
+    use psi_source_files_to_tokens::Lexer;
+    use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+    use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+    use psi_tokens_to_syntax_trees::parse_syntax_trees;
 
     /// Run source through parse -> resolve -> typed -> validate. `Nat` is
     /// declared inline (the judge is parametric over any recursive proof
@@ -4177,10 +4177,10 @@ mod provider_plan {
     use omega_effects::provider_plan::{
         ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema,
     };
-    use omega_source_files_to_tokens::Lexer;
-    use omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-    use omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-    use omega_tokens_to_syntax_trees::parse_syntax_trees;
+    use psi_source_files_to_tokens::Lexer;
+    use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+    use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+    use psi_tokens_to_syntax_trees::parse_syntax_trees;
 
     fn typed(source: &str) -> omega_typed_trees::TypedTrees {
         let tokens = Lexer::new(source).tokenize().expect("tokenize");

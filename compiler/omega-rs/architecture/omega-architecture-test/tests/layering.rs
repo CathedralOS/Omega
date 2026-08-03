@@ -505,18 +505,6 @@ fn frontend_implementation_is_psi_owned() {
 
     for (relative, expected_export) in [
         (
-            "compiler/omega-rs/foundation/omega-access-plans/src/lib.rs",
-            "pub use psi_access_plans::*;",
-        ),
-        (
-            "compiler/omega-rs/foundation/omega-extents/src/lib.rs",
-            "pub use psi_extents::*;",
-        ),
-        (
-            "compiler/omega-rs/foundation/omega-layout-plans/src/lib.rs",
-            "pub use psi_layout_plans::*;",
-        ),
-        (
             "compiler/omega-rs/foundation/omega-core/src/const_value.rs",
             "pub use psi_language_semantics::const_value::*;",
         ),
@@ -685,19 +673,13 @@ fn omega_driver_invokes_the_psi_frontend_directly() {
 }
 
 #[test]
-fn psi_owned_plan_adapters_have_no_workspace_consumers() {
+fn psi_owned_plan_adapters_are_retired() {
     let graph = load_graph();
 
     for adapter in ["omega-access-plans", "omega-extents", "omega-layout-plans"] {
-        let consumers = graph
-            .iter()
-            .filter(|(_, krate)| krate.deps.iter().any(|dependency| dependency == adapter))
-            .map(|(name, _)| name.as_str())
-            .collect::<Vec<_>>();
         assert!(
-            consumers.is_empty(),
-            "Psi-owned plan compatibility package {adapter} must not remain in the workspace dependency graph; consumers: {}",
-            consumers.join(", ")
+            !graph.contains_key(adapter),
+            "unused Psi-owned plan compatibility package {adapter} must not remain in the workspace"
         );
     }
 }

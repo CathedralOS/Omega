@@ -107,13 +107,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "omega-access-plans"
-version = "0.1.0"
-dependencies = [
- "psi-access-plans",
-]
-
-[[package]]
 name = "omega-architecture-test"
 version = "0.1.0"
 dependencies = [
@@ -475,13 +468,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "omega-extents"
-version = "0.1.0"
-dependencies = [
- "psi-extents",
-]
-
-[[package]]
 name = "omega-external-roots"
 version = "0.1.0"
 dependencies = [
@@ -639,13 +625,6 @@ dependencies = [
  "omega-core",
  "omega-runtime-abi",
  "omega-target",
-]
-
-[[package]]
-name = "omega-layout-plans"
-version = "0.1.0"
-dependencies = [
- "psi-layout-plans",
 ]
 
 [[package]]
