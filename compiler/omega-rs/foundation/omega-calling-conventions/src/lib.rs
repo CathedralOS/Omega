@@ -1716,6 +1716,7 @@ mod binding_plan_tests {
                 1,
                 true,
             ),
+            (HostOperation::TickCount, "_clock_gettime_nsec_np", 1, true),
         ] {
             let (_, binding) = plan
                 .bindings

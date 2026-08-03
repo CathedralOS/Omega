@@ -699,6 +699,10 @@ result placement is selected once at binding construction. The Darwin time
 adapters retain exact scalar plans as well: `poll(NULL, 0, milliseconds)` has
 three word parameters and no consumed result, while each calibrated
 `clock_gettime_nsec_np(clockid)` read has one word parameter and one word result.
+The older Darwin `tick_count` alias uses the same typed row and now consumes its
+`ConstantArgument(8)` through the data-driven clock-read operand path. Windows
+TickCount keeps the same path with no constant row data and therefore no call
+parameter.
 Register-resident AArch64 C/import emission now also evaluates AAPCS64 from the
 selected operand shapes and passes the exact planned X/V argument and result
 registers to the ISA encoder. Scalar stack arguments and flat HFA arguments and

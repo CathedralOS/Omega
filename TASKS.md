@@ -838,7 +838,10 @@ Remaining:
   their exact F64 parameter and F64/I64 result plans instead of asking the
   encoder to reconstruct vector-register placement. Its `poll` sleep adapter
   now retains the three-word/no-result plan, and the calibrated monotonic/wall
-  clock rows retain their one-word/result `clock_gettime_nsec_np` plans.
+  clock rows retain their one-word/result `clock_gettime_nsec_np` plans. The
+  legacy Darwin `tick_count` alias now shares that retained plan and the
+  data-driven clock-read operand path, so its declared clock ID 8 is no longer
+  dropped; Windows' argument-free TickCount row remains result-only.
   The matching AArch64 direct-import composites now validate
   that same retained native signature and reject placement drift in lockstep
   with layout; Windows composites retain their independently normalized

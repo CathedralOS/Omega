@@ -258,7 +258,14 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         // windows GetTickCount64 ticks are MILLISECONDS, darwin ticks are
         // NANOSECONDS -- monotonic opaque ticks either way; the portable
         // calibrated surface is std::time (TimeHost), not this row.
-        darwin_import("Clock", "tick_count", "_clock_gettime_nsec_np", &policy),
+        darwin_word_import(
+            "Clock",
+            "tick_count",
+            "_clock_gettime_nsec_np",
+            1,
+            true,
+            &policy,
+        ),
     ]);
 
     insert_platform_lowering(

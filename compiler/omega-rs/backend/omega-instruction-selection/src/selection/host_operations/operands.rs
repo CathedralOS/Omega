@@ -320,8 +320,7 @@ pub(super) fn select_host_operation_operands(
             HostCapability::Process,
             HostOperation::Exit | HostOperation::ExitGroup | HostOperation::ExitProcess,
         )
-        | (HostCapability::Clock, HostOperation::Sleep)
-        | (HostCapability::Clock, HostOperation::TickCount) => {
+        | (HostCapability::Clock, HostOperation::Sleep) => {
             // Both take a single scalar first argument (exit code / sleep
             // milliseconds). A resolvable constant or runtime scalar lowers to a
             // marshallable operand; an unresolvable runtime argument lowers to NO
@@ -351,7 +350,8 @@ pub(super) fn select_host_operation_operands(
             HostCapability::Clock,
             HostOperation::MonotonicTicks
             | HostOperation::MonotonicTicksPerSecond
-            | HostOperation::WallClockRaw,
+            | HostOperation::WallClockRaw
+            | HostOperation::TickCount,
         ) => {
             // Value-returning, surface-ARGUMENT-FREE time reads (std::time
             // rungs 5/10). The SHAPE is per-target row DATA, so the arm is
