@@ -505,12 +505,24 @@ fn insert_encoded_machine_instruction(
             return Ok(());
         }
 
-        for byte in encode_machine_instruction_bytes(
+        let bytes = encode_machine_instruction_bytes(
             emission_context,
             laid_out_instructions,
             machine_instruction_index,
             kind,
-        )? {
+        )?;
+        let bytes = if crate::host_bindings::instruction_requires_float_control_restore(
+            emission_context,
+            kind,
+        ) {
+            omega_instruction_selection::wrap_foreign_float_control(
+                emission_context.target.architecture,
+                bytes,
+            )
+        } else {
+            bytes
+        };
+        for byte in bytes {
             inserter.insert(byte);
         }
 

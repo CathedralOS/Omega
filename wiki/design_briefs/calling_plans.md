@@ -887,8 +887,14 @@ machine footprint. They save the caller's complete MXCSR/FPCR, establish
 Omega's canonical semantic controls before checked execution, and restore the
 caller on return; footprint validation permits that state only for prescribed
 `CallReturn` mechanics. This supplies the concrete callback entry/exit seam.
-It does not replace outbound binding validation: a foreign call must still
-carry a preservation proof or use a save/restore trampoline.
+Returning imports and indirect vtable/table calls now take the conservative
+save/restore path automatically. A target-neutral mechanism classification
+adds an aligned MXCSR/FPCR envelope around the existing target call program;
+direct syscalls receive no envelope because they do not execute a returning
+user-space counterparty. Relocation planning rebases the unchanged inner
+program by the exact target prefix width, so specialized argument/result
+layouts remain the sole relocation oracle. A future admitted preservation
+proof may select the zero-envelope optimization without changing call layout.
 
 Syscall bindings now retain only syscall identity and number. Register
 placement and supervisor-call control come exclusively from the normalized

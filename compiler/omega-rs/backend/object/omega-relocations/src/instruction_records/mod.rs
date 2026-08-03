@@ -32,6 +32,22 @@ pub(super) fn collect_instruction_relocations(
     instruction: &SelectedInstruction,
     relocation_plan: &mut RelocationPlan,
 ) {
+    // Foreign-control trampolines live outside the architecture-specific call
+    // program. Existing relocation walkers continue to describe that inner
+    // program; rebasing its instruction origin keeps every call/data fixup in
+    // lockstep without teaching each specialized layout about the envelope.
+    let selected_text_offset = selected_text_offset
+        + instruction
+            .kind
+            .host_operation_key()
+            .and_then(|operation_key| crate::lookups::find_host_binding(input, operation_key))
+            .filter(|binding| binding.mechanism.requires_float_control_restore())
+            .map(|_| {
+                omega_instruction_selection::foreign_float_control_prefix_width(
+                    input.target.architecture,
+                )
+            })
+            .unwrap_or(0);
     let mut context = InstructionRelocationContext {
         input,
         function_symbol_handle,

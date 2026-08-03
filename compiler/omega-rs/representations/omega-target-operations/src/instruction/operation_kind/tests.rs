@@ -18,6 +18,10 @@ fn operation_kinds_expose_host_boundary_domain() {
     );
     assert!(operation.crosses_host_boundary());
     assert!(!operation.touches_runtime_storage());
+    assert_eq!(
+        operation.host_operation_key(),
+        Some(HostOperationKey::default())
+    );
 }
 
 #[test]
@@ -58,6 +62,7 @@ fn operation_kinds_expose_runtime_storage_domains() {
     assert!(copy.touches_runtime_storage());
     assert!(read.touches_runtime_storage());
     assert!(read.crosses_host_boundary());
+    assert_eq!(read.host_operation_key(), Some(HostOperationKey::default()));
 }
 
 #[test]

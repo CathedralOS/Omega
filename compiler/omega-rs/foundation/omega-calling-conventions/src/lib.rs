@@ -946,6 +946,44 @@ pub enum HostBindingMechanism {
     },
 }
 
+impl HostBindingMechanism {
+    /// Whether executing this mechanism transfers control to foreign code that
+    /// can return with different floating-control bits. Direct syscalls do not
+    /// execute a user-space counterparty; imports and indirect table calls do.
+    pub const fn requires_float_control_restore(&self) -> bool {
+        matches!(
+            self,
+            Self::Import { .. }
+                | Self::VtableSlot { .. }
+                | Self::VtableField { .. }
+                | Self::TableFunction { .. }
+        )
+    }
+}
+
+#[cfg(test)]
+mod float_control_mechanism_tests {
+    use super::HostBindingMechanism;
+    use std::sync::Arc;
+
+    #[test]
+    fn returning_foreign_mechanisms_require_restore_but_syscalls_do_not() {
+        let import = HostBindingMechanism::Import {
+            library: Arc::from("foreign"),
+            symbol: Arc::from("call"),
+        };
+        let syscall = HostBindingMechanism::Syscall {
+            name: Arc::from("direct"),
+            number: 1,
+        };
+        let vtable = HostBindingMechanism::VtableSlot { index: 2 };
+
+        assert!(import.requires_float_control_restore());
+        assert!(vtable.requires_float_control_restore());
+        assert!(!syscall.requires_float_control_restore());
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlatformCallLowering {
     pub platform: Arc<str>,

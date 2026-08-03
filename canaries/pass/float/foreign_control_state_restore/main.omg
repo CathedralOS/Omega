@@ -1,0 +1,36 @@
+// A returning foreign call is allowed to mutate its own floating environment,
+// but checked Omega arithmetic must resume under the canonical nearest-even
+// state. On macOS AArch64, FE_UPWARD is 0x00400000. If that FPCR value leaks
+// through the import, 1 + 2^-53 rounds upward instead of tying to even at 1.
+
+use omega::language::core::float_operations;
+use omega::language::std::console;
+
+boundary trait FloatingEnvironment {
+    machine set_rounding(mode: i32) -> i32;
+}
+
+machine set_rounding(mode: i32) -> i32 satisfies FloatingEnvironment::set_rounding
+    via Binding::DllImport("libSystem.B.dylib", "_fesetround");
+
+data Main {
+    console: Console;
+    environment: FloatingEnvironment;
+}
+
+machine Main::main(&mut self) {
+    let upward: i32 = 4194304;
+    let status: i32 = self.environment.set_rounding(upward);
+    let one: f64 = F64::from_i32(status) + 1.0;
+    let half_ulp: f64 =
+        0.00000000000000011102230246251565404236316680908203125;
+    let rounded: f64 = one + half_ulp;
+
+    transition status == 0 && rounded == one {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(77); }
+}

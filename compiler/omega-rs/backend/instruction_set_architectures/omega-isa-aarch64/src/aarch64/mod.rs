@@ -1637,6 +1637,28 @@ mod syscall_plan_register_tests {
 /// relative to the caller's pre-prologue SP.
 pub const FUNCTION_FRAME_BYTES: usize = 112;
 
+/// Save/restore envelope placed around a returning foreign call. x16 is
+/// caller-saved, so the incoming FPCR is retained in a private aligned slot
+/// while the foreign callee executes.
+pub const FOREIGN_FLOAT_CONTROL_PREFIX_WIDTH: usize = 12;
+pub const FOREIGN_FLOAT_CONTROL_SUFFIX_WIDTH: usize = 12;
+
+pub fn encode_foreign_float_control_prefix_bytes() -> [u8; FOREIGN_FLOAT_CONTROL_PREFIX_WIDTH] {
+    let mut bytes = [0; FOREIGN_FLOAT_CONTROL_PREFIX_WIDTH];
+    bytes[0..4].copy_from_slice(&encode_instruction(0xD10043FF)); // sub sp, sp, #16
+    bytes[4..8].copy_from_slice(&encode_instruction(0xD53B4410)); // mrs x16, fpcr
+    bytes[8..12].copy_from_slice(&encode_instruction(0xF90003F0)); // str x16, [sp]
+    bytes
+}
+
+pub fn encode_foreign_float_control_suffix_bytes() -> [u8; FOREIGN_FLOAT_CONTROL_SUFFIX_WIDTH] {
+    let mut bytes = [0; FOREIGN_FLOAT_CONTROL_SUFFIX_WIDTH];
+    bytes[0..4].copy_from_slice(&encode_instruction(0xF94003F0)); // ldr x16, [sp]
+    bytes[4..8].copy_from_slice(&encode_instruction(0xD51B4410)); // msr fpcr, x16
+    bytes[8..12].copy_from_slice(&encode_instruction(0x910043FF)); // add sp, sp, #16
+    bytes
+}
+
 pub fn encode_function_enter_bytes() -> [u8; 40] {
     let mut bytes = [0; 40];
     bytes[0..4].copy_from_slice(&encode_instruction(0xA9B97BFD));
