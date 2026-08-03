@@ -488,10 +488,12 @@ remains implementation work.
   repeatable reads and exact same-container atomics while rejecting destructive,
   write/RMW, and mixed-width overlapping atomic events. Plan validation also
   requires a destructive accessor to cover its whole transfer container and
-  rejects a second accessor overlapping that one-shot snapshot. Qualified-
-  borrow admission, placed-content establishment/retirement, and compiler
-  view-set integration of those footprint conflicts remain implementation work
-  rather than language-design blockers.
+  rejects a second accessor overlapping that one-shot snapshot; generic
+  External writes likewise reject when the logical field does not cover the
+  complete transfer container. Qualified-borrow admission, placed-content
+  establishment/retirement, and compiler view-set integration of those
+  footprint conflicts remain implementation work rather than language-design
+  blockers.
 - Publish one sealed `omega::core` requirement per atomic operation. Use shared
   receivers, the settled proof-static ordering vocabulary, exact derived
   conformance for core atomics and placed accessors, exact-forwarding wrapper
