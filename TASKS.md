@@ -1008,10 +1008,13 @@ improvements do not change public identity.
   checked-tree producer is also live and fail-closed: it lowers one exact typed
   integer-constant/unconditional-jump source slice whose return is either the
   matching literal or a builtin parameter-plus-literal add/subtract/multiply
-  in the settled Wrapping or Saturating domain. It emits the module and proof
+  in the settled Wrapping or Saturating domain. A second exact form lowers any
+  nonempty sequence of ordinary primitive-integer machine parameters and an
+  exact direct return of one named parameter. It emits the module and proof
   bundle separately; real-source canaries cover all six versioned integer
-  policy operations after `CheckedTrees` are dropped, and wrapping add reaches
-  emitted host machine code. Because the
+  policy operations and a ninth-parameter stack return after `CheckedTrees`
+  are dropped, and both wrapping add and the stack return reach emitted host
+  machine code. Because the
   legacy exit prover cannot establish ordinary `result == literal` contracts,
   this bootstrap canary preserves a closed typed `requires`/`ensures` fact and
   asserts the returned `i32` independently; do not generalize that workaround

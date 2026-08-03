@@ -63,15 +63,20 @@ Omega concerns, and Omega orchestration runs that admission explicitly after
 the Psi check.
 
 The first Psi-owned terminal source producer is live as
-`psi-checked-trees-to-terminal`. It accepts one exact free-machine slice:
-typed integer constants, one unconditional literal-carrying state jump, one
-literal return or one builtin parameter-plus-literal add/subtract/multiply in
-the settled Wrapping or Saturating domains, and a matching closed
-`requires`/`ensures` pair. It rejects all other checked-tree shapes, including
-selected domain-owned operator meanings. The source canary lowers all six
-versioned integer-policy operations, discards `CheckedTrees`, then verifies and
-executes the produced semantic modules; wrapping add also reaches emitted host
-machine code. The artifacts therefore have no frontend lifetime dependency.
+`psi-checked-trees-to-terminal`. It accepts two exact free-machine forms. A
+single-state direct-parameter machine may declare any nonempty sequence of
+ordinary primitive-integer parameters and return one exact named parameter. A
+two-state machine may carry one typed integer constant through an unconditional
+jump and return either the matching literal or one builtin
+parameter-plus-literal add/subtract/multiply in the settled Wrapping or
+Saturating domains. Both forms require a matching closed
+`requires`/`ensures` pair. The producer rejects all other checked-tree shapes,
+including selected domain-owned operator meanings. The source canary lowers
+all six versioned integer-policy operations and a nine-parameter direct return,
+discards `CheckedTrees`, then verifies and executes the produced semantic
+modules. Wrapping add reaches emitted host machine code, while the ninth `u8`
+return crosses the host incoming-stack ABI. The artifacts therefore have no
+frontend lifetime dependency.
 This is the correct ownership direction, but the accepted expression grammar
 remains this deliberately narrow integer/control/contract slice. An
 architecture test keeps one fail-closed `lower_machine` entry. General terminal
@@ -90,8 +95,10 @@ source-independent consumer is also live:
 `VerifiedTerminalModule` and produces an owned stream of scalar materialization,
 wrapping-add, saturating-add, wrapping-subtract, saturating-subtract,
 wrapping-multiply, saturating-multiply,
-jump-binding, and return requirements with stable Psi provenance. Its function records also retain declared runtime parameters
-and the result pseudo-value with exact scalar types. Neither it nor
+jump-binding, and return requirements with stable Psi provenance. Its function
+records also retain declared runtime parameters and the result pseudo-value
+with exact scalar types; the real checked-source producer now exercises that
+path through a ninth stack argument. Neither it nor
 `omega-terminal-abstract-operations` depends on
 checked/typed trees, `ExpressionHandle`, or the legacy source-shaped abstract
 operation plan.
@@ -537,11 +544,13 @@ generic installation ladder. Migrating the Cathedral hard-root graph remains.
    into terminal Psi, add its Omega abstract-operation consumer, and
    compare interpreted/native behavior before broadening the vocabulary.
    **Initial vertical slice complete through native comparison:** the
-   fail-closed Psi terminal producer and a real source canary now verify and
+   fail-closed Psi terminal producer and real source canaries now verify and
    execute after checked trees are dropped, then lower the verified module into
    an owned, source-independent Omega requirement stream, a target
    return-immediate, host machine code, an owned object artifact, and a direct
-   host image whose execution matches interpretation. The same exact-text image
+   host image whose execution matches interpretation. A nine-parameter source
+   machine also returns its ninth `u8` through the selected host incoming-stack
+   ABI. The same exact-text image
    boundary is structurally exercised for all four currently supported
    architecture/format pairs.
 4. Add the remaining arithmetic variants, calls, continuations, cleanup,
