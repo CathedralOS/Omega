@@ -35,7 +35,7 @@
 //! skipped so their param-arg spellings are not mistaken for concrete instances.
 
 use omega_core::arena::{Handle, HandleSpan};
-use omega_core::diagnostics::Diagnostic;
+use psi_diagnostics::Diagnostic;
 use psi_language_semantics::const_value::CanonicalConstValue;
 use psi_numerics::literals::{IntegerLiteral, IntegerRadix};
 use psi_syntax_trees::SyntaxTrees;

@@ -14,7 +14,7 @@
 //! All bit patterns were cross-checked against an assembler (clang
 //! `--target=aarch64-*`); see the unit tests in this module for the exact bytes.
 
-use omega_core::diagnostics::Diagnostic;
+use psi_diagnostics::Diagnostic;
 
 use super::instruction::encode_instruction;
 

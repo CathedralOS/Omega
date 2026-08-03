@@ -1,9 +1,9 @@
 mod targets;
 
-use omega_core::diagnostics::Diagnostic;
 use psi_checked_trees::CheckedTrees;
 use psi_checked_trees::expression::ExpressionHandle;
 use psi_checked_trees::statement::TableCall;
+use psi_diagnostics::Diagnostic;
 
 use crate::segments::{
     SegmentTransition, StateSegment, copy_statement_expression_span,

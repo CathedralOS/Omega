@@ -1,4 +1,3 @@
-use omega_core::diagnostics::Diagnostic;
 use omega_executable_installation::{
     ArtifactRelocationKind, DecodedArtifactRelocation, ValidatedArtifactContainer,
 };
@@ -7,6 +6,7 @@ use omega_object_file::{
     SectionKind,
 };
 use omega_target::Architecture;
+use psi_diagnostics::Diagnostic;
 use psi_layout_plans::RelocationTarget;
 
 /// Translate a semantically validated Omega artifact relocation set into the

@@ -18,7 +18,6 @@ mod installation;
 
 pub use installation::*;
 
-use omega_core::diagnostics::Diagnostic;
 use omega_image::{
     CompilerTextValidationEvidence, EmittedImageOutput, FinalExecutableRegionOrigin,
     FinalImageInput, emitted_direct_executable_output,
@@ -32,6 +31,7 @@ use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_terminal_machine_code::TerminalMachineCodePlan;
 use omega_terminal_target_operations::TerminalPsiProvenance;
 use psi_core::MachineId;
+use psi_diagnostics::Diagnostic;
 use psi_terminal::TerminalPsiIdentity;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

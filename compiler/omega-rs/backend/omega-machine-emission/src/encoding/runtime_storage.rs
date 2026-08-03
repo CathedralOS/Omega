@@ -4,8 +4,8 @@ use crate::layout::LaidOutMachineInstruction;
 use omega_assigned_target_operations::{
     RuntimeValueOperand, RuntimeValueOperandHandle, StateGuardOperator,
 };
-use omega_core::diagnostics::Diagnostic;
 use omega_instruction_selection as architecture;
+use psi_diagnostics::Diagnostic;
 
 fn validate_runtime_value_home(
     input: MachineEmissionContext<'_>,

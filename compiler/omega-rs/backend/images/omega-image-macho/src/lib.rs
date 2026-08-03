@@ -1,7 +1,7 @@
-use omega_core::diagnostics::Diagnostic;
 use omega_image::{
     ExecutableImageOutput, FinalImage, apply_aarch64_relocations, place_executable_regions,
 };
+use psi_diagnostics::Diagnostic;
 
 mod bytes;
 mod code_signature;

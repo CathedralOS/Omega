@@ -2590,7 +2590,7 @@ fn try_compile_and_run_native_with_stdin(
     Ok((code, stdout, stderr))
 }
 
-fn join_diagnostics(diagnostics: &[omega_core::diagnostics::Diagnostic]) -> String {
+fn join_diagnostics(diagnostics: &[psi_diagnostics::Diagnostic]) -> String {
     diagnostics
         .iter()
         .map(ToString::to_string)

@@ -1,9 +1,9 @@
-use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::WorkerPoolHandle;
 use omega_state_graph::{MachineGraph, StateGraph, StateGraphServiceReachRoots};
 use psi_checked_trees::CheckedTrees;
 use psi_checked_trees::expression::ExpressionTableCapacity;
 use psi_checked_trees::machine::Machine;
+use psi_diagnostics::Diagnostic;
 use std::sync::Arc;
 
 use crate::capacity::{

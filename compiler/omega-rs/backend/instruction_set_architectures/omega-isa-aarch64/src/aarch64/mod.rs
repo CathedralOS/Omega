@@ -4,7 +4,7 @@ use omega_calling_conventions::{
     IndirectPointerLocation, MachineRegister, MachineState, MachineStateSet, RegisterSet,
     ValueLocation, ValuePlacement,
 };
-use omega_core::diagnostics::Diagnostic;
+use psi_diagnostics::Diagnostic;
 
 mod dispatch;
 mod generated_writer;

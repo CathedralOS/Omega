@@ -1,5 +1,5 @@
 use crate::{FinalImage, FinalImageLayout};
-use omega_core::diagnostics::Diagnostic;
+use psi_diagnostics::Diagnostic;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FinalExecutableRegionOrigin {

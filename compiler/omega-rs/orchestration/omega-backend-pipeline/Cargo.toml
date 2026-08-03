@@ -17,6 +17,7 @@ psi-checked-trees = { path = "../../../psi-rs/representations/psi-checked-trees"
 omega-control-flow-to-abstract-operations = { path = "../../pipeline/omega-control-flow-to-abstract-operations" }
 omega-control-flow = { path = "../../representations/omega-control-flow" }
 omega-core = { path = "../../foundation/omega-core" }
+psi-diagnostics = { path = "../../../psi-rs/foundation/psi-diagnostics" }
 omega-data-planning = { path = "../../backend/omega-data-planning" }
 omega-effects = { path = "../../representations/omega-effects" }
 omega-layout = { path = "../../backend/omega-layout" }

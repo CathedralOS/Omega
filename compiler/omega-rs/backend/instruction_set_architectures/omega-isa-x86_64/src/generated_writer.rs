@@ -5,7 +5,7 @@
 //! context pointer; no destination or symbolic address is embedded in code.
 
 use omega_calling_conventions::{MachineRegister, MachineState, MachineStateSet, RegisterSet};
-use omega_core::diagnostics::Diagnostic;
+use psi_diagnostics::Diagnostic;
 use psi_layout_plans::{
     ByteOrder, GeneratedPostHandoffWriterFragmentPlan, GeneratedPostHandoffWriterStep,
     POST_HANDOFF_WRITER_CONTEXT_ABI_V1, POST_HANDOFF_WRITER_SOURCE_SLOT_WIDTH,

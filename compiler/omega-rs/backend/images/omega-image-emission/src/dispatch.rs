@@ -1,9 +1,9 @@
 use crate::input::ExecutableImageInput;
-use omega_core::diagnostics::Diagnostic;
 use omega_image::{
     EmittedImageOutput, FinalImage, FinalImageInput, emitted_direct_executable_output,
 };
 use omega_target::{Architecture, ObjectFormat};
+use psi_diagnostics::Diagnostic;
 
 pub fn emit_executable_image(
     input: ExecutableImageInput<'_>,

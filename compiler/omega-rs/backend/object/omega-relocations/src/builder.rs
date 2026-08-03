@@ -1,9 +1,9 @@
 use crate::RelocationPlanningInput;
 use crate::instruction_records::collect_instruction_relocations;
 use crate::lookups::SelectedInstructionTextLayouts;
-use omega_core::diagnostics::Diagnostic;
 use omega_object_file::{RelocationPlan, object_symbol_handle_by_name};
 use omega_target_operations::FunctionInstructionPlan;
+use psi_diagnostics::Diagnostic;
 
 pub fn build_relocation_plan(
     input: RelocationPlanningInput<'_>,

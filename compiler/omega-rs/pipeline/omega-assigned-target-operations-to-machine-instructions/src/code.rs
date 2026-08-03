@@ -1,8 +1,8 @@
 use omega_assigned_target_operations::AssignedTargetOperationPlan;
-use omega_core::diagnostics::Diagnostic;
 use omega_machine_instructions::{
     MachineInstructionCode, MachineInstructionFunction, MachineInstructionPlan,
 };
+use psi_diagnostics::Diagnostic;
 
 use crate::functions;
 

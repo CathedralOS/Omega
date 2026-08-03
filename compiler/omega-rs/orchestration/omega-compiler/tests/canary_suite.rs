@@ -1,5 +1,5 @@
 use omega_compiler::{CompileOptions, CompileReport, compile, compile_to_checked};
-use omega_core::diagnostics::Diagnostic;
+use psi_diagnostics::Diagnostic;
 use psi_language_semantics::content::{
     ContentAlgebraIdentity, ContentArithmeticOperator, ContentConservationOwnerKind,
     ContentConservationTerm, ContentPlaceRoot, ContentPlaceVersion, ContentProjectionExpression,

@@ -2,8 +2,8 @@ use crate::{
     FinalImage, FinalImageLayout, FinalImageSection, final_image_imports_symbol,
     final_image_symbol_address, final_image_symbol_name, patch_bytes,
 };
-use omega_core::diagnostics::Diagnostic;
 use omega_object_file::RelocationKind;
+use psi_diagnostics::Diagnostic;
 
 pub fn apply_aarch64_relocations(
     image: &mut FinalImage,

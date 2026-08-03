@@ -1,8 +1,8 @@
 use omega_calling_conventions::{MachineRegister, MachineState, MachineStateSet, RegisterSet};
-use omega_core::diagnostics::Diagnostic;
 use omega_target_operations::{
     RuntimeValueOperandHandle, RuntimeValueOperandSource, StateGuardOperator,
 };
+use psi_diagnostics::Diagnostic;
 
 use super::primitives::{
     append_add_x_constant, append_unsigned_immediate, append_unsigned_immediate_padded,

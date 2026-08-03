@@ -24,8 +24,8 @@
 //! selection then proceeds exactly as before (its own blockers reject the
 //! call), so the pass can never turn a working program into a broken one.
 
-use omega_core::diagnostics::Diagnostic;
 use omega_interpreter::BuildTimeValue;
+use psi_diagnostics::Diagnostic;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::types::PrimitiveType;
 use psi_typed_trees::wire::{WireMember, WirePlacement};

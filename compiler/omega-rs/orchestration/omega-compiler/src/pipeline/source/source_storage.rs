@@ -2,7 +2,7 @@ use crate::pipeline::frontend::ParsedSources;
 use crate::pipeline::source::SourceFile;
 use crate::source::SourceMap;
 use omega_core::arena::Arena;
-use omega_core::diagnostics::Diagnostic;
+use psi_diagnostics::Diagnostic;
 use psi_source::SourceOrigin;
 use psi_syntax_trees::SyntaxTrees;
 use std::path::{Path, PathBuf};

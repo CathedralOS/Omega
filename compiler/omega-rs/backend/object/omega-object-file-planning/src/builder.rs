@@ -1,8 +1,8 @@
 use crate::input::ObjectPlanningInput;
 use crate::sections::insert_object_sections;
 use crate::symbols::{insert_object_symbols, object_symbol_capacity};
-use omega_core::diagnostics::Diagnostic;
 use omega_object_file::ObjectPlan;
+use psi_diagnostics::Diagnostic;
 
 pub fn build_object_plan(input: ObjectPlanningInput<'_>) -> Result<ObjectPlan, Diagnostic> {
     let main_layout = crate::entry::entry_machine_layout(&input)?;

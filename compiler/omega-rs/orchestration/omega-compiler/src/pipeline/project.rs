@@ -1,5 +1,5 @@
 use crate::pipeline::source::SourceStorage;
-use omega_core::diagnostics::Diagnostic;
+use psi_diagnostics::Diagnostic;
 
 pub(super) fn project_roots(root_path: &std::path::Path) -> Vec<std::path::PathBuf> {
     let mut roots = vec![root_path.to_path_buf()];

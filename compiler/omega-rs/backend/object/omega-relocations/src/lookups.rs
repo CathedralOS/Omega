@@ -1,7 +1,7 @@
 use crate::RelocationPlanningInput;
 use omega_calling_conventions::{HostBinding, HostOperationKey};
-use omega_core::diagnostics::Diagnostic;
 use omega_target_operations::FunctionInstructionPlan;
+use psi_diagnostics::Diagnostic;
 
 #[derive(Debug, Default)]
 pub(super) struct SelectedInstructionTextLayouts {

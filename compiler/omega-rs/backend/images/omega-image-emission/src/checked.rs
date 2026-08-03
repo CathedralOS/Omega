@@ -1,12 +1,12 @@
 use crate::dispatch::emit_executable_image;
 use crate::input::ExecutableImageInput;
-use omega_core::diagnostics::Diagnostic;
 use omega_image::{
     CompilerTextValidationEvidence, EmittedImageOutput, FinalExecutableRegionOrigin,
     PlacedExecutableRegionInventory,
 };
 use omega_object_file::{RelocationKind, RelocationPlan, SectionKind};
 use omega_target::Architecture;
+use psi_diagnostics::Diagnostic;
 
 pub fn emit_checked_executable_image(
     input: ExecutableImageInput<'_>,

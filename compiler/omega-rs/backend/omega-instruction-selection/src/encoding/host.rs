@@ -3,11 +3,11 @@ use omega_calling_conventions::{
     CallPlan, CallSignature, CallingPolicy, EntryControl, HostOperationKey, MachineRegister,
     ValueLocation, ValuePlacement, ValueShape, evaluate_call_plan, validate_call_plan,
 };
-use omega_core::diagnostics::Diagnostic;
 use omega_isa_aarch64::aarch64;
 use omega_isa_x86_64 as x86_64;
 use omega_target::{Architecture, NativeTarget};
 use omega_target_operations::InstructionOperandLike;
+use psi_diagnostics::Diagnostic;
 
 pub(super) struct NormalizedSyscallRegisters {
     pub parameters: Vec<omega_calling_conventions::MachineRegister>,

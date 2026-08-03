@@ -8,8 +8,8 @@ use omega_assigned_target_operations::{
     SelectedInstructionKind, StateGuardLowering, StateGuardOperator,
 };
 use omega_core::arena::Handle;
-use omega_core::diagnostics::Diagnostic;
 use omega_machine_instructions::MachineInstructionKind;
+use psi_diagnostics::Diagnostic;
 
 use validation::ensure_runtime_value_homes;
 

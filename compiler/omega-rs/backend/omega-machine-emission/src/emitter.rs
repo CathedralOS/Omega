@@ -1,9 +1,9 @@
 use crate::code::build_encoded_machine_code;
 use crate::semantics::build_encoded_machine_semantic_summary;
-use omega_core::diagnostics::Diagnostic;
 use omega_machine_bytes::EncodedMachinePlan;
 use omega_machine_instructions::MachineInstructionPlan;
 use omega_target::NativeTarget;
+use psi_diagnostics::Diagnostic;
 
 #[derive(Debug)]
 pub struct MachineEmissionInput<'plan, 'machine> {

@@ -1,8 +1,8 @@
 use crate::MachineEmissionContext;
 use crate::emitter::MachineEmissionInput;
 use crate::instruction_bytes::emit_function_bytes;
-use omega_core::diagnostics::Diagnostic;
 use omega_machine_bytes::{EncodedMachineCode, EncodedMachineFunction, EncodedMachinePlan};
+use psi_diagnostics::Diagnostic;
 
 pub(crate) fn build_encoded_machine_code(
     input: &MachineEmissionInput<'_, '_>,

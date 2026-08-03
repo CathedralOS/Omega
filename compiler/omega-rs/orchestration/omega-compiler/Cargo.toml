@@ -14,6 +14,7 @@ psi-syntax-trees = { path = "../../../psi-rs/representations/psi-syntax-trees" }
 psi-syntax-trees-to-symbol-resolved-trees = { path = "../../../psi-rs/pipeline/psi-syntax-trees-to-symbol-resolved-trees" }
 omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }
 psi-access-plans = { path = "../../../psi-rs/foundation/psi-access-plans" }
+psi-diagnostics = { path = "../../../psi-rs/foundation/psi-diagnostics" }
 psi-language-core = { path = "../../../psi-rs/foundation/psi-language-core" }
 psi-language-semantics = { path = "../../../psi-rs/foundation/psi-language-semantics" }
 psi-layout-plans = { path = "../../../psi-rs/foundation/psi-layout-plans" }

@@ -1935,7 +1935,7 @@ fn duplicate_denotation_role_contributions_are_rejected() {
     }));
 }
 
-fn validate_contract_source(source: &str) -> Result<(), Vec<omega_core::diagnostics::Diagnostic>> {
+fn validate_contract_source(source: &str) -> Result<(), Vec<psi_diagnostics::Diagnostic>> {
     let tokens = Lexer::new(source)
         .tokenize()
         .expect("tokenize should succeed");

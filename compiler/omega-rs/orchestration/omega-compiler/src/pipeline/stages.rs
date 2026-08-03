@@ -14,12 +14,12 @@ use crate::pipeline::stage::{
 };
 use crate::pipeline::timing::CompileTimings;
 use omega_control_flow::ControlFlowPlan;
-use omega_core::diagnostics::Diagnostic;
 use omega_emission_planning::{EmissionPlanningInput, build_emission_plan};
 use omega_object_file::SectionKind;
 use omega_state_graph::StateGraph;
 use omega_target::NativeTarget;
 use psi_checked_trees::CheckedTrees as CheckedProgram;
+use psi_diagnostics::Diagnostic;
 use psi_symbol_resolved_trees::SymbolResolvedTrees;
 use psi_syntax_trees::SyntaxTrees;
 use psi_typed_trees::TypedTrees;

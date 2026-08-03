@@ -1,7 +1,7 @@
 use crate::input::ObjectPlanningInput;
-use omega_core::diagnostics::Diagnostic;
 use omega_layout::MachineLayout;
 use omega_machine_bytes::EncodedMachineFunction;
+use psi_diagnostics::Diagnostic;
 
 pub(crate) fn entry_machine_layout<'plan>(
     input: &ObjectPlanningInput<'plan>,

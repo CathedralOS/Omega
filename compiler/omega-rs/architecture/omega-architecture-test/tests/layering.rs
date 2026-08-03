@@ -312,6 +312,7 @@ fn frontend_implementation_is_psi_owned() {
         "compiler/omega-rs/foundation/omega-core/src/cast_form.rs",
         "compiler/omega-rs/foundation/omega-core/src/const_value.rs",
         "compiler/omega-rs/foundation/omega-core/src/content.rs",
+        "compiler/omega-rs/foundation/omega-core/src/diagnostics",
         "compiler/omega-rs/foundation/omega-core/src/float_semantics.rs",
         "compiler/omega-rs/foundation/omega-core/src/inline_assembly.rs",
         "compiler/omega-rs/foundation/omega-core/src/literals.rs",
@@ -327,17 +328,6 @@ fn frontend_implementation_is_psi_owned() {
             "retired Psi-owned omega-core compatibility surface must not return: {relative}"
         );
     }
-
-    let diagnostics_module =
-        root.join("compiler/omega-rs/foundation/omega-core/src/diagnostics/mod.rs");
-    let source = std::fs::read_to_string(&diagnostics_module)
-        .unwrap_or_else(|error| panic!("failed to read {}: {error}", diagnostics_module.display()));
-    assert!(
-        source.contains(
-            "pub use psi_diagnostics::{Diagnostic, DiagnosticSeverity, PhaseSnapshot, format_diagnostics};"
-        ),
-        "legacy diagnostics module must re-export the Psi-owned diagnostic contracts"
-    );
 
     let arena_module = root.join("compiler/omega-rs/foundation/omega-core/src/arena/mod.rs");
     let source = std::fs::read_to_string(&arena_module)

@@ -1,5 +1,5 @@
-use omega_core::diagnostics::Diagnostic;
 use omega_image::{FinalImage, FinalImageSection, final_image_symbol_name};
+use psi_diagnostics::Diagnostic;
 
 pub(crate) fn macho_entry_text_offset(image: &FinalImage) -> Result<usize, Diagnostic> {
     let entry_symbol = image

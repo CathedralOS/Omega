@@ -1,4 +1,3 @@
-use omega_core::diagnostics::Diagnostic;
 use omega_layout::TypeLayout;
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_task_plans::{
@@ -9,6 +8,7 @@ use omega_task_plans::{
     ValueLayoutId, validate_activation_plan,
 };
 use psi_checked_trees::{CheckedTrees, SuspensionCrossingStorage};
+use psi_diagnostics::Diagnostic;
 use psi_language_semantics::{CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension};
 
 /// Elaborate every concrete `TaskRuntime::{start,try_start}<M>` specialization

@@ -11,8 +11,8 @@ use omega_calling_conventions::{
     SystemVEightbyteClass, ValidatedBoundaryEntryPlan, ValueClass, ValueLocation, ValuePlacement,
     ValueShape, validate_boundary_plan_result,
 };
-use omega_core::diagnostics::Diagnostic;
 use omega_interpreter::BuildTimeValue;
+use psi_diagnostics::Diagnostic;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 

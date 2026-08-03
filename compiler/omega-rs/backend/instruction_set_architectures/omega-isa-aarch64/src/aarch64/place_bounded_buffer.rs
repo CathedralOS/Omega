@@ -1,5 +1,5 @@
-use omega_core::diagnostics::Diagnostic;
 use omega_target_operations::{Place, PlaceStep};
+use psi_diagnostics::Diagnostic;
 
 use super::primitives::{
     append_add_x_constant, append_unsigned_immediate, encode_add_page_offset_placeholder,

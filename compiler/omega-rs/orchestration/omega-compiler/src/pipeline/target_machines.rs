@@ -21,8 +21,8 @@
 //! the target-scoped declaration semantic (a hypothetical target is inert
 //! everywhere, which is also what makes fail-canaries host-portable).
 
-use omega_core::diagnostics::Diagnostic;
 use omega_target::NativeTarget;
+use psi_diagnostics::Diagnostic;
 use psi_syntax_trees::SyntaxTrees;
 use psi_syntax_trees::item::Item;
 use std::collections::BTreeMap;

@@ -1,6 +1,6 @@
 use super::RuntimeFlowBuilder;
 use omega_control_flow::{MachineFlow, StateFlow, StateKey};
-use omega_core::diagnostics::Diagnostic;
+use psi_diagnostics::Diagnostic;
 use std::fmt;
 
 pub(super) struct StateKeyDisplay<'builder, 'plan> {

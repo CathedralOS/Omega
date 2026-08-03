@@ -5,7 +5,7 @@
 //! clause on a boundary `operator`. Only whitelisted packages may declare
 //! providers; every boundary binding must resolve to a registered provider.
 
-use omega_core::diagnostics::Diagnostic;
+use psi_diagnostics::Diagnostic;
 use psi_language_core::ProviderCategory;
 use psi_syntax_trees::SyntaxTrees;
 use psi_syntax_trees::identifier::Identifier;

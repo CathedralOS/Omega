@@ -1,7 +1,7 @@
-use omega_core::diagnostics::Diagnostic;
 use omega_state_graph::{PlannedTransitionTarget, StateKey};
 use psi_checked_trees::CheckedTrees;
 use psi_checked_trees::statement::{TableCall, TransitionTargetHandle, TransitionTargetNode};
+use psi_diagnostics::Diagnostic;
 
 use crate::segments::StateSegment;
 
