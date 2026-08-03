@@ -696,9 +696,11 @@ take a structurally complete plan set from the retained catalog bindings: a
 direct call carries exactly one plan, while the Windows file adapter carries
 both GetStdHandle and ReadFile/WriteFile plans. A partial adapter is therefore
 not representable at that boundary; a mismatched variant or incompatible plan
-still rejects. Independent normalization remains only the no-plan differential
-oracle. The outer semantic binding plan is not substituted for either internal
-signature.
+still rejects. The direct byte/line encoder and width APIs require their one
+plan directly, and the ISA-level Windows-pair validator likewise requires both
+plans; independent normalization is exposed only by explicitly named no-plan
+differential oracles. The outer semantic binding plan is not substituted for
+either internal signature.
 The base Linux binding rows make that retention literal: `Stdin::read`,
 `Stdout::write`, and `Stderr::write` each carry the exact three-word/result
 syscall plan, while `Process::exit_group` carries its one-word/no-result plan.

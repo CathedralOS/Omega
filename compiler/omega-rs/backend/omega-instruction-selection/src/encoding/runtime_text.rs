@@ -10,6 +10,21 @@ use psi_diagnostics::Diagnostic;
 
 use super::host::normalized_syscall_registers_with_plan;
 
+fn validate_optional_win64_runtime_file_adapter_plans(
+    get_std_handle_plan: Option<&CallPlan>,
+    file_io_plan: Option<&CallPlan>,
+) -> Result<(), Diagnostic> {
+    match (get_std_handle_plan, file_io_plan) {
+        (Some(get_std_handle), Some(file_io)) => {
+            x86_64::validate_win64_runtime_file_adapter_plans(get_std_handle, file_io)
+        }
+        (None, None) => x86_64::validate_win64_runtime_file_adapter_no_plan(),
+        _ => Err(Diagnostic::error(
+            "Win64 runtime text adapter requires both retained GetStdHandle and ReadFile/WriteFile plans",
+        )),
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum RuntimeTextCallPlans<'plan> {
     Direct(&'plan CallPlan),
@@ -409,13 +424,20 @@ pub fn encode_runtime_text_buffer_materialize_to_runtime_frame_indexed(
 
 /// One stdin byte into a `ByteRead` sum slot (std console `read_byte()`).
 /// X86_64 is not encoded yet (TASKS_FS #0a follow-up) -- loud by doctrine.
-pub fn encode_runtime_byte_read(
+pub fn encode_runtime_byte_read_no_plan(
     architecture: Architecture,
     target_offset: usize,
     payload_offset: usize,
     binding: &HostBindingMechanism,
 ) -> Result<Vec<u8>, Diagnostic> {
-    encode_runtime_byte_read_with_plan(architecture, target_offset, payload_offset, binding, None)
+    encode_runtime_byte_read_with_optional_plans(
+        architecture,
+        target_offset,
+        payload_offset,
+        binding,
+        None,
+        None,
+    )
 }
 
 pub fn encode_runtime_byte_read_with_plan(
@@ -423,15 +445,14 @@ pub fn encode_runtime_byte_read_with_plan(
     target_offset: usize,
     payload_offset: usize,
     binding: &HostBindingMechanism,
-    authoritative_plan: Option<&CallPlan>,
+    authoritative_plan: &CallPlan,
 ) -> Result<Vec<u8>, Diagnostic> {
-    encode_runtime_byte_read_with_optional_plans(
+    encode_runtime_byte_read_with_plans(
         architecture,
         target_offset,
         payload_offset,
         binding,
-        authoritative_plan,
-        None,
+        RuntimeTextCallPlans::Direct(authoritative_plan),
     )
 }
 
@@ -492,7 +513,7 @@ fn encode_runtime_byte_read_with_optional_plans(
         },
         Architecture::X86_64 => match binding {
             HostBindingMechanism::Import { .. } => {
-                x86_64::validate_win64_runtime_file_adapter_plans(
+                validate_optional_win64_runtime_file_adapter_plans(
                     get_std_handle_plan,
                     authoritative_plan,
                 )?;
@@ -526,26 +547,25 @@ fn encode_runtime_byte_read_with_optional_plans(
 
 /// One byte to stdout (std console `write_byte(b)`); same conventions as
 /// the read.
-pub fn encode_runtime_byte_write(
+pub fn encode_runtime_byte_write_no_plan(
     architecture: Architecture,
     source_offset: usize,
     binding: &HostBindingMechanism,
 ) -> Result<Vec<u8>, Diagnostic> {
-    encode_runtime_byte_write_with_plan(architecture, source_offset, binding, None)
+    encode_runtime_byte_write_with_optional_plans(architecture, source_offset, binding, None, None)
 }
 
 pub fn encode_runtime_byte_write_with_plan(
     architecture: Architecture,
     source_offset: usize,
     binding: &HostBindingMechanism,
-    authoritative_plan: Option<&CallPlan>,
+    authoritative_plan: &CallPlan,
 ) -> Result<Vec<u8>, Diagnostic> {
-    encode_runtime_byte_write_with_optional_plans(
+    encode_runtime_byte_write_with_plans(
         architecture,
         source_offset,
         binding,
-        authoritative_plan,
-        None,
+        RuntimeTextCallPlans::Direct(authoritative_plan),
     )
 }
 
@@ -602,7 +622,7 @@ fn encode_runtime_byte_write_with_optional_plans(
         },
         Architecture::X86_64 => match binding {
             HostBindingMechanism::Import { .. } => {
-                x86_64::validate_win64_runtime_file_adapter_plans(
+                validate_optional_win64_runtime_file_adapter_plans(
                     get_std_handle_plan,
                     authoritative_plan,
                 )?;
@@ -633,19 +653,20 @@ fn encode_runtime_byte_write_with_optional_plans(
     }
 }
 
-pub fn encode_runtime_text_line_read(
+pub fn encode_runtime_text_line_read_no_plan(
     architecture: Architecture,
     target_offset: usize,
     byte_capacity: usize,
     binding: &HostBindingMechanism,
     target: RuntimeTextReadTarget,
 ) -> Result<Vec<u8>, Diagnostic> {
-    encode_runtime_text_line_read_with_plan(
+    encode_runtime_text_line_read_with_optional_plans(
         architecture,
         target_offset,
         byte_capacity,
         binding,
         target,
+        None,
         None,
     )
 }
@@ -656,16 +677,15 @@ pub fn encode_runtime_text_line_read_with_plan(
     byte_capacity: usize,
     binding: &HostBindingMechanism,
     target: RuntimeTextReadTarget,
-    authoritative_plan: Option<&CallPlan>,
+    authoritative_plan: &CallPlan,
 ) -> Result<Vec<u8>, Diagnostic> {
-    encode_runtime_text_line_read_with_optional_plans(
+    encode_runtime_text_line_read_with_plans(
         architecture,
         target_offset,
         byte_capacity,
         binding,
         target,
-        authoritative_plan,
-        None,
+        RuntimeTextCallPlans::Direct(authoritative_plan),
     )
 }
 
@@ -772,7 +792,7 @@ fn encode_runtime_text_line_read_with_optional_plans(
         },
         Architecture::X86_64 => match binding {
             HostBindingMechanism::Import { .. } => {
-                x86_64::validate_win64_runtime_file_adapter_plans(
+                validate_optional_win64_runtime_file_adapter_plans(
                     get_std_handle_plan,
                     authoritative_plan,
                 )?;
@@ -905,33 +925,25 @@ mod plan_differential_tests {
         for architecture in [Architecture::X86_64, Architecture::Aarch64] {
             let plan = plan(architecture);
 
-            let compatibility = encode_runtime_byte_read(architecture, 16, 24, &binding)
+            let compatibility = encode_runtime_byte_read_no_plan(architecture, 16, 24, &binding)
                 .expect("compatibility byte read");
-            let planned =
-                encode_runtime_byte_read_with_plan(architecture, 16, 24, &binding, Some(&plan))
-                    .expect("planned byte read");
+            let planned = encode_runtime_byte_read_with_plan(architecture, 16, 24, &binding, &plan)
+                .expect("planned byte read");
             assert_eq!(compatibility, planned, "byte read {architecture:?}");
             assert_eq!(
-                crate::runtime_byte_read_width(architecture, &binding),
-                crate::runtime_byte_read_width_with_plan(
-                    architecture,
-                    &binding,
-                    16,
-                    24,
-                    Some(&plan),
-                ),
+                crate::runtime_byte_read_width_no_plan(architecture, &binding),
+                crate::runtime_byte_read_width_with_plan(architecture, &binding, 16, 24, &plan,),
                 "byte read width {architecture:?}"
             );
 
-            let compatibility = encode_runtime_byte_write(architecture, 32, &binding)
+            let compatibility = encode_runtime_byte_write_no_plan(architecture, 32, &binding)
                 .expect("compatibility byte write");
-            let planned =
-                encode_runtime_byte_write_with_plan(architecture, 32, &binding, Some(&plan))
-                    .expect("planned byte write");
+            let planned = encode_runtime_byte_write_with_plan(architecture, 32, &binding, &plan)
+                .expect("planned byte write");
             assert_eq!(compatibility, planned, "byte write {architecture:?}");
             assert_eq!(
-                crate::runtime_byte_write_width(architecture, &binding, 32),
-                crate::runtime_byte_write_width_with_plan(architecture, &binding, 32, Some(&plan),),
+                crate::runtime_byte_write_width_no_plan(architecture, &binding, 32),
+                crate::runtime_byte_write_width_with_plan(architecture, &binding, 32, &plan),
                 "byte write width {architecture:?}"
             );
 
@@ -941,7 +953,7 @@ mod plan_differential_tests {
                 RuntimeTextReadTarget::StringDescriptor,
             ] {
                 let compatibility =
-                    encode_runtime_text_line_read(architecture, 40, 64, &binding, target)
+                    encode_runtime_text_line_read_no_plan(architecture, 40, 64, &binding, target)
                         .expect("compatibility line read");
                 let planned = encode_runtime_text_line_read_with_plan(
                     architecture,
@@ -949,7 +961,7 @@ mod plan_differential_tests {
                     64,
                     &binding,
                     target,
-                    Some(&plan),
+                    &plan,
                 )
                 .expect("planned line read");
                 assert_eq!(
@@ -957,14 +969,20 @@ mod plan_differential_tests {
                     "line read {architecture:?} {target:?}"
                 );
                 assert_eq!(
-                    crate::runtime_text_line_read_width(architecture, 64, &binding, target, 40,),
+                    crate::runtime_text_line_read_width_no_plan(
+                        architecture,
+                        64,
+                        &binding,
+                        target,
+                        40,
+                    ),
                     crate::runtime_text_line_read_width_with_plan(
                         architecture,
                         64,
                         &binding,
                         target,
                         40,
-                        Some(&plan),
+                        &plan,
                     ),
                     "line read width {architecture:?} {target:?}"
                 );
@@ -985,21 +1003,15 @@ mod plan_differential_tests {
         .expect("AAPCS64 read/write plan");
 
         assert_eq!(
-            encode_runtime_byte_read(Architecture::Aarch64, 16, 24, &binding)
+            encode_runtime_byte_read_no_plan(Architecture::Aarch64, 16, 24, &binding)
                 .expect("compatibility import byte read"),
-            encode_runtime_byte_read_with_plan(
-                Architecture::Aarch64,
-                16,
-                24,
-                &binding,
-                Some(&plan),
-            )
-            .expect("planned import byte read")
+            encode_runtime_byte_read_with_plan(Architecture::Aarch64, 16, 24, &binding, &plan,)
+                .expect("planned import byte read")
         );
         assert_eq!(
-            encode_runtime_byte_write(Architecture::Aarch64, 32, &binding)
+            encode_runtime_byte_write_no_plan(Architecture::Aarch64, 32, &binding)
                 .expect("compatibility import byte write"),
-            encode_runtime_byte_write_with_plan(Architecture::Aarch64, 32, &binding, Some(&plan),)
+            encode_runtime_byte_write_with_plan(Architecture::Aarch64, 32, &binding, &plan)
                 .expect("planned import byte write")
         );
         for target in [
@@ -1008,15 +1020,21 @@ mod plan_differential_tests {
             RuntimeTextReadTarget::StringDescriptor,
         ] {
             assert_eq!(
-                encode_runtime_text_line_read(Architecture::Aarch64, 40, 64, &binding, target)
-                    .expect("compatibility import line read"),
+                encode_runtime_text_line_read_no_plan(
+                    Architecture::Aarch64,
+                    40,
+                    64,
+                    &binding,
+                    target
+                )
+                .expect("compatibility import line read"),
                 encode_runtime_text_line_read_with_plan(
                     Architecture::Aarch64,
                     40,
                     64,
                     &binding,
                     target,
-                    Some(&plan),
+                    &plan,
                 )
                 .expect("planned import line read")
             );
@@ -1033,7 +1051,7 @@ mod plan_differential_tests {
             16,
             24,
             &binding,
-            Some(&incompatible),
+            &incompatible,
         )
         .expect_err("hardcoded import placement must reject a changed retained plan");
         assert!(error.message.contains("requires Aarch64X(1)"));
@@ -1043,7 +1061,7 @@ mod plan_differential_tests {
                 &binding,
                 16,
                 24,
-                Some(&incompatible),
+                &incompatible,
             ),
             0,
             "layout must fail closed with emission"
@@ -1060,7 +1078,7 @@ mod plan_differential_tests {
         let file_io = win64_plan(&[8, 8, 4, 8, 8], Some(4));
 
         assert_eq!(
-            encode_runtime_byte_read(Architecture::X86_64, 16, 24, &binding)
+            encode_runtime_byte_read_no_plan(Architecture::X86_64, 16, 24, &binding)
                 .expect("compatibility byte read"),
             encode_runtime_byte_read_with_plans(
                 Architecture::X86_64,
@@ -1075,7 +1093,7 @@ mod plan_differential_tests {
             .expect("planned byte read")
         );
         assert_eq!(
-            encode_runtime_byte_write(Architecture::X86_64, 32, &binding)
+            encode_runtime_byte_write_no_plan(Architecture::X86_64, 32, &binding)
                 .expect("compatibility byte write"),
             encode_runtime_byte_write_with_plans(
                 Architecture::X86_64,
@@ -1094,8 +1112,14 @@ mod plan_differential_tests {
             RuntimeTextReadTarget::StringDescriptor,
         ] {
             assert_eq!(
-                encode_runtime_text_line_read(Architecture::X86_64, 40, 64, &binding, target)
-                    .expect("compatibility line read"),
+                encode_runtime_text_line_read_no_plan(
+                    Architecture::X86_64,
+                    40,
+                    64,
+                    &binding,
+                    target
+                )
+                .expect("compatibility line read"),
                 encode_runtime_text_line_read_with_plans(
                     Architecture::X86_64,
                     40,

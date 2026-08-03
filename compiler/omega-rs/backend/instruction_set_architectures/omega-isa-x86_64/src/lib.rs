@@ -2437,20 +2437,18 @@ fn selected_win64_composite_plan(
 }
 
 pub fn validate_win64_runtime_file_adapter_plans(
-    get_std_handle_plan: Option<&CallPlan>,
-    file_io_plan: Option<&CallPlan>,
+    get_std_handle_plan: &CallPlan,
+    file_io_plan: &CallPlan,
 ) -> Result<(), Diagnostic> {
-    match (get_std_handle_plan, file_io_plan) {
-        (None, None) => Ok(()),
-        (Some(get_std_handle_plan), Some(file_io_plan)) => {
-            validate_normalized_win64_get_std_handle_plan(Some(get_std_handle_plan))?;
-            normalized_win64_file_io_layout(Some(file_io_plan))?;
-            Ok(())
-        }
-        _ => Err(Diagnostic::error(
-            "Win64 runtime text adapter requires both retained GetStdHandle and ReadFile/WriteFile plans",
-        )),
-    }
+    validate_normalized_win64_get_std_handle_plan(Some(get_std_handle_plan))?;
+    normalized_win64_file_io_layout(Some(file_io_plan))?;
+    Ok(())
+}
+
+pub fn validate_win64_runtime_file_adapter_no_plan() -> Result<(), Diagnostic> {
+    validate_normalized_win64_get_std_handle_plan(None)?;
+    normalized_win64_file_io_layout(None)?;
+    Ok(())
 }
 
 /// Reserve through a composite call's final local byte while preserving the
