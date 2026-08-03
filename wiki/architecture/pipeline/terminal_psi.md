@@ -72,11 +72,12 @@ expression over parameters and landed literals using the six builtin
 add/subtract/multiply operations in the settled Wrapping or Saturating domains.
 A two-state integer machine may carry one typed constant through an
 unconditional jump and return either the matching literal or one builtin
-parameter-plus-literal operation. It may also declare a nonempty sequence of
-ordinary integer parameters, compute a recursively nested
-parameter/literal add/subtract/multiply expression for the jump argument, and
-continue with another recursively nested expression over the return-state
-parameter and landed literals. Both paths use the settled Wrapping or
+parameter-plus-literal operation. The parameterized form may contain any
+nonempty linear sequence of states: it computes a recursively nested
+parameter/literal add/subtract/multiply expression for each unconditional jump,
+binds one exact integer parameter in every non-entry state, and continues with
+another recursively nested expression over that parameter and landed literals.
+Both paths use the settled Wrapping or
 Saturating domains. All three forms require a matching closed
 `requires`/`ensures` pair. The producer rejects all other checked-tree shapes,
 including selected domain-owned operator meanings. The source canary lowers
@@ -93,6 +94,8 @@ and reaches emitted host code. A two-state runtime canary now computes from the
 first register and ninth stack arguments, binds that result through an
 unconditional edge, and continues arithmetic from the block parameter; its
 five-unit fixed-fuel certificate, interpretation, and emitted host result agree.
+The three-state companion carries that runtime value through a second computed
+jump and agrees at an eight-unit ceiling.
 The
 artifacts therefore have no frontend lifetime dependency.
 This is the correct ownership direction, but the accepted expression grammar
@@ -575,7 +578,9 @@ generic installation ladder. Migrating the Cathedral hard-root graph remains.
    expression reaches the same interpreted/native result. A parameterized
    two-state source machine carries a register-plus-stack expression through a
    jump binding, continues from the block parameter, and matches the same
-   interpreted/native result with a five-unit fixed-fuel certificate. The same exact-text image
+   interpreted/native result with a five-unit fixed-fuel certificate. A
+   three-state companion repeats the binding/computation step and matches with
+   an eight-unit certificate. The same exact-text image
    boundary is structurally exercised for all four currently supported
    architecture/format pairs.
 4. Add the remaining arithmetic variants, calls, continuations, cleanup,

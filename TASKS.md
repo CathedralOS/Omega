@@ -1116,10 +1116,11 @@ improvements do not change public identity.
   checked-tree producer is also live and fail-closed: it lowers one exact typed
   integer-constant/unconditional-jump source slice whose return is either the
   matching literal or a builtin parameter-plus-literal add/subtract/multiply
-  in the settled Wrapping or Saturating domain. The same two-state form now
-  accepts ordinary integer machine parameters, lowers a recursively nested
-  parameter/literal expression into the jump argument, and continues with a
-  recursively nested expression over the exact return-state block parameter.
+  in the settled Wrapping or Saturating domain. The parameterized form now
+  accepts ordinary integer machine parameters and any nonempty linear state
+  chain, lowering a recursively nested parameter/literal expression into each
+  jump argument and continuing through one exact integer block parameter per
+  non-entry state.
   A second exact form lowers any
   nonempty sequence of ordinary primitive-integer machine parameters and an
   exact recursively nested parameter/literal expression using builtin
@@ -1137,7 +1138,9 @@ improvements do not change public identity.
   add-then-multiply source expression does too. A parameterized two-state
   canary combines a register and ninth stack argument before an unconditional
   jump, continues from the bound block parameter, and agrees across fixed-fuel
-  derivation, interpretation, and emitted host execution. Because the
+  derivation, interpretation, and emitted host execution. A three-state
+  companion repeats the computed binding and agrees at its eight-unit ceiling.
+  Because the
   legacy exit prover cannot establish ordinary `result == literal` contracts,
   this bootstrap canary preserves a closed typed `requires`/`ensures` fact and
   asserts the returned `i32` independently; do not generalize that workaround

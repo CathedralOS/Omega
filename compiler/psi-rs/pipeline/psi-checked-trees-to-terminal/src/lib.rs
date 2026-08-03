@@ -796,14 +796,14 @@ pub fn lower_machine(
             _ => lower_direct_parameter_machine(checked, machine, entry_state),
         };
     }
+    if states.len() >= 2 && !checked.state_parameters(&states[0]).is_empty() {
+        return lower_parameterized_state_chain(checked, machine, states);
+    }
     let [entry_state, return_state] = states else {
         return unsupported(
             "machine must contain one direct-parameter state or an entry state and one return state",
         );
     };
-    if !checked.state_parameters(entry_state).is_empty() {
-        return lower_parameterized_two_state_machine(checked, machine, entry_state, return_state);
-    }
     let [return_parameter] = checked.state_parameters(return_state) else {
         return unsupported("return state must have exactly one parameter");
     };
@@ -898,18 +898,18 @@ pub fn lower_machine(
     ))
 }
 
-fn lower_parameterized_two_state_machine(
+fn lower_parameterized_state_chain(
     checked: &CheckedTrees,
     machine: &psi_checked_trees::machine::Machine,
-    entry_state: &psi_checked_trees::state::State,
-    return_state: &psi_checked_trees::state::State,
+    states: &[psi_checked_trees::state::State],
 ) -> Result<LoweredTerminalPsi, LoweringError> {
+    let entry_state = &states[0];
     let entry_parameters = checked.state_parameters(entry_state);
     if entry_parameters
         .iter()
         .any(|parameter| parameter.is_self || parameter.is_const || parameter.is_mutable)
     {
-        return unsupported("qualified two-state machine parameters are not supported");
+        return unsupported("qualified linear-state machine parameters are not supported");
     }
     let parameter_types = entry_parameters
         .iter()
@@ -918,7 +918,7 @@ fn lower_parameterized_two_state_machine(
                 checked
                     .primitive_type_reference(parameter.type_reference)
                     .ok_or(LoweringError::Unsupported(
-                        "two-state machine parameters must be primitive integers",
+                        "linear-state machine parameters must be primitive integers",
                     ))?,
             )
         })
@@ -927,66 +927,74 @@ fn lower_parameterized_two_state_machine(
         checked
             .primitive_type_reference(entry_state.return_type)
             .ok_or(LoweringError::Unsupported(
-                "two-state machine result must be a primitive integer",
+                "linear-state machine result must be a primitive integer",
             ))?,
     )?;
-    let [return_parameter] = checked.state_parameters(return_state) else {
-        return unsupported("return state must have exactly one parameter");
-    };
-    if return_parameter.is_self || return_parameter.is_const || return_parameter.is_mutable {
-        return unsupported("qualified return-state parameters are not supported");
+    let mut state_parameter_types = Vec::with_capacity(states.len());
+    state_parameter_types.push(parameter_types.clone());
+    for state in &states[1..] {
+        let [parameter] = checked.state_parameters(state) else {
+            return unsupported("every non-entry linear state must have exactly one parameter");
+        };
+        if parameter.is_self || parameter.is_const || parameter.is_mutable {
+            return unsupported("qualified linear-state parameters are not supported");
+        }
+        if integer_scalar_type(checked.primitive_type_reference(state.return_type).ok_or(
+            LoweringError::Unsupported("linear-state result must be a primitive integer"),
+        )?)? != result_type
+            || integer_scalar_type(
+                checked
+                    .primitive_type_reference(parameter.type_reference)
+                    .ok_or(LoweringError::Unsupported(
+                        "linear-state parameter must be a primitive integer",
+                    ))?,
+            )? != result_type
+        {
+            return unsupported("machine, state, and carried parameter types must match exactly");
+        }
+        state_parameter_types.push(vec![result_type]);
     }
-    if integer_scalar_type(
-        checked
-            .primitive_type_reference(return_state.return_type)
-            .ok_or(LoweringError::Unsupported(
-                "return-state result must be a primitive integer",
-            ))?,
-    )? != result_type
-        || integer_scalar_type(
-            checked
-                .primitive_type_reference(return_parameter.type_reference)
-                .ok_or(LoweringError::Unsupported(
-                    "return-state parameter must be a primitive integer",
-                ))?,
-        )? != result_type
-    {
-        return unsupported("machine, return-state, and parameter types must match exactly");
-    }
-    if !checked.state_contracts(entry_state).is_empty()
-        || !checked.state_contracts(return_state).is_empty()
+    if states
+        .iter()
+        .any(|state| !checked.state_contracts(state).is_empty())
     {
         return unsupported("state contracts are not supported");
     }
 
-    let entry_statements = checked
-        .statement_table
-        .statements(entry_state.statement_nodes);
-    let [StatementNode::Transition(transition)] = entry_statements else {
-        return unsupported("entry state must contain exactly one transition");
-    };
-    if transition.guard != TransitionGuardNode::Always || transition.continuation.is_valid() {
-        return unsupported("entry transition must be unconditional and have no continuation");
+    let mut jump_expressions = Vec::with_capacity(states.len() - 1);
+    for (index, state) in states[..states.len() - 1].iter().enumerate() {
+        let statements = checked.statement_table.statements(state.statement_nodes);
+        let [StatementNode::Transition(transition)] = statements else {
+            return unsupported("each nonterminal linear state must contain one transition");
+        };
+        if transition.guard != TransitionGuardNode::Always || transition.continuation.is_valid() {
+            return unsupported(
+                "linear-state transitions must be unconditional and have no continuation",
+            );
+        }
+        let TransitionTargetNode::Named { path, arguments } =
+            checked.statement_table.transition_target(transition.target)
+        else {
+            return unsupported("a linear-state transition must target its next state by name");
+        };
+        if path.symbol != states[index + 1].symbol {
+            return unsupported("a linear-state transition must target the next declared state");
+        }
+        let [argument] = checked.statement_table.expression_handles(*arguments) else {
+            return unsupported("a linear-state transition must carry exactly one argument");
+        };
+        let (expression, _) = lower_direct_return_expression(
+            checked,
+            *argument,
+            checked.state_parameters(state),
+            &state_parameter_types[index],
+            result_type,
+        )?;
+        jump_expressions.push(expression);
     }
-    let TransitionTargetNode::Named { path, arguments } =
-        checked.statement_table.transition_target(transition.target)
-    else {
-        return unsupported("entry transition must target the return state by name");
-    };
-    if path.symbol != return_state.symbol {
-        return unsupported("entry transition must target the sole return state");
-    }
-    let [argument] = checked.statement_table.expression_handles(*arguments) else {
-        return unsupported("entry transition must carry exactly one argument");
-    };
-    let (jump_expression, _) = lower_direct_return_expression(
-        checked,
-        *argument,
-        entry_parameters,
-        &parameter_types,
-        result_type,
-    )?;
 
+    let return_state = states.last().expect("linear chain is nonempty");
+    let return_parameter = &checked.state_parameters(return_state)[0];
     let return_statements = checked
         .statement_table
         .statements(return_state.statement_nodes);
@@ -1004,9 +1012,9 @@ fn lower_parameterized_two_state_machine(
     let contract_value = validate_contract(checked, machine, result_type, None)?;
     let (identity_reshuffles, partition_compositions) =
         lower_content_evidence(checked, machine, entry_state)?;
-    Ok(build_parameterized_two_state_module(
+    Ok(build_parameterized_state_chain_module(
         &parameter_types,
-        jump_expression,
+        jump_expressions,
         return_expression,
         result_type,
         contract_value,
@@ -1799,9 +1807,9 @@ fn emit_direct_expression(
     }
 }
 
-fn build_parameterized_two_state_module(
+fn build_parameterized_state_chain_module(
     parameter_types: &[ScalarType],
-    jump_expression: LoweredDirectExpression,
+    jump_expressions: Vec<LoweredDirectExpression>,
     return_expression: LoweredDirectExpression,
     result_type: ScalarType,
     contract_value: IntegerValue,
@@ -1825,31 +1833,84 @@ fn build_parameterized_two_state_module(
         .expect("parameter count fits a semantic identity")
         .checked_add(1)
         .expect("generated identities follow the parameter identities");
-    let mut operations = Vec::new();
-    let jump_value = emit_direct_expression(
-        &jump_expression,
-        &terminal_parameters,
-        result_type,
-        &mut next_value_identity,
-        &mut operations,
-    );
-    let return_operation_start = operations.len();
-    let block_parameter = ValueDeclaration {
-        id: value_id(next_value_identity),
-        scalar_type: result_type,
-    };
-    next_value_identity = next_value_identity
-        .checked_add(1)
-        .expect("generated identities advance after the block parameter");
+    let mut all_operations = Vec::new();
+    let mut blocks = Vec::with_capacity(jump_expressions.len() + 1);
+    let mut current_parameters = terminal_parameters.clone();
+    for (index, jump_expression) in jump_expressions.iter().enumerate() {
+        let operation_start = all_operations.len();
+        let jump_value = emit_direct_expression(
+            jump_expression,
+            &current_parameters,
+            result_type,
+            &mut next_value_identity,
+            &mut all_operations,
+        );
+        let next_parameter = ValueDeclaration {
+            id: value_id(next_value_identity),
+            scalar_type: result_type,
+        };
+        next_value_identity = next_value_identity
+            .checked_add(1)
+            .expect("generated identities advance after a block parameter");
+        blocks.push(Block {
+            id: block_id(
+                u64::try_from(index)
+                    .expect("block index fits a semantic identity")
+                    .checked_add(1)
+                    .expect("block identity is nonzero"),
+            ),
+            parameters: if index == 0 {
+                Vec::new()
+            } else {
+                current_parameters.clone()
+            },
+            operations: all_operations[operation_start..].to_vec(),
+            terminator: Terminator::Jump {
+                edge: edge_id(
+                    u64::try_from(index)
+                        .expect("edge index fits a semantic identity")
+                        .checked_add(1)
+                        .expect("edge identity is nonzero"),
+                ),
+                target: block_id(
+                    u64::try_from(index)
+                        .expect("block index fits a semantic identity")
+                        .checked_add(2)
+                        .expect("target block identity follows its source"),
+                ),
+                arguments: vec![jump_value],
+            },
+        });
+        current_parameters = vec![next_parameter];
+    }
+    let return_operation_start = all_operations.len();
     let return_value = emit_direct_expression(
         &return_expression,
-        std::slice::from_ref(&block_parameter),
+        &current_parameters,
         result_type,
         &mut next_value_identity,
-        &mut operations,
+        &mut all_operations,
     );
-    let return_operations = operations.split_off(return_operation_start);
-    let entry_operations = operations;
+    let final_index = jump_expressions.len();
+    blocks.push(Block {
+        id: block_id(
+            u64::try_from(final_index)
+                .expect("block index fits a semantic identity")
+                .checked_add(1)
+                .expect("block identity is nonzero"),
+        ),
+        parameters: current_parameters,
+        operations: all_operations[return_operation_start..].to_vec(),
+        terminator: Terminator::Return {
+            edge: edge_id(
+                u64::try_from(final_index)
+                    .expect("edge index fits a semantic identity")
+                    .checked_add(1)
+                    .expect("edge identity is nonzero"),
+            ),
+            value: return_value,
+        },
+    });
     let result_id = value_id(next_value_identity);
 
     let ScalarType::Integer(integer_type) = result_type else {
@@ -1887,27 +1948,7 @@ fn build_parameterized_two_state_module(
                 content_identity_reshuffles: identity_reshuffles.reshuffles,
                 content_partition_compositions: partition_compositions.compositions,
                 entry: block_id(1),
-                blocks: vec![
-                    Block {
-                        id: block_id(1),
-                        parameters: Vec::new(),
-                        operations: entry_operations,
-                        terminator: Terminator::Jump {
-                            edge: edge_id(1),
-                            target: block_id(2),
-                            arguments: vec![jump_value],
-                        },
-                    },
-                    Block {
-                        id: block_id(2),
-                        parameters: vec![block_parameter],
-                        operations: return_operations,
-                        terminator: Terminator::Return {
-                            edge: edge_id(2),
-                            value: return_value,
-                        },
-                    },
-                ],
+                blocks,
                 contract: MachineContract {
                     id: contract_id(1),
                     requires: vec![goal.clone()],

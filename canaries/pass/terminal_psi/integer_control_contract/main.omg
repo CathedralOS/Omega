@@ -126,6 +126,27 @@ ensures 135u8 == 135u8
     state finish(value: u8 in Wrapping) -> u8 in Wrapping { value * 3u8 }
 }
 
+machine terminal_runtime_chain_wrapping(
+    first: u8 in Wrapping,
+    second: u8,
+    third: u8,
+    fourth: u8,
+    fifth: u8,
+    sixth: u8,
+    seventh: u8,
+    eighth: u8,
+    ninth: u8 in Wrapping
+) -> u8 in Wrapping
+requires 134u8 == 134u8
+ensures 134u8 == 134u8
+{
+    transition { _ -> multiply(ninth + first) }
+    state multiply(value: u8 in Wrapping) -> u8 in Wrapping {
+        transition { _ -> finish(value * 3u8) }
+    }
+    state finish(value: u8 in Wrapping) -> u8 in Wrapping { value - 1u8 }
+}
+
 machine terminal_runtime_saturating_add(value: u8 in Saturating) -> u8 in Saturating
 requires 255u8 == 255u8
 ensures 255u8 == 255u8
