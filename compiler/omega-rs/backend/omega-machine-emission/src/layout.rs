@@ -242,15 +242,10 @@ fn machine_instruction_width(
                             input.target,
                             host_operation.operation_key,
                             operands,
-                            Some(plan),
+                            plan,
                         )
                     }),
-                _ => host_call_sequence_width_with_plan(
-                    input.target,
-                    host_operation.operation_key,
-                    operands,
-                    binding.and_then(omega_calling_conventions::HostBinding::call_plan),
-                ),
+                _ => 0,
             }
         };
         // A host call is never legitimately empty: a zero width means the
@@ -296,7 +291,9 @@ fn machine_instruction_width(
                 input.target,
                 host_operation.operation_key,
                 operands,
-                binding.and_then(omega_calling_conventions::HostBinding::call_plan),
+                binding
+                    .and_then(omega_calling_conventions::HostBinding::call_plan)
+                    .expect("missing import plan handled above"),
             ) {
                 return Err(Diagnostic::error(format!(
                     "host operation {}.{} has no encodable call sequence: {}",

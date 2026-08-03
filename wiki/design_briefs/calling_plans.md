@@ -1006,6 +1006,11 @@ authored imports carry the same byte/width
 lock on Microsoft x64 and both AAPCS64 targets. The x86-64 compatibility host
 encoder has no SysV authored-import path, so that target instead proves it
 fails closed without a plan and succeeds with the explicit SysV plan.
+Ordinary import encoding, width, AArch64 placement, and x86-64 call/data-site
+APIs make that split structural: their `with_plan` surfaces require a concrete
+plan reference, while the separately named no-plan entry points exist only for
+the differential oracle. Production emission cannot pass `None` through an
+apparently plan-aware API.
 Linux statement, value-result, timespec-result, and timespec-argument syscall
 families likewise compare compatibility selection with an independently
 evaluated x86-64/AArch64 plan. Their emitted bytes and planned widths must

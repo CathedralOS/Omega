@@ -1431,10 +1431,32 @@ pub fn host_call_data_relocation_site_for_policy<T: InstructionOperandLike>(
     operands: &[T],
     operand_index: usize,
 ) -> Option<X86_64RelocationSite> {
-    host_call_data_relocation_site_with_plan(policy, operation_key, operands, operand_index, None)
+    host_call_data_relocation_site_optional_plan(
+        policy,
+        operation_key,
+        operands,
+        operand_index,
+        None,
+    )
 }
 
 pub fn host_call_data_relocation_site_with_plan<T: InstructionOperandLike>(
+    policy: CallingPolicy,
+    operation_key: HostOperationKey,
+    operands: &[T],
+    operand_index: usize,
+    authoritative_plan: &CallPlan,
+) -> Option<X86_64RelocationSite> {
+    host_call_data_relocation_site_optional_plan(
+        policy,
+        operation_key,
+        operands,
+        operand_index,
+        Some(authoritative_plan),
+    )
+}
+
+fn host_call_data_relocation_site_optional_plan<T: InstructionOperandLike>(
     policy: CallingPolicy,
     operation_key: HostOperationKey,
     operands: &[T],
@@ -2033,10 +2055,24 @@ pub fn host_call_external_relocation_site_for_policy<T: InstructionOperandLike>(
     operation_key: HostOperationKey,
     operands: &[T],
 ) -> Option<X86_64RelocationSite> {
-    host_call_external_relocation_site_with_plan(policy, operation_key, operands, None)
+    host_call_external_relocation_site_optional_plan(policy, operation_key, operands, None)
 }
 
 pub fn host_call_external_relocation_site_with_plan<T: InstructionOperandLike>(
+    policy: CallingPolicy,
+    operation_key: HostOperationKey,
+    operands: &[T],
+    authoritative_plan: &CallPlan,
+) -> Option<X86_64RelocationSite> {
+    host_call_external_relocation_site_optional_plan(
+        policy,
+        operation_key,
+        operands,
+        Some(authoritative_plan),
+    )
+}
+
+fn host_call_external_relocation_site_optional_plan<T: InstructionOperandLike>(
     policy: CallingPolicy,
     operation_key: HostOperationKey,
     operands: &[T],
@@ -2057,10 +2093,24 @@ pub fn encode_host_call_sequence<T: InstructionOperandLike>(
     operation_key: HostOperationKey,
     operands: &[T],
 ) -> Result<Vec<u8>, Diagnostic> {
-    encode_host_call_sequence_with_plan(policy, operation_key, operands, None)
+    encode_host_call_sequence_optional_plan(policy, operation_key, operands, None)
 }
 
 pub fn encode_host_call_sequence_with_plan<T: InstructionOperandLike>(
+    policy: CallingPolicy,
+    operation_key: HostOperationKey,
+    operands: &[T],
+    authoritative_plan: &CallPlan,
+) -> Result<Vec<u8>, Diagnostic> {
+    encode_host_call_sequence_optional_plan(
+        policy,
+        operation_key,
+        operands,
+        Some(authoritative_plan),
+    )
+}
+
+fn encode_host_call_sequence_optional_plan<T: InstructionOperandLike>(
     policy: CallingPolicy,
     operation_key: HostOperationKey,
     operands: &[T],
@@ -6159,7 +6209,7 @@ mod x86_import_plan_tests {
                 CallingPolicy::MicrosoftX64,
                 get_std,
                 &get_std_operands,
-                Some(&get_std_plan),
+                &get_std_plan,
             )
             .expect("retained GetStdHandle plan drives the fixed encoder")
         );
@@ -6195,7 +6245,7 @@ mod x86_import_plan_tests {
                 CallingPolicy::MicrosoftX64,
                 exit,
                 &dword_literal_operands,
-                Some(&dword_plan),
+                &dword_plan,
             )
             .expect("the selected DWORD plan types its contextual literal"),
             encode_host_call_sequence(CallingPolicy::MicrosoftX64, exit, &dword_literal_operands,)

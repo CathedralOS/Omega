@@ -64,7 +64,7 @@ fn validate_import_relocation_plan(
         context.input.target,
         operation_key,
         operands,
-        Some(plan),
+        plan,
     )?;
     Ok(())
 }

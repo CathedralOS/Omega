@@ -34,12 +34,22 @@ pub(crate) fn external_call_relocation_offset_with_plan<T: InstructionOperandLik
         .map(|plan| plan.result.is_some())
         .unwrap_or_else(|| operation_key.returns_value());
     if architecture == Architecture::X86_64
-        && let Some(site) = omega_isa_x86_64::host_call_external_relocation_site_with_plan(
-            omega_calling_conventions::CallingPolicy::native_for_target(target),
-            operation_key,
-            operands,
-            authoritative_plan,
-        )
+        && let Some(site) = authoritative_plan
+            .and_then(|plan| {
+                omega_isa_x86_64::host_call_external_relocation_site_with_plan(
+                    omega_calling_conventions::CallingPolicy::native_for_target(target),
+                    operation_key,
+                    operands,
+                    plan,
+                )
+            })
+            .or_else(|| {
+                omega_isa_x86_64::host_call_external_relocation_site_for_policy(
+                    omega_calling_conventions::CallingPolicy::native_for_target(target),
+                    operation_key,
+                    operands,
+                )
+            })
     {
         return selected_text_offset + site.byte_offset;
     }
@@ -53,14 +63,22 @@ pub(crate) fn external_call_relocation_offset_with_plan<T: InstructionOperandLik
     // result-binding shape and the encoder routes it there; the catalog
     // cannot know authored operations.
     if architecture == Architecture::Aarch64 && (returns_value || authored_import) {
-        let argument_placements =
-            omega_instruction_selection::normalized_aarch64_host_argument_placements_with_plan(
+        let argument_placements = match authoritative_plan {
+            Some(plan) => {
+                omega_instruction_selection::normalized_aarch64_host_argument_placements_with_plan(
+                    operation_key,
+                    operands,
+                    authored_import,
+                    plan,
+                )
+            }
+            None => omega_instruction_selection::normalized_aarch64_host_argument_placements(
                 operation_key,
                 operands,
                 authored_import,
-                authoritative_plan,
-            )
-            .unwrap_or_default();
+            ),
+        }
+        .unwrap_or_default();
         return selected_text_offset
             + operands
                 .iter()
@@ -79,12 +97,21 @@ pub(crate) fn external_call_relocation_offset_with_plan<T: InstructionOperandLik
         .sum::<usize>();
 
     let planned_stack_bytes = if architecture == Architecture::Aarch64 {
-        omega_instruction_selection::normalized_aarch64_host_argument_placements_with_plan(
-            operation_key,
-            operands,
-            false,
-            authoritative_plan,
-        )
+        match authoritative_plan {
+            Some(plan) => {
+                omega_instruction_selection::normalized_aarch64_host_argument_placements_with_plan(
+                    operation_key,
+                    operands,
+                    false,
+                    plan,
+                )
+            }
+            None => omega_instruction_selection::normalized_aarch64_host_argument_placements(
+                operation_key,
+                operands,
+                false,
+            ),
+        }
         .map(|placements| {
             omega_instruction_selection::aarch64_host_call_stack_prefix_width_for_placements(
                 &placements,
