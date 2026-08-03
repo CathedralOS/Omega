@@ -1,8 +1,8 @@
 use omega_core::arithmetic::ArithmeticDomain;
-use omega_core::literals::IntegerLiteral;
 use omega_core::symbols::SymbolHandle;
 use psi_checked_trees::expression::{BinaryExpression, BinaryOperator, Expression};
 use psi_checked_trees::types::PrimitiveType;
+use psi_numerics::literals::IntegerLiteral;
 
 /// The folder reads literals through the i64 VALUE WINDOW (D14): an anonymous
 /// literal that fits i64 folds exactly as before; an oversize (u64-magnitude)
@@ -38,8 +38,8 @@ impl IntegerLanding {
     /// The foundation-layer landing this fold ran at (CR2: fold results are
     /// STAMPED so the fact rides the literal through every later clone,
     /// splice, and table insertion -- the two-phase law's phase-B carrier).
-    fn as_carrier_landing(self) -> Option<omega_core::literals::IntegerLanding> {
-        use omega_core::literals::LandedIntegerType;
+    fn as_carrier_landing(self) -> Option<psi_numerics::literals::IntegerLanding> {
+        use psi_numerics::literals::LandedIntegerType;
         let landed_type = match self.primitive {
             PrimitiveType::I8 => LandedIntegerType::I8,
             PrimitiveType::I16 => LandedIntegerType::I16,
@@ -54,7 +54,7 @@ impl IntegerLanding {
                 return None;
             }
         };
-        Some(omega_core::literals::IntegerLanding {
+        Some(psi_numerics::literals::IntegerLanding {
             landed_type,
             domain: self.domain,
         })
@@ -63,8 +63,8 @@ impl IntegerLanding {
     /// The reverse mapping (CR3): a STAMPED literal's carrier landing back to
     /// the fold-side landing, so an operand that already landed can drive a
     /// fold whose destination is anonymous (arg/index positions).
-    fn from_carrier_landing(carrier: omega_core::literals::IntegerLanding) -> Option<Self> {
-        use omega_core::literals::LandedIntegerType;
+    fn from_carrier_landing(carrier: psi_numerics::literals::IntegerLanding) -> Option<Self> {
+        use psi_numerics::literals::LandedIntegerType;
         let primitive = match carrier.landed_type {
             LandedIntegerType::I8 => PrimitiveType::I8,
             LandedIntegerType::I16 => PrimitiveType::I16,

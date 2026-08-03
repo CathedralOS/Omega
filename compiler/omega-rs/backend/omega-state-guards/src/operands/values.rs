@@ -1,9 +1,9 @@
-use omega_core::float_semantics::{
-    FloatFormat as SemanticFloatFormat, FloatMeaning, FloatSemantics,
-};
 use omega_layout::{DataShape, LayoutPlan};
 use psi_checked_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable,
+};
+use psi_numerics::float_semantics::{
+    FloatFormat as SemanticFloatFormat, FloatMeaning, FloatSemantics,
 };
 
 /// Whether a guard operand is a CONSTANT float expression (a float literal
@@ -72,8 +72,8 @@ pub(super) fn resolved_guard_operand_value(
 /// place reads, so the folded value matches the runtime value.
 fn const_fold_float(table: &ExpressionTable, expression: ExpressionHandle) -> Option<f64> {
     let format = match tree_float_landing(table, expression) {
-        Some(omega_core::literals::FloatFormat::F32) => SemanticFloatFormat::BINARY32,
-        Some(omega_core::literals::FloatFormat::F64) | None => SemanticFloatFormat::BINARY64,
+        Some(psi_numerics::literals::FloatFormat::F32) => SemanticFloatFormat::BINARY32,
+        Some(psi_numerics::literals::FloatFormat::F64) | None => SemanticFloatFormat::BINARY64,
     };
     Some(const_fold_float_at(table, expression, format)?.to_interpreter_value(format))
 }
@@ -83,7 +83,7 @@ fn const_fold_float(table: &ExpressionTable, expression: ExpressionHandle) -> Op
 fn tree_float_landing(
     table: &ExpressionTable,
     expression: ExpressionHandle,
-) -> Option<omega_core::literals::FloatFormat> {
+) -> Option<psi_numerics::literals::FloatFormat> {
     match table.expression(expression) {
         ExpressionNode::Float(literal) => literal.landing(),
         ExpressionNode::Binary(binary) => tree_float_landing(table, binary.left)

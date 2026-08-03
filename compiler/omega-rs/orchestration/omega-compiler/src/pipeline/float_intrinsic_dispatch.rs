@@ -7,14 +7,10 @@
 //! result-policy evidence, and diagnostics continue to name the boundary
 //! requirement rather than the bootstrap execution form.
 
-use omega_core::{
-    arithmetic::ArithmeticDomain,
-    diagnostics::Diagnostic,
-    literals::{FloatFormat, FloatLiteral},
-    symbols::BuiltinFunction,
-};
+use omega_core::{arithmetic::ArithmeticDomain, diagnostics::Diagnostic, symbols::BuiltinFunction};
 use omega_effects::provider_plan::ProviderBinding;
 use psi_checked_trees::CheckedTrees;
+use psi_numerics::literals::{FloatFormat, FloatLiteral};
 use psi_typed_trees::expression::{BinaryOperator, ExpressionNode, TableBinaryExpression};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

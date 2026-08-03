@@ -36036,9 +36036,9 @@ fn named_float_negate_and_is_nan_preserve_selected_roots_and_execute() {
             assert_eq!(
                 negative_one.landing(),
                 Some(if name.starts_with("F32::") {
-                    omega_core::literals::FloatFormat::F32
+                    psi_numerics::literals::FloatFormat::F32
                 } else {
-                    omega_core::literals::FloatFormat::F64
+                    psi_numerics::literals::FloatFormat::F64
                 })
             );
         } else if name.contains("::is_nan.") {
@@ -36669,13 +36669,13 @@ fn float_policy_operator_uses_record_checked_result_adapters() {
         (
             "float/float_saturating_arithmetic_exit",
             psi_checked_trees::CheckedArithmeticPolicyAdapter::FloatSaturatingOverflowOnly {
-                format: omega_core::float_semantics::FloatFormat::BINARY32,
+                format: psi_numerics::float_semantics::FloatFormat::BINARY32,
             },
         ),
         (
             "float/float_trapping_overflow_traps",
             psi_checked_trees::CheckedArithmeticPolicyAdapter::FloatTrappingNonFinite {
-                format: omega_core::float_semantics::FloatFormat::BINARY32,
+                format: psi_numerics::float_semantics::FloatFormat::BINARY32,
             },
         ),
     ] {

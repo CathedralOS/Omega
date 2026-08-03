@@ -17,6 +17,7 @@ psi-access-plans = { path = "../../../psi-rs/foundation/psi-access-plans" }
 psi-language-core = { path = "../../../psi-rs/foundation/psi-language-core" }
 psi-language-semantics = { path = "../../../psi-rs/foundation/psi-language-semantics" }
 psi-layout-plans = { path = "../../../psi-rs/foundation/psi-layout-plans" }
+psi-numerics = { path = "../../../psi-rs/foundation/psi-numerics" }
 omega-task-plans = { path = "../../foundation/omega-task-plans" }
 omega-control-flow = { path = "../../representations/omega-control-flow" }
 omega-emission-planning = { path = "../../backend/omega-emission-planning" }

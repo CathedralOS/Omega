@@ -304,20 +304,10 @@ fn psi_does_not_depend_on_omega() {
 #[test]
 fn frontend_implementation_is_psi_owned() {
     let root = workspace_root();
-    for (relative, expected_export) in [
-        (
-            "compiler/omega-rs/foundation/omega-core/src/arithmetic.rs",
-            "pub use psi_numerics::arithmetic::*;",
-        ),
-        (
-            "compiler/omega-rs/foundation/omega-core/src/float_semantics.rs",
-            "pub use psi_numerics::float_semantics::*;",
-        ),
-        (
-            "compiler/omega-rs/foundation/omega-core/src/literals.rs",
-            "pub use psi_numerics::literals::*;",
-        ),
-    ] {
+    for (relative, expected_export) in [(
+        "compiler/omega-rs/foundation/omega-core/src/arithmetic.rs",
+        "pub use psi_numerics::arithmetic::*;",
+    )] {
         let path = root.join(relative);
         let source = std::fs::read_to_string(&path)
             .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
@@ -334,7 +324,9 @@ fn frontend_implementation_is_psi_owned() {
         "compiler/omega-rs/foundation/omega-core/src/cast_form.rs",
         "compiler/omega-rs/foundation/omega-core/src/const_value.rs",
         "compiler/omega-rs/foundation/omega-core/src/content.rs",
+        "compiler/omega-rs/foundation/omega-core/src/float_semantics.rs",
         "compiler/omega-rs/foundation/omega-core/src/inline_assembly.rs",
+        "compiler/omega-rs/foundation/omega-core/src/literals.rs",
         "compiler/omega-rs/foundation/omega-core/src/operator_spelling.rs",
         "compiler/omega-rs/foundation/omega-core/src/source",
         "compiler/omega-rs/foundation/omega-core/src/span.rs",

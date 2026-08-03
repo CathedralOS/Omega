@@ -87,7 +87,7 @@ fn state_value_summary_carries_nested_checked_policy_adapter_evidence() {
             provider_plan_identity: 0x1234_5678_9abc_def0,
             policy_adapter:
                 psi_checked_trees::CheckedArithmeticPolicyAdapter::FloatTrappingNonFinite {
-                    format: omega_core::float_semantics::FloatFormat::BINARY64,
+                    format: psi_numerics::float_semantics::FloatFormat::BINARY64,
                 },
             ..psi_checked_trees::CheckedOperatorUseFact::default()
         });
@@ -116,7 +116,7 @@ fn state_value_summary_carries_nested_checked_policy_adapter_evidence() {
         nested.arithmetic_policy_adapter,
         Some(
             omega_core::arithmetic::ArithmeticPolicyAdapter::FloatTrappingNonFinite {
-                format: omega_core::float_semantics::FloatFormat::BINARY64,
+                format: psi_numerics::float_semantics::FloatFormat::BINARY64,
             }
         )
     );

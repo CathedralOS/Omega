@@ -390,7 +390,7 @@ fn fold_fixed_array_len_operands(
         Expression::Member(ref member) if member.member.as_str() == "len" => {
             match self_field_fixed_array_len(program, source_machine, &member.receiver) {
                 Some(length) => {
-                    Expression::Integer(omega_core::literals::IntegerLiteral::from_value(length))
+                    Expression::Integer(psi_numerics::literals::IntegerLiteral::from_value(length))
                 }
                 None => expression,
             }
@@ -403,7 +403,7 @@ fn fold_fixed_array_len_operands(
             match machine_field_fixed_array_len(program, source_machine, path.members()[1].as_str())
             {
                 Some(length) => {
-                    Expression::Integer(omega_core::literals::IntegerLiteral::from_value(length))
+                    Expression::Integer(psi_numerics::literals::IntegerLiteral::from_value(length))
                 }
                 None => expression,
             }

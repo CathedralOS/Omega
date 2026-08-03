@@ -7,7 +7,7 @@
 //! authoritative syntax tree before monomorphization.
 
 use omega_core::diagnostics::Diagnostic;
-use omega_core::literals::{IntegerLiteral, IntegerRadix};
+use psi_numerics::literals::{IntegerLiteral, IntegerRadix};
 use psi_syntax_trees::SyntaxTrees;
 use psi_syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use psi_syntax_trees::identifier::Identifier;

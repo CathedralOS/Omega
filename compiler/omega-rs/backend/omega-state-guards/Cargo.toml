@@ -18,4 +18,5 @@ omega-state-dispatch = { path = "../omega-state-dispatch" }
 omega-state-graph = { path = "../../representations/omega-state-graph" }
 omega-state-values = { path = "../omega-state-values" }
 omega-target-operations = { path = "../../representations/omega-target-operations" }
+psi-numerics = { path = "../../../psi-rs/foundation/psi-numerics" }
 psi-typed-trees = { path = "../../../psi-rs/representations/psi-typed-trees" }

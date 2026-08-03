@@ -1407,7 +1407,7 @@ pub(super) fn classify_scalar_value_type_in_table(
         // classifying F64 here made the inner op of an f32 chain compute
         // `addsd` over f32 bit patterns (the width-witness divergence).
         ExpressionNode::Float(literal) => Some(match literal.landing() {
-            Some(omega_core::literals::FloatFormat::F32) => PrimitiveType::F32,
+            Some(psi_numerics::literals::FloatFormat::F32) => PrimitiveType::F32,
             _ => PrimitiveType::F64,
         }),
         ExpressionNode::Integer(literal) => Some(
@@ -1509,9 +1509,9 @@ pub(super) fn classify_scalar_value_type_in_table(
 }
 
 fn primitive_type_for_landed_integer(
-    landed: omega_core::literals::LandedIntegerType,
+    landed: psi_numerics::literals::LandedIntegerType,
 ) -> PrimitiveType {
-    use omega_core::literals::LandedIntegerType;
+    use psi_numerics::literals::LandedIntegerType;
     match landed {
         LandedIntegerType::I8 => PrimitiveType::I8,
         LandedIntegerType::I16 => PrimitiveType::I16,
@@ -4068,8 +4068,8 @@ fn primitive_layout(
 
 #[cfg(test)]
 mod tests {
-    use omega_core::literals::LandedIntegerType;
     use psi_checked_trees::types::PrimitiveType;
+    use psi_numerics::literals::LandedIntegerType;
 
     use super::primitive_type_for_landed_integer;
 

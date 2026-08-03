@@ -32,7 +32,7 @@ fn copies_control_flow_values_into_abstract_summary() {
             },
             arithmetic_policy_adapter: Some(
                 omega_core::arithmetic::ArithmeticPolicyAdapter::FloatSaturatingOverflowOnly {
-                    format: omega_core::float_semantics::FloatFormat::BINARY32,
+                    format: psi_numerics::float_semantics::FloatFormat::BINARY32,
                 },
             ),
             operator_provider_plan_identity: Some(0x1234_5678_9abc_def0),
@@ -62,7 +62,7 @@ fn copies_control_flow_values_into_abstract_summary() {
         copied.arithmetic_policy_adapter,
         Some(
             omega_core::arithmetic::ArithmeticPolicyAdapter::FloatSaturatingOverflowOnly {
-                format: omega_core::float_semantics::FloatFormat::BINARY32,
+                format: psi_numerics::float_semantics::FloatFormat::BINARY32,
             }
         )
     );
