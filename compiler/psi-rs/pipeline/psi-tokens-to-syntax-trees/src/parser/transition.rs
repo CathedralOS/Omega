@@ -72,6 +72,7 @@ pub(super) fn parse_transition_block_handles<'tokens, 'source>(
     let mut parsed_arms: Vec<(
         psi_syntax_trees::statement::TransitionGuardNode,
         TransitionTargetHandle,
+        psi_source::SourceSpan,
     )> = Vec::new();
     // (marker name, subject) per destructure arm. Computed transition subjects
     // have already become generated places above, so every arm has a declared
@@ -83,6 +84,11 @@ pub(super) fn parse_transition_block_handles<'tokens, 'source>(
     while !input.at_punctuation(PunctuationKind::RightBrace) {
         let (guard, bindings, bool_tuple, rest) =
             parse_transition_guard_node(syntax_trees, input, &subject)?;
+        let source_span = rest
+            .tokens
+            .first()
+            .map(|token| rest.source_span(token))
+            .expect("recognized transition arrow has a source token");
         input = rest.take_punctuation(PunctuationKind::Arrow, "->")?;
 
         let (target, rest) = if input.at_punctuation(PunctuationKind::LeftBrace) {
@@ -140,7 +146,7 @@ pub(super) fn parse_transition_block_handles<'tokens, 'source>(
             }
         }
 
-        parsed_arms.push((guard, target));
+        parsed_arms.push((guard, target, source_span));
         arm_bool_tuples.push(bool_tuple);
     }
 
@@ -180,7 +186,7 @@ pub(super) fn parse_transition_block_handles<'tokens, 'source>(
             .expect("transition block statement span count overflow");
     }
 
-    for (guard, target) in parsed_arms {
+    for (guard, target, source_span) in parsed_arms {
         let statement =
             syntax_trees
                 .statements
@@ -188,6 +194,7 @@ pub(super) fn parse_transition_block_handles<'tokens, 'source>(
                     target,
                     continuation: TransitionTargetHandle::invalid(),
                     guard,
+                    source_span,
                 }));
         let handle = syntax_trees.items.append_statement_handle(statement);
         arm_statements.push(statement);

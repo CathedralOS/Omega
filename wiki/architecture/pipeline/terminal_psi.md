@@ -180,8 +180,10 @@ retained by the Psi symbol/source tables for machines, states, parameters, and
 the terminal subjects derived from them. Psi expression tables now retain
 authored integer/Boolean literal and operator-token spans through syntax,
 resolution, typing, and checking; terminal operations and their result values
-therefore point to their exact authored expression sites. Exact transition-edge
-sites remain. The real-source canary encodes and manifests the debug section,
+therefore point to their exact authored expression sites. Authored transition
+arrows likewise survive into terminal jump-edge sites; a synthesized return
+edge honestly retains its source-state declaration fallback. The real-source
+canary encodes and manifests the debug section,
 drops checked trees, and decodes it against the reconstructed semantic module.
 Branching, the remaining
 arithmetic-policy variants, general register assignment, general
@@ -485,8 +487,9 @@ metadata, not executable authority and not a replacement for the separate
 is independently live in `psi-terminal-codec`; it is replaceable presentation
 metadata bound to one exact semantic identity. The checked-source producer
 populates retained declaration spans plus exact integer/Boolean-literal and
-operator sites for terminal operations and their result values. Exact
-transition-edge site retention remains.
+operator sites for terminal operations and their result values. Authored jump
+edges use their exact transition-arrow sites; synthesized return edges retain
+the source-state declaration fallback.
 
 ## Logical-fuel v1
 
@@ -623,7 +626,8 @@ generic installation ladder. Migrating the Cathedral hard-root graph remains.
    identities plus the v8 saturating-multiply identity are frozen as well. Typed
    installation records, the canonical typed debug/source-map schema, and
    declaration-span population from the checked-source producer are live;
-   exact expression/transition-site span retention remains a later slice.
+   exact operation and authored transition-arrow sites are retained; broader
+   source-provenance coverage grows with later executable slices.
 
 The migration may keep old and new paths temporarily for comparison. That is a
 testing bridge, not a permanent two-semantics architecture.

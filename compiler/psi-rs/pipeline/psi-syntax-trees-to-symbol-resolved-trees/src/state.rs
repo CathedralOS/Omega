@@ -465,6 +465,7 @@ pub(crate) fn build_synthesized_arm_state(
         target: TransitionTarget::Value(terminal),
         continuation: None,
         guard: TransitionGuard::Always,
+        source_span: Default::default(),
     });
 
     let mut statements = HandleSpan::empty();
@@ -582,6 +583,7 @@ pub(crate) fn build_synthesized_transition_argument_state(
                 target: TransitionTarget::Named(target),
                 continuation: None,
                 guard: TransitionGuard::Always,
+                source_span: Default::default(),
             }),
         );
 

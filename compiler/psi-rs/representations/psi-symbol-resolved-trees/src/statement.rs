@@ -1,5 +1,6 @@
 use crate::name::DiagnosticName;
 use psi_arena::{Arena, Handle, HandleSpan};
+use psi_source::SourceSpan;
 use psi_symbols::SymbolHandle;
 use std::ops::{Deref, DerefMut};
 
@@ -117,6 +118,7 @@ pub struct Transition {
     pub target: TransitionTarget,
     pub continuation: Option<TransitionTarget>,
     pub guard: TransitionGuard,
+    pub source_span: SourceSpan,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -389,6 +391,7 @@ impl StatementTable {
                     target,
                     continuation,
                     guard,
+                    source_span: transition.source_span,
                 }))
             }
         }
@@ -579,6 +582,7 @@ pub struct TableTransition {
     pub target: TransitionTargetHandle,
     pub continuation: TransitionTargetHandle,
     pub guard: TransitionGuardNode,
+    pub source_span: SourceSpan,
 }
 
 impl Default for TableTransition {
@@ -587,6 +591,7 @@ impl Default for TableTransition {
             target: TransitionTargetHandle::invalid(),
             continuation: TransitionTargetHandle::invalid(),
             guard: TransitionGuardNode::Always,
+            source_span: SourceSpan::default(),
         }
     }
 }
@@ -662,6 +667,7 @@ mod tests {
             }),
             continuation: None,
             guard: TransitionGuard::When(guard),
+            source_span: Default::default(),
         });
 
         let mut statements = StatementTable::new();

@@ -29,6 +29,7 @@ fn snapshots_materialize_resolved_roots_and_table_counts() {
                 target: TransitionTarget::Terminal,
                 continuation: None,
                 guard: TransitionGuard::When(guard),
+                source_span: Default::default(),
             })]);
     let state = program.tables.declarations.machine_states.append(State {
         symbol: SymbolHandle::invalid(),

@@ -20,6 +20,7 @@ pub(super) fn lower_transition_statement(
             .transpose()?
             .unwrap_or_else(typed::statement::TransitionTargetHandle::invalid),
         guard: lower_transition_guard(lowerer, &transition.guard)?,
+        source_span: transition.source_span,
     })
 }
 

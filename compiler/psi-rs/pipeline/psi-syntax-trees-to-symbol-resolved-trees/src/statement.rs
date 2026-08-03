@@ -323,6 +323,7 @@ fn lower_statement_node(
                 target,
                 continuation,
                 guard,
+                source_span: transition.source_span,
             }));
             Ok(hoisted)
         }

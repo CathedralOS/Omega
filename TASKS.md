@@ -1398,9 +1398,10 @@ improvements do not change public identity.
   the manifest's debug role without changing semantic identity. Psi expression
   tables now preserve authored integer/Boolean-literal and operator-token spans
   through checked trees, and terminal operation/result-value rows use those
-  exact sites. Exact transition-edge spans, general register assignment,
-  further closed arithmetic variants, and migration of the legacy backend
-  remain.
+  exact sites. Authored transition arrows likewise survive into terminal jump
+  edges; synthesized return edges retain their source-state declaration
+  fallback. General register assignment, further closed arithmetic variants,
+  and migration of the legacy backend remain.
   Move or rename the current target-neutral `omega-*` frontend crates under Psi
   ownership as each slice migrates; do not leave parsing or checking on an
   Omega-to-Psi path. With the initial interpreter, lowering customers, and

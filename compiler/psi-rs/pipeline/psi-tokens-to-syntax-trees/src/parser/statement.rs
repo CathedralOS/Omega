@@ -84,6 +84,7 @@ pub(super) fn parse_statement_handle<'tokens, 'source>(
                     target,
                     continuation: TransitionTargetHandle::invalid(),
                     guard: TransitionGuardNode::Always,
+                    source_span: Default::default(),
                 })),
             input,
         ));
@@ -556,6 +557,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                             target,
                             continuation: TransitionTargetHandle::invalid(),
                             guard: TransitionGuardNode::Always,
+                            source_span: Default::default(),
                         },
                     )),
                     contract,
