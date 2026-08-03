@@ -158,11 +158,8 @@ pub fn encode_vtable_call_sequence_with_plan<T: InstructionOperandLike>(
 ) -> Result<Vec<u8>, Diagnostic> {
     match target.architecture {
         Architecture::Aarch64 => {
-            let (placements, result) = normalized_aarch64_vtable_plan_with_plan(
-                operands,
-                false,
-                Some(authoritative_plan),
-            )?;
+            let (placements, result) =
+                normalized_aarch64_vtable_plan_with_plan(operands, false, authoritative_plan)?;
             debug_assert!(result.is_none());
             aarch64::encode_vtable_call_sequence_from_operands(
                 operands.iter().map(aarch64_call_operand),
@@ -205,7 +202,7 @@ pub fn encode_vtable_call_sequence_at_offset_with_plan<T: InstructionOperandLike
             let (arguments, result) = normalized_aarch64_vtable_plan_with_plan(
                 operands,
                 result_present,
-                Some(authoritative_plan),
+                authoritative_plan,
             )?;
             if result_present {
                 let result = result.as_ref().ok_or_else(|| {
@@ -308,7 +305,7 @@ pub fn encode_table_function_call_sequence_with_plan<T: InstructionOperandLike>(
             let (arguments, result) = normalized_aarch64_table_function_plan_with_plan(
                 operands,
                 result_present,
-                Some(authoritative_plan),
+                authoritative_plan,
             )?;
             match result.as_ref().map(|result| result.shape.class) {
                 None => aarch64::encode_table_function_call_sequence_from_operands(
@@ -638,7 +635,7 @@ pub fn normalized_aarch64_host_argument_placements_with_plan<T: InstructionOpera
 pub fn normalized_aarch64_vtable_plan_with_plan<T: InstructionOperandLike>(
     operands: &[T],
     result_present: bool,
-    authoritative_plan: Option<&CallPlan>,
+    authoritative_plan: &CallPlan,
 ) -> Result<(Vec<ValuePlacement>, Option<ValuePlacement>), Diagnostic> {
     let (placements, result) = normalized_aarch64_import_plan_with_authoritative(
         operands,
@@ -647,7 +644,7 @@ pub fn normalized_aarch64_vtable_plan_with_plan<T: InstructionOperandLike>(
         } else {
             Aarch64ImportResult::None
         },
-        authoritative_plan,
+        Some(authoritative_plan),
     )?;
     debug_assert_eq!(result.is_some(), result_present);
     if !matches!(
@@ -673,7 +670,7 @@ pub fn normalized_aarch64_vtable_plan_with_plan<T: InstructionOperandLike>(
 pub fn normalized_aarch64_table_function_plan_with_plan<T: InstructionOperandLike>(
     operands: &[T],
     result_present: bool,
-    authoritative_plan: Option<&CallPlan>,
+    authoritative_plan: &CallPlan,
 ) -> Result<(Vec<ValuePlacement>, Option<ValuePlacement>), Diagnostic> {
     let lowered = operands
         .iter()
@@ -707,7 +704,7 @@ pub fn normalized_aarch64_table_function_plan_with_plan<T: InstructionOperandLik
             } else {
                 Aarch64ImportResult::None
             },
-            authoritative_plan,
+            Some(authoritative_plan),
         )?;
     debug_assert_eq!(result.is_some(), result_present);
     if let Some(result) = result.as_ref() {
@@ -2760,7 +2757,7 @@ mod aarch64_import_plan_tests {
 
         let plan = aapcs64_plan(vec![ValueShape::integer(8, 8); 2], None);
         let (placements, result) =
-            normalized_aarch64_vtable_plan_with_plan(&operands, false, Some(&plan))
+            normalized_aarch64_vtable_plan_with_plan(&operands, false, &plan)
                 .expect("AAPCS64 vtable placements");
         assert!(result.is_none());
         assert!(matches!(
@@ -2841,9 +2838,8 @@ mod aarch64_import_plan_tests {
             vec![ValueShape::integer(8, 8); 2],
             Some(ValueShape::integer(4, 4)),
         );
-        let (placements, result) =
-            normalized_aarch64_vtable_plan_with_plan(&operands, true, Some(&plan))
-                .expect("AAPCS64 vtable field plan");
+        let (placements, result) = normalized_aarch64_vtable_plan_with_plan(&operands, true, &plan)
+            .expect("AAPCS64 vtable field plan");
         assert!(matches!(
             result.expect("result placement").locations.as_slice(),
             [ValueLocation::Register {
@@ -2942,7 +2938,7 @@ mod aarch64_import_plan_tests {
             Some(ValueShape::integer(4, 4)),
         );
         let (placements, result) =
-            normalized_aarch64_table_function_plan_with_plan(&operands, true, Some(&plan))
+            normalized_aarch64_table_function_plan_with_plan(&operands, true, &plan)
                 .expect("AAPCS64 table-function plan");
         assert!(matches!(
             result.expect("result placement").locations.as_slice(),

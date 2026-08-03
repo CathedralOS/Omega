@@ -259,11 +259,12 @@ fn data_address_relocation_offset_with_plan(
     if architecture == Architecture::Aarch64
         && let Some(shape) = field_model_shape
         && shape.passes_receiver
+        && let Some(plan) = authoritative_plan
         && let Ok((argument_placements, _)) =
             omega_instruction_selection::normalized_aarch64_vtable_plan_with_plan(
                 operands,
                 shape.result_present,
-                authoritative_plan,
+                plan,
             )
     {
         let argument_start = usize::from(shape.result_present);
@@ -323,11 +324,12 @@ fn data_address_relocation_offset_with_plan(
     if architecture == Architecture::Aarch64
         && let Some(shape) = field_model_shape
         && !shape.passes_receiver
+        && let Some(plan) = authoritative_plan
         && let Ok((argument_placements, _)) =
             omega_instruction_selection::normalized_aarch64_table_function_plan_with_plan(
                 operands,
                 shape.result_present,
-                authoritative_plan,
+                plan,
             )
     {
         let table_index = usize::from(shape.result_present);
@@ -1059,10 +1061,16 @@ mod tests {
             passes_receiver: true,
             result_present: true,
         });
+        let signature = CallSignature {
+            parameters: vec![ValueShape::integer(8, 8); 2],
+            result: Some(ValueShape::integer(4, 4)),
+        };
+        let plan = evaluate_call_plan(CallingPolicy::Aapcs64, &signature)
+            .expect("retained AAPCS64 vtable plan");
 
         assert_eq!(
-            data_address_relocation_offset(
-                Architecture::Aarch64,
+            data_address_relocation_offset_for_target_with_plan(
+                NativeTarget::linux_arm64(),
                 None,
                 &operands,
                 20,
@@ -1070,12 +1078,13 @@ mod tests {
                 false,
                 shape,
                 false,
+                Some(&plan),
             ),
             44
         );
         assert_eq!(
-            data_address_relocation_offset(
-                Architecture::Aarch64,
+            data_address_relocation_offset_for_target_with_plan(
+                NativeTarget::linux_arm64(),
                 None,
                 &operands,
                 20,
@@ -1083,6 +1092,7 @@ mod tests {
                 false,
                 shape,
                 false,
+                Some(&plan),
             ),
             20
         );
@@ -1096,12 +1106,7 @@ mod tests {
                 },
             },
         ];
-        let signature = CallSignature {
-            parameters: vec![ValueShape::integer(8, 8); 2],
-            result: Some(ValueShape::integer(4, 4)),
-        };
-        let mut source_plan = evaluate_call_plan(CallingPolicy::Aapcs64, &signature)
-            .expect("source-selected AAPCS64 vtable plan");
+        let mut source_plan = plan;
         source_plan.parameters[1].locations[0] = ValueLocation::Stack {
             stack_byte_offset: 0,
             value_byte_offset: 0,
@@ -1139,9 +1144,15 @@ mod tests {
                 },
             },
         ];
+        let float_signature = CallSignature {
+            parameters: vec![ValueShape::integer(8, 8)],
+            result: Some(ValueShape::float(8)),
+        };
+        let float_plan = evaluate_call_plan(CallingPolicy::Aapcs64, &float_signature)
+            .expect("retained AAPCS64 float vtable plan");
         assert_eq!(
-            data_address_relocation_offset(
-                Architecture::Aarch64,
+            data_address_relocation_offset_for_target_with_plan(
+                NativeTarget::linux_arm64(),
                 None,
                 &float_operands,
                 20,
@@ -1149,6 +1160,7 @@ mod tests {
                 false,
                 shape,
                 false,
+                Some(&float_plan),
             ),
             44
         );
@@ -1180,9 +1192,19 @@ mod tests {
                 passes_receiver,
                 result_present: true,
             });
+            let signature = CallSignature {
+                parameters: if passes_receiver {
+                    vec![ValueShape::integer(8, 8)]
+                } else {
+                    Vec::new()
+                },
+                result: Some(ValueShape::integer(24, 8)),
+            };
+            let plan = evaluate_call_plan(CallingPolicy::Aapcs64, &signature)
+                .expect("retained AAPCS64 indirect field plan");
             assert_eq!(
-                data_address_relocation_offset(
-                    Architecture::Aarch64,
+                data_address_relocation_offset_for_target_with_plan(
+                    NativeTarget::linux_arm64(),
                     None,
                     &operands,
                     20,
@@ -1190,12 +1212,13 @@ mod tests {
                     false,
                     shape,
                     false,
+                    Some(&plan),
                 ),
                 20
             );
             assert_eq!(
-                data_address_relocation_offset(
-                    Architecture::Aarch64,
+                data_address_relocation_offset_for_target_with_plan(
+                    NativeTarget::linux_arm64(),
                     None,
                     &operands,
                     20,
@@ -1203,6 +1226,7 @@ mod tests {
                     false,
                     shape,
                     false,
+                    Some(&plan),
                 ),
                 32
             );
@@ -1234,10 +1258,16 @@ mod tests {
             passes_receiver: false,
             result_present: true,
         });
+        let signature = CallSignature {
+            parameters: vec![ValueShape::integer(8, 8)],
+            result: Some(ValueShape::integer(4, 4)),
+        };
+        let plan = evaluate_call_plan(CallingPolicy::Aapcs64, &signature)
+            .expect("retained AAPCS64 table plan");
 
         assert_eq!(
-            data_address_relocation_offset(
-                Architecture::Aarch64,
+            data_address_relocation_offset_for_target_with_plan(
+                NativeTarget::linux_arm64(),
                 None,
                 &operands,
                 20,
@@ -1245,12 +1275,13 @@ mod tests {
                 false,
                 shape,
                 false,
+                Some(&plan),
             ),
             24
         );
         assert_eq!(
-            data_address_relocation_offset(
-                Architecture::Aarch64,
+            data_address_relocation_offset_for_target_with_plan(
+                NativeTarget::linux_arm64(),
                 None,
                 &operands,
                 20,
@@ -1258,6 +1289,7 @@ mod tests {
                 false,
                 shape,
                 false,
+                Some(&plan),
             ),
             44
         );

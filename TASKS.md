@@ -820,7 +820,8 @@ Remaining:
   The x86-64 ISA vtable/field/service-table encoder, width, and data-relocation
   APIs now require an authoritative plan directly as well; Win64 normalization
   remains only in test oracles, and the unused SysV no-plan entry points are
-  retired.
+  retired. AArch64 vtable/service-table plan normalization and field-call data
+  relocation now require the retained AAPCS64 plan too.
   A malformed selected field binding without a plan fails emission explicitly
   and cannot reserve a compatibility width. Source-authored imports now have
   the same mandatory-plan encoder and width surface; their operation-key and

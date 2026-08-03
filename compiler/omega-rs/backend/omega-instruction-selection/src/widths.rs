@@ -65,7 +65,7 @@ fn vtable_call_sequence_width_with_dispatch<T: InstructionOperandLike>(
             let Ok((placements, _)) = crate::normalized_aarch64_vtable_plan_with_plan(
                 operands,
                 result_present,
-                Some(authoritative_plan),
+                authoritative_plan,
             ) else {
                 return 0;
             };
@@ -114,7 +114,7 @@ pub fn table_function_call_sequence_width_with_plan<T: InstructionOperandLike>(
             let Ok((placements, _)) = crate::normalized_aarch64_table_function_plan_with_plan(
                 operands,
                 result_present,
-                Some(authoritative_plan),
+                authoritative_plan,
             ) else {
                 return 0;
             };

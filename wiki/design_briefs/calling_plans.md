@@ -960,7 +960,10 @@ evaluated native `CallPlan`. Result-bearing field and table calls also require
 identical planned widths. The production x86-64 ISA encoder, width, and
 field-call data-relocation APIs now require that authoritative plan directly;
 normalized Win64 reconstruction is a test-only oracle, and the unused SysV
-no-plan entry points are retired. Scalar
+no-plan entry points are retired. The AArch64 vtable and service-table plan
+normalizers and their data-relocation consumers likewise require the retained
+AAPCS64 plan; no field-call relocation path synthesizes one from operands.
+Scalar
 authored imports carry the same byte/width
 lock on Microsoft x64 and both AAPCS64 targets. The x86-64 compatibility host
 encoder has no SysV authored-import path, so that target instead proves it
