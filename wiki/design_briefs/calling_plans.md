@@ -904,8 +904,10 @@ Windows clock out-pointers is retired; the composite time encoder's concrete
 subcall plan is the sole owner of that shape. On authoritative AArch64 built-in
 paths, result presence and scalar-float class now come from the retained plan in
 emission plus call/data relocation accounting; operation-key classification
-remains only as the no-plan compatibility oracle. Composite adapter-owned
-native calls continue to consume
+remains only as the no-plan compatibility oracle. Void AArch64 imports likewise
+consume retained argument placements in both relocation walks, so an
+outgoing-stack placement cannot leave emission and relocation accounting on
+different plans. Composite adapter-owned native calls continue to consume
 their separately normalized concrete subcall signatures; an outer source
 boundary plan is not a replacement for the adapter's internal ABI call. The
 Darwin anonymous-variadic `open_create` seam remains explicitly outside this

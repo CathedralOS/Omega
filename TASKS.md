@@ -809,8 +809,10 @@ Remaining:
   composite encoders own their concrete subcall shapes. Authoritative AArch64
   built-in paths now derive result presence and scalar-float class from the
   retained plan through emission and relocation accounting; the operation
-  catalog supplies those decisions only to the compatibility oracle. Composite
-  Linux runtime byte-read, byte-write, and all three line-read target shapes now
+  catalog supplies those decisions only to the compatibility oracle. Void
+  AArch64 imports also use the retained argument placements in both call and
+  data relocation walks, including outgoing-stack drift. Composite Linux
+  runtime byte-read, byte-write, and all three line-read target shapes now
   consume the binding-retained three-argument/result syscall plan in emission
   and layout, with x86-64/AArch64 compatibility bytes and widths locked to the
   explicit plan. The matching AArch64 direct-import composites now validate

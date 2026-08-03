@@ -87,10 +87,11 @@ pub(crate) fn external_call_relocation_offset_with_plan<T: InstructionOperandLik
         .sum::<usize>();
 
     let planned_stack_bytes = if architecture == Architecture::Aarch64 {
-        omega_instruction_selection::normalized_aarch64_host_argument_placements(
+        omega_instruction_selection::normalized_aarch64_host_argument_placements_with_plan(
             operation_key,
             operands,
             false,
+            authoritative_plan,
         )
         .map(|placements| {
             omega_instruction_selection::aarch64_host_call_stack_prefix_width_for_placements(
@@ -213,6 +214,39 @@ mod tests {
                 20,
                 &operands,
                 true,
+                Some(&plan),
+            ),
+            36
+        );
+    }
+
+    #[test]
+    fn void_aarch64_call_relocation_uses_the_retained_stack_plan() {
+        let operands = [InstructionOperand {
+            kind: InstructionOperandKind::DataAddress {
+                data: Handle::<TargetDataObject>::invalid(),
+            },
+        }];
+        let signature = CallSignature {
+            parameters: vec![ValueShape::integer(8, 8)],
+            result: None,
+        };
+        let mut plan =
+            evaluate_call_plan(CallingPolicy::Aapcs64, &signature).expect("baseline AAPCS64 plan");
+        plan.parameters[0].locations[0] = ValueLocation::Stack {
+            stack_byte_offset: 0,
+            value_byte_offset: 0,
+            byte_size: 8,
+            alignment: 8,
+        };
+
+        assert_eq!(
+            external_call_relocation_offset_with_plan(
+                NativeTarget::linux_arm64(),
+                omega_calling_conventions::HostOperationKey::default(),
+                20,
+                &operands,
+                false,
                 Some(&plan),
             ),
             36
