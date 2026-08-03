@@ -42,7 +42,7 @@ pub use host::{
     linux_timespec_argument_relocation_byte_offset_with_plan,
     linux_timespec_result_relocation_byte_offset_no_plan,
     linux_timespec_result_relocation_byte_offset_with_plan,
-    normalized_aarch64_host_argument_placements,
+    normalized_aarch64_host_argument_placements_no_plan,
     normalized_aarch64_host_argument_placements_with_plan,
     normalized_aarch64_table_function_plan_with_plan, normalized_aarch64_vtable_plan_with_plan,
     value_syscall_relocation_byte_offset_no_plan, value_syscall_relocation_byte_offset_with_plan,

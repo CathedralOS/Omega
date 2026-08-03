@@ -467,11 +467,13 @@ fn data_address_relocation_offset_with_plan(
                     plan,
                 )
             }
-            None => omega_instruction_selection::normalized_aarch64_host_argument_placements(
-                operation_key,
-                operands,
-                authored_import,
-            ),
+            None => {
+                omega_instruction_selection::normalized_aarch64_host_argument_placements_no_plan(
+                    operation_key,
+                    operands,
+                    authored_import,
+                )
+            }
         }
         .unwrap_or_default();
         let arg_bytes = |range: std::ops::Range<usize>| {
@@ -544,11 +546,13 @@ fn data_address_relocation_offset_with_plan(
                     plan,
                 )
             }
-            None => omega_instruction_selection::normalized_aarch64_host_argument_placements(
-                operation_key,
-                operands,
-                false,
-            ),
+            None => {
+                omega_instruction_selection::normalized_aarch64_host_argument_placements_no_plan(
+                    operation_key,
+                    operands,
+                    false,
+                )
+            }
         }
     {
         return selected_text_offset
