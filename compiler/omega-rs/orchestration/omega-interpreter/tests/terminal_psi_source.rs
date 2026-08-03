@@ -374,6 +374,7 @@ fn checked_source_runtime_integer_policy_operations_survive_frontend_drop() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("terminal-Psi runtime arithmetic source canary should compile");
     let cases = [
+        ("terminal_direct_integer_constant", vec![], 42_u128, 2_u64),
         ("terminal_closed_integer_chain", vec![], 42_u128, 8_u64),
         (
             "terminal_runtime_wrapping_add",
