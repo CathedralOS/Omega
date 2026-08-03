@@ -1647,13 +1647,23 @@ mod binding_plan_tests {
     }
 
     #[test]
-    fn linux_filesystem_rows_bind_value_syscalls_and_openat_adapters() {
-        for (target, expected_openat, expected_close, expected_fstat, expected_policy) in [
+    fn linux_filesystem_rows_bind_value_syscalls_and_at_adapters() {
+        for (
+            target,
+            expected_openat,
+            expected_close,
+            expected_fstat,
+            expected_mkdirat,
+            expected_fchmodat,
+            expected_policy,
+        ) in [
             (
                 NativeTarget::linux_x64(),
                 257,
                 3,
                 5,
+                258,
+                268,
                 CallingPolicy::LinuxSyscallX86_64,
             ),
             (
@@ -1661,15 +1671,19 @@ mod binding_plan_tests {
                 56,
                 57,
                 80,
+                34,
+                53,
                 CallingPolicy::LinuxSyscallAarch64,
             ),
         ] {
             let plan = build_host_abi_plan(target);
-            for (operation, expected_number, parameter_count) in [
-                (HostOperation::Open, expected_openat, 3),
-                (HostOperation::OpenCreate, expected_openat, 4),
-                (HostOperation::Close, expected_close, 1),
-                (HostOperation::FStat, expected_fstat, 2),
+            for (operation, expected_name, expected_number, parameter_count) in [
+                (HostOperation::Open, "openat", expected_openat, 3),
+                (HostOperation::OpenCreate, "openat", expected_openat, 4),
+                (HostOperation::Close, "close", expected_close, 1),
+                (HostOperation::FStat, "fstat", expected_fstat, 2),
+                (HostOperation::MakeDir, "mkdirat", expected_mkdirat, 3),
+                (HostOperation::Chmod, "fchmodat", expected_fchmodat, 3),
             ] {
                 let (_, binding) = plan
                     .bindings
@@ -1681,8 +1695,8 @@ mod binding_plan_tests {
                     .expect("Linux filesystem syscall binding");
                 assert!(matches!(
                     binding.mechanism,
-                    HostBindingMechanism::Syscall { number, .. }
-                        if number == expected_number
+                    HostBindingMechanism::Syscall { number, ref name }
+                        if number == expected_number && name.as_ref() == expected_name
                 ));
                 let boundary = binding
                     .boundary_entry_plan
@@ -1693,13 +1707,19 @@ mod binding_plan_tests {
                 assert!(boundary.call.result.is_some());
             }
 
-            for method in ["open", "open_create"] {
+            for method in [
+                "open",
+                "open_create",
+                "create_dir",
+                "create_dir_name",
+                "set_permissions",
+            ] {
                 let lowering = plan
                     .platform_call_lowerings
                     .iter()
                     .find(|(_, row)| row.state.as_ref() == method)
                     .map(|(_, row)| row)
-                    .expect("Linux open lowering");
+                    .expect("Linux at-family lowering");
                 assert_eq!(
                     lowering.data,
                     PlatformCallData::ConstantArgument { value: -100 }

@@ -808,9 +808,14 @@ permissions, duplication, locking, ownership, truncation, and descriptor
 metadata (`fstat`) on both x86-64 and AArch64. Semantic `open` and
 `open_create` remain common while the Linux target injects `AT_FDCWD` and
 lowers both through the architecture's `openat`; that compatibility argument
-is plan data, not public filesystem ABI. Path-based metadata, directory, and
-failure-code adaptation remain explicit engineering work rather than a reason
-to add hidden libc state to the syscall path.
+is plan data, not public filesystem ABI. Path creation and permission changes
+use the same plan-owned adaptation through `mkdirat` and `fchmodat`; semantic
+`create_dir`, `create_dir_name`, and `set_permissions` therefore keep their
+portable path-plus-mode shape while Linux injects `AT_FDCWD`. Path-based
+metadata must first replace the known Darwin-shaped Linux `StatLayout`
+placeholder with the real target ABI. Metadata, removal/rename/link,
+directory-record, and failure-code adaptation remain explicit engineering work
+rather than a reason to add hidden libc state to the syscall path.
 
 The compiler's retained source-policy identity carries the complete canonical
 `BoundaryEntryPlan` through checked lowering. Public provider schemas still

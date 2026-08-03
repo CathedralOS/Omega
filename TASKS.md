@@ -1617,7 +1617,10 @@ ordinary code never receives a raw executable address.
 ## Platform-gated verification
 
 - Run the Linux host/time/filesystem rows natively on AArch64. x86-64 WSL
-  coverage exists; remaining Linux work is path/stat/directory/errno adapters.
+  coverage exists. `mkdirat`/`fchmodat` now normalize path creation and
+  permission changes with plan-owned `AT_FDCWD`; remaining Linux work is the
+  real target `StatLayout`, metadata, removal/rename/link, directory-record,
+  and errno adapters.
 - Keep unavailable hosts structurally tested; do not claim runtime verification
   without the host.
 - Build the Windows GUI callback canary through the settled callback-requirement
