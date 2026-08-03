@@ -555,14 +555,14 @@ fn synchronous_invocation_names(
         .iter()
         .filter(|parameter| !parameter.is_self)
         .collect::<Vec<_>>();
-    let mut names = crate::declared_signature_invocations(program, signature)
+    let mut names = psi_effects::declared_signature_invocations(program, signature)
         .into_iter()
         .filter_map(|target| match target {
-            crate::InvocationTarget::Parameter(index) => parameters
+            psi_effects::InvocationTarget::Parameter(index) => parameters
                 .get(index as usize)
                 .map(|parameter| parameter.type_reference)
                 .and_then(|type_reference| boundary_trait_name_for_type(program, type_reference)),
-            crate::InvocationTarget::Service(symbol) => program
+            psi_effects::InvocationTarget::Service(symbol) => program
                 .traits()
                 .iter()
                 .find(|definition| definition.is_boundary && definition.symbol == symbol)

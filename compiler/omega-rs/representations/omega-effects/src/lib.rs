@@ -1,8 +1,6 @@
 mod capabilities;
 mod selected_provider_plans;
 
-pub use psi_effects::*;
-
 pub use capabilities::analysis::{
     UnapprovedBoundaryCall, audit_boundary_provider_calls,
     build_boundary_provider_approval_registry,

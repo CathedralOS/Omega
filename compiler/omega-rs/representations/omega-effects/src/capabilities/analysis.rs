@@ -8,10 +8,10 @@
 use omega_core::symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
 
-use crate::OperationalPlan;
 use crate::capabilities::provider_approval::{
     BoundaryCallApproval, BoundaryProviderApproval, BoundaryProviderApprovalRegistry,
 };
+use psi_effects::OperationalPlan;
 
 /// A boundary call whose exact capability has no approved provider edge.
 #[derive(Debug, Clone, PartialEq, Eq)]

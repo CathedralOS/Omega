@@ -1363,9 +1363,9 @@ pub(crate) fn validate_provider_plan_candidates(
     plans: &[omega_effects::provider_plan::ProviderPlan],
 ) -> Vec<omega_core::diagnostics::Diagnostic> {
     let mut diagnostics = Vec::new();
-    let effect_plan = omega_effects::infer_operational_may(typed);
-    let service_reach_plan = omega_effects::infer_service_reaches(typed, &effect_plan);
-    let invocation_plan = omega_effects::infer_synchronous_invocations(typed);
+    let effect_plan = psi_effects::infer_operational_may(typed);
+    let service_reach_plan = psi_effects::infer_service_reaches(typed, &effect_plan);
+    let invocation_plan = psi_effects::infer_synchronous_invocations(typed);
     for plan in plans {
         diagnostics.extend(
             plan.validate_candidate_against_schema()
@@ -1471,7 +1471,7 @@ pub(crate) fn validate_selected_synchronous_invocation_cycles(
         .iter()
         .filter_map(|name| plans.iter().find(|plan| plan.name == *name))
         .collect::<Vec<_>>();
-    let inferred = omega_effects::infer_synchronous_invocations(typed);
+    let inferred = psi_effects::infer_synchronous_invocations(typed);
     let mut edges = vec![Vec::<usize>::new(); selected.len()];
     for (source_index, source) in selected.iter().enumerate() {
         for method in &source.schema.methods {
@@ -1550,10 +1550,10 @@ pub(crate) fn validate_selected_synchronous_invocation_cycles(
 fn invocation_service_name(
     typed: &TypedTrees,
     machine: &psi_typed_trees::machine::Machine,
-    target: omega_effects::InvocationTarget,
+    target: psi_effects::InvocationTarget,
 ) -> Option<String> {
     let symbol = match target {
-        omega_effects::InvocationTarget::Parameter(index) => typed
+        psi_effects::InvocationTarget::Parameter(index) => typed
             .machine_states(machine)
             .first()
             .into_iter()
@@ -1566,7 +1566,7 @@ fn invocation_service_name(
                     .type_reference(parameter.type_reference)
                     .type_symbol(&typed.type_reference_table)
             })?,
-        omega_effects::InvocationTarget::Service(symbol) => symbol,
+        psi_effects::InvocationTarget::Service(symbol) => symbol,
     };
     typed
         .traits()
@@ -1585,9 +1585,9 @@ fn is_self_forwarded_invocation(
     machine: &psi_typed_trees::machine::Machine,
     schema: &omega_effects::provider_plan::ServiceSchema,
     method: &omega_effects::provider_plan::ServiceMethod,
-    target: omega_effects::InvocationTarget,
+    target: psi_effects::InvocationTarget,
 ) -> bool {
-    let omega_effects::InvocationTarget::Parameter(0) = target else {
+    let psi_effects::InvocationTarget::Parameter(0) = target else {
         return false;
     };
     let Some(boundary) = typed.traits().iter().find(|definition| {
@@ -1595,7 +1595,7 @@ fn is_self_forwarded_invocation(
     }) else {
         return false;
     };
-    omega_effects::has_self_forwarded_boundary_parameter(
+    psi_effects::has_self_forwarded_boundary_parameter(
         typed,
         machine,
         boundary.symbol,

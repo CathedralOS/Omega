@@ -890,7 +890,7 @@ fn static_machine_argument_rejects_inferred_suspension_above_slot_ceiling() {
         "#,
     );
 
-    let operations = omega_effects::infer_operational_may(&typed);
+    let operations = psi_effects::infer_operational_may(&typed);
     let worker = typed
         .machines()
         .iter()
@@ -932,7 +932,7 @@ fn static_machine_argument_rejects_blocking_independently_from_suspension() {
         "#,
     );
 
-    let operations = omega_effects::infer_operational_may(&typed);
+    let operations = psi_effects::infer_operational_may(&typed);
     let worker = typed
         .machines()
         .iter()
@@ -1070,7 +1070,7 @@ fn recursive_private_operational_inference_reaches_independent_fixed_points() {
         }
         "#,
     );
-    let operations = omega_effects::infer_operational_may(&typed);
+    let operations = psi_effects::infer_operational_may(&typed);
 
     for name in ["A::step", "B::step"] {
         let symbol = typed
@@ -1105,7 +1105,7 @@ fn published_operational_omission_is_a_negative_ceiling() {
         }
         "#,
     );
-    let operations = omega_effects::infer_operational_may(&typed);
+    let operations = psi_effects::infer_operational_may(&typed);
     let diagnostics = validate_behavior_plan(&typed, &operations)
         .expect_err("published omission must reject inferred operational behavior");
 
@@ -1234,7 +1234,7 @@ fn checked_provider_infers_declared_invocation_through_local_helper() {
 
     validate_program(&typed)
         .expect("the declared callback ceiling admits the helper-forwarded direct edge");
-    let plan = omega_effects::infer_synchronous_invocations(&typed);
+    let plan = psi_effects::infer_synchronous_invocations(&typed);
     let provider = typed
         .machines()
         .iter()
@@ -1244,7 +1244,7 @@ fn checked_provider_infers_declared_invocation_through_local_helper() {
         plan.for_machine(provider.symbol)
             .expect("provider invocation summary")
             .inferred_transitive,
-        vec![omega_effects::InvocationTarget::Parameter(0)]
+        vec![psi_effects::InvocationTarget::Parameter(0)]
     );
 }
 
@@ -1278,7 +1278,7 @@ fn checked_provider_normalizes_self_forwarded_receiver_before_refinement() {
     validate_program(&typed).expect(
         "composition removes the forwarded provider receiver and shifts the callback to requirement parameter 0",
     );
-    let plan = omega_effects::infer_synchronous_invocations(&typed);
+    let plan = psi_effects::infer_synchronous_invocations(&typed);
     let provider = typed
         .machines()
         .iter()
@@ -1288,7 +1288,7 @@ fn checked_provider_normalizes_self_forwarded_receiver_before_refinement() {
         plan.for_machine(provider.symbol)
             .expect("provider invocation summary")
             .inferred_transitive,
-        vec![omega_effects::InvocationTarget::Parameter(1)]
+        vec![psi_effects::InvocationTarget::Parameter(1)]
     );
 }
 
@@ -1312,7 +1312,7 @@ fn checked_provider_infers_attached_boundary_field_as_direct_target() {
         }
         "#,
     );
-    let plan = omega_effects::infer_synchronous_invocations(&typed);
+    let plan = psi_effects::infer_synchronous_invocations(&typed);
     let labels = |name: &str| {
         let machine = typed
             .machines()
@@ -1323,7 +1323,7 @@ fn checked_provider_infers_attached_boundary_field_as_direct_target() {
             .expect("invocation summary")
             .inferred_direct
             .iter()
-            .map(|target| omega_effects::invocation_target_label(&typed, machine, *target))
+            .map(|target| psi_effects::invocation_target_label(&typed, machine, *target))
             .collect::<Vec<_>>()
     };
     assert_eq!(labels("AlphaProvider::alpha_checked"), ["Beta"]);
@@ -1347,7 +1347,7 @@ fn invocation_inference_does_not_alias_same_named_foreign_fields_to_self() {
         }
         "#,
     );
-    let plan = omega_effects::infer_synchronous_invocations(&typed);
+    let plan = psi_effects::infer_synchronous_invocations(&typed);
     let machine = typed
         .machines()
         .iter()
@@ -1358,7 +1358,7 @@ fn invocation_inference_does_not_alias_same_named_foreign_fields_to_self() {
         .expect("invocation summary")
         .inferred_direct
         .iter()
-        .map(|target| omega_effects::invocation_target_label(&typed, machine, *target))
+        .map(|target| psi_effects::invocation_target_label(&typed, machine, *target))
         .collect::<Vec<_>>();
     assert_eq!(labels, ["Beta"]);
 }
@@ -1384,15 +1384,15 @@ fn invocation_and_operational_inference_visit_transition_arguments() {
         .iter()
         .find(|machine| machine.name.as_str() == "run")
         .expect("run machine");
-    let invocations = omega_effects::infer_synchronous_invocations(&typed);
+    let invocations = psi_effects::infer_synchronous_invocations(&typed);
     assert_eq!(
         invocations
             .for_machine(machine.symbol)
             .expect("run invocation summary")
             .inferred_transitive,
-        vec![omega_effects::InvocationTarget::Parameter(0)]
+        vec![psi_effects::InvocationTarget::Parameter(0)]
     );
-    let operations = omega_effects::infer_operational_may(&typed);
+    let operations = psi_effects::infer_operational_may(&typed);
     let operational = operations
         .machines()
         .iter()
@@ -3324,7 +3324,7 @@ fn rejects_published_service_ceiling_below_reached_services() {
     let resolved = lower_syntax_trees(&syntax_trees).expect("resolve should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typed lowering should succeed");
 
-    let operations = omega_effects::infer_operational_may(&typed);
+    let operations = psi_effects::infer_operational_may(&typed);
     let diagnostics =
         validate_behavior_plan(&typed, &operations).expect_err("service ceiling should fail");
 
@@ -3349,10 +3349,8 @@ fn rejects_published_service_ceiling_below_reached_services() {
 /// dev-dependencies of `omega-effects` itself, since that would re-introduce a
 /// `representations -> pipeline` upward edge.
 mod effects_analysis {
-    use omega_effects::{
-        audit_boundary_provider_calls, build_boundary_provider_approval_registry,
-        infer_operational_may, infer_service_reaches,
-    };
+    use omega_effects::{audit_boundary_provider_calls, build_boundary_provider_approval_registry};
+    use psi_effects::{infer_operational_may, infer_service_reaches};
     use psi_typed_trees::TypedTrees;
 
     use psi_source_files_to_tokens::Lexer;

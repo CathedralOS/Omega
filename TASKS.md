@@ -966,11 +966,12 @@ improvements do not change public identity.
   checking; the unused former `omega-proof` package is retired.
   `psi-typed-trees-to-checked-trees` owns semantic checking and checked-fact
   construction; the unused former Omega compatibility package is retired.
-  Boundary
-  provider approval now runs explicitly in Omega orchestration after the Psi
+  Boundary provider approval now runs explicitly in Omega orchestration after the Psi
   check instead of entering the checker dependency graph.
   `psi-effects` owns operational ceilings, service reach, synchronous
-  invocation inference, and capability-flow facts. Provider declarations,
+  invocation inference, and capability-flow facts; target-neutral consumers
+  depend on it directly. `omega-effects` no longer re-exports that vocabulary.
+  Provider declarations,
   target/provider bindings, approval, installation, and the exact selected-plan
   carrier remain Omega-owned. `CheckedTrees` no longer embeds that concrete
   selection or target/layout-specific task activation plans; Omega
