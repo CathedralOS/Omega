@@ -1,9 +1,9 @@
-use omega_checked_trees::CheckedTrees;
 use omega_core::arena::{Handle, HandleSpan};
 use omega_state_graph::{
     StateBorrowActivation, StateBorrowEventSource, StateBorrowLoan, StateBorrowWeakening,
     StateBorrowWeakeningReason, StateGraph, StateKey,
 };
+use psi_checked_trees::CheckedTrees;
 
 pub(crate) struct StateBorrowLifetimeSummary {
     pub(crate) active_loans: HandleSpan<StateBorrowLoan>,
@@ -21,7 +21,7 @@ pub(crate) fn state_borrow_lifetime_summary(
     let mut activations = HandleSpan::empty();
     let mut weakenings = HandleSpan::empty();
     let mut loan_map: Vec<(
-        Handle<omega_checked_trees::BorrowLoanFact>,
+        Handle<psi_checked_trees::BorrowLoanFact>,
         Handle<StateBorrowLoan>,
     )> = Vec::new();
 
@@ -103,9 +103,9 @@ pub(crate) fn state_borrow_lifetime_summary(
 fn ensure_state_borrow_loan(
     state_graph: &mut StateGraph,
     program: &CheckedTrees,
-    source_loan: Handle<omega_checked_trees::BorrowLoanFact>,
+    source_loan: Handle<psi_checked_trees::BorrowLoanFact>,
     loan_map: &mut Vec<(
-        Handle<omega_checked_trees::BorrowLoanFact>,
+        Handle<psi_checked_trees::BorrowLoanFact>,
         Handle<StateBorrowLoan>,
     )>,
 ) -> Handle<StateBorrowLoan> {
@@ -137,13 +137,13 @@ fn ensure_state_borrow_loan(
 }
 
 fn remap_flow_borrow_event_source(
-    source: omega_checked_trees::FlowInvalidationSource,
+    source: psi_checked_trees::FlowInvalidationSource,
 ) -> StateBorrowEventSource {
     match source {
-        omega_checked_trees::FlowInvalidationSource::Statement { statement_index } => {
+        psi_checked_trees::FlowInvalidationSource::Statement { statement_index } => {
             StateBorrowEventSource::Statement { statement_index }
         }
-        omega_checked_trees::FlowInvalidationSource::Call {
+        psi_checked_trees::FlowInvalidationSource::Call {
             statement_index,
             call_ordinal,
             target_symbol,
@@ -156,16 +156,16 @@ fn remap_flow_borrow_event_source(
 }
 
 fn remap_flow_borrow_weakening_reason(
-    reason: omega_checked_trees::FlowBorrowWeakeningReason,
+    reason: psi_checked_trees::FlowBorrowWeakeningReason,
 ) -> StateBorrowWeakeningReason {
     match reason {
-        omega_checked_trees::FlowBorrowWeakeningReason::LastUseExpired => {
+        psi_checked_trees::FlowBorrowWeakeningReason::LastUseExpired => {
             StateBorrowWeakeningReason::LastUseExpired
         }
-        omega_checked_trees::FlowBorrowWeakeningReason::StateExit => {
+        psi_checked_trees::FlowBorrowWeakeningReason::StateExit => {
             StateBorrowWeakeningReason::StateExit
         }
-        omega_checked_trees::FlowBorrowWeakeningReason::LocalReassigned => {
+        psi_checked_trees::FlowBorrowWeakeningReason::LocalReassigned => {
             StateBorrowWeakeningReason::LocalReassigned
         }
     }

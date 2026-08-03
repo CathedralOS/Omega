@@ -8,7 +8,7 @@ use omega_core::symbols::SymbolHandle;
 fn copies_control_flow_values_into_abstract_summary() {
     let machine_symbol = SymbolHandle::from_arena_index(1);
     let state_symbol = SymbolHandle::from_arena_index(2);
-    let expression = omega_checked_trees::expression::ExpressionHandle::from_arena_index(3);
+    let expression = psi_checked_trees::expression::ExpressionHandle::from_arena_index(3);
     let key = StateKey {
         machine: machine_symbol,
         state: state_symbol,

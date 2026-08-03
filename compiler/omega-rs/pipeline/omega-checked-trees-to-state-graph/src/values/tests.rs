@@ -1,7 +1,7 @@
 use super::*;
-use omega_checked_trees::CheckedValueFact;
-use omega_checked_trees::expression::ExpressionHandle;
 use omega_core::symbols::SymbolHandle;
+use psi_checked_trees::CheckedValueFact;
+use psi_checked_trees::expression::ExpressionHandle;
 
 #[test]
 fn state_value_summary_keeps_values_for_matching_state() {
@@ -81,15 +81,15 @@ fn state_value_summary_carries_nested_checked_policy_adapter_evidence() {
         .facts
         .operators
         .uses
-        .insert(omega_checked_trees::CheckedOperatorUseFact {
+        .insert(psi_checked_trees::CheckedOperatorUseFact {
             expression: nested_expression,
             origin,
             provider_plan_identity: 0x1234_5678_9abc_def0,
             policy_adapter:
-                omega_checked_trees::CheckedArithmeticPolicyAdapter::FloatTrappingNonFinite {
+                psi_checked_trees::CheckedArithmeticPolicyAdapter::FloatTrappingNonFinite {
                     format: omega_core::float_semantics::FloatFormat::BINARY64,
                 },
-            ..omega_checked_trees::CheckedOperatorUseFact::default()
+            ..psi_checked_trees::CheckedOperatorUseFact::default()
         });
 
     let mut state_graph = StateGraph::default();

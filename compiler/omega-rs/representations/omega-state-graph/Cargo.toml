@@ -9,7 +9,7 @@ name = "omega_state_graph"
 path = "src/lib.rs"
 
 [dependencies]
-omega-checked-trees = { path = "../omega-checked-trees" }
+psi-checked-trees = { path = "../../../psi-rs/representations/psi-checked-trees" }
 omega-control-flow = { path = "../omega-control-flow" }
 omega-core = { path = "../../foundation/omega-core" }
 psi-facts = { path = "../../../psi-rs/representations/psi-facts" }

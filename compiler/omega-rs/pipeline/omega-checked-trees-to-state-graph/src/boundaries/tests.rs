@@ -27,7 +27,7 @@ fn state_boundary_summary_keeps_edges_for_matching_state() {
         .flow
         .control
         .states
-        .insert(omega_checked_trees::FlowStateFact {
+        .insert(psi_checked_trees::FlowStateFact {
             machine_symbol,
             state_symbol,
             boundary_edges: matching_edges,
@@ -51,7 +51,7 @@ fn state_boundary_summary_keeps_edges_for_matching_state() {
         .flow
         .control
         .states
-        .insert(omega_checked_trees::FlowStateFact {
+        .insert(psi_checked_trees::FlowStateFact {
             machine_symbol,
             state_symbol: other_state_symbol,
             boundary_edges: other_edges,

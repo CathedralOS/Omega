@@ -1,9 +1,9 @@
 mod targets;
 
-use omega_checked_trees::CheckedTrees;
-use omega_checked_trees::expression::ExpressionHandle;
-use omega_checked_trees::statement::TableCall;
 use omega_core::diagnostics::Diagnostic;
+use psi_checked_trees::CheckedTrees;
+use psi_checked_trees::expression::ExpressionHandle;
+use psi_checked_trees::statement::TableCall;
 
 use crate::segments::{
     SegmentTransition, StateSegment, copy_statement_expression_span,
@@ -137,7 +137,7 @@ fn branch_call_statement(
         .statements(state.statement_nodes)
         .get(statement_index)
     {
-        Some(omega_checked_trees::statement::StatementNode::Call(call)) => Ok(call),
+        Some(psi_checked_trees::statement::StatementNode::Call(call)) => Ok(call),
         _ => Err(Diagnostic::error(
             "internal branch-call segment did not reference a call statement",
         )),
@@ -145,16 +145,16 @@ fn branch_call_statement(
 }
 
 fn table_transition_target_arguments(
-    target: omega_checked_trees::statement::TransitionTargetHandle,
+    target: psi_checked_trees::statement::TransitionTargetHandle,
     program: &CheckedTrees,
     state_graph: &mut StateGraph,
-) -> omega_core::arena::HandleSpan<omega_checked_trees::expression::ExpressionHandle> {
+) -> omega_core::arena::HandleSpan<psi_checked_trees::expression::ExpressionHandle> {
     if !target.is_valid() {
         return omega_core::arena::HandleSpan::empty();
     }
 
     match program.statement_table.transition_target(target) {
-        omega_checked_trees::statement::TransitionTargetNode::Named { arguments, .. } => {
+        psi_checked_trees::statement::TransitionTargetNode::Named { arguments, .. } => {
             copy_statement_expression_span(
                 state_graph,
                 &program.expression_table,
@@ -162,27 +162,27 @@ fn table_transition_target_arguments(
                 *arguments,
             )
         }
-        omega_checked_trees::statement::TransitionTargetNode::SelfTarget
-        | omega_checked_trees::statement::TransitionTargetNode::Terminal
-        | omega_checked_trees::statement::TransitionTargetNode::Value(_) => {
+        psi_checked_trees::statement::TransitionTargetNode::SelfTarget
+        | psi_checked_trees::statement::TransitionTargetNode::Terminal
+        | psi_checked_trees::statement::TransitionTargetNode::Value(_) => {
             omega_core::arena::HandleSpan::empty()
         }
     }
 }
 
 fn table_transition_target_value(
-    target: omega_checked_trees::statement::TransitionTargetHandle,
+    target: psi_checked_trees::statement::TransitionTargetHandle,
     program: &CheckedTrees,
     state_graph: &mut StateGraph,
-) -> omega_checked_trees::expression::ExpressionHandle {
+) -> psi_checked_trees::expression::ExpressionHandle {
     if !target.is_valid() {
-        return omega_checked_trees::expression::ExpressionHandle::invalid();
+        return psi_checked_trees::expression::ExpressionHandle::invalid();
     }
 
     match program.statement_table.transition_target(target) {
-        omega_checked_trees::statement::TransitionTargetNode::Value(expression) => state_graph
+        psi_checked_trees::statement::TransitionTargetNode::Value(expression) => state_graph
             .expressions
             .copy_from(&program.expression_table, *expression),
-        _ => omega_checked_trees::expression::ExpressionHandle::invalid(),
+        _ => psi_checked_trees::expression::ExpressionHandle::invalid(),
     }
 }

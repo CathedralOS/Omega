@@ -1,9 +1,9 @@
 use super::remap_transition_owned;
-use omega_checked_trees::expression::ExpressionHandle;
-use omega_checked_trees::name::Identifier;
 use omega_control_flow::{PlannedTransitionTarget, TransitionExpressionRefs};
 use omega_core::arena::{Handle, HandleSpan};
 use omega_core::symbols::SymbolHandle;
+use psi_checked_trees::expression::ExpressionHandle;
+use psi_checked_trees::name::Identifier;
 
 #[test]
 fn remap_owned_transition_preserves_targets_and_expression_refs() {

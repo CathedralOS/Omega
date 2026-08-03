@@ -56,7 +56,6 @@ mod host_open_flags {
     }
 }
 use crate::value::{Cell, Value};
-use omega_checked_trees::{CheckedOperatorFacts, CheckedTrees};
 use omega_core::arithmetic::ArithmeticDomain;
 use omega_core::bignum::BigInt;
 use omega_core::float_semantics::{
@@ -64,6 +63,7 @@ use omega_core::float_semantics::{
     FloatPolicyTrap, FloatSemantics, FloatToIntegerError, IntegerFormat as SemanticIntegerFormat,
 };
 use omega_core::symbols::SymbolHandle;
+use psi_checked_trees::{CheckedOperatorFacts, CheckedTrees};
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::data::{DataDefinition, DataMember};
 use psi_typed_trees::expression::{
@@ -8004,7 +8004,7 @@ impl<'program> Evaluator<'program> {
     /// never be corrupted.
     fn expression_is_unsigned64(
         &self,
-        expression: omega_checked_trees::expression::ExpressionHandle,
+        expression: psi_checked_trees::expression::ExpressionHandle,
         frame: &Frame,
     ) -> bool {
         primitive_is_unsigned64(
@@ -8027,7 +8027,7 @@ impl<'program> Evaluator<'program> {
     /// ADD itself).
     fn expression_scalar_type(
         &self,
-        expression: omega_checked_trees::expression::ExpressionHandle,
+        expression: psi_checked_trees::expression::ExpressionHandle,
         frame: &Frame,
     ) -> Option<(PrimitiveType, ArithmeticDomain)> {
         match self.program.expression_table.expression(expression) {
@@ -8169,7 +8169,7 @@ impl<'program> Evaluator<'program> {
             .data_members(data)
             .iter()
             .find_map(|candidate| match candidate {
-                omega_checked_trees::data::DataMember::Field(field)
+                psi_checked_trees::data::DataMember::Field(field)
                     if field.name.as_str() == field_name =>
                 {
                     let primitive = self

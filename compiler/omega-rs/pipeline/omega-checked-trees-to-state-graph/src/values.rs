@@ -1,9 +1,9 @@
-use omega_checked_trees::{CheckedTrees, CheckedValueOrigin, CheckedValueStatementRole};
 use omega_core::arithmetic::ArithmeticPolicyAdapter;
 use omega_state_graph::{
     StateGraph, StateKey, StateValueFact, StateValueOrigin, StateValueStatementRole,
     StateValueSummary,
 };
+use psi_checked_trees::{CheckedTrees, CheckedValueOrigin, CheckedValueStatementRole};
 
 pub(crate) fn state_value_summary(
     state_graph: &mut StateGraph,
@@ -90,7 +90,7 @@ pub(crate) fn state_value_summary(
 fn append_operator_value(
     values: &mut Vec<StateValueFact>,
     key: StateKey,
-    expression: omega_checked_trees::expression::ExpressionHandle,
+    expression: psi_checked_trees::expression::ExpressionHandle,
     origin: CheckedValueOrigin,
     arithmetic_policy_adapter: ArithmeticPolicyAdapter,
     operator_provider_plan_identity: Option<u64>,

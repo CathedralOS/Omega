@@ -1,5 +1,4 @@
 use omega_abstract_operations::AbstractDataPlan;
-use omega_checked_trees::CheckedTrees;
 use omega_control_flow::{ControlFlowPlan, StateKey};
 use omega_instruction_selection::InstructionSelectionInput;
 use omega_layout::LayoutPlan;
@@ -14,6 +13,7 @@ use omega_state_calls::{AliasFlowPlan, StateCallPlan};
 use omega_state_graph::RuntimeFlowPlan;
 use omega_state_guards::StateGuardPlan;
 use omega_state_storage::StateStoragePlan;
+use psi_checked_trees::CheckedTrees;
 use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

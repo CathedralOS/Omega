@@ -1,9 +1,9 @@
-use omega_checked_trees::expression::ExpressionTable;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_state_graph::{
     MachineGraph, Operation, StateBoundaryEdge, StateGraph, StateGraphCode,
     StateGraphSemanticRoots, StateNode, StateParameterNode, StateValueFact, TransitionEdge,
 };
+use psi_checked_trees::expression::ExpressionTable;
 
 use crate::borrows::{SourceBorrowArenas, remap_state_borrow_summary};
 use crate::boundaries::remap_state_boundary_summary;

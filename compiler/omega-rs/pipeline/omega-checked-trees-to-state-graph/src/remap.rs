@@ -1,8 +1,8 @@
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
 use omega_core::arena::{Arena, HandleSpan};
 use omega_state_graph::{
     Operation, OperationExpressionRefs, StateGraph, TransitionEdge, TransitionExpressionRefs,
 };
+use psi_checked_trees::expression::{ExpressionHandle, ExpressionTable};
 
 pub(crate) fn append_remapped_operations(
     target: &mut StateGraph,

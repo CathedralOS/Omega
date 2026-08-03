@@ -1,8 +1,8 @@
-use omega_checked_trees::CheckedTrees;
-use omega_checked_trees::machine::Machine;
 use omega_core::arena::HandleSpan;
 use omega_core::semantics::{OperationalMaySummary, ServiceReachSummary};
 use omega_state_graph::{ContainedGraph, MachineOwnedDataGraph, StateGraph};
+use psi_checked_trees::CheckedTrees;
+use psi_checked_trees::machine::Machine;
 
 pub(crate) fn machine_owned_data(
     state_graph: &mut StateGraph,
@@ -139,7 +139,7 @@ pub(crate) fn machine_contains(
                 .data_members(definition)
                 .iter()
                 .find_map(|member| match member {
-                    omega_checked_trees::data::DataMember::Field(field)
+                    psi_checked_trees::data::DataMember::Field(field)
                         if field.symbol == contained.field =>
                     {
                         Some(field)

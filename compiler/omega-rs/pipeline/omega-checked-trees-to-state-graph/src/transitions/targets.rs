@@ -1,7 +1,7 @@
-use omega_checked_trees::CheckedTrees;
-use omega_checked_trees::statement::{TableCall, TransitionTargetHandle, TransitionTargetNode};
 use omega_core::diagnostics::Diagnostic;
 use omega_state_graph::{PlannedTransitionTarget, StateKey};
+use psi_checked_trees::CheckedTrees;
+use psi_checked_trees::statement::{TableCall, TransitionTargetHandle, TransitionTargetNode};
 
 use crate::segments::StateSegment;
 
@@ -230,7 +230,7 @@ fn machine_is_measured(source_key: StateKey, program: &CheckedTrees) -> bool {
 fn machine_targets_own_entry(
     source_key: StateKey,
     program: &CheckedTrees,
-    name: &omega_checked_trees::name::Identifier,
+    name: &psi_checked_trees::name::Identifier,
 ) -> bool {
     program
         .machines()
@@ -260,13 +260,13 @@ fn unmeasured_recursion_message(name: &str) -> String {
 
 fn is_local_transition_path(
     source_key: StateKey,
-    path: &[omega_checked_trees::name::Identifier],
+    path: &[psi_checked_trees::name::Identifier],
     head_symbol: omega_core::symbols::SymbolHandle,
 ) -> bool {
     path.len() == 1 || path.len() == 2 && head_symbol == source_key.machine
 }
 
-fn display_transition_path(path: &[omega_checked_trees::name::Identifier]) -> String {
+fn display_transition_path(path: &[psi_checked_trees::name::Identifier]) -> String {
     let mut display = String::new();
 
     for member in path {
@@ -288,7 +288,7 @@ fn display_transition_path(path: &[omega_checked_trees::name::Identifier]) -> St
 fn free_machine_self_entry_segment<'segments>(
     source_key: StateKey,
     segments: &'segments [StateSegment],
-    name: &omega_checked_trees::name::Identifier,
+    name: &psi_checked_trees::name::Identifier,
     program: &CheckedTrees,
 ) -> Option<(usize, &'segments StateSegment)> {
     let machine = program
@@ -317,7 +317,7 @@ fn find_initial_segment_by_symbol(
 
 fn find_initial_segment_by_name<'segments>(
     segments: &'segments [StateSegment],
-    name: &omega_checked_trees::name::Identifier,
+    name: &psi_checked_trees::name::Identifier,
 ) -> Option<(usize, &'segments StateSegment)> {
     segments
         .iter()

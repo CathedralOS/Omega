@@ -7,7 +7,7 @@
 //! and the broader operation vocabulary migrate.
 //!
 //! The interpreter evaluates the program at the level of the typed/checked trees
-//! (`omega_checked_trees::CheckedTrees`, which derefs to `psi_typed_trees::TypedTrees`)
+//! (`psi_checked_trees::CheckedTrees`, which derefs to `psi_typed_trees::TypedTrees`)
 //! -- the source-of-truth semantics, ABOVE all backend lowering. It is therefore
 //! independent of the backend bugs it must catch: if `interpret()` and the native
 //! binary disagree on exit code or stdout for the same program, the backend is wrong.
@@ -96,7 +96,7 @@ pub use terminal_psi::{
 
 pub use value::{Cell, Value};
 
-use omega_checked_trees::CheckedTrees;
+use psi_checked_trees::CheckedTrees;
 
 /// Identity of the deterministic evaluator-step schedule used before the
 /// canonical portable IR exists.

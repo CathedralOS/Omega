@@ -1,8 +1,8 @@
-use omega_checked_trees::CheckedTrees;
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
-use omega_checked_trees::name::Identifier;
-use omega_checked_trees::statement::{StatementNode, TableAssignment, TableCall};
 use omega_state_graph::{OperationExpressionRefs, OperationKind, StateGraph};
+use psi_checked_trees::CheckedTrees;
+use psi_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
+use psi_checked_trees::name::Identifier;
+use psi_checked_trees::statement::{StatementNode, TableAssignment, TableCall};
 
 use super::copy_statement_expression_span;
 
@@ -43,7 +43,7 @@ pub(super) fn operation_expression_refs(
     statement: &StatementNode,
     source_expressions: &ExpressionTable,
     state_graph: &mut StateGraph,
-    statement_table: &omega_checked_trees::statement::StatementTable,
+    statement_table: &psi_checked_trees::statement::StatementTable,
 ) -> OperationExpressionRefs {
     match statement {
         StatementNode::AssemblyFact(_) => OperationExpressionRefs::None,

@@ -1,8 +1,8 @@
-use omega_checked_trees::CheckedTrees;
-use omega_checked_trees::name::Identifier;
-use omega_checked_trees::state::State;
 use omega_core::arena::HandleSpan;
 use omega_state_graph::{StateGraph, StateParameterNode};
+use psi_checked_trees::CheckedTrees;
+use psi_checked_trees::name::Identifier;
+use psi_checked_trees::state::State;
 
 pub(super) fn state_parameters_for_segment(
     state_graph: &mut StateGraph,
@@ -67,7 +67,7 @@ pub(super) fn state_parameters_for_segment(
                     program
                         .type_reference_table
                         .type_reference(parameter.type_reference),
-                    omega_checked_trees::types::TypeReferenceNode::Reference {
+                    psi_checked_trees::types::TypeReferenceNode::Reference {
                         is_mutable: true,
                         ..
                     }
