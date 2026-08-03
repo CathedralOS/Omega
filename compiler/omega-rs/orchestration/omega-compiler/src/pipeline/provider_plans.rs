@@ -108,18 +108,13 @@ impl SelectedExternalRootEntryFactBinding {
         &'entry omega_external_roots::AdmittedEntryQualification,
         omega_external_roots::ExternalRootDiagnostic,
     > {
-        let matches = acknowledgement
-            .qualifications()
-            .iter()
-            .filter(|occurrence| self.matches_occurrence(occurrence))
-            .collect::<Vec<_>>();
-        let [occurrence] = matches.as_slice() else {
-            return Err(omega_external_roots::ExternalRootDiagnostic(format!(
-                "installed-root acknowledgement maps to {} occurrence qualifications for the exact checked adapter parameter fact",
-                matches.len()
-            )));
-        };
-        Ok(*occurrence)
+        acknowledgement.qualification_for_contract(
+            self.provider_plan,
+            &self.requirement_identity,
+            self.parameter_index,
+            &self.domain,
+            self.effective_carry,
+        )
     }
 }
 

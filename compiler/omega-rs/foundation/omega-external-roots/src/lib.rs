@@ -1785,6 +1785,39 @@ impl InterruptAcknowledgement {
         &self.qualifications
     }
 
+    /// Resolve one exact static accepted-claim contract from this concrete
+    /// linear occurrence. This never accepts a provider-plan receipt alone and
+    /// never returns evidence detached from the acknowledgement carrier.
+    pub fn qualification_for_contract(
+        &self,
+        provider_plan: ProviderPlanId,
+        requirement_identity: &str,
+        parameter_index: usize,
+        domain: &str,
+        effective_carry: omega_core::semantics::CarryPolicy,
+    ) -> Result<&AdmittedEntryQualification, ExternalRootDiagnostic> {
+        let matches = self
+            .qualifications
+            .iter()
+            .filter(|qualification| {
+                qualification.matches_contract(
+                    provider_plan,
+                    requirement_identity,
+                    parameter_index,
+                    domain,
+                    effective_carry,
+                )
+            })
+            .collect::<Vec<_>>();
+        let [qualification] = matches.as_slice() else {
+            return Err(ExternalRootDiagnostic(format!(
+                "interrupt acknowledgement maps to {} qualifications for the exact accepted entry contract",
+                matches.len()
+            )));
+        };
+        Ok(*qualification)
+    }
+
     pub fn complete(
         self,
         receipt: InterruptAcknowledgementReceipt,
@@ -3291,6 +3324,31 @@ mod tests {
             "InterruptAcknowledgement::Pending",
             omega_core::semantics::CarryPolicy::PERMISSIVE,
         ));
+        assert_eq!(
+            acknowledgement
+                .qualification_for_contract(
+                    root_id(55, ProviderPlanId::from_normalized_identity),
+                    "TimerRoot::tick",
+                    0,
+                    "InterruptAcknowledgement::Pending",
+                    omega_core::semantics::CarryPolicy::STRICT,
+                )
+                .expect("linear acknowledgement must resolve its exact accepted contract"),
+            pending_qualification
+        );
+        assert!(
+            acknowledgement
+                .qualification_for_contract(
+                    root_id(56, ProviderPlanId::from_normalized_identity),
+                    "TimerRoot::tick",
+                    0,
+                    "InterruptAcknowledgement::Pending",
+                    omega_core::semantics::CarryPolicy::STRICT,
+                )
+                .expect_err("a different provider plan cannot reuse the occurrence")
+                .0
+                .contains("maps to 0 qualifications")
+        );
         let acknowledgement_receipt = InterruptAcknowledgementReceipt::from_provider(
             root_id(
                 99,
