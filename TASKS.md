@@ -844,7 +844,10 @@ Remaining:
   dropped; Windows' argument-free TickCount row remains result-only. Darwin's
   scalar Objective-C runtime cohort now retains exact word plans for class and
   selector lookup, two-/three-/six-argument message sends, runtime-byte-string
-  sends, and autorelease-pool push/pop.
+  sends, and autorelease-pool push/pop. The mixed rectangle/image-size message
+  forms retain their exact interleaved word/F64 signatures, while CGRect max-X
+  and max-Y retain four-F64/F64 plans; AAPCS64 independently assigns their X
+  and V register streams from those selected shapes.
   The matching AArch64 direct-import composites now validate
   that same retained native signature and reject placement drift in lockstep
   with layout; Windows composites retain their independently normalized

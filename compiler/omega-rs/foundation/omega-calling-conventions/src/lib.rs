@@ -1811,6 +1811,81 @@ mod binding_plan_tests {
     }
 
     #[test]
+    fn darwin_mixed_float_bindings_retain_exact_import_plans() {
+        let word = ValueShape::integer(8, 8);
+        let float = ValueShape::float(8);
+        let plan = build_host_abi_plan(NativeTarget::macos_arm64());
+        for (capability, operation, symbol, parameters, result) in [
+            (
+                HostCapability::ObjectiveC,
+                HostOperation::MsgSendRect,
+                "_objc_msgSend",
+                vec![word, word, float, float, float, float, word, word, word],
+                word,
+            ),
+            (
+                HostCapability::ObjectiveC,
+                HostOperation::MsgSendImageSize,
+                "_objc_msgSend",
+                vec![word, word, word, float, float],
+                word,
+            ),
+            (
+                HostCapability::CoreGraphics,
+                HostOperation::RectMaxX,
+                "_CGRectGetMaxX",
+                vec![float; 4],
+                float,
+            ),
+            (
+                HostCapability::CoreGraphics,
+                HostOperation::RectMaxY,
+                "_CGRectGetMaxY",
+                vec![float; 4],
+                float,
+            ),
+        ] {
+            let (_, binding) = plan
+                .bindings
+                .iter()
+                .find(|(_, binding)| {
+                    binding.operation_key.capability == capability
+                        && binding.operation_key.operation == operation
+                })
+                .expect("built-in Darwin mixed-float binding");
+            assert!(matches!(
+                binding.mechanism,
+                HostBindingMechanism::Import {
+                    symbol: ref actual_symbol,
+                    ..
+                } if actual_symbol.as_ref() == symbol
+            ));
+            let boundary = binding
+                .boundary_entry_plan
+                .as_ref()
+                .expect("fixed Darwin mixed-float signature must retain its plan");
+            assert_eq!(boundary.call.policy, CallingPolicy::Aapcs64);
+            assert_eq!(
+                boundary
+                    .call
+                    .parameters
+                    .iter()
+                    .map(|placement| placement.shape)
+                    .collect::<Vec<_>>(),
+                parameters
+            );
+            assert_eq!(
+                boundary
+                    .call
+                    .result
+                    .as_ref()
+                    .map(|placement| placement.shape),
+                Some(result)
+            );
+        }
+    }
+
+    #[test]
     fn compiler_intrinsic_selects_only_an_exact_existing_target_lowering() {
         let row = |name: &str, method: &str| ExternalBindingRow {
             target_name: "macos_arm64".to_owned(),
