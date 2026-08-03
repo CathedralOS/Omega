@@ -1117,6 +1117,7 @@ pub fn validate_access_plan(
             exposure: policy.exposure,
         });
     }
+    validate_external_write_units(&descriptors)?;
     validate_destructive_access_units(&descriptors)?;
 
     let layout_fingerprint = plan.layout_fingerprint;
@@ -1128,6 +1129,22 @@ pub fn validate_access_plan(
         fields: descriptors,
         layout_size_bytes: layout_size,
     })
+}
+
+fn validate_external_write_units(
+    descriptors: &[FieldAccessDescriptor],
+) -> Result<(), AccessPlanDiagnostic> {
+    for descriptor in descriptors.iter().filter(|descriptor| {
+        descriptor.observation == ObservationModel::External && descriptor.permissions.write
+    }) {
+        if !logical_extent_covers_effect(&descriptor.logical_extent, descriptor.effect_footprint) {
+            return Err(AccessPlanDiagnostic(format!(
+                "external field `{}` names only part of its {}-byte transfer container; a generic External write must cover the complete admitted container",
+                descriptor.field, descriptor.effect_footprint.length_bytes
+            )));
+        }
+    }
+    Ok(())
 }
 
 fn validate_destructive_access_units(
@@ -2749,7 +2766,7 @@ mod tests {
                     FieldAccess::External {
                         transfer_width_bits: 32,
                         read: ExternalRead::Read,
-                        write: true,
+                        write: false,
                         exposure: AccessExposure::BindingPrivate,
                     },
                 ),
@@ -3137,6 +3154,31 @@ mod tests {
             AccessOperation::Take,
         )
         .expect("destructive read requires exclusive access");
+    }
+
+    #[test]
+    fn narrow_external_write_rejects_before_admission() {
+        let layout = uart_layout();
+        let error = validate_access_plan(
+            access_plan(
+                &layout,
+                &[(
+                    "control",
+                    FieldAccess::External {
+                        transfer_width_bits: 32,
+                        read: ExternalRead::Read,
+                        write: true,
+                        exposure: AccessExposure::BindingPrivate,
+                    },
+                )],
+            ),
+            &layout,
+        )
+        .expect_err("a narrow External write would require a generic RMW");
+        assert!(
+            error.0.contains("complete admitted container"),
+            "diagnostic must explain the whole-transfer requirement: {error}"
+        );
     }
 
     #[test]
@@ -4113,7 +4155,7 @@ mod tests {
         let error = validate_placement_resources(&plan, &read_only_external)
             .expect_err("read-only external supply cannot satisfy UART writes");
         assert!(
-            error.0.contains("control") && error.0.contains("incompatible External"),
+            error.0.contains("transmit") && error.0.contains("incompatible External"),
             "canonical field order reports the first unsupported UART write: {error}"
         );
 
