@@ -1803,9 +1803,8 @@ move it to a convenience library.
   a requirement is absent when it lacks a borrowed receiver, carries
   requirement-local generics, or mentions `Self` outside that receiver,
   without hiding eligible siblings; source-call validation consumes that same
-  canonical judgment. The two-word descriptor, coherent
-  named-conformance selection, per-requirement eligibility/adapters, and
-  envelope inference remain. Standalone `Type satisfies Trait as Name;`
+  canonical judgment. Per-requirement eligibility/adapters and envelope
+  inference remain. Standalone `Type satisfies Trait as Name;`
   declarations now retain the name through checked Psi as a stable child
   symbol and reject duplicate `Type::Name` paths. Generic machine `where T
   satisfies Trait<Args>` bounds now retain their subject and specialization
@@ -1839,8 +1838,12 @@ move it to a convenience library.
   wrong-carrier selections. Omega's runtime ABI now distinguishes the borrowed
   `{ instance, selected-conformance table }` carrier from the byte-identical
   slice descriptor, and layout/runtime-storage descriptors retain the exact
-  trait and authored named-selection metadata. Descriptor materialization,
-  private table emission, requirement adapters, and envelope inference remain.
+  trait and authored named-selection metadata. **DYNAMIC-CONFORMANCE-SATISFIERS
+  — DESIGN BLOCKED (`OWNER_QUESTIONS.md` Q7):** the source model does not yet
+  settle how one named whole-trait edge binds its complete set of attached
+  requirement satisfiers; do not derive adapter rows by state-name coincidence.
+  Descriptor materialization, private table emission, requirement adapters,
+  and envelope inference remain after that ruling.
   Local descriptors must not cross replaceable component boundaries. Add owned
   erased **runtime** values only after general storage ownership,
   size/alignment metadata, and cleanup contracts can support them; N6's
