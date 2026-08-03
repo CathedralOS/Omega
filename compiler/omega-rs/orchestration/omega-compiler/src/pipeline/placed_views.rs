@@ -28,13 +28,13 @@ use omega_access_plans::{ExternalRead, FieldAccess, PlacementPlanId, ValidatedPl
 use omega_core::arena::{Handle, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::semantics::{DataSupplyMode, Multiplicity};
-use omega_syntax_trees::SyntaxTrees;
-use omega_syntax_trees::identifier::Identifier;
-use omega_syntax_trees::item::{
+use psi_syntax_trees::SyntaxTrees;
+use psi_syntax_trees::identifier::Identifier;
+use psi_syntax_trees::item::{
     DataDefinition, DataField, DataMember, DataProperties, Item, Machine,
 };
-use omega_syntax_trees::types::{TypeReferenceHandle, TypeReferenceNode};
-use omega_typed_trees::TypedTrees;
+use psi_syntax_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use psi_typed_trees::TypedTrees;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PlacedViewRecord {
@@ -86,10 +86,10 @@ pub(crate) fn desugar_placed_views(
     synthesize_probe_records(&mut probe, &applications, &rewrites, &schemas);
     super::generic_instances::desugar_generic_data_instances(&mut probe)?;
     let probe_plan_laid = super::plan_laid::desugar_plan_laid_value_types(&mut probe)?;
-    let resolved = omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&probe)
+    let resolved = psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&probe)
         .map_err(|diagnostic| vec![diagnostic])?;
     let mut typed =
-        omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+        psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
             .map_err(|diagnostic| vec![diagnostic])?;
     super::const_lengths::evaluate_const_array_lengths(&mut typed)?;
     super::const_domain_facts::evaluate_const_domain_facts(&mut typed)?;
@@ -190,8 +190,8 @@ fn install_placed_view_plan(
         .data_members(schema)
         .iter()
         .filter_map(|member| match member {
-            omega_typed_trees::data::DataMember::Field(field) => Some(field),
-            omega_typed_trees::data::DataMember::Variant(_) => None,
+            psi_typed_trees::data::DataMember::Field(field) => Some(field),
+            psi_typed_trees::data::DataMember::Variant(_) => None,
         })
         .map(|field| (field.name.as_str().to_owned(), field.type_reference))
         .collect::<BTreeMap<_, _>>();
@@ -209,10 +209,10 @@ fn install_placed_view_plan(
         .data_members(view)
         .iter()
         .filter_map(|member| match member {
-            omega_typed_trees::data::DataMember::Field(field) => typed
+            psi_typed_trees::data::DataMember::Field(field) => typed
                 .named_type_reference(field.type_reference)
                 .map(|name| (field.name.as_str().to_owned(), name.as_str().to_owned())),
-            omega_typed_trees::data::DataMember::Variant(_) => None,
+            psi_typed_trees::data::DataMember::Variant(_) => None,
         })
         .collect::<BTreeMap<_, _>>();
 
@@ -235,7 +235,7 @@ fn install_placed_view_plan(
                 entry.field()
             ))]
         })?;
-        fields.push(omega_typed_trees::typed_trees::PlacedFieldPlan {
+        fields.push(psi_typed_trees::typed_trees::PlacedFieldPlan {
             field_name: entry.field().to_owned(),
             accessor_name,
             value_type,
@@ -244,7 +244,7 @@ fn install_placed_view_plan(
     }
     typed
         .placed_view_plans
-        .push(omega_typed_trees::typed_trees::PlacedViewPlan {
+        .push(psi_typed_trees::typed_trees::PlacedViewPlan {
             data_name: record.synthetic_name.clone(),
             policy_name: record
                 .policy_machine

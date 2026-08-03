@@ -8,8 +8,8 @@
 
 use omega_interpreter::BuildTimeValue;
 pub use omega_layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport};
-use omega_typed_trees::TypedTrees;
-use omega_typed_trees::types::PrimitiveType;
+use psi_typed_trees::TypedTrees;
+use psi_typed_trees::types::PrimitiveType;
 
 use super::build_time_admission::BuildTimeAdmissionPlan;
 
@@ -62,7 +62,7 @@ pub(super) fn schema_fields(
 
     let mut fields = Vec::new();
     for member in typed.data_members(data) {
-        let omega_typed_trees::data::DataMember::Field(field) = member else {
+        let psi_typed_trees::data::DataMember::Field(field) = member else {
             continue;
         };
         let Some(primitive) = typed.primitive_type_reference(field.type_reference) else {
@@ -102,7 +102,7 @@ pub(super) fn schema_fields(
         && !typed
             .data_members(data)
             .iter()
-            .any(|member| matches!(member, omega_typed_trees::data::DataMember::Variant(_)))
+            .any(|member| matches!(member, psi_typed_trees::data::DataMember::Variant(_)))
     {
         return Err(format!("schema data `{schema_data}` has no members"));
     }
@@ -125,9 +125,9 @@ pub(super) fn schema_fields(
 
 pub(super) fn normalized_schema_identity(
     typed: &TypedTrees,
-    data: &omega_typed_trees::data::DataDefinition,
+    data: &psi_typed_trees::data::DataDefinition,
 ) -> u64 {
-    use omega_typed_trees::data::DataMember;
+    use psi_typed_trees::data::DataMember;
 
     fn byte(hash: &mut u64, value: u8) {
         *hash ^= u64::from(value);
@@ -228,14 +228,14 @@ pub(super) fn normalized_schema_identity(
 
 fn declared_source_bits(
     typed: &TypedTrees,
-    type_reference: omega_typed_trees::types::TypeReferenceHandle,
+    type_reference: psi_typed_trees::types::TypeReferenceHandle,
     primitive: PrimitiveType,
     byte_size: u64,
 ) -> u64 {
     if primitive == PrimitiveType::Bool {
         return 1;
     }
-    let Some(range) = omega_typed_trees::wire::scalar_representation_range(typed, type_reference)
+    let Some(range) = psi_typed_trees::wire::scalar_representation_range(typed, type_reference)
     else {
         return byte_size * 8;
     };
@@ -316,7 +316,7 @@ pub(super) fn build_schema_value(
     schema_data: &str,
     schema_fields: &[SchemaFieldInfo],
 ) -> Result<BuildTimeValue, String> {
-    use omega_typed_trees::data::{DataMember, DataShapeKind};
+    use psi_typed_trees::data::{DataMember, DataShapeKind};
 
     let data = typed
         .data_definitions()
@@ -432,7 +432,7 @@ pub(super) fn build_schema_value(
         });
     }
     let shape =
-        omega_typed_trees::data::DataDefinition::shape_kind_from_members(typed.data_members(data));
+        psi_typed_trees::data::DataDefinition::shape_kind_from_members(typed.data_members(data));
     let (retired_fields, retired_cases) = match shape {
         DataShapeKind::Record => (data.retired_identities.as_slice(), &[][..]),
         DataShapeKind::Enum => (&[][..], data.retired_identities.as_slice()),

@@ -39,7 +39,7 @@ pub(super) fn validate_selected_target(
             let item = source_storage.syntax_trees.root_item(*root_item);
             matches!(
                 item,
-                omega_syntax_trees::item::Item::Target(target) if target.name.as_str() == target_name
+                psi_syntax_trees::item::Item::Target(target) if target.name.as_str() == target_name
             )
         })
     });

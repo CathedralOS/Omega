@@ -5,7 +5,7 @@
 //! canaries; this test pins the PLAN ITSELF.
 
 use omega_compiler::compile_to_checked;
-use omega_typed_trees::wire::WirePlacement;
+use psi_typed_trees::wire::WirePlacement;
 use std::fs;
 use std::path::PathBuf;
 

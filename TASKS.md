@@ -972,8 +972,13 @@ improvements do not change public identity.
   source-scope resolution, and stable symbol stamping;
   `psi-symbol-resolved-trees-to-typed-trees` owns type identity,
   compatibility, and signature normalization. Their former Omega
-  crates are implementation-free compatibility re-exports for unmigrated
-  orchestration. `psi-checked-trees-to-terminal` owns the first exact,
+  crates are implementation-free compatibility re-exports for remaining legacy
+  consumers. `omega-compiler` now invokes the Psi-owned lexer, parser,
+  resolver, typer, checker, and source representations directly; it no longer
+  reaches them through those compatibility packages. The driver still threads
+  checked semantics into the legacy Omega state-graph lane until general
+  terminal production replaces that early boundary.
+  `psi-checked-trees-to-terminal` owns the first exact,
   fail-closed checked-to-terminal source slice. The reverse-named Omega package
   has been removed; general terminal production grows only in this Psi stage.
   Its independent content-evidence producer now revalidates checked

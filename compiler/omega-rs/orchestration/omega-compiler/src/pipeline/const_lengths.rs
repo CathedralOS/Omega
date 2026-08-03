@@ -32,9 +32,9 @@
 //! host widths.
 
 use omega_core::diagnostics::Diagnostic;
-use omega_typed_trees::TypedTrees;
-use omega_typed_trees::machine::Machine;
-use omega_typed_trees::types::{FixedArrayLength, TypeReferenceHandle};
+use psi_typed_trees::TypedTrees;
+use psi_typed_trees::machine::Machine;
+use psi_typed_trees::types::{FixedArrayLength, TypeReferenceHandle};
 use std::collections::BTreeMap;
 
 use super::build_time_admission::BuildTimeAdmissionPlan;

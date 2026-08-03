@@ -13,8 +13,8 @@ use omega_calling_conventions::{
 };
 use omega_core::diagnostics::Diagnostic;
 use omega_interpreter::BuildTimeValue;
-use omega_typed_trees::TypedTrees;
-use omega_typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+use psi_typed_trees::TypedTrees;
+use psi_typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 const PARAMETER_CAPACITY: usize = 32;
 const VALUE_SHAPE_CAPACITY: usize = 256;
@@ -30,7 +30,7 @@ struct TraitTypeBinding {
 }
 
 struct BoundarySignatureInstance<'a> {
-    signature: &'a omega_typed_trees::signature::StateSignature,
+    signature: &'a psi_typed_trees::signature::StateSignature,
     bindings: Vec<TraitTypeBinding>,
 }
 
@@ -248,7 +248,7 @@ pub(crate) fn compute_boundary_calling_plans(
     }
     for realization in &evaluated {
         typed.record_boundary_calling_plan(
-            omega_typed_trees::typed_trees::BoundaryCallingPlanIdentity {
+            psi_typed_trees::typed_trees::BoundaryCallingPlanIdentity {
                 boundary_trait: realization.boundary_trait,
                 boundary_arguments: realization.boundary_arguments.clone(),
                 requirement_machine: realization.requirement_machine,
@@ -261,7 +261,7 @@ pub(crate) fn compute_boundary_calling_plans(
 
 fn boundary_policy_instances(
     typed: &TypedTrees,
-    boundary: &omega_typed_trees::trait_definition::TraitDefinition,
+    boundary: &psi_typed_trees::trait_definition::TraitDefinition,
     policy_argument: TypeReferenceHandle,
 ) -> Result<Vec<(Vec<TypeReferenceHandle>, TypeReferenceHandle)>, String> {
     let parameters = typed.trait_type_parameters(boundary);
@@ -309,7 +309,7 @@ fn names_match(left: &str, right: &str) -> bool {
 fn named_parameter_index(
     typed: &TypedTrees,
     mut type_reference: TypeReferenceHandle,
-    parameters: &[omega_typed_trees::data::TypeParameter],
+    parameters: &[psi_typed_trees::data::TypeParameter],
 ) -> Option<usize> {
     loop {
         match typed.type_reference_table.type_reference(type_reference) {
@@ -346,7 +346,7 @@ fn concrete_policy_type_name(
 fn find_policy_machine<'a>(
     typed: &'a TypedTrees,
     policy_type: &str,
-) -> Option<&'a omega_typed_trees::machine::Machine> {
+) -> Option<&'a psi_typed_trees::machine::Machine> {
     let expected = format!("{policy_type}::plan");
     typed.machines().iter().find(|machine| {
         machine.name.as_str() == expected
@@ -360,7 +360,7 @@ fn find_policy_machine<'a>(
 
 fn collect_boundary_signatures<'a>(
     typed: &'a TypedTrees,
-    definition: &'a omega_typed_trees::trait_definition::TraitDefinition,
+    definition: &'a psi_typed_trees::trait_definition::TraitDefinition,
     arguments: &[TypeReferenceHandle],
     visited: &mut Vec<omega_core::symbols::SymbolHandle>,
     signatures: &mut Vec<BoundarySignatureInstance<'a>>,
@@ -401,7 +401,7 @@ fn collect_boundary_signatures<'a>(
 
 fn trait_type_bindings(
     typed: &TypedTrees,
-    definition: &omega_typed_trees::trait_definition::TraitDefinition,
+    definition: &psi_typed_trees::trait_definition::TraitDefinition,
     arguments: &[TypeReferenceHandle],
 ) -> Vec<TraitTypeBinding> {
     typed
@@ -437,7 +437,7 @@ fn substituted_type_reference(
 
 fn call_signature_from_typed(
     typed: &TypedTrees,
-    signature: &omega_typed_trees::signature::StateSignature,
+    signature: &psi_typed_trees::signature::StateSignature,
     bindings: &[TraitTypeBinding],
 ) -> Result<MaterializedBoundarySignature, String> {
     let mut shapes = Vec::new();
@@ -549,7 +549,7 @@ fn value_shape_from_type(
         }
         TypeReferenceNode::FixedArray {
             element_type,
-            length: omega_typed_trees::types::FixedArrayLength::Literal(length),
+            length: psi_typed_trees::types::FixedArrayLength::Literal(length),
         } => {
             let (element, element_root) =
                 value_shape_from_type(typed, *element_type, bindings, visiting, shapes, fields)?;
@@ -679,7 +679,7 @@ fn plain_data_value_shape(
     let mut float_members = 0usize;
     let mut record_fields = Vec::new();
     for (field_index, member) in typed.data_members(definition).iter().enumerate() {
-        let omega_typed_trees::data::DataMember::Field(field) = member else {
+        let psi_typed_trees::data::DataMember::Field(field) = member else {
             visiting.pop();
             return Err(format!(
                 "case data `{name}` is not yet classifiable as a boundary value; pass it by reference"

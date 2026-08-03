@@ -48,7 +48,7 @@ pub fn compile(options: CompileOptions) -> Result<CompileReport, Vec<Diagnostic>
 /// the package whitelist, and rejects boundary operator bindings that do not
 /// resolve to a registered provider (frozen Wave 0 decision #4).
 fn validate_boundary_providers(
-    syntax: &omega_syntax_trees::SyntaxTrees,
+    syntax: &psi_syntax_trees::SyntaxTrees,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let registry = omega_effects::build_provider_registry(syntax, &mut diagnostics);
@@ -64,14 +64,14 @@ fn validate_boundary_providers(
 /// Extract bodyless external leaves into the calling-convention rows consumed
 /// by the freestanding ABI builder.
 fn extract_external_binding_rows(
-    syntax_trees: &omega_syntax_trees::SyntaxTrees,
+    syntax_trees: &psi_syntax_trees::SyntaxTrees,
     selected_target: Option<&str>,
     selected_plan_names: &[String],
     provider_plans: &[omega_effects::provider_plan::ProviderPlan],
     boundary_calling_plan_realizations: &[
         crate::pipeline::calling_policy_plans::BoundaryCallingPlanRealization
     ],
-    typed: &omega_typed_trees::TypedTrees,
+    typed: &psi_typed_trees::TypedTrees,
 ) -> Vec<omega_calling_conventions::ExternalBindingRow> {
     use omega_calling_conventions::{ExternalBindingKind, ExternalBindingRow};
 
@@ -83,7 +83,7 @@ fn extract_external_binding_rows(
     // host target). For table-addressed mechanisms, the leaf's attached data
     // type owns the layout used for table-addressed mechanisms.
     for item in syntax_trees.root_items() {
-        let omega_syntax_trees::item::Item::Machine(machine) = item else {
+        let psi_syntax_trees::item::Item::Machine(machine) = item else {
             continue;
         };
         if !machine.bodyless || machine.boundary {
@@ -115,7 +115,7 @@ fn extract_external_binding_rows(
             {
                 continue;
             }
-            use omega_syntax_trees::item::ExternalBinding;
+            use psi_syntax_trees::item::ExternalBinding;
             let binding = match binding {
                 ExternalBinding::Syscall { number } => {
                     ExternalBindingKind::Syscall { number: *number }
@@ -188,7 +188,7 @@ fn extract_external_binding_rows(
 /// canonical fingerprint; the typed program retains the corresponding plan
 /// internally so lowering never has to rediscover or re-run policy source.
 fn selected_source_boundary_entry_plan(
-    typed: &omega_typed_trees::TypedTrees,
+    typed: &psi_typed_trees::TypedTrees,
     provider_plans: &[omega_effects::provider_plan::ProviderPlan],
     selected_plan_names: &[String],
     boundary_calling_plan_realizations: &[
@@ -255,8 +255,8 @@ fn selected_source_boundary_entry_plan(
 /// read it; the field-model merge sees 0 only for a binding whose trait is
 /// missing, which the resolver refuses elsewhere).
 fn boundary_trait_method_parameter_count(
-    syntax_trees: &omega_syntax_trees::SyntaxTrees,
-    typed: &omega_typed_trees::TypedTrees,
+    syntax_trees: &psi_syntax_trees::SyntaxTrees,
+    typed: &psi_typed_trees::TypedTrees,
     trait_name: &str,
     method: &str,
     requirement_identity: &str,
@@ -279,7 +279,7 @@ fn boundary_trait_method_parameter_count(
         return count;
     }
     for item in syntax_trees.root_items() {
-        let omega_syntax_trees::item::Item::Trait(trait_definition) = item else {
+        let psi_syntax_trees::item::Item::Trait(trait_definition) = item else {
             continue;
         };
         if trait_definition.name.as_str() != trait_name {
@@ -358,7 +358,7 @@ impl Compiler {
             .filter_map(|handle| match syntax.syntax_trees.root_item(*handle) {
                 // The syntax machine's `name` is already the FULL spelled
                 // path (`Stager::build` -- split_machine_path joins it).
-                omega_syntax_trees::item::Item::Machine(machine) => {
+                psi_syntax_trees::item::Item::Machine(machine) => {
                     Some(machine.name.as_str().to_owned())
                 }
                 _ => None,

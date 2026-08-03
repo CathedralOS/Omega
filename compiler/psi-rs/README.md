@@ -77,6 +77,8 @@ Current roots:
   verifier-reconstructed operation/edge axioms, and exhaustive bodyful-contract
   evidence checking.
 
-The old `omega-tokens` and `omega-source-files-to-tokens` package names are
-compatibility re-exports for unmigrated parser consumers; they contain no
-token or lexer implementation. New frontend work proceeds under this root.
+The old Omega-named frontend packages are implementation-free compatibility
+re-exports for remaining legacy consumers. `omega-compiler` invokes the
+Psi-owned source representations and source-to-checked stages directly. Its
+checked-tree handoff into the legacy Omega backend remains migration work;
+new frontend and terminal-production work proceeds under this root.

@@ -10,7 +10,7 @@
 use crate::pipeline::compile_options::CompileOptions;
 use omega_artifacts::{ArtifactWriter, TrustReport, TrustReportRow};
 use omega_core::diagnostics::Diagnostic;
-use omega_typed_trees::TypedTrees;
+use psi_typed_trees::TypedTrees;
 
 pub(super) fn write_trust_report(
     options: &CompileOptions,

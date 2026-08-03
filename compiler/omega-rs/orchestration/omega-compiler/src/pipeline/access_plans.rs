@@ -14,7 +14,7 @@ use omega_access_plans::{
 };
 use omega_interpreter::BuildTimeValue;
 use omega_layout_plans::{LayoutPlacementReport, LayoutPlanReport};
-use omega_typed_trees::TypedTrees;
+use psi_typed_trees::TypedTrees;
 
 use super::build_time_admission::BuildTimeAdmissionPlan;
 use super::layout_plans::{SchemaFieldInfo, build_schema_value, schema_fields, validate_plan};

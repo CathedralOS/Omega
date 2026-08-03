@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use crate::source::SourceId;
-use omega_syntax_trees::item::ItemHandle;
+use psi_syntax_trees::item::ItemHandle;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SourceFile {

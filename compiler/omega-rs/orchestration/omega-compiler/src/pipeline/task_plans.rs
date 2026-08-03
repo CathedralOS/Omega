@@ -1,4 +1,3 @@
-use omega_checked_trees::{CheckedTrees, SuspensionCrossingStorage};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::semantics::{CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension};
 use omega_layout::TypeLayout;
@@ -10,6 +9,7 @@ use omega_task_plans::{
     TaskActivationPlanFact, TaskActivationPlanSet, TaskRuntimeId, TaskStartOperation,
     ValueLayoutId, validate_activation_plan,
 };
+use psi_checked_trees::{CheckedTrees, SuspensionCrossingStorage};
 
 /// Elaborate every concrete `TaskRuntime::{start,try_start}<M>` specialization
 /// into a provider-independent activation demand. The source classifier is
@@ -249,8 +249,8 @@ fn selected_task_runtime_provider(
 }
 
 struct ActivationCarryCrossings<'program> {
-    root: Vec<&'program omega_checked_trees::SuspensionCrossingCarryFact>,
-    subtree: Vec<&'program omega_checked_trees::SuspensionCrossingCarryFact>,
+    root: Vec<&'program psi_checked_trees::SuspensionCrossingCarryFact>,
+    subtree: Vec<&'program psi_checked_trees::SuspensionCrossingCarryFact>,
 }
 
 fn activation_carry_crossings(
@@ -287,7 +287,7 @@ fn task_start_selections(
     let mut selections = Vec::new();
     let mut diagnostics = Vec::new();
     for (_, expression) in program.expression_table.iter_expressions() {
-        let omega_checked_trees::expression::ExpressionNode::Call(call) = expression else {
+        let psi_checked_trees::expression::ExpressionNode::Call(call) = expression else {
             continue;
         };
         append_task_start_selection(
@@ -302,7 +302,7 @@ fn task_start_selections(
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {
-                let omega_checked_trees::statement::StatementNode::Call(call) = statement else {
+                let psi_checked_trees::statement::StatementNode::Call(call) = statement else {
                     continue;
                 };
                 append_task_start_selection(
@@ -328,7 +328,7 @@ fn append_task_start_selection(
     program: &CheckedTrees,
     requirement: omega_core::symbols::SymbolHandle,
     target_name: &str,
-    machine_arguments: &[omega_checked_trees::expression::StaticMachineArgument],
+    machine_arguments: &[psi_checked_trees::expression::StaticMachineArgument],
     selections: &mut Vec<TaskStartSelection>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -421,8 +421,8 @@ fn fixed_stack_layout(
     program: &CheckedTrees,
     target: NativeTarget,
     layouts: &omega_layout::LayoutPlan,
-    machine: &omega_checked_trees::machine::Machine,
-    crossings: &[&omega_checked_trees::SuspensionCrossingCarryFact],
+    machine: &psi_checked_trees::machine::Machine,
+    crossings: &[&psi_checked_trees::SuspensionCrossingCarryFact],
 ) -> Result<(u64, u64), Vec<Diagnostic>> {
     let machine_layout = layouts
         .machine_layouts
@@ -506,7 +506,7 @@ fn carry_obligations(policy: CarryPolicy) -> ActivationCarryObligations {
 
 fn canonical_suspension_crossing(
     program: &CheckedTrees,
-    crossing: &omega_checked_trees::SuspensionCrossingCarryFact,
+    crossing: &psi_checked_trees::SuspensionCrossingCarryFact,
 ) -> Result<CanonicalSuspensionCrossing, Vec<Diagnostic>> {
     let mut hash = StableHash::new();
     hash.byte(0x73);
@@ -598,7 +598,7 @@ fn stack_representation_identity(target: NativeTarget) -> u64 {
 fn signature_layout_identity(
     program: &CheckedTrees,
     target: NativeTarget,
-    types: impl IntoIterator<Item = omega_checked_trees::types::TypeReferenceHandle>,
+    types: impl IntoIterator<Item = psi_checked_trees::types::TypeReferenceHandle>,
 ) -> Result<u64, Vec<Diagnostic>> {
     let mut hash = StableHash::new();
     hash.byte(0x51);
@@ -615,8 +615,8 @@ fn signature_layout_identity(
 
 fn entry_identity(
     program: &CheckedTrees,
-    machine: &omega_checked_trees::machine::Machine,
-    entry: &omega_checked_trees::state::State,
+    machine: &psi_checked_trees::machine::Machine,
+    entry: &psi_checked_trees::state::State,
 ) -> u64 {
     let mut hash = StableHash::new();
     hash.byte(0x45);
@@ -732,23 +732,23 @@ mod tests {
             .facts
             .carry
             .contained_targets
-            .insert_many([omega_checked_trees::ContainedMachineTargetFact { machine: child }]);
+            .insert_many([psi_checked_trees::ContainedMachineTargetFact { machine: child }]);
         let fields = program.facts.carry.contained_fields.insert_many([
-            omega_checked_trees::ContainedMachineFieldFact {
+            psi_checked_trees::ContainedMachineFieldFact {
                 field,
                 data,
-                type_reference: omega_checked_trees::types::TypeReferenceHandle::invalid(),
+                type_reference: psi_checked_trees::types::TypeReferenceHandle::invalid(),
                 targets,
             },
         ]);
         program.facts.carry.machine_topologies.insert(
-            omega_checked_trees::MachineCarryTopologyFact {
+            psi_checked_trees::MachineCarryTopologyFact {
                 machine: root,
                 fields,
             },
         );
         program.facts.carry.machine_topologies.insert(
-            omega_checked_trees::MachineCarryTopologyFact {
+            psi_checked_trees::MachineCarryTopologyFact {
                 machine: child,
                 fields: omega_core::arena::HandleSpan::empty(),
             },
@@ -760,7 +760,7 @@ mod tests {
             address: omega_core::semantics::CarryAddress::Movable,
         };
         program.facts.carry.suspension_crossings.push(
-            omega_checked_trees::SuspensionCrossingCarryFact {
+            psi_checked_trees::SuspensionCrossingCarryFact {
                 machine: child,
                 state: omega_core::symbols::SymbolHandle::invalid(),
                 statement_index: 0,
@@ -847,14 +847,14 @@ mod tests {
                 Task::settle(retry_task);
             }
         "#;
-        let tokens = omega_source_files_to_tokens::Lexer::new(source)
+        let tokens = psi_source_files_to_tokens::Lexer::new(source)
             .tokenize()
             .expect("tokenize");
-        let syntax = omega_tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-        let resolved = omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
+        let syntax = psi_tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
+        let resolved = psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
             .expect("resolve");
         let typed =
-            omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+            psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
                 .expect("type");
         let provider_plans =
             crate::pipeline::provider_plans::derive_satisfies_plans(&syntax, &typed, None);

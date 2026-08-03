@@ -4,7 +4,7 @@ use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 
 pub(super) fn check_boundary_provider_approval(
-    checked: &omega_checked_trees::CheckedTrees,
+    checked: &psi_checked_trees::CheckedTrees,
 ) -> Result<(), Vec<Diagnostic>> {
     let program = &checked.typed;
     let registry = omega_effects::build_boundary_provider_approval_registry(program);
@@ -27,7 +27,7 @@ pub(super) fn check_boundary_provider_approval(
         .collect())
 }
 
-fn symbol_name(program: &omega_typed_trees::TypedTrees, symbol: SymbolHandle) -> String {
+fn symbol_name(program: &psi_typed_trees::TypedTrees, symbol: SymbolHandle) -> String {
     if !symbol.is_valid() {
         return "unknown".to_owned();
     }

@@ -38,14 +38,14 @@ use omega_core::arena::{Handle, HandleSpan};
 use omega_core::const_value::CanonicalConstValue;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::literals::{IntegerLiteral, IntegerRadix};
-use omega_syntax_trees::SyntaxTrees;
-use omega_syntax_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
-use omega_syntax_trees::identifier::Identifier;
-use omega_syntax_trees::item::{
+use psi_syntax_trees::SyntaxTrees;
+use psi_syntax_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use psi_syntax_trees::identifier::Identifier;
+use psi_syntax_trees::item::{
     ConstDefinition, DataDefinition, DataMember, Item, ProofFact, TypeParameterKind,
 };
-use omega_syntax_trees::statement::StatementNode;
-use omega_syntax_trees::types::{
+use psi_syntax_trees::statement::StatementNode;
+use psi_syntax_trees::types::{
     FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 use std::collections::{HashMap, HashSet};
@@ -56,7 +56,7 @@ struct GenericData {
     const_parameter_types: Vec<Option<TypeReferenceHandle>>,
     where_facts: HandleSpan<ProofFact>,
     members: HandleSpan<DataMember>,
-    properties: omega_syntax_trees::item::DataProperties,
+    properties: psi_syntax_trees::item::DataProperties,
     supply_mode: omega_core::semantics::DataSupplyMode,
 }
 
@@ -604,7 +604,7 @@ fn evaluate_const_fact_expression(
 /// stay on the concrete record for typed build-time evaluation.
 fn evaluate_const_membership_fact(
     syntax: &SyntaxTrees,
-    membership: &omega_syntax_trees::item::ProofMembershipFact,
+    membership: &psi_syntax_trees::item::ProofMembershipFact,
     const_values: &HashMap<String, i128>,
     parameter_values: &HashMap<String, i128>,
     parameter_type_names: &HashMap<String, String>,
@@ -1599,8 +1599,8 @@ fn canonicalize_data_const_expression(
 
 fn canonicalize_named_fields(
     syntax: &SyntaxTrees,
-    declared_fields: &[&omega_syntax_trees::item::DataField],
-    literal_fields: HandleSpan<omega_syntax_trees::expression::TableStructLiteralField>,
+    declared_fields: &[&psi_syntax_trees::item::DataField],
+    literal_fields: HandleSpan<psi_syntax_trees::expression::TableStructLiteralField>,
 ) -> Result<Vec<(String, CanonicalConstNode)>, String> {
     let authored = syntax.expressions.struct_fields(literal_fields);
     let mut canonical = Vec::with_capacity(declared_fields.len());
@@ -2842,10 +2842,10 @@ fn type_reference_mentions_parameter(
 #[cfg(test)]
 mod tests {
     use super::desugar_generic_data_instances;
-    use omega_source_files_to_tokens::Lexer;
-    use omega_syntax_trees::item::{DataMember, Item};
-    use omega_syntax_trees::types::TypeReferenceNode;
-    use omega_tokens_to_syntax_trees::parse_syntax_trees;
+    use psi_source_files_to_tokens::Lexer;
+    use psi_syntax_trees::item::{DataMember, Item};
+    use psi_syntax_trees::types::TypeReferenceNode;
+    use psi_tokens_to_syntax_trees::parse_syntax_trees;
 
     #[test]
     fn structured_const_field_order_has_one_canonical_instance_identity() {

@@ -22,7 +22,7 @@
 //!   method becomes proven Omega code over its own byte-level primitives.
 
 use omega_core::diagnostics::Diagnostic;
-use omega_typed_trees::TypedTrees;
+use psi_typed_trees::TypedTrees;
 
 struct AdapterRow {
     trait_leaf: String,
@@ -158,10 +158,10 @@ pub(crate) fn rewrite_adapter_calls(
     let mut field_traits: Vec<(String, String, String)> = Vec::new();
     for data in typed.data_definitions() {
         for member in typed.data_members(data) {
-            let omega_typed_trees::data::DataMember::Field(field) = member else {
+            let psi_typed_trees::data::DataMember::Field(field) = member else {
                 continue;
             };
-            let omega_typed_trees::types::TypeReferenceNode::Named { name, .. } = typed
+            let psi_typed_trees::types::TypeReferenceNode::Named { name, .. } = typed
                 .type_reference_table
                 .type_reference(field.type_reference)
             else {
@@ -214,7 +214,7 @@ pub(crate) fn rewrite_adapter_calls(
         for span in spans {
             let statements = typed.statement_table.statements(span).to_vec();
             for (index, statement) in statements.iter().enumerate() {
-                let omega_typed_trees::statement::StatementNode::Call(call) = statement else {
+                let psi_typed_trees::statement::StatementNode::Call(call) = statement else {
                     continue;
                 };
                 // receiver path [self, field] or [field]
@@ -238,7 +238,7 @@ pub(crate) fn rewrite_adapter_calls(
                 }) else {
                     continue;
                 };
-                let receiver_members: Vec<omega_typed_trees::name::Identifier> = typed
+                let receiver_members: Vec<psi_typed_trees::name::Identifier> = typed
                     .statement_table
                     .name_path_members(call.receiver)
                     .to_vec();
@@ -263,10 +263,10 @@ pub(crate) fn rewrite_adapter_calls(
                 rewritten.receiver = omega_core::arena::HandleSpan::empty();
                 rewritten.receiver_symbol = omega_core::symbols::SymbolHandle::invalid();
                 rewritten.target =
-                    omega_typed_trees::name::Identifier::generated(row.adapter_target.clone());
+                    psi_typed_trees::name::Identifier::generated(row.adapter_target.clone());
                 rewritten.target_symbol = row.symbol;
                 typed.statement_table.statements_mut(span)[index] =
-                    omega_typed_trees::statement::StatementNode::Call(rewritten);
+                    psi_typed_trees::statement::StatementNode::Call(rewritten);
             }
         }
     }
@@ -280,7 +280,7 @@ pub(crate) fn rewrite_adapter_calls(
         .map(|(handle, _)| handle)
         .collect();
     for handle in handles {
-        let omega_typed_trees::expression::ExpressionNode::Call(call) =
+        let psi_typed_trees::expression::ExpressionNode::Call(call) =
             typed.expression_table.expression(handle)
         else {
             continue;
@@ -290,10 +290,10 @@ pub(crate) fn rewrite_adapter_calls(
         }
         // receiver: Member(self, field) or Name(field)
         let field = match typed.expression_table.expression(call.receiver) {
-            omega_typed_trees::expression::ExpressionNode::Member(member) => {
+            psi_typed_trees::expression::ExpressionNode::Member(member) => {
                 member.member.as_str().to_owned()
             }
-            omega_typed_trees::expression::ExpressionNode::Name(path) => {
+            psi_typed_trees::expression::ExpressionNode::Name(path) => {
                 match typed.expression_table.name_path_members(path.members) {
                     [one] => one.as_str().to_owned(),
                     [head, one] if head.as_str() == "self" => one.as_str().to_owned(),
@@ -333,13 +333,13 @@ pub(crate) fn rewrite_adapter_calls(
                 .expression_table
                 .insert_expression_handles(std::iter::once(receiver).chain(old_arguments))
         });
-        let omega_typed_trees::expression::ExpressionNode::Call(call) =
+        let psi_typed_trees::expression::ExpressionNode::Call(call) =
             typed.expression_table.expression_mut(handle)
         else {
             continue;
         };
-        call.receiver = omega_typed_trees::expression::ExpressionHandle::invalid();
-        call.target = omega_typed_trees::name::Identifier::generated(row_leaf);
+        call.receiver = psi_typed_trees::expression::ExpressionHandle::invalid();
+        call.target = psi_typed_trees::name::Identifier::generated(row_leaf);
         call.target_symbol = row_symbol;
         if let Some(arguments) = forwarded_arguments {
             call.arguments = arguments;
@@ -379,9 +379,9 @@ fn adapter_matches_call(
 /// reference (`console: Console` -> `Console`).
 fn parameter_type_leaf(
     typed: &TypedTrees,
-    parameter: &omega_typed_trees::signature::StateParameter,
+    parameter: &psi_typed_trees::signature::StateParameter,
 ) -> Option<String> {
-    let omega_typed_trees::types::TypeReferenceNode::Named { name, .. } = typed
+    let psi_typed_trees::types::TypeReferenceNode::Named { name, .. } = typed
         .type_reference_table
         .type_reference(parameter.type_reference)
     else {
@@ -401,11 +401,11 @@ fn parameter_type_leaf(
 /// exact trees the parser produces for those argument spellings, so every
 /// downstream pass sees a shape it already serves.
 fn synthesize_place_expression(
-    expressions: &mut omega_typed_trees::expression::ExpressionTable,
-    members: &[omega_typed_trees::name::Identifier],
+    expressions: &mut psi_typed_trees::expression::ExpressionTable,
+    members: &[psi_typed_trees::name::Identifier],
     receiver_symbol: omega_core::symbols::SymbolHandle,
-) -> omega_typed_trees::expression::ExpressionHandle {
-    use omega_typed_trees::expression::{ExpressionNode, TableMemberExpression, TableNamePath};
+) -> psi_typed_trees::expression::ExpressionHandle {
+    use psi_typed_trees::expression::{ExpressionNode, TableMemberExpression, TableNamePath};
     match members {
         [head, field] => {
             let mut head_span = omega_core::arena::HandleSpan::empty();

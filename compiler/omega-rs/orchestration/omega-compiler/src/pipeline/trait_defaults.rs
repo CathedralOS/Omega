@@ -7,14 +7,14 @@
 
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
-use omega_syntax_trees::SyntaxTrees;
-use omega_syntax_trees::expression::{
+use psi_syntax_trees::SyntaxTrees;
+use psi_syntax_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression,
 };
-use omega_syntax_trees::identifier::Identifier;
-use omega_syntax_trees::item::{Item, Machine, State, StateSignatureNode};
-use omega_syntax_trees::statement::StatementNode;
-use omega_syntax_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
+use psi_syntax_trees::identifier::Identifier;
+use psi_syntax_trees::item::{Item, Machine, State, StateSignatureNode};
+use psi_syntax_trees::statement::StatementNode;
+use psi_syntax_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 #[derive(Clone)]

@@ -281,8 +281,10 @@ Omega/
   approval remain in Omega.
 - `psi-proof` plans and discharges source-level obligations. The old
   `omega-proof` name is a compatibility export.
-- `omega-graph` stays language/proof-facing; do not bury state-machine reasoning
-  in backend crates.
+- `omega-compiler` invokes the Psi-owned source-to-checked frontend directly;
+  the compatibility frontend packages are no longer part of the driver graph.
+  Its checked-tree handoff to the legacy Omega state-graph lane remains an
+  interim boundary until general terminal-Psi production replaces it.
 
 ### Representations And Pipeline
 
