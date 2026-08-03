@@ -18,8 +18,8 @@ Current roots:
 - `foundation/psi-diagnostics`: target-neutral diagnostic values and phase
   snapshot contracts;
 - `foundation/psi-language-core`: target-neutral grammar semantics plus
-  atomic-ordering, cast-form, and operator-spelling vocabulary used by source
-  representations;
+  atomic-ordering, cast-form, operator-spelling, and source-assembly contract
+  vocabulary used by source representations;
 - `foundation/psi-numerics`: exact integers/rationals, host-independent float
   semantics, arithmetic domains, and source-literal payloads;
 - `foundation/psi-source`: loaded-source records and maps, source identities,
@@ -36,6 +36,7 @@ Current roots:
 - `representations/psi-terminal`: the in-memory terminal semantic module and
   its first integer-constant / jump / return operation vocabulary;
 - `pipeline/psi-source-files-to-tokens`: the Psi-owned Omega lexer;
+- `pipeline/psi-tokens-to-syntax-trees`: the Psi-owned unresolved Omega parser;
 - `semantics/psi-proof-kernel`: total primitive judgments, explicit proof
   checking, evidence envelopes, and sealed admission validation.
 - `semantics/psi-terminal-verifier`: structural module validation,

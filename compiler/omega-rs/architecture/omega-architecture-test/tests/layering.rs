@@ -320,6 +320,10 @@ fn lexical_frontend_implementation_is_psi_owned() {
             "compiler/omega-rs/pipeline/omega-source-files-to-tokens/src/lib.rs",
             "pub use psi_source_files_to_tokens::*;",
         ),
+        (
+            "compiler/omega-rs/pipeline/omega-tokens-to-syntax-trees/src/lib.rs",
+            "pub use psi_tokens_to_syntax_trees::*;",
+        ),
     ] {
         let path = root.join(relative);
         let source = std::fs::read_to_string(&path)
@@ -423,6 +427,10 @@ fn lexical_frontend_implementation_is_psi_owned() {
         (
             "compiler/omega-rs/foundation/omega-core/src/operator_spelling.rs",
             "pub use psi_language_core::{OperatorSpelling, ProviderCategory};",
+        ),
+        (
+            "compiler/omega-rs/foundation/omega-core/src/inline_assembly.rs",
+            "pub use psi_language_core::inline_assembly::*;",
         ),
     ] {
         let path = root.join(relative);

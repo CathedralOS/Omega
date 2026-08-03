@@ -1016,15 +1016,17 @@ improvements do not change public identity.
   `psi-diagnostics` owns target-neutral diagnostics
   and phase snapshots; `psi-language-core` owns source-level multiplicity,
   data-supply, carry, domain-body, call-acknowledgement, atomic-ordering,
-  cast-form, and operator-spelling vocabulary; `psi-numerics` owns exact
+  cast-form, operator-spelling, and source-assembly contract vocabulary;
+  `psi-numerics` owns exact
   numerics, host-independent float semantics, arithmetic domains, and literal
   payloads; `psi-source-loader` owns root-file loading; and
   `psi-symbols` owns target-neutral symbol identities and hierarchy storage.
   `psi-syntax-trees` owns the parsed source representation, with the former
   Omega crate reduced to a compatibility re-export.
-  `psi-source-files-to-tokens` owns Omega lexing with no Omega dependency. The
-  former Omega token and lexer crates are now implementation-free compatibility
-  re-exports for the unmigrated parser. The checked-tree-to-terminal adapter is
+  `psi-source-files-to-tokens` owns Omega lexing and
+  `psi-tokens-to-syntax-trees` owns unresolved parsing, both with no Omega
+  dependency. Their former Omega crates are implementation-free compatibility
+  re-exports for unmigrated orchestration. The checked-tree-to-terminal adapter is
   frozen at its single bootstrap canary; architecture coverage rejects adding
   target-neutral content producers to that reverse bridge.
   The first in-memory executable slice is also live: stable machine/block

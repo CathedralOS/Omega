@@ -9,9 +9,4 @@ name = "omega_tokens_to_syntax_trees"
 path = "src/lib.rs"
 
 [dependencies]
-omega-syntax-trees = { path = "../../representations/omega-syntax-trees" }
-omega-tokens = { path = "../../representations/omega-tokens" }
-omega-core = { path = "../../foundation/omega-core" }
-
-[dev-dependencies]
-omega-source-files-to-tokens = { path = "../omega-source-files-to-tokens" }
+psi-tokens-to-syntax-trees = { path = "../../../psi-rs/pipeline/psi-tokens-to-syntax-trees" }
