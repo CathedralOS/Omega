@@ -380,6 +380,29 @@ fn lexical_frontend_implementation_is_psi_owned() {
         "legacy diagnostics module must re-export the Psi-owned diagnostic contracts"
     );
 
+    for (relative, expected_export) in [
+        (
+            "compiler/omega-rs/foundation/omega-core/src/atomic.rs",
+            "pub use psi_language_core::{AtomicOrderingPlan, MemoryOrdering};",
+        ),
+        (
+            "compiler/omega-rs/foundation/omega-core/src/cast_form.rs",
+            "pub use psi_language_core::CastForm;",
+        ),
+        (
+            "compiler/omega-rs/foundation/omega-core/src/operator_spelling.rs",
+            "pub use psi_language_core::{OperatorSpelling, ProviderCategory};",
+        ),
+    ] {
+        let path = root.join(relative);
+        let source = std::fs::read_to_string(&path)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
+        assert!(
+            source.contains(expected_export),
+            "legacy language-vocabulary module must re-export its Psi-owned implementation: {relative}"
+        );
+    }
+
     let arena_module = root.join("compiler/omega-rs/foundation/omega-core/src/arena/mod.rs");
     let source = std::fs::read_to_string(&arena_module)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", arena_module.display()));

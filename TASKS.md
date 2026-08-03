@@ -1013,7 +1013,9 @@ improvements do not change public identity.
   source identities, byte spans, and source-backed text; `psi-tokens` owns the
   token representation; `psi-arena` owns the generic typed arena storage needed
   by source representations; `psi-diagnostics` owns target-neutral diagnostics
-  and phase snapshots; `psi-source-loader` owns root-file loading; and
+  and phase snapshots; `psi-language-core` owns source-level atomic-ordering,
+  cast-form, and operator-spelling vocabulary; `psi-source-loader` owns
+  root-file loading; and
   `psi-source-files-to-tokens` owns Omega lexing with no Omega dependency. The
   former Omega token and lexer crates are now implementation-free compatibility
   re-exports for the unmigrated parser. The checked-tree-to-terminal adapter is

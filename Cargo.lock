@@ -417,6 +417,7 @@ dependencies = [
  "arc-swap",
  "psi-arena",
  "psi-diagnostics",
+ "psi-language-core",
  "psi-source",
  "psi-source-loader",
 ]
@@ -1238,6 +1239,10 @@ version = "0.1.0"
 dependencies = [
  "psi-source",
 ]
+
+[[package]]
+name = "psi-language-core"
+version = "0.1.0"
 
 [[package]]
 name = "psi-proof-kernel"
