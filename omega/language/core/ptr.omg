@@ -4,9 +4,9 @@
 // low-level compiler/runtime boundary that safe core views such as `Slice`,
 // `Array`, `Vec`, and future text views lower through after proof checking.
 //
-// Public core types should expose contracts over views and owners. Boundary
-// operators are the implementation edges for the unsafe representation work
-// beneath those contracts.
+// Public core types expose access contracts over authority-bearing views and
+// owners. A raw pointer remains inert even when a calling plan describes its
+// native representation; it is never itself a read or write capability.
 
 // Opaque, provider-minted carriers. Their representation and construction stay
 // below the boundary: naming `Ptr<T>` or `PtrRange<T>` does not let ordinary
@@ -14,18 +14,11 @@
 boundary data Ptr<T>;
 boundary data PtrRange<T>;
 
-// Boundary primitive providers for the pointer edge (Wave 0 #4).
+// Token-only boundary primitives for pointer representation arithmetic.
 provider omega::language::core::ptr_offset : PointerOffset;
-provider omega::language::core::ptr_access : PointerAccess;
 
 boundary operator Ptr::offset<T>(ptr: Ptr<T>, count: u64) -> Ptr<T>
 provider omega::language::core::ptr_offset;
-
-boundary operator Ptr::read<T>(ptr: Ptr<T>) -> T
-provider omega::language::core::ptr_access;
-
-boundary operator Ptr::write<T>(ptr: Ptr<T>, value: T) -> ()
-provider omega::language::core::ptr_access;
 
 boundary operator Ptr::range<T>(ptr: Ptr<T>, len: u64) -> PtrRange<T>
 provider omega::language::core::ptr_offset;

@@ -786,7 +786,9 @@ Remaining:
   where all invalidators require exclusive access and explicit claims where
   runtime protocol events end validity;
 - keep raw `addr` and `Ptr<T>` inert and non-dereferenceable; a calling plan may
-  describe their ABI representation but cannot manufacture authority;
+  describe their ABI representation but cannot manufacture authority. The
+  stale raw `Ptr::read`/`Ptr::write` bootstrap operators are retired, and a
+  negative source canary pins that possession of `Ptr<T>` exposes no access;
 - reject permanent foreign retention unless the consumed authority is
   transferred into an established static or process-lifetime root; do not
   invent a general permanent-custodian spelling without a concrete customer;

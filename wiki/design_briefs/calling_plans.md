@@ -462,6 +462,12 @@ generational handle recoverable from callback arguments, or package-owned
 stable state. Ownership remains in Omega; foreign storage carries only the
 inert token the protocol requires.
 
+Raw `addr` and `Ptr<T>` carriers likewise grant no memory authority. Core
+publishes no `Ptr::read` or `Ptr::write` operation; pointer offset/range
+operations transform only the inert representation token. A calling plan may
+classify and place that token but cannot manufacture a readable or writable
+view.
+
 The target callback-entry plan selects one stack disposition:
 
 - continue on the provider's current stack under its containment contract;

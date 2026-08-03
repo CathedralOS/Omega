@@ -42487,6 +42487,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "capabilities/unknown_effect_name",
     "capabilities/unknown_provider_category",
     "capabilities/undeclared_synchronous_invocation",
+    "ffi/raw_ptr_read_unavailable",
     "constraints/scalar_requires_unproven_literal",
     "proofs/constant_equation_refuted",
     "proofs/order_asymmetry_refuted",
