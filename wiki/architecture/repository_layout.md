@@ -61,7 +61,7 @@ Omega/
 |   |   |   |-- [CRATE] psi-diagnostics/                # Source diagnostics and phase-snapshot contracts.
 |   |   |   |-- [CRATE] psi-extents/                    # Extent geometry, lineage, rights, and provider identity.
 |   |   |   |-- [CRATE] psi-language-core/              # Target-neutral source-language vocabulary.
-|   |   |   |-- [CRATE] psi-language-semantics/         # Resolved semantic identities, tables, and plans.
+|   |   |   |-- [CRATE] psi-language-semantics/         # Resolved identities, content/value domains, tables, and plans.
 |   |   |   |-- [CRATE] psi-layout-plans/                # Normalized layout geometry and materialization plans.
 |   |   |   |-- [CRATE] psi-numerics/                   # Exact numerics, float semantics, and literal payloads.
 |   |   |   |-- [CRATE] psi-source/                     # Loaded-source data and coordinates owned by the Psi frontend.

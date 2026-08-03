@@ -10,4 +10,5 @@ path = "src/lib.rs"
 
 [dependencies]
 psi-language-core = { path = "../psi-language-core" }
+psi-numerics = { path = "../psi-numerics" }
 psi-symbols = { path = "../psi-symbols" }

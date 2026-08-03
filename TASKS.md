@@ -1019,7 +1019,8 @@ improvements do not change public identity.
   cast-form, operator-spelling, and source-assembly contract vocabulary;
   `psi-language-semantics` owns resolved semantic identities, service/domain
   tables, termination/supply plans, establishment routes, byte predicates,
-  canonical const-value atoms, and normalized wire scalar ranges;
+  canonical const-value atoms, content algebra/projection plans, built-in value
+  domains, and normalized wire scalar ranges;
   `psi-extents`, `psi-layout-plans`, and `psi-access-plans` own target-neutral
   extent authority plus normalized author-selected layout and placed-access
   semantics; their old Omega package names are compatibility exports;
