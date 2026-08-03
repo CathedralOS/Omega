@@ -1,12 +1,60 @@
-// Transitional source-to-terminal-Psi canary. The compatibility adapter must
-// lower this checked machine to a self-contained semantic module plus proof;
-// verification and execution then proceed after all frontend trees are dropped.
+// Source-to-terminal-Psi canary. The Psi-owned producer lowers these checked
+// machines to self-contained semantic modules plus proofs; verification and
+// execution then proceed after all frontend trees are dropped.
 machine terminal_constant() -> i32
 requires 7i32 == 7i32
 ensures 7i32 == 7i32
 {
     transition { _ -> pass(7i32) }
     state pass(value: i32) -> i32 { 7i32 }
+}
+
+machine terminal_wrapping_add() -> u8 in Wrapping
+requires 44u8 == 44u8
+ensures 44u8 == 44u8
+{
+    transition { _ -> calculate(200u8) }
+    state calculate(value: u8 in Wrapping) -> u8 in Wrapping { value + 100u8 }
+}
+
+machine terminal_saturating_add() -> u8 in Saturating
+requires 255u8 == 255u8
+ensures 255u8 == 255u8
+{
+    transition { _ -> calculate(200u8) }
+    state calculate(value: u8 in Saturating) -> u8 in Saturating { value + 100u8 }
+}
+
+machine terminal_wrapping_subtract() -> u8 in Wrapping
+requires 251u8 == 251u8
+ensures 251u8 == 251u8
+{
+    transition { _ -> calculate(5u8) }
+    state calculate(value: u8 in Wrapping) -> u8 in Wrapping { value - 10u8 }
+}
+
+machine terminal_saturating_subtract() -> u8 in Saturating
+requires 0u8 == 0u8
+ensures 0u8 == 0u8
+{
+    transition { _ -> calculate(5u8) }
+    state calculate(value: u8 in Saturating) -> u8 in Saturating { value - 10u8 }
+}
+
+machine terminal_wrapping_multiply() -> u8 in Wrapping
+requires 4u8 == 4u8
+ensures 4u8 == 4u8
+{
+    transition { _ -> calculate(20u8) }
+    state calculate(value: u8 in Wrapping) -> u8 in Wrapping { value * 13u8 }
+}
+
+machine terminal_saturating_multiply() -> u8 in Saturating
+requires 255u8 == 255u8
+ensures 255u8 == 255u8
+{
+    transition { _ -> calculate(20u8) }
+    state calculate(value: u8 in Saturating) -> u8 in Saturating { value * 13u8 }
 }
 
 data Main {}

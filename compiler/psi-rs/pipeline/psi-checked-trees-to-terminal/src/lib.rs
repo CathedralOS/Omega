@@ -11,7 +11,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use psi_checked_trees::{
-    CheckedTrees, ContentIdentityReshuffleFact, ContentPartitionCompositionFact,
+    CheckedOperatorResolutionStatus, CheckedTrees, ContentIdentityReshuffleFact,
+    ContentPartitionCompositionFact,
     expression::{BinaryOperator, ExpressionNode},
     signature::SignatureContractKind,
     statement::{StatementNode, TransitionGuardNode, TransitionTargetNode},
@@ -33,6 +34,7 @@ use psi_language_semantics::content::{
     ContentPlaceVersion as CheckedContentPlaceVersion,
     ContentStructuralPlace as CheckedContentStructuralPlace, conservation_fingerprint,
 };
+use psi_numerics::arithmetic::ArithmeticDomain;
 use psi_proof_kernel::{EvidenceRoute, PrimitiveJudgment};
 use psi_terminal::{
     Block, ClaimContentProjection, ContentIdentityReshuffle, ContentPartitionComposition,
@@ -49,6 +51,39 @@ use psi_typed_trees::domain::ProofFact;
 pub struct LoweredTerminalPsi {
     pub semantic_module: TerminalModule,
     pub proof_bundle: ProofBundle,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LoweredReturnExpression {
+    Literal,
+    IntegerBinary {
+        kind: LoweredIntegerBinaryKind,
+        right: IntegerValue,
+        result: IntegerValue,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LoweredIntegerBinaryKind {
+    WrappingAdd,
+    SaturatingAdd,
+    WrappingSubtract,
+    SaturatingSubtract,
+    WrappingMultiply,
+    SaturatingMultiply,
+}
+
+impl LoweredIntegerBinaryKind {
+    fn operation(self, left: ValueId, right: ValueId) -> OperationKind {
+        match self {
+            Self::WrappingAdd => OperationKind::WrappingIntegerAdd { left, right },
+            Self::SaturatingAdd => OperationKind::SaturatingIntegerAdd { left, right },
+            Self::WrappingSubtract => OperationKind::WrappingIntegerSubtract { left, right },
+            Self::SaturatingSubtract => OperationKind::SaturatingIntegerSubtract { left, right },
+            Self::WrappingMultiply => OperationKind::WrappingIntegerMultiply { left, right },
+            Self::SaturatingMultiply => OperationKind::SaturatingIntegerMultiply { left, right },
+        }
+    }
 }
 
 /// One checked content equation translated into terminal-Psi identities.
@@ -677,7 +712,7 @@ fn lower_content_place(
 /// ensures L == L
 /// {
 ///     transition { _ -> done(L) }
-///     state done(value: integer) -> integer { L }
+///     state done(value: integer) -> integer { L | value (+|-|*) R }
 /// }
 /// ```
 pub fn lower_machine(
@@ -788,16 +823,19 @@ pub fn lower_machine(
     let [StatementNode::Expression(return_expression)] = return_statements else {
         return unsupported("return state must contain exactly one value expression");
     };
-    let ExpressionNode::Integer(return_literal) =
-        checked.expression_table.expression(*return_expression)
-    else {
-        return unsupported("return state must return an integer literal");
+    let lowered_return = lower_return_expression(
+        checked,
+        *return_expression,
+        return_parameter,
+        return_type,
+        value,
+    )?;
+    let executed_value = match lowered_return {
+        LoweredReturnExpression::Literal => value,
+        LoweredReturnExpression::IntegerBinary { result, .. } => result,
     };
-    if integer_value(return_literal, return_type)? != value {
-        return unsupported("jump and return literals must be equal");
-    }
 
-    validate_contract(checked, machine, return_type, value)?;
+    validate_contract(checked, machine, return_type, executed_value)?;
     let identity_facts = checked
         .facts
         .qualifications
@@ -826,9 +864,124 @@ pub fn lower_machine(
     Ok(build_module(
         return_type,
         value,
+        lowered_return,
         identity_reshuffles,
         partition_compositions,
     ))
+}
+
+fn lower_return_expression(
+    checked: &CheckedTrees,
+    expression: psi_checked_trees::expression::ExpressionHandle,
+    parameter: &psi_checked_trees::signature::StateParameter,
+    result_type: ScalarType,
+    parameter_value: IntegerValue,
+) -> Result<LoweredReturnExpression, LoweringError> {
+    match checked.expression_table.expression(expression) {
+        ExpressionNode::Integer(literal) => {
+            if integer_value(literal, result_type)? != parameter_value {
+                return unsupported("jump and return literals must be equal");
+            }
+            Ok(LoweredReturnExpression::Literal)
+        }
+        ExpressionNode::Binary(binary) => {
+            let ExpressionNode::Name(left) = checked.expression_table.expression(binary.left)
+            else {
+                return unsupported(
+                    "terminal integer binary left operand must be the state parameter",
+                );
+            };
+            if checked
+                .expression_table
+                .name_path_members(left.members)
+                .len()
+                != 1
+                || (left.symbol != parameter.symbol && left.head_symbol != parameter.symbol)
+            {
+                return unsupported(
+                    "terminal integer binary left operand must be the state parameter",
+                );
+            }
+            let ExpressionNode::Integer(right_literal) =
+                checked.expression_table.expression(binary.right)
+            else {
+                return unsupported(
+                    "terminal integer binary right operand must be an integer literal",
+                );
+            };
+            if let Some(operator_use) = checked.facts.operators.expression_use(expression)
+                && operator_use.status != CheckedOperatorResolutionStatus::BuiltinFallback
+            {
+                return unsupported(
+                    "terminal integer binary expression must use the builtin operator",
+                );
+            }
+            let domain = checked.arithmetic_domain_for_type_reference(parameter.type_reference);
+            let kind = match (binary.operator, domain) {
+                (BinaryOperator::Add, ArithmeticDomain::Wrapping) => {
+                    LoweredIntegerBinaryKind::WrappingAdd
+                }
+                (BinaryOperator::Add, ArithmeticDomain::Saturating) => {
+                    LoweredIntegerBinaryKind::SaturatingAdd
+                }
+                (BinaryOperator::Subtract, ArithmeticDomain::Wrapping) => {
+                    LoweredIntegerBinaryKind::WrappingSubtract
+                }
+                (BinaryOperator::Subtract, ArithmeticDomain::Saturating) => {
+                    LoweredIntegerBinaryKind::SaturatingSubtract
+                }
+                (BinaryOperator::Multiply, ArithmeticDomain::Wrapping) => {
+                    LoweredIntegerBinaryKind::WrappingMultiply
+                }
+                (BinaryOperator::Multiply, ArithmeticDomain::Saturating) => {
+                    LoweredIntegerBinaryKind::SaturatingMultiply
+                }
+                (BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply, _) => {
+                    return unsupported(
+                        "terminal integer binary expression requires Wrapping or Saturating",
+                    );
+                }
+                _ => {
+                    return unsupported(
+                        "terminal source producer supports only integer add, subtract, and multiply",
+                    );
+                }
+            };
+            let right = integer_value(right_literal, result_type)?;
+            let ScalarType::Integer(integer_type) = result_type else {
+                return Err(LoweringError::InvalidPsiIntegerType);
+            };
+            let result = match kind {
+                LoweredIntegerBinaryKind::WrappingAdd => {
+                    integer_type.wrapping_add(parameter_value, right)
+                }
+                LoweredIntegerBinaryKind::SaturatingAdd => {
+                    integer_type.saturating_add(parameter_value, right)
+                }
+                LoweredIntegerBinaryKind::WrappingSubtract => {
+                    integer_type.wrapping_sub(parameter_value, right)
+                }
+                LoweredIntegerBinaryKind::SaturatingSubtract => {
+                    integer_type.saturating_sub(parameter_value, right)
+                }
+                LoweredIntegerBinaryKind::WrappingMultiply => {
+                    integer_type.wrapping_mul(parameter_value, right)
+                }
+                LoweredIntegerBinaryKind::SaturatingMultiply => {
+                    integer_type.saturating_mul(parameter_value, right)
+                }
+            }
+            .ok_or(LoweringError::IntegerLiteralOutsidePsiType)?;
+            Ok(LoweredReturnExpression::IntegerBinary {
+                kind,
+                right,
+                result,
+            })
+        }
+        _ => unsupported(
+            "return state must return an integer literal or supported integer binary expression",
+        ),
+    }
 }
 
 fn validate_contract(
@@ -938,18 +1091,66 @@ fn integer_value(
 fn build_module(
     result_type: ScalarType,
     value: IntegerValue,
+    return_expression: LoweredReturnExpression,
     identity_reshuffles: LoweredContentIdentityReshuffles,
     partition_compositions: LoweredContentPartitionCompositions,
 ) -> LoweredTerminalPsi {
     let jump_constant_id = value_id(1);
     let parameter_id = value_id(2);
-    let return_constant_id = value_id(3);
-    let result_id = value_id(4);
     let ScalarType::Integer(integer_type) = result_type else {
         unreachable!("source slice accepts only integer results");
     };
-    let literal = ScalarTerm::integer(integer_type, value)
-        .expect("validated source literal fits its terminal integer type");
+    let (result_id, return_operations, return_value, executed_value) = match return_expression {
+        LoweredReturnExpression::Literal => {
+            let return_constant_id = value_id(3);
+            (
+                value_id(4),
+                vec![Operation {
+                    id: operation_id(2),
+                    result: ValueDeclaration {
+                        id: return_constant_id,
+                        scalar_type: result_type,
+                    },
+                    kind: OperationKind::IntegerConstant { value },
+                }],
+                return_constant_id,
+                value,
+            )
+        }
+        LoweredReturnExpression::IntegerBinary {
+            kind,
+            right,
+            result,
+        } => {
+            let right_id = value_id(3);
+            let binary_result_id = value_id(4);
+            (
+                value_id(5),
+                vec![
+                    Operation {
+                        id: operation_id(2),
+                        result: ValueDeclaration {
+                            id: right_id,
+                            scalar_type: result_type,
+                        },
+                        kind: OperationKind::IntegerConstant { value: right },
+                    },
+                    Operation {
+                        id: operation_id(3),
+                        result: ValueDeclaration {
+                            id: binary_result_id,
+                            scalar_type: result_type,
+                        },
+                        kind: kind.operation(parameter_id, right_id),
+                    },
+                ],
+                binary_result_id,
+                result,
+            )
+        }
+    };
+    let literal = ScalarTerm::integer(integer_type, executed_value)
+        .expect("validated source result fits its terminal integer type");
     let goal = Proposition::Equal(literal.clone(), literal);
 
     let obligation = obligation_id(1);
@@ -1004,17 +1205,10 @@ fn build_module(
                             id: parameter_id,
                             scalar_type: result_type,
                         }],
-                        operations: vec![Operation {
-                            id: operation_id(2),
-                            result: ValueDeclaration {
-                                id: return_constant_id,
-                                scalar_type: result_type,
-                            },
-                            kind: OperationKind::IntegerConstant { value },
-                        }],
+                        operations: return_operations,
                         terminator: Terminator::Return {
                             edge: edge_id(2),
-                            value: return_constant_id,
+                            value: return_value,
                         },
                     },
                 ],

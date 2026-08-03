@@ -1004,11 +1004,14 @@ improvements do not change public identity.
   bodyful contracts, verifier-reconstructed semantic axioms, exhaustive proof-
   bundle checking, and direct execution of the verified module in
   `omega-interpreter`. Its validator rejects unreachable axiom sources and
-  entry/postcondition references to internal values. The first transitional
+  entry/postcondition references to internal values. The first Psi-owned
   checked-tree producer is also live and fail-closed: it lowers one exact typed
-  integer-constant/unconditional-jump/literal-return/closed-contract source
-  slice, emits the module and proof bundle separately, and its real-source
-  canary verifies and executes after `CheckedTrees` are dropped. Because the
+  integer-constant/unconditional-jump source slice whose return is either the
+  matching literal or a builtin parameter-plus-literal add/subtract/multiply
+  in the settled Wrapping or Saturating domain. It emits the module and proof
+  bundle separately; real-source canaries cover all six versioned integer
+  policy operations after `CheckedTrees` are dropped, and wrapping add reaches
+  emitted host machine code. Because the
   legacy exit prover cannot establish ordinary `result == literal` contracts,
   this bootstrap canary preserves a closed typed `requires`/`ensures` fact and
   asserts the returned `i32` independently; do not generalize that workaround
