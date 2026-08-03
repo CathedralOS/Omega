@@ -2046,6 +2046,10 @@ fn contract_plans_fingerprint_published_halves() {
         transition { _ -> cycle() }
         state cycle(&mut self) { transition { _ -> cycle() } }
     }
+    machine Main::direct_self_loop(&mut self) {
+        self.left = 9;
+        transition { _ -> self }
+    }
     machine Main::branching(&mut self) {
         transition self.left == 0 {
             true -> write_left_branch()
@@ -2101,6 +2105,7 @@ fn contract_plans_fingerprint_published_halves() {
     let transitioning = symbol_of("Main::transitioning");
     let write_through_transition = symbol_of("write_through_transition");
     let cyclic = symbol_of("Main::cyclic");
+    let direct_self_loop = symbol_of("Main::direct_self_loop");
     let branching = symbol_of("Main::branching");
     let call_bearing = symbol_of("Main::call_bearing");
     let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
@@ -2130,7 +2135,12 @@ fn contract_plans_fingerprint_published_halves() {
     assert_eq!(frame(write_through_transition).paths(), &["$P0".to_owned()]);
     assert!(
         !frame(cyclic).is_complete(),
-        "a reachable state cycle must retain an opaque inferred frame"
+        "a named state cycle may rebind parameters and must retain an opaque inferred frame"
+    );
+    assert_eq!(
+        frame(direct_self_loop).paths(),
+        &["self.left".to_owned()],
+        "a direct self target repeats the same finite may-write frame"
     );
     assert_eq!(
         frame(branching).paths(),

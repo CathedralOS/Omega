@@ -1348,7 +1348,12 @@ fn summarize_transition_target_written_paths(
     match program.statement_table.transition_target(target) {
         TransitionTargetNode::Terminal => Some(Vec::new()),
         TransitionTargetNode::Value(_) => Some(Vec::new()),
-        TransitionTargetNode::SelfTarget => None,
+        // A bare `-> self` re-enters this exact state with the same receiver
+        // and parameter namespace. The body's writes have already been
+        // collected, so another iteration adds no new caller-visible path.
+        // Named cycles remain opaque below because their arguments may rebind
+        // a state parameter onto a different caller place on each traversal.
+        TransitionTargetNode::SelfTarget => Some(Vec::new()),
         TransitionTargetNode::Named { path, arguments } => {
             let arguments = program.statement_table.expression_handles(*arguments);
             let target_state = program
