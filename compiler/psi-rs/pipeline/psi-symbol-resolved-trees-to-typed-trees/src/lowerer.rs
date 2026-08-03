@@ -92,6 +92,7 @@ pub fn lower_symbol_resolved_trees(
                 .push_type_reference_handle(&mut arguments, argument);
         }
         let conformance = psi_typed_trees::trait_definition::DataConformance {
+            symbol: conformance.symbol,
             type_name: crate::name::lower_name(&conformance.type_name),
             trait_name: crate::name::lower_name(&conformance.trait_name),
             arguments,

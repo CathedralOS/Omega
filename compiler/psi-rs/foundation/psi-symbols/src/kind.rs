@@ -15,6 +15,7 @@ pub enum SymbolKind {
     Operator,
     State,
     Trait,
+    Conformance,
     WireSchema,
     Parameter,
     TypeParameter,

@@ -1734,9 +1734,9 @@ move it to a convenience library.
   canonical judgment. The two-word descriptor, coherent
   named-conformance selection, per-requirement eligibility/adapters, and
   envelope inference remain. Standalone `Type satisfies Trait as Name;`
-  declarations now retain the name through checked Psi and reject duplicate
-  `Type::Name` paths; coercion and generic-bound selection do not consume that
-  path yet.
+  declarations now retain the name through checked Psi as a stable child
+  symbol and reject duplicate `Type::Name` paths; coercion and generic-bound
+  selection do not consume that path yet.
   Local descriptors must not cross replaceable component boundaries. Add owned
   erased **runtime** values only after general storage ownership,
   size/alignment metadata, and cleanup contracts can support them; N6's

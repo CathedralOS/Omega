@@ -56,6 +56,7 @@ pub(crate) fn lower_item(
                 lower_child_type_references(lowerer, syntax_trees, conformance.trait_arguments)?;
             lowerer.symbol_resolved_trees.conformances.push(
                 psi_symbol_resolved_trees::trait_definition::DataConformance {
+                    symbol: psi_symbols::SymbolHandle::invalid(),
                     type_name: crate::name::lower_name(&conformance.type_name),
                     trait_name: crate::name::lower_name(&conformance.trait_name),
                     arguments,
