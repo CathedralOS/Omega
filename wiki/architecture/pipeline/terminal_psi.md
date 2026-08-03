@@ -175,7 +175,13 @@ machine-local claim subjects. Source rows retain origin, presentation path,
 byte length, and a domain-separated content digest; sites retain bounded byte
 spans. Decoding rejects wrong-module attachment, unknown subjects/files,
 alternate ordering, invalid spans, unknown tags, truncation, and trailing
-bytes. Producer span population remains. Branching, the remaining
+bytes. The exact checked-source producer populates honest declaration spans
+retained by the Psi symbol/source tables for machines, states, parameters, and
+the terminal subjects derived from them. It does not manufacture operation-site
+precision after expression spans have been discarded; retaining those exact
+sites remains. The real-source canary encodes and manifests the debug section,
+drops checked trees, and decodes it against the reconstructed semantic module.
+Branching, the remaining
 arithmetic-policy variants, general register assignment, general
 safe-point/branch fixed-work checking, build-time fuel migration, and native
 fuel metering remain next.
@@ -475,8 +481,9 @@ slices populate that set from actual selected plans. The record is manifest
 metadata, not executable authority and not a replacement for the separate
 `omega-executable-installation` admission/placement ladder. Typed debug-map v1
 is independently live in `psi-terminal-codec`; it is replaceable presentation
-metadata bound to one exact semantic identity. Connecting checked-source spans
-to that schema remains.
+metadata bound to one exact semantic identity. The checked-source producer
+populates retained declaration spans; exact expression/transition-site span
+retention remains.
 
 ## Logical-fuel v1
 
@@ -611,8 +618,9 @@ generic installation ladder. Migrating the Cathedral hard-root graph remains.
    current-v12 modules; archived v3 wrapping-add, v4 saturating-add, v5
    wrapping-subtract, v6 saturating-subtract, and v7 wrapping-multiply
    identities plus the v8 saturating-multiply identity are frozen as well. Typed
-   installation records and the canonical typed debug/source-map schema are
-   live; producer span population remains a later artifact slice.
+   installation records, the canonical typed debug/source-map schema, and
+   declaration-span population from the checked-source producer are live;
+   exact expression/transition-site span retention remains a later slice.
 
 The migration may keep old and new paths temporarily for comparison. That is a
 testing bridge, not a permanent two-semantics architecture.

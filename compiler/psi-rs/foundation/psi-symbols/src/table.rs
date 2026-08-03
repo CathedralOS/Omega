@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use psi_arena::{Arena, HandleSpan, HierarchyArena, HierarchyArenaBuilder, HierarchyChildHandles};
-use psi_source::{SourceMap, SourceOrigin, SourceSpan};
+use psi_source::{SourceFile, SourceMap, SourceOrigin, SourceSpan};
 
 use super::builtin::BUILTIN_TYPE_COUNT;
 use super::{
@@ -166,6 +166,17 @@ impl SymbolTable {
             .as_deref()
             .map(|sources| sources.text_at(source_span))
             .unwrap_or("")
+    }
+
+    /// Source declaration span retained for an authored symbol.
+    pub fn symbol_source_span(&self, symbol: SymbolHandle) -> Option<SourceSpan> {
+        self.names.get(self.get(symbol).name).source_span()
+    }
+
+    /// File metadata for one retained authored span. Generated/source-free
+    /// trees return `None` instead of inventing a presentation path.
+    pub fn source_file(&self, source_span: SourceSpan) -> Option<&SourceFile> {
+        self.sources.as_deref()?.file_at(source_span)
     }
 
     /// Compare declaration provenance at the package boundary. Source-free

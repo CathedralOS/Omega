@@ -47,8 +47,9 @@ use psi_layout_plans::{
 };
 use psi_proof_kernel::AdmissionProfile;
 use psi_terminal_codec::{
-    build_artifact_manifest, decode_module, decode_proof_bundle, encode_module,
-    encode_proof_bundle, terminal_psi_identity, validate_artifact_manifest,
+    DebugSubject, build_artifact_manifest, decode_debug_map, decode_module, decode_proof_bundle,
+    encode_debug_map, encode_module, encode_proof_bundle, terminal_psi_identity,
+    validate_artifact_manifest,
 };
 use psi_terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
 use psi_terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter, TerminalFuelSchedule};
@@ -90,23 +91,53 @@ fn checked_source_survives_frontend_drop_as_verified_terminal_psi() {
         .expect("source-produced terminal Psi should have a semantic identity");
     let canonical_proof_bytes = encode_proof_bundle(&lowered.proof_bundle)
         .expect("source-produced proof bundle should encode canonically");
-    let artifact_manifest =
-        build_artifact_manifest(&lowered.semantic_module, &lowered.proof_bundle, None, None)
-            .expect("source-produced terminal sections should have a manifest");
+    let canonical_debug_bytes = encode_debug_map(
+        &lowered.semantic_module,
+        lowered
+            .debug_map
+            .as_ref()
+            .expect("the source producer should retain its debug map"),
+    )
+    .expect("source-produced debug map should encode canonically");
+    let artifact_manifest = build_artifact_manifest(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        None,
+        Some(&canonical_debug_bytes),
+    )
+    .expect("source-produced terminal sections should have a manifest");
     drop(lowered);
     let semantic_module = decode_module(&canonical_bytes)
         .expect("canonical source-produced terminal Psi should decode");
     let proof_bundle = decode_proof_bundle(&canonical_proof_bytes)
         .expect("canonical source-produced proof bundle should decode");
+    let debug_map = decode_debug_map(&semantic_module, &canonical_debug_bytes)
+        .expect("canonical source-produced debug map should decode");
     validate_artifact_manifest(
         &semantic_module,
         &proof_bundle,
         None,
-        None,
+        Some(&canonical_debug_bytes),
         artifact_manifest,
     )
     .expect("decoded source-produced sections should match their manifest");
     assert_eq!(artifact_manifest.semantic(), original_identity);
+    assert!(artifact_manifest.debug().is_some());
+    assert_eq!(debug_map.semantic, original_identity);
+    assert_eq!(debug_map.files.len(), 1);
+    assert!(debug_map.files[0].path.ends_with("main.omg"));
+    assert!(
+        debug_map
+            .sites
+            .iter()
+            .any(|site| matches!(site.subject, DebugSubject::Machine(_)))
+    );
+    assert!(
+        debug_map
+            .sites
+            .iter()
+            .any(|site| matches!(site.subject, DebugSubject::Operation(_)))
+    );
     assert_eq!(
         terminal_psi_identity(&semantic_module).unwrap(),
         original_identity

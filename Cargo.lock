@@ -1233,8 +1233,10 @@ dependencies = [
  "psi-language-semantics",
  "psi-numerics",
  "psi-proof-kernel",
+ "psi-source",
  "psi-symbols",
  "psi-terminal",
+ "psi-terminal-codec",
  "psi-terminal-verifier",
  "psi-typed-trees",
 ]
