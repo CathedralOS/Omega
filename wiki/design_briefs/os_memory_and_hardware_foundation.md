@@ -1477,10 +1477,12 @@ introduction, while an ordinary checked call treats the same parameter as a
 precondition. No entry marker or authored parameter selector is added. The
 compiler now resolves the selected entry claim to the exact propagated checked
 parameter fact and rejects occurrence evidence whose plan, requirement,
-semantic position, domain, or carry policy drifts. Concrete entry lowering must
-still consume that admitted match before executing the checked adapter; wiring
-the remaining mask-transition evidence into source `Active` facts and the
-Cathedral PIC/LAPIC implementation also remain.
+semantic position, domain, or carry policy drifts. The admitted occurrence also
+retains the exact ABI placement selected for that semantic position, and an
+out-of-range position rejects before installation. Concrete entry lowering
+must still consume that admitted match before executing the checked adapter;
+wiring the remaining mask-transition evidence into source `Active` facts and
+the Cathedral PIC/LAPIC implementation also remain.
 
 A deferred acknowledgement leases the installed interrupt root and controller
 configuration until completion. Reconfiguration, shutdown, CPU removal,
