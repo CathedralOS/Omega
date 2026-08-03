@@ -25,10 +25,19 @@ enum HostImportPlan<'plan> {
 }
 
 impl<'plan> HostImportPlan<'plan> {
-    const fn authoritative(self) -> Option<&'plan CallPlan> {
+    fn parameter_shape(self, index: usize) -> Option<ValueShape> {
         match self {
             Self::CompatibilityOracle => None,
-            Self::Authoritative(plan) => Some(plan),
+            Self::Authoritative(plan) => {
+                plan.parameters.get(index).map(|placement| placement.shape)
+            }
+        }
+    }
+
+    fn result_shape(self) -> Option<ValueShape> {
+        match self {
+            Self::CompatibilityOracle => None,
+            Self::Authoritative(plan) => plan.result.as_ref().map(|result| result.shape),
         }
     }
 }
@@ -37,15 +46,6 @@ impl<'plan> HostImportPlan<'plan> {
 pub(super) enum SyscallPlan<'plan> {
     CompatibilityOracle,
     Authoritative(&'plan CallPlan),
-}
-
-impl<'plan> SyscallPlan<'plan> {
-    const fn authoritative(self) -> Option<&'plan CallPlan> {
-        match self {
-            Self::CompatibilityOracle => None,
-            Self::Authoritative(plan) => Some(plan),
-        }
-    }
 }
 
 impl NormalizedSyscallRegisters {
@@ -64,7 +64,6 @@ pub(super) fn normalized_syscall_registers_for_plan(
     has_result: bool,
     plan_source: SyscallPlan<'_>,
 ) -> Result<NormalizedSyscallRegisters, Diagnostic> {
-    let authoritative_plan = plan_source.authoritative();
     let policy = match architecture {
         Architecture::Aarch64 => CallingPolicy::LinuxSyscallAarch64,
         Architecture::X86_64 => CallingPolicy::LinuxSyscallX86_64,
@@ -74,17 +73,20 @@ pub(super) fn normalized_syscall_registers_for_plan(
         parameters: vec![word; parameter_count],
         result: has_result.then_some(word),
     };
-    let plan = if let Some(plan) = authoritative_plan {
-        validate_call_plan(plan, &signature).map_err(|error| {
-            Diagnostic::error(format!(
-                "source-selected syscall plan does not match the lowered signature: {error}"
-            ))
-        })?;
-        plan.clone()
-    } else {
-        evaluate_call_plan(policy, &signature).map_err(|error| {
-            Diagnostic::error(format!("cannot evaluate syscall call plan: {error}"))
-        })?
+    let plan = match plan_source {
+        SyscallPlan::Authoritative(plan) => {
+            validate_call_plan(plan, &signature).map_err(|error| {
+                Diagnostic::error(format!(
+                    "source-selected syscall plan does not match the lowered signature: {error}"
+                ))
+            })?;
+            plan.clone()
+        }
+        SyscallPlan::CompatibilityOracle => {
+            evaluate_call_plan(policy, &signature).map_err(|error| {
+                Diagnostic::error(format!("cannot evaluate syscall call plan: {error}"))
+            })?
+        }
     };
     let (number, immediate) = validate_normalized_syscall_plan(architecture, &plan)?;
     let parameters = plan
@@ -457,19 +459,19 @@ fn encode_host_call_sequence_for_plan<T: InstructionOperandLike>(
     operands: &[T],
     plan_source: HostImportPlan<'_>,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let authoritative_plan = plan_source.authoritative();
-    let returns_float = authoritative_plan
-        .and_then(|plan| plan.result.as_ref())
-        .is_some_and(|result| {
+    let returns_float = match plan_source {
+        HostImportPlan::Authoritative(plan) => plan.result.as_ref().is_some_and(|result| {
             matches!(
                 result.shape.class,
                 omega_calling_conventions::ValueClass::Float
             )
-        })
-        || (authoritative_plan.is_none() && operation_key.returns_float());
-    let returns_value = authoritative_plan
-        .map(|plan| plan.result.is_some())
-        .unwrap_or_else(|| operation_key.returns_value());
+        }),
+        HostImportPlan::CompatibilityOracle => operation_key.returns_float(),
+    };
+    let returns_value = match plan_source {
+        HostImportPlan::Authoritative(plan) => plan.result.is_some(),
+        HostImportPlan::CompatibilityOracle => operation_key.returns_value(),
+    };
     match target.architecture {
         // Deref-result ops (errno) must be checked before the plain
         // value-returning arm: they share `returns_value()` but insert an extra
@@ -678,7 +680,6 @@ fn normalized_aarch64_host_argument_placements_for_plan<T: InstructionOperandLik
     authored_import: bool,
     plan_source: HostImportPlan<'_>,
 ) -> Result<Vec<ValuePlacement>, Diagnostic> {
-    let authoritative_plan = plan_source.authoritative();
     if is_open_create(operation_key) {
         return normalized_darwin_open_create_plan(operands, plan_source)
             .map(|(placements, _)| placements);
@@ -687,7 +688,7 @@ fn normalized_aarch64_host_argument_placements_for_plan<T: InstructionOperandLik
         Aarch64ImportResult::Authored
     } else if operation_key.dereferences_result() {
         Aarch64ImportResult::Integer
-    } else if let Some(plan) = authoritative_plan {
+    } else if let HostImportPlan::Authoritative(plan) = plan_source {
         match plan.result.as_ref().map(|result| result.shape.class) {
             Some(omega_calling_conventions::ValueClass::Float) => Aarch64ImportResult::Float,
             Some(_) => Aarch64ImportResult::Integer,
@@ -880,7 +881,6 @@ fn normalized_darwin_open_create_plan<T: InstructionOperandLike>(
 ) -> Result<(Vec<ValuePlacement>, Option<ValuePlacement>), Diagnostic> {
     use omega_isa_aarch64::Aarch64CallOperand;
 
-    let authoritative_plan = plan_source.authoritative();
     let operands = operands
         .iter()
         .map(aarch64_call_operand)
@@ -895,11 +895,7 @@ fn normalized_darwin_open_create_plan<T: InstructionOperandLike>(
             "Darwin open_create import requires path, flags, and mode operands",
         ));
     };
-    let result = aarch64_result_shape(
-        *result,
-        false,
-        authoritative_plan.and_then(|plan| plan.result.as_ref().map(|result| result.shape)),
-    )?;
+    let result = aarch64_result_shape(*result, false, plan_source.result_shape())?;
     if result != ValueShape::integer(4, 4)
         || aarch64_operand_shape(*path)? != ValueShape::integer(8, 8)
         || !matches!(
@@ -990,7 +986,6 @@ fn normalized_aarch64_import_plan_from_call_operands_for_plan(
     result_kind: Aarch64ImportResult,
     plan_source: HostImportPlan<'_>,
 ) -> Result<(Vec<ValuePlacement>, Option<ValuePlacement>), Diagnostic> {
-    let authoritative_plan = plan_source.authoritative();
     let (result_operand, arguments) = match result_kind {
         Aarch64ImportResult::None => (None, aarch64_operands),
         Aarch64ImportResult::Integer
@@ -1010,12 +1005,7 @@ fn normalized_aarch64_import_plan_from_call_operands_for_plan(
             .copied()
             .enumerate()
             .map(|(index, operand)| {
-                aarch64_operand_shape_with_context(
-                    operand,
-                    authoritative_plan
-                        .and_then(|plan| plan.parameters.get(index))
-                        .map(|placement| placement.shape),
-                )
+                aarch64_operand_shape_with_context(operand, plan_source.parameter_shape(index))
             })
             .collect::<Result<Vec<_>, _>>()?,
         result: match (result_kind, result_operand) {
@@ -1023,12 +1013,12 @@ fn normalized_aarch64_import_plan_from_call_operands_for_plan(
             (Aarch64ImportResult::Integer, Some(operand)) => Some(aarch64_result_shape(
                 operand,
                 false,
-                authoritative_plan.and_then(|plan| plan.result.as_ref().map(|result| result.shape)),
+                plan_source.result_shape(),
             )?),
             (Aarch64ImportResult::Float, Some(operand)) => Some(aarch64_result_shape(
                 operand,
                 true,
-                authoritative_plan.and_then(|plan| plan.result.as_ref().map(|result| result.shape)),
+                plan_source.result_shape(),
             )?),
             (Aarch64ImportResult::Authored, Some(operand)) => Some(aarch64_operand_shape(operand)?),
             _ => {
