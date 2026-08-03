@@ -58,7 +58,14 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 #[cfg(unix)]
-use std::{process::Command, time::SystemTime};
+use std::{
+    process::Command,
+    sync::atomic::{AtomicU64, Ordering},
+    time::SystemTime,
+};
+
+#[cfg(unix)]
+static NEXT_SCRATCH_DIRECTORY: AtomicU64 = AtomicU64::new(1);
 
 fn source_canary() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -367,6 +374,7 @@ fn checked_source_runtime_integer_policy_operations_survive_frontend_drop() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("terminal-Psi runtime arithmetic source canary should compile");
     let cases = [
+        ("terminal_closed_integer_chain", vec![], 42_u128, 8_u64),
         (
             "terminal_runtime_wrapping_add",
             vec![100_u128, 2, 3, 4, 5, 6, 7, 8, 200],
@@ -442,6 +450,35 @@ fn checked_source_runtime_integer_policy_operations_survive_frontend_drop() {
             "{machine} result"
         );
     }
+}
+
+#[cfg(unix)]
+#[test]
+fn source_closed_integer_chain_matches_emitted_host_machine_code() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("terminal-Psi closed integer-chain canary should compile");
+    let lowered = lower_machine(&checked, "terminal_closed_integer_chain")
+        .expect("closed integer state chain should lower");
+    drop(checked);
+
+    let verified = verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("closed integer state chain should verify");
+    let abstract_operations = lower_verified_module(&verified)
+        .expect("closed integer state chain should lower without frontend state");
+    let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
+        .expect("closed integer state chain should select for the host");
+    let machine_code =
+        emit_machine_code(&target_operations).expect("closed integer state chain should emit");
+    let object_artifact = build_terminal_object_artifact(&machine_code)
+        .expect("closed integer state chain should form an object");
+    let entry = object_artifact.entry_function();
+    assert_eq!(entry.provenance.operations.len(), 5);
+    assert_eq!(entry.provenance.edges.len(), 3);
+    assert_eq!(run_host_machine_code(entry.bytes(&object_artifact)), 42);
 }
 
 #[cfg(unix)]
@@ -662,6 +699,11 @@ fn psi_terminal_producer_rejects_source_outside_its_declared_slice() {
         LoweringError::Unsupported(
             "attached machines are not in the first terminal-Psi source slice"
         )
+    );
+    assert_eq!(
+        lower_machine(&checked, "terminal_closed_integer_chain_wrong_contract")
+            .expect_err("closed chain with an unrelated contract must fail closed"),
+        LoweringError::Unsupported("contract literals must equal the executed literal")
     );
 }
 
@@ -1044,15 +1086,7 @@ fn install_terminal_object(
 fn run_host_executable_image(bytes: &[u8]) -> i32 {
     use std::os::unix::fs::PermissionsExt;
 
-    let nonce = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .expect("wall clock after epoch")
-        .as_nanos();
-    let directory = std::env::temp_dir().join(format!(
-        "omega-terminal-source-image-{}-{nonce}",
-        std::process::id()
-    ));
-    std::fs::create_dir(&directory).expect("create source image test directory");
+    let directory = fresh_scratch_directory("omega-terminal-source-image");
     let _cleanup = ScratchDirectory(directory.clone());
     let executable_path = directory.join("omega-program");
     std::fs::write(&executable_path, bytes).expect("write direct source terminal image");
@@ -1071,15 +1105,7 @@ fn run_host_executable_image(bytes: &[u8]) -> i32 {
 
 #[cfg(unix)]
 fn run_host_machine_code(bytes: &[u8]) -> i32 {
-    let nonce = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .expect("wall clock after epoch")
-        .as_nanos();
-    let directory = std::env::temp_dir().join(format!(
-        "omega-terminal-native-{}-{nonce}",
-        std::process::id()
-    ));
-    std::fs::create_dir(&directory).expect("create terminal native test directory");
+    let directory = fresh_scratch_directory("omega-terminal-native");
     let _cleanup = ScratchDirectory(directory.clone());
     let assembly_path = directory.join("entry.s");
     let executable_path = directory.join("entry");
@@ -1116,15 +1142,7 @@ fn run_host_machine_code(bytes: &[u8]) -> i32 {
 
 #[cfg(unix)]
 fn run_host_machine_code_with_nine_u8(bytes: &[u8], first: u8, second: u8, ninth: u8) -> i32 {
-    let nonce = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .expect("wall clock after epoch")
-        .as_nanos();
-    let directory = std::env::temp_dir().join(format!(
-        "omega-terminal-nine-parameter-{}-{nonce}",
-        std::process::id()
-    ));
-    std::fs::create_dir(&directory).expect("create terminal parameter test directory");
+    let directory = fresh_scratch_directory("omega-terminal-nine-parameter");
     let _cleanup = ScratchDirectory(directory.clone());
     let assembly_path = directory.join("entry.s");
     let driver_path = directory.join("driver.c");
@@ -1169,15 +1187,7 @@ int main(void) {{ return terminal_entry({first}, {second}, 3, 4, 5, 6, 7, 8, {ni
 
 #[cfg(unix)]
 fn run_host_machine_code_with_nine_bool(bytes: &[u8]) -> i32 {
-    let nonce = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .expect("wall clock after epoch")
-        .as_nanos();
-    let directory = std::env::temp_dir().join(format!(
-        "omega-terminal-nine-boolean-{}-{nonce}",
-        std::process::id()
-    ));
-    std::fs::create_dir(&directory).expect("create terminal Boolean test directory");
+    let directory = fresh_scratch_directory("omega-terminal-nine-boolean");
     let _cleanup = ScratchDirectory(directory.clone());
     let assembly_path = directory.join("entry.s");
     let driver_path = directory.join("driver.c");
@@ -1216,6 +1226,21 @@ int main(void) { return terminal_entry(false, false, false, false, false, false,
         .expect("execute terminal Boolean canary")
         .code()
         .expect("terminal Boolean canary exited normally")
+}
+
+#[cfg(unix)]
+fn fresh_scratch_directory(prefix: &str) -> PathBuf {
+    let nonce = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .expect("wall clock after epoch")
+        .as_nanos();
+    let sequence = NEXT_SCRATCH_DIRECTORY.fetch_add(1, Ordering::Relaxed);
+    let directory = std::env::temp_dir().join(format!(
+        "{prefix}-{}-{nonce}-{sequence}",
+        std::process::id()
+    ));
+    std::fs::create_dir(&directory).expect("create unique terminal test directory");
+    directory
 }
 
 #[cfg(unix)]

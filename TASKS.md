@@ -1094,14 +1094,14 @@ improvements do not change public identity.
   bundle checking, and direct execution of the verified module in
   `omega-interpreter`. Its validator rejects unreachable axiom sources and
   entry/postcondition references to internal values. The first Psi-owned
-  checked-tree producer is also live and fail-closed: it lowers one exact typed
-  integer-constant/unconditional-jump source slice whose return is either the
-  matching literal or a builtin parameter-plus-literal add/subtract/multiply
-  in the settled Wrapping or Saturating domain. The parameterized form now
-  accepts ordinary integer machine parameters and any nonempty linear state
-  chain, lowering a recursively nested parameter/literal expression into each
-  jump argument and continuing through one exact integer block parameter per
-  non-entry state.
+  checked-tree producer is also live and fail-closed: its linear integer form
+  accepts any sequence of ordinary integer machine parameters, including none,
+  and any sequence of at least two states. It lowers a recursively nested
+  parameter/literal add/subtract/multiply expression in the settled Wrapping or
+  Saturating domain into each unconditional jump argument and continues through
+  one exact integer block parameter per non-entry state. Optional compile-known
+  propagation crosses every binding, so a closed chain's recomputed result must
+  match its authored reflexive contract.
   A second exact form lowers any
   nonempty sequence of ordinary primitive-integer machine parameters and an
   exact recursively nested parameter/literal expression using builtin
@@ -1111,8 +1111,9 @@ improvements do not change public identity.
   unconditional one-parameter Boolean state bindings. It emits the module and
   proof bundle separately; real-source canaries cover all six versioned integer
   policy operations in constant-fed and runtime-fed forms, Boolean literal,
-  ninth-parameter direct and three-state bound returns, plus a ninth-parameter
-  integer stack return after `CheckedTrees` are dropped. Constant-fed
+  ninth-parameter direct and three-state bound returns, a closed three-state
+  integer chain, plus a ninth-parameter integer stack return after
+  `CheckedTrees` are dropped. Constant-fed
   wrapping add, the direct stack return, and a register-plus-stack runtime
   wrapping add all reach emitted host machine code; Boolean literal, ninth-
   parameter direct return, and the three-state Boolean binding chain
@@ -1121,8 +1122,10 @@ improvements do not change public identity.
   add-then-multiply source expression does too. A parameterized two-state
   canary combines a register and ninth stack argument before an unconditional
   jump, continues from the bound block parameter, and agrees across fixed-fuel
-  derivation, interpretation, and emitted host execution. A three-state
-  companion repeats the computed binding and agrees at its eight-unit ceiling.
+  derivation, interpretation, and emitted host execution. A parameterized
+  three-state companion repeats the computed binding, while a closed
+  three-state companion begins from a literal; both agree at their eight-unit
+  ceilings, and the closed twin with an unrelated contract rejects.
   Because the
   legacy exit prover cannot establish ordinary `result == literal` contracts,
   this bootstrap canary preserves a closed typed `requires`/`ensures` fact and

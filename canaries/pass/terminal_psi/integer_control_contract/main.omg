@@ -9,6 +9,30 @@ ensures 7i32 == 7i32
     state pass(value: i32) -> i32 { 7i32 }
 }
 
+machine terminal_closed_integer_chain() -> u8 in Wrapping
+requires 42u8 == 42u8
+ensures 42u8 == 42u8
+{
+    transition { _ -> add(10u8) }
+    state add(value: u8 in Wrapping) -> u8 in Wrapping {
+        transition { _ -> finish(value + 20u8) }
+    }
+    state finish(value: u8 in Wrapping) -> u8 in Wrapping { value + 12u8 }
+}
+
+// The legacy checked-tree prover accepts this unrelated reflexive contract;
+// the terminal producer must recompute the closed chain and reject it.
+machine terminal_closed_integer_chain_wrong_contract() -> u8 in Wrapping
+requires 41u8 == 41u8
+ensures 41u8 == 41u8
+{
+    transition { _ -> add(10u8) }
+    state add(value: u8 in Wrapping) -> u8 in Wrapping {
+        transition { _ -> finish(value + 20u8) }
+    }
+    state finish(value: u8 in Wrapping) -> u8 in Wrapping { value + 12u8 }
+}
+
 machine terminal_wrapping_add() -> u8 in Wrapping
 requires 44u8 == 44u8
 ensures 44u8 == 44u8
