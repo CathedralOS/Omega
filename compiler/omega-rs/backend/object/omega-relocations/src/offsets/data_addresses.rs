@@ -111,7 +111,7 @@ pub(crate) fn data_address_relocation_offset_for_target_with_plan(
                 )
             })
             .or_else(|| {
-                omega_isa_x86_64::host_call_data_relocation_site_for_policy(
+                omega_isa_x86_64::host_call_data_relocation_site_no_plan(
                     omega_calling_conventions::CallingPolicy::native_for_target(target),
                     operation_key,
                     operands,
