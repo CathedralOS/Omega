@@ -35919,11 +35919,24 @@ fn named_float_to_integer_trapping_requirements_trap_in_both_engines() {
 
 #[test]
 fn named_float_provider_calls_rewrite_to_selected_builtins() {
+    const DIFFERENTIAL_SUITE_ID: &str =
+        "omega.float.hardware.macos_arm64.minimum-maximum-square-root.v1";
+    const DIFFERENTIAL_COVERAGE: &[&str] = &[
+        "binary32 NaN operand order",
+        "binary64 NaN operand order",
+        "binary32 minimum signed-zero choice",
+        "binary64 maximum signed-zero choice",
+        "binary32 exact square root",
+        "binary64 exact square root",
+    ];
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x8b3c_f5ec_2629_8fed;
+
     let canary = pass_canary("float/named_provider_min_max_sqrt_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
         .expect("named float provider calls should compile to checked trees");
 
     let mut selected_intrinsics = std::collections::BTreeSet::new();
+    let mut selected_plan_identities = Vec::new();
     for operator_use in checked.facts.operators.named_uses() {
         if operator_use.provider_plan_identity == 0 {
             continue;
@@ -35941,6 +35954,7 @@ fn named_float_provider_calls_rewrite_to_selected_builtins() {
             panic!("named float plan must select a compiler intrinsic");
         };
         selected_intrinsics.insert(name.clone());
+        selected_plan_identities.push(plan.identity_fingerprint());
 
         let psi_typed_trees::expression::ExpressionNode::Call(call) = checked
             .typed
@@ -35989,6 +36003,13 @@ fn named_float_provider_calls_rewrite_to_selected_builtins() {
         ]
         .into_iter()
         .collect()
+    );
+    selected_plan_identities.sort_unstable();
+    selected_plan_identities.dedup();
+    assert_eq!(
+        selected_plan_identities.len(),
+        6,
+        "{DIFFERENTIAL_SUITE_ID} must bind one exact plan per operation/format slot"
     );
 
     let outcome = omega_interpreter::interpret(&checked, &[]);
@@ -36041,6 +36062,21 @@ fn named_float_provider_calls_rewrite_to_selected_builtins() {
         });
         let _ = fs::remove_dir_all(&scratch);
     }
+
+    let result_identity = retained_float_differential_result_identity(
+        DIFFERENTIAL_SUITE_ID,
+        "macos_arm64",
+        DIFFERENTIAL_COVERAGE,
+        &selected_intrinsics,
+        &selected_plan_identities,
+        &outcome,
+        &output,
+        &["linux_x64", "linux_arm64"],
+    );
+    assert_eq!(
+        result_identity, EXPECTED_DIFFERENTIAL_RESULT_IDENTITY,
+        "{DIFFERENTIAL_SUITE_ID} result changed ({result_identity:#018x}); validate the exact plans, edge corpus, interpreter/native results, and cross-target builds before refreshing the retained identity"
+    );
 }
 
 #[test]
