@@ -337,6 +337,10 @@ fn frontend_implementation_is_psi_owned() {
             "pub use psi_proof::*;",
         ),
         (
+            "compiler/omega-rs/semantics/omega-types/src/lib.rs",
+            "pub use psi_types::*;",
+        ),
+        (
             "compiler/omega-rs/pipeline/omega-source-files-to-tokens/src/lib.rs",
             "pub use psi_source_files_to_tokens::*;",
         ),

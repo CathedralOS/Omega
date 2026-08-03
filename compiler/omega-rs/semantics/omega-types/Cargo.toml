@@ -9,5 +9,4 @@ name = "omega_types"
 path = "src/lib.rs"
 
 [dependencies]
-omega-syntax-trees = { path = "../../representations/omega-syntax-trees" }
-omega-core = { path = "../../foundation/omega-core" }
+psi-types = { path = "../../../psi-rs/semantics/psi-types" }

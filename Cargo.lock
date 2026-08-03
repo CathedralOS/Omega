@@ -1137,8 +1137,7 @@ dependencies = [
 name = "omega-types"
 version = "0.1.0"
 dependencies = [
- "omega-core",
- "omega-syntax-trees",
+ "psi-types",
 ]
 
 [[package]]
@@ -1505,6 +1504,16 @@ dependencies = [
  "psi-tokens-to-syntax-trees",
  "psi-typed-trees",
  "psi-validation",
+]
+
+[[package]]
+name = "psi-types"
+version = "0.1.0"
+dependencies = [
+ "psi-arena",
+ "psi-language-semantics",
+ "psi-numerics",
+ "psi-syntax-trees",
 ]
 
 [[package]]

@@ -85,6 +85,7 @@ Omega/
 |   |   |   |-- [CRATE] psi-typed-trees-to-checked-trees/ # Psi-owned semantic checking and checked-fact construction.
 |   |   |   `-- [CRATE] psi-checked-trees-to-terminal/   # Fail-closed executable slice plus checked content-evidence production.
 |   |   `-- semantics/
+|   |       |-- [CRATE] psi-types/                      # Unresolved source type-surface analysis.
 |   |       |-- [CRATE] psi-validation/                 # Cross-semantic source validation and diagnostics.
 |   |       |-- [CRATE] psi-proof/                      # Source proof obligations, planning, and checking.
 |   |       |-- [CRATE] psi-proof-kernel/               # Total judgments, proof certificates, and admission checks.
@@ -94,7 +95,7 @@ Omega/
 |   |   `-- [CRATE] omega-core/                         # Shared primitives, ids, arenas, handles, spans, diagnostics.
 |   |
 |   |-- semantics/
-|   |   |-- [CRATE] omega-types/                        # Type checking, inference, coercions, layout preconditions.
+|   |   |-- [CRATE] omega-types/                        # Transitional re-export of Psi-owned source type analysis.
 |   |   |-- [CRATE] omega-graph/                        # Machine/state graph construction and graph-facing semantic facts.
 |   |   |-- [CRATE] omega-validation/                   # Transitional re-export of Psi-owned source validation.
 |   |   `-- [CRATE] omega-proof/                        # Transitional re-export of Psi-owned source proof checking.
@@ -260,7 +261,7 @@ Omega/
   invariants, and validation. It has been consolidated: there are no separate
   `omega-borrow`, `omega-invariants`, `omega-contracts`, or `omega-consteval`
   crates today. Borrow, invariant, contract, and const-evaluation reasoning live
-  inside the existing semantic crates (chiefly `omega-types`, `psi-facts`,
+  inside the existing semantic crates (chiefly `psi-types`, `psi-facts`,
   `psi-validation`, and `psi-proof`).
 - `psi-facts` carries checked facts, invariants, and refinement data: what
   remains true. The old `omega-facts` name is a compatibility export while

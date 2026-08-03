@@ -67,6 +67,7 @@ Current roots:
 - `pipeline/psi-checked-trees-to-terminal`: the first fail-closed executable
   source producer plus checked content-conservation, reshuffle, and direct
   partition-composition translation into terminal Psi;
+- `semantics/psi-types`: unresolved source type-surface analysis;
 - `semantics/psi-validation`: target-neutral cross-semantic source validation;
 - `semantics/psi-proof`: source proof-surface collection, obligation planning,
   and checking;
