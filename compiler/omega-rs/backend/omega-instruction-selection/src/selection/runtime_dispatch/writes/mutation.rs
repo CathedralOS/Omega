@@ -3086,7 +3086,7 @@ fn clamp_constant_to_target_domain(
         dispatch_index,
         target_source_key,
         resolved_target,
-    ) != omega_core::arithmetic::ArithmeticDomain::Saturating
+    ) != psi_numerics::arithmetic::ArithmeticDomain::Saturating
     {
         return value;
     }
@@ -3124,7 +3124,7 @@ fn trapping_constant_overflow_write(
         dispatch_index,
         target_source_key,
         resolved_target,
-    ) != omega_core::arithmetic::ArithmeticDomain::Trapping
+    ) != psi_numerics::arithmetic::ArithmeticDomain::Trapping
     {
         return None;
     }
@@ -3154,7 +3154,7 @@ fn trapping_constant_overflow_write(
             operator,
             right,
             false,
-            omega_core::arithmetic::ArithmeticDomain::Trapping,
+            psi_numerics::arithmetic::ArithmeticDomain::Trapping,
             primitive.is_signed_integer(),
         ),
     )

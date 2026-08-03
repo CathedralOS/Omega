@@ -352,7 +352,7 @@ pub(crate) fn write_place_binary_direct(
     operator: omega_abstract_operations::StateGuardOperator,
     right: omega_abstract_operations::AbstractValueOperandHandle,
     is_float: bool,
-    domain: omega_core::arithmetic::ArithmeticDomain,
+    domain: psi_numerics::arithmetic::ArithmeticDomain,
     target_signed: bool,
 ) -> SelectedInstructionKind {
     SelectedInstructionKind::WritePlaceBinary {
@@ -650,7 +650,7 @@ pub(crate) fn write_place_binary_pointee(
         operator,
         right,
         is_float: false,
-        domain: omega_core::arithmetic::ArithmeticDomain::Exact,
+        domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
         target_signed: false,
     }
 }
@@ -693,7 +693,7 @@ pub(crate) fn write_place_binary_frame_indexed(
         operator,
         right,
         is_float: false,
-        domain: omega_core::arithmetic::ArithmeticDomain::Exact,
+        domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
         target_signed: false,
     }
 }
@@ -731,7 +731,7 @@ pub(crate) fn write_place_binary_base_indexed(
         operator,
         right,
         is_float: false,
-        domain: omega_core::arithmetic::ArithmeticDomain::Exact,
+        domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
         target_signed: false,
     }
 }
@@ -772,7 +772,7 @@ pub(crate) fn write_place_binary_double_indexed(
         operator,
         right,
         is_float: false,
-        domain: omega_core::arithmetic::ArithmeticDomain::Exact,
+        domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
         target_signed: false,
     }
 }

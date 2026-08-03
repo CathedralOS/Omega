@@ -1425,7 +1425,7 @@ fn select_dispatch_unary_terminal_return(
             StateGuardOperator::Equal,
             right,
             false,
-            omega_core::arithmetic::ArithmeticDomain::Exact,
+            psi_numerics::arithmetic::ArithmeticDomain::Exact,
             false,
         ),
         source_key,

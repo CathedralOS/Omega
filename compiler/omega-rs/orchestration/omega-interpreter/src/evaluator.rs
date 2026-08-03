@@ -56,9 +56,9 @@ mod host_open_flags {
     }
 }
 use crate::value::{Cell, Value};
-use omega_core::arithmetic::ArithmeticDomain;
 use omega_core::symbols::SymbolHandle;
 use psi_checked_trees::{CheckedOperatorFacts, CheckedTrees};
+use psi_numerics::arithmetic::ArithmeticDomain;
 use psi_numerics::bignum::BigInt;
 use psi_numerics::float_semantics::{
     FloatClass as SemanticFloatClass, FloatFormat as SemanticFloatFormat, FloatMeaning,

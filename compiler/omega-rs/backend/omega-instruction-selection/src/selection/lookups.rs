@@ -1,6 +1,5 @@
 use crate::InstructionSelectionInput;
 use omega_control_flow::{Operation, StateKey, StateParameterFlow};
-use omega_core::arithmetic::{ArithmeticDomain, ArithmeticPolicyAdapter};
 use omega_core::symbols::SymbolHandle;
 use omega_platform_interface::HostCall;
 use omega_state_calls::StateCall;
@@ -9,6 +8,7 @@ use psi_checked_trees::expression::{
     Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
 };
 use psi_checked_trees::name::Identifier;
+use psi_numerics::arithmetic::{ArithmeticDomain, ArithmeticPolicyAdapter};
 use psi_numerics::float_semantics::FloatFormat;
 
 fn state_key_matches_statement_source(expected: StateKey, actual: StateKey) -> bool {

@@ -1474,7 +1474,7 @@ mod tests {
             right,
             is_float: false,
             byte_width: 8,
-            arithmetic_domain: omega_core::arithmetic::ArithmeticDomain::Exact,
+            arithmetic_domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
             operands_signed: false,
         });
         (

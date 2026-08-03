@@ -93,6 +93,7 @@ dependencies = [
  "psi-facts",
  "psi-language-core",
  "psi-language-semantics",
+ "psi-numerics",
  "psi-typed-trees",
 ]
 
@@ -151,6 +152,7 @@ dependencies = [
  "omega-core",
  "omega-target",
  "omega-target-operations",
+ "psi-numerics",
 ]
 
 [[package]]
@@ -265,6 +267,7 @@ dependencies = [
  "omega-target-operations",
  "psi-checked-trees",
  "psi-facts",
+ "psi-numerics",
 ]
 
 [[package]]
@@ -368,6 +371,7 @@ dependencies = [
  "omega-core",
  "psi-checked-trees",
  "psi-facts",
+ "psi-numerics",
  "psi-typed-trees",
 ]
 
@@ -407,7 +411,6 @@ dependencies = [
  "psi-arena",
  "psi-diagnostics",
  "psi-language-semantics",
- "psi-numerics",
  "psi-symbols",
 ]
 
@@ -624,6 +627,7 @@ dependencies = [
  "psi-language-core",
  "psi-language-semantics",
  "psi-layout-plans",
+ "psi-numerics",
 ]
 
 [[package]]
@@ -636,6 +640,7 @@ dependencies = [
  "psi-language-core",
  "psi-language-semantics",
  "psi-layout-plans",
+ "psi-numerics",
 ]
 
 [[package]]
@@ -646,6 +651,7 @@ dependencies = [
  "omega-runtime-abi",
  "omega-target",
  "psi-checked-trees",
+ "psi-numerics",
 ]
 
 [[package]]
@@ -674,6 +680,7 @@ dependencies = [
  "omega-target",
  "omega-target-operations",
  "psi-language-core",
+ "psi-numerics",
 ]
 
 [[package]]
@@ -822,6 +829,7 @@ dependencies = [
  "omega-target",
  "psi-checked-trees",
  "psi-language-core",
+ "psi-numerics",
 ]
 
 [[package]]
@@ -874,6 +882,7 @@ dependencies = [
  "omega-core",
  "psi-checked-trees",
  "psi-facts",
+ "psi-numerics",
  "psi-typed-trees",
 ]
 
@@ -926,6 +935,7 @@ dependencies = [
  "omega-state-graph",
  "omega-state-values",
  "psi-checked-trees",
+ "psi-numerics",
 ]
 
 [[package]]
@@ -959,6 +969,7 @@ dependencies = [
  "omega-target",
  "psi-language-core",
  "psi-language-semantics",
+ "psi-numerics",
 ]
 
 [[package]]

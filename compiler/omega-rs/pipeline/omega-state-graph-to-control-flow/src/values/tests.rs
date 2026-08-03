@@ -13,7 +13,7 @@ fn remap_value_summary_preserves_statement_value_handles() {
             role: omega_state_graph::StateValueStatementRole::CallArgument,
         },
         arithmetic_policy_adapter: Some(
-            omega_core::arithmetic::ArithmeticPolicyAdapter::FloatTrappingNonFinite {
+            psi_numerics::arithmetic::ArithmeticPolicyAdapter::FloatTrappingNonFinite {
                 format: psi_numerics::float_semantics::FloatFormat::BINARY64,
             },
         ),
@@ -40,7 +40,7 @@ fn remap_value_summary_preserves_statement_value_handles() {
     assert_eq!(
         copied.arithmetic_policy_adapter,
         Some(
-            omega_core::arithmetic::ArithmeticPolicyAdapter::FloatTrappingNonFinite {
+            psi_numerics::arithmetic::ArithmeticPolicyAdapter::FloatTrappingNonFinite {
                 format: psi_numerics::float_semantics::FloatFormat::BINARY64,
             }
         )

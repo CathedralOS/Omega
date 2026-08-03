@@ -1290,7 +1290,7 @@ fn type_descriptor(
                             TypeConstraintNode::ArithmeticDomain(domain) => Some(*domain),
                             _ => None,
                         })
-                        .unwrap_or(omega_core::arithmetic::ArithmeticDomain::Exact),
+                        .unwrap_or(psi_numerics::arithmetic::ArithmeticDomain::Exact),
                 }
             }
         }

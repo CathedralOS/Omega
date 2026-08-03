@@ -89,7 +89,7 @@ pub trait RuntimeValueOperandSource {
     fn binary_arithmetic_domain(
         &self,
         handle: RuntimeValueOperandHandle,
-    ) -> Option<(omega_core::arithmetic::ArithmeticDomain, bool)>;
+    ) -> Option<(psi_numerics::arithmetic::ArithmeticDomain, bool)>;
     /// A `Convert` (numeric cast) operand: `(source, source_byte_size,
     /// target_byte_size, source_is_float, target_is_float, source_signed)`.
     fn convert(
@@ -339,7 +339,7 @@ impl RuntimeValueOperandSource for Arena<RuntimeValueOperand> {
     fn binary_arithmetic_domain(
         &self,
         handle: RuntimeValueOperandHandle,
-    ) -> Option<(omega_core::arithmetic::ArithmeticDomain, bool)> {
+    ) -> Option<(psi_numerics::arithmetic::ArithmeticDomain, bool)> {
         match self.get(handle) {
             RuntimeValueOperand::Binary {
                 arithmetic_domain,

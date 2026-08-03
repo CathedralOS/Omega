@@ -619,7 +619,7 @@ pub enum AbstractOperationKind {
         operator: StateGuardOperator,
         right: AbstractValueOperandHandle,
         is_float: bool,
-        domain: omega_core::arithmetic::ArithmeticDomain,
+        domain: psi_numerics::arithmetic::ArithmeticDomain,
         target_signed: bool,
     },
 

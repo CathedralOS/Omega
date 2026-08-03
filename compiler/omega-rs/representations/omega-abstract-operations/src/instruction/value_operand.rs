@@ -114,7 +114,7 @@ pub enum ValueOperand {
         /// loudly -- encoding one as the plain op silently computed the
         /// unclamped wide value (150 instead of the saturated 127) or skipped
         /// the trap.
-        arithmetic_domain: omega_core::arithmetic::ArithmeticDomain,
+        arithmetic_domain: psi_numerics::arithmetic::ArithmeticDomain,
         /// Whether the operands are SIGNED integers, resolved from the same
         /// declared-type witness as `arithmetic_domain`. Consumed only by the
         /// Saturating/Trapping operand-position lowering (it picks the clamp

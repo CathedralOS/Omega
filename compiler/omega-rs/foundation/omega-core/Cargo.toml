@@ -12,5 +12,4 @@ path = "src/lib.rs"
 psi-arena = { path = "../../../psi-rs/foundation/psi-arena" }
 psi-diagnostics = { path = "../../../psi-rs/foundation/psi-diagnostics" }
 psi-language-semantics = { path = "../../../psi-rs/foundation/psi-language-semantics" }
-psi-numerics = { path = "../../../psi-rs/foundation/psi-numerics" }
 psi-symbols = { path = "../../../psi-rs/foundation/psi-symbols" }

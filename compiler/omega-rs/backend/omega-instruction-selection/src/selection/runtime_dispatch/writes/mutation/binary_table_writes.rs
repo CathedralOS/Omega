@@ -612,7 +612,7 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
                 StateGuardOperator::Or,
                 zero,
                 false,
-                omega_core::arithmetic::ArithmeticDomain::Exact,
+                psi_numerics::arithmetic::ArithmeticDomain::Exact,
                 false,
             ),
         );
@@ -1477,7 +1477,7 @@ pub(in crate::selection::runtime_dispatch) fn build_runtime_convert_write(
     target_place: Option<Place>,
     target_primitive: PrimitiveType,
     source_expression: ExpressionHandle,
-    cast_domain: omega_core::arithmetic::ArithmeticDomain,
+    cast_domain: psi_numerics::arithmetic::ArithmeticDomain,
     static_values: &RuntimeStaticValues,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
 ) -> Option<SelectedInstructionKind> {
@@ -1530,10 +1530,10 @@ pub(in crate::selection::runtime_dispatch) fn build_runtime_convert_write(
     let target_is_float = target_primitive.accepts_float_literal();
     let source_signed = source_primitive.is_signed_integer();
     let target_signed = target_primitive.is_signed_integer();
-    let trapping = cast_domain == omega_core::arithmetic::ArithmeticDomain::Trapping
+    let trapping = cast_domain == psi_numerics::arithmetic::ArithmeticDomain::Trapping
         && source_is_float
         && !target_is_float;
-    let saturating = cast_domain == omega_core::arithmetic::ArithmeticDomain::Saturating
+    let saturating = cast_domain == psi_numerics::arithmetic::ArithmeticDomain::Saturating
         && source_is_float
         && !target_is_float;
     Some(if let Some(target) = target_place {

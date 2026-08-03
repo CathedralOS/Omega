@@ -1,9 +1,9 @@
-use omega_core::arithmetic::ArithmeticPolicyAdapter;
 use omega_state_graph::{
     StateGraph, StateKey, StateValueFact, StateValueOrigin, StateValueStatementRole,
     StateValueSummary,
 };
 use psi_checked_trees::{CheckedTrees, CheckedValueOrigin, CheckedValueStatementRole};
+use psi_numerics::arithmetic::ArithmeticPolicyAdapter;
 
 pub(crate) fn state_value_summary(
     state_graph: &mut StateGraph,
