@@ -96,6 +96,17 @@ fn local_dynamic_call_keeps_eligible_sibling_available() {
         "#,
     );
 
+    let mixed = typed
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Mixed")
+        .expect("Mixed trait");
+    let surface = typed
+        .dynamic_signature_surface(mixed)
+        .map(|requirement| requirement.name.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(surface, vec!["run"]);
+
     validate_program(&typed)
         .expect("an ineligible sibling must not remove an eligible dyn requirement");
 }

@@ -7,6 +7,7 @@ pub mod byte_predicates;
 pub mod data;
 pub mod dependent_ranges;
 pub mod domain;
+pub mod dynamic_traits;
 pub mod expression;
 pub mod identity;
 pub mod invariant;
