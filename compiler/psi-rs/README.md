@@ -15,9 +15,12 @@ Current roots:
 
 - `foundation/psi-arena`: typed arena handles and contiguous handle spans used
   by Psi-owned source representations;
+- `foundation/psi-diagnostics`: target-neutral diagnostic values and phase
+  snapshot contracts;
 - `foundation/psi-source`: loaded-source records and maps, source identities,
   coordinates, and source-backed text shared by the Psi frontend and temporary
   Omega compatibility exports;
+- `foundation/psi-source-loader`: root-file loading into Psi-owned source maps;
 - `foundation/psi-core`: stable terminal semantic identities and the initial
   typed proposition vocabulary;
 - `representations/psi-tokens`: the spelling-level Omega token stream;

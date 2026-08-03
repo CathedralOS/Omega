@@ -23,6 +23,8 @@ source shape without turning nested syntax into scattered heap objects.
   contiguous handle spans, and dense arena storage required by the syntax
   representation. `omega-core::arena` temporarily re-exports these exact types
   for unmigrated frontend consumers.
+- `compiler/psi-rs/foundation/psi-diagnostics` owns the target-neutral
+  `PhaseSnapshot` contract used to materialize readable source-shaped trees.
 - `parser.rs` owns public entrypoints and whole-file parse completion checks.
 - `parser/input.rs` owns token cursor movement, span mapping, and parser
   lookahead helpers.

@@ -57,7 +57,9 @@ Omega/
 |   |-- psi-rs/                                         # Psi owns target-neutral semantics through terminal Psi.
 |   |   |-- foundation/
 |   |   |   |-- [CRATE] psi-arena/                      # Typed arena storage for Psi source representations.
+|   |   |   |-- [CRATE] psi-diagnostics/                # Source diagnostics and phase-snapshot contracts.
 |   |   |   |-- [CRATE] psi-source/                     # Loaded-source data and coordinates owned by the Psi frontend.
+|   |   |   |-- [CRATE] psi-source-loader/              # Root-file loading into Psi-owned source maps.
 |   |   |   `-- [CRATE] psi-core/                       # Stable semantic ids and typed proposition vocabulary.
 |   |   |-- representations/
 |   |   |   |-- [CRATE] psi-tokens/                     # Omega spelling-level token streams.

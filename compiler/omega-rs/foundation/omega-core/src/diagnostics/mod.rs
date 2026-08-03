@@ -1,7 +1,15 @@
-pub mod diagnostic;
-pub mod phase_snapshot;
-pub mod reporter;
+//! Compatibility exports for diagnostics now owned by Psi.
 
-pub use diagnostic::Diagnostic;
-pub use phase_snapshot::PhaseSnapshot;
-pub use reporter::format_diagnostics;
+pub mod diagnostic {
+    pub use psi_diagnostics::{Diagnostic, DiagnosticSeverity};
+}
+
+pub mod phase_snapshot {
+    pub use psi_diagnostics::PhaseSnapshot;
+}
+
+pub mod reporter {
+    pub use psi_diagnostics::format_diagnostics;
+}
+
+pub use psi_diagnostics::{Diagnostic, DiagnosticSeverity, PhaseSnapshot, format_diagnostics};

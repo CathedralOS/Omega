@@ -355,6 +355,10 @@ fn lexical_frontend_implementation_is_psi_owned() {
             "compiler/omega-rs/foundation/omega-core/src/source/source_text.rs",
             "pub use psi_source::SourceText;",
         ),
+        (
+            "compiler/omega-rs/foundation/omega-core/src/source/resolver.rs",
+            "pub use psi_source_loader::Resolver;",
+        ),
     ] {
         let path = root.join(relative);
         let source = std::fs::read_to_string(&path)
@@ -364,6 +368,17 @@ fn lexical_frontend_implementation_is_psi_owned() {
             "legacy source primitive must re-export its Psi-owned implementation: {relative}"
         );
     }
+
+    let diagnostics_module =
+        root.join("compiler/omega-rs/foundation/omega-core/src/diagnostics/mod.rs");
+    let source = std::fs::read_to_string(&diagnostics_module)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", diagnostics_module.display()));
+    assert!(
+        source.contains(
+            "pub use psi_diagnostics::{Diagnostic, DiagnosticSeverity, PhaseSnapshot, format_diagnostics};"
+        ),
+        "legacy diagnostics module must re-export the Psi-owned diagnostic contracts"
+    );
 
     let arena_module = root.join("compiler/omega-rs/foundation/omega-core/src/arena/mod.rs");
     let source = std::fs::read_to_string(&arena_module)
