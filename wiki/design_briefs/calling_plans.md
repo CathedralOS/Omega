@@ -1028,6 +1028,13 @@ anonymous-variadic `open_create` is now covered through its concrete adapter
 signature rather than forcing that internal fixed/anonymous boundary into the
 outer source binding plan.
 
+The object relocation walk independently sends every ordinary selected import
+and its exact operands through that retained plan's encoder before accepting
+call or data offsets. A missing or incompatible import plan therefore rejects
+relocation planning instead of letting offset helpers reconstruct catalog- or
+architecture-shaped placement. Compiler-materialized host constants remain
+outside this rule because they have no foreign call or selected binding.
+
 The unused x86-64 call/data relocation wrappers that silently selected
 Microsoft x64 are now retired. The object relocation walk also no longer makes
 a redundant second no-plan data-site query after its plan-aware query. The

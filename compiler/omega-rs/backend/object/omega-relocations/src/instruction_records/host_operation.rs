@@ -10,14 +10,17 @@ use omega_calling_conventions::HostBindingMechanism;
 use omega_object_file::{RelocationRecord, object_symbol_handle_by_name};
 use omega_target_operations::{InstructionOperand, SelectedInstructionKind};
 use psi_arena::HandleSpan;
+use psi_diagnostics::Diagnostic;
 
 pub(super) fn collect_host_operation_relocations(
     context: &mut InstructionRelocationContext<'_, '_>,
     instruction: &SelectedInstructionKind,
-) -> bool {
+) -> Result<bool, Diagnostic> {
     let Some((operation_key, operands)) = selected_host_operation(instruction) else {
-        return false;
+        return Ok(false);
     };
+
+    validate_import_relocation_plan(context, operation_key, operands)?;
 
     collect_data_address_relocations(
         context.input,
@@ -29,7 +32,41 @@ pub(super) fn collect_host_operation_relocations(
         context.relocation_plan,
     );
     collect_host_operation_call_relocation(context, operation_key, operands);
-    true
+    Ok(true)
+}
+
+fn validate_import_relocation_plan(
+    context: &InstructionRelocationContext<'_, '_>,
+    operation_key: omega_calling_conventions::HostOperationKey,
+    operands: HandleSpan<InstructionOperand>,
+) -> Result<(), Diagnostic> {
+    let Some(binding) = find_host_binding(context.input, operation_key) else {
+        // Compiler-materialized constants share the HostOperation carrier but
+        // cross no import seam and deliberately have no selected binding.
+        return Ok(());
+    };
+    if !matches!(binding.mechanism, HostBindingMechanism::Import { .. }) {
+        return Ok(());
+    }
+    let plan = binding.call_plan().ok_or_else(|| {
+        Diagnostic::error(format!(
+            "import relocation for {}.{} has no retained calling plan",
+            operation_key.capability_name(),
+            operation_key.operation_name()
+        ))
+    })?;
+    let operands = context
+        .input
+        .assigned_target_operations
+        .instruction_operands(operands)
+        .ok_or_else(|| Diagnostic::error("import relocation lost its selected operands"))?;
+    omega_instruction_selection::encode_host_call_sequence_with_plan(
+        context.input.target,
+        operation_key,
+        operands,
+        Some(plan),
+    )?;
+    Ok(())
 }
 
 fn collect_host_operation_call_relocation(

@@ -65,18 +65,13 @@ pub(super) fn collect_instruction_relocations(
         relocation_plan,
     };
 
-    match &instruction.kind {
-        _ if host_operation::collect_host_operation_relocations(
-            &mut context,
-            &instruction.kind,
-        ) => {}
-        _ if runtime_storage::collect_runtime_storage_relocations(
-            &mut context,
-            &instruction.kind,
-        ) => {}
-        _ if wire_encode::collect_wire_encode_relocations(&mut context, &instruction.kind) => {}
-        _ if wire_decode::collect_wire_decode_relocations(&mut context, &instruction.kind) => {}
-        _ => runtime_text::collect_runtime_text_relocations(&mut context, &instruction.kind),
+    if host_operation::collect_host_operation_relocations(&mut context, &instruction.kind)? {
+    } else if runtime_storage::collect_runtime_storage_relocations(&mut context, &instruction.kind)
+    {
+    } else if wire_encode::collect_wire_encode_relocations(&mut context, &instruction.kind) {
+    } else if wire_decode::collect_wire_decode_relocations(&mut context, &instruction.kind) {
+    } else {
+        runtime_text::collect_runtime_text_relocations(&mut context, &instruction.kind);
     }
     Ok(())
 }
