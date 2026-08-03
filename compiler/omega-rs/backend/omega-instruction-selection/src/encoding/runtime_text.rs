@@ -10,18 +10,35 @@ use psi_diagnostics::Diagnostic;
 
 use super::host::normalized_syscall_registers_with_plan;
 
-fn validate_optional_win64_runtime_file_adapter_plans(
-    get_std_handle_plan: Option<&CallPlan>,
-    file_io_plan: Option<&CallPlan>,
-) -> Result<(), Diagnostic> {
-    match (get_std_handle_plan, file_io_plan) {
-        (Some(get_std_handle), Some(file_io)) => {
-            x86_64::validate_win64_runtime_file_adapter_plans(get_std_handle, file_io)
+#[derive(Debug, Clone, Copy)]
+enum ResolvedRuntimeTextCallPlans<'plan> {
+    CompatibilityOracle,
+    Direct(&'plan CallPlan),
+    WindowsFileAdapter {
+        get_std_handle: &'plan CallPlan,
+        file_io: &'plan CallPlan,
+    },
+}
+
+impl<'plan> ResolvedRuntimeTextCallPlans<'plan> {
+    const fn direct(self) -> Option<&'plan CallPlan> {
+        match self {
+            Self::Direct(plan) => Some(plan),
+            Self::CompatibilityOracle | Self::WindowsFileAdapter { .. } => None,
         }
-        (None, None) => x86_64::validate_win64_runtime_file_adapter_no_plan(),
-        _ => Err(Diagnostic::error(
-            "Win64 runtime text adapter requires both retained GetStdHandle and ReadFile/WriteFile plans",
-        )),
+    }
+
+    fn validate_windows_file_adapter(self) -> Result<(), Diagnostic> {
+        match self {
+            Self::CompatibilityOracle => x86_64::validate_win64_runtime_file_adapter_no_plan(),
+            Self::WindowsFileAdapter {
+                get_std_handle,
+                file_io,
+            } => x86_64::validate_win64_runtime_file_adapter_plans(get_std_handle, file_io),
+            Self::Direct(_) => Err(Diagnostic::error(
+                "Win64 runtime text imports require the complete GetStdHandle and file-I/O call-plan pair",
+            )),
+        }
     }
 }
 
@@ -39,7 +56,7 @@ impl<'plan> RuntimeTextCallPlans<'plan> {
         self,
         architecture: Architecture,
         binding: &HostBindingMechanism,
-    ) -> Result<(Option<&'plan CallPlan>, Option<&'plan CallPlan>), Diagnostic> {
+    ) -> Result<ResolvedRuntimeTextCallPlans<'plan>, Diagnostic> {
         match (self, architecture, binding) {
             (
                 Self::WindowsFileAdapter {
@@ -48,14 +65,17 @@ impl<'plan> RuntimeTextCallPlans<'plan> {
                 },
                 Architecture::X86_64,
                 HostBindingMechanism::Import { .. },
-            ) => Ok((Some(file_io), Some(get_std_handle))),
+            ) => Ok(ResolvedRuntimeTextCallPlans::WindowsFileAdapter {
+                get_std_handle,
+                file_io,
+            }),
             (
                 Self::Direct(plan),
                 Architecture::Aarch64,
                 HostBindingMechanism::Import { .. } | HostBindingMechanism::Syscall { .. },
             )
             | (Self::Direct(plan), Architecture::X86_64, HostBindingMechanism::Syscall { .. }) => {
-                Ok((Some(plan), None))
+                Ok(ResolvedRuntimeTextCallPlans::Direct(plan))
             }
             (Self::Direct(_), Architecture::X86_64, HostBindingMechanism::Import { .. }) => {
                 Err(Diagnostic::error(
@@ -430,13 +450,12 @@ pub fn encode_runtime_byte_read_no_plan(
     payload_offset: usize,
     binding: &HostBindingMechanism,
 ) -> Result<Vec<u8>, Diagnostic> {
-    encode_runtime_byte_read_with_optional_plans(
+    encode_runtime_byte_read_for_plans(
         architecture,
         target_offset,
         payload_offset,
         binding,
-        None,
-        None,
+        ResolvedRuntimeTextCallPlans::CompatibilityOracle,
     )
 }
 
@@ -463,25 +482,18 @@ pub fn encode_runtime_byte_read_with_plans(
     binding: &HostBindingMechanism,
     plans: RuntimeTextCallPlans<'_>,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let (authoritative_plan, get_std_handle_plan) = plans.for_binding(architecture, binding)?;
-    encode_runtime_byte_read_with_optional_plans(
-        architecture,
-        target_offset,
-        payload_offset,
-        binding,
-        authoritative_plan,
-        get_std_handle_plan,
-    )
+    let plans = plans.for_binding(architecture, binding)?;
+    encode_runtime_byte_read_for_plans(architecture, target_offset, payload_offset, binding, plans)
 }
 
-fn encode_runtime_byte_read_with_optional_plans(
+fn encode_runtime_byte_read_for_plans(
     architecture: Architecture,
     target_offset: usize,
     payload_offset: usize,
     binding: &HostBindingMechanism,
-    authoritative_plan: Option<&CallPlan>,
-    get_std_handle_plan: Option<&CallPlan>,
+    plans: ResolvedRuntimeTextCallPlans<'_>,
 ) -> Result<Vec<u8>, Diagnostic> {
+    let authoritative_plan = plans.direct();
     match architecture {
         Architecture::Aarch64 => match binding {
             HostBindingMechanism::Import { .. } => {
@@ -513,10 +525,7 @@ fn encode_runtime_byte_read_with_optional_plans(
         },
         Architecture::X86_64 => match binding {
             HostBindingMechanism::Import { .. } => {
-                validate_optional_win64_runtime_file_adapter_plans(
-                    get_std_handle_plan,
-                    authoritative_plan,
-                )?;
+                plans.validate_windows_file_adapter()?;
                 x86_64::encode_runtime_byte_read_import(target_offset, payload_offset)
             }
             HostBindingMechanism::Syscall { number, .. } => {
@@ -552,7 +561,12 @@ pub fn encode_runtime_byte_write_no_plan(
     source_offset: usize,
     binding: &HostBindingMechanism,
 ) -> Result<Vec<u8>, Diagnostic> {
-    encode_runtime_byte_write_with_optional_plans(architecture, source_offset, binding, None, None)
+    encode_runtime_byte_write_for_plans(
+        architecture,
+        source_offset,
+        binding,
+        ResolvedRuntimeTextCallPlans::CompatibilityOracle,
+    )
 }
 
 pub fn encode_runtime_byte_write_with_plan(
@@ -575,23 +589,17 @@ pub fn encode_runtime_byte_write_with_plans(
     binding: &HostBindingMechanism,
     plans: RuntimeTextCallPlans<'_>,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let (authoritative_plan, get_std_handle_plan) = plans.for_binding(architecture, binding)?;
-    encode_runtime_byte_write_with_optional_plans(
-        architecture,
-        source_offset,
-        binding,
-        authoritative_plan,
-        get_std_handle_plan,
-    )
+    let plans = plans.for_binding(architecture, binding)?;
+    encode_runtime_byte_write_for_plans(architecture, source_offset, binding, plans)
 }
 
-fn encode_runtime_byte_write_with_optional_plans(
+fn encode_runtime_byte_write_for_plans(
     architecture: Architecture,
     source_offset: usize,
     binding: &HostBindingMechanism,
-    authoritative_plan: Option<&CallPlan>,
-    get_std_handle_plan: Option<&CallPlan>,
+    plans: ResolvedRuntimeTextCallPlans<'_>,
 ) -> Result<Vec<u8>, Diagnostic> {
+    let authoritative_plan = plans.direct();
     match architecture {
         Architecture::Aarch64 => match binding {
             HostBindingMechanism::Import { .. } => {
@@ -622,10 +630,7 @@ fn encode_runtime_byte_write_with_optional_plans(
         },
         Architecture::X86_64 => match binding {
             HostBindingMechanism::Import { .. } => {
-                validate_optional_win64_runtime_file_adapter_plans(
-                    get_std_handle_plan,
-                    authoritative_plan,
-                )?;
+                plans.validate_windows_file_adapter()?;
                 x86_64::encode_runtime_byte_write_import(source_offset)
             }
             HostBindingMechanism::Syscall { number, .. } => {
@@ -660,14 +665,13 @@ pub fn encode_runtime_text_line_read_no_plan(
     binding: &HostBindingMechanism,
     target: RuntimeTextReadTarget,
 ) -> Result<Vec<u8>, Diagnostic> {
-    encode_runtime_text_line_read_with_optional_plans(
+    encode_runtime_text_line_read_for_plans(
         architecture,
         target_offset,
         byte_capacity,
         binding,
         target,
-        None,
-        None,
+        ResolvedRuntimeTextCallPlans::CompatibilityOracle,
     )
 }
 
@@ -697,27 +701,26 @@ pub fn encode_runtime_text_line_read_with_plans(
     target: RuntimeTextReadTarget,
     plans: RuntimeTextCallPlans<'_>,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let (authoritative_plan, get_std_handle_plan) = plans.for_binding(architecture, binding)?;
-    encode_runtime_text_line_read_with_optional_plans(
+    let plans = plans.for_binding(architecture, binding)?;
+    encode_runtime_text_line_read_for_plans(
         architecture,
         target_offset,
         byte_capacity,
         binding,
         target,
-        authoritative_plan,
-        get_std_handle_plan,
+        plans,
     )
 }
 
-fn encode_runtime_text_line_read_with_optional_plans(
+fn encode_runtime_text_line_read_for_plans(
     architecture: Architecture,
     target_offset: usize,
     byte_capacity: usize,
     binding: &HostBindingMechanism,
     target: RuntimeTextReadTarget,
-    authoritative_plan: Option<&CallPlan>,
-    get_std_handle_plan: Option<&CallPlan>,
+    plans: ResolvedRuntimeTextCallPlans<'_>,
 ) -> Result<Vec<u8>, Diagnostic> {
+    let authoritative_plan = plans.direct();
     match architecture {
         Architecture::Aarch64 => match binding {
             HostBindingMechanism::Import { .. } => {
@@ -792,10 +795,7 @@ fn encode_runtime_text_line_read_with_optional_plans(
         },
         Architecture::X86_64 => match binding {
             HostBindingMechanism::Import { .. } => {
-                validate_optional_win64_runtime_file_adapter_plans(
-                    get_std_handle_plan,
-                    authoritative_plan,
-                )?;
+                plans.validate_windows_file_adapter()?;
                 match target {
                     RuntimeTextReadTarget::BoundedByteBuffer => {
                         x86_64::encode_runtime_text_line_read_carrier(target_offset, byte_capacity)

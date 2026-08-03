@@ -919,6 +919,9 @@ Remaining:
   partial, or incompatible composite evidence rejects; their shared production
   encoder/width surface now represents either one retained direct plan or the
   complete Windows plan pair, so a partial adapter cannot be constructed.
+  Instruction selection preserves that sum after binding resolution as one of
+  direct, complete Windows adapter, or explicitly named compatibility oracle;
+  it no longer flattens the pair back into independently optional plans.
   Its singular `with_plan` APIs require the direct plan, the ISA Windows-pair
   validator requires both plans, and explicitly named no-plan functions retain
   the differential oracle. Object
