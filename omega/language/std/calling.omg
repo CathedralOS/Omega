@@ -212,7 +212,9 @@ trait CallingPolicy {
     machine plan(signature: BoundarySignature) -> BoundaryPlanResult;
 }
 
-// The compiler verifies that C resolves to a CallingPolicy plan machine when
-// it evaluates a boundary's Calling<C> relationship. Generic trait bounds are
-// not yet source syntax, so that constraint lives at this semantic use site.
-trait Calling<C> { }
+// Every Calling<C> relationship first proves the policy type's nominal
+// CallingPolicy conformance. The compiler can then evaluate that selected
+// conformance's plan machine and validate its canonical result.
+trait Calling<C>
+where C satisfies CallingPolicy
+{ }

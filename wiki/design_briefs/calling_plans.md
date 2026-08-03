@@ -71,7 +71,7 @@ trait CallingPolicy {
 
 trait Calling<C>
 where
-    C: CallingPolicy
+    C satisfies CallingPolicy
 {
 }
 
@@ -84,6 +84,8 @@ machine X86InterruptConvention::plan(
 {
     ...
 }
+
+X86InterruptConvention satisfies CallingPolicy;
 
 boundary trait TimerInterrupt:
     Calling<X86InterruptConvention>
@@ -170,7 +172,7 @@ policy an ordinary type parameter:
 ```omega
 boundary trait Console<C>: Calling<C>
 where
-    C: CallingPolicy
+    C satisfies CallingPolicy
 {
     machine write(bytes: &[u8]);
 }

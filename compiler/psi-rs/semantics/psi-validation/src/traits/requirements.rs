@@ -41,6 +41,20 @@ pub(crate) fn validate_trait_requirements(
                     "trait `{}` parent `{}` expects {expected} generic argument(s), got {actual}",
                     trait_definition.name, requirement.name
                 )));
+            } else {
+                super::conformance::validate_trait_application_obligations(
+                    program,
+                    required_trait,
+                    program
+                        .type_reference_table
+                        .type_reference_handles(requirement.arguments),
+                    &trait_definition.conformance_bounds,
+                    &format!(
+                        "trait `{}` parent `{}`",
+                        trait_definition.name, requirement.name
+                    ),
+                    diagnostics,
+                );
             }
 
             for argument in program

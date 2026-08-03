@@ -413,6 +413,18 @@ pub(crate) fn validate_machine_trait_conformances(
             continue;
         }
 
+        validate_trait_application_obligations(
+            program,
+            trait_definition,
+            explicit_type_arguments,
+            &machine.conformance_bounds,
+            &format!(
+                "machine `{}` conformance to trait `{}`",
+                machine.name, trait_definition.name
+            ),
+            diagnostics,
+        );
+
         // SINGLE-REQUIREMENT conformance (rearrange settle 2026-07-18): an
         // explicit `satisfies Trait::requirement`, or a bare trait name on a
         // FREE machine (free proof machines conform machine-by-machine to the
@@ -553,8 +565,290 @@ fn validate_conformance_bounds(
                 bound.carrier_name,
                 bound.arguments.len(),
             )));
+            continue;
+        }
+
+        validate_trait_application_obligations(
+            program,
+            trait_definition,
+            &bound.arguments,
+            bounds,
+            &format!(
+                "{owner_kind} `{owner_name}` conformance bound `{} satisfies {}`",
+                bound.subject_name, bound.carrier_name
+            ),
+            diagnostics,
+        );
+    }
+}
+
+/// Validate the obligations declared by a generic trait header at one use of
+/// that trait. For example, applying `Calling<C>` also proves the declaration
+/// site constraint from `trait Calling<C> where C satisfies CallingPolicy`.
+///
+/// `available_bounds` is the enclosing generic owner's evidence. Concrete
+/// arguments instead discharge obligations through standalone nominal
+/// conformance items. This keeps header constraints static and dictionary-free
+/// while rejecting an invalid relationship at the site that authored it.
+pub(super) fn validate_trait_application_obligations(
+    program: &TypedTrees,
+    applied_trait: &TraitDefinition,
+    applied_arguments: &[TypeReferenceHandle],
+    available_bounds: &[psi_typed_trees::machine::GenericConformanceBound],
+    application_label: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let parameters = program.trait_type_parameters(applied_trait);
+    if applied_arguments.len() != parameters.len() {
+        return;
+    }
+
+    for obligation in &applied_trait.conformance_bounds {
+        let Some(subject_index) = parameters.iter().position(|parameter| {
+            (parameter.symbol.is_valid() && parameter.symbol == obligation.subject)
+                || parameter.name == obligation.subject_name
+        }) else {
+            // Declaration validation reports an unknown header subject.
+            continue;
+        };
+        let actual_subject = applied_arguments[subject_index];
+
+        if let Some(selected) = obligation.conformance {
+            let Some(declaration) = program
+                .data_conformances()
+                .iter()
+                .find(|declaration| declaration.symbol == selected)
+            else {
+                // Declaration validation reports the unresolved selection.
+                continue;
+            };
+            let has_exact_evidence =
+                generic_argument_symbol(program, actual_subject).is_some_and(|subject_symbol| {
+                    available_bounds.iter().any(|candidate| {
+                        candidate.subject == subject_symbol
+                            && candidate.conformance == Some(selected)
+                    })
+                }) || concrete_data_type_name(program, actual_subject)
+                    == Some(declaration.type_name.as_str());
+            if !has_exact_evidence {
+                diagnostics.push(Diagnostic::error(format!(
+                    "{application_label} does not meet trait `{}` header obligation `{}` satisfies exact conformance `{}::{}`: argument `{}` is not data `{}`",
+                    applied_trait.name,
+                    obligation.subject_name,
+                    obligation.carrier_name,
+                    obligation
+                        .conformance_name
+                        .as_ref()
+                        .map_or("<missing>", |name| name.as_str()),
+                    program.display_type_reference(actual_subject),
+                    declaration.type_name,
+                )));
+            }
+            continue;
+        }
+
+        let Some(required_trait) = trait_definition_by_symbol(program, obligation.carrier) else {
+            // Declaration validation reports the unresolved trait.
+            continue;
+        };
+        if obligation.arguments.len() != program.trait_type_parameters(required_trait).len() {
+            // Declaration validation reports the arity mismatch.
+            continue;
+        }
+        let evidence_count =
+            if let Some(subject_symbol) = generic_argument_symbol(program, actual_subject) {
+                available_bounds
+                    .iter()
+                    .filter(|candidate| {
+                        candidate.subject == subject_symbol
+                            && bound_proves_trait_application(
+                                program,
+                                candidate,
+                                required_trait,
+                                &obligation.arguments,
+                                applied_trait,
+                                applied_arguments,
+                            )
+                    })
+                    .count()
+            } else if let Some(type_name) = concrete_data_type_name(program, actual_subject) {
+                program
+                    .data_conformances()
+                    .iter()
+                    .filter(|candidate| {
+                        candidate.type_name.as_str() == type_name
+                            && candidate.trait_name == required_trait.name
+                            && conformance_arguments_match_application(
+                                program,
+                                program
+                                    .type_reference_table
+                                    .type_reference_handles(candidate.arguments),
+                                &obligation.arguments,
+                                applied_trait,
+                                applied_arguments,
+                            )
+                    })
+                    .count()
+            } else {
+                0
+            };
+
+        match evidence_count {
+            1 => {}
+            0 => diagnostics.push(Diagnostic::error(format!(
+                "{application_label} does not meet trait `{}` header obligation `{} satisfies {}` for argument `{}`",
+                applied_trait.name,
+                obligation.subject_name,
+                trait_application_label(program, required_trait, &obligation.arguments),
+                program.display_type_reference(actual_subject),
+            ))),
+            count => diagnostics.push(Diagnostic::error(format!(
+                "{application_label} has {count} matching conformances for trait `{}` header obligation `{} satisfies {}`; select one exact named conformance",
+                applied_trait.name,
+                obligation.subject_name,
+                trait_application_label(program, required_trait, &obligation.arguments),
+            ))),
         }
     }
+}
+
+fn bound_proves_trait_application(
+    program: &TypedTrees,
+    bound: &psi_typed_trees::machine::GenericConformanceBound,
+    required_trait: &TraitDefinition,
+    required_arguments: &[TypeReferenceHandle],
+    applied_trait: &TraitDefinition,
+    applied_arguments: &[TypeReferenceHandle],
+) -> bool {
+    if let Some(selected) = bound.conformance {
+        return program
+            .data_conformances()
+            .iter()
+            .find(|declaration| declaration.symbol == selected)
+            .is_some_and(|declaration| {
+                declaration.trait_name == required_trait.name
+                    && conformance_arguments_match_application(
+                        program,
+                        program
+                            .type_reference_table
+                            .type_reference_handles(declaration.arguments),
+                        required_arguments,
+                        applied_trait,
+                        applied_arguments,
+                    )
+            });
+    }
+    bound.carrier == required_trait.symbol
+        && conformance_arguments_match_application(
+            program,
+            &bound.arguments,
+            required_arguments,
+            applied_trait,
+            applied_arguments,
+        )
+}
+
+fn conformance_arguments_match_application(
+    program: &TypedTrees,
+    actual: &[TypeReferenceHandle],
+    required: &[TypeReferenceHandle],
+    applied_trait: &TraitDefinition,
+    applied_arguments: &[TypeReferenceHandle],
+) -> bool {
+    let parameters = program.trait_type_parameters(applied_trait);
+    let mut bindings = parameters
+        .iter()
+        .zip(applied_arguments.iter())
+        .map(|(parameter, argument)| TraitTypeBinding {
+            parameter_symbol: parameter.symbol,
+            parameter_name: parameter.name.to_string(),
+            target: TraitTypeBindingTarget::Type(*argument),
+        })
+        .collect::<Vec<_>>();
+    actual.len() == required.len()
+        && actual
+            .iter()
+            .zip(required.iter())
+            .all(|(actual, required)| {
+                type_references_match_with_trait_bindings(
+                    program,
+                    *actual,
+                    *required,
+                    parameters,
+                    &mut bindings,
+                )
+            })
+}
+
+fn generic_argument_symbol(
+    program: &TypedTrees,
+    handle: TypeReferenceHandle,
+) -> Option<SymbolHandle> {
+    match program.type_reference_table.type_reference(handle) {
+        TypeReferenceNode::Reference { referee, .. } => generic_argument_symbol(program, *referee),
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            generic_argument_symbol(program, *base_type)
+        }
+        TypeReferenceNode::Named { symbol, .. }
+            if symbol.is_valid()
+                && matches!(
+                    program.symbols.get(*symbol).kind,
+                    psi_symbols::SymbolKind::TypeParameter
+                ) =>
+        {
+            Some(*symbol)
+        }
+        _ => None,
+    }
+}
+
+fn concrete_data_type_name(program: &TypedTrees, handle: TypeReferenceHandle) -> Option<&str> {
+    match program.type_reference_table.type_reference(handle) {
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            concrete_data_type_name(program, *base_type)
+        }
+        TypeReferenceNode::Named { symbol, name }
+            if symbol.is_valid()
+                && matches!(
+                    program.symbols.get(*symbol).kind,
+                    psi_symbols::SymbolKind::Data
+                ) =>
+        {
+            Some(name.as_str())
+        }
+        TypeReferenceNode::Generic {
+            base_symbol,
+            base_name,
+            ..
+        } if base_symbol.is_valid()
+            && matches!(
+                program.symbols.get(*base_symbol).kind,
+                psi_symbols::SymbolKind::Data
+            ) =>
+        {
+            Some(base_name.as_str())
+        }
+        _ => None,
+    }
+}
+
+fn trait_application_label(
+    program: &TypedTrees,
+    trait_definition: &TraitDefinition,
+    arguments: &[TypeReferenceHandle],
+) -> String {
+    if arguments.is_empty() {
+        return trait_definition.name.to_string();
+    }
+    format!(
+        "{}<{}>",
+        trait_definition.name,
+        arguments
+            .iter()
+            .map(|argument| program.display_type_reference(*argument))
+            .collect::<Vec<_>>()
+            .join(", ")
+    )
 }
 
 /// Operator requirements share the ordinary machine `satisfies` spelling with

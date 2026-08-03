@@ -78,6 +78,15 @@ pub(crate) fn validate_data_conformances(
             continue;
         }
 
+        super::conformance::validate_trait_application_obligations(
+            program,
+            trait_definition,
+            arguments,
+            &[],
+            &format!("conformance `{type_name} satisfies {trait_name}`"),
+            diagnostics,
+        );
+
         validate_data_satisfies_trait(
             program,
             type_name,
