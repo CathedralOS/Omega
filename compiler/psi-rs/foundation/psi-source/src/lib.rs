@@ -2,6 +2,14 @@
 
 //! Source-coordinate primitives owned by the Psi frontend.
 
+mod source_id;
+mod source_span;
+mod source_text;
+
+pub use source_id::SourceId;
+pub use source_span::SourceSpan;
+pub use source_text::SourceText;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Span {
     pub start: usize,

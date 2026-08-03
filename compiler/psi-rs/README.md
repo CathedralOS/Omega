@@ -13,8 +13,8 @@ the old Omega pipeline.
 
 Current roots:
 
-- `foundation/psi-source`: source-coordinate primitives shared by the Psi
-  frontend and temporary Omega compatibility exports;
+- `foundation/psi-source`: source identities, coordinates, and source-backed
+  text shared by the Psi frontend and temporary Omega compatibility exports;
 - `foundation/psi-core`: stable terminal semantic identities and the initial
   typed proposition vocabulary;
 - `representations/psi-tokens`: the spelling-level Omega token stream;

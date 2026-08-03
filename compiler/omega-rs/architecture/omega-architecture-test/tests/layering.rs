@@ -329,6 +329,33 @@ fn lexical_frontend_implementation_is_psi_owned() {
             "legacy lexical crate must not regain an implementation module: {relative}"
         );
     }
+
+    for (relative, expected_export) in [
+        (
+            "compiler/omega-rs/foundation/omega-core/src/span.rs",
+            "pub use psi_source::Span;",
+        ),
+        (
+            "compiler/omega-rs/foundation/omega-core/src/source/source_id.rs",
+            "pub use psi_source::SourceId;",
+        ),
+        (
+            "compiler/omega-rs/foundation/omega-core/src/source/source_span.rs",
+            "pub use psi_source::SourceSpan;",
+        ),
+        (
+            "compiler/omega-rs/foundation/omega-core/src/source/source_text.rs",
+            "pub use psi_source::SourceText;",
+        ),
+    ] {
+        let path = root.join(relative);
+        let source = std::fs::read_to_string(&path)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
+        assert!(
+            source.contains(expected_export),
+            "legacy source primitive must re-export its Psi-owned implementation: {relative}"
+        );
+    }
 }
 
 #[test]

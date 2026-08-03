@@ -14,7 +14,8 @@ Primary responsibility: preserve source identity and split text into tokens.
 
 ## Implementation Map
 
-- `compiler/psi-rs/foundation/psi-source` owns byte-span coordinates.
+- `compiler/psi-rs/foundation/psi-source` owns source identities, byte-span
+  coordinates, and source-backed text.
 - `compiler/psi-rs/representations/psi-tokens` owns token kinds, text, and
   streams.
 - `compiler/psi-rs/pipeline/psi-source-files-to-tokens` owns the implementation
