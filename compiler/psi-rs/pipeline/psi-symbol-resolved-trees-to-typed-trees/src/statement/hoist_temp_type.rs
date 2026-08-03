@@ -904,7 +904,7 @@ fn element_type_of(
 /// R3b: `a * self.Fb + c` with STRICT dependent params (`a < self.Fa`,
 /// `c < self.Fb`, resolved-tree recognizers) and the owning machine's
 /// `requires self.Fa * self.Fb <= K` coupling -> `(0, K - 1)`. Mirrors
-/// omega-validation's refine_dependent_product; kept in lockstep. The
+/// psi-validation's refine_dependent_product; kept in lockstep. The
 /// preservation gate is the typed-side rule's job at USE time -- the
 /// synthesized range is store-proved on the temp's own initializer, which
 /// re-runs the typed-side rule (a machine that writes the dims fails THAT

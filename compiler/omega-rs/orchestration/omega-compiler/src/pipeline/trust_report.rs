@@ -2,7 +2,7 @@
 //! admitted semantic commitment. Today's rows are the SEALED-DOMAIN
 //! INTRODUCTIONS: every domain declared in the compilation unit is
 //! own-package and dev-active (grant locality v1, mirroring the
-//! MintAuthority consult in omega-validation's recasts), so each carries
+//! MintAuthority consult in psi-validation's recasts), so each carries
 //! the standing warning until GR3's root grants land and flip its
 //! provenance. Progress profiles, accepted facts, and provider plans join
 //! as their consumers wire in (GR6).

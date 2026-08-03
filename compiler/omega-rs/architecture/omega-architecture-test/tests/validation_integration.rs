@@ -1,8 +1,10 @@
-use super::{validate_behavior_plan, validate_program};
 use psi_source_files_to_tokens::Lexer;
 use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use psi_tokens_to_syntax_trees::parse_syntax_trees;
+use psi_validation::{
+    validate_behavior_plan, validate_program, validate_static_machine_selections,
+};
 
 fn typed_program_from_source(source: &str) -> psi_typed_trees::TypedTrees {
     let source = format!("data Main {{}} machine Main::run(&mut self) {{}} {source}");
@@ -799,7 +801,7 @@ fn static_machine_argument_need_not_republish_a_tautological_postcondition() {
         "#,
     );
 
-    super::validate_static_machine_selections(&typed)
+    validate_static_machine_selections(&typed)
         .expect("`ensures true` is the postcondition identity");
 }
 
@@ -828,7 +830,7 @@ fn static_machine_argument_requires_a_published_termination_guarantee() {
         "#,
     );
 
-    let diagnostics = super::validate_static_machine_selections(&typed)
+    let diagnostics = validate_static_machine_selections(&typed)
         .expect_err("a private ranking witness must not publish a termination promise");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -863,7 +865,7 @@ fn static_machine_argument_accepts_a_published_termination_guarantee() {
         "#,
     );
 
-    super::validate_static_machine_selections(&typed)
+    validate_static_machine_selections(&typed)
         .expect("an explicit published termination guarantee should satisfy the slot");
 }
 
@@ -901,7 +903,7 @@ fn static_machine_argument_rejects_inferred_suspension_above_slot_ceiling() {
         .expect("worker operations");
     assert!(summary.transitive_may_suspend, "{summary:#?}");
 
-    let diagnostics = super::validate_static_machine_selections(&typed)
+    let diagnostics = validate_static_machine_selections(&typed)
         .expect_err("an inferred suspending provider must not widen a negative slot ceiling");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic.message.contains("may suspend")
@@ -943,7 +945,7 @@ fn static_machine_argument_rejects_blocking_independently_from_suspension() {
         .expect("worker operations");
     assert!(summary.transitive_may_block, "{summary:#?}");
 
-    let diagnostics = super::validate_static_machine_selections(&typed)
+    let diagnostics = validate_static_machine_selections(&typed)
         .expect_err("allowing suspension must not silently allow blocking");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic.message.contains("may block")
@@ -976,7 +978,7 @@ fn static_machine_argument_admits_provider_within_both_operational_ceilings() {
         "#,
     );
 
-    super::validate_static_machine_selections(&typed)
+    validate_static_machine_selections(&typed)
         .expect("a provider within both pinned axes should validate");
 }
 
@@ -1006,7 +1008,7 @@ fn static_machine_argument_rejects_symbol_resolved_service_widening() {
         "#,
     );
 
-    let diagnostics = super::validate_static_machine_selections(&typed)
+    let diagnostics = validate_static_machine_selections(&typed)
         .expect_err("a provider must not widen a symbol-resolved service ceiling");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -1043,7 +1045,7 @@ fn static_machine_argument_admits_service_reach_within_parent_closure() {
         "#,
     );
 
-    super::validate_static_machine_selections(&typed)
+    validate_static_machine_selections(&typed)
         .expect("a child service ceiling includes its boundary-service parents");
 }
 
@@ -1549,7 +1551,7 @@ fn higher_order_machine_parameter_refines_and_forwards_distinct_schema() {
         })
         .expect("Schema<Selected> call");
     assert_eq!(call.machine_arguments[0].symbol, selected.symbol);
-    super::validate_static_machine_selections(&typed)
+    validate_static_machine_selections(&typed)
         .expect("higher-order static schema should refine and validate");
 }
 
@@ -3645,11 +3647,11 @@ mod provider_registry {
 }
 
 mod structural_entailment {
-    use super::super::validate_program;
     use psi_source_files_to_tokens::Lexer;
     use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
     use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
     use psi_tokens_to_syntax_trees::parse_syntax_trees;
+    use psi_validation::validate_program;
 
     /// Run source through parse -> resolve -> typed -> validate. `Nat` is
     /// declared inline (the judge is parametric over any recursive proof

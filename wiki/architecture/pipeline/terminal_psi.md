@@ -54,9 +54,9 @@ plans and target/layout-specific task activation plans are Omega-owned and
 travel as orchestration sidecars. `CheckedTrees` does not embed that
 target/provider realization state. `psi-typed-trees-to-checked-trees` now owns
 semantic checking and checked-fact construction. Its validation and proof
-dependencies live in `psi-validation` and `psi-proof`; the unused Omega proof
-compatibility package is retired, while `omega-validation` temporarily retains
-its compatibility test harness. Provider installation and approval remain
+dependencies live in `psi-validation` and `psi-proof`; their unused Omega
+compatibility packages are retired, with cross-owner validation/provider tests
+retained in the architecture harness. Provider installation and approval remain
 Omega concerns, and Omega orchestration runs that admission explicitly after
 the Psi check.
 

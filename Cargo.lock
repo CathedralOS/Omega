@@ -112,7 +112,14 @@ version = "0.1.0"
 dependencies = [
  "omega-control-flow",
  "omega-core",
+ "omega-effects",
+ "psi-source-files-to-tokens",
+ "psi-symbol-resolved-trees-to-typed-trees",
+ "psi-syntax-trees",
+ "psi-syntax-trees-to-symbol-resolved-trees",
+ "psi-tokens-to-syntax-trees",
  "psi-typed-trees",
+ "psi-validation",
  "serde_json",
 ]
 
@@ -1033,23 +1040,6 @@ dependencies = [
  "omega-target",
  "psi-core",
  "psi-terminal",
-]
-
-[[package]]
-name = "omega-validation"
-version = "0.1.0"
-dependencies = [
- "omega-core",
- "omega-effects",
- "psi-access-plans",
- "psi-facts",
- "psi-source-files-to-tokens",
- "psi-symbol-resolved-trees-to-typed-trees",
- "psi-syntax-trees",
- "psi-syntax-trees-to-symbol-resolved-trees",
- "psi-tokens-to-syntax-trees",
- "psi-typed-trees",
- "psi-validation",
 ]
 
 [[package]]

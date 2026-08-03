@@ -42537,7 +42537,7 @@ struct PendingCanary {
 // runtime_fixed_array_field_guard_exit_canary_runs).
 //
 // The proofs false twins were promoted to fail/proofs/ when the contract
-// entailment engine (omega-validation/src/contract_entailment.rs) landed:
+// entailment engine (psi-validation/src/contract_entailment.rs) landed:
 // empty-body proof machines whose contracts lie inside the engine's language
 // are now PROVED or REJECTED, never silently accepted. The pass/proofs/
 // ladder pins the proving side; the rungs map to engine increments in
@@ -42548,7 +42548,7 @@ struct PendingCanary {
 // guard compares + payload member reads); the compiler-side lowering gate was
 // removed with it.
 // machine_bound_value_call_unchecked was promoted to fail/generics/ when
-// `validate_value_position_calls` landed in omega-validation/src/calls.rs:
+// `validate_value_position_calls` landed in psi-validation/src/calls.rs:
 // the machine-call type-parameter bound check now runs for VALUE-position
 // calls (`let r = self.pick(&self.h)`) via an expression-tree walker that
 // mirrors the statement-position `validate_call_node` path.  A companion

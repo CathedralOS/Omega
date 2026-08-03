@@ -1,7 +1,7 @@
 //! Boundary-call signature resolution: the "receiver field -> attached data
 //! -> field's declared trait -> called signature" chain shared by the proof
 //! engines (the checker's R4 witness mints and psi-proof's
-//! bounded-assignment containment walk both consume it; omega-validation's
+//! bounded-assignment containment walk both consume it; psi-validation's
 //! sibling resolves through its crate-local symbol caches, which also cover
 //! `contains`-clause receivers). Lives here because the chain is a pure
 //! `TypedTrees` walk and every consumer already depends on this crate.

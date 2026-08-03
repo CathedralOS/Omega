@@ -20,7 +20,7 @@
 //! descriptor into the caller's out buffer -- length varint + bounded
 //! byte-copy, exactly the nested framing.
 //!
-//! Front-end validation (`omega-validation::wire`) has already guaranteed
+//! Front-end validation (`psi-validation::wire`) has already guaranteed
 //! the call shape, the field coverage, the stage 2 field set (scalar-only
 //! children, one nesting level), and the out-buffer capacity for everything
 //! but the runtime-sized text content, so an unresolvable place here is a

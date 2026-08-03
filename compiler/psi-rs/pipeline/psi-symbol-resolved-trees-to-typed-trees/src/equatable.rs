@@ -180,7 +180,7 @@ pub(crate) fn field_equality<'program>(
 
 /// Validate every declared Equatable conformance BEFORE machine lowering so
 /// prerequisite violations error at the conformance item, not at a later
-/// `==` site. Unknown data/trait names are left to `omega-validation`.
+/// `==` site. Unknown data/trait names are left to `psi-validation`.
 pub(crate) fn validate_equatable_conformances(
     program: &SymbolResolvedTrees,
 ) -> Result<(), Diagnostic> {

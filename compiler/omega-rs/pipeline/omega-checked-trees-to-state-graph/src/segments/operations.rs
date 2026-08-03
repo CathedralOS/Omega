@@ -111,7 +111,7 @@ fn expression_is_runtime_indexed(table: &ExpressionTable, handle: ExpressionHand
 /// storage blocker rather than vanishing. A const index (`grid[i][0]`, `rows[i].data[0]`) resolves
 /// to a fixed offset and IS lowerable, and a single index over a non-indexed base (`arr[i]`,
 /// `self.field[i]`) has no array index in its collection chain, so neither is refused. (Mirrors the
-/// READ fence `report_nested_runtime_indexed_read` in omega-validation.)
+/// READ fence `report_nested_runtime_indexed_read` in psi-validation.)
 fn target_is_nested_runtime_indexed(table: &ExpressionTable, target: ExpressionHandle) -> bool {
     // Walk EVERY level of the target's place chain (through Indexed collections, Member receivers,
     // and Mutable). A runtime index is lowerable only when it is the BASE-CLOSEST index (its
@@ -140,7 +140,7 @@ fn target_is_nested_runtime_indexed(table: &ExpressionTable, target: ExpressionH
 /// Whether a place chain (through `Member` receivers and `Mutable`) reaches an `Indexed` node --
 /// i.e. the base is itself array-indexed. (Refining this to RUNTIME-indexed-only was tried and
 /// REVERTED 2026-07-07: the const-outer shape's consumers are not wired, so it ran silently
-/// wrong -- see the read fence's note in omega-validation calls.rs.)
+/// wrong -- see the read fence's note in psi-validation calls.rs.)
 fn collection_chain_reaches_index(table: &ExpressionTable, mut place: ExpressionHandle) -> bool {
     loop {
         match table.expression(place) {
