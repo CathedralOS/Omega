@@ -925,7 +925,11 @@ application-handler re-entry restrictions use ordinary local reach analysis.
   remaining legacy internal umbrella names after their consumers migrate.
   Checked facts now name their grouped suspension/blocking/call-topology root
   `operational`, retiring the ambiguous `operations` umbrella field without
-  merging it with service reach or any other semantic axis.
+  merging it with service reach or any other semantic axis. Production
+  consumers now name `OperationalPlan` bindings and parameters `operational`
+  throughout inference, validation, checked-fact construction, capability
+  analysis, and build-time admission; genuine executable and atomic operation
+  collections retain their literal `operations` name.
   Imported transparent-refinement spelling must supply the narrowed
   operational envelope consumed by the completed exact call-acknowledgement
   checker.
