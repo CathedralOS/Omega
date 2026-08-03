@@ -390,8 +390,11 @@ physical machine shape.
 Checked Psi now retains the first descriptor-selection input: a direct bare
 place coercion succeeds only for one unique complete nominal conformance and
 records its exact source-data, target-trait, and optional stable conformance
-symbol. Missing or ambiguous selections fail before Omega lowering. Named
-selection syntax plus the private table and adapter realization remain.
+symbol. Missing or ambiguous selections fail before Omega lowering. An exact
+`dyn Type::Conformance` target is now retained through typed identity, derives
+its dispatch trait from the declared edge, and selects that stable child symbol
+even when sibling conformances exist; unknown and wrong-carrier paths reject.
+The private table and adapter realization remain.
 
 The dynamic requirement's operational envelope accounts for the complete
 dispatch path:
