@@ -349,12 +349,13 @@ those rows remain absent until their actual checked proofs exist.
   equation in `05_claim_outcomes.json`. Composition copies the source
   `separate(...)`
   structure and cannot manufacture a partition. Eligible wrapper chains close
-  to a fixed point. A staged-local or nested aggregate result composes only
-  when every projected call-result claim is established at that exact call,
-  transferred unchanged at the exact return, and published at one unique
-  callable-result path. Each rewrite row binds that claim to its exact source
-  and target structural places. Aggregate argument construction and multi-hop
-  local result chains remain fail-closed. These non-direct rows remain
+  to a fixed point. A staged-local chain or nested aggregate result composes
+  only when every projected call-result claim is established at that exact
+  call, survives the normalized outcome-map chain unchanged, and is published
+  at one unique callable-result path. Each rewrite row binds that claim to its
+  exact source and target structural places. Aggregate argument construction
+  and states with multiple candidate partition calls remain fail-closed. These
+  non-direct rows remain
   checked/debug evidence because
   terminal semantic v12 deliberately carries only direct composition as its
   exact source theorem, source fingerprint,
@@ -370,8 +371,8 @@ those rows remain absent until their actual checked proofs exist.
   compositions into the existing v9-v12 terminal vocabulary, including dense
   claim identities and replayable place substitutions. The executable source
   canary remains content-free and fail-closed. Next compose aggregate argument
-  and multi-hop structural rewrites around authored-partition calls, connect a
-  real content-bearing source slice after its separately recorded design
+  and multiple-call structural rewrites around authored-partition calls,
+  connect a real content-bearing source slice after its separately recorded design
   blocker is resolved, insert sealed introduction and custody-exit rows, and
   discharge or admit the exact frontier theorem.
 - **TERMINAL-CONTENT-CLAIMS — BLOCKED on language/IR design:** a real direct
@@ -786,7 +787,9 @@ Remaining:
   current vtable-slot, vtable-field, and service-table cohort now proves exact
   byte equality between compatibility selection and an explicit evaluated
   native plan on Microsoft x64, SysV AMD64, and AAPCS64; both result-bearing
-  widths are pinned too; and
+  widths are pinned too. Authored scalar imports now carry the same byte/width
+  lock on Microsoft x64 and both AAPCS64 targets, while SysV AMD64 explicitly
+  fails closed without its required plan; and
 - delete compatibility fields after their final consumer migrates.
 
 Acceptance: changing a normalized plan changes lowering or rejects; changing

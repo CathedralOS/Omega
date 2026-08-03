@@ -874,7 +874,10 @@ AAPCS64, default compatibility selection must emit the same bytes as supplying
 the independently evaluated native `CallPlan`. Result-bearing field and table
 calls also require identical planned widths. This pins compatibility as an
 oracle comparison rather than a second placement policy while later consumers
-migrate to mandatory plans.
+migrate to mandatory plans. Scalar authored imports carry the same byte/width
+lock on Microsoft x64 and both AAPCS64 targets. The x86-64 compatibility host
+encoder has no SysV authored-import path, so that target instead proves it
+fails closed without a plan and succeeds with the explicit SysV plan.
 
 Remaining order:
 

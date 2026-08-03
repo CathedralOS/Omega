@@ -1919,6 +1919,51 @@ mod compatibility_encoder_differential_tests {
             );
         }
     }
+
+    #[test]
+    fn authored_import_compatibility_bytes_and_width_equal_the_explicit_native_plan() {
+        // Result storage followed by one declared scalar argument. The legacy
+        // catalog key supplies only the compatibility route; placement comes
+        // independently from the evaluated native plan in the comparison arm.
+        let operands = [scalar(0), scalar(8)];
+        let operation = HostOperationKey::from_names("Filesystem", "open");
+        for target in [
+            NativeTarget::windows_x64(),
+            NativeTarget::linux_arm64(),
+            NativeTarget::macos_arm64(),
+        ] {
+            let plan = plan(target, 1, true);
+            let compatibility =
+                encode_authored_import_call_sequence(target, operation, &operands, None)
+                    .expect("compatibility authored-import encoding");
+            let planned =
+                encode_authored_import_call_sequence(target, operation, &operands, Some(&plan))
+                    .expect("explicit-plan authored-import encoding");
+            assert_eq!(compatibility, planned, "target {target:?}");
+            assert_eq!(
+                crate::authored_import_call_sequence_width(target, operation, &operands, None,),
+                crate::authored_import_call_sequence_width(
+                    target,
+                    operation,
+                    &operands,
+                    Some(&plan),
+                ),
+                "target {target:?}"
+            );
+        }
+
+        let linux_x64 = NativeTarget::linux_x64();
+        let error = encode_authored_import_call_sequence(linux_x64, operation, &operands, None)
+            .expect_err("SysV authored imports have no compatibility encoder");
+        assert!(error.message.contains("not SystemVAMD64"));
+        encode_authored_import_call_sequence(
+            linux_x64,
+            operation,
+            &operands,
+            Some(&plan(linux_x64, 1, true)),
+        )
+        .expect("the explicit SysV plan remains supported");
+    }
 }
 
 #[cfg(test)]
