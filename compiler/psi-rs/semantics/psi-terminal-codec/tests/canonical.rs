@@ -6,9 +6,10 @@ use psi_core::{
     StructuralPlaceKind, ValueId,
 };
 use psi_terminal::{
-    Block, ClaimContentProjection, ContentIdentityReshuffle, ContractClause, MachineContract,
-    Operation, OperationKind, SemanticVersion, StructuralPlaceDeclaration, TerminalMachine,
-    TerminalModule, Terminator, ValueDeclaration,
+    Block, ClaimContentProjection, ContentIdentityReshuffle, ContentPartitionComposition,
+    ContentPlaceSubstitution, ContractClause, MachineContract, Operation, OperationKind,
+    SemanticVersion, StructuralPlaceDeclaration, TerminalMachine, TerminalModule, Terminator,
+    ValueDeclaration,
 };
 use psi_terminal_codec::{
     CodecError, decode_module, encode_module, migrate_module_to_current, semantic_fingerprint,
@@ -29,7 +30,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.semantic_version, SemanticVersion::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "e01075a9e3550f6cea0889b45cd502fbc45d1089bd5728d8a9c370918e9a5c49"
+        "f5939272cbb8d15cd8201a16ba7eed0b6851398996d416752b415c7aef7aeb4a"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -83,6 +84,46 @@ fn v11_sum_case_identity_reshuffle_has_stable_canonical_bytes() {
     assert_eq!(
         semantic_fingerprint(&module).unwrap().to_string(),
         "9416872934ea26fdf70a5cac07e881fae236cf157cb70f4b90dbb85f2c1102da"
+    );
+}
+
+#[test]
+fn v12_partition_composition_has_stable_canonical_bytes() {
+    let module = partition_composition_fixture();
+    let bytes = encode_module(&module).expect("v12 partition composition should encode");
+
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
+    assert_eq!(
+        semantic_fingerprint(&module).unwrap().to_string(),
+        "f05e8d1d90585767fdb80846f8022699286fa85f1eccc8fc2680d5d1d58792ec"
+    );
+}
+
+#[test]
+fn partition_composition_encoding_is_v12_and_canonically_ordered() {
+    let mut old = partition_composition_fixture();
+    old.semantic_version = SemanticVersion::V11;
+    assert!(matches!(
+        encode_module(&old),
+        Err(CodecError::InvalidModule(
+            psi_terminal_verifier::ModuleError::ContentPartitionCompositionsRequireSemanticVersion {
+                required: SemanticVersion::V12,
+                actual: SemanticVersion::V11,
+                ..
+            }
+        ))
+    ));
+
+    let mut substitutions = partition_composition_fixture();
+    substitutions.machines[0].content_partition_compositions[0]
+        .substitutions
+        .swap(0, 1);
+    assert_eq!(
+        encode_module(&substitutions),
+        Err(CodecError::NonCanonicalOrder(
+            "partition place substitutions"
+        ))
     );
 }
 
@@ -769,6 +810,7 @@ fn fixture() -> TerminalModule {
             },
             structural_places: Vec::new(),
             content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
             entry: block_id(1),
             blocks: vec![
                 Block {
@@ -858,6 +900,7 @@ fn boolean_fixture(semantic_version: SemanticVersion) -> TerminalModule {
             },
             structural_places: Vec::new(),
             content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
             entry: block_id(10),
             blocks: vec![Block {
                 id: block_id(10),
@@ -939,6 +982,7 @@ fn content_conservation_fixture(semantic_version: SemanticVersion) -> TerminalMo
                 },
             ],
             content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
             entry: block_id(80),
             blocks: vec![Block {
                 id: block_id(80),
@@ -1003,6 +1047,97 @@ fn identity_reshuffle_fixture(semantic_version: SemanticVersion) -> TerminalModu
     module
 }
 
+fn partition_composition_fixture() -> TerminalModule {
+    let mut module = identity_reshuffle_fixture(SemanticVersion::V12);
+    let machine = &mut module.machines[0];
+    machine.content_identity_reshuffles[0]
+        .projections
+        .truncate(1);
+    let projection = machine.content_identity_reshuffles[0].projections[0].projection;
+    let algebra = machine.content_identity_reshuffles[0].projections[0]
+        .algebra
+        .clone();
+    let result_root = machine.content_identity_reshuffles[0].output.root;
+    let source_input_root = place_id(90);
+    let source_result_root = place_id(91);
+    let place = |version, root, field: Option<&str>| ContentStructuralPlace {
+        version,
+        root,
+        segments: field
+            .into_iter()
+            .map(|field| ContentPlaceSegment::Field(field.to_owned()))
+            .collect(),
+    };
+    let term = |subject| ContentTerm::Projection {
+        projection,
+        subject,
+    };
+    let source_input = place(ContentPlaceVersion::Entry, source_input_root, None);
+    let source_left = place(
+        ContentPlaceVersion::Current,
+        source_result_root,
+        Some("left"),
+    );
+    let source_right = place(
+        ContentPlaceVersion::Current,
+        source_result_root,
+        Some("right"),
+    );
+    let target_input = machine.content_identity_reshuffles[0].input.clone();
+    let target_left = place(ContentPlaceVersion::Current, result_root, Some("left"));
+    let target_right = place(ContentPlaceVersion::Current, result_root, Some("right"));
+    machine.content_identity_reshuffles[0].input = target_input.clone();
+    machine.content_identity_reshuffles[0].output = target_left.clone();
+    let source = ContentConservation::new(
+        algebra.clone(),
+        term(source_input.clone()),
+        ContentTerm::separate([term(source_left.clone()), term(source_right.clone())])
+            .expect("source partition"),
+    );
+    let derived = ContentConservation::new(
+        algebra,
+        term(target_input.clone()),
+        ContentTerm::separate([term(target_left.clone()), term(target_right.clone())])
+            .expect("derived partition"),
+    );
+    let mut substitutions = vec![
+        ContentPlaceSubstitution {
+            source: source_input,
+            target: target_input,
+        },
+        ContentPlaceSubstitution {
+            source: source_left,
+            target: target_left,
+        },
+        ContentPlaceSubstitution {
+            source: source_right,
+            target: target_right,
+        },
+    ];
+    substitutions.sort();
+    machine.content_partition_compositions = vec![ContentPartitionComposition {
+        source_fingerprint: 0xfeed_face_dead_beef,
+        source_structural_places: vec![
+            StructuralPlaceDeclaration {
+                id: source_input_root,
+                kind: StructuralPlaceKind::Parameter {
+                    position: 0,
+                    is_self: false,
+                },
+            },
+            StructuralPlaceDeclaration {
+                id: source_result_root,
+                kind: StructuralPlaceKind::Result,
+            },
+        ],
+        source,
+        input_claims: vec![claim_id(1)],
+        substitutions,
+        derived,
+    }];
+    module
+}
+
 fn wrapping_add_fixture(semantic_version: SemanticVersion) -> TerminalModule {
     let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
     let scalar_type = ScalarType::Integer(integer);
@@ -1018,6 +1153,7 @@ fn wrapping_add_fixture(semantic_version: SemanticVersion) -> TerminalModule {
             },
             structural_places: Vec::new(),
             content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
             entry: block_id(20),
             blocks: vec![Block {
                 id: block_id(20),

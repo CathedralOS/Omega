@@ -19,6 +19,8 @@ use psi_core::{
 /// Version 10 adds canonical identity-preserving claim reshuffles from which
 /// the verifier reconstructs one-to-one content equalities.
 /// Version 11 adds stable sum-case segments to structural content paths.
+/// Version 12 adds exact authored-partition substitution rows. The verifier
+/// replays each substitution and reconstructs only the resulting theorem.
 /// Older bytes retain their original meaning and identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SemanticVersion(NonZeroU16);
@@ -35,7 +37,8 @@ impl SemanticVersion {
     pub const V9: Self = Self(NonZeroU16::new(9).expect("nine is nonzero"));
     pub const V10: Self = Self(NonZeroU16::new(10).expect("ten is nonzero"));
     pub const V11: Self = Self(NonZeroU16::new(11).expect("eleven is nonzero"));
-    pub const CURRENT: Self = Self::V11;
+    pub const V12: Self = Self(NonZeroU16::new(12).expect("twelve is nonzero"));
+    pub const CURRENT: Self = Self::V12;
 
     pub fn new(raw: u16) -> Option<Self> {
         NonZeroU16::new(raw).map(Self)
@@ -72,6 +75,10 @@ pub struct TerminalMachine {
     /// not authored algebra theorems: each exact projection below yields one
     /// verifier-reconstructed equality between `input` and `output`.
     pub content_identity_reshuffles: Vec<ContentIdentityReshuffle>,
+    /// Exact substitutions of already-authored partition theorems. These rows
+    /// retain the source theorem and do not permit a producer to introduce a
+    /// new `Separate` node in the derived equation.
+    pub content_partition_compositions: Vec<ContentPartitionComposition>,
     pub entry: BlockId,
     pub blocks: Vec<Block>,
     pub contract: MachineContract,
@@ -113,6 +120,33 @@ impl ContentIdentityReshuffle {
                 },
             ))
         })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ContentPlaceSubstitution {
+    pub source: ContentStructuralPlace,
+    pub target: ContentStructuralPlace,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ContentPartitionComposition {
+    pub source_fingerprint: u64,
+    /// Structural-place declarations for the source callable's theorem. They
+    /// live in a namespace local to this witness rather than the wrapper.
+    pub source_structural_places: Vec<StructuralPlaceDeclaration>,
+    pub source: ContentConservation,
+    /// Dense machine-local claims whose exact entry projections participate.
+    pub input_claims: Vec<ClaimId>,
+    /// Strictly ordered by `source`; every source projection has exactly one
+    /// substitution and all rows are used by replay.
+    pub substitutions: Vec<ContentPlaceSubstitution>,
+    pub derived: ContentConservation,
+}
+
+impl ContentPartitionComposition {
+    pub fn inferred_proposition(&self) -> Proposition {
+        Proposition::ContentConservation(self.derived.clone())
     }
 }
 

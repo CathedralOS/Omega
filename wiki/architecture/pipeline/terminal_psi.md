@@ -263,11 +263,19 @@ qualification, and never synthesizes separated composition across independent
 claims. Fresh establishments, mismatched projections, and runtime indices infer
 nothing. Terminal semantic v10 carries field/fixed-index rows in canonical
 machine-local claim order; semantic v11 adds distinct stable sum-case path
-segments, and proof format v9 carries those segments in certificates. The verifier
-revalidates one-to-one, non-overlapping parameter-entry/result-current paths,
-exact projection and algebra identity, and reconstructs one content-equality
-semantic axiom per projection for replaceable certificates. Sealed introduction
-and custody-exit frontier rows, authored-partition composition, and the general
+segments, and proof format v9 carries those segments in certificates. The
+verifier revalidates one-to-one, non-overlapping
+parameter-entry/result-current paths, exact projection and algebra identity,
+and reconstructs one content-equality semantic axiom per projection for
+replaceable certificates. Terminal semantic v12 adds exact direct-wrapper
+partition composition: canonical rows retain the source theorem and
+fingerprint, dense participating claims, total structural-place substitution,
+and derived theorem. Validation requires an authored separation tree, checks
+source and wrapper place roles, binds every derived entry projection to one
+listed identity row, and mechanically replays the substitution before exposing
+the derived proposition as a semantic axiom. Existing proof format v9 already
+represents that proposition. Composition through surrounding non-direct
+rewrites, sealed introduction and custody-exit frontier rows, and the general
 frontier theorem remain to land.
 
 These normalized obligations are semantic and fingerprinted. Their proof

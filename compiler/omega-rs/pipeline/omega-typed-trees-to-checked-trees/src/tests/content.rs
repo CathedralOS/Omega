@@ -553,8 +553,17 @@ fn checked_facts_compose_authored_partitions_through_a_direct_wrapper() {
         .find(|row| row.state_symbol == forward)
         .expect("direct wrapper composition");
     assert_eq!(forward_row.source_callable, partition);
+    assert_eq!(
+        forward_row.source_fingerprint,
+        forward_row.source_plan.fingerprint
+    );
     assert_eq!(forward_row.call_ordinal, 0);
     assert_eq!(forward_row.input_claim_identities.len(), 2);
+    assert_eq!(
+        forward_row.substitutions.len(),
+        4,
+        "both source inputs and both result fields have exact substitutions"
+    );
     assert!(
         forward_row.input_claim_identities.iter().all(|identity| {
             *identity != omega_core::semantics::PermissionClaimIdentity::Unknown

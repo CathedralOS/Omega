@@ -437,12 +437,18 @@ those rows remain absent until their actual checked proofs exist.
   `05_claim_outcomes.json`. Composition copies the source `separate(...)`
   structure and cannot manufacture a partition. Eligible direct wrapper chains
   close to a fixed point; staged locals, aggregate argument construction,
-  nested result reshaping, and terminal-Psi partition-composition vocabulary
-  remain fail-closed.
-  Archived v1-v10 bytes retain their identities. Remaining work is to compose
-  identity rewrites around those non-direct authored-partition calls, insert
-  sealed introduction and custody-exit rows, and discharge or admit the exact
-  frontier theorem.
+  and nested result reshaping remain fail-closed. Terminal semantic v12 carries
+  each direct composition as its exact source theorem, source fingerprint,
+  dense input-claim references, total structural-place substitution, and
+  derived equation. The verifier requires the source to contain separation,
+  binds every entry projection to one listed identity-reshuffle claim, replays
+  the substitution, and reconstructs only the exact derived theorem as a
+  semantic axiom. Canonical bytes include the witness; existing proof format v9
+  already carries the resulting content proposition.
+  Archived v1-v11 bytes retain their identities. Remaining work is to compose
+  identity rewrites around non-direct authored-partition calls, insert sealed
+  introduction and custody-exit rows, and discharge or admit the exact frontier
+  theorem.
   Contracts call the exact
   owner-unique `Content<A>::project` conformance machine; do not add
   `content(...)`, general `old(...)`, or `retired_via(...)`. Normalize one

@@ -10,9 +10,10 @@ use psi_proof_kernel::{
     ProofSystemVersion,
 };
 use psi_terminal::{
-    Block, ClaimContentProjection, ContentIdentityReshuffle, ContractClause, MachineContract,
-    Operation, OperationKind, SemanticVersion, StructuralPlaceDeclaration, TerminalMachine,
-    TerminalModule, Terminator, ValueDeclaration,
+    Block, ClaimContentProjection, ContentIdentityReshuffle, ContentPartitionComposition,
+    ContentPlaceSubstitution, ContractClause, MachineContract, Operation, OperationKind,
+    SemanticVersion, StructuralPlaceDeclaration, TerminalMachine, TerminalModule, Terminator,
+    ValueDeclaration,
 };
 use psi_terminal_verifier::{
     ContractClauseKind, ModuleError, ObligationEvidence, ProofBundle, VerificationError,
@@ -67,6 +68,7 @@ fn v2_boolean_constant_axiom_proves_the_return_contract() {
             },
             structural_places: Vec::new(),
             content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
             entry: BlockId::new(10).expect("block"),
             blocks: vec![Block {
                 id: BlockId::new(10).expect("block"),
@@ -198,6 +200,58 @@ fn v11_sum_case_identity_reshuffle_reconstructs_content_equality() {
 
     verify_module(&module, &bundle, &AdmissionProfile::default())
         .expect("a v11 case-plus-field reshuffle should establish its content equality");
+}
+
+#[test]
+fn v12_partition_composition_replays_an_authored_theorem_as_a_semantic_axiom() {
+    let (module, goal, obligation) = partition_composition_module();
+    let bundle = ProofBundle {
+        evidence: vec![ObligationEvidence {
+            obligation,
+            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                identity: EvidenceIdentity::new(92).expect("certificate"),
+                proof_system_version: ProofSystemVersion::CURRENT,
+                proof: ProofNode {
+                    conclusion: goal,
+                    rule: ProofRule::SemanticAxiom { index: 1 },
+                },
+            }),
+        }],
+    };
+
+    verify_module(&module, &bundle, &AdmissionProfile::default())
+        .expect("an exact v12 theorem substitution should be reconstructed");
+}
+
+#[test]
+fn v12_partition_composition_rejects_old_versions_and_theorem_drift() {
+    let (mut old, _, _) = partition_composition_module();
+    old.semantic_version = SemanticVersion::V11;
+    assert!(matches!(
+        validate_module(&old),
+        Err(
+            ModuleError::ContentPartitionCompositionsRequireSemanticVersion {
+                required: SemanticVersion::V12,
+                actual: SemanticVersion::V11,
+                ..
+            }
+        )
+    ));
+
+    let (mut drifted, _, _) = partition_composition_module();
+    let composition = &mut drifted.machines[0].content_partition_compositions[0];
+    let ContentTerm::Separate(children) = composition.derived.right().clone() else {
+        panic!("fixture has a separated result")
+    };
+    composition.derived = ContentConservation::new(
+        composition.derived.algebra().clone(),
+        composition.derived.left().clone(),
+        children[0].clone(),
+    );
+    assert_eq!(
+        validate_module(&drifted).expect_err("the derived equation must replay exactly"),
+        ModuleError::ContentPartitionReplayMismatch
+    );
 }
 
 #[test]
@@ -398,6 +452,7 @@ fn identity_reshuffle_module() -> (TerminalModule, Proposition, ObligationId) {
             },
         ],
         content_identity_reshuffles: vec![reshuffle],
+        content_partition_compositions: Vec::new(),
         entry: BlockId::new(90).expect("block"),
         blocks: vec![Block {
             id: BlockId::new(90).expect("block"),
@@ -426,6 +481,102 @@ fn identity_reshuffle_module() -> (TerminalModule, Proposition, ObligationId) {
         goal,
         obligation,
     )
+}
+
+fn partition_composition_module() -> (TerminalModule, Proposition, ObligationId) {
+    let (mut module, _, obligation) = identity_reshuffle_module();
+    module.semantic_version = SemanticVersion::V12;
+    let machine = &mut module.machines[0];
+    let input_root = machine.content_identity_reshuffles[0].input.root;
+    let result_root = machine.content_identity_reshuffles[0].output.root;
+    let projection = machine.content_identity_reshuffles[0].projections[0].projection;
+    let algebra = machine.content_identity_reshuffles[0].projections[0]
+        .algebra
+        .clone();
+    let source_input_root = PlaceId::new(190).expect("source input");
+    let source_result_root = PlaceId::new(191).expect("source result");
+    let place = |version, root, segments| ContentStructuralPlace {
+        version,
+        root,
+        segments,
+    };
+    let term = |subject| ContentTerm::Projection {
+        projection,
+        subject,
+    };
+    let source_input = place(ContentPlaceVersion::Entry, source_input_root, Vec::new());
+    let source_left = place(
+        ContentPlaceVersion::Current,
+        source_result_root,
+        vec![ContentPlaceSegment::Field("left".to_owned())],
+    );
+    let source_right = place(
+        ContentPlaceVersion::Current,
+        source_result_root,
+        vec![ContentPlaceSegment::Field("right".to_owned())],
+    );
+    let target_input = place(ContentPlaceVersion::Entry, input_root, Vec::new());
+    let target_left = place(
+        ContentPlaceVersion::Current,
+        result_root,
+        vec![ContentPlaceSegment::Field("left".to_owned())],
+    );
+    let target_right = place(
+        ContentPlaceVersion::Current,
+        result_root,
+        vec![ContentPlaceSegment::Field("right".to_owned())],
+    );
+    machine.content_identity_reshuffles[0].output = target_left.clone();
+    let source = ContentConservation::new(
+        algebra.clone(),
+        term(source_input.clone()),
+        ContentTerm::separate([term(source_left.clone()), term(source_right.clone())])
+            .expect("separated source"),
+    );
+    let derived = ContentConservation::new(
+        algebra,
+        term(target_input.clone()),
+        ContentTerm::separate([term(target_left.clone()), term(target_right.clone())])
+            .expect("separated target"),
+    );
+    let mut substitutions = vec![
+        ContentPlaceSubstitution {
+            source: source_input,
+            target: target_input,
+        },
+        ContentPlaceSubstitution {
+            source: source_left,
+            target: target_left,
+        },
+        ContentPlaceSubstitution {
+            source: source_right,
+            target: target_right,
+        },
+    ];
+    substitutions.sort();
+    machine.content_partition_compositions = vec![ContentPartitionComposition {
+        source_fingerprint: 0xfeed_face_dead_beef,
+        source_structural_places: vec![
+            StructuralPlaceDeclaration {
+                id: source_input_root,
+                kind: StructuralPlaceKind::Parameter {
+                    position: 0,
+                    is_self: false,
+                },
+            },
+            StructuralPlaceDeclaration {
+                id: source_result_root,
+                kind: StructuralPlaceKind::Result,
+            },
+        ],
+        source,
+        input_claims: vec![machine.content_identity_reshuffles[0].claim],
+        substitutions,
+        derived: derived.clone(),
+    }];
+    let goal = Proposition::ContentConservation(derived);
+    machine.contract.ensures[0].proposition = goal.clone();
+    (module, goal, obligation)
 }
 
 #[test]
@@ -527,6 +678,7 @@ fn reflexive_content_module() -> (TerminalModule, Proposition, ObligationId) {
             },
         }],
         content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
         entry: BlockId::new(80).expect("block"),
         blocks: vec![Block {
             id: BlockId::new(80).expect("block"),
@@ -1064,6 +1216,7 @@ fn wrapping_add_module() -> (TerminalModule, Proposition, ObligationId) {
         },
         structural_places: Vec::new(),
         content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
         entry: BlockId::new(20).expect("block"),
         blocks: vec![Block {
             id: BlockId::new(20).expect("block"),
@@ -1132,6 +1285,7 @@ fn saturating_add_module() -> (TerminalModule, Proposition, ObligationId) {
         },
         structural_places: Vec::new(),
         content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
         entry: BlockId::new(30).expect("block"),
         blocks: vec![Block {
             id: BlockId::new(30).expect("block"),
@@ -1200,6 +1354,7 @@ fn wrapping_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
         },
         structural_places: Vec::new(),
         content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
         entry: BlockId::new(40).expect("block"),
         blocks: vec![Block {
             id: BlockId::new(40).expect("block"),
@@ -1268,6 +1423,7 @@ fn saturating_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
         },
         structural_places: Vec::new(),
         content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
         entry: BlockId::new(50).expect("block"),
         blocks: vec![Block {
             id: BlockId::new(50).expect("block"),
@@ -1336,6 +1492,7 @@ fn wrapping_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
         },
         structural_places: Vec::new(),
         content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
         entry: BlockId::new(60).expect("block"),
         blocks: vec![Block {
             id: BlockId::new(60).expect("block"),
@@ -1404,6 +1561,7 @@ fn saturating_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
         },
         structural_places: Vec::new(),
         content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
         entry: BlockId::new(70).expect("block"),
         blocks: vec![Block {
             id: BlockId::new(70).expect("block"),
@@ -1470,6 +1628,7 @@ impl Fixture {
             },
             structural_places: Vec::new(),
             content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
             entry: BlockId::new(1).expect("entry block"),
             blocks: vec![
                 Block {

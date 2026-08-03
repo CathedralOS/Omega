@@ -39,10 +39,21 @@ pub struct ContentPartitionCompositionFact {
     pub state_symbol: SymbolHandle,
     pub source_callable: SymbolHandle,
     pub source_fingerprint: u64,
+    /// The exact theorem before caller-place substitution. Retaining the
+    /// source plan lets terminal Psi replay the substitution instead of
+    /// trusting a derived `separate(...)` tree in isolation.
+    pub source_plan: ContentConservationPlan,
     pub statement_index: usize,
     pub call_ordinal: usize,
     pub input_claim_identities: Vec<PermissionClaimIdentity>,
+    pub substitutions: Vec<ContentPartitionPlaceSubstitution>,
     pub plan: ContentConservationPlan,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContentPartitionPlaceSubstitution {
+    pub source: omega_core::content::ContentStructuralPlace,
+    pub target: omega_core::content::ContentStructuralPlace,
 }
 
 impl ContentProjectionFacts {

@@ -26,9 +26,10 @@ use psi_core::{
     PropositionId, PsiSemanticId, ScalarTerm, ScalarType, StructuralPlaceKind,
 };
 use psi_terminal::{
-    Block, ClaimContentProjection, ContentIdentityReshuffle, ContractClause, MachineContract,
-    Operation, OperationKind, SemanticVersion, StructuralPlaceDeclaration, TerminalMachine,
-    TerminalModule, Terminator, ValueDeclaration,
+    Block, ClaimContentProjection, ContentIdentityReshuffle, ContentPartitionComposition,
+    ContentPlaceSubstitution, ContractClause, MachineContract, Operation, OperationKind,
+    SemanticVersion, StructuralPlaceDeclaration, TerminalMachine, TerminalModule, Terminator,
+    ValueDeclaration,
 };
 use psi_terminal_verifier::{ModuleError, validate_module};
 use sha2::{Digest, Sha256};
@@ -136,6 +137,33 @@ fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
             return Err(CodecError::NonCanonicalOrder(
                 "claim content projections by identity and algebra",
             ));
+        }
+        if !strictly_increasing(machine.content_partition_compositions.iter()) {
+            return Err(CodecError::NonCanonicalOrder(
+                "content partition compositions",
+            ));
+        }
+        for composition in &machine.content_partition_compositions {
+            if !strictly_increasing(
+                composition
+                    .source_structural_places
+                    .iter()
+                    .map(|place| place.id),
+            ) {
+                return Err(CodecError::NonCanonicalOrder(
+                    "partition source structural places by PlaceId",
+                ));
+            }
+            if !strictly_increasing(composition.input_claims.iter().copied()) {
+                return Err(CodecError::NonCanonicalOrder(
+                    "partition input claims by ClaimId",
+                ));
+            }
+            if !strictly_increasing(composition.substitutions.iter()) {
+                return Err(CodecError::NonCanonicalOrder(
+                    "partition place substitutions",
+                ));
+            }
         }
         if !strictly_increasing(
             machine
@@ -294,12 +322,59 @@ fn encode_machine(
             encode_content_identity_reshuffle(writer, reshuffle)?;
         }
     }
+    if semantic_version >= SemanticVersion::V12 {
+        writer.len(
+            "content partition compositions",
+            machine.content_partition_compositions.len(),
+        )?;
+        for composition in &machine.content_partition_compositions {
+            encode_content_partition_composition(writer, composition)?;
+        }
+    }
     writer.id(machine.entry);
     writer.len("blocks", machine.blocks.len())?;
     for block in &machine.blocks {
         encode_block(writer, block)?;
     }
     encode_contract(writer, &machine.contract)
+}
+
+fn encode_content_partition_composition(
+    writer: &mut Writer,
+    composition: &ContentPartitionComposition,
+) -> Result<(), CodecError> {
+    writer.u64(composition.source_fingerprint);
+    writer.len(
+        "partition source structural places",
+        composition.source_structural_places.len(),
+    )?;
+    for place in &composition.source_structural_places {
+        writer.id(place.id);
+        encode_structural_place_kind(writer, place.kind);
+    }
+    encode_content_conservation(writer, &composition.source)?;
+    writer.len("partition input claims", composition.input_claims.len())?;
+    for claim in &composition.input_claims {
+        writer.id(*claim);
+    }
+    writer.len(
+        "partition place substitutions",
+        composition.substitutions.len(),
+    )?;
+    for substitution in &composition.substitutions {
+        encode_content_structural_place(writer, &substitution.source)?;
+        encode_content_structural_place(writer, &substitution.target)?;
+    }
+    encode_content_conservation(writer, &composition.derived)
+}
+
+fn encode_content_conservation(
+    writer: &mut Writer,
+    conservation: &ContentConservation,
+) -> Result<(), CodecError> {
+    encode_content_algebra(writer, conservation.algebra())?;
+    encode_content_term(writer, conservation.left(), 0)?;
+    encode_content_term(writer, conservation.right(), 0)
 }
 
 fn encode_content_identity_reshuffle(
@@ -717,6 +792,16 @@ fn decode_machine(
     } else {
         Vec::new()
     };
+    let content_partition_compositions = if semantic_version >= SemanticVersion::V12 {
+        let count = reader.count()?;
+        let mut compositions = Vec::new();
+        for _ in 0..count {
+            compositions.push(decode_content_partition_composition(reader)?);
+        }
+        compositions
+    } else {
+        Vec::new()
+    };
     let entry = reader.id("BlockId")?;
     let block_count = reader.count()?;
     let mut blocks = Vec::new();
@@ -730,10 +815,56 @@ fn decode_machine(
         result,
         structural_places,
         content_identity_reshuffles,
+        content_partition_compositions,
         entry,
         blocks,
         contract,
     })
+}
+
+fn decode_content_partition_composition(
+    reader: &mut Reader<'_>,
+) -> Result<ContentPartitionComposition, CodecError> {
+    let source_fingerprint = reader.u64()?;
+    let source_place_count = reader.count()?;
+    let mut source_structural_places = Vec::new();
+    for _ in 0..source_place_count {
+        source_structural_places.push(StructuralPlaceDeclaration {
+            id: reader.id("PlaceId")?,
+            kind: decode_structural_place_kind(reader)?,
+        });
+    }
+    let source = decode_content_conservation(reader)?;
+    let input_claim_count = reader.count()?;
+    let mut input_claims = Vec::new();
+    for _ in 0..input_claim_count {
+        input_claims.push(reader.id("ClaimId")?);
+    }
+    let substitution_count = reader.count()?;
+    let mut substitutions = Vec::new();
+    for _ in 0..substitution_count {
+        substitutions.push(ContentPlaceSubstitution {
+            source: decode_content_structural_place(reader)?,
+            target: decode_content_structural_place(reader)?,
+        });
+    }
+    let derived = decode_content_conservation(reader)?;
+    Ok(ContentPartitionComposition {
+        source_fingerprint,
+        source_structural_places,
+        source,
+        input_claims,
+        substitutions,
+        derived,
+    })
+}
+
+fn decode_content_conservation(reader: &mut Reader<'_>) -> Result<ContentConservation, CodecError> {
+    Ok(ContentConservation::new(
+        decode_content_algebra(reader)?,
+        decode_content_term(reader, 0)?,
+        decode_content_term(reader, 0)?,
+    ))
 }
 
 fn decode_content_identity_reshuffle(
