@@ -504,6 +504,13 @@ claims exhaustiveness: only a separate executable-closure receipt removes that
 row's incompleteness cause, and such receipts remain reported even when another
 opaque row keeps the overall scope incomplete. Loader paths, modules, symbols,
 and table slots remain binding locators rather than executable identities.
+The normalized profile gate consumes that manifest before installation. A
+profile may explicitly allow static checked bodies as a class; compiler-known
+and opaque entries require exact provider, plan, executable, implementation,
+origin, and scope matches, with independently required containment axes.
+Incomplete scopes either reject or return a sealed acceptance marked with the
+original attributed causes. The acceptance retains the exact profile and
+manifest, so it cannot be replayed after either input changes.
 
 Source `boundary` remains insufficient to reconstruct this enum: a checked
 exported callable and an accepted bodyless declaration both mention the word
