@@ -1,0 +1,18 @@
+[package]
+name = "psi-checked-trees-to-terminal"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "psi_checked_trees_to_terminal"
+path = "src/lib.rs"
+
+[dependencies]
+psi-checked-trees = { path = "../../representations/psi-checked-trees" }
+psi-core = { path = "../../foundation/psi-core" }
+psi-numerics = { path = "../../foundation/psi-numerics" }
+psi-proof-kernel = { path = "../../semantics/psi-proof-kernel" }
+psi-terminal = { path = "../../representations/psi-terminal" }
+psi-terminal-verifier = { path = "../../semantics/psi-terminal-verifier" }
+psi-typed-trees = { path = "../../representations/psi-typed-trees" }

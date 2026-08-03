@@ -1,21 +1,20 @@
 #![forbid(unsafe_code)]
 
-//! Transitional checked-Omega-trees to terminal-Psi compatibility lowering.
+//! Psi checked-semantics to terminal-Psi lowering for the first exact source slice.
 //!
-//! Psi will ultimately own parsing through terminal-module production. While
-//! that frontend ownership migrates, this adapter proves a real source program
-//! can cross the terminal boundary without retaining source trees. Its accepted
-//! surface is deliberately tiny and exact; unsupported source constructs fail
-//! closed instead of being dropped.
+//! This producer proves a real source program can cross the terminal boundary
+//! without retaining source trees. Its accepted surface is deliberately tiny
+//! and exact; unsupported source constructs fail closed instead of being
+//! dropped. General terminal lowering must widen this Psi-owned producer rather
+//! than introduce an Omega-to-Psi stage.
 
-use omega_checked_trees::{
+use psi_checked_trees::{
     CheckedTrees,
     expression::{BinaryOperator, ExpressionNode},
     signature::SignatureContractKind,
     statement::{StatementNode, TransitionGuardNode, TransitionTargetNode},
     types::PrimitiveType,
 };
-use omega_typed_trees::domain::ProofFact;
 use psi_core::{
     BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId,
     OperationId, Proposition, ScalarTerm, ScalarType, ValueId,
@@ -26,6 +25,7 @@ use psi_terminal::{
     TerminalMachine, TerminalModule, Terminator, ValueDeclaration,
 };
 use psi_terminal_verifier::{ObligationEvidence, ProofBundle};
+use psi_typed_trees::domain::ProofFact;
 
 /// Semantic module and separate replaceable proof artifact produced by the
 /// transitional frontend adapter.
@@ -171,7 +171,7 @@ pub fn lower_machine(
 
 fn validate_contract(
     checked: &CheckedTrees,
-    machine: &omega_checked_trees::machine::Machine,
+    machine: &psi_checked_trees::machine::Machine,
     result_type: ScalarType,
     expected_value: IntegerValue,
 ) -> Result<(), LoweringError> {
@@ -239,7 +239,7 @@ fn integer_scalar_type(primitive: PrimitiveType) -> Result<ScalarType, LoweringE
 }
 
 fn integer_value(
-    literal: &omega_core::literals::IntegerLiteral,
+    literal: &psi_numerics::literals::IntegerLiteral,
     scalar_type: ScalarType,
 ) -> Result<IntegerValue, LoweringError> {
     let ScalarType::Integer(integer_type) = scalar_type else {

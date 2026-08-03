@@ -54,22 +54,18 @@ packages are compatibility exports. Provider installation and approval remain
 Omega concerns, and Omega orchestration runs that admission explicitly after
 the Psi check.
 
-The first transitional source producer is now live as
-`omega-checked-trees-to-terminal-psi`. It accepts one exact free-machine slice:
+The first Psi-owned terminal source producer is live as
+`psi-checked-trees-to-terminal`. It accepts one exact free-machine slice:
 typed integer constants, one unconditional literal-carrying state jump, one
 literal return, and a matching closed `requires`/`ensures` pair. It rejects all
 other checked-tree shapes. The source canary discards `CheckedTrees` before it
 verifies and executes the produced semantic module, proving the artifact has no
-frontend lifetime dependency. This is explicitly a migration adapter, not the
-target ownership direction: direct checked-semantics-to-terminal-Psi production
-still needs to replace this bootstrap-only bridge.
-That adapter is frozen at the original integer/control/contract canary. An
-architecture test permits only its single `lower_machine` entry and rejects
-content-conservation, identity-reshuffle, or partition-composition APIs there.
-Target-neutral source production—including content checking—must move under
-Psi ownership rather than widening an Omega-to-Psi bridge. Integration into
-general executable-machine lowering therefore waits on the broader frontend
-migration.
+frontend lifetime dependency. This is the correct ownership direction, but its
+accepted vocabulary remains the original integer/control/contract canary. An
+architecture test keeps one fail-closed `lower_machine` entry. General terminal
+production—including content conservation, identity reshuffles, and partition
+composition—must extend this Psi stage rather than reintroduce an Omega-to-Psi
+bridge.
 The current legacy exit prover also cannot establish an ordinary
 `result == literal` contract, so the bootstrap canary carries the closed typed
 fact `7i32 == 7i32` and asserts the executed result separately. An Omega
@@ -295,10 +291,11 @@ rewrites, sealed introduction and custody-exit frontier rows, and the general
 frontier theorem remain to land.
 
 Correction checkpoint (2026-08-02): the legacy checked-to-terminal content
-translator was removed from the frozen compatibility adapter. The v9-v12
+translator was removed from the initial source slice. The v9-v12
 terminal vocabulary, canonical codec, and verifier remain Psi-owned and
-source-independent; their next real producer must be the Psi-owned frontend.
-Legacy checked facts are migration input, not an endorsed Omega-to-Psi stage.
+source-independent; their next real producer belongs in
+`psi-checked-trees-to-terminal`. Checked facts are Psi migration input, not an
+excuse for an Omega-to-Psi stage.
 
 These normalized obligations are semantic and fingerprinted. Their proof
 derivations remain replaceable proof-bundle material.
@@ -495,11 +492,11 @@ migration remain later slices.
    identity-reshuffle rows as semantic axioms, while sealed frontier rows remain.
    Executable storage places, general register assignment,
    and the other arithmetic variants remain later slices.
-3. Lower the live integer/control/contract slice from the transitional checked
-   frontend into terminal Psi, add its Omega abstract-operation consumer, and
+3. Lower the live integer/control/contract slice from Psi checked semantics
+   into terminal Psi, add its Omega abstract-operation consumer, and
    compare interpreted/native behavior before broadening the vocabulary.
    **Initial vertical slice complete through native comparison:** the
-   fail-closed compatibility adapter and a real source canary now verify and
+   fail-closed Psi terminal producer and a real source canary now verify and
    execute after checked trees are dropped, then lower the verified module into
    an owned, source-independent Omega requirement stream, a target
    return-immediate, host machine code, an owned object artifact, and a direct

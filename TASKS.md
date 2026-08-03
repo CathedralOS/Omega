@@ -445,10 +445,11 @@ those rows remain absent until their actual checked proofs exist.
   semantic axiom. Canonical bytes include the witness; existing proof format v9
   already carries the resulting content proposition.
   Archived v1-v11 bytes retain their identities. The content-specific
-  checked-to-terminal translator has been removed from the frozen bootstrap
-  adapter: these checked facts are migration precursors, not an endorsed
-  Omega-to-Psi stage. Before extending wrapper composition, move the real
-  content producer under Psi frontend ownership. Then compose identity rewrites
+  checked-to-terminal translator has been removed from the initial bootstrap
+  slice. The terminal producer itself is now Psi-owned as
+  `psi-checked-trees-to-terminal`; these checked content facts remain migration
+  precursors until that producer consumes them. Before extending wrapper
+  composition, add the real content production there. Then compose identity rewrites
   around non-direct authored-partition calls, insert sealed introduction and
   custody-exit rows, and discharge or admit the exact frontier theorem.
   Contracts call the exact
@@ -1069,9 +1070,9 @@ improvements do not change public identity.
   `psi-symbol-resolved-trees-to-typed-trees` owns type identity,
   compatibility, and signature normalization. Their former Omega
   crates are implementation-free compatibility re-exports for unmigrated
-  orchestration. The checked-tree-to-terminal adapter is
-  frozen at its single bootstrap canary; architecture coverage rejects adding
-  target-neutral content producers to that reverse bridge.
+  orchestration. `psi-checked-trees-to-terminal` owns the first exact,
+  fail-closed checked-to-terminal source slice. The reverse-named Omega package
+  has been removed; general terminal production grows only in this Psi stage.
   The first in-memory executable slice is also live: stable machine/block
   topology, representable integer constants, v2 Boolean constants, v3
   exact-width wrapping integer addition, v4 exact-width saturating integer

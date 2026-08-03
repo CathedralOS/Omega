@@ -44,12 +44,14 @@ and create no overflow obligation. Omega's interpreter executes the same
 verified module object and rejects out-of-range integer arguments before
 execution.
 
-The first transitional checked-tree producer lowers an exact typed
+The first Psi-owned checked-tree producer, `psi-checked-trees-to-terminal`,
+lowers an exact typed
 integer-constant/unconditional-jump/literal-return/closed-contract source slice,
 emits the semantic module and proof bundle separately, and fails closed on all
 other shapes. Its canary drops the frontend trees before terminal verification
-and interpretation. This adapter does not change the target ownership rule:
-the current Omega-branded frontend still needs to migrate under Psi. A
+and interpretation. Parsing through checked semantics and this first terminal
+producer are now Psi-owned; general terminal vocabulary must extend the same
+direction. A
 source-independent Omega abstract-operation consumer accepts only the verified
 module and emits owned scalar-materialization, wrapping-add, saturating-add,
 wrapping-subtract, saturating-subtract, wrapping-multiply,

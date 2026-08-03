@@ -2,7 +2,6 @@
 //! terminal-Psi module: frontend trees are dropped before verification and
 //! execution.
 
-use omega_checked_trees_to_terminal_psi::{LoweringError, lower_machine};
 use omega_compiler::compile_to_checked;
 use omega_interpreter::{
     TerminalExecution, TerminalExecutionStatus, TerminalScalarValue, interpret_terminal_measured,
@@ -21,6 +20,7 @@ use omega_terminal_image_emission::{
 };
 use omega_terminal_machine_emission::emit_machine_code;
 use omega_terminal_psi_to_abstract_operations::lower_verified_module;
+use psi_checked_trees_to_terminal::{LoweringError, lower_machine};
 use psi_core::{
     BlockId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
     ProfileDecisionId, ScalarType, ValueId,
@@ -175,7 +175,7 @@ fn checked_source_survives_frontend_drop_as_verified_terminal_psi() {
 }
 
 #[test]
-fn compatibility_lowering_rejects_source_outside_its_declared_slice() {
+fn psi_terminal_producer_rejects_source_outside_its_declared_slice() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("terminal-Psi source canary should compile");
     assert_eq!(
