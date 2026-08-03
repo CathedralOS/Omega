@@ -1138,7 +1138,10 @@ impl SyntaxTrees {
             }
         };
 
-        self.expressions.insert(expression)
+        let source_span = other.expressions.source_span(handle);
+        let copied = self.expressions.insert(expression);
+        self.expressions.set_source_span(copied, source_span);
+        copied
     }
 
     fn copy_expression_handle_list(

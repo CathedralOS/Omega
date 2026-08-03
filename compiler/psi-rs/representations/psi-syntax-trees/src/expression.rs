@@ -1,7 +1,7 @@
 use crate::identifier::Identifier;
 use psi_arena::{Arena, Handle, HandleSpan};
 use psi_numerics::literals::IntegerLiteral;
-use psi_source::SourceText;
+use psi_source::{SourceSpan, SourceText};
 
 mod display;
 #[cfg(test)]
@@ -12,6 +12,7 @@ pub type ExpressionHandle = Handle<ExpressionNode>;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExpressionTable {
     expressions: Arena<ExpressionNode>,
+    source_spans: Vec<SourceSpan>,
     expression_handles: Arena<ExpressionHandle>,
     identifier_path_members: Arena<Identifier>,
     struct_fields: Arena<TableStructLiteralField>,
@@ -21,6 +22,7 @@ impl ExpressionTable {
     pub fn new() -> Self {
         Self {
             expressions: Arena::new(),
+            source_spans: Vec::new(),
             expression_handles: Arena::new(),
             identifier_path_members: Arena::new(),
             struct_fields: Arena::new(),
@@ -28,7 +30,18 @@ impl ExpressionTable {
     }
 
     pub fn insert(&mut self, expression: ExpressionNode) -> ExpressionHandle {
-        self.expressions.insert(expression)
+        let handle = self.expressions.insert(expression);
+        self.source_spans.push(SourceSpan::default());
+        debug_assert_eq!(source_span_index(handle), self.source_spans.len() - 1);
+        handle
+    }
+
+    pub fn source_span(&self, handle: ExpressionHandle) -> SourceSpan {
+        self.source_spans[source_span_index(handle)]
+    }
+
+    pub fn set_source_span(&mut self, handle: ExpressionHandle, source_span: SourceSpan) {
+        self.source_spans[source_span_index(handle)] = source_span;
     }
 
     pub fn append_expression_handle(
@@ -125,6 +138,13 @@ impl ExpressionTable {
     pub fn display_name(&self, handle: ExpressionHandle) -> String {
         self.expression(handle).display_name(self)
     }
+}
+
+fn source_span_index(handle: ExpressionHandle) -> usize {
+    usize::try_from(handle.arena_index())
+        .expect("expression index overflow")
+        .checked_sub(1)
+        .expect("invalid expression handle has no source span")
 }
 
 impl Default for ExpressionTable {

@@ -1,7 +1,7 @@
 use crate::name::DiagnosticName;
 use psi_arena::{Arena, Handle, HandleSpan};
 use psi_numerics::literals::IntegerLiteral;
-use psi_source::SourceText;
+use psi_source::{SourceSpan, SourceText};
 use psi_symbols::SymbolHandle;
 
 mod display;
@@ -21,6 +21,7 @@ pub struct ExpressionTable {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct ExpressionNodeStorage {
     expressions: Arena<ExpressionNode>,
+    source_spans: Vec<SourceSpan>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -35,6 +36,7 @@ impl ExpressionTable {
         Self {
             nodes: ExpressionNodeStorage {
                 expressions: Arena::new(),
+                source_spans: Vec::new(),
             },
             spans: ExpressionSpanStorage {
                 expression_handles: Arena::new(),
@@ -46,13 +48,25 @@ impl ExpressionTable {
 
     pub fn clear(&mut self) {
         self.nodes.expressions.reset_retain_capacity();
+        self.nodes.source_spans.clear();
         self.spans.expression_handles.reset_retain_capacity();
         self.spans.name_path_members.reset_retain_capacity();
         self.spans.struct_fields.reset_retain_capacity();
     }
 
     pub fn insert(&mut self, expression: ExpressionNode) -> ExpressionHandle {
-        self.nodes.expressions.insert(expression)
+        let handle = self.nodes.expressions.insert(expression);
+        self.nodes.source_spans.push(SourceSpan::default());
+        debug_assert_eq!(source_span_index(handle), self.nodes.source_spans.len() - 1);
+        handle
+    }
+
+    pub fn source_span(&self, handle: ExpressionHandle) -> SourceSpan {
+        self.nodes.source_spans[source_span_index(handle)]
+    }
+
+    pub fn set_source_span(&mut self, handle: ExpressionHandle, source_span: SourceSpan) {
+        self.nodes.source_spans[source_span_index(handle)] = source_span;
     }
 
     pub fn insert_expression_handles(
@@ -169,7 +183,8 @@ impl ExpressionTable {
         source: &ExpressionTable,
         expression: ExpressionHandle,
     ) -> ExpressionHandle {
-        match source.expression(expression) {
+        let source_span = source.source_span(expression);
+        let copied = match source.expression(expression) {
             ExpressionNode::ArrayLiteral(values) => {
                 let copied_values = self.reserve_expression_handles(values.count());
 
@@ -313,7 +328,9 @@ impl ExpressionTable {
             ExpressionNode::ZeroValue(type_reference) => {
                 self.insert(ExpressionNode::ZeroValue(*type_reference))
             }
-        }
+        };
+        self.set_source_span(copied, source_span);
+        copied
     }
 
     pub fn copy_expression_handles_from(
@@ -883,6 +900,13 @@ impl ExpressionTable {
             _ => None,
         }
     }
+}
+
+fn source_span_index(handle: ExpressionHandle) -> usize {
+    usize::try_from(handle.arena_index())
+        .expect("expression index overflow")
+        .checked_sub(1)
+        .expect("invalid expression handle has no source span")
 }
 
 impl Default for ExpressionTable {

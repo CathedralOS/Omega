@@ -54,6 +54,16 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         &mut self,
         expression: resolved::expression::ExpressionHandle,
     ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
+        let source_span = self.source.source_span(expression);
+        let lowered = self.lower_node(expression)?;
+        self.target().set_source_span(lowered, source_span);
+        Ok(lowered)
+    }
+
+    fn lower_node(
+        &mut self,
+        expression: resolved::expression::ExpressionHandle,
+    ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
         match self.source.expression(expression) {
             resolved::expression::ExpressionNode::ArrayLiteral(values) => {
                 let values = self.lower_expression_handle_span(*values)?;
