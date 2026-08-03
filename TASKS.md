@@ -1701,7 +1701,12 @@ and allocation handles expose no compiler-owned stack/control storage.
   `0x297cb8ce8d1adc1c`, binding all twenty exact source/destination/domain plans
   to both-format truncation toward zero across every integer width, in-range
   Trapping dispatch, signed/unsigned/NaN saturation, interpreter/native results,
-  and both Linux cross-builds. The directed-FMA slice retains
+  and both Linux cross-builds. The primitive arithmetic/comparison cohort
+  retains `omega.float.hardware.macos_arm64.primitive-arithmetic-comparison.v1` /
+  `0xab789e8539fe9f96`, binding all twenty exact operation/format plans to finite
+  add/subtract/multiply/divide and all six equality/ordered comparisons in both
+  formats, interpreter/native results, and both Linux cross-builds. The
+  directed-FMA slice retains
   `omega.float.hardware.macos_arm64.directed-fma.v1` /
   `0x75be2c4963f3f15a`, binding its six exact plans to binary32/binary64 half-ULP
   edges, all three directions, one fused rounding, control-state restoration,
