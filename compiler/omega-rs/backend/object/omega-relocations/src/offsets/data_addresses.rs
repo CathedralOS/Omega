@@ -162,6 +162,15 @@ fn data_address_relocation_offset_with_plan(
     authored_import: bool,
     authoritative_plan: Option<&omega_calling_conventions::CallPlan>,
 ) -> usize {
+    let plan_returns_value = authoritative_plan.map(|plan| plan.result.is_some());
+    let plan_returns_float = authoritative_plan
+        .and_then(|plan| plan.result.as_ref())
+        .is_some_and(|result| {
+            matches!(
+                result.shape.class,
+                omega_calling_conventions::ValueClass::Float
+            )
+        });
     if is_syscall
         && operand_index == 0
         && operation_key.is_some_and(HostOperationKey::uses_linux_timespec_result)
@@ -195,7 +204,9 @@ fn data_address_relocation_offset_with_plan(
         }
     }
     if is_syscall
-        && operation_key.is_some_and(HostOperationKey::returns_value)
+        && plan_returns_value.unwrap_or_else(|| {
+            operation_key.is_some_and(HostOperationKey::returns_value)
+        })
         // Linux syscall numbers fit one normalized immediate chunk on AArch64;
         // zero therefore has the same instruction width while avoiding a
         // second syscall-number table in the relocation planner.
@@ -415,7 +426,7 @@ fn data_address_relocation_offset_with_plan(
     // result is not marshalled up front).
     if architecture == Architecture::Aarch64
         && let Some(operation_key) = operation_key
-        && (operation_key.returns_value()
+        && (plan_returns_value.unwrap_or_else(|| operation_key.returns_value())
             // Authored imports (custom capability) always ride the
             // value-returning layout; the flag arrives from the record
             // walker, which sees the binding mechanism.
@@ -456,8 +467,10 @@ fn data_address_relocation_offset_with_plan(
             } else {
                 0
             };
-            let float_return_bytes = if operation_key.returns_float()
-                || (authored_import
+            let float_return_bytes = if plan_returns_float
+                || (authoritative_plan.is_none() && operation_key.returns_float())
+                || (authoritative_plan.is_none()
+                    && authored_import
                     && operands
                         .first()
                         .is_some_and(|operand| operand.runtime_scalar_float().is_some()))

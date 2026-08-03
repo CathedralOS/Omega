@@ -901,7 +901,11 @@ relocation sites. The lock now also covers void imports, the errno-style
 pointer-result dereference tail, Windows key-state postprocessing, and AAPCS64
 scalar-float arguments/results. The obsolete semantic-operation classifier for
 Windows clock out-pointers is retired; the composite time encoder's concrete
-subcall plan is the sole owner of that shape. Composite adapter-owned native calls continue to consume
+subcall plan is the sole owner of that shape. On authoritative AArch64 built-in
+paths, result presence and scalar-float class now come from the retained plan in
+emission plus call/data relocation accounting; operation-key classification
+remains only as the no-plan compatibility oracle. Composite adapter-owned
+native calls continue to consume
 their separately normalized concrete subcall signatures; an outer source
 boundary plan is not a replacement for the adapter's internal ABI call. The
 Darwin anonymous-variadic `open_create` seam remains explicitly outside this
