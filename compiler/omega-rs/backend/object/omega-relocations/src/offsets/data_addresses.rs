@@ -73,10 +73,8 @@ pub(crate) fn data_address_relocation_offset_for_target_with_plan(
         return selected_text_offset + site.byte_offset;
     }
     if target.architecture == Architecture::X86_64
-        && authoritative_plan
-            .map(|plan| plan.policy)
-            .unwrap_or_else(|| omega_calling_conventions::CallingPolicy::native_for_target(target))
-            == omega_calling_conventions::CallingPolicy::SystemVAMD64
+        && let Some(plan) = authoritative_plan
+        && plan.policy == omega_calling_conventions::CallingPolicy::SystemVAMD64
         && let Some(shape) = field_model_shape
     {
         let byte_offset = if shape.passes_receiver {
@@ -85,7 +83,7 @@ pub(crate) fn data_address_relocation_offset_for_target_with_plan(
                 0,
                 shape.result_present,
                 operand_index,
-                authoritative_plan,
+                plan,
             )
         } else {
             omega_isa_x86_64::sysv_table_function_call_data_relocation_byte_offset_with_plan(
@@ -93,7 +91,7 @@ pub(crate) fn data_address_relocation_offset_for_target_with_plan(
                 0,
                 shape.result_present,
                 operand_index,
-                authoritative_plan,
+                plan,
             )
         };
         return selected_text_offset + byte_offset;
@@ -227,12 +225,14 @@ fn data_address_relocation_offset_with_plan(
     // (service table) -- each shape has its own fixup layout.
     if architecture == Architecture::X86_64
         && let Some(shape) = field_model_shape
+        && let Some(plan) = authoritative_plan
+        && plan.policy == omega_calling_conventions::CallingPolicy::MicrosoftX64
     {
         let byte_offset = if shape.passes_receiver {
             omega_isa_x86_64::win64_vtable_call_relocation_sites_with_plan(
                 operands,
                 shape.result_present,
-                authoritative_plan,
+                plan,
             )
             .into_iter()
             .find(|site| site.operand_index == Some(operand_index))
@@ -242,7 +242,7 @@ fn data_address_relocation_offset_with_plan(
             omega_isa_x86_64::win64_table_function_call_relocation_sites_with_plan(
                 operands,
                 shape.result_present,
-                authoritative_plan,
+                plan,
             )
             .into_iter()
             .find(|site| site.operand_index == Some(operand_index))
@@ -877,8 +877,14 @@ mod tests {
             passes_receiver: true,
             result_present: true,
         });
+        let vtable_signature = CallSignature {
+            parameters: vec![ValueShape::integer(8, 8); 2],
+            result: Some(ValueShape::integer(8, 8)),
+        };
+        let source_plan = evaluate_call_plan(CallingPolicy::SystemVAMD64, &vtable_signature)
+            .expect("source-selected SysV vtable plan");
         assert_eq!(
-            data_address_relocation_offset_for_target(
+            data_address_relocation_offset_for_target_with_plan(
                 NativeTarget::linux_x64(),
                 operation,
                 &operands,
@@ -887,11 +893,12 @@ mod tests {
                 false,
                 vtable,
                 false,
+                Some(&source_plan),
             ),
             26
         );
         assert_eq!(
-            data_address_relocation_offset_for_target(
+            data_address_relocation_offset_for_target_with_plan(
                 NativeTarget::linux_x64(),
                 operation,
                 &operands,
@@ -900,16 +907,10 @@ mod tests {
                 false,
                 vtable,
                 false,
+                Some(&source_plan),
             ),
             73
         );
-
-        let vtable_signature = CallSignature {
-            parameters: vec![ValueShape::integer(8, 8); 2],
-            result: Some(ValueShape::integer(8, 8)),
-        };
-        let source_plan = evaluate_call_plan(CallingPolicy::SystemVAMD64, &vtable_signature)
-            .expect("source-selected SysV vtable plan");
         assert_eq!(
             data_address_relocation_offset_for_target_with_plan(
                 NativeTarget::windows_x64(),
@@ -943,8 +944,14 @@ mod tests {
             passes_receiver: false,
             result_present: true,
         });
+        let table_signature = CallSignature {
+            parameters: vec![ValueShape::integer(8, 8)],
+            result: Some(ValueShape::integer(8, 8)),
+        };
+        let table_plan = evaluate_call_plan(CallingPolicy::SystemVAMD64, &table_signature)
+            .expect("source-selected SysV table plan");
         assert_eq!(
-            data_address_relocation_offset_for_target(
+            data_address_relocation_offset_for_target_with_plan(
                 NativeTarget::linux_x64(),
                 operation,
                 &operands,
@@ -953,11 +960,12 @@ mod tests {
                 false,
                 table,
                 false,
+                Some(&table_plan),
             ),
             26
         );
         assert_eq!(
-            data_address_relocation_offset_for_target(
+            data_address_relocation_offset_for_target_with_plan(
                 NativeTarget::linux_x64(),
                 operation,
                 &operands,
@@ -966,11 +974,12 @@ mod tests {
                 false,
                 table,
                 false,
+                Some(&table_plan),
             ),
             43
         );
         assert_eq!(
-            data_address_relocation_offset_for_target(
+            data_address_relocation_offset_for_target_with_plan(
                 NativeTarget::linux_x64(),
                 operation,
                 &operands,
@@ -979,6 +988,7 @@ mod tests {
                 false,
                 table,
                 false,
+                Some(&table_plan),
             ),
             73
         );
