@@ -13,7 +13,7 @@ use self::folding::{
 };
 use self::helper_stack::HelperStateStack;
 use crate::StateValueRole;
-use omega_core::arena::Arena;
+use psi_arena::Arena;
 use psi_checked_trees::CheckedTrees;
 use psi_checked_trees::expression::{
     BinaryExpression, CallExpression, Expression, IndexedExpression, MemberExpression,

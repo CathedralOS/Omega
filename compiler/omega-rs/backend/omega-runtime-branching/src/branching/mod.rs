@@ -1,8 +1,8 @@
 use crate::RuntimeBranchingContext;
 use omega_control_flow::StateKey;
-use omega_core::arena::PagedSlice;
 use omega_runtime_bodies::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
 use omega_state_calls::StateCallLowering;
+use psi_arena::PagedSlice;
 
 mod aliases;
 mod classify;

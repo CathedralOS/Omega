@@ -1458,10 +1458,10 @@ mod tests {
     }
 
     fn runtime_value_guard_fixture() -> (
-        omega_core::arena::Arena<omega_abstract_operations::AbstractValueOperand>,
+        psi_arena::Arena<omega_abstract_operations::AbstractValueOperand>,
         SelectedInstructionKind,
     ) {
-        let mut operands = omega_core::arena::Arena::new();
+        let mut operands = psi_arena::Arena::new();
         let left = operands.insert(omega_abstract_operations::ValueOperand::Storage {
             region: omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
             byte_offset: 40,

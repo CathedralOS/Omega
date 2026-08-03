@@ -19,12 +19,12 @@ use crate::storage_blockers::collect_state_storage_blockers;
 use crate::unlowered_guard_blockers::collect_unlowered_guard_blockers;
 use crate::value_call_arm_effect_blockers::collect_value_call_arm_effect_blockers;
 use omega_backend_report_types::{EmissionPlan, emission_blocker};
-use omega_core::arena::Arena;
 use omega_image_emission::can_emit_executable_image;
 use omega_platform_interface::UnsupportedHostCallReason;
 use omega_state_schedule::{
     StateScheduleContext, build_entry_state_schedule, scheduled_state_contains_key,
 };
+use psi_arena::Arena;
 
 pub fn build_emission_plan(input: &EmissionPlanningInput<'_>) -> EmissionPlan {
     let mut blockers = Arena::with_capacity(estimated_emission_blocker_capacity(input));

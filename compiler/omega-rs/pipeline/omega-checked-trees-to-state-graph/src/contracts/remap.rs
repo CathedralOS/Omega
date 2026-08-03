@@ -1,7 +1,7 @@
-use omega_core::arena::{Arena, HandleSpan};
 use omega_state_graph::{
     StateContractCall, StateContractExit, StateContractFactRef, StateContractSummary, StateGraph,
 };
+use psi_arena::{Arena, HandleSpan};
 
 pub(crate) struct SourceContractArenas<'a> {
     pub(crate) fact_refs: &'a Arena<StateContractFactRef>,

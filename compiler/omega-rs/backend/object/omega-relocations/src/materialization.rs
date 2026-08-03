@@ -92,9 +92,9 @@ pub fn append_native_materialization_relocations(
 #[cfg(test)]
 mod tests {
     use super::append_native_materialization_relocations;
-    use omega_core::arena::Handle;
     use omega_object_file::{RelocationKind, RelocationOrigin, RelocationPlan, SectionKind};
     use omega_target::NativeTarget;
+    use psi_arena::Handle;
     use psi_layout_plans::{
         ByteOrder, EntryStubId, MaterializationAction, PlacementConstraints, PlacementPhase,
         RelocationTarget, SymbolicMaterializationPlan,

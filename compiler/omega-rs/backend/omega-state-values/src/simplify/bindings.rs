@@ -1,4 +1,4 @@
-use omega_core::arena::Arena;
+use psi_arena::Arena;
 use psi_checked_trees::CheckedTrees;
 use psi_checked_trees::expression::{
     BinaryExpression, CallExpression, Expression, ExpressionHandle, ExpressionNode,

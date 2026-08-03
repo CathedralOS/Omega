@@ -1,8 +1,8 @@
 use omega_abstract_operations::AbstractOperationPlan;
 use omega_calling_conventions::HostAbiPlan;
-use omega_core::arena::Arena;
 use omega_platform_interface::HostCallPlan;
 use omega_target_operations::{TargetOperationCode, TargetOperationFunction};
+use psi_arena::Arena;
 
 use crate::host;
 use crate::instructions::translate_instruction;

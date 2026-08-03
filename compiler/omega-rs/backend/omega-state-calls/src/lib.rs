@@ -192,7 +192,7 @@ pub fn build_state_call_plan_with_workers(
         // The full receiver member path (root -> leaf). Value-position calls
         // carry their receiver EXPRESSION and walk its chain; statement calls
         // only know the leaf name, recorded as a single-segment path.
-        let mut receiver_path = omega_core::arena::HandleSpan::empty();
+        let mut receiver_path = psi_arena::HandleSpan::empty();
         if call.raw_receiver.is_valid() {
             collection::append_receiver_path(
                 &context.control_flow.expressions,

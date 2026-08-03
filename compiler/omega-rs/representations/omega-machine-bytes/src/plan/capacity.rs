@@ -1,6 +1,6 @@
 use crate::{EncodedMachineCode, EncodedMachinePlan, EncodedMachineSemanticSummary};
-use omega_core::arena::Arena;
 use omega_target::NativeTarget;
+use psi_arena::Arena;
 
 impl EncodedMachinePlan {
     pub fn with_capacity(

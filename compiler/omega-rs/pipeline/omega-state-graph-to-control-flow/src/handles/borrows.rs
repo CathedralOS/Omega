@@ -2,7 +2,7 @@ use omega_control_flow::{
     StateBorrowActivation, StateBorrowArgumentAccess, StateBorrowCall, StateBorrowLoan,
     StateBorrowWeakening, StateBorrowWritableRoot,
 };
-use omega_core::arena::{Handle, HandleSpan};
+use psi_arena::{Handle, HandleSpan};
 
 use super::{remap_handle, remap_span};
 

@@ -1,7 +1,7 @@
-use omega_core::arena::{Arena, HandleSpan};
 use omega_state_graph::{
     StateDropEvent, StateGraph, StateMoveEvent, StateOwnershipSummary, StatePermissionEvent,
 };
+use psi_arena::{Arena, HandleSpan};
 
 pub(crate) struct SourceOwnershipArenas<'a> {
     pub(crate) segments: &'a Arena<psi_facts::PlaceSegment>,

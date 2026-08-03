@@ -1,7 +1,7 @@
 use crate::EmissionPlanningInput;
 use omega_control_flow::{OperationKind, StateFlow, StateKey};
-use omega_core::arena::Arena;
 use omega_state_schedule::{ScheduledState, StateScheduleContext, scheduled_state_flow};
+use psi_arena::Arena;
 
 use super::{EmissionBlocker, blocker};
 

@@ -3,7 +3,7 @@ use crate::{
     AssignedTargetOperationFunction, AssignedTargetOperationPlan, AssignedValueHomeKind,
     AssignedValueOperand, assigned_operation_span_from_target, target_operation_span_from_assigned,
 };
-use omega_core::arena::Arena;
+use psi_arena::Arena;
 use std::sync::Arc;
 
 impl From<omega_target_operations::TargetOperationPlan> for AssignedTargetOperationPlan {

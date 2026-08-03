@@ -1,6 +1,6 @@
 use super::remap_operation_owned;
 use omega_control_flow::{OperationExpressionRefs, OperationKind};
-use omega_core::arena::{Handle, HandleSpan};
+use psi_arena::{Handle, HandleSpan};
 use psi_checked_trees::expression::ExpressionHandle;
 use psi_checked_trees::name::Identifier;
 use psi_symbols::SymbolHandle;

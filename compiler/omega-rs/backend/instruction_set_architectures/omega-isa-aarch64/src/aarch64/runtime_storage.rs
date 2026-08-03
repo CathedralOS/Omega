@@ -7077,8 +7077,8 @@ mod tests {
     /// is offset-independent.
     #[test]
     fn atomic_fetch_add_encoder_matches_width_and_ends_in_ldaddal() {
-        use omega_core::arena::Arena;
         use omega_target_operations::RuntimeValueOperand;
+        use psi_arena::Arena;
 
         for &target_offset in &[0usize, 8, 4095] {
             let mut operands: Arena<RuntimeValueOperand> = Arena::default();
@@ -7125,8 +7125,8 @@ mod tests {
 
     #[test]
     fn atomic_fetch_sub_negates_at_width_then_uses_ldaddal() {
-        use omega_core::arena::Arena;
         use omega_target_operations::RuntimeValueOperand;
+        use psi_arena::Arena;
 
         let mut operands: Arena<RuntimeValueOperand> = Arena::default();
         let delta = operands.insert(RuntimeValueOperand::Immediate(12));
@@ -7158,8 +7158,8 @@ mod tests {
 
     #[test]
     fn atomic_fetch_xor_uses_ordered_ldeor_and_returns_prior() {
-        use omega_core::arena::Arena;
         use omega_target_operations::RuntimeValueOperand;
+        use psi_arena::Arena;
 
         let mut operands: Arena<RuntimeValueOperand> = Arena::default();
         let value = operands.insert(RuntimeValueOperand::Immediate(12));
@@ -7186,8 +7186,8 @@ mod tests {
 
     #[test]
     fn atomic_fetch_or_uses_ordered_ldset_and_returns_prior() {
-        use omega_core::arena::Arena;
         use omega_target_operations::RuntimeValueOperand;
+        use psi_arena::Arena;
 
         let mut operands: Arena<RuntimeValueOperand> = Arena::default();
         let value = operands.insert(RuntimeValueOperand::Immediate(5));
@@ -7267,8 +7267,8 @@ mod tests {
     /// at every offset, and the final instruction is `CASAL w26, w17, [x16]`.
     #[test]
     fn atomic_compare_exchange_encoder_matches_width_and_ends_in_casal() {
-        use omega_core::arena::Arena;
         use omega_target_operations::RuntimeValueOperand;
+        use psi_arena::Arena;
 
         for &target_offset in &[0usize, 4, 4095] {
             let mut operands: Arena<RuntimeValueOperand> = Arena::default();
@@ -7629,10 +7629,10 @@ mod tests {
     fn storage_source(
         byte_size: usize,
     ) -> (
-        omega_core::arena::Arena<omega_target_operations::RuntimeValueOperand>,
+        psi_arena::Arena<omega_target_operations::RuntimeValueOperand>,
         omega_target_operations::RuntimeValueOperandHandle,
     ) {
-        let mut arena = omega_core::arena::Arena::new();
+        let mut arena = psi_arena::Arena::new();
         let handle = arena.insert(omega_target_operations::RuntimeValueOperand::Storage {
             region: omega_target_operations::RuntimeStorageRegion::Machine,
             byte_offset: 0x20,
@@ -7834,11 +7834,11 @@ mod tests {
         left: i64,
         right: i64,
     ) -> (
-        omega_core::arena::Arena<omega_target_operations::RuntimeValueOperand>,
+        psi_arena::Arena<omega_target_operations::RuntimeValueOperand>,
         omega_target_operations::RuntimeValueOperandHandle,
         omega_target_operations::RuntimeValueOperandHandle,
     ) {
-        let mut arena = omega_core::arena::Arena::new();
+        let mut arena = psi_arena::Arena::new();
         let left = arena.insert(omega_target_operations::RuntimeValueOperand::Immediate(
             left,
         ));

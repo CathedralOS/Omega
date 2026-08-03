@@ -1,7 +1,7 @@
 use crate::EmissionPlanningInput;
 use omega_calling_conventions::HostBindingMechanism;
-use omega_core::arena::Arena;
 use omega_target::ObjectFormat;
+use psi_arena::Arena;
 
 use super::{
     EmissionBlocker, blocker,

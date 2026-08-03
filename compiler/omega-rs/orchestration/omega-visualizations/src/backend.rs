@@ -744,8 +744,7 @@ fn collect_machine_function_views(
     let mut views = Vec::<FunctionView>::new();
 
     for (index, instruction) in plan.code.instructions.storage_slice().iter().enumerate() {
-        let handle =
-            omega_core::arena::Handle::from_arena_index(instruction.selected_instruction_index);
+        let handle = psi_arena::Handle::from_arena_index(instruction.selected_instruction_index);
         if handle.arena_index() as usize >= assigned_plan.code.instructions.len() {
             continue;
         }
@@ -791,9 +790,8 @@ fn collect_emitted_function_views(
     for (machine_instruction, encoded_instruction) in
         machine_instructions.iter().zip(encoded_instructions.iter())
     {
-        let selected_handle = omega_core::arena::Handle::from_arena_index(
-            machine_instruction.selected_instruction_index,
-        );
+        let selected_handle =
+            psi_arena::Handle::from_arena_index(machine_instruction.selected_instruction_index);
         if !assigned_plan.code.instructions.is_valid(selected_handle) {
             let bytes = encoded_plan
                 .code

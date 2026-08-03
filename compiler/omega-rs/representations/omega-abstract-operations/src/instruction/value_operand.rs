@@ -1,4 +1,4 @@
-use omega_core::arena::Handle;
+use psi_arena::Handle;
 
 use crate::StateGuardOperator;
 

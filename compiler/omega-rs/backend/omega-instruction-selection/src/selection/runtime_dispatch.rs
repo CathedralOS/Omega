@@ -4,10 +4,10 @@ use crate::{
     derive_boundary_exit,
 };
 use omega_control_flow::StateKey;
-use omega_core::arena::{Arena, PagedSlice};
 use omega_runtime_bodies::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
 use omega_state_calls::StateCallRole;
 use omega_state_values::{StateValueRole, simplify_state_expression_for_role};
+use psi_arena::{Arena, PagedSlice};
 use psi_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use psi_checked_trees::statement::StatementNode;
 use psi_checked_trees::types::PrimitiveType;
@@ -2108,7 +2108,7 @@ fn entry_slot_value_shape(
 
 fn flat_homogeneous_float_aggregate_shape(
     input: &InstructionSelectionInput<'_>,
-    fields: omega_core::arena::HandleSpan<omega_layout::FieldLayout>,
+    fields: psi_arena::HandleSpan<omega_layout::FieldLayout>,
     layout: omega_layout::TypeLayout,
 ) -> Option<ValueShape> {
     let fields = input.layouts.fields.span(fields)?;

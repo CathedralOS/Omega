@@ -25,7 +25,7 @@
 //! primitives; construction is ZII + per-field writes (a
 //! `CLayout<Gdt> { ... }` literal is not spellable).
 
-use omega_core::arena::{Handle, HandleSpan};
+use psi_arena::{Handle, HandleSpan};
 use psi_diagnostics::Diagnostic;
 use psi_layout_plans::LayoutPlacementReport;
 use psi_syntax_trees::SyntaxTrees;
@@ -234,7 +234,7 @@ pub(crate) fn desugar_plan_laid_value_types(
             lifetime_parameters: schema_info.lifetime_parameters.clone(),
             type_parameters: HandleSpan::default(),
             properties: schema_info.properties,
-            where_facts: omega_core::arena::HandleSpan::empty(),
+            where_facts: psi_arena::HandleSpan::empty(),
             members: HandleSpan::from_parts(first, count),
             quotient: None,
         }));

@@ -3,7 +3,7 @@ use crate::blocker;
 use crate::semantic_scope::state_name;
 use omega_backend_report_types::EmissionBlocker;
 use omega_calling_conventions::{HostBindingMechanism, HostCapability};
-use omega_core::arena::Arena;
+use psi_arena::Arena;
 
 /// A source-authored external DllImport call (operation key outside the closed
 /// catalog -- `(Unknown, Unknown)`) rides the GENERAL value-returning import

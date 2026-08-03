@@ -1,6 +1,6 @@
 use super::RuntimeStorageContext;
-use omega_core::arena::HandleSpan;
 use omega_layout::TypeLayout;
+use psi_arena::HandleSpan;
 use psi_checked_trees::types::{
     FixedArrayLength, PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
     TypeReferenceTable,

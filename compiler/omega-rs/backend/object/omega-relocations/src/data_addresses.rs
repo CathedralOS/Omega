@@ -14,7 +14,7 @@ pub(super) fn collect_data_address_relocations(
     function_symbol_handle: ObjectSymbolHandle,
     selected_instruction_index: u32,
     operation_key: Option<HostOperationKey>,
-    operands: omega_core::arena::HandleSpan<omega_target_operations::InstructionOperand>,
+    operands: psi_arena::HandleSpan<omega_target_operations::InstructionOperand>,
     selected_text_offset: usize,
     relocation_plan: &mut RelocationPlan,
 ) {

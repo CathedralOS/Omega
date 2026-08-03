@@ -33,7 +33,7 @@ pub(super) struct RuntimeFlowBuilder<'plan> {
     /// the NEXT call's arguments (machine-owned, so frame-independent); for a true
     /// tail call it is empty.
     context_entry_arguments:
-        Vec<omega_core::arena::HandleSpan<psi_checked_trees::expression::ExpressionHandle>>,
+        Vec<psi_arena::HandleSpan<psi_checked_trees::expression::ExpressionHandle>>,
     /// The caller call-result slot a clone returns into, indexed by context id.
     /// `Some` only for a clone created by a VALUE-position call (`let n = f(..)`):
     /// its terminal value is written to this slot when the clone returns. `None`
@@ -72,7 +72,7 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
                 .saturating_add(1024),
             // Index 0 == ROOT: the entry machine terminates the program.
             context_entry_continuation: vec![crate::RuntimeTransitionTarget::Terminal],
-            context_entry_arguments: vec![omega_core::arena::HandleSpan::empty()],
+            context_entry_arguments: vec![psi_arena::HandleSpan::empty()],
             context_call_result: vec![None],
         }
     }
@@ -105,11 +105,11 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
     fn entry_arguments(
         &self,
         context: CallContext,
-    ) -> omega_core::arena::HandleSpan<psi_checked_trees::expression::ExpressionHandle> {
+    ) -> psi_arena::HandleSpan<psi_checked_trees::expression::ExpressionHandle> {
         self.context_entry_arguments
             .get(context.0 as usize)
             .copied()
-            .unwrap_or_else(omega_core::arena::HandleSpan::empty)
+            .unwrap_or_else(psi_arena::HandleSpan::empty)
     }
 
     /// The caller call-result slot a clone in `context` returns into (`Some` only
@@ -347,7 +347,7 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
         };
         let callee_context = self.next_callee_context(
             next_segment_target,
-            omega_core::arena::HandleSpan::empty(),
+            psi_arena::HandleSpan::empty(),
             call_result,
         )?;
         self.record_context_call_site(
@@ -444,9 +444,7 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
     fn next_callee_context(
         &mut self,
         return_continuation: crate::RuntimeTransitionTarget,
-        return_arguments: omega_core::arena::HandleSpan<
-            psi_checked_trees::expression::ExpressionHandle,
-        >,
+        return_arguments: psi_arena::HandleSpan<psi_checked_trees::expression::ExpressionHandle>,
         call_result: Option<crate::CallResultReturn>,
     ) -> Result<CallContext, Diagnostic> {
         if self.next_context >= self.context_budget {
@@ -472,9 +470,9 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
         &self,
         state_key: StateKey,
         statement_index: usize,
-    ) -> omega_core::arena::HandleSpan<psi_checked_trees::expression::ExpressionHandle> {
+    ) -> psi_arena::HandleSpan<psi_checked_trees::expression::ExpressionHandle> {
         let Ok(state) = self.state_flow_by_key(state_key) else {
-            return omega_core::arena::HandleSpan::empty();
+            return psi_arena::HandleSpan::empty();
         };
         // A statement state call's arguments may live on the operation directly
         // (`f(x)` -> Call) or inside the value expression of a value-position call
@@ -545,7 +543,7 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
                 return arguments;
             }
         }
-        omega_core::arena::HandleSpan::empty()
+        psi_arena::HandleSpan::empty()
     }
 
     /// The argument span of the first call expression reachable from `expression`
@@ -553,8 +551,7 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
     fn first_call_arguments(
         &self,
         expression: psi_checked_trees::expression::ExpressionHandle,
-    ) -> Option<omega_core::arena::HandleSpan<psi_checked_trees::expression::ExpressionHandle>>
-    {
+    ) -> Option<psi_arena::HandleSpan<psi_checked_trees::expression::ExpressionHandle>> {
         use psi_checked_trees::expression::ExpressionNode;
         match self.control_flow.expressions.expression(expression) {
             ExpressionNode::Call(call) => Some(call.arguments),

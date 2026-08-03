@@ -64,7 +64,7 @@ fn append_boundary_links(
     source_key: omega_control_flow::StateKey,
     statement_index: usize,
     call_ordinal: usize,
-    lowered_edge: omega_core::arena::Handle<AbstractBoundaryEdge>,
+    lowered_edge: psi_arena::Handle<AbstractBoundaryEdge>,
 ) {
     let source_edges: Vec<_> = summary
         .source_edges

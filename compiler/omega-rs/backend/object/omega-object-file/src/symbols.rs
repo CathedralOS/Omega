@@ -1,5 +1,5 @@
 use crate::SectionKind;
-use omega_core::arena::Handle;
+use psi_arena::Handle;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SymbolPlan {

@@ -7,9 +7,9 @@ use crate::{
     AssignedInstructionOperand, AssignedOperation, AssignedSemanticSummary,
     AssignedTargetOperationFunction, AssignedValueOperand,
 };
-use omega_core::arena::Arena;
 use omega_target::NativeTarget;
 use omega_target_operations::TargetHostBinding;
+use psi_arena::Arena;
 
 pub type TargetOperationPlan = omega_target_operations::TargetOperationPlan;
 
@@ -53,8 +53,8 @@ impl AssignedTargetOperationPlan {
 mod tests {
     use super::{AssignedTargetOperationCode, AssignedTargetOperationPlan};
     use crate::AssignedSemanticSummary;
-    use omega_core::arena::Arena;
     use omega_target::NativeTarget;
+    use psi_arena::Arena;
 
     #[test]
     fn plan_constructor_keeps_code_and_semantic_roots_explicit() {

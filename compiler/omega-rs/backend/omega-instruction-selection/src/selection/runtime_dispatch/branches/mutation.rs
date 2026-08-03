@@ -5,7 +5,7 @@ use omega_abstract_operations::{
     SelectedInstructionKind, StateGuardOperator,
 };
 use omega_control_flow::StateKey;
-use omega_core::arena::Arena;
+use psi_arena::Arena;
 use psi_checked_trees::expression::{
     BinaryOperator, Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
     TableCallExpression, TableMemberExpression,

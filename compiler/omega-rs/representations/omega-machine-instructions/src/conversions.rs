@@ -2,7 +2,7 @@ use crate::{
     MachineInstruction, MachineInstructionCode, MachineInstructionFunction, MachineInstructionPlan,
 };
 use omega_assigned_target_operations::SelectedInstructionKind;
-use omega_core::arena::Arena;
+use psi_arena::Arena;
 use std::convert::Infallible;
 
 impl From<omega_machine_program::MachineProgram> for MachineInstructionPlan {

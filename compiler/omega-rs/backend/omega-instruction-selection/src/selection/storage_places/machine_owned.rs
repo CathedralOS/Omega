@@ -545,7 +545,7 @@ fn machine_field_layout_by_symbol_or_name<'plan>(
 
 fn field_layout_by_symbol_or_name<'plan>(
     layouts: &'plan LayoutPlan,
-    fields: omega_core::arena::HandleSpan<FieldLayout>,
+    fields: psi_arena::HandleSpan<FieldLayout>,
     field_symbol: SymbolHandle,
     field_name: &Identifier,
 ) -> Option<&'plan FieldLayout> {
@@ -663,7 +663,7 @@ fn nested_machine_storage_offset(
 /// layout).
 fn nested_field_span_storage_offset(
     layouts: &LayoutPlan,
-    fields_span: omega_core::arena::HandleSpan<FieldLayout>,
+    fields_span: psi_arena::HandleSpan<FieldLayout>,
     target_machine: SymbolHandle,
     target_attached_data: Option<&str>,
     base_offset: usize,
@@ -737,7 +737,7 @@ fn field_machine_layout<'plan>(
 fn field_data_layout_fields(
     layouts: &LayoutPlan,
     field: &FieldLayout,
-) -> Option<omega_core::arena::HandleSpan<FieldLayout>> {
+) -> Option<psi_arena::HandleSpan<FieldLayout>> {
     let data_layout = layouts
         .data_layouts
         .iter()

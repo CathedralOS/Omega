@@ -12,6 +12,7 @@ path = "src/lib.rs"
 omega-backend-report-types = { path = "../../foundation/omega-backend-report-types" }
 psi-checked-trees = { path = "../../../psi-rs/representations/psi-checked-trees" }
 omega-core = { path = "../../foundation/omega-core" }
+psi-arena = { path = "../../../psi-rs/foundation/psi-arena" }
 psi-symbols = { path = "../../../psi-rs/foundation/psi-symbols" }
 psi-diagnostics = { path = "../../../psi-rs/foundation/psi-diagnostics" }
 omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }

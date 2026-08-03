@@ -1,6 +1,6 @@
 use omega_calling_conventions::HostOperationKey;
-use omega_core::arena::HandleSpan;
 use omega_target_operations::{InstructionOperand, RuntimeTextReadSource, SelectedInstructionKind};
+use psi_arena::HandleSpan;
 
 pub(super) fn host_read_operation_key(kind: &SelectedInstructionKind) -> Option<HostOperationKey> {
     if !kind.crosses_host_boundary() {
@@ -46,11 +46,11 @@ pub(super) fn host_operation_operands(
 mod tests {
     use super::{host_operation, host_operation_operands, host_read_operation_key};
     use omega_calling_conventions::HostOperationKey;
-    use omega_core::arena::HandleSpan;
     use omega_target_operations::{
         RuntimeStorageRegion, RuntimeTextReadSource, RuntimeTextReadTarget,
         SelectedInstructionKind, TargetDataObjectHandle,
     };
+    use psi_arena::HandleSpan;
 
     #[test]
     fn host_read_query_recognizes_host_backed_runtime_text_reads() {

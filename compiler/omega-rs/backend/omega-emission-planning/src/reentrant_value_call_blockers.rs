@@ -3,9 +3,9 @@ use crate::blocker;
 use crate::semantic_scope::state_name;
 use omega_backend_report_types::EmissionBlocker;
 use omega_control_flow::{ControlFlowPlan, MachineFlow, PlannedTransitionTarget, StateKey};
-use omega_core::arena::Arena;
 use omega_state_calls::StateCallRole;
 use omega_state_storage::StateMutationKind;
+use psi_arena::Arena;
 use psi_symbols::SymbolHandle;
 
 /// A VALUE-position call that reaches a RE-ENTRANT machine (one with a

@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use crate::pipeline::source::SourceStorage;
 use crate::{lexer, parser};
-use omega_core::arena::{Arena, HandleSpan};
+use psi_arena::{Arena, HandleSpan};
 use psi_diagnostics::Diagnostic;
 use psi_source::{SourceId, SourcePosition};
 use psi_syntax_trees::SyntaxTrees;

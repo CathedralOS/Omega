@@ -1,6 +1,6 @@
 use crate::{StateCallArgumentKind, StateCallPlan};
 use omega_control_flow::StateKey;
-use omega_core::arena::Arena;
+use psi_arena::Arena;
 use psi_checked_trees::expression::{ExpressionHandle, ExpressionTable};
 use psi_checked_trees::name::Identifier;
 use psi_symbols::SymbolHandle;

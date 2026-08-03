@@ -1,6 +1,6 @@
 use crate::{ObjectSymbolHandle, SectionPlan, SymbolPlan};
-use omega_core::arena::Arena;
 use omega_target::NativeTarget;
+use psi_arena::Arena;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ObjectFileLayout {
@@ -57,8 +57,8 @@ impl ObjectPlan {
 #[cfg(test)]
 mod tests {
     use crate::{ObjectFileLayout, ObjectPlan, SectionPlan, SymbolPlan};
-    use omega_core::arena::{Arena, Handle};
     use omega_target::NativeTarget;
+    use psi_arena::{Arena, Handle};
 
     #[test]
     fn layout_constructor_keeps_section_symbol_and_entry_roots_explicit() {

@@ -5,9 +5,9 @@ pub use context::StateDispatchContext;
 pub use model::{DispatchEdge, DispatchState, StateDispatchPlan};
 
 use omega_control_flow::StateKey;
-use omega_core::arena::Arena;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_state_graph::{RuntimeFlowPlan, RuntimeTransitionTarget};
+use psi_arena::Arena;
 use std::sync::Arc;
 
 pub fn build_state_dispatch_plan(runtime_flow: &RuntimeFlowPlan) -> StateDispatchPlan {

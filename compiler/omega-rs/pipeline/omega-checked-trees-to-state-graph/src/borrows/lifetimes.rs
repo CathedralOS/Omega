@@ -1,8 +1,8 @@
-use omega_core::arena::{Handle, HandleSpan};
 use omega_state_graph::{
     StateBorrowActivation, StateBorrowEventSource, StateBorrowLoan, StateBorrowWeakening,
     StateBorrowWeakeningReason, StateGraph, StateKey,
 };
+use psi_arena::{Handle, HandleSpan};
 use psi_checked_trees::CheckedTrees;
 
 pub(crate) struct StateBorrowLifetimeSummary {

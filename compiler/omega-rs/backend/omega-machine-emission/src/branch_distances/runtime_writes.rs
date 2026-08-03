@@ -2,9 +2,9 @@ use crate::MachineEmissionContext;
 use crate::layout::LaidOutMachineInstruction;
 use omega_assigned_target_operations::{SelectedInstructionKind, StateGuardLowering};
 use omega_control_flow::StateKey;
-use omega_core::arena::Handle;
 use omega_machine_instructions::MachineInstructionKind;
 use omega_target::Architecture;
+use psi_arena::Handle;
 use psi_diagnostics::Diagnostic;
 
 /// Distance (in bytes, from the start of the current instruction) to the next

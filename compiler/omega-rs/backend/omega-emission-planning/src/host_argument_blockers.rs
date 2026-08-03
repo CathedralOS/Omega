@@ -1,7 +1,6 @@
 use crate::EmissionPlanningInput;
 use omega_calling_conventions::{HostCapability, HostOperation, PlatformCallData};
 use omega_control_flow::StateKey;
-use omega_core::arena::Arena;
 use omega_platform_interface::{HostCall, HostCallArgumentKind};
 use omega_runtime_text::places::expression_place_eq_in_table;
 use omega_runtime_text::{RuntimeTextSource, RuntimeTextUse};
@@ -9,6 +8,7 @@ use omega_state_schedule::{ScheduledState, scheduled_state_contains_key};
 use omega_target_operations::{
     InstructionOperandKind, SelectedInstructionKind, TargetDataObjectHandle, TargetDataObjectKind,
 };
+use psi_arena::Arena;
 
 use super::selected_instruction_queries::{host_operation, host_operation_operands};
 use super::semantic_scope::{proof_scope_suffix, state_name};

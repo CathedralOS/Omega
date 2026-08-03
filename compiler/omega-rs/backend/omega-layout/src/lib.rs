@@ -1,4 +1,4 @@
-use omega_core::arena::{Arena, HandleSpan};
+use psi_arena::{Arena, HandleSpan};
 use psi_checked_trees::name::Identifier;
 use psi_symbols::SymbolHandle;
 use std::sync::Arc;

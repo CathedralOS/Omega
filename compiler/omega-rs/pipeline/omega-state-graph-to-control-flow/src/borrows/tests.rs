@@ -1,5 +1,5 @@
 use super::*;
-use omega_core::arena::HandleSpan;
+use psi_arena::HandleSpan;
 use psi_symbols::SymbolHandle;
 
 #[test]

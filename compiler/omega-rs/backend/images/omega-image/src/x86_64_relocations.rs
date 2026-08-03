@@ -83,9 +83,9 @@ mod tests {
         FinalImage, FinalImageLayout, FinalImageMemory, FinalImageRelocation, FinalImageSection,
         FinalImageSymbol,
     };
-    use omega_core::arena::Handle;
     use omega_object_file::{RelocationKind, SymbolKind};
     use omega_target::NativeTarget;
+    use psi_arena::Handle;
 
     #[test]
     fn absolute_relocation_can_patch_initialized_data() {

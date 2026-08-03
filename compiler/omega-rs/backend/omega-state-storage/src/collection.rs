@@ -2,9 +2,9 @@ use super::{StateLocalStorage, StateMutation, StateStoragePlan};
 use crate::StateStoragePlanningContext;
 use crate::mutation_kind::{mutation_kind, mutation_lowering};
 use omega_control_flow::StateKey;
-use omega_core::arena::{Arena, HandleSpan};
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_state_values::simplify_state_expression;
+use psi_arena::{Arena, HandleSpan};
 use psi_checked_trees::CheckedTrees;
 use psi_checked_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTableCapacity,

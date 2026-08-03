@@ -1,5 +1,5 @@
 use omega_control_flow::StateKey;
-use omega_core::arena::{Arena, Handle, HandleSpan};
+use psi_arena::{Arena, Handle, HandleSpan};
 use psi_checked_trees::expression::{
     Expression, ExpressionHandle, ExpressionNode, ExpressionTable, NamePath,
     TableIndexedExpression, TableNamePath,

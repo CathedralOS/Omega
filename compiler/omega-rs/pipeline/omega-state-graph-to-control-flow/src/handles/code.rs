@@ -1,7 +1,7 @@
 use omega_control_flow::{
     ContainedFlow, MachineOwnedDataFlow, Operation, StateFlow, StateParameterFlow, TransitionFlow,
 };
-use omega_core::arena::HandleSpan;
+use psi_arena::HandleSpan;
 
 use super::remap_span;
 

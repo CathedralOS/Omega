@@ -5,7 +5,7 @@ use omega_artifacts::{
     WireProtocolReport, WireRealizationOrigin, WireSchemaReportEntry, WireTrustClass,
     WireVersionReportEntry,
 };
-use omega_core::arena::HandleSpan;
+use psi_arena::HandleSpan;
 use psi_diagnostics::Diagnostic;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::wire::{WireMember, WireSchema};

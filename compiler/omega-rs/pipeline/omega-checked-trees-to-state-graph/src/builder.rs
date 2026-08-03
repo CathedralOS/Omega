@@ -115,7 +115,7 @@ fn build_machine_graph(
 
     let mut segments = Vec::with_capacity(estimated_machine_segment_capacity(program, machine));
     let mut segment_transitions =
-        omega_core::arena::Arena::with_capacity(machine_statement_count(program, machine));
+        psi_arena::Arena::with_capacity(machine_statement_count(program, machine));
     for state in program.machine_states(machine) {
         split_state_segments(
             machine,

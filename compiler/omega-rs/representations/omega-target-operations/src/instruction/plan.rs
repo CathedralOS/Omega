@@ -2,8 +2,8 @@ mod capacity;
 mod lookups;
 
 use super::{InstructionOperand, TargetHostBinding, TargetSemanticSummary};
-use omega_core::arena::Arena;
 use omega_target::NativeTarget;
+use psi_arena::Arena;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetOperationCode {
@@ -47,8 +47,8 @@ impl TargetOperationPlan {
 mod tests {
     use super::{TargetOperationCode, TargetOperationPlan};
     use crate::TargetSemanticSummary;
-    use omega_core::arena::Arena;
     use omega_target::NativeTarget;
+    use psi_arena::Arena;
 
     #[test]
     fn plan_constructor_keeps_code_and_semantic_roots_explicit() {

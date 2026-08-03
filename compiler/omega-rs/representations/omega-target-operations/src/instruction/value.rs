@@ -1,5 +1,5 @@
 use crate::{RuntimeStorageRegion, StateGuardOperator};
-use omega_core::arena::{Arena, Handle};
+use psi_arena::{Arena, Handle};
 
 // The value operand is structurally identical across stages, so the target layer
 // shares the ONE canonical definition from omega-abstract-operations rather than

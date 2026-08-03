@@ -1,8 +1,8 @@
 use omega_control_flow::{
     PlannedTransitionTarget, StateKey, TransitionExpressionRefs, TransitionFlow,
 };
-use omega_core::arena::Arena;
 use omega_state_graph::{StateGraph, TransitionEdge};
+use psi_arena::Arena;
 
 use crate::arena_remap::remap_arena;
 

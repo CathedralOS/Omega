@@ -1,8 +1,8 @@
 use super::*;
 use omega_calling_conventions::{HostCapability, HostOperation, HostOperationKey};
 use omega_control_flow::{ControlFlowPlan, StateKey};
-use omega_core::arena::HandleSpan;
 use omega_platform_interface::{HostCall, HostCallPlan, LoweredHostOperation};
+use psi_arena::HandleSpan;
 use psi_symbols::SymbolHandle;
 
 #[test]

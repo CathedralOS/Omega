@@ -1,8 +1,8 @@
 use omega_control_flow::{
     StateValueFact, StateValueOrigin, StateValueStatementRole, StateValueSummary,
 };
-use omega_core::arena::Arena;
 use omega_state_graph::StateGraph;
+use psi_arena::Arena;
 
 use crate::arena_remap::remap_arena;
 use crate::handles::remap_value_span;

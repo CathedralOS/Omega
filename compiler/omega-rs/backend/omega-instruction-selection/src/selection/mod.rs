@@ -7,8 +7,8 @@ use crate::{
     derive_boundary_static_guard_footprint,
 };
 use omega_abstract_operations::AbstractOperationPlan;
-use omega_core::arena::Arena;
 use omega_state_schedule::{StateScheduleContext, build_entry_state_schedule};
+use psi_arena::Arena;
 use psi_checked_trees::expression::ExpressionTable;
 
 mod bindings;
@@ -188,7 +188,7 @@ fn select_entry_instructions(
     runtime_value_operands: &mut Arena<AbstractValueOperand>,
     instructions: &mut Arena<AbstractOperation>,
 ) -> (
-    omega_core::arena::HandleSpan<AbstractOperation>,
+    psi_arena::HandleSpan<AbstractOperation>,
     Vec<omega_abstract_operations::PermissionRealizationCandidate>,
     omega_abstract_operations::BoundaryFootprintPlan,
 ) {

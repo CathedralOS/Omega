@@ -17581,10 +17581,8 @@ mod machine_control_tests {
 mod atomic_tests {
     use super::*;
 
-    fn operands(
-        values: &[i64],
-    ) -> omega_core::arena::Arena<omega_target_operations::RuntimeValueOperand> {
-        let mut operands = omega_core::arena::Arena::default();
+    fn operands(values: &[i64]) -> psi_arena::Arena<omega_target_operations::RuntimeValueOperand> {
+        let mut operands = psi_arena::Arena::default();
         for value in values {
             operands.insert(omega_target_operations::RuntimeValueOperand::Immediate(
                 *value,

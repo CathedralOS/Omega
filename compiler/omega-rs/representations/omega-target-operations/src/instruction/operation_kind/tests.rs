@@ -3,7 +3,7 @@ use crate::{
     HostOperationKey, RuntimeStorageRegion, RuntimeTextReadSource, StateGuardLowering,
     StateGuardOperator, TargetDataObjectHandle,
 };
-use omega_core::arena::HandleSpan;
+use psi_arena::HandleSpan;
 
 #[test]
 fn operation_kinds_expose_host_boundary_domain() {

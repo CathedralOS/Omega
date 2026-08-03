@@ -21,8 +21,8 @@ use omega_abstract_operations::{
     RuntimeValueOperand, SelectedInstruction, SelectedInstructionKind, StateGuardOperator,
 };
 use omega_control_flow::StateKey;
-use omega_core::arena::Arena;
 use omega_state_calls::{StateCallLowering, StateCallRole};
+use psi_arena::Arena;
 use psi_checked_trees::expression::{
     Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
 };

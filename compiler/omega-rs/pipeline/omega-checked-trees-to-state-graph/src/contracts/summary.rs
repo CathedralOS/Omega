@@ -1,8 +1,8 @@
-use omega_core::arena::{Arena, HandleSpan};
 use omega_state_graph::{
     StateContractCall, StateContractExit, StateContractFactKind, StateContractFactRef,
     StateContractSummary, StateGraph,
 };
+use psi_arena::{Arena, HandleSpan};
 use psi_checked_trees::CheckedTrees;
 
 pub(crate) fn state_contract_summary(

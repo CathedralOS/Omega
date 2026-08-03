@@ -9,8 +9,8 @@
 //! these types and keeps the builder/IO helpers that genuinely depend on the
 //! image and representation layers.
 
-use omega_core::arena::Arena;
 use omega_target::ObjectFormat;
+use psi_arena::Arena;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EmissionPlan {

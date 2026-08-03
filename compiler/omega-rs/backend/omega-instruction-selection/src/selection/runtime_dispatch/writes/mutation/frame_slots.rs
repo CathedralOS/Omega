@@ -19,8 +19,8 @@ use omega_abstract_operations::{
     RuntimeStorageRegion, RuntimeValueOperand, SelectedInstructionKind, StateGuardOperator,
 };
 use omega_control_flow::StateKey;
-use omega_core::arena::{Arena, HandleSpan};
 use omega_layout::ENUM_TAG_BYTES;
+use psi_arena::{Arena, HandleSpan};
 use psi_checked_trees::expression::{
     ExpressionHandle, ExpressionNode, ExpressionTable, TableNamePath,
 };

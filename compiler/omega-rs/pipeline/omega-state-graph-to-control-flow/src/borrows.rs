@@ -4,8 +4,8 @@ use omega_control_flow::{
     StateBorrowActivation, StateBorrowArgumentAccess, StateBorrowCall, StateBorrowLoan,
     StateBorrowSummary, StateBorrowWeakening, StateBorrowWritableRoot,
 };
-use omega_core::arena::Arena;
 use omega_state_graph::StateGraph;
+use psi_arena::Arena;
 
 use crate::arena_remap::remap_arena;
 

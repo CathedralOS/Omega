@@ -3,7 +3,7 @@ use omega_abstract_operations::{
     AbstractBoundarySummary, AbstractSourceBoundaryEdge,
 };
 use omega_calling_conventions::{HostAbiPlan, HostBinding, HostOperationKey};
-use omega_core::arena::Handle;
+use psi_arena::Handle;
 
 pub(crate) fn validate_boundary_policies(
     host_abi: &HostAbiPlan,

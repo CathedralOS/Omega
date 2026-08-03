@@ -34,7 +34,7 @@
 //! annotations; generic TEMPLATE bodies (defs/machines with type params) are
 //! skipped so their param-arg spellings are not mistaken for concrete instances.
 
-use omega_core::arena::{Handle, HandleSpan};
+use psi_arena::{Handle, HandleSpan};
 use psi_diagnostics::Diagnostic;
 use psi_language_semantics::const_value::CanonicalConstValue;
 use psi_numerics::literals::{IntegerLiteral, IntegerRadix};

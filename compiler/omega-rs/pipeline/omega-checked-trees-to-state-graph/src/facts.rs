@@ -3,8 +3,8 @@ use omega_state_graph::{InvariantFact, ProofFactKind, ProofObligationFact, Proof
 pub(crate) fn remap_proof_obligations<'a>(
     fact_count: usize,
     facts: impl Iterator<Item = &'a psi_checked_trees::ProofObligationFact>,
-) -> omega_core::arena::Arena<ProofObligationFact> {
-    let mut obligations = omega_core::arena::Arena::with_capacity(fact_count);
+) -> psi_arena::Arena<ProofObligationFact> {
+    let mut obligations = psi_arena::Arena::with_capacity(fact_count);
 
     for fact in facts {
         obligations.append(ProofObligationFact {
@@ -97,8 +97,8 @@ fn remap_proof_owner(owner: &psi_checked_trees::ProofObligationOwner) -> ProofOb
 pub(crate) fn remap_invariants<'a>(
     fact_count: usize,
     facts: impl Iterator<Item = &'a psi_checked_trees::InvariantFact>,
-) -> omega_core::arena::Arena<InvariantFact> {
-    let mut invariants = omega_core::arena::Arena::with_capacity(fact_count);
+) -> psi_arena::Arena<InvariantFact> {
+    let mut invariants = psi_arena::Arena::with_capacity(fact_count);
 
     for fact in facts {
         invariants.append(InvariantFact {

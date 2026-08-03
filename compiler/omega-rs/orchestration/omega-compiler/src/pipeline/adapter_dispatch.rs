@@ -260,7 +260,7 @@ pub(crate) fn rewrite_adapter_calls(
                         std::iter::once(receiver_expression).chain(old_arguments),
                     );
                 }
-                rewritten.receiver = omega_core::arena::HandleSpan::empty();
+                rewritten.receiver = psi_arena::HandleSpan::empty();
                 rewritten.receiver_symbol = psi_symbols::SymbolHandle::invalid();
                 rewritten.target =
                     psi_typed_trees::name::Identifier::generated(row.adapter_target.clone());
@@ -408,11 +408,11 @@ fn synthesize_place_expression(
     use psi_typed_trees::expression::{ExpressionNode, TableMemberExpression, TableNamePath};
     match members {
         [head, field] => {
-            let mut head_span = omega_core::arena::HandleSpan::empty();
+            let mut head_span = psi_arena::HandleSpan::empty();
             expressions.push_name_path_member(&mut head_span, head.clone());
             let head_expression = expressions.insert(ExpressionNode::Name(TableNamePath {
                 members: head_span,
-                member_symbols: omega_core::arena::HandleSpan::empty(),
+                member_symbols: psi_arena::HandleSpan::empty(),
                 head_symbol: psi_symbols::SymbolHandle::invalid(),
                 symbol: psi_symbols::SymbolHandle::invalid(),
             }));
@@ -424,13 +424,13 @@ fn synthesize_place_expression(
             }))
         }
         _ => {
-            let mut span = omega_core::arena::HandleSpan::empty();
+            let mut span = psi_arena::HandleSpan::empty();
             for member in members {
                 expressions.push_name_path_member(&mut span, member.clone());
             }
             expressions.insert(ExpressionNode::Name(TableNamePath {
                 members: span,
-                member_symbols: omega_core::arena::HandleSpan::empty(),
+                member_symbols: psi_arena::HandleSpan::empty(),
                 head_symbol: receiver_symbol,
                 symbol: receiver_symbol,
             }))

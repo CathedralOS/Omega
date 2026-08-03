@@ -34,8 +34,8 @@ pub(crate) fn pe_entry_rva(image: &FinalImage) -> Result<u32, Diagnostic> {
 mod tests {
     use super::pe_entry_rva;
     use crate::constants::TEXT_RVA;
-    use omega_core::arena::Handle;
     use omega_image::{FinalImage, FinalImageSection, FinalImageSymbol};
+    use psi_arena::Handle;
 
     #[test]
     fn resolves_pe_entry_rva_from_final_image_entry_symbol() {

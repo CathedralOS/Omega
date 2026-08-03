@@ -306,6 +306,7 @@ fn frontend_implementation_is_psi_owned() {
     let root = workspace_root();
     for relative in [
         "compiler/omega-rs/foundation/omega-core/src/arithmetic.rs",
+        "compiler/omega-rs/foundation/omega-core/src/arena/mod.rs",
         "compiler/omega-rs/foundation/omega-core/src/atomic.rs",
         "compiler/omega-rs/foundation/omega-core/src/bignum.rs",
         "compiler/omega-rs/foundation/omega-core/src/byte_predicates.rs",
@@ -327,29 +328,6 @@ fn frontend_implementation_is_psi_owned() {
         assert!(
             !root.join(relative).exists(),
             "retired Psi-owned omega-core compatibility surface must not return: {relative}"
-        );
-    }
-
-    let arena_module = root.join("compiler/omega-rs/foundation/omega-core/src/arena/mod.rs");
-    let source = std::fs::read_to_string(&arena_module)
-        .unwrap_or_else(|error| panic!("failed to read {}: {error}", arena_module.display()));
-    assert!(
-        source.contains("pub use psi_arena::*;"),
-        "legacy arena module must re-export the Psi-owned arena primitives"
-    );
-    for forbidden in [
-        "mod arena;",
-        "mod free_stack;",
-        "mod generational_paged_arena;",
-        "mod handle;",
-        "mod handle_span;",
-        "mod hierarchy_arena;",
-        "mod ordered_root_arena;",
-        "mod paged_arena;",
-    ] {
-        assert!(
-            !source.contains(forbidden),
-            "legacy arena module must not regain Psi-owned implementation module {forbidden}"
         );
     }
 }

@@ -1,11 +1,11 @@
 use crate::EmissionPlanningInput;
 use omega_control_flow::StateKey;
-use omega_core::arena::Arena;
 use omega_runtime_text::places::expression_place_eq_in_table;
 use omega_runtime_text::{RuntimeTextWrite, RuntimeTextWriteKind};
 use omega_state_storage::StateMutationLowering;
 use omega_state_values::{StateValueKind, StateValueRole, StateValueUse};
 use omega_target_operations::SelectedInstructionKind;
+use psi_arena::Arena;
 
 use super::semantic_scope::{proof_scope_suffix, state_name};
 use super::{EmissionBlocker, blocker};

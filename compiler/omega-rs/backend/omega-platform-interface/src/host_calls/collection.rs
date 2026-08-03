@@ -12,8 +12,8 @@ use crate::host_calls::static_values::{
 use crate::{HostCall, HostCallPlan, UnsupportedHostCall, UnsupportedHostCallReason};
 use omega_calling_conventions::HostAbiPlan;
 use omega_control_flow::StateKey;
-use omega_core::arena::HandleSpan;
 use omega_target::NativeTarget;
+use psi_arena::HandleSpan;
 use psi_checked_trees::CheckedTrees;
 use psi_checked_trees::machine::Machine;
 use psi_checked_trees::state::State;

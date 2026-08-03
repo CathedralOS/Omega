@@ -750,7 +750,7 @@ mod tests {
         program.facts.carry.machine_topologies.insert(
             psi_checked_trees::MachineCarryTopologyFact {
                 machine: child,
-                fields: omega_core::arena::HandleSpan::empty(),
+                fields: psi_arena::HandleSpan::empty(),
             },
         );
         let child_policy = CarryPolicy {

@@ -1,7 +1,7 @@
 use omega_control_flow::StateKey;
-use omega_core::arena::HandleSpan;
 use omega_state_calls::{StateCallLowering, StateCallRole};
 use omega_state_storage::{StateMutationKind, StateMutationLowering};
+use psi_arena::HandleSpan;
 use psi_checked_trees::expression::ExpressionHandle;
 use psi_checked_trees::name::Identifier;
 use psi_symbols::SymbolHandle;

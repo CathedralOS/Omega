@@ -3,7 +3,7 @@ use crate::{
     RuntimeStorageRegion, RuntimeTextReadTarget, StateGuardLowering, StateGuardOperator,
 };
 use omega_calling_conventions::HostCapability;
-use omega_core::arena::HandleSpan;
+use psi_arena::HandleSpan;
 use std::sync::Arc;
 
 mod classification;

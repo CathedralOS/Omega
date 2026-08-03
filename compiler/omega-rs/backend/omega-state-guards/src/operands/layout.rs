@@ -1,8 +1,8 @@
 use crate::StateGuardOperandStorage;
 use omega_control_flow::StateKey;
-use omega_core::arena::HandleSpan;
 use omega_layout::{DataShape, FieldLayout, LayoutPlan, TypeLayout, TypeLayoutDescriptor};
 use omega_runtime_storage::RuntimeStoragePlan;
+use psi_arena::HandleSpan;
 use psi_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use psi_checked_trees::name::Identifier;
 use psi_symbols::SymbolHandle;

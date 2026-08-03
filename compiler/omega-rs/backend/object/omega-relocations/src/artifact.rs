@@ -122,7 +122,6 @@ fn translate_relocation(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use omega_core::arena::Handle;
     use omega_executable_installation::{
         ArtifactContentId, ArtifactEntry, ArtifactId, ContainerLimits, ContainerSection,
         ContainerSectionKind, DecodedArtifactContainer, EntrySetId, MachineContractSetId,
@@ -131,6 +130,7 @@ mod tests {
         validate_decoded_container,
     };
     use omega_target::NativeTarget;
+    use psi_arena::Handle;
     use psi_layout_plans::{EntryStubId, PlacementConstraints, PlacementPhase};
 
     fn id<T>(

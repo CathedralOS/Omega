@@ -4,8 +4,8 @@ mod planned;
 mod reasons;
 
 use crate::EmissionPlanningInput;
-use omega_core::arena::Arena;
 use omega_runtime_bodies::RuntimeDispatchBodyOperationKind;
+use psi_arena::Arena;
 
 use super::super::{EmissionBlocker, blocker};
 use crate::semantic_scope::{proof_scope_suffix, state_name};

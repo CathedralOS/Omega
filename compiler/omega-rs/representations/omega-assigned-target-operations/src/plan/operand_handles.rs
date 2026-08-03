@@ -1,5 +1,5 @@
 use crate::AssignedInstructionOperand;
-use omega_core::arena::{Handle, HandleSpan};
+use psi_arena::{Handle, HandleSpan};
 
 pub(super) fn assigned_instruction_handle(
     handle: Handle<omega_target_operations::TargetInstructionOperand>,

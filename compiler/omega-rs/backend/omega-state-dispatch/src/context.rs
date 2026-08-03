@@ -1,6 +1,6 @@
 use omega_control_flow::StateKey;
-use omega_core::arena::Arena;
 use omega_state_graph::{CallContext, RuntimeFlowPlan};
+use psi_arena::Arena;
 use std::sync::Arc;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

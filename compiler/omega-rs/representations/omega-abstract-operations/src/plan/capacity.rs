@@ -1,5 +1,5 @@
 use crate::{AbstractOperationCode, AbstractOperationPlan, AbstractSemanticSummary};
-use omega_core::arena::Arena;
+use psi_arena::Arena;
 
 impl AbstractOperationPlan {
     pub fn with_capacity(

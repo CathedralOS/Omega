@@ -1,5 +1,5 @@
 use super::*;
-use omega_core::arena::HandleSpan;
+use psi_arena::HandleSpan;
 use psi_checked_trees::data::{DataDefinition, DataField, DataMember};
 use psi_checked_trees::name::Identifier;
 use psi_checked_trees::types::TypeReferenceNode;

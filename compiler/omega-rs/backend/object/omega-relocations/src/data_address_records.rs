@@ -75,9 +75,9 @@ fn insert_data_address_relocations_for_architecture(
 #[cfg(test)]
 mod tests {
     use super::insert_data_address_relocations_for_architecture;
-    use omega_core::arena::Handle;
     use omega_object_file::{RelocationKind, RelocationPlan};
     use omega_target::{Architecture, NativeTarget};
+    use psi_arena::Handle;
 
     #[test]
     fn inserts_target_specific_data_address_relocations() {

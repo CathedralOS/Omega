@@ -3,7 +3,7 @@ use omega_abstract_operations::{
     PermissionRealizationCandidateKind, SelectedInstruction,
 };
 use omega_control_flow::{ControlFlowPlan, StateKey};
-use omega_core::arena::{Arena, Handle, HandleSpan};
+use psi_arena::{Arena, Handle, HandleSpan};
 use psi_symbols::SymbolHandle;
 
 pub(super) struct SelectedInstructionSink<'arena, 'plan> {

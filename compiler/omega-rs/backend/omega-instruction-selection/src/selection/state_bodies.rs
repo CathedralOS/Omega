@@ -1,7 +1,7 @@
 use crate::InstructionSelectionInput;
 use omega_control_flow::{OperationKind, PlannedTransitionTarget, StateKey};
-use omega_core::arena::{Arena, HandleSpan};
 use omega_state_schedule::{ScheduledState, ScheduledStateCollector};
+use psi_arena::{Arena, HandleSpan};
 use psi_checked_trees::expression::ExpressionTable;
 use psi_checked_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 

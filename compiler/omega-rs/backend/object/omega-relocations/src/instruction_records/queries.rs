@@ -1,9 +1,9 @@
 use omega_calling_conventions::HostOperationKey;
-use omega_core::arena::HandleSpan;
 use omega_target_operations::{
     InstructionOperand, RuntimeStorageRegion, RuntimeTextReadSource, RuntimeTextReadTarget,
     SelectedInstructionKind, TargetDataObjectHandle,
 };
+use psi_arena::HandleSpan;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct SelectedHostTextRead {
@@ -64,11 +64,11 @@ pub(super) fn selected_host_text_read(
 mod tests {
     use super::{selected_host_operation, selected_host_text_read};
     use omega_calling_conventions::HostOperationKey;
-    use omega_core::arena::HandleSpan;
     use omega_target_operations::{
         RuntimeStorageRegion, RuntimeTextReadSource, RuntimeTextReadTarget,
         SelectedInstructionKind, TargetDataObjectHandle,
     };
+    use psi_arena::HandleSpan;
 
     #[test]
     fn selected_host_text_read_extracts_host_payload() {

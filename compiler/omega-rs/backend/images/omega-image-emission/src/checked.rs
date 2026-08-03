@@ -1682,7 +1682,6 @@ mod tests {
         validate_final_text_relocation_envelope,
     };
     use crate::ExecutableImageInput;
-    use omega_core::arena::Handle;
     use omega_image::{
         FinalExecutableRegionOrigin, PlacedExecutableRegion, PlacedExecutableRegionInventory,
     };
@@ -1690,6 +1689,7 @@ mod tests {
         ObjectPlan, RelocationKind, RelocationOrigin, RelocationPlan, RelocationRecord, SectionKind,
     };
     use omega_target::NativeTarget;
+    use psi_arena::Handle;
 
     #[test]
     fn rejects_native_image_when_encoded_text_size_differs_from_plan() {
@@ -1833,10 +1833,10 @@ mod tests {
 
     #[test]
     fn validates_checked_assembly_at_retained_instruction_boundaries() {
-        use omega_core::arena::Arena;
         use omega_machine_bytes::{
             CheckedInstructionValidationKind, EncodedMachineCode, EncodedMachineInstruction,
         };
+        use psi_arena::Arena;
 
         let mut bytes = Arena::with_capacity(5);
         let halt = bytes.insert_many([0xf4]);
@@ -1891,12 +1891,12 @@ mod tests {
 
     #[test]
     fn validates_immediate_port_identity_and_privileged_io_envelopes() {
-        use omega_core::arena::Arena;
         use omega_machine_bytes::{
             CheckedInstructionValidationKind, CheckedOperandLoaderKind,
             CheckedOperandLoaderRegister, CheckedOperandLoaderValidation, EncodedMachineCode,
             EncodedMachineInstruction,
         };
+        use psi_arena::Arena;
 
         let mut out_bytes = Vec::new();
         out_bytes.extend([0x49, 0xba]);
@@ -2031,12 +2031,12 @@ mod tests {
 
     #[test]
     fn validates_direct_storage_operand_loader_semantics() {
-        use omega_core::arena::{Arena, Handle};
         use omega_machine_bytes::{
             CheckedInstructionValidationKind, CheckedOperandLoaderKind,
             CheckedOperandLoaderRegister, CheckedOperandLoaderValidation, EncodedMachineCode,
             EncodedMachineInstruction,
         };
+        use psi_arena::{Arena, Handle};
         use psi_language_core::inline_assembly::AsmControlRegister;
 
         let mut encoded = Vec::new();
@@ -2131,11 +2131,11 @@ mod tests {
         Vec<u8>,
         RelocationPlan,
     ) {
-        use omega_core::arena::Arena;
         use omega_machine_bytes::{
             CheckedInstructionValidationKind, CheckedOperandLoaderRegister,
             CheckedOperandLoaderValidation, EncodedMachineCode, EncodedMachineInstruction,
         };
+        use psi_arena::Arena;
         use psi_language_core::inline_assembly::AsmControlRegister;
 
         let mut encoded = Vec::new();
@@ -2250,12 +2250,12 @@ mod tests {
 
     #[test]
     fn validates_frame_base_indexed_operand_loader_semantics() {
-        use omega_core::arena::Arena;
         use omega_machine_bytes::{
             CheckedInstructionValidationKind, CheckedOperandLoaderKind,
             CheckedOperandLoaderRegister, CheckedOperandLoaderValidation, EncodedMachineCode,
             EncodedMachineInstruction,
         };
+        use psi_arena::Arena;
         use psi_language_core::inline_assembly::AsmControlRegister;
 
         let mut encoded = Vec::new();
@@ -2347,12 +2347,12 @@ mod tests {
 
     #[test]
     fn validates_cross_region_frame_indexed_operand_loader_semantics() {
-        use omega_core::arena::Arena;
         use omega_machine_bytes::{
             CheckedInstructionValidationKind, CheckedOperandLoaderKind,
             CheckedOperandLoaderRegister, CheckedOperandLoaderValidation, EncodedMachineCode,
             EncodedMachineInstruction,
         };
+        use psi_arena::Arena;
         use psi_language_core::inline_assembly::AsmControlRegister;
 
         let mut encoded = Vec::new();
@@ -2458,12 +2458,12 @@ mod tests {
 
     #[test]
     fn validates_cross_region_machine_indexed_operand_loader_semantics() {
-        use omega_core::arena::Arena;
         use omega_machine_bytes::{
             CheckedInstructionValidationKind, CheckedOperandLoaderKind,
             CheckedOperandLoaderRegister, CheckedOperandLoaderValidation, EncodedMachineCode,
             EncodedMachineInstruction,
         };
+        use psi_arena::Arena;
         use psi_language_core::inline_assembly::AsmControlRegister;
 
         let mut encoded = Vec::new();
@@ -2561,12 +2561,12 @@ mod tests {
 
     #[test]
     fn rejects_mutated_final_wrmsr_opcode_after_index_binding() {
-        use omega_core::arena::Arena;
         use omega_machine_bytes::{
             CheckedInstructionValidationKind, CheckedOperandLoaderKind,
             CheckedOperandLoaderRegister, CheckedOperandLoaderValidation, EncodedMachineCode,
             EncodedMachineInstruction,
         };
+        use psi_arena::Arena;
 
         let mut encoded = Vec::new();
         encoded.extend([0x49, 0xba]);

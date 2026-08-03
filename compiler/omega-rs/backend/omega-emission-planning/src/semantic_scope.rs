@@ -1,7 +1,7 @@
 use crate::EmissionPlanningInput;
 use omega_control_flow::StateKey;
-use omega_core::arena::{Arena, HandleSpan};
 use omega_state_calls::StateCall;
+use psi_arena::{Arena, HandleSpan};
 use psi_checked_trees::name::Identifier;
 
 pub(super) fn state_name(input: &EmissionPlanningInput<'_>, key: StateKey) -> String {

@@ -1,5 +1,5 @@
-use omega_core::arena::{Arena, Handle};
 use omega_object_file::RelocationKind;
+use psi_arena::{Arena, Handle};
 
 use crate::model::{FinalImageSection, FinalImageSymbolHandle};
 
@@ -50,7 +50,7 @@ impl Default for FinalImageRelocation {
 #[cfg(test)]
 mod tests {
     use crate::model::{FinalImageRelocation, FinalImageRelocationTable};
-    use omega_core::arena::Arena;
+    use psi_arena::Arena;
 
     #[test]
     fn relocation_table_constructor_keeps_relocation_root_explicit() {

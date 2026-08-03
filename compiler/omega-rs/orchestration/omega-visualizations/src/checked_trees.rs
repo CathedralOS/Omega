@@ -1972,7 +1972,7 @@ fn append_loan_preview(
     program: &CheckedTrees,
     machine: &Machine,
     state: &State,
-    constraints: omega_core::arena::HandleSpan<psi_checked_trees::FlowConstraintRef>,
+    constraints: psi_arena::HandleSpan<psi_checked_trees::FlowConstraintRef>,
 ) {
     let loans = program
         .facts
@@ -2199,7 +2199,7 @@ fn borrow_access_summary(
     program: &CheckedTrees,
     machine: &Machine,
     state: &State,
-    accesses: omega_core::arena::HandleSpan<BorrowArgumentAccessFact>,
+    accesses: psi_arena::HandleSpan<BorrowArgumentAccessFact>,
 ) -> String {
     let access_facts = program
         .facts

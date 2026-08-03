@@ -2019,7 +2019,7 @@ impl<'program> Evaluator<'program> {
     ///    run its entry state on the current `self`.
     fn resolve_state_call(
         &self,
-        receiver: omega_core::arena::HandleSpan<psi_typed_trees::name::Identifier>,
+        receiver: psi_arena::HandleSpan<psi_typed_trees::name::Identifier>,
         target: &str,
         frame: &Frame,
     ) -> EvalResult<(Machine, String, Cell)> {
@@ -2054,7 +2054,7 @@ impl<'program> Evaluator<'program> {
     /// machine. The receiver path's leaf is the field; the head may be `self`.
     fn resolve_receiver_state_call(
         &self,
-        receiver: omega_core::arena::HandleSpan<psi_typed_trees::name::Identifier>,
+        receiver: psi_arena::HandleSpan<psi_typed_trees::name::Identifier>,
         target: &str,
         frame: &Frame,
     ) -> EvalResult<Option<(Machine, String, Cell)>> {

@@ -1,5 +1,5 @@
-use omega_core::arena::HandleSpan;
 use omega_state_graph::{StateGraph, StateParameterNode};
+use psi_arena::HandleSpan;
 use psi_checked_trees::CheckedTrees;
 use psi_checked_trees::name::Identifier;
 use psi_checked_trees::state::State;

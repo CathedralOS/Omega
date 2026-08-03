@@ -2,9 +2,9 @@ use crate::EmissionPlanningInput;
 use crate::blocker;
 use crate::semantic_scope::state_name;
 use omega_backend_report_types::EmissionBlocker;
-use omega_core::arena::Arena;
 use omega_state_calls::StateCallRole;
 use omega_state_storage::StateMutationKind;
+use psi_arena::Arena;
 
 /// An inline VALUE-position call whose callee has an EFFECTFUL arm state is a
 /// silent miscompile: the arm-body straight-line expansions are emitted

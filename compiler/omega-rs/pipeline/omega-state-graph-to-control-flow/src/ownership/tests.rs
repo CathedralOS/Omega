@@ -22,9 +22,9 @@ fn remap_ownership_summary_preserves_all_event_handles() {
     let mut moves = Arena::new();
     let mut drops = Arena::new();
     let mut permissions = Arena::new();
-    let mut move_span = omega_core::arena::HandleSpan::empty();
-    let mut drop_span = omega_core::arena::HandleSpan::empty();
-    let mut permission_span = omega_core::arena::HandleSpan::empty();
+    let mut move_span = psi_arena::HandleSpan::empty();
+    let mut drop_span = psi_arena::HandleSpan::empty();
+    let mut permission_span = psi_arena::HandleSpan::empty();
     moves.append_to_span(&mut move_span, move_event);
     drops.append_to_span(&mut drop_span, drop_event);
     permissions.append_to_span(

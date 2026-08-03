@@ -5,11 +5,11 @@ use crate::{
     StateGuardOperandStorage, StateGuardOperator, StateGuardPlan,
 };
 use omega_control_flow::{ControlFlowPlan, StateKey};
-use omega_core::arena::Arena;
 use omega_layout::LayoutPlan;
 use omega_runtime_storage::RuntimeStoragePlan;
 use omega_state_dispatch::{DispatchEdge, StateDispatchPlan};
 use omega_state_values::simplify_expression;
+use psi_arena::Arena;
 use psi_checked_trees::CheckedTrees;
 use psi_checked_trees::expression::{
     BinaryExpression, BinaryOperator, Expression, ExpressionHandle, ExpressionNode,

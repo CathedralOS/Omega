@@ -1,6 +1,6 @@
 use crate::emit_elf_aarch64_executable;
-use omega_core::arena::Handle;
 use omega_image::{FinalImage, FinalImageSection, FinalImageSymbol};
+use psi_arena::Handle;
 
 #[test]
 fn emits_entry_address_from_final_image_entry_symbol() {

@@ -2,8 +2,8 @@ use omega_assigned_target_operations::{
     RuntimeTextReadSource, RuntimeTextReadTarget, SelectedInstructionKind,
 };
 use omega_calling_conventions::HostOperationKey;
-use omega_core::arena::HandleSpan;
 use omega_target_operations::InstructionOperand;
+use psi_arena::HandleSpan;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct SelectedHostOperation {
@@ -76,8 +76,8 @@ mod tests {
         RuntimeStorageRegion, RuntimeTextReadSource, RuntimeTextReadTarget, SelectedInstructionKind,
     };
     use omega_calling_conventions::HostOperationKey;
-    use omega_core::arena::HandleSpan;
     use omega_target_operations::TargetDataObjectHandle;
+    use psi_arena::HandleSpan;
 
     #[test]
     fn selected_host_text_read_extracts_encoding_payload() {

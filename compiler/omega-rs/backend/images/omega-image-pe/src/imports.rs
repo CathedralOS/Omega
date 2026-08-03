@@ -279,10 +279,10 @@ mod tests {
     use super::{
         PeImportThunk, build_import_table, install_import_thunks, validate_import_thunk_footprints,
     };
-    use omega_core::arena::Handle;
     use omega_image::{
         FinalExecutableRegionOrigin, FinalImage, FinalImageImport, FinalImageSymbol,
     };
+    use psi_arena::Handle;
 
     #[test]
     fn installed_import_thunks_enter_the_executable_region_inventory() {

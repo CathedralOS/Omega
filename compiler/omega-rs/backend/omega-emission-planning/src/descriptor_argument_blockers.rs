@@ -22,8 +22,8 @@
 use crate::EmissionPlanningInput;
 use crate::semantic_scope::{proof_scope_suffix, state_name};
 use omega_control_flow::StateKey;
-use omega_core::arena::{Arena, HandleSpan};
 use omega_target_operations::{RuntimeStorageRegion, SelectedInstructionKind};
+use psi_arena::{Arena, HandleSpan};
 use psi_checked_trees::expression::{ExpressionHandle, ExpressionNode};
 
 use super::{EmissionBlocker, blocker};

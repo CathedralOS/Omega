@@ -7,9 +7,9 @@ use super::super::offsets::{
 use super::context::InstructionRelocationContext;
 use super::queries::selected_host_operation;
 use omega_calling_conventions::HostBindingMechanism;
-use omega_core::arena::HandleSpan;
 use omega_object_file::{RelocationRecord, object_symbol_handle_by_name};
 use omega_target_operations::{InstructionOperand, SelectedInstructionKind};
+use psi_arena::HandleSpan;
 
 pub(super) fn collect_host_operation_relocations(
     context: &mut InstructionRelocationContext<'_, '_>,

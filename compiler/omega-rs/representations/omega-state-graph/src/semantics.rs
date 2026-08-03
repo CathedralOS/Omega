@@ -2,7 +2,7 @@ use crate::{
     InvariantFact, ProofObligationFact, StateGraphBorrowRoots, StateGraphBoundaryRoots,
     StateGraphContractRoots, StateGraphOwnershipRoots, StateGraphValueRoots,
 };
-use omega_core::arena::Arena;
+use psi_arena::Arena;
 use psi_language_semantics::{ServiceReachRowTable, ServiceReachTable};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

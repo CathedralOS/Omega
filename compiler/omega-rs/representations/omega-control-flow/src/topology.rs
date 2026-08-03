@@ -1,4 +1,4 @@
-use omega_core::arena::HandleSpan;
+use psi_arena::HandleSpan;
 use psi_language_semantics::{OperationalMaySummary, ServiceReachSummary};
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::name::Identifier;

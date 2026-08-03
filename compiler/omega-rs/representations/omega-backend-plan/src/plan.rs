@@ -3,7 +3,6 @@ use omega_abstract_operations::{AbstractDataPlan, AbstractOperationPlan};
 use omega_assigned_target_operations::AssignedTargetOperationPlan;
 use omega_calling_conventions::HostAbiPlan;
 use omega_control_flow::{ControlFlowPlan, StateKey};
-use omega_core::arena::Arena;
 use omega_layout::LayoutPlan;
 use omega_platform_interface::HostCallPlan;
 use omega_runtime_bodies::RuntimeDispatchBodyPlan;
@@ -19,6 +18,7 @@ use omega_state_storage::StateStoragePlan;
 use omega_state_values::StateValuePlan;
 use omega_target::NativeTarget;
 use omega_target_operations::{InstructionPlan, TargetDataPlan};
+use psi_arena::Arena;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 

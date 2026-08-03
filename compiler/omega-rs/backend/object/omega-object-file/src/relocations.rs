@@ -1,6 +1,6 @@
 use crate::{ObjectSymbolHandle, SectionKind};
-use omega_core::arena::{Arena, Handle};
 use omega_target::NativeTarget;
+use psi_arena::{Arena, Handle};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RelocationPlan {
@@ -132,8 +132,8 @@ pub enum RelocationKind {
 #[cfg(test)]
 mod tests {
     use crate::{RelocationPlan, RelocationRecord, RelocationRecordSet};
-    use omega_core::arena::Arena;
     use omega_target::NativeTarget;
+    use psi_arena::Arena;
 
     #[test]
     fn relocation_record_set_constructor_keeps_record_root_explicit() {

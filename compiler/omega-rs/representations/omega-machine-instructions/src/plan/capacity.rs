@@ -1,6 +1,6 @@
 use crate::{MachineInstructionCode, MachineInstructionPlan, MachineInstructionSemanticSummary};
-use omega_core::arena::Arena;
 use omega_target::NativeTarget;
+use psi_arena::Arena;
 
 impl MachineInstructionPlan {
     pub fn with_capacity(

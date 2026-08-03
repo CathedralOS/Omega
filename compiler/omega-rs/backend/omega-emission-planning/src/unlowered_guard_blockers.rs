@@ -24,8 +24,8 @@
 use crate::EmissionPlanningInput;
 use crate::semantic_scope::proof_scope_suffix;
 use omega_backend_report_types::EmissionBlocker;
-use omega_core::arena::Arena;
 use omega_target_operations::{SelectedInstructionKind, StateGuardLowering};
+use psi_arena::Arena;
 
 use super::{blocker, semantic_scope::state_name};
 

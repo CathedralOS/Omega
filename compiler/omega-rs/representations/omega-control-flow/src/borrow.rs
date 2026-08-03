@@ -1,4 +1,4 @@
-use omega_core::arena::{Arena, Handle, HandleSpan};
+use psi_arena::{Arena, Handle, HandleSpan};
 use psi_symbols::SymbolHandle;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -136,7 +136,7 @@ mod tests {
         ControlFlowBorrowRoots, StateBorrowActivation, StateBorrowArgumentAccess, StateBorrowCall,
         StateBorrowLoan, StateBorrowWeakening, StateBorrowWritableRoot,
     };
-    use omega_core::arena::Arena;
+    use psi_arena::Arena;
 
     #[test]
     fn borrow_roots_constructor_keeps_borrow_noun_roots_explicit() {

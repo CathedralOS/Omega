@@ -1,7 +1,7 @@
 use crate::pipeline::frontend::ParsedSources;
 use crate::pipeline::source::SourceFile;
 use crate::source::SourceMap;
-use omega_core::arena::Arena;
+use psi_arena::Arena;
 use psi_diagnostics::Diagnostic;
 use psi_source::SourceOrigin;
 use psi_syntax_trees::SyntaxTrees;

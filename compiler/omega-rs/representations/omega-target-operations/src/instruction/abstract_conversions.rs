@@ -885,5 +885,5 @@ fn remap_data_handle(
 fn remap_runtime_value_handle(
     handle: omega_abstract_operations::AbstractValueOperandHandle,
 ) -> TargetValueOperandHandle {
-    omega_core::arena::Handle::from_parts(handle.arena_index(), handle.generation())
+    psi_arena::Handle::from_parts(handle.arena_index(), handle.generation())
 }

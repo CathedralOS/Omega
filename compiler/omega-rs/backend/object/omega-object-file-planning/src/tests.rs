@@ -2,7 +2,6 @@ use crate::{ObjectPlanningInput, build_object_plan};
 use omega_calling_conventions::{
     HostAbiPlan, HostBinding, HostBindingMechanism, HostOperationReference,
 };
-use omega_core::arena::Arena;
 use omega_layout::{DataLayout, FieldLayout, LayoutPlan, MachineLayout, TypeLayout, VariantLayout};
 use omega_machine_bytes::{EncodedMachineFunction, EncodedMachinePlan};
 use omega_object_file::{
@@ -11,6 +10,7 @@ use omega_object_file::{
 };
 use omega_target::NativeTarget;
 use omega_target_operations::{TargetDataObject, TargetDataPlan};
+use psi_arena::Arena;
 use psi_symbols::SymbolHandle;
 use std::sync::Arc;
 

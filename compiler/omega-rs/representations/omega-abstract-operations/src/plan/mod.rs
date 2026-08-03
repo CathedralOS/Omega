@@ -16,7 +16,7 @@ mod tests {
         CheckedNoCodePermissionReason, PermissionRealizationCandidate,
         PermissionRealizationCandidateKind,
     };
-    use omega_core::arena::Arena;
+    use psi_arena::Arena;
 
     #[test]
     fn plan_constructor_keeps_code_and_semantic_roots_explicit() {

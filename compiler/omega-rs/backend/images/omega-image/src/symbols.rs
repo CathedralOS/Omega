@@ -1,6 +1,6 @@
 use crate::model::{FinalImage, FinalImageLayout, FinalImageSection, FinalImageSymbolHandle};
-use omega_core::arena::Handle;
 use omega_object_file::{ObjectSymbolHandle, SectionKind, SymbolSection};
+use psi_arena::Handle;
 
 pub(crate) fn final_image_symbol_handle(symbol: ObjectSymbolHandle) -> FinalImageSymbolHandle {
     if symbol.is_valid() {

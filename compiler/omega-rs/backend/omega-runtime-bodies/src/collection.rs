@@ -5,10 +5,10 @@ use super::lookups::{
 };
 use super::model::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
 use omega_control_flow::{OperationExpressionRefs, OperationKind, StateKey};
-use omega_core::arena::Arena;
 use omega_state_calls::{StateCall, StateCallLowering, StateCallRole};
 use omega_state_dispatch::DispatchState;
 use omega_state_graph::RuntimeTransitionTarget;
+use psi_arena::Arena;
 use psi_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use psi_checked_trees::name::Identifier;
 use psi_checked_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};

@@ -1,4 +1,4 @@
-use omega_core::arena::{Arena, Handle, HandleSpan};
+use psi_arena::{Arena, Handle, HandleSpan};
 use psi_symbols::SymbolHandle;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

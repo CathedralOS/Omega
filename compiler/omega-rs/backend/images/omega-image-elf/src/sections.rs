@@ -53,8 +53,8 @@ pub(crate) fn plan_elf_sections(image: &FinalImage) -> ElfSections {
 mod tests {
     use super::plan_elf_sections;
     use crate::constants::{IMAGE_BASE, PAGE_SIZE};
-    use omega_core::arena::Handle;
     use omega_image::FinalImage;
+    use psi_arena::Handle;
 
     #[test]
     fn plans_elf_text_data_and_bss_layout() {

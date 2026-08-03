@@ -1,5 +1,5 @@
-use omega_core::arena::HandleSpan;
 use omega_layout::{DataShape, FieldLayout, LayoutPlan, TypeLayout, TypeLayoutDescriptor};
+use psi_arena::HandleSpan;
 use psi_checked_trees::name::Identifier;
 use psi_symbols::SymbolHandle;
 

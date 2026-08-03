@@ -160,9 +160,7 @@ pub(in crate::selection) fn clamp_runtime_case_comparison_operands_in_table(
     right_expression: ExpressionHandle,
     left: omega_abstract_operations::RuntimeValueOperandHandle,
     right: omega_abstract_operations::RuntimeValueOperandHandle,
-    runtime_value_operands: &mut omega_core::arena::Arena<
-        omega_abstract_operations::RuntimeValueOperand,
-    >,
+    runtime_value_operands: &mut psi_arena::Arena<omega_abstract_operations::RuntimeValueOperand>,
 ) {
     if !matches!(
         operator,
@@ -188,9 +186,7 @@ pub(in crate::selection) fn clamp_runtime_case_comparison_operands(
     right_expression: &Expression,
     left: omega_abstract_operations::RuntimeValueOperandHandle,
     right: omega_abstract_operations::RuntimeValueOperandHandle,
-    runtime_value_operands: &mut omega_core::arena::Arena<
-        omega_abstract_operations::RuntimeValueOperand,
-    >,
+    runtime_value_operands: &mut psi_arena::Arena<omega_abstract_operations::RuntimeValueOperand>,
 ) {
     if !matches!(
         operator,
@@ -208,9 +204,7 @@ pub(in crate::selection) fn clamp_runtime_case_comparison_operands(
 }
 
 fn clamp_runtime_case_comparison_operand(
-    runtime_value_operands: &mut omega_core::arena::Arena<
-        omega_abstract_operations::RuntimeValueOperand,
-    >,
+    runtime_value_operands: &mut psi_arena::Arena<omega_abstract_operations::RuntimeValueOperand>,
     operand: omega_abstract_operations::RuntimeValueOperandHandle,
 ) {
     use omega_abstract_operations::RuntimeValueOperand;

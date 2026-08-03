@@ -2,7 +2,7 @@ use crate::{
     AbstractFunctionPlan, AbstractOperation, AbstractSemanticSummary, AbstractValueOperand,
     InstructionOperand,
 };
-use omega_core::arena::Arena;
+use psi_arena::Arena;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AbstractOperationCode {

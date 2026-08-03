@@ -2,7 +2,7 @@ use super::{AbstractOperationDomain, AbstractOperationKind};
 use crate::{
     AbstractDataObjectHandle, RuntimeStorageRegion, StateGuardLowering, StateGuardOperator,
 };
-use omega_core::arena::HandleSpan;
+use psi_arena::HandleSpan;
 
 #[test]
 fn operation_kinds_expose_host_boundary_domain() {
