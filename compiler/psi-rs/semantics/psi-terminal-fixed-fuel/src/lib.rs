@@ -2,11 +2,9 @@
 
 //! Recomputable restricted fixed-fuel certificates for terminal Psi.
 //!
-//! The current terminal verifier accepts only an acyclic straight-line path,
-//! so the checker derives exact entry-to-return costs without precondition
-//! assumptions and partitions that path at every explicit jump/return edge.
-//! Branch-sensitive outcomes join this surface only when that semantic
-//! vocabulary exists.
+//! The terminal verifier accepts acyclic control flow, so the checker derives
+//! an exact maximum entry-to-return cost without precondition assumptions and
+//! partitions the complete reachable graph at every explicit edge.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -16,14 +14,13 @@ use psi_terminal_codec::{CodecError, TerminalPsiIdentity, terminal_psi_identity}
 use psi_terminal_fuel::{FuelScheduleIdentity, TerminalFuelSchedule};
 use psi_terminal_verifier::VerifiedTerminalModule;
 
-/// Exact first-slice theorem: one machine entry reaches one return edge within
-/// the published v1 logical-fuel ceiling.
+/// Exact restricted theorem: every path from one machine entry reaches a
+/// return within the published v1 logical-fuel ceiling.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FixedEntryFuelCertificate {
     terminal_psi: TerminalPsiIdentity,
     schedule: FuelScheduleIdentity,
     entry: MachineId,
-    return_edge: EdgeId,
     relevant_preconditions: Vec<Proposition>,
     ceiling_units: u64,
 }
@@ -87,10 +84,6 @@ impl FixedEntryFuelCertificate {
         self.entry
     }
 
-    pub const fn return_edge(&self) -> EdgeId {
-        self.return_edge
-    }
-
     pub fn relevant_preconditions(&self) -> &[Proposition] {
         &self.relevant_preconditions
     }
@@ -114,12 +107,11 @@ pub fn derive_fixed_entry_fuel(
         .iter()
         .find(|machine| machine.id == entry)
         .ok_or(FixedFuelError::UnknownEntry(entry))?;
-    let (return_edge, ceiling_units) = derive_straight_line_bound(machine)?;
+    let ceiling_units = derive_maximum_entry_bound(machine)?;
     Ok(FixedEntryFuelCertificate {
         terminal_psi,
         schedule: TerminalFuelSchedule::CURRENT.identity(),
         entry,
-        return_edge,
         // Current control and operation costs do not depend on values. The
         // theorem therefore holds for every invocation admitted by the
         // machine contract and needs no additional premise subset.
@@ -141,10 +133,10 @@ pub fn validate_fixed_entry_fuel(
     Ok(())
 }
 
-/// Derive an exact bound for one selected path segment in the current
-/// unconditional, acyclic terminal vocabulary. The charged endpoint is part
-/// of the segment so adjacent certificates neither omit nor double-charge an
-/// edge.
+/// Derive an exact bound for one selected acyclic path segment. The charged
+/// endpoint is part of the segment so adjacent certificates neither omit nor
+/// double-charge an edge. A conditional edge can be an endpoint; crossing an
+/// unresolved conditional without selecting its successor fails closed.
 pub fn derive_fixed_segment_fuel(
     verified: &VerifiedTerminalModule<'_>,
     machine: MachineId,
@@ -190,12 +182,11 @@ pub fn validate_fixed_segment_fuel(
 }
 
 /// Select the complete current-vocabulary safe-point partition for one
-/// machine. Every explicit unconditional jump or return edge is a semantic
+/// machine. Every explicit jump, conditional, or return edge is a semantic
 /// safe point in this slice: operations are total, no partial call/suspension
 /// state can cross the edge, and the successor block begins the next segment.
-/// The returned order is execution order from the machine entry.
-/// Semantic-v13 conditional machines refuse until the restricted checker can
-/// derive and validate a complete maximum-path branch certificate.
+/// The returned order is canonical block order followed by terminator edge
+/// order, restricted to blocks reachable from the machine entry.
 pub fn derive_fixed_safe_point_segments(
     verified: &VerifiedTerminalModule<'_>,
     machine: MachineId,
@@ -211,33 +202,42 @@ pub fn derive_fixed_safe_point_segments(
         .iter()
         .map(|block| (block.id, block))
         .collect::<BTreeMap<_, _>>();
-    let mut visited = BTreeSet::new();
-    let mut current = machine_semantics.entry;
-    let mut segments = Vec::new();
-
-    loop {
-        if !visited.insert(current) {
-            return Err(FixedFuelError::ControlCycle(current));
+    let mut reachable = BTreeSet::new();
+    let mut pending = vec![machine_semantics.entry];
+    while let Some(current) = pending.pop() {
+        if !reachable.insert(current) {
+            continue;
         }
         let block = blocks
             .get(&current)
             .copied()
             .ok_or(FixedFuelError::UnknownBlock(current))?;
-        if matches!(block.terminator, Terminator::Conditional { .. }) {
-            return Err(FixedFuelError::BranchingNotYetSupported(current));
-        }
-        segments.push(derive_fixed_segment_fuel(
-            verified,
-            machine,
-            current,
-            block.terminator.edge(),
-        )?);
-        match block.terminator {
-            Terminator::Jump { target, .. } => current = target,
-            Terminator::Conditional { .. } => unreachable!("rejected above"),
-            Terminator::Return { .. } => return Ok(segments),
+        match &block.terminator {
+            Terminator::Jump { target, .. } => pending.push(*target),
+            Terminator::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => {
+                pending.push(when_false.target);
+                pending.push(when_true.target);
+            }
+            Terminator::Return { .. } => {}
         }
     }
+
+    let mut segments = Vec::new();
+    for block in &machine_semantics.blocks {
+        if !reachable.contains(&block.id) {
+            continue;
+        }
+        for edge in block.terminator.edges() {
+            segments.push(derive_fixed_segment_fuel(
+                verified, machine, block.id, edge,
+            )?);
+        }
+    }
+    Ok(segments)
 }
 
 /// Recompute the whole ordered safe-point partition. Validating certificates
@@ -255,41 +255,67 @@ pub fn validate_fixed_safe_point_segments(
     Ok(())
 }
 
-fn derive_straight_line_bound(machine: &TerminalMachine) -> Result<(EdgeId, u64), FixedFuelError> {
+fn derive_maximum_entry_bound(machine: &TerminalMachine) -> Result<u64, FixedFuelError> {
     let schedule = TerminalFuelSchedule::CURRENT;
     let blocks = machine
         .blocks
         .iter()
         .map(|block| (block.id, block))
         .collect::<BTreeMap<_, _>>();
-    let mut visited = BTreeSet::new();
-    let mut current = machine.entry;
-    let mut units = 0_u64;
+    maximum_units_from(
+        machine.entry,
+        &blocks,
+        schedule,
+        &mut BTreeMap::new(),
+        &mut BTreeSet::new(),
+    )
+}
 
-    loop {
-        if !visited.insert(current) {
-            return Err(FixedFuelError::ControlCycle(current));
-        }
-        let block = blocks
-            .get(&current)
-            .copied()
-            .ok_or(FixedFuelError::UnknownBlock(current))?;
-        for operation in &block.operations {
-            units = units
-                .checked_add(schedule.operation_units(&operation.kind))
-                .ok_or(FixedFuelError::BoundOverflow)?;
-        }
-        units = units
-            .checked_add(schedule.terminator_units(&block.terminator))
-            .ok_or(FixedFuelError::BoundOverflow)?;
-        match block.terminator {
-            Terminator::Jump { target, .. } => current = target,
-            Terminator::Conditional { .. } => {
-                return Err(FixedFuelError::BranchingNotYetSupported(current));
-            }
-            Terminator::Return { edge, .. } => return Ok((edge, units)),
-        }
+fn maximum_units_from(
+    current: BlockId,
+    blocks: &BTreeMap<BlockId, &psi_terminal::Block>,
+    schedule: TerminalFuelSchedule,
+    memoized: &mut BTreeMap<BlockId, u64>,
+    active: &mut BTreeSet<BlockId>,
+) -> Result<u64, FixedFuelError> {
+    if let Some(units) = memoized.get(&current) {
+        return Ok(*units);
     }
+    if !active.insert(current) {
+        return Err(FixedFuelError::ControlCycle(current));
+    }
+    let block = blocks
+        .get(&current)
+        .copied()
+        .ok_or(FixedFuelError::UnknownBlock(current))?;
+    let mut local_units = 0_u64;
+    for operation in &block.operations {
+        local_units = local_units
+            .checked_add(schedule.operation_units(&operation.kind))
+            .ok_or(FixedFuelError::BoundOverflow)?;
+    }
+    local_units = local_units
+        .checked_add(schedule.terminator_units(&block.terminator))
+        .ok_or(FixedFuelError::BoundOverflow)?;
+    let successor_units = match &block.terminator {
+        Terminator::Jump { target, .. } => {
+            maximum_units_from(*target, blocks, schedule, memoized, active)?
+        }
+        Terminator::Conditional {
+            when_true,
+            when_false,
+            ..
+        } => maximum_units_from(when_true.target, blocks, schedule, memoized, active)?.max(
+            maximum_units_from(when_false.target, blocks, schedule, memoized, active)?,
+        ),
+        Terminator::Return { .. } => 0,
+    };
+    active.remove(&current);
+    let units = local_units
+        .checked_add(successor_units)
+        .ok_or(FixedFuelError::BoundOverflow)?;
+    memoized.insert(current, units);
+    Ok(units)
 }
 
 fn derive_segment_bound(
@@ -327,9 +353,6 @@ fn derive_segment_bound(
             .checked_add(schedule.terminator_units(&block.terminator))
             .ok_or(FixedFuelError::BoundOverflow)?;
         if block.terminator.edges().any(|edge| edge == end_edge) {
-            if matches!(block.terminator, Terminator::Conditional { .. }) {
-                return Err(FixedFuelError::BranchingNotYetSupported(current));
-            }
             return Ok(units);
         }
         match block.terminator {
