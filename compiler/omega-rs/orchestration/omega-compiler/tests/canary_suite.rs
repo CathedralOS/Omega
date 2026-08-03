@@ -36818,11 +36818,23 @@ fn named_float_directed_fused_multiply_add_selects_aarch64_fmadd_and_executes() 
 
 #[test]
 fn named_float_directed_add_selects_exact_plans_and_restores_control_state() {
+    const DIFFERENTIAL_SUITE_ID: &str = "omega.float.hardware.macos_arm64.directed-add.v1";
+    const DIFFERENTIAL_COVERAGE: &[&str] = &[
+        "binary32 half-ULP tie",
+        "binary64 half-ULP tie",
+        "toward zero",
+        "toward positive",
+        "toward negative",
+        "floating-control restoration",
+    ];
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0xeb87_c478_c8a1_e513;
+
     let canary = pass_canary("float/named_provider_directed_add_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
         .expect("directed-add provider calls should compile to checked trees");
 
     let mut selected_intrinsics = std::collections::BTreeSet::new();
+    let mut selected_plan_identities = Vec::new();
     for operator_use in checked.facts.operators.named_uses() {
         let Some(plan) = checked
             .selected_provider_plans()
@@ -36842,6 +36854,7 @@ fn named_float_directed_add_selects_exact_plans_and_restores_control_state() {
             continue;
         }
         selected_intrinsics.insert(name.clone());
+        selected_plan_identities.push(plan.identity_fingerprint());
         let psi_typed_trees::expression::ExpressionNode::Call(call) = checked
             .typed
             .expression_table
@@ -36866,6 +36879,13 @@ fn named_float_directed_add_selects_exact_plans_and_restores_control_state() {
         .into_iter()
         .map(str::to_owned)
         .collect()
+    );
+    selected_plan_identities.sort_unstable();
+    selected_plan_identities.dedup();
+    assert_eq!(
+        selected_plan_identities.len(),
+        6,
+        "{DIFFERENTIAL_SUITE_ID} must bind one exact plan per format/direction slot"
     );
 
     let outcome = omega_interpreter::interpret(&checked, &[]);
@@ -36921,6 +36941,45 @@ fn named_float_directed_add_selects_exact_plans_and_restores_control_state() {
         });
         let _ = fs::remove_dir_all(&scratch);
     }
+
+    fn retain(hash: &mut u64, bytes: &[u8]) {
+        for byte in (bytes.len() as u64)
+            .to_le_bytes()
+            .into_iter()
+            .chain(bytes.iter().copied())
+        {
+            *hash ^= u64::from(byte);
+            *hash = hash.wrapping_mul(0x100000001b3);
+        }
+    }
+
+    let mut result_identity = 0xcbf29ce484222325_u64;
+    retain(&mut result_identity, DIFFERENTIAL_SUITE_ID.as_bytes());
+    retain(&mut result_identity, b"macos_arm64");
+    for category in DIFFERENTIAL_COVERAGE {
+        retain(&mut result_identity, category.as_bytes());
+    }
+    for intrinsic in &selected_intrinsics {
+        retain(&mut result_identity, intrinsic.as_bytes());
+    }
+    for identity in selected_plan_identities {
+        retain(&mut result_identity, &identity.to_le_bytes());
+    }
+    retain(&mut result_identity, &outcome.exit_code.to_le_bytes());
+    retain(&mut result_identity, &outcome.stdout);
+    retain(&mut result_identity, &outcome.stderr);
+    retain(
+        &mut result_identity,
+        &output.status.code().unwrap_or_default().to_le_bytes(),
+    );
+    retain(&mut result_identity, &output.stdout);
+    retain(&mut result_identity, &output.stderr);
+    retain(&mut result_identity, b"linux_x64:cross-compile-passed");
+    retain(&mut result_identity, b"linux_arm64:cross-compile-passed");
+    assert_eq!(
+        result_identity, EXPECTED_DIFFERENTIAL_RESULT_IDENTITY,
+        "{DIFFERENTIAL_SUITE_ID} result changed ({result_identity:#018x}); validate the exact plans, edge corpus, interpreter/native results, and cross-target builds before refreshing the retained identity"
+    );
 }
 
 #[test]
