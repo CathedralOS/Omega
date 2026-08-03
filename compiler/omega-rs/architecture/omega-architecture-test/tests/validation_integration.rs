@@ -190,6 +190,85 @@ fn duplicate_named_whole_trait_conformance_rejects() {
 }
 
 #[test]
+fn generic_conformance_bounds_survive_typing_and_resolve_exact_selection() {
+    let typed = typed_program_from_source(
+        r#"
+        trait Marker {}
+        trait Projection<Message> {}
+        data Item {}
+        Item satisfies Marker as Primary;
+
+        machine inspect<T, Message>(value: &T)
+        where
+            T satisfies Projection<Message>,
+            Message satisfies Item::Primary
+        {}
+        "#,
+    );
+
+    let machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "inspect")
+        .expect("generic machine");
+    let [ordinary, named] = machine.conformance_bounds.as_slice() else {
+        panic!("two typed conformance bounds");
+    };
+    assert!(ordinary.subject.is_valid());
+    assert_eq!(typed.symbols.name(ordinary.carrier), "Projection");
+    assert_eq!(ordinary.arguments.len(), 1);
+    assert!(named.subject.is_valid());
+    let selected = named.conformance.expect("named conformance symbol");
+    assert_eq!(typed.symbols.name(selected), "Primary");
+    assert_eq!(
+        typed.symbols.get(selected).kind,
+        psi_symbols::SymbolKind::Conformance
+    );
+    validate_program(&typed).expect("resolved conformance bounds should validate");
+}
+
+#[test]
+fn generic_conformance_bound_rejects_unknown_subject() {
+    let typed = typed_program_from_source(
+        r#"
+        trait Marker {}
+        machine inspect<T>(value: &T)
+        where U satisfies Marker
+        {}
+        "#,
+    );
+
+    let diagnostics =
+        validate_program(&typed).expect_err("a bound subject must be a declared type parameter");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("conformance bound names unknown type parameter `U`")
+    }));
+}
+
+#[test]
+fn generic_conformance_bound_rejects_unknown_named_selection() {
+    let typed = typed_program_from_source(
+        r#"
+        trait Marker {}
+        data Item {}
+        machine inspect<T>(value: &T)
+        where T satisfies Item::Missing
+        {}
+        "#,
+    );
+
+    let diagnostics =
+        validate_program(&typed).expect_err("a named bound must select a declared conformance");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("conformance bound selects unknown conformance `Item::Missing`")
+    }));
+}
+
+#[test]
 fn exact_qualification_may_publish_one_checked_content_projection() {
     let typed = typed_program_from_source(
         r#"

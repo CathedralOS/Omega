@@ -63,7 +63,8 @@ use crate::symbols::MachineSymbols;
 pub use crate::symbols::TopLevelSymbols;
 use crate::traits::{
     validate_data_conformances, validate_external_leaf_native_shapes,
-    validate_machine_trait_conformances, validate_trait_requirements,
+    validate_generic_conformance_bounds, validate_machine_trait_conformances,
+    validate_trait_requirements,
 };
 use crate::transitions::validate_transition_target_node;
 use crate::type_references::{
@@ -198,6 +199,7 @@ fn validate_program_internal(
         }
 
         validate_owned_data(program, machine, &symbols, &mut diagnostics);
+        validate_generic_conformance_bounds(program, machine, &mut diagnostics);
         validate_machine_service_reaches(program, machine, &mut diagnostics);
         validate_machine_contracts(program, machine, &mut diagnostics);
         let generic_contract_was_prevalidated = generic_contract_entailment_prevalidated

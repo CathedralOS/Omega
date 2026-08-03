@@ -704,6 +704,17 @@ pub struct SatisfiesClause {
     pub via: Option<ExternalBinding>,
 }
 
+/// A generic `where T satisfies Trait<Args>` test of an already-declared
+/// nominal conformance. A qualified carrier path (`T satisfies Card::Order`)
+/// selects the named conformance `Order` declared for `Card`.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct GenericConformanceBound {
+    pub subject: Identifier,
+    pub carrier: Identifier,
+    pub arguments: HandleSpan<crate::types::TypeReferenceHandle>,
+    pub conformance: Option<Identifier>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Machine {
     pub name: Identifier,
@@ -727,6 +738,7 @@ pub struct Machine {
     pub lifetime_parameters: Vec<Identifier>,
     pub type_parameters: HandleSpan<TypeParameter>,
     pub satisfies: HandleSpan<SatisfiesClause>,
+    pub conformance_bounds: Vec<GenericConformanceBound>,
     pub terminates: bool,
     /// TPR2 (decision 23): the machine authored BARE `terminates;` — the
     /// public eventual-terminal guarantee. `terminates by ...` supplies only

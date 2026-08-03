@@ -95,6 +95,7 @@ fn machine_record_carries_one_public_termination_interface() {
             type_parameters: _,
             owned_data: _,
             satisfies: _,
+            conformance_bounds: _,
             // The normalized plan above is the sole downstream carrier for
             // the public termination interface. These fields are private
             // witness material only.

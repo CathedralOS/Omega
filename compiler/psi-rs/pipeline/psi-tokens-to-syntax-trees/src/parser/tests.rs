@@ -351,6 +351,51 @@ fn parses_generic_standalone_conformance_arguments() {
 }
 
 #[test]
+fn retains_generic_and_named_conformance_bounds() {
+    let source = r#"
+        trait Converter<Message> { }
+        data Card { }
+        Card satisfies Converter<i32> as PowerOrder;
+
+        machine inspect<T, Message>(value: &T)
+        where
+            T satisfies Converter<Message>,
+            Message satisfies Card::PowerOrder
+        { }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("conformance bounds should parse");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            psi_syntax_trees::item::Item::Machine(machine)
+                if machine.name.as_str() == "inspect" =>
+            {
+                Some(machine)
+            }
+            _ => None,
+        })
+        .expect("generic machine");
+
+    let [ordinary, named] = machine.conformance_bounds.as_slice() else {
+        panic!("two retained conformance bounds");
+    };
+    assert_eq!(ordinary.subject.as_str(), "T");
+    assert_eq!(ordinary.carrier.as_str(), "Converter");
+    assert!(ordinary.conformance.is_none());
+    assert_eq!(ordinary.arguments.len(), 1);
+    assert_eq!(named.subject.as_str(), "Message");
+    assert_eq!(named.carrier.as_str(), "Card");
+    assert_eq!(
+        named.conformance.as_ref().map(|name| name.as_str()),
+        Some("PowerOrder")
+    );
+}
+
+#[test]
 fn parses_dungeon_state_flow() {
     let source = r#"
         data Main {

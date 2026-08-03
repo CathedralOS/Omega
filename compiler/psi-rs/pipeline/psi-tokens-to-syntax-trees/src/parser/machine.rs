@@ -58,6 +58,7 @@ pub(super) fn parse_machine<'tokens, 'source>(
             blocks,
             contracts,
             clauses_return_type,
+            conformance_bounds,
         ),
         next,
     ) = parse_machine_clauses(syntax_trees, next)?;
@@ -109,6 +110,7 @@ pub(super) fn parse_machine<'tokens, 'source>(
                 lifetime_parameters,
                 type_parameters,
                 satisfies,
+                conformance_bounds,
                 terminates,
                 terminates_guarantee,
                 decreases,
@@ -222,6 +224,7 @@ pub(super) fn parse_machine<'tokens, 'source>(
             lifetime_parameters,
             type_parameters,
             satisfies,
+            conformance_bounds,
             terminates,
             terminates_guarantee,
             decreases,

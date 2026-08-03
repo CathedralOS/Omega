@@ -8,7 +8,8 @@ use psi_arena::{Handle, HandleSpan};
 use psi_syntax_trees::SyntaxTrees;
 use psi_syntax_trees::identifier::Identifier;
 use psi_syntax_trees::item::{
-    BoundaryLevel, CapabilityContract, CapabilityContractKind, SatisfiesClause,
+    BoundaryLevel, CapabilityContract, CapabilityContractKind, GenericConformanceBound,
+    SatisfiesClause,
 };
 use psi_tokens::{KeywordKind, PunctuationKind};
 
@@ -28,6 +29,7 @@ type MachineClauses = (
     bool,
     HandleSpan<CapabilityContract>,
     psi_syntax_trees::types::TypeReferenceHandle,
+    Vec<GenericConformanceBound>,
 );
 
 type RankedSubjects = (
@@ -57,6 +59,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
     let mut contract_start = Handle::invalid();
     let mut contract_count = 0u32;
     let mut return_type = psi_syntax_trees::types::TypeReferenceHandle::invalid();
+    let mut conformance_bounds = Vec::new();
 
     while !input.at_punctuation(PunctuationKind::LeftBrace)
         // CH10 bodyless machines end at `;` in body position -- the clause
@@ -269,16 +272,26 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
             continue;
         }
 
-        // A `where` clause (generic machine requirements, ch12: `where machine
-        // T::increment(&mut self)`). Its constraints are consumed up to the
-        // body brace -- the same treatment the old skip gave it, but scoped so
-        // ONLY a where clause is tolerated here.
+        // Ordinary generic conformance tests are semantic input, not header
+        // trivia: retain every subject, trait specialization, and optional
+        // named-conformance selection for resolution and checking.
         if input.at_contextual("where") {
-            input = input.take_contextual("where")?;
-            while !input.at_punctuation(PunctuationKind::LeftBrace) {
-                let (_, rest) = input.expect_token()?;
-                input = rest;
+            let after_where = input.take_contextual("where")?;
+            if after_where.at_keyword(KeywordKind::Machine) {
+                // The legacy one-off `where machine T::member(...)` surface
+                // still has no semantic carrier. Preserve its existing
+                // compatibility behavior independently; ordinary nominal
+                // conformance bounds below are no longer swallowed with it.
+                input = after_where;
+                while !input.at_punctuation(PunctuationKind::LeftBrace) {
+                    let (_, rest) = input.expect_token()?;
+                    input = rest;
+                }
+                continue;
             }
+            let (bounds, rest) = parse_generic_conformance_bounds(syntax_trees, input)?;
+            conformance_bounds = bounds;
+            input = rest;
             continue;
         }
 
@@ -328,9 +341,44 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
             blocks,
             contracts,
             return_type,
+            conformance_bounds,
         ),
         input,
     ))
+}
+
+fn parse_generic_conformance_bounds<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, Vec<GenericConformanceBound>> {
+    let mut input = input.take_contextual("where")?;
+    let mut bounds = Vec::new();
+
+    loop {
+        let (subject, rest) = input.take_identifier()?;
+        let rest = rest.take_contextual("satisfies")?;
+        let (carrier, rest) = rest.take_identifier()?;
+        let (arguments, mut rest) = parse_optional_satisfies_type_arguments(syntax_trees, rest)?;
+        let conformance = if rest.at_punctuation(PunctuationKind::ColonColon) {
+            rest = rest.take_punctuation(PunctuationKind::ColonColon, "::")?;
+            let (name, next) = rest.take_identifier()?;
+            rest = next;
+            Some(name)
+        } else {
+            None
+        };
+        bounds.push(GenericConformanceBound {
+            subject,
+            carrier,
+            arguments,
+            conformance,
+        });
+
+        if !rest.at_punctuation(PunctuationKind::Comma) {
+            return Ok((bounds, rest));
+        }
+        input = rest.take_punctuation(PunctuationKind::Comma, ",")?;
+    }
 }
 
 fn take_invokes_clause_terminator<'tokens, 'source>(

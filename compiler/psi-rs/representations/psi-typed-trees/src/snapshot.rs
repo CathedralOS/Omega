@@ -325,6 +325,8 @@ pub struct MachineSnapshot {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub lifetime_parameters: Vec<String>,
     pub type_parameters: Vec<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub conformance_bounds: Vec<GenericConformanceBoundSnapshot>,
     pub supply: MachineSupplySnapshot,
     pub termination: TerminationInterfaceSnapshot,
     pub decreases: Vec<ExpressionSnapshot>,
@@ -337,6 +339,19 @@ pub struct MachineSnapshot {
     pub contracts: Vec<SignatureContractSnapshot>,
     pub owned_data: Vec<OwnedDataSnapshot>,
     pub states: Vec<StateSnapshot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct GenericConformanceBoundSnapshot {
+    pub subject: String,
+    pub subject_symbol: u32,
+    pub carrier: String,
+    pub carrier_symbol: u32,
+    pub arguments: Vec<TypeReferenceSnapshot>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub conformance: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub conformance_symbol: Option<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -841,6 +856,24 @@ fn machine_snapshot(program: &TypedTrees, machine: &Machine) -> MachineSnapshot 
             .machine_type_parameters(machine)
             .iter()
             .map(|parameter| parameter.name.to_string())
+            .collect(),
+        conformance_bounds: machine
+            .conformance_bounds
+            .iter()
+            .map(|bound| GenericConformanceBoundSnapshot {
+                subject: bound.subject_name.to_string(),
+                subject_symbol: bound.subject.arena_index(),
+                carrier: bound.carrier_name.to_string(),
+                carrier_symbol: bound.carrier.arena_index(),
+                arguments: bound
+                    .arguments
+                    .iter()
+                    .copied()
+                    .map(|argument| type_reference_snapshot(program, argument))
+                    .collect(),
+                conformance: bound.conformance_name.as_ref().map(ToString::to_string),
+                conformance_symbol: bound.conformance.map(|symbol| symbol.arena_index()),
+            })
             .collect(),
         supply: machine_supply_snapshot(machine.supply_mode),
         termination: termination_interface_snapshot(&machine.termination_plan.interface),
