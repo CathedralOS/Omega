@@ -1404,12 +1404,12 @@ pub fn dispatch_guard_compare_static_additional_machine_state() -> MachineStateS
     MachineStateSet::new([MachineState::Flags])
 }
 
-pub fn host_call_sequence_width<T: InstructionOperandLike>(
+pub fn host_call_sequence_width_no_plan<T: InstructionOperandLike>(
     policy: CallingPolicy,
     operation_key: HostOperationKey,
     operands: &[T],
 ) -> usize {
-    match encode_host_call_sequence(policy, operation_key, operands) {
+    match encode_host_call_sequence_no_plan(policy, operation_key, operands) {
         Ok(bytes) => bytes.len(),
         Err(error) => {
             if std::env::var_os("OMEGA_DEBUG_RECEIVER").is_some() {
@@ -2088,7 +2088,7 @@ fn host_call_external_relocation_site_optional_plan<T: InstructionOperandLike>(
     .find(|site| site.kind == X86_64RelocationSiteKind::Relative32)
 }
 
-pub fn encode_host_call_sequence<T: InstructionOperandLike>(
+pub fn encode_host_call_sequence_no_plan<T: InstructionOperandLike>(
     policy: CallingPolicy,
     operation_key: HostOperationKey,
     operands: &[T],
@@ -5475,7 +5475,7 @@ mod x86_import_plan_tests {
             },
         )];
 
-        let error = encode_host_call_sequence(CallingPolicy::SystemVAMD64, key, &operands)
+        let error = encode_host_call_sequence_no_plan(CallingPolicy::SystemVAMD64, key, &operands)
             .expect_err("the Win64 compatibility encoder must not silently choose its ABI");
 
         assert!(error.message.contains("not SystemVAMD64"));
@@ -5587,7 +5587,7 @@ mod x86_import_plan_tests {
             [Some(1), Some(2), None, Some(0)]
         );
         assert_eq!(
-            encode_host_call_sequence(CallingPolicy::SystemVAMD64, key, &operands)
+            encode_host_call_sequence_no_plan(CallingPolicy::SystemVAMD64, key, &operands)
                 .expect("routed SysV authored import"),
             layout.bytes
         );
@@ -6183,7 +6183,7 @@ mod x86_import_plan_tests {
             )),
         ];
 
-        encode_host_call_sequence(CallingPolicy::SystemVAMD64, key, &operands)
+        encode_host_call_sequence_no_plan(CallingPolicy::SystemVAMD64, key, &operands)
             .expect("constant materialization does not apply a calling policy");
     }
 
@@ -6198,9 +6198,12 @@ mod x86_import_plan_tests {
         .expect("GetStdHandle native plan");
         validate_normalized_win64_get_std_handle_plan(Some(&get_std_plan))
             .expect("retained GetStdHandle plan");
-        let bytes =
-            encode_host_call_sequence(CallingPolicy::MicrosoftX64, get_std, &get_std_operands)
-                .expect("plan-driven GetStdHandle");
+        let bytes = encode_host_call_sequence_no_plan(
+            CallingPolicy::MicrosoftX64,
+            get_std,
+            &get_std_operands,
+        )
+        .expect("plan-driven GetStdHandle");
         assert_eq!(
             bytes,
             encode_host_call_sequence_with_plan(
@@ -6246,8 +6249,12 @@ mod x86_import_plan_tests {
                 &dword_plan,
             )
             .expect("the selected DWORD plan types its contextual literal"),
-            encode_host_call_sequence(CallingPolicy::MicrosoftX64, exit, &dword_literal_operands,)
-                .expect("compatibility literal encoding"),
+            encode_host_call_sequence_no_plan(
+                CallingPolicy::MicrosoftX64,
+                exit,
+                &dword_literal_operands,
+            )
+            .expect("compatibility literal encoding"),
         );
         let exit_operands = [operand(
             TargetInstructionOperandKind::RuntimeScalarInteger {
@@ -6256,7 +6263,7 @@ mod x86_import_plan_tests {
                 byte_count: 4,
             },
         )];
-        encode_host_call_sequence(CallingPolicy::MicrosoftX64, exit, &exit_operands)
+        encode_host_call_sequence_no_plan(CallingPolicy::MicrosoftX64, exit, &exit_operands)
             .expect("plan-driven ExitProcess");
         let sites = host_call_relocation_sites(exit, &exit_operands);
         assert_eq!(sites[0].byte_offset, 6, "runtime region-base imm64");
