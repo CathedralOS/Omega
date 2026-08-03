@@ -3,11 +3,12 @@
 //!
 //! This is the normalized service/operational floor of the complete
 //! build-time contract: a compiler-run machine must reach no boundary service
-//! and must neither suspend nor block, and every checked body in its concrete
-//! call closure must carry the ordinary termination guarantee. Authority,
-//! trust, resources, failure, and escaping-mutation admission remain
-//! independent axes and are added here as their checked plans become
-//! available.
+//! and must neither suspend nor block, every checked body in its concrete call
+//! closure must carry the ordinary termination guarantee, and no reachable
+//! checked body may declare an unadmitted linear runtime carrier. Authority,
+//! trust, finer resource admission, and failure remain independent axes and
+//! are added here as their checked plans become available. Escaping mutation
+//! is excluded by the evaluator's fresh-value/snapshot boundary.
 
 use psi_language_semantics::{MachineSupplyMode, TerminationGuarantee};
 use psi_symbols::{SymbolHandle, SymbolKind};
@@ -72,11 +73,11 @@ impl BuildTimeAdmissionPlan {
                     })
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let termination_violation = self.termination_violation(program, machine);
+        let closure_violation = self.checked_closure_violation(program, machine);
         if services.is_empty()
             && !operational_summary.transitive_may_suspend
             && !operational_summary.transitive_may_block
-            && termination_violation.is_none()
+            && closure_violation.is_none()
         {
             return Ok(());
         }
@@ -91,18 +92,18 @@ impl BuildTimeAdmissionPlan {
         if operational_summary.transitive_may_block {
             violations.push("may block".to_owned());
         }
-        if let Some(violation) = termination_violation {
+        if let Some(violation) = closure_violation {
             violations.push(violation);
         }
 
         Err(format!(
-            "machine `{}` is not build-time admissible: {}; build-time evaluation requires empty service reach, no possible suspension or blocking, and ordinary checked termination across the complete call closure",
+            "machine `{}` is not build-time admissible: {}; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, and no unadmitted linear runtime carrier across the complete call closure",
             machine.name,
             violations.join("; ")
         ))
     }
 
-    fn termination_violation(&self, program: &TypedTrees, root: &Machine) -> Option<String> {
+    fn checked_closure_violation(&self, program: &TypedTrees, root: &Machine) -> Option<String> {
         let mut completed = Vec::new();
         let mut active = Vec::new();
         let mut path = Vec::new();
@@ -131,6 +132,11 @@ impl BuildTimeAdmissionPlan {
             .iter()
             .find(|machine| machine.symbol == machine_symbol)?;
         path.push(machine.name.as_str().to_owned());
+
+        if let Some(violation) = machine_linear_carrier_violation(program, machine, path) {
+            path.pop();
+            return Some(violation);
+        }
 
         if active.contains(&machine_symbol) {
             let violation = format!(
@@ -194,7 +200,7 @@ impl BuildTimeAdmissionPlan {
                             return Some(violation);
                         }
                     } else if let Some(violation) =
-                        callable_termination_violation(program, call.target_state_symbol, path)
+                        callable_contract_violation(program, call.target_state_symbol, path)
                     {
                         active.retain(|active_symbol| *active_symbol != machine_symbol);
                         path.pop();
@@ -211,7 +217,81 @@ impl BuildTimeAdmissionPlan {
     }
 }
 
-fn callable_termination_violation(
+fn machine_linear_carrier_violation(
+    program: &TypedTrees,
+    machine: &Machine,
+    path: &[String],
+) -> Option<String> {
+    let describe = |context: &str, type_reference| {
+        (program.type_multiplicity(type_reference)
+            == psi_language_semantics::Multiplicity::Linear)
+            .then(|| {
+                format!(
+                    "{context} has linear runtime type `{}` along `{}`; semantic evaluation has no proof/build-admission for that resource carrier",
+                    program.display_type_reference(type_reference),
+                    path.join(" -> ")
+                )
+            })
+    };
+
+    if let Some(attached_data) = machine.attached_data.as_ref()
+        && program.data_definitions().iter().any(|definition| {
+            definition.name.as_str() == attached_data.as_str()
+                && definition.properties.multiplicity
+                    == psi_language_semantics::Multiplicity::Linear
+        })
+    {
+        return Some(format!(
+            "machine instance `{}` has linear runtime type `{}` along `{}`; semantic evaluation has no proof/build-admission for that resource carrier",
+            machine.name,
+            attached_data,
+            path.join(" -> ")
+        ));
+    }
+
+    for owned in program.machine_owned_data(machine) {
+        if let Some(violation) = describe(
+            &format!("machine-owned value `{}`", owned.name),
+            owned.type_reference,
+        ) {
+            return Some(violation);
+        }
+    }
+
+    for state in program.machine_states(machine) {
+        for parameter in program.state_parameters(state) {
+            if parameter.is_self {
+                continue;
+            }
+            if let Some(violation) = describe(
+                &format!("state `{}` parameter `{}`", state.name, parameter.name),
+                parameter.type_reference,
+            ) {
+                return Some(violation);
+            }
+        }
+        if let Some(violation) =
+            describe(&format!("state `{}` result", state.name), state.return_type)
+        {
+            return Some(violation);
+        }
+        for statement in program.statement_table.statements(state.statement_nodes) {
+            let psi_typed_trees::statement::StatementNode::LocalData(local) = statement else {
+                continue;
+            };
+            if let Some(violation) = describe(
+                &format!("state `{}` local `{}`", state.name, local.name),
+                local.type_reference,
+            ) {
+                return Some(violation);
+            }
+        }
+    }
+
+    None
+}
+
+fn callable_contract_violation(
     program: &TypedTrees,
     symbol: SymbolHandle,
     path: &[String],
@@ -237,6 +317,34 @@ fn callable_termination_violation(
             })
         });
     let signature = signature?;
+
+    for parameter in program.state_signature_parameters(signature) {
+        if parameter.is_self {
+            continue;
+        }
+        if program.type_multiplicity(parameter.type_reference)
+            == psi_language_semantics::Multiplicity::Linear
+        {
+            return Some(format!(
+                "callable contract `{}` parameter `{}` has linear runtime type `{}` along `{}`; semantic evaluation has no proof/build-admission for that resource carrier",
+                signature.name,
+                parameter.name,
+                program.display_type_reference(parameter.type_reference),
+                path.join(" -> ")
+            ));
+        }
+    }
+    if program.type_multiplicity(signature.return_type)
+        == psi_language_semantics::Multiplicity::Linear
+    {
+        return Some(format!(
+            "callable contract `{}` result has linear runtime type `{}` along `{}`; semantic evaluation has no proof/build-admission for that resource carrier",
+            signature.name,
+            program.display_type_reference(signature.return_type),
+            path.join(" -> ")
+        ));
+    }
+
     if signature.terminates_guarantee {
         return None;
     }

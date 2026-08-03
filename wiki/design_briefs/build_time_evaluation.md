@@ -180,6 +180,14 @@ state, another invocation, or runtime state. Augmenting `build.omg` evaluation
 uses a separate API that deliberately returns snapshots of its mutated
 arguments and is not this hermetic world.
 
+Until proof/build-admissible resource inputs have a sealed admission artifact,
+the common gate rejects every declared linear runtime carrier in a reachable
+checked body: attached machine data, machine-owned data, state and callable
+parameters/results, and local bindings. The judgment uses typed structural
+multiplicity, not type names. This is a monotone fail-closed input/resource
+rung; it does not claim that the remaining authority, trust, or
+resource-admission artifacts exist.
+
 Trait requirements pin the public floor. A conformance cannot grow an
 incompatible axis unnoticed; it fails at the conformance declaration.
 
@@ -324,8 +332,9 @@ artifact.
   normalize to their entry state, so unmeasured recursion cannot masquerade as
   an acyclic body. Fresh owned argument graphs, fresh machine instances, and
   snapshot-only results enforce the no-escaping-mutation axis at the evaluator
-  boundary. Authority, trust, abnormal-outcome, and resource axes still need to
-  complete the common admission floor.
+  boundary. Reachable explicit linear runtime carriers also reject until a
+  proof/build-admission exists. Authority, trust, abnormal-outcome, and richer
+  resource axes still need to complete the common admission floor.
 - The positive normalized termination variant, snapshots, artifacts,
   diagnostics, and code use the settled `Terminates` vocabulary.
 - Add the target semantic capsule and split semantic result keys from canonical
