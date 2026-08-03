@@ -257,7 +257,9 @@ inference now continues into terminal semantic v10: the adapter revalidates
 direct equality shape, groups exact projections by preserved claim, and emits
 canonical machine-local rows; the verifier checks one-to-one, non-overlapping
 parameter-entry/result-current paths and reconstructs their exact equalities as
-semantic axioms. Sealed introduction/custody-exit rows, authored-partition
+semantic axioms. Terminal semantic v11 and proof format v9 add distinct stable
+sum-case segments, so active payload paths retain case-plus-field identity
+without exporting arena-local symbols. Sealed introduction/custody-exit rows, authored-partition
 composition, and frontier discharge remain subsequent work.
 
 An address interval-set member uses embedded arithmetic rather than wrapping

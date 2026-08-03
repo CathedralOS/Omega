@@ -18,6 +18,7 @@ use psi_core::{
 /// propositions without adding an executable operation.
 /// Version 10 adds canonical identity-preserving claim reshuffles from which
 /// the verifier reconstructs one-to-one content equalities.
+/// Version 11 adds stable sum-case segments to structural content paths.
 /// Older bytes retain their original meaning and identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SemanticVersion(NonZeroU16);
@@ -33,7 +34,8 @@ impl SemanticVersion {
     pub const V8: Self = Self(NonZeroU16::new(8).expect("eight is nonzero"));
     pub const V9: Self = Self(NonZeroU16::new(9).expect("nine is nonzero"));
     pub const V10: Self = Self(NonZeroU16::new(10).expect("ten is nonzero"));
-    pub const CURRENT: Self = Self::V10;
+    pub const V11: Self = Self(NonZeroU16::new(11).expect("eleven is nonzero"));
+    pub const CURRENT: Self = Self::V11;
 
     pub fn new(raw: u16) -> Option<Self> {
         NonZeroU16::new(raw).map(Self)

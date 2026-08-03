@@ -1,9 +1,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use psi_core::{
-    BlockId, ClaimId, ContentAlgebra, ContentProjectionIdentity, ContentStructuralPlace,
-    ContractId, EdgeId, MachineId, ObligationId, OperationId, PlaceId, Proposition,
-    PropositionContext, PropositionError, ScalarTerm, ScalarType, StructuralPlaceKind, ValueId,
+    BlockId, ClaimId, ContentAlgebra, ContentPlaceSegment, ContentProjectionIdentity,
+    ContentStructuralPlace, ContentTerm, ContractId, EdgeId, MachineId, ObligationId, OperationId,
+    PlaceId, Proposition, PropositionContext, PropositionError, ScalarTerm, ScalarType,
+    StructuralPlaceKind, ValueId,
 };
 use psi_terminal::{OperationKind, SemanticVersion, TerminalMachine, TerminalModule, Terminator};
 
@@ -51,6 +52,7 @@ pub fn validate_module(
             | SemanticVersion::V8
             | SemanticVersion::V9
             | SemanticVersion::V10
+            | SemanticVersion::V11
     ) {
         return Err(ModuleError::UnsupportedSemanticVersion(
             module.semantic_version,
@@ -318,7 +320,13 @@ fn validate_machine(
             .map(|place| (place.id, place.kind)),
     )
     .map_err(ModuleError::MalformedProposition)?;
-    validate_content_identity_reshuffles(machine, registry, &structural_place_kinds, &context)?;
+    validate_content_identity_reshuffles(
+        machine,
+        semantic_version,
+        registry,
+        &structural_place_kinds,
+        &context,
+    )?;
     let requires_values = machine
         .parameters
         .iter()
@@ -371,6 +379,7 @@ fn validate_machine(
 
 fn validate_content_identity_reshuffles(
     machine: &TerminalMachine,
+    semantic_version: SemanticVersion,
     registry: &mut IdRegistry,
     structural_place_kinds: &BTreeMap<PlaceId, StructuralPlaceKind>,
     context: &PropositionContext,
@@ -384,6 +393,22 @@ fn validate_content_identity_reshuffles(
             return Err(ModuleError::ContentIdentityReshuffleHasNoProjections(
                 reshuffle.claim,
             ));
+        }
+        if semantic_version < SemanticVersion::V11
+            && reshuffle
+                .input
+                .segments
+                .iter()
+                .chain(&reshuffle.output.segments)
+                .any(|segment| matches!(segment, ContentPlaceSegment::Case(_)))
+        {
+            return Err(
+                ModuleError::ContentIdentityCasePathRequiresSemanticVersion {
+                    claim: reshuffle.claim,
+                    required: SemanticVersion::V11,
+                    actual: semantic_version,
+                },
+            );
         }
         if reshuffle
             .projections
@@ -506,7 +531,7 @@ fn validate_proposition_semantic_version(
             validate_proposition_semantic_version(premise, semantic_version, contract, clause)?;
             validate_proposition_semantic_version(conclusion, semantic_version, contract, clause)
         }
-        Proposition::ContentConservation(_) => {
+        Proposition::ContentConservation(conservation) => {
             if semantic_version < SemanticVersion::V9 {
                 return Err(ModuleError::PropositionRequiresSemanticVersion {
                     contract,
@@ -518,8 +543,29 @@ fn validate_proposition_semantic_version(
             if clause != ContractClauseKind::Ensures {
                 return Err(ModuleError::ContentConservationRequiresEnsures { contract });
             }
+            if semantic_version < SemanticVersion::V11
+                && (content_term_uses_case(conservation.left())
+                    || content_term_uses_case(conservation.right()))
+            {
+                return Err(ModuleError::PropositionRequiresSemanticVersion {
+                    contract,
+                    clause,
+                    required: SemanticVersion::V11,
+                    actual: semantic_version,
+                });
+            }
             Ok(())
         }
+    }
+}
+
+fn content_term_uses_case(term: &ContentTerm) -> bool {
+    match term {
+        ContentTerm::Projection { subject, .. } => subject
+            .segments
+            .iter()
+            .any(|segment| matches!(segment, ContentPlaceSegment::Case(_))),
+        ContentTerm::Separate(terms) => terms.iter().any(content_term_uses_case),
     }
 }
 
@@ -951,6 +997,11 @@ pub enum ModuleError {
     NonCanonicalContentIdentityProjectionOrder(ClaimId),
     ContentIdentityReshuffleRequiresEntryParameter(ClaimId),
     ContentIdentityReshuffleRequiresCurrentResult(ClaimId),
+    ContentIdentityCasePathRequiresSemanticVersion {
+        claim: ClaimId,
+        required: SemanticVersion,
+        actual: SemanticVersion,
+    },
     DuplicateContentIdentityInput(ContentStructuralPlace),
     DuplicateContentIdentityOutput(ContentStructuralPlace),
     OverlappingContentIdentityInput {

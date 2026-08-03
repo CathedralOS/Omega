@@ -762,6 +762,11 @@ fn push_content_conservation_term_json(
                     json.push_str(", ");
                 }
                 match segment {
+                    ContentPlaceSegment::Case(case) => {
+                        json.push_str("{\"kind\": \"case\", \"name\": ");
+                        push_json_string(json, &case.name);
+                        json.push('}');
+                    }
                     ContentPlaceSegment::Field(field) => {
                         json.push_str("{\"kind\": \"field\", \"name\": ");
                         push_json_string(json, &field.name);

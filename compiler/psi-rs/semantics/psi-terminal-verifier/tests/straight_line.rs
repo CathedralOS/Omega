@@ -167,6 +167,68 @@ fn v10_identity_reshuffle_reconstructs_content_equality_as_a_semantic_axiom() {
 }
 
 #[test]
+fn v11_sum_case_identity_reshuffle_reconstructs_content_equality() {
+    let (mut module, _, obligation) = identity_reshuffle_module();
+    module.semantic_version = SemanticVersion::V11;
+    let segments = vec![
+        ContentPlaceSegment::Case("Present".to_owned()),
+        ContentPlaceSegment::Field("region".to_owned()),
+    ];
+    let reshuffle = &mut module.machines[0].content_identity_reshuffles[0];
+    reshuffle.input.segments = segments.clone();
+    reshuffle.output.segments = segments;
+    let goal = reshuffle
+        .inferred_propositions()
+        .next()
+        .expect("one projection yields one proposition");
+    module.machines[0].contract.ensures[0].proposition = goal.clone();
+    let bundle = ProofBundle {
+        evidence: vec![ObligationEvidence {
+            obligation,
+            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                identity: EvidenceIdentity::new(91).expect("certificate"),
+                proof_system_version: ProofSystemVersion::CURRENT,
+                proof: ProofNode {
+                    conclusion: goal,
+                    rule: ProofRule::SemanticAxiom { index: 0 },
+                },
+            }),
+        }],
+    };
+
+    verify_module(&module, &bundle, &AdmissionProfile::default())
+        .expect("a v11 case-plus-field reshuffle should establish its content equality");
+}
+
+#[test]
+fn sum_case_content_paths_require_v11_and_nonempty_case_names() {
+    let (mut old_version, _, _) = identity_reshuffle_module();
+    old_version.machines[0].content_identity_reshuffles[0]
+        .input
+        .segments = vec![ContentPlaceSegment::Case("Present".to_owned())];
+    assert!(matches!(
+        validate_module(&old_version),
+        Err(
+            ModuleError::ContentIdentityCasePathRequiresSemanticVersion {
+                required: SemanticVersion::V11,
+                actual: SemanticVersion::V10,
+                ..
+            }
+        )
+    ));
+
+    let (mut empty, _, _) = identity_reshuffle_module();
+    empty.semantic_version = SemanticVersion::V11;
+    empty.machines[0].content_identity_reshuffles[0]
+        .input
+        .segments = vec![ContentPlaceSegment::Case(String::new())];
+    assert_eq!(
+        validate_module(&empty).expect_err("case spellings are semantic identity"),
+        ModuleError::MalformedProposition(PropositionError::EmptyContentCaseName)
+    );
+}
+
+#[test]
 fn v10_identity_reshuffles_fail_closed_when_malformed() {
     let (mut old_version, _, _) = identity_reshuffle_module();
     old_version.semantic_version = SemanticVersion::V9;

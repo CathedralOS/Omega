@@ -413,6 +413,7 @@ fn lower_content_place(
         .segments
         .iter()
         .map(|segment| match segment {
+            OmegaContentPlaceSegment::Case(case) => ContentPlaceSegment::Case(case.name.clone()),
             OmegaContentPlaceSegment::Field(field) => {
                 ContentPlaceSegment::Field(field.name.clone())
             }
@@ -835,7 +836,10 @@ impl std::error::Error for LoweringError {}
 mod tests {
     use super::*;
     use omega_core::{
-        content::{ContentConservationEquation, ContentConservationOwnerKind, ContentFieldSegment},
+        content::{
+            ContentCaseSegment, ContentConservationEquation, ContentConservationOwnerKind,
+            ContentFieldSegment,
+        },
         semantics::{PermissionEventSource, SemanticDomainId},
         symbols::SymbolHandle,
     };
@@ -938,6 +942,59 @@ mod tests {
             coordinate_space: "Address".to_owned(),
         };
         let equation = ContentConservationEquation::new(entry, output);
+        let fingerprint = conservation_fingerprint(&algebra, &equation);
+        ContentConservationPlan {
+            owner_kind: ContentConservationOwnerKind::Machine,
+            owner: SymbolHandle::from_arena_index(20),
+            callable: SymbolHandle::from_arena_index(21),
+            algebra,
+            equation,
+            fingerprint,
+        }
+    }
+
+    fn case_direct_source_plan(semantic_domain: SemanticDomainId) -> ContentConservationPlan {
+        let segments = || {
+            vec![
+                OmegaContentPlaceSegment::Case(ContentCaseSegment {
+                    symbol: SymbolHandle::from_arena_index(30),
+                    name: "Present".to_owned(),
+                }),
+                OmegaContentPlaceSegment::Field(ContentFieldSegment {
+                    symbol: SymbolHandle::from_arena_index(31),
+                    name: "region".to_owned(),
+                }),
+            ]
+        };
+        let projection = |version, root| OmegaContentConservationTerm::Projection {
+            domain: SymbolHandle::from_arena_index(70),
+            semantic_domain,
+            projection_machine: SymbolHandle::from_arena_index(71),
+            projection_fingerprint: 0xfeed,
+            subject: OmegaContentStructuralPlace {
+                version,
+                root,
+                segments: segments(),
+            },
+        };
+        let equation = ContentConservationEquation::new(
+            projection(
+                OmegaContentPlaceVersion::Entry,
+                OmegaContentPlaceRoot::Parameter {
+                    position: 0,
+                    symbol: SymbolHandle::from_arena_index(10),
+                    name: "envelope".to_owned(),
+                    is_self: false,
+                },
+            ),
+            projection(
+                OmegaContentPlaceVersion::Current,
+                OmegaContentPlaceRoot::Result,
+            ),
+        );
+        let algebra = OmegaContentAlgebraIdentity::IntervalSet {
+            coordinate_space: "Address".to_owned(),
+        };
         let fingerprint = conservation_fingerprint(&algebra, &equation);
         ContentConservationPlan {
             owner_kind: ContentConservationOwnerKind::Machine,
@@ -1080,6 +1137,24 @@ mod tests {
             vec![9, 10]
         );
         assert_eq!(row.inferred_propositions().count(), 2);
+    }
+
+    #[test]
+    fn checked_identity_fact_lowers_stable_sum_case_paths_without_arena_identity() {
+        let mut fact = identity_fact(SemanticDomainId(9), "unused", 0);
+        fact.plan = case_direct_source_plan(SemanticDomainId(9));
+
+        let lowered =
+            lower_content_identity_reshuffles(&[fact]).expect("sum-case identity fact lowers");
+        let [row] = lowered.reshuffles.as_slice() else {
+            panic!("one terminal reshuffle row");
+        };
+        let expected = [
+            ContentPlaceSegment::Case("Present".to_owned()),
+            ContentPlaceSegment::Field("region".to_owned()),
+        ];
+        assert_eq!(row.input.segments, expected);
+        assert_eq!(row.output.segments, expected);
     }
 
     #[test]

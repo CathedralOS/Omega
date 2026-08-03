@@ -283,10 +283,10 @@ and output paths. Direct forwarding, transparent record construction/extraction,
 fixed indices, and ordinary qualification contracts participate. Each preserved
 claim remains an individual rewrite row: the checker does not turn multiple
 independent claims into `separate(...)`, because claim distinctness does not
-prove projected-content disjointness. Fresh establishments, projection-identity
-mismatches, sum-case paths absent from terminal v9, and runtime indices infer
-nothing. `05_claim_outcomes.json` publishes these rows beside their outcome-map
-evidence.
+prove projected-content disjointness. Fresh establishments,
+projection-identity mismatches, and runtime indices infer nothing. Active sum
+payloads retain distinct case-plus-field paths through the same inference.
+`05_claim_outcomes.json` publishes these rows beside their outcome-map evidence.
 
 Carry policy now follows the exact claim identity independently of the
 carrier's structural policy. Each qualification-evidence origin begins strict,
@@ -414,8 +414,9 @@ those rows remain absent until their actual checked proofs exist.
   checked-plan adapter verifies the source fingerprint, removes arena-local
   symbols, and lowers stable domains, projection fingerprints, entry/current
   places, fields, fixed indices, and flattened separation. Semantic format v1
-  and proof format v8 encode the proposition canonically, while the verifier
-  restricts it to `ensures` and checks replaceable certificates. Checked
+  and proof format v8 encode field/fixed-index propositions canonically, while
+  proof format v9 adds sum-case path segments; the verifier restricts the
+  proposition to `ensures` and checks replaceable certificates. Checked
   lowering now derives exact one-to-one identity-reshuffle rows without
   manufacturing separation between independent claims. Terminal semantic v10
   carries those rows canonically: the checked adapter revalidates direct
@@ -424,11 +425,13 @@ those rows remain absent until their actual checked proofs exist.
   terminal verifier requires a one-to-one parameter-entry/result-current map,
   rejects duplicate or prefix-overlapping paths and projection/algebra drift,
   and reconstructs one semantic content-equality axiom per exact projection for
-  certificate use.
-  Archived v1-v9 bytes retain their identities. Remaining work is to add a
-  structural sum-case path when that vocabulary lands, compose these rewrites
-  with authored partition equations, insert sealed introduction and
-  custody-exit rows, and discharge or admit the exact frontier theorem.
+  certificate use. Terminal semantic v11 adds a distinct stable sum-case path
+  segment; the checker, adapter, verifier, semantic codec, and proof format v9
+  retain case-plus-field identity without arena-local symbols or collision with
+  equal field spellings in other cases.
+  Archived v1-v10 bytes retain their identities. Remaining work is to compose
+  these rewrites with authored partition equations, insert sealed introduction
+  and custody-exit rows, and discharge or admit the exact frontier theorem.
   Contracts call the exact
   owner-unique `Content<A>::project` conformance machine; do not add
   `content(...)`, general `old(...)`, or `retired_via(...)`. Normalize one
@@ -1122,10 +1125,10 @@ improvements do not change public identity.
   `SaturatingIntegerAdd`; v5 adds `WrappingIntegerSubtract`; v6 adds
   `SaturatingIntegerSubtract`; v7 adds `WrappingIntegerMultiply`; v8 adds
   `SaturatingIntegerMultiply`; v9 adds proof-only structural places and
-  content-conservation propositions; current v10 adds canonical
-  identity-preserving claim reshuffles; and explicit
+  content-conservation propositions; v10 adds canonical identity-preserving
+  claim reshuffles; current v11 adds stable sum-case content-path segments; and explicit
   validated migration preserves an older semantic graph while producing a new
-  v10 fingerprint. Archived v1 through v9 identities remain frozen. The clean
+  v11 fingerprint. Archived v1 through v10 identities remain frozen. The clean
   lane now also constructs an owned, semantic-identity-bound object artifact
   with canonical function spans and retained Psi provenance, emits the Omega
   object container plus ELF/AArch64, ELF/x86-64, Mach-O/AArch64, and PE/x86-64
@@ -1175,7 +1178,7 @@ improvements do not change public identity.
   schedules, and reports logical fuel rather than structural work; continue
   from terminal Psi and its interpreter meter rather than treating that
   provider-authored precursor as a Psi proof. The terminal-Psi
-  v1/v2/v3/v4/v5/v6/v7/v8/v9
+  v1/v2/v3/v4/v5/v6/v7/v8/v9/v10/v11
   schemas, serialization, migration, and verifier/lowering boundary are owned
   by PSIIR.
   The current TypedTrees evaluator now publishes an explicitly versioned deterministic

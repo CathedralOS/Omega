@@ -918,6 +918,7 @@ pub enum PropositionError {
     OrderedComparisonRequiresIntegers(ScalarType),
     NonCanonicalConjunctionArity(usize),
     EmptyContentAlgebraParameter,
+    EmptyContentCaseName,
     EmptyContentFieldName,
     ZeroContentProjectionFingerprint,
     NonCanonicalContentEquationOrder,

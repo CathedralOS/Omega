@@ -535,6 +535,10 @@ fn encode_content_structural_place(
     writer.len("content place segments", subject.segments.len())?;
     for segment in &subject.segments {
         match segment {
+            ContentPlaceSegment::Case(name) => {
+                writer.u8(3);
+                writer.string("content case", name)?;
+            }
             ContentPlaceSegment::Field(name) => {
                 writer.u8(1);
                 writer.string("content field", name)?;
@@ -980,6 +984,7 @@ fn decode_content_structural_place(
         segments.push(match reader.u8()? {
             1 => ContentPlaceSegment::Field(reader.string("content field")?),
             2 => ContentPlaceSegment::FixedIndex(reader.u64()?),
+            3 => ContentPlaceSegment::Case(reader.string("content case")?),
             tag => return Err(CodecError::InvalidTag("ContentPlaceSegment", tag)),
         });
     }

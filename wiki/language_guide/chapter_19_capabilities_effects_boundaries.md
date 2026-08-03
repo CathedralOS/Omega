@@ -1145,7 +1145,8 @@ Contracts call the exact owner-unique projection machine. Proof-only
 has runtime representation. Identity-preserving claim reshuffles infer;
 partition-changing primitives author their theorem and checked wrappers compose
 it. Terminal Psi v10 carries each exact preserved-claim mapping and reconstructs
-its projection equality; it does not infer separated composition across
+its projection equality; v11 retains active sum payloads as distinct
+case-plus-field paths. Neither version infers separated composition across
 independent claims.
 
 The current compiler accepts this surface only in `ensures`, resolves every
