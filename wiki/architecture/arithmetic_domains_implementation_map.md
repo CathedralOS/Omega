@@ -145,7 +145,7 @@ Add `enum ArithmeticDomain { Exact, Wrapping, Saturating, Trapping }` (Exact =
 default). Carry it ALONGSIDE the scalar primitive — NOT as a ch8 predicate
 domain (those are membership predicates like `0..100`; arithmetic domains are
 behaviour qualifiers). Candidate homes:
-- `PrimitiveType` lives in TWO layers: `omega-symbol-resolved-trees/src/types.rs:618`
+- `PrimitiveType` lives in TWO layers: `psi-symbol-resolved-trees/src/types.rs:618`
   and `omega-typed-trees/src/types.rs:505`. Either add an `ArithmeticDomain`
   field next to the primitive in the type reference, or pair it in the value
   type. Thread it the same way `byte_width`/signedness already flow to codegen.
