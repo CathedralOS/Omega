@@ -11,16 +11,16 @@ use psi_typed_trees::TypedTrees;
 use psi_typed_trees::machine::Machine;
 
 pub(super) struct BuildTimeAdmissionPlan {
-    operations: psi_effects::OperationalPlan,
+    operational: psi_effects::OperationalPlan,
     service_reaches: psi_effects::ServiceReachInferencePlan,
 }
 
 impl BuildTimeAdmissionPlan {
     pub(super) fn infer(program: &TypedTrees) -> Self {
-        let operations = psi_effects::infer_operational_may(program);
-        let service_reaches = psi_effects::infer_service_reaches(program, &operations);
+        let operational = psi_effects::infer_operational_may(program);
+        let service_reaches = psi_effects::infer_service_reaches(program, &operational);
         Self {
-            operations,
+            operational,
             service_reaches,
         }
     }
@@ -40,7 +40,7 @@ impl BuildTimeAdmissionPlan {
                 )
             })?;
         let operational_summary = self
-            .operations
+            .operational
             .machines()
             .iter()
             .find(|summary| summary.symbol == machine.symbol)

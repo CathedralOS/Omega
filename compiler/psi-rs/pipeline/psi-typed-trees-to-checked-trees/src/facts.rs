@@ -108,7 +108,7 @@ fn build_dynamic_conformance_facts(
 fn build_contract_plans(
     program: &TypedTrees,
     service_reaches: &psi_checked_trees::ServiceReachFacts,
-    operations: &OperationalPlan,
+    operational: &OperationalPlan,
 ) -> psi_checked_trees::MachineContractPlans {
     let mut machines = Vec::new();
     let content_conservation = psi_validation::build_content_conservation_plans(program);
@@ -318,7 +318,7 @@ fn build_contract_plans(
             }
         }
         canonical_facts.sort();
-        let operational_summary = operations
+        let operational_summary = operational
             .machines()
             .iter()
             .find(|summary| summary.symbol == machine.symbol);

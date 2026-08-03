@@ -7,16 +7,16 @@ pub(crate) fn build_flow_facts(
     proof: &ProofFacts,
     semantic: &mut FactPlan,
     domains: &DomainFacts,
-    operations: &psi_effects::OperationalPlan,
+    operational: &psi_effects::OperationalPlan,
 ) -> FlowFacts {
-    let service_reaches = psi_effects::infer_service_reaches(program, operations);
+    let service_reaches = psi_effects::infer_service_reaches(program, operational);
     build_flow_facts_with_service_reaches(
         program,
         borrow,
         proof,
         semantic,
         domains,
-        operations,
+        operational,
         &service_reaches,
     )
 }
@@ -27,7 +27,7 @@ pub(crate) fn build_flow_facts_with_service_reaches(
     proof: &ProofFacts,
     semantic: &mut FactPlan,
     domains: &DomainFacts,
-    operations: &psi_effects::OperationalPlan,
+    operational: &psi_effects::OperationalPlan,
     service_reaches: &psi_effects::ServiceReachInferencePlan,
 ) -> FlowFacts {
     let mut ctx = FlowBuildContext::new(borrow, proof, semantic);
@@ -41,6 +41,6 @@ pub(crate) fn build_flow_facts_with_service_reaches(
     }
 
     let mut flow = ctx.finish();
-    attach_reach_summaries(&mut flow, service_reaches, operations);
+    attach_reach_summaries(&mut flow, service_reaches, operational);
     flow
 }

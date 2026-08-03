@@ -22,14 +22,14 @@ pub(crate) fn validate_static_machine_arguments(
     program: &TypedTrees,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let operations = psi_effects::infer_operational_may(program);
-    let service_reaches = psi_effects::infer_service_reaches(program, &operations);
+    let operational = psi_effects::infer_operational_may(program);
+    let service_reaches = psi_effects::infer_service_reaches(program, &operational);
     let invocations = psi_effects::infer_synchronous_invocations(program);
     for (_, expression) in program.expression_table.iter_expressions() {
         if let ExpressionNode::Call(call) = expression {
             validate_call_selection(
                 program,
-                &operations,
+                &operational,
                 &service_reaches,
                 &invocations,
                 call.target_symbol,
@@ -46,7 +46,7 @@ pub(crate) fn validate_static_machine_arguments(
                 if let StatementNode::Call(call) = statement {
                     validate_call_selection(
                         program,
-                        &operations,
+                        &operational,
                         &service_reaches,
                         &invocations,
                         call.target_symbol,
@@ -74,7 +74,7 @@ pub fn validate_static_machine_selections(program: &TypedTrees) -> Result<(), Ve
 
 fn validate_call_selection(
     program: &TypedTrees,
-    operations: &psi_effects::OperationalPlan,
+    operational: &psi_effects::OperationalPlan,
     service_reaches: &psi_effects::ServiceReachInferencePlan,
     invocations: &psi_effects::InvocationInferencePlan,
     target_symbol: SymbolHandle,
@@ -182,7 +182,7 @@ fn validate_call_selection(
         }
         validate_selected_callable_shape(
             program,
-            operations,
+            operational,
             service_reaches,
             invocations,
             target_name,
@@ -200,7 +200,7 @@ fn validate_call_selection(
 #[allow(clippy::too_many_arguments)]
 fn validate_selected_callable_shape(
     program: &TypedTrees,
-    operations: &psi_effects::OperationalPlan,
+    operational: &psi_effects::OperationalPlan,
     service_reaches: &psi_effects::ServiceReachInferencePlan,
     invocations: &psi_effects::InvocationInferencePlan,
     generic_call: &str,
@@ -215,7 +215,7 @@ fn validate_selected_callable_shape(
     if let Some((actual_machine, actual_state)) = machine_and_state(program, selected_symbol) {
         validate_callable_shape(
             program,
-            operations,
+            operational,
             service_reaches,
             invocations,
             generic_call,
@@ -269,7 +269,7 @@ fn validate_selected_callable_shape(
 #[allow(clippy::too_many_arguments)]
 fn validate_callable_shape(
     program: &TypedTrees,
-    operations: &psi_effects::OperationalPlan,
+    operational: &psi_effects::OperationalPlan,
     service_reaches: &psi_effects::ServiceReachInferencePlan,
     invocations: &psi_effects::InvocationInferencePlan,
     generic_call: &str,
@@ -285,7 +285,7 @@ fn validate_callable_shape(
         "machine argument `{}` for `{generic_call}`",
         actual_machine.name
     );
-    let inferred = operations
+    let inferred = operational
         .machines()
         .iter()
         .find(|summary| summary.symbol == actual_machine.symbol);
@@ -720,12 +720,12 @@ pub(crate) fn validate_data_machine_selection(
     generic_types: &[&TypeParameter],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let operations = psi_effects::infer_operational_may(program);
-    let service_reaches = psi_effects::infer_service_reaches(program, &operations);
+    let operational = psi_effects::infer_operational_may(program);
+    let service_reaches = psi_effects::infer_service_reaches(program, &operational);
     let invocations = psi_effects::infer_synchronous_invocations(program);
     validate_selected_callable_shape(
         program,
-        &operations,
+        &operational,
         &service_reaches,
         &invocations,
         family_name,

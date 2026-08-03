@@ -9,21 +9,21 @@ use psi_typed_trees::statement::{StatementNode, TransitionGuardNode};
 /// before continuation planning sees it.
 pub(crate) fn validate_call_acknowledgements(
     program: &TypedTrees,
-    operations: &OperationalPlan,
+    operational: &OperationalPlan,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
 
     for machine in program.machines() {
         for state in program.machine_states(machine) {
-            let Some(operational_state) = operations
+            let Some(operational_state) = operational
                 .machines()
                 .iter()
-                .flat_map(|machine| operations.states.span_or_empty(machine.states))
-                .find(|operation| operation.symbol == state.symbol)
+                .flat_map(|machine| operational.states.span_or_empty(machine.states))
+                .find(|summary| summary.symbol == state.symbol)
             else {
                 continue;
             };
-            let operational_calls = operations.calls.span_or_empty(operational_state.calls);
+            let operational_calls = operational.calls.span_or_empty(operational_state.calls);
             let statements = program.statement_table.statements(state.statement_nodes);
 
             for (statement_index, statement) in statements.iter().enumerate() {
