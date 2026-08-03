@@ -1806,6 +1806,122 @@ mod result_register_architecture_tests {
 }
 
 #[cfg(test)]
+mod compatibility_encoder_differential_tests {
+    use super::*;
+    use omega_target_operations::{
+        RuntimeStorageRegion, TargetInstructionOperand, TargetInstructionOperandKind,
+    };
+
+    fn scalar(byte_offset: usize) -> TargetInstructionOperand {
+        TargetInstructionOperand {
+            kind: TargetInstructionOperandKind::RuntimeScalarInteger {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset,
+                byte_count: 8,
+            },
+        }
+    }
+
+    fn plan(target: NativeTarget, parameter_count: usize, result_present: bool) -> CallPlan {
+        evaluate_call_plan(
+            CallingPolicy::native_for_target(target),
+            &CallSignature {
+                parameters: vec![ValueShape::integer(8, 8); parameter_count],
+                result: result_present.then(|| ValueShape::integer(8, 8)),
+            },
+        )
+        .expect("native compatibility plan")
+    }
+
+    #[test]
+    fn vtable_slot_compatibility_bytes_equal_the_explicit_native_plan() {
+        let operands = [scalar(0), scalar(8)];
+        for target in [
+            NativeTarget::windows_x64(),
+            NativeTarget::linux_x64(),
+            NativeTarget::linux_arm64(),
+        ] {
+            let plan = plan(target, 2, false);
+            let compatibility = encode_vtable_call_sequence(target, &operands, 3)
+                .expect("compatibility vtable slot encoding");
+            let planned = encode_vtable_call_sequence_with_plan(target, &operands, 3, Some(&plan))
+                .expect("explicit-plan vtable slot encoding");
+            assert_eq!(compatibility, planned, "target {target:?}");
+        }
+    }
+
+    #[test]
+    fn vtable_field_compatibility_bytes_and_width_equal_the_explicit_native_plan() {
+        // Result storage, receiver, and one declared argument.
+        let operands = [scalar(0), scalar(8), scalar(16)];
+        for target in [
+            NativeTarget::windows_x64(),
+            NativeTarget::linux_x64(),
+            NativeTarget::linux_arm64(),
+        ] {
+            let plan = plan(target, 2, true);
+            let compatibility = encode_vtable_call_sequence_at_offset(target, &operands, 24, true)
+                .expect("compatibility vtable field encoding");
+            let planned = encode_vtable_call_sequence_at_offset_with_plan(
+                target,
+                &operands,
+                24,
+                true,
+                Some(&plan),
+            )
+            .expect("explicit-plan vtable field encoding");
+            assert_eq!(compatibility, planned, "target {target:?}");
+            assert_eq!(
+                crate::vtable_call_sequence_width_at_offset(target, &operands, 24, true),
+                crate::vtable_call_sequence_width_at_offset_with_plan(
+                    target,
+                    &operands,
+                    24,
+                    true,
+                    Some(&plan),
+                ),
+                "target {target:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn table_function_compatibility_bytes_and_width_equal_the_explicit_native_plan() {
+        // Result storage and the dispatch-only table pointer precede one wire argument.
+        let operands = [scalar(0), scalar(8), scalar(16)];
+        for target in [
+            NativeTarget::windows_x64(),
+            NativeTarget::linux_x64(),
+            NativeTarget::linux_arm64(),
+        ] {
+            let plan = plan(target, 1, true);
+            let compatibility = encode_table_function_call_sequence(target, &operands, 40, true)
+                .expect("compatibility table-function encoding");
+            let planned = encode_table_function_call_sequence_with_plan(
+                target,
+                &operands,
+                40,
+                true,
+                Some(&plan),
+            )
+            .expect("explicit-plan table-function encoding");
+            assert_eq!(compatibility, planned, "target {target:?}");
+            assert_eq!(
+                crate::table_function_call_sequence_width(target, &operands, 40, true),
+                crate::table_function_call_sequence_width_with_plan(
+                    target,
+                    &operands,
+                    40,
+                    true,
+                    Some(&plan),
+                ),
+                "target {target:?}"
+            );
+        }
+    }
+}
+
+#[cfg(test)]
 mod sysv_field_call_tests {
     use super::*;
     use omega_target_operations::{
