@@ -164,6 +164,17 @@ separately defines logical name collision and handover. A registry may reject
 duplicate key `K`, version it, or provide an atomic transfer; the component
 framework cannot infer that policy.
 
+Implementation status (2026-08-03): the generic process-static service carrier
+enforces a service-authored duplicate-key, versioned-key, or atomic-transfer
+policy. Duplicate and exact key/version collisions fail without consuming the
+candidate. Atomic replacement is accepted only through a non-replayed receipt
+binding the service and handover contract, logical key, old/new registration
+and component-era identities, and independent facts for atomic publication,
+old-registration retirement, and obligation transfer. The retained completion
+states that the old obligations moved to the new registration; it never reports
+them as vanished. Cathedral remains responsible for concrete service policies
+and provider receipts.
+
 Candidate admission checks the new era's selected-provider TCB manifest before
 publication. While eras coexist, the live report is the union of their known
 entries and the weakest applicable scope-completeness and containment evidence.

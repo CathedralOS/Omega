@@ -169,6 +169,13 @@ scope-completeness and containment evidence. Fully checked Omega eras coexist
 as separate owned state trees; process-static services define their own
 versioned-registration or atomic-handover semantics for shared logical names.
 
+The generic service carrier implements that choice without selecting it. A
+service contract either rejects duplicate logical keys, admits distinct exact
+versions, or requires a non-replayed atomic-transfer receipt binding the old
+and new registrations and eras. Atomic handover separately proves publication,
+retirement of the old registration, and transfer of its obligations; successful
+handover records that those obligations moved rather than disappeared.
+
 The current live-manifest carrier admits only profile-accepted manifests,
 retains the process-static baseline separately from exact component eras, and
 attributes every unioned executable entry to its contributing sources. The
