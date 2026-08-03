@@ -65,18 +65,22 @@ the Psi check.
 The first Psi-owned terminal source producer is live as
 `psi-checked-trees-to-terminal`. It accepts one exact free-machine slice:
 typed integer constants, one unconditional literal-carrying state jump, one
-literal return, and a matching closed `requires`/`ensures` pair. It rejects all
-other checked-tree shapes. The source canary discards `CheckedTrees` before it
-verifies and executes the produced semantic module, proving the artifact has no
-frontend lifetime dependency. This is the correct ownership direction, but its
-accepted vocabulary remains the original integer/control/contract canary. An
+literal return or one builtin parameter-plus-literal add/subtract/multiply in
+the settled Wrapping or Saturating domains, and a matching closed
+`requires`/`ensures` pair. It rejects all other checked-tree shapes, including
+selected domain-owned operator meanings. The source canary lowers all six
+versioned integer-policy operations, discards `CheckedTrees`, then verifies and
+executes the produced semantic modules; wrapping add also reaches emitted host
+machine code. The artifacts therefore have no frontend lifetime dependency.
+This is the correct ownership direction, but the accepted expression grammar
+remains this deliberately narrow integer/control/contract slice. An
 architecture test keeps one fail-closed `lower_machine` entry. General terminal
 production must extend this Psi stage rather than reintroduce an Omega-to-Psi
 bridge. The stage now independently revalidates and lowers checked content
 conservation, identity reshuffles, and direct partition compositions into the
 existing v9-v12 terminal vocabulary. Those evidence translators retain stable
 semantic paths, dense claim identities, source theorem fingerprints, and exact
-place substitutions. The current executable source canary itself remains
+place substitutions. The current executable source canaries remain
 content-free.
 The current legacy exit prover also cannot establish an ordinary
 `result == literal` contract, so the bootstrap canary carries the closed typed

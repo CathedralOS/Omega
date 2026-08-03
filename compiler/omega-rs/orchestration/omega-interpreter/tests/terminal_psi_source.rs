@@ -196,6 +196,91 @@ fn checked_source_survives_frontend_drop_as_verified_terminal_psi() {
 }
 
 #[test]
+fn checked_source_integer_policy_operations_survive_frontend_drop() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("terminal-Psi integer policy source canary should compile");
+    let cases = [
+        ("terminal_wrapping_add", 44_u128),
+        ("terminal_saturating_add", 255),
+        ("terminal_wrapping_subtract", 251),
+        ("terminal_saturating_subtract", 0),
+        ("terminal_wrapping_multiply", 4),
+        ("terminal_saturating_multiply", 255),
+    ];
+    let lowered = cases
+        .iter()
+        .map(|(machine, expected)| {
+            (
+                *machine,
+                *expected,
+                lower_machine(&checked, machine)
+                    .unwrap_or_else(|error| panic!("{machine} should lower: {error:?}")),
+            )
+        })
+        .collect::<Vec<_>>();
+    drop(checked);
+
+    let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    for (machine, expected, lowered) in lowered {
+        let verified = verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &AdmissionProfile::default(),
+        )
+        .unwrap_or_else(|error| panic!("{machine} terminal Psi should verify: {error:?}"));
+        let fixed_fuel = derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry)
+            .unwrap_or_else(|error| panic!("{machine} should have fixed fuel: {error:?}"));
+        assert_eq!(fixed_fuel.ceiling_units(), 5, "{machine} fuel");
+        let measured = interpret_terminal_measured(&verified, &[])
+            .unwrap_or_else(|error| panic!("{machine} should execute: {error:?}"));
+        assert_eq!(measured.usage().total_units(), 5, "{machine} usage");
+        assert_eq!(
+            measured.value(),
+            TerminalScalarValue::Integer {
+                scalar_type: u8_type,
+                value: IntegerValue::Unsigned(expected),
+            },
+            "{machine} result"
+        );
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn source_wrapping_add_matches_emitted_host_machine_code() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("terminal-Psi integer policy source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_wrapping_add")
+        .expect("source wrapping add should lower to terminal Psi");
+    drop(checked);
+
+    let verified = verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("source wrapping add terminal Psi should verify");
+    let abstract_operations = lower_verified_module(&verified)
+        .expect("verified source wrapping add should lower without frontend state");
+    let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
+        .expect("source wrapping add should select for the host");
+    let machine_code = emit_machine_code(&target_operations)
+        .expect("source wrapping add machine code should emit");
+    let object_artifact = build_terminal_object_artifact(&machine_code)
+        .expect("source wrapping add should form an owned object artifact");
+    let entry = object_artifact.entry_function();
+    assert_eq!(
+        entry.provenance.operations,
+        [
+            OperationId::new(1).expect("jump constant"),
+            OperationId::new(2).expect("right constant"),
+            OperationId::new(3).expect("wrapping add"),
+        ]
+    );
+    assert_eq!(run_host_machine_code(entry.bytes(&object_artifact)), 44);
+}
+
+#[test]
 fn psi_terminal_producer_rejects_source_outside_its_declared_slice() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("terminal-Psi source canary should compile");
