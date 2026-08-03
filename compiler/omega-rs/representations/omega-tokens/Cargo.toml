@@ -9,4 +9,4 @@ name = "omega_tokens"
 path = "src/lib.rs"
 
 [dependencies]
-omega-core = { path = "../../foundation/omega-core" }
+psi-tokens = { path = "../../../psi-rs/representations/psi-tokens" }

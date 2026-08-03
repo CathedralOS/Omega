@@ -38,7 +38,8 @@ current packages.
 > **TRANSITIONAL TREE (2026-08-02).** Existing bootstrap crates drawn below live
 > under **`compiler/omega-rs/`**. New target-neutral terminal foundations live
 > under **`compiler/psi-rs/`**, beginning with
-> `foundation/psi-core`, `representations/psi-terminal`,
+> `foundation/psi-source`, `foundation/psi-core`, `representations/psi-tokens`,
+> `representations/psi-terminal`, `pipeline/psi-source-files-to-tokens`,
 > `semantics/psi-proof-kernel`, and `semantics/psi-terminal-verifier`; parsing-through-
 > lowering crates move there incrementally with compatibility adapters. The
 > diagram still uses the old unprefixed shorthand for the larger Omega tree.
@@ -55,9 +56,13 @@ Omega/
 |-- compiler/
 |   |-- psi-rs/                                         # Psi owns target-neutral semantics through terminal Psi.
 |   |   |-- foundation/
+|   |   |   |-- [CRATE] psi-source/                     # Source coordinates owned by the Psi frontend.
 |   |   |   `-- [CRATE] psi-core/                       # Stable semantic ids and typed proposition vocabulary.
 |   |   |-- representations/
+|   |   |   |-- [CRATE] psi-tokens/                     # Omega spelling-level token streams.
 |   |   |   `-- [CRATE] psi-terminal/                   # Self-contained terminal module and closed operation vocabulary.
+|   |   |-- pipeline/
+|   |   |   `-- [CRATE] psi-source-files-to-tokens/     # Psi-owned Omega source lexer.
 |   |   `-- semantics/
 |   |       |-- [CRATE] psi-proof-kernel/               # Total judgments, proof certificates, and admission checks.
 |   |       `-- [CRATE] psi-terminal-verifier/          # Module validation and reconstructed-obligation checking.
@@ -72,7 +77,7 @@ Omega/
 |   |   `-- [CRATE] omega-proof/                        # Proof obligations, invariants, liveness hooks.
 |   |
 |   |-- representations/
-|   |   |-- [CRATE] omega-tokens/                       # Per-file token streams and token-set ownership.
+|   |   |-- [CRATE] omega-tokens/                       # Transitional re-export of Psi-owned tokens.
 |   |   |-- [CRATE] omega-syntax-trees/                 # Parsed source structure before names and symbols are resolved.
 |   |   |-- [CRATE] omega-symbol-resolved-trees/        # SymbolResolvedTrees: syntax shape with declaration/reference symbols resolved.
 |   |   |-- [CRATE] omega-typed-trees/                  # Symbol-resolved trees with type/effect information attached.
@@ -90,7 +95,7 @@ Omega/
 |   |   `-- [CRATE] omega-backend-plan/                 # Backend planning data shared across lowering stages.
 |   |
 |   |-- pipeline/
-|   |   |-- [CRATE] omega-source-files-to-tokens/                            # Source files to per-file token streams.
+|   |   |-- [CRATE] omega-source-files-to-tokens/                            # Transitional re-export of the Psi lexer.
 |   |   |-- [CRATE] omega-tokens-to-syntax-trees/                            # Token streams to parsed syntax trees.
 |   |   |-- [CRATE] omega-syntax-trees-to-symbol-resolved-trees/             # Syntax trees to SymbolResolvedTrees with symbol identity attached.
 |   |   |-- [CRATE] omega-symbol-resolved-trees-to-typed-trees/              # SymbolResolvedTrees to typed/effect-annotated trees.

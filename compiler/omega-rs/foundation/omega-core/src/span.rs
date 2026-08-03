@@ -1,11 +1,3 @@
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct Span {
-    pub start: usize,
-    pub end: usize,
-}
+//! Compatibility export for source spans now owned by Psi.
 
-impl Span {
-    pub fn new(start: usize, end: usize) -> Self {
-        Self { start, end }
-    }
-}
+pub use psi_source::Span;

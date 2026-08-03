@@ -3,8 +3,8 @@ use std::str::CharIndices;
 
 use crate::LexError;
 use crate::lexer::strings::decode_string_literal;
-use omega_core::Span;
-use omega_tokens::{
+use psi_source::Span;
+use psi_tokens::{
     CommentKind, KeywordKind, PunctuationKind, Token, TokenKind, TokenStream, TokenText,
 };
 use unicode_ident::{is_xid_continue, is_xid_start};

@@ -1,13 +1,5 @@
-pub mod token;
-pub mod token_kind;
-pub mod token_stream;
-pub mod token_text;
+#![forbid(unsafe_code)]
 
-pub use omega_core::Span;
-pub use token::Token;
-pub use token_kind::{
-    CommentKind, FloatLiteralKind, IntegerLiteralKind, KeywordKind, NumericBase,
-    NumericLiteralKind, PunctuationKind, TokenKind,
-};
-pub use token_stream::TokenStream;
-pub use token_text::TokenText;
+//! Compatibility export for the Psi-owned token representation.
+
+pub use psi_tokens::*;

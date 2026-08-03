@@ -13,16 +13,20 @@ the old Omega pipeline.
 
 Current roots:
 
+- `foundation/psi-source`: source-coordinate primitives shared by the Psi
+  frontend and temporary Omega compatibility exports;
 - `foundation/psi-core`: stable terminal semantic identities and the initial
   typed proposition vocabulary;
+- `representations/psi-tokens`: the spelling-level Omega token stream;
 - `representations/psi-terminal`: the in-memory terminal semantic module and
   its first integer-constant / jump / return operation vocabulary;
+- `pipeline/psi-source-files-to-tokens`: the Psi-owned Omega lexer;
 - `semantics/psi-proof-kernel`: total primitive judgments, explicit proof
   checking, evidence envelopes, and sealed admission validation.
 - `semantics/psi-terminal-verifier`: structural module validation,
   verifier-reconstructed operation/edge axioms, and exhaustive bodyful-contract
   evidence checking.
 
-Canonical serialization and semantic fingerprints are intentionally deferred
-until the in-memory vocabulary has both interpreter and Omega-lowering
-customers, as required by the terminal-Psi architecture.
+The old `omega-tokens` and `omega-source-files-to-tokens` package names are
+compatibility re-exports for unmigrated parser consumers; they contain no
+token or lexer implementation. New frontend work proceeds under this root.

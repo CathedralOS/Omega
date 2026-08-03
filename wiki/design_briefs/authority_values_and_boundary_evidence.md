@@ -259,12 +259,11 @@ the claim-outcome artifact; runtime use and malformed, mixed-algebra,
 duplicate, or unqualified equations reject. Terminal Psi v9 now carries the
 canonical equation over declared structural roots, stable semantic-domain and
 projection identities, entry/current paths, fields, fixed indices, and flat
-separation. The checked-plan adapter rechecks the source fingerprint and drops
-arena-local symbols; canonical semantic/proof bytes and verifier-checked
-replaceable certificates pin the boundary. Identity-preserving reshuffle
-inference now continues into terminal semantic v10: the adapter revalidates
-direct equality shape, groups exact projections by preserved claim, and emits
-canonical machine-local rows; the verifier checks one-to-one, non-overlapping
+separation without retaining arena-local symbols; canonical semantic/proof
+bytes and verifier-checked replaceable certificates pin the boundary.
+Identity-preserving reshuffle inference has a legacy checked precursor, while
+terminal semantic v10 independently carries canonical machine-local rows; the
+verifier checks one-to-one, non-overlapping
 parameter-entry/result-current paths and reconstructs their exact equalities as
 semantic axioms. Terminal semantic v11 and proof format v9 add distinct stable
 sum-case segments, so active payload paths retain case-plus-field identity
@@ -275,6 +274,9 @@ rewrites, sealed introduction/custody-exit rows, and frontier discharge remain
 subsequent work. Terminal semantic v12 carries each direct instantiation as an
 exact source-to-derived place substitution and rejects theorem-shape, algebra,
 claim-binding, or substitution drift before reconstructing the result.
+The frozen Omega-to-Psi bootstrap adapter no longer translates these content
+facts. Their real source producer must land with the frontend under Psi
+ownership; the terminal vocabulary and verifier remain source-independent.
 
 An address interval-set member uses embedded arithmetic rather than wrapping
 runtime `addr` arithmetic. Its half-open end may equal the address-space bound

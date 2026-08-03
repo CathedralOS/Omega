@@ -14,6 +14,12 @@ Primary responsibility: preserve source identity and split text into tokens.
 
 ## Implementation Map
 
+- `compiler/psi-rs/foundation/psi-source` owns byte-span coordinates.
+- `compiler/psi-rs/representations/psi-tokens` owns token kinds, text, and
+  streams.
+- `compiler/psi-rs/pipeline/psi-source-files-to-tokens` owns the implementation
+  files below. The old `omega-tokens` and `omega-source-files-to-tokens` crates
+  are compatibility re-exports for parser stages that have not migrated yet.
 - `lexer.rs` owns token dispatch, source-span slicing, token construction, comments, whitespace, identifiers, keywords, and punctuation.
 - `lexer/numbers.rs` owns numeric literal scanning and lexical metadata such as base, suffix presence, and incomplete numeric parts.
 - `lexer/strings.rs` owns cooked/raw string scanning and escape validation while advancing the lexer cursor.
@@ -44,4 +50,6 @@ Primary responsibility: preserve source identity and split text into tokens.
 
 ## Known Gaps
 
-None; this stage should stay intentionally boring.
+The next parser stage still consumes the legacy package name through the thin
+compatibility export. Its implementation must move under Psi without moving
+language semantics back into the wrapper.

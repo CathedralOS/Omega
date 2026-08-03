@@ -415,6 +415,7 @@ name = "omega-core"
 version = "0.1.0"
 dependencies = [
  "arc-swap",
+ "psi-source",
 ]
 
 [[package]]
@@ -845,9 +846,7 @@ dependencies = [
 name = "omega-source-files-to-tokens"
 version = "0.1.0"
 dependencies = [
- "omega-core",
- "omega-tokens",
- "unicode-ident",
+ "psi-source-files-to-tokens",
 ]
 
 [[package]]
@@ -1123,7 +1122,7 @@ dependencies = [
 name = "omega-tokens"
 version = "0.1.0"
 dependencies = [
- "omega-core",
+ "psi-tokens",
 ]
 
 [[package]]
@@ -1234,6 +1233,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "psi-source"
+version = "0.1.0"
+
+[[package]]
+name = "psi-source-files-to-tokens"
+version = "0.1.0"
+dependencies = [
+ "psi-source",
+ "psi-tokens",
+ "unicode-ident",
+]
+
+[[package]]
 name = "psi-terminal"
 version = "0.1.0"
 dependencies = [
@@ -1278,6 +1290,13 @@ dependencies = [
  "psi-core",
  "psi-proof-kernel",
  "psi-terminal",
+]
+
+[[package]]
+name = "psi-tokens"
+version = "0.1.0"
+dependencies = [
+ "psi-source",
 ]
 
 [[package]]
