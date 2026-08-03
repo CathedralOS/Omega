@@ -1683,7 +1683,12 @@ and allocation handles expose no compiler-owned stack/control storage.
   `0xf63a865e9bbb85f2`, binding its two exact plans to the eight-byte source-order
   `FloatClass` carrier, sign payload at byte four, every tag and signed payload
   in both formats, exactly-once unary evaluation shape, interpreter/native
-  results, and both Linux cross-builds. The directed-FMA slice retains
+  results, and both Linux cross-builds. The format-conversion cohort retains
+  `omega.float.hardware.macos_arm64.format-conversion.v1` /
+  `0xeb1e22fdac585936`, binding its two exact directional plans to the
+  binary64-to-binary32 halfway and just-above edges, exact widening, infinity
+  preservation, interpreter/native results, and both Linux cross-builds. The
+  directed-FMA slice retains
   `omega.float.hardware.macos_arm64.directed-fma.v1` /
   `0x75be2c4963f3f15a`, binding its six exact plans to binary32/binary64 half-ULP
   edges, all three directions, one fused rounding, control-state restoration,

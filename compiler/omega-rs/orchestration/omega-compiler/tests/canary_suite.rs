@@ -35581,6 +35581,15 @@ fn migrated_float_provider_plans_are_selected_for_every_native_target() {
 
 #[test]
 fn named_float_format_conversion_requirements_execute_in_both_engines() {
+    const DIFFERENTIAL_SUITE_ID: &str = "omega.float.hardware.macos_arm64.format-conversion.v1";
+    const DIFFERENTIAL_COVERAGE: &[&str] = &[
+        "binary64-to-binary32 halfway tie-to-even",
+        "binary64-to-binary32 just-above-halfway",
+        "binary32-to-binary64 exact widening",
+        "binary64 infinity to binary32 infinity",
+    ];
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0xeb1e_22fd_ac58_5936;
+
     let canary = pass_canary("float/runtime_named_format_conversion_exit");
     let main_path = canary.join("main.omg");
     let checked = omega_compiler::compile_to_checked(&main_path, None)
@@ -35606,7 +35615,17 @@ fn named_float_format_conversion_requirements_execute_in_both_engines() {
         })
         .collect::<Vec<_>>();
     assert_eq!(selected.len(), 5, "all five conversion calls retain a plan");
+    let mut selected_intrinsics = std::collections::BTreeSet::new();
+    let mut selected_plan_identities = Vec::new();
     for (operator_use, intrinsic) in selected {
+        selected_intrinsics.insert(intrinsic.clone());
+        selected_plan_identities.push(
+            checked
+                .selected_provider_plans()
+                .plan_by_identity(operator_use.provider_plan_identity)
+                .expect("format conversion evidence must retain its selected plan")
+                .identity_fingerprint(),
+        );
         let psi_typed_trees::expression::ExpressionNode::Cast(cast) = checked
             .typed
             .expression_table
@@ -35626,6 +35645,22 @@ fn named_float_format_conversion_requirements_execute_in_both_engines() {
             Some(expected)
         );
     }
+    assert_eq!(
+        selected_intrinsics,
+        [
+            "F32::from_f64.f64".to_owned(),
+            "F64::from_f32.f32".to_owned(),
+        ]
+        .into_iter()
+        .collect()
+    );
+    selected_plan_identities.sort_unstable();
+    selected_plan_identities.dedup();
+    assert_eq!(
+        selected_plan_identities.len(),
+        2,
+        "{DIFFERENTIAL_SUITE_ID} must bind one exact plan per direction"
+    );
 
     let outcome = omega_interpreter::interpret(&checked, &[]);
     assert_eq!(
@@ -35651,6 +35686,48 @@ fn named_float_format_conversion_requirements_execute_in_both_engines() {
         .expect("public float-format conversion canary should run");
     assert_eq!(output.status.code(), Some(70));
     let _ = fs::remove_dir_all(&build_dir);
+
+    for target in ["linux_x64", "linux_arm64"] {
+        let scratch = std::env::temp_dir().join(format!(
+            "omega-named-format-conversion-{target}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&scratch);
+        let source_dir = scratch.join("src");
+        fs::create_dir_all(&source_dir).expect("format-conversion cross-target source directory");
+        fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
+            .expect("copy format-conversion canary");
+        fs::write(
+            source_dir.join("build.omg"),
+            format!("target {target} {{\n}}\n"),
+        )
+        .expect("write format-conversion target manifest");
+        compile(CompileOptions {
+            root_path: source_dir.join("main.omg"),
+            build_dir: Some(scratch.join("out")),
+            target_name: Some(target.to_owned()),
+            write_output: true,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!("format conversions should compile for {target}: {diagnostics:#?}")
+        });
+        let _ = fs::remove_dir_all(&scratch);
+    }
+
+    let result_identity = retained_float_differential_result_identity(
+        DIFFERENTIAL_SUITE_ID,
+        "macos_arm64",
+        DIFFERENTIAL_COVERAGE,
+        &selected_intrinsics,
+        &selected_plan_identities,
+        &outcome,
+        &output,
+        &["linux_x64", "linux_arm64"],
+    );
+    assert_eq!(
+        result_identity, EXPECTED_DIFFERENTIAL_RESULT_IDENTITY,
+        "{DIFFERENTIAL_SUITE_ID} result changed ({result_identity:#018x}); validate the exact plans, edge corpus, interpreter/native results, and cross-target builds before refreshing the retained identity"
+    );
 }
 
 #[test]
