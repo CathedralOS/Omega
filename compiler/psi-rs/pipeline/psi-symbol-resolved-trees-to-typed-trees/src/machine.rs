@@ -33,6 +33,7 @@ pub(crate) fn lower_machine(
         type_parameters: psi_arena::HandleSpan::empty(),
         owned_data: psi_arena::HandleSpan::empty(),
         satisfies: psi_arena::HandleSpan::empty(),
+        conformance_bounds: Vec::new(),
         decreases: psi_arena::HandleSpan::empty(),
         decrease_order: psi_arena::HandleSpan::empty(),
         decrease_view_arguments: psi_arena::HandleSpan::empty(),
@@ -102,6 +103,24 @@ pub(crate) fn lower_machine(
                 via: conformance.via.clone(),
             },
         );
+    }
+
+    for bound in &machine.conformance_bounds {
+        let mut arguments = Vec::new();
+        for argument in lowerer.source_trees.child_type_references(bound.arguments) {
+            arguments.push(lower_type_reference_into_table(lowerer, argument)?);
+        }
+        typed_machine
+            .conformance_bounds
+            .push(typed::machine::GenericConformanceBound {
+                subject: bound.subject,
+                subject_name: crate::name::lower_name(&bound.subject_name),
+                carrier: bound.carrier,
+                carrier_name: crate::name::lower_name(&bound.carrier_name),
+                arguments,
+                conformance: bound.conformance,
+                conformance_name: bound.conformance_name.as_ref().map(crate::name::lower_name),
+            });
     }
 
     let mut decreases = Vec::new();

@@ -30,6 +30,7 @@ pub struct Machine {
     pub type_parameters: HandleSpan<crate::data::TypeParameter>,
     pub owned_data: HandleSpan<OwnedData>,
     pub satisfies: HandleSpan<TraitConformance>,
+    pub conformance_bounds: Vec<GenericConformanceBound>,
     pub decreases: HandleSpan<ExpressionHandle>,
     pub decrease_order: HandleSpan<Identifier>,
     /// TPR3: argumented-view arguments (`-> Nat::IncreasingTo(limit)`).
@@ -59,6 +60,7 @@ impl Default for Machine {
             type_parameters: HandleSpan::empty(),
             owned_data: HandleSpan::empty(),
             satisfies: HandleSpan::empty(),
+            conformance_bounds: Vec::new(),
             decreases: HandleSpan::empty(),
             decrease_order: HandleSpan::empty(),
             decrease_view_arguments: HandleSpan::empty(),
@@ -71,6 +73,17 @@ impl Default for Machine {
             states: HandleSpan::empty(),
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GenericConformanceBound {
+    pub subject: SymbolHandle,
+    pub subject_name: Identifier,
+    pub carrier: SymbolHandle,
+    pub carrier_name: Identifier,
+    pub arguments: Vec<TypeReferenceHandle>,
+    pub conformance: Option<SymbolHandle>,
+    pub conformance_name: Option<Identifier>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

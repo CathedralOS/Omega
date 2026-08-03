@@ -426,6 +426,7 @@ mod tests {
                 type_parameters: HandleSpan::empty(),
                 owned_data: HandleSpan::empty(),
                 satisfies: HandleSpan::empty(),
+                conformance_bounds: Vec::new(),
                 decreases: HandleSpan::empty(),
                 decrease_order: HandleSpan::empty(),
                 decrease_view_arguments: HandleSpan::empty(),

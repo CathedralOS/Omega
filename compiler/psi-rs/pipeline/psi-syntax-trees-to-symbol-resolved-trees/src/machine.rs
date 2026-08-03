@@ -7,7 +7,9 @@ use crate::state::{
 };
 use psi_arena::{Handle, HandleSpan};
 use psi_diagnostics::Diagnostic;
-use psi_symbol_resolved_trees::machine::{Machine, MachineStorage, TraitConformance};
+use psi_symbol_resolved_trees::machine::{
+    GenericConformanceBound, Machine, MachineStorage, TraitConformance,
+};
 use psi_symbol_resolved_trees::state::State;
 use psi_symbols::SymbolHandle;
 use psi_syntax_trees::{self as syntax, SyntaxTrees};
@@ -22,6 +24,8 @@ pub(crate) fn lower_machine_into(
     lowerer.current_machine_is_boundary = false;
     let type_parameters = lower_type_parameters(lowerer, syntax_trees, machine.type_parameters)?;
     let satisfies = lower_machine_trait_conformances(lowerer, syntax_trees, machine.satisfies)?;
+    let conformance_bounds =
+        lower_generic_conformance_bounds(lowerer, syntax_trees, &machine.conformance_bounds)?;
     let decreases = lower_machine_decreases(lowerer, syntax_trees, machine.decreases)?;
     let decrease_order =
         lower_machine_decrease_order(lowerer, syntax_trees, machine.decrease_order);
@@ -110,6 +114,7 @@ pub(crate) fn lower_machine_into(
             type_parameters,
             owned_data: HandleSpan::empty(),
             satisfies,
+            conformance_bounds,
             decreases,
             decrease_order,
             decrease_view_arguments,
@@ -123,6 +128,31 @@ pub(crate) fn lower_machine_into(
         },
     });
     Ok(())
+}
+
+fn lower_generic_conformance_bounds(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    bounds: &[syntax::item::GenericConformanceBound],
+) -> Result<Vec<GenericConformanceBound>, Diagnostic> {
+    bounds
+        .iter()
+        .map(|bound| {
+            Ok(GenericConformanceBound {
+                subject: SymbolHandle::invalid(),
+                subject_name: crate::name::lower_name(&bound.subject),
+                carrier: SymbolHandle::invalid(),
+                carrier_name: crate::name::lower_name(&bound.carrier),
+                arguments: crate::type_reference::lower_child_type_references(
+                    lowerer,
+                    syntax_trees,
+                    bound.arguments,
+                )?,
+                conformance: None,
+                conformance_name: bound.conformance.as_ref().map(crate::name::lower_name),
+            })
+        })
+        .collect()
 }
 
 /// TPR2 (decision 23): populate the normalized `MachineTerminationPlan` --

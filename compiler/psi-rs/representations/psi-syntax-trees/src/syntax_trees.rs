@@ -394,6 +394,16 @@ impl SyntaxTrees {
                 },
                 |this, clause| this.items.append_satisfies_clause(clause),
             ),
+            conformance_bounds: machine
+                .conformance_bounds
+                .iter()
+                .map(|bound| crate::item::GenericConformanceBound {
+                    subject: bound.subject.clone(),
+                    carrier: bound.carrier.clone(),
+                    arguments: self.copy_type_reference_handle_span(other, bound.arguments),
+                    conformance: bound.conformance.clone(),
+                })
+                .collect(),
             terminates: machine.terminates,
             terminates_guarantee: machine.terminates_guarantee,
             decreases: self.copy_expression_handle_list(other, machine.decreases),

@@ -1724,7 +1724,7 @@ move it to a convenience library.
 - Implement local dynamic traits as two-word borrowed descriptors selecting one
   complete nominal conformance. Derive the per-requirement dynamic surface,
   lower checked adapters, retain compile-time operational envelopes, add
-  transparent trait refinements and named-conformance generic bounds, and
+  transparent trait refinements and complete generic-bound consumption, and
   prototype envelope/effect-row inference before committing the full lowering.
   The first nominal-dispatch correction is live: typed/checked dynamic
   candidate discovery now consults only explicit whole-trait data conformance
@@ -1741,8 +1741,13 @@ move it to a convenience library.
   named-conformance selection, per-requirement eligibility/adapters, and
   envelope inference remain. Standalone `Type satisfies Trait as Name;`
   declarations now retain the name through checked Psi as a stable child
-  symbol and reject duplicate `Type::Name` paths; coercion and generic-bound
-  selection do not consume that path yet.
+  symbol and reject duplicate `Type::Name` paths. Generic machine `where T
+  satisfies Trait<Args>` bounds now retain their subject and specialization
+  through checked Psi, while `T satisfies Type::Name` resolves to that exact
+  child conformance symbol; unknown subjects, traits, arity mismatches, and
+  named selections reject instead of disappearing at the parser. Static
+  generic-call dispatch/enforcement, trait-header bounds, and coercion
+  consumption remain.
   Local descriptors must not cross replaceable component boundaries. Add owned
   erased **runtime** values only after general storage ownership,
   size/alignment metadata, and cleanup contracts can support them; N6's

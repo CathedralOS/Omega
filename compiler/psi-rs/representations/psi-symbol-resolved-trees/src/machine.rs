@@ -41,6 +41,7 @@ pub struct MachineStorage {
     pub type_parameters: HandleSpan<crate::data::TypeParameter>,
     pub owned_data: HandleSpan<OwnedData>,
     pub satisfies: HandleSpan<TraitConformance>,
+    pub conformance_bounds: Vec<GenericConformanceBound>,
     pub decreases: HandleSpan<ExpressionHandle>,
     pub decrease_order: HandleSpan<DiagnosticName>,
     /// TPR3: argumented-view arguments (`-> Nat::IncreasingTo(limit)`).
@@ -56,6 +57,20 @@ pub struct MachineStorage {
     pub blocks: bool,
     pub contracts: HandleSpan<SignatureContract>,
     pub states: HandleSpan<Handle<State>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GenericConformanceBound {
+    pub subject: SymbolHandle,
+    pub subject_name: DiagnosticName,
+    /// The ordinary trait symbol, or the data carrier symbol for a named
+    /// conformance path.
+    pub carrier: SymbolHandle,
+    pub carrier_name: DiagnosticName,
+    pub arguments: HandleSpan<TypeReference>,
+    /// Exact child conformance symbol for a qualified path.
+    pub conformance: Option<SymbolHandle>,
+    pub conformance_name: Option<DiagnosticName>,
 }
 
 impl Deref for Machine {

@@ -297,6 +297,84 @@ pub(crate) fn validate_machine_trait_conformances(
     }
 }
 
+pub(crate) fn validate_generic_conformance_bounds(
+    program: &TypedTrees,
+    machine: &Machine,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for bound in &machine.conformance_bounds {
+        if !bound.subject.is_valid() {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` conformance bound names unknown type parameter `{}`",
+                machine.name, bound.subject_name
+            )));
+            continue;
+        }
+
+        if let Some(selected) = bound.conformance {
+            let Some(declaration) = program
+                .data_conformances()
+                .iter()
+                .find(|declaration| declaration.symbol == selected)
+            else {
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}` conformance bound selects unknown conformance `{}::{}`",
+                    machine.name,
+                    bound.carrier_name,
+                    bound
+                        .conformance_name
+                        .as_ref()
+                        .map_or("<missing>", |name| name.as_str())
+                )));
+                continue;
+            };
+            if declaration.type_name != bound.carrier_name {
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}` conformance bound selection `{}::{}` does not belong to carrier `{}`",
+                    machine.name,
+                    bound.carrier_name,
+                    bound
+                        .conformance_name
+                        .as_ref()
+                        .map_or("<missing>", |name| name.as_str()),
+                    declaration.type_name,
+                )));
+            }
+            continue;
+        }
+
+        if bound.conformance_name.is_some() {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` conformance bound selects unknown conformance `{}::{}`",
+                machine.name,
+                bound.carrier_name,
+                bound
+                    .conformance_name
+                    .as_ref()
+                    .map_or("<missing>", |name| name.as_str())
+            )));
+            continue;
+        }
+
+        let Some(trait_definition) = trait_definition_by_symbol(program, bound.carrier) else {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` conformance bound names unknown trait `{}`",
+                machine.name, bound.carrier_name
+            )));
+            continue;
+        };
+        let expected = program.trait_type_parameters(trait_definition).len();
+        if bound.arguments.len() != expected {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` conformance bound for trait `{}` expects {expected} generic argument(s), got {}",
+                machine.name,
+                bound.carrier_name,
+                bound.arguments.len(),
+            )));
+        }
+    }
+}
+
 /// Operator requirements share the ordinary machine `satisfies` spelling with
 /// trait requirements, but resolve by exact overloaded signature rather than
 /// a trait symbol. Boundary leaves retain their admitted-binding rule;
