@@ -1046,6 +1046,9 @@ improvements do not change public identity.
   proof, borrow, flow, reach, value-origin, and admissibility evidence;
   `omega-checked-trees` is now only a compatibility export for unmigrated
   consumers.
+  `psi-validation` owns target-neutral cross-semantic source validation;
+  `omega-validation` is a compatibility export whose retained tests also cover
+  the separate Omega provider-admission subsystem.
   `psi-effects` owns operational ceilings, service reach, synchronous
   invocation inference, and capability-flow facts. Provider declarations,
   target/provider bindings, approval, installation, and the exact selected-plan

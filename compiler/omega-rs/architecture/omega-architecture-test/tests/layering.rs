@@ -76,8 +76,8 @@ const KNOWN_EXCEPTIONS: &[(&str, &str)] = &[
     ("object", "backend"),
     // `omega-backend-plan` (a representation) depends on `omega-object-file`.
     ("representations", "object"),
-    // The semantics crate `omega-validation` re-runs the front-of-pipeline
-    // passes (source->tokens->...->typed) in its tests to analyse code.
+    // The `omega-validation` compatibility crate re-runs the Psi-owned
+    // front-of-pipeline passes (source->tokens->...->typed) in its tests.
     ("semantics", "pipeline"),
 ];
 
@@ -327,6 +327,10 @@ fn frontend_implementation_is_psi_owned() {
         (
             "compiler/omega-rs/representations/omega-facts/src/lib.rs",
             "pub use psi_facts::*;",
+        ),
+        (
+            "compiler/omega-rs/semantics/omega-validation/src/lib.rs",
+            "pub use psi_validation::*;",
         ),
         (
             "compiler/omega-rs/pipeline/omega-source-files-to-tokens/src/lib.rs",

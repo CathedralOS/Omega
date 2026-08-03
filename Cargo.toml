@@ -30,6 +30,7 @@ members = [
     "compiler/psi-rs/semantics/psi-terminal-codec",
     "compiler/psi-rs/semantics/psi-terminal-fuel",
     "compiler/psi-rs/semantics/psi-terminal-fixed-fuel",
+    "compiler/psi-rs/semantics/psi-validation",
     "compiler/omega-rs/foundation/omega-core",
     "compiler/omega-rs/foundation/omega-target",
     "compiler/omega-rs/foundation/omega-calling-conventions",

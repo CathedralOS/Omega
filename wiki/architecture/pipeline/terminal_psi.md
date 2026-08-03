@@ -48,7 +48,10 @@ effect summaries are likewise Psi-owned, while concrete selected provider
 plans and target/layout-specific task activation plans are Omega-owned and
 travel as orchestration sidecars. `CheckedTrees` does not embed that
 target/provider realization state. The checking transform itself remains the
-next frontend-ownership migration boundary.
+next frontend-ownership migration boundary. Its target-neutral validation
+dependency has already moved to `psi-validation`; `omega-validation` is a
+compatibility export, while provider installation and approval remain Omega
+concerns.
 
 The first transitional source producer is now live as
 `omega-checked-trees-to-terminal-psi`. It accepts one exact free-machine slice:

@@ -83,6 +83,7 @@ Omega/
 |   |   |   |-- [CRATE] psi-syntax-trees-to-symbol-resolved-trees/ # Psi-owned name and symbol resolution.
 |   |   |   `-- [CRATE] psi-symbol-resolved-trees-to-typed-trees/ # Psi-owned type/signature normalization.
 |   |   `-- semantics/
+|   |       |-- [CRATE] psi-validation/                 # Cross-semantic source validation and diagnostics.
 |   |       |-- [CRATE] psi-proof-kernel/               # Total judgments, proof certificates, and admission checks.
 |   |       `-- [CRATE] psi-terminal-verifier/          # Module validation and reconstructed-obligation checking.
 |   |
@@ -92,7 +93,7 @@ Omega/
 |   |-- semantics/
 |   |   |-- [CRATE] omega-types/                        # Type checking, inference, coercions, layout preconditions.
 |   |   |-- [CRATE] omega-graph/                        # Machine/state graph construction and graph-facing semantic facts.
-|   |   |-- [CRATE] omega-validation/                   # Cross-semantic program validation and diagnostics.
+|   |   |-- [CRATE] omega-validation/                   # Transitional re-export of Psi-owned source validation.
 |   |   `-- [CRATE] omega-proof/                        # Proof obligations, invariants, liveness hooks.
 |   |
 |   |-- representations/
@@ -270,8 +271,10 @@ Omega/
   installation-facing records—including the exact selected-plan carrier—while
   re-exporting the Psi facts for legacy consumers. Checked semantic trees do
   not retain that Omega realization sidecar.
-- `omega-validation` answers cross-semantic obligations, including who may read
-  or mutate and what a callable requires or promises.
+- `psi-validation` answers target-neutral cross-semantic obligations, including
+  who may read or mutate and what a callable requires or promises. The old
+  `omega-validation` name is a compatibility export; provider installation and
+  approval remain in Omega.
 - `omega-proof` discharges obligations.
 - `omega-graph` stays language/proof-facing; do not bury state-machine reasoning
   in backend crates.
