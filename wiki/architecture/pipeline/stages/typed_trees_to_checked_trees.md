@@ -124,10 +124,14 @@ Current ownership is:
   immutable program-static storage (direct/nested literals, folded literal
   joins, and machine results whose every value exit resolves to such a source),
   and retains that provenance through exact persistent-place copies within the
-  same state. The shortcut is cleared at opaque statement calls. It fails closed
-  on other writes into attached or machine-owned persistent storage until loan
-  propagation across graph-state transitions, call mutation summaries, and
-  state-parameter root rebasing are implemented.
+  same state. Whole persistent-field provenance also crosses named graph-state
+  edges under a must-analysis: every predecessor must carry the fact, and the
+  field symbol rebases it independently of each state's receiver parameter.
+  Mutation, a missing predecessor fact, or an opaque statement call clears the
+  shortcut. Other writes into attached or machine-owned persistent storage
+  remain fail-closed until parameter-backed loan propagation, partial-place
+  cross-state transport, call mutation summaries, and general state-parameter
+  loan-root rebasing are implemented.
 - `checks/carry.rs` joins canonical place liveness with direct/transitive
   possible suspension. Lexical roots are statement-bound; attached-data and
   compatibility machine-owned field paths additionally follow reachable state
