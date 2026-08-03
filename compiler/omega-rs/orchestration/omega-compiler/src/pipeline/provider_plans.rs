@@ -41,6 +41,41 @@ pub struct SelectedExternalRootEntryFactBinding {
     checked_fact: psi_facts::FactHandle,
 }
 
+/// Sealed join between one live installed-root occurrence, the exact checked
+/// parameter fact it introduces, and the generated prologue fragment that
+/// captures that semantic parameter from its normalized ABI placement.
+///
+/// This carrier borrows the live occurrence and the derived storage plan. It
+/// cannot detach a reusable qualification receipt from the linear
+/// acknowledgement.
+#[derive(Debug)]
+pub struct AdmittedExternalRootEntryFactHandoff<'entry, 'storage> {
+    occurrence: &'entry omega_external_roots::AdmittedEntryQualification,
+    checked_fact: psi_facts::FactHandle,
+    parameter_symbol: omega_core::symbols::SymbolHandle,
+    storage: &'storage omega_instruction_selection::DerivedBoundaryEntryParameterStorage,
+}
+
+impl<'entry, 'storage> AdmittedExternalRootEntryFactHandoff<'entry, 'storage> {
+    pub const fn occurrence(&self) -> &'entry omega_external_roots::AdmittedEntryQualification {
+        self.occurrence
+    }
+
+    pub const fn checked_fact(&self) -> psi_facts::FactHandle {
+        self.checked_fact
+    }
+
+    pub const fn parameter_symbol(&self) -> omega_core::symbols::SymbolHandle {
+        self.parameter_symbol
+    }
+
+    pub const fn storage(
+        &self,
+    ) -> &'storage omega_instruction_selection::DerivedBoundaryEntryParameterStorage {
+        self.storage
+    }
+}
+
 impl SelectedExternalRootEntryFactBinding {
     pub const fn provider_plan(&self) -> omega_external_roots::ProviderPlanId {
         self.provider_plan
@@ -118,6 +153,38 @@ impl SelectedExternalRootEntryFactBinding {
             &self.domain,
             self.effective_carry,
         )
+    }
+
+    /// Join the live admitted occurrence to the exact generated prologue
+    /// capture before the checked adapter body may rely on its propagated
+    /// parameter fact.
+    pub fn admit_acknowledgement_handoff<'entry, 'storage>(
+        &self,
+        acknowledgement: &'entry omega_external_roots::InterruptAcknowledgement,
+        storage: &'storage omega_instruction_selection::DerivedBoundaryEntryStorage,
+    ) -> Result<
+        AdmittedExternalRootEntryFactHandoff<'entry, 'storage>,
+        omega_external_roots::ExternalRootDiagnostic,
+    > {
+        let occurrence = self.admit_acknowledgement(acknowledgement)?;
+        let parameter = storage.parameter(self.parameter_index).ok_or_else(|| {
+            omega_external_roots::ExternalRootDiagnostic(format!(
+                "generated entry prologue has no capture for admitted semantic parameter {}",
+                self.parameter_index
+            ))
+        })?;
+        if !occurrence.matches_parameter_placement(self.parameter_index, &parameter.placement) {
+            return Err(omega_external_roots::ExternalRootDiagnostic(format!(
+                "generated entry prologue placement for semantic parameter {} does not match the live admitted occurrence",
+                self.parameter_index
+            )));
+        }
+        Ok(AdmittedExternalRootEntryFactHandoff {
+            occurrence,
+            checked_fact: self.checked_fact,
+            parameter_symbol: self.parameter_symbol,
+            storage: parameter,
+        })
     }
 }
 

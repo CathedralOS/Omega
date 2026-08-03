@@ -2,8 +2,9 @@ use omega_abstract_operations::SelectedInstructionKind;
 use omega_calling_conventions::{
     BoundaryEntryPlan, CallSignature, EntryControl, IndirectPointerLocation, MachineStateSet,
     PlanDiagnostic, RegisterSet, StateFootprintEvidence, ValidatedBoundaryEntryPlan, ValueLocation,
-    ValueShape, validate_boundary_entry_plan, validate_call_return_mechanics_footprint,
-    validate_runtime_value_guard_footprint, validate_state_footprint,
+    ValuePlacement, ValueShape, validate_boundary_entry_plan,
+    validate_call_return_mechanics_footprint, validate_runtime_value_guard_footprint,
+    validate_state_footprint,
 };
 
 /// The observable exit half of one validated boundary plan. Result fragments
@@ -21,7 +22,30 @@ pub struct DerivedBoundaryExit {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DerivedBoundaryEntryStorage {
     pub writes: Vec<SelectedInstructionKind>,
+    pub parameters: Vec<DerivedBoundaryEntryParameterStorage>,
     pub footprint: StateFootprintEvidence,
+}
+
+/// Exact relationship between one semantic parameter position, its normalized
+/// ABI placement, and the generated prologue writes that capture it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DerivedBoundaryEntryParameterStorage {
+    pub parameter_index: usize,
+    pub destination_byte_offset: usize,
+    pub shape: ValueShape,
+    pub placement: ValuePlacement,
+    pub write_range: std::ops::Range<usize>,
+}
+
+impl DerivedBoundaryEntryStorage {
+    pub fn parameter(
+        &self,
+        parameter_index: usize,
+    ) -> Option<&DerivedBoundaryEntryParameterStorage> {
+        self.parameters
+            .iter()
+            .find(|parameter| parameter.parameter_index == parameter_index)
+    }
 }
 
 /// Derive and validate the fixed scratch footprint of the special
@@ -579,6 +603,7 @@ pub fn derive_boundary_entry_storage(
     let boundary = validate_boundary_entry_plan(boundary.clone(), &signature)?;
     let call = &boundary.plan().call;
     let mut writes = Vec::new();
+    let mut parameters = Vec::with_capacity(parameter_destinations.len());
 
     if let Some(result) = &call.result {
         let indirect = match result.locations.as_slice() {
@@ -608,8 +633,12 @@ pub fn derive_boundary_entry_storage(
         ));
     }
 
-    for ((destination_offset, _), placement) in parameter_destinations.iter().zip(&call.parameters)
+    for (parameter_index, ((destination_offset, shape), placement)) in parameter_destinations
+        .iter()
+        .zip(&call.parameters)
+        .enumerate()
     {
+        let write_start = writes.len();
         for location in &placement.locations {
             writes.push(match *location {
                 ValueLocation::Register {
@@ -640,6 +669,13 @@ pub fn derive_boundary_entry_storage(
                 },
             });
         }
+        parameters.push(DerivedBoundaryEntryParameterStorage {
+            parameter_index,
+            destination_byte_offset: *destination_offset,
+            shape: *shape,
+            placement: placement.clone(),
+            write_range: write_start..writes.len(),
+        });
     }
 
     let mut prior_clobbers = Vec::new();
@@ -659,7 +695,11 @@ pub fn derive_boundary_entry_storage(
         StateFootprintEvidence::new(RegisterSet::new(prior_clobbers), MachineStateSet::empty());
     validate_state_footprint(&boundary, &footprint)?;
 
-    Ok(DerivedBoundaryEntryStorage { writes, footprint })
+    Ok(DerivedBoundaryEntryStorage {
+        writes,
+        parameters,
+        footprint,
+    })
 }
 
 fn entry_storage_write_register_source(
@@ -849,6 +889,21 @@ mod tests {
         let derived = derive_boundary_entry_storage(boundary.plan(), &destinations, None, None)
             .expect("state-checked inbound storage");
 
+        assert_eq!(derived.parameters.len(), 7);
+        for (parameter_index, parameter) in derived.parameters.iter().enumerate() {
+            assert_eq!(parameter.parameter_index, parameter_index);
+            assert_eq!(parameter.destination_byte_offset, parameter_index * 8);
+            assert_eq!(parameter.shape, ValueShape::integer(8, 8));
+            assert_eq!(
+                parameter.placement,
+                boundary.plan().call.parameters[parameter_index]
+            );
+            assert_eq!(parameter.write_range, parameter_index..parameter_index + 1);
+            assert_eq!(
+                &derived.writes[parameter.write_range.clone()],
+                &derived.writes[parameter_index..parameter_index + 1]
+            );
+        }
         assert_eq!(
             derived.footprint.registers().as_slice(),
             &[MachineRegister::X86R10, MachineRegister::X86R15]

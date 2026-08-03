@@ -830,6 +830,12 @@ validation precedes instruction production so future provider stubs do not
 need a separate placement path. Its matching exit derivation returns the
 canonical result fragments and call/return control from the same validated
 plan; process-entry result lowering uses that shared consumer as well.
+Inbound derivation also retains one exact semantic-parameter, placement,
+destination, and generated-write-range row. The admitted external-root
+sidecar joins that row to the matching live invocation occurrence and checked
+parameter fact without creating a detachable receipt; the eventual concrete
+provider entry executor must require this borrowed handoff before dispatching
+the checked adapter body.
 
 Syscall bindings now retain only syscall identity and number. Register
 placement and supervisor-call control come exclusively from the normalized

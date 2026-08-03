@@ -158,10 +158,14 @@ composite claim-frontier work remain.
   semantic parameter position, domain, and carry policy must all agree. The
   live admitted occurrence now retains that semantic position beside its exact
   placement from the validated boundary plan, and an out-of-range position
-  rejects before installation. Do not add an `[entry]`/`[accepted]` marker,
+  rejects before installation. Generated prologue derivation now retains one
+  exact semantic-parameter/ABI-placement/write-range row. The Omega sidecar
+  joins that row, the propagated checked parameter fact, and the live
+  invocation occurrence in one borrowed non-detachable handoff; parameter or
+  placement drift rejects. Do not add an `[entry]`/`[accepted]` marker,
   source selector, public receipt, or new trust category. Remaining: make the
-  generated entry prologue/body handoff consume that live admitted match before
-  entering the checked adapter body instead of merely carrying it.
+  concrete provider entry executor require that handoff at actual checked-body
+  dispatch.
 - `TaskRuntime` is now an ordinary boundary trait. Each concrete `start<M>` /
   `try_start<M>` Omega activation-sidecar fact binds the exact retained
   selected-provider plan and exact operation requirement, rejecting a missing
