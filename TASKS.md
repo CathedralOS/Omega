@@ -1859,8 +1859,8 @@ move it to a convenience library.
   object identity and the ObjectTable migration bundle wait for a deployment
   that requires replacement without holder cooperation.
 - Implement serialized capability attenuation/revocation.
-- Implement normalized `Atomic::fence` for
-  `Receive | Publish | ReceivePublish`; define
+- **ATOMIC-EVENT-MODEL — DESIGN BLOCKED:** implement normalized
+  `Atomic::fence` for `Receive | Publish | ReceivePublish`; define
   the formal atomic-event model and complete target-refinement proofs before
   enabling protocol verification. Keep the strong receive baseline on
   AArch64; a weaker acquire instruction requires protocol-scoped proof and
@@ -1922,6 +1922,11 @@ ordinary code never receives a raw executable address.
   blocks the dependent bump-allocator canary and frontier work.
 - **CONDITIONAL-EDGE:** blocked on `OWNER_QUESTIONS.md` Q4's choice of canonical
   terminal-Psi conditional-edge, guard, successor, proof, and fuel identity.
+- **ATOMIC-EVENT-MODEL:** blocked on the open formal portable atomic-event
+  axioms and x86-64/AArch64 refinement choices recorded in
+  `wiki/language_guide/appendix_open_questions.md`. This blocks portable fences
+  and protocol verification, not placed atomic accessors, checked ISA barriers,
+  or installed-root same-context evidence.
 
 ## Vertical acceptance slices
 
