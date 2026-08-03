@@ -1,6 +1,7 @@
 use super::lowering::{
-    call_parameter_expects_reference, expression_platform_receiver_type,
-    find_platform_call_lowering_by_target, lower_host_call_argument,
+    call_parameter_expects_address, call_parameter_expects_reference,
+    expression_platform_receiver_type, find_platform_call_lowering_by_target,
+    lower_host_call_argument,
 };
 use crate::host_calls::lowering::{
     find_platform_call_lowering, host_operation, lower_host_call_arguments, platform_call_name,
@@ -185,6 +186,7 @@ fn collect_assignment_result_host_lowering(
             ),
             is_borrowed: false,
             expects_reference: false,
+            expects_address: false,
         },
     );
     // The call's REAL arguments follow the result (e.g. key_state(vk)).
@@ -208,6 +210,12 @@ fn collect_assignment_result_host_lowering(
                     psi_checked_trees::expression::ExpressionNode::Mutable(_)
                 ),
                 expects_reference: call_parameter_expects_reference(
+                    program,
+                    call.target_symbol,
+                    call.target.as_str(),
+                    index,
+                ),
+                expects_address: call_parameter_expects_address(
                     program,
                     call.target_symbol,
                     call.target.as_str(),
@@ -326,6 +334,7 @@ fn collect_local_result_host_lowering(
             kind: crate::HostCallArgumentKind::Expression(result_place),
             is_borrowed: false,
             expects_reference: false,
+            expects_address: false,
         },
     );
     for (index, argument) in program
@@ -348,6 +357,12 @@ fn collect_local_result_host_lowering(
                     psi_checked_trees::expression::ExpressionNode::Mutable(_)
                 ),
                 expects_reference: call_parameter_expects_reference(
+                    program,
+                    call.target_symbol,
+                    call.target.as_str(),
+                    index,
+                ),
+                expects_address: call_parameter_expects_address(
                     program,
                     call.target_symbol,
                     call.target.as_str(),

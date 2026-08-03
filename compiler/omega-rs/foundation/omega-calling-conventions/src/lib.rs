@@ -916,15 +916,10 @@ pub enum HostBindingMechanism {
     /// vtable-field pass (0 until then -- the encoder never sees an
     /// unresolved mechanism because the pass runs before target-operation
     /// building, and an unknown struct/field refuses the compile there).
-    /// `parameter_count` is the bound trait method's DECLARED parameter
-    /// count: the encoder compares it against the call's operand list to
-    /// detect a prepended result place (`let status = ...` prepends one;
-    /// `_ = ...` does not).
     VtableField {
         table: Arc<str>,
         field: Arc<str>,
         byte_offset: usize,
-        parameter_count: usize,
     },
     /// A SERVICE-TABLE function (UEFI BootServices/RuntimeServices): the
     /// callee address is read from the table's fn-ptr FIELD exactly like
@@ -939,7 +934,6 @@ pub enum HostBindingMechanism {
         table: Arc<str>,
         field: Arc<str>,
         byte_offset: usize,
-        parameter_count: usize,
     },
 }
 
@@ -1262,7 +1256,6 @@ pub fn merge_external_binding_rows(
                     table: row.table_type.as_str().into(),
                     field: field.as_str().into(),
                     byte_offset: 0,
-                    parameter_count: row.parameter_count,
                 }
             }
             ExternalBindingKind::TableFunction { field } => {
@@ -1277,7 +1270,6 @@ pub fn merge_external_binding_rows(
                     table: row.table_type.as_str().into(),
                     field: field.as_str().into(),
                     byte_offset: 0,
-                    parameter_count: row.parameter_count,
                 }
             }
             ExternalBindingKind::DllImport { module, symbol } => HostBindingMechanism::Import {
@@ -2552,13 +2544,11 @@ mod binding_plan_tests {
                 table: "Probe".into(),
                 field: "call".into(),
                 byte_offset: 0,
-                parameter_count: 1,
             },
             HostBindingMechanism::TableFunction {
                 table: "Probe".into(),
                 field: "call".into(),
                 byte_offset: 0,
-                parameter_count: 1,
             },
         ];
 

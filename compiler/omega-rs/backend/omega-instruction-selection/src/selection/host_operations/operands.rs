@@ -3312,7 +3312,7 @@ fn host_call_argument_is_borrow(
     if argument.is_borrowed {
         return true;
     }
-    if !argument.expects_reference {
+    if !argument.expects_reference && !argument.expects_address {
         return false;
     }
     let omega_platform_interface::HostCallArgumentKind::Expression(expression) = argument.kind
@@ -3326,13 +3326,24 @@ fn host_call_argument_is_borrow(
         &input.host_calls.expressions,
         expression,
     );
-    !descriptor.is_some_and(|descriptor| descriptor_is_reference(&descriptor))
+    if argument.expects_reference {
+        return !descriptor.is_some_and(|descriptor| descriptor_is_reference(&descriptor));
+    }
+    !descriptor.is_some_and(|descriptor| descriptor_is_raw_address(&descriptor))
 }
 
 fn descriptor_is_reference(descriptor: &TypeLayoutDescriptor) -> bool {
     match descriptor {
         TypeLayoutDescriptor::Reference { .. } => true,
         TypeLayoutDescriptor::Constrained { base_type, .. } => descriptor_is_reference(base_type),
+        _ => false,
+    }
+}
+
+fn descriptor_is_raw_address(descriptor: &TypeLayoutDescriptor) -> bool {
+    match descriptor {
+        TypeLayoutDescriptor::Named { name, .. } => name.as_str() == "addr",
+        TypeLayoutDescriptor::Constrained { base_type, .. } => descriptor_is_raw_address(base_type),
         _ => false,
     }
 }

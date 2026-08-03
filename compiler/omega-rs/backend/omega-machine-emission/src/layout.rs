@@ -1,6 +1,7 @@
 use crate::MachineEmissionContext;
 use crate::host_bindings::{
-    host_binding, instruction_requires_float_control_restore, windows_get_std_handle_plan,
+    field_model_result_present, host_binding, instruction_requires_float_control_restore,
+    windows_get_std_handle_plan,
 };
 use crate::selected_instruction_queries::{selected_host_operation, selected_host_text_read};
 use omega_assigned_target_operations::{
@@ -180,40 +181,47 @@ fn machine_instruction_width(
                             )
                         })
                 }
-                // A call with MORE operands than the method's declared parameters
-                // carries a prepended RESULT place (`let status = ...`). The
-                // AArch64 field offset is retained here so an unencodable load
-                // fails layout instead of being sized through slot zero.
                 Some(HostBindingMechanism::VtableField {
                     byte_offset,
-                    parameter_count,
                     ..
-                }) => binding
-                    .and_then(omega_calling_conventions::HostBinding::call_plan)
-                    .map_or(0, |plan| {
+                }) => {
+                    if let Some(plan) = binding
+                        .and_then(omega_calling_conventions::HostBinding::call_plan)
+                    {
                         vtable_call_sequence_width_at_offset_with_plan(
                             input.target,
                             operands,
                             *byte_offset,
-                            operands.len() > *parameter_count,
+                            field_model_result_present(operands.len(), plan, 0, "vtable-field")?,
                             plan,
                         )
-                    }),
+                    } else {
+                        0
+                    }
+                }
                 Some(HostBindingMechanism::TableFunction {
                     byte_offset,
-                    parameter_count,
                     ..
-                }) => binding
-                    .and_then(omega_calling_conventions::HostBinding::call_plan)
-                    .map_or(0, |plan| {
+                }) => {
+                    if let Some(plan) = binding
+                        .and_then(omega_calling_conventions::HostBinding::call_plan)
+                    {
                         table_function_call_sequence_width_with_plan(
                             input.target,
                             operands,
                             *byte_offset,
-                            operands.len() > *parameter_count,
+                            field_model_result_present(
+                                operands.len(),
+                                plan,
+                                1,
+                                "table-function",
+                            )?,
                             plan,
                         )
-                    }),
+                    } else {
+                        0
+                    }
+                }
                 Some(HostBindingMechanism::Import { .. })
                     if matches!(
                         host_operation.operation_key.capability,

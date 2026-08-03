@@ -85,8 +85,8 @@ fn write_host_binding(output: &mut String, binding: &HostBinding) {
             table,
             field,
             byte_offset,
-            parameter_count,
         } => {
+            let parameter_count = binding.call_plan().map_or(0, |plan| plan.parameters.len());
             output.push_str(&format!(
                 "- {}.{} vtable field {}.{} (+{}) arity {} boundary `{}`\n",
                 binding.operation_key.capability_name(),
@@ -102,8 +102,10 @@ fn write_host_binding(output: &mut String, binding: &HostBinding) {
             table,
             field,
             byte_offset,
-            parameter_count,
         } => {
+            let parameter_count = binding
+                .call_plan()
+                .map_or(1, |plan| plan.parameters.len() + 1);
             output.push_str(&format!(
                 "- {}.{} table function {}.{} (+{}) arity {} (table not passed) boundary `{}`\n",
                 binding.operation_key.capability_name(),

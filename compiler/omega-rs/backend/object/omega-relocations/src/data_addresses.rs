@@ -55,18 +55,18 @@ pub(super) fn collect_data_address_relocations(
                 passes_receiver: true,
                 result_present: false,
             }),
-            HostBindingMechanism::VtableField {
-                parameter_count, ..
-            } => Some(FieldModelCallShape {
-                passes_receiver: true,
-                result_present: operands.len() > *parameter_count,
-            }),
-            HostBindingMechanism::TableFunction {
-                parameter_count, ..
-            } => Some(FieldModelCallShape {
-                passes_receiver: false,
-                result_present: operands.len() > *parameter_count,
-            }),
+            HostBindingMechanism::VtableField { .. } => {
+                authoritative_plan.map(|plan| FieldModelCallShape {
+                    passes_receiver: true,
+                    result_present: operands.len() > plan.parameters.len(),
+                })
+            }
+            HostBindingMechanism::TableFunction { .. } => {
+                authoritative_plan.map(|plan| FieldModelCallShape {
+                    passes_receiver: false,
+                    result_present: operands.len() > plan.parameters.len() + 1,
+                })
+            }
             _ => None,
         });
 

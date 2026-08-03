@@ -1198,22 +1198,11 @@ fn resolve_vtable_field_offsets(
     let mut plan = std::sync::Arc::try_unwrap(host_abi).unwrap_or_else(|shared| (*shared).clone());
     let binding_handles: Vec<_> = plan.bindings.iter().map(|(handle, _)| handle).collect();
     for handle in binding_handles {
-        let (table, field, parameter_count, is_table_function) =
-            match plan.bindings.get(handle).mechanism.clone() {
-                HostBindingMechanism::VtableField {
-                    table,
-                    field,
-                    parameter_count,
-                    ..
-                } => (table, field, parameter_count, false),
-                HostBindingMechanism::TableFunction {
-                    table,
-                    field,
-                    parameter_count,
-                    ..
-                } => (table, field, parameter_count, true),
-                _ => continue,
-            };
+        let (table, field, is_table_function) = match plan.bindings.get(handle).mechanism.clone() {
+            HostBindingMechanism::VtableField { table, field, .. } => (table, field, false),
+            HostBindingMechanism::TableFunction { table, field, .. } => (table, field, true),
+            _ => continue,
+        };
         let Some(data_layout) = layouts
             .data_layouts
             .iter()
@@ -1247,14 +1236,12 @@ fn resolve_vtable_field_offsets(
                 table,
                 field,
                 byte_offset: resolved_offset,
-                parameter_count,
             }
         } else {
             HostBindingMechanism::VtableField {
                 table,
                 field,
                 byte_offset: resolved_offset,
-                parameter_count,
             }
         };
     }
