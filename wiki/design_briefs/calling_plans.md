@@ -817,11 +817,13 @@ directory-relative `unlink_at` seam maps directly to `unlinkat`, while
 plan-owned prefix through `readlinkat`. Plain-path `remove`/`remove_dir` and
 their trusted-name twins also lower through `unlinkat`; plan data injects both
 `AT_FDCWD` and the target-specific trailing flag (`0` or Linux
-`AT_REMOVEDIR = 512`). Path-based metadata must first replace the known
-Darwin-shaped Linux `StatLayout` placeholder with the real target ABI.
-Metadata, rename/link, directory-record, and failure-code adaptation remain
-explicit engineering work rather than a reason to add hidden libc state to
-the syscall path.
+`AT_REMOVEDIR = 512`). Two-path plan data likewise places the portable path
+pair into `renameat`, `linkat`, or `symlinkat`, injecting both directory
+descriptors and `linkat`'s trailing flags where the selected syscall requires
+them. Path-based metadata must first replace the known Darwin-shaped Linux
+`StatLayout` placeholder with the real target ABI. Metadata, directory-record,
+and failure-code adaptation remain explicit engineering work rather than a
+reason to add hidden libc state to the syscall path.
 
 The compiler's retained source-policy identity carries the complete canonical
 `BoundaryEntryPlan` through checked lowering. Public provider schemas still

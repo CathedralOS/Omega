@@ -29,6 +29,7 @@ pub(crate) fn collect_host_call_runtime_text(
         | PlatformCallData::ConstantResult { .. }
         | PlatformCallData::ConstantArgument { .. }
         | PlatformCallData::ConstantArguments { .. }
+        | PlatformCallData::DirectoryRelativePathPair { .. }
         | PlatformCallData::TimespecResult { .. }
         | PlatformCallData::TimespecArgument => {}
     }

@@ -1027,6 +1027,15 @@ pub enum PlatformCallData {
         leading: i64,
         trailing: i64,
     },
+    /// Adapt a portable two-path operation to an `*at` syscall. `first_dirfd`
+    /// is absent for `symlinkat`, whose first path is the link target rather
+    /// than a lookup path. `trailing_flags` is present for `linkat` and absent
+    /// for `renameat`/`symlinkat`.
+    DirectoryRelativePathPair {
+        first_dirfd: Option<i64>,
+        second_dirfd: i64,
+        trailing_flags: Option<i64>,
+    },
     /// Linux `clock_gettime(clock_id, &timespec)`: selection carries the
     /// semantic result place plus this injected clock id; target emission
     /// owns the 16-byte temporary and combines its two signed 64-bit fields
@@ -1666,6 +1675,9 @@ mod binding_plan_tests {
             expected_fchmodat,
             expected_unlinkat,
             expected_readlinkat,
+            expected_renameat,
+            expected_linkat,
+            expected_symlinkat,
             expected_policy,
         ) in [
             (
@@ -1677,6 +1689,9 @@ mod binding_plan_tests {
                 268,
                 263,
                 267,
+                264,
+                265,
+                266,
                 CallingPolicy::LinuxSyscallX86_64,
             ),
             (
@@ -1688,6 +1703,9 @@ mod binding_plan_tests {
                 53,
                 35,
                 78,
+                38,
+                37,
+                36,
                 CallingPolicy::LinuxSyscallAarch64,
             ),
         ] {
@@ -1708,6 +1726,9 @@ mod binding_plan_tests {
                     expected_readlinkat,
                     4,
                 ),
+                (HostOperation::Rename, "renameat", expected_renameat, 4),
+                (HostOperation::Link, "linkat", expected_linkat, 5),
+                (HostOperation::Symlink, "symlinkat", expected_symlinkat, 3),
             ] {
                 let (_, binding) = plan
                     .bindings
@@ -1776,6 +1797,27 @@ mod binding_plan_tests {
                     PlatformCallData::ConstantArguments {
                         leading: -100,
                         trailing,
+                    }
+                );
+            }
+
+            for (method, first_dirfd, trailing_flags) in [
+                ("rename", Some(-100), None),
+                ("hard_link", Some(-100), Some(0)),
+                ("symlink", None, None),
+            ] {
+                let lowering = plan
+                    .platform_call_lowerings
+                    .iter()
+                    .find(|(_, row)| row.state.as_ref() == method)
+                    .map(|(_, row)| row)
+                    .expect("Linux path-pair lowering");
+                assert_eq!(
+                    lowering.data,
+                    PlatformCallData::DirectoryRelativePathPair {
+                        first_dirfd,
+                        second_dirfd: -100,
+                        trailing_flags,
                     }
                 );
             }

@@ -1311,11 +1311,57 @@ pub(super) fn select_host_operation_operands(
                 .map(|(handle, _)| handle)
                 .unwrap_or_else(|| find_nth_data_object(input, host_call, 1));
             match result {
-                Some(result) if from.is_valid() && to.is_valid() => operands.insert_many([
-                    operand(result),
-                    operand(InstructionOperandKind::DataAddress { data: from }),
-                    operand(InstructionOperandKind::DataAddress { data: to }),
-                ]),
+                Some(result) if from.is_valid() && to.is_valid() => {
+                    let from = operand(InstructionOperandKind::DataAddress { data: from });
+                    let to = operand(InstructionOperandKind::DataAddress { data: to });
+                    match host_call.data {
+                        PlatformCallData::DirectoryRelativePathPair {
+                            first_dirfd: Some(first_dirfd),
+                            second_dirfd,
+                            trailing_flags: Some(trailing_flags),
+                        } => operands.insert_many([
+                            operand(result),
+                            operand(InstructionOperandKind::ImmediateInteger(first_dirfd)),
+                            from,
+                            operand(InstructionOperandKind::ImmediateInteger(second_dirfd)),
+                            to,
+                            operand(InstructionOperandKind::ImmediateInteger(trailing_flags)),
+                        ]),
+                        PlatformCallData::DirectoryRelativePathPair {
+                            first_dirfd: Some(first_dirfd),
+                            second_dirfd,
+                            trailing_flags: None,
+                        } => operands.insert_many([
+                            operand(result),
+                            operand(InstructionOperandKind::ImmediateInteger(first_dirfd)),
+                            from,
+                            operand(InstructionOperandKind::ImmediateInteger(second_dirfd)),
+                            to,
+                        ]),
+                        PlatformCallData::DirectoryRelativePathPair {
+                            first_dirfd: None,
+                            second_dirfd,
+                            trailing_flags: Some(trailing_flags),
+                        } => operands.insert_many([
+                            operand(result),
+                            from,
+                            operand(InstructionOperandKind::ImmediateInteger(second_dirfd)),
+                            to,
+                            operand(InstructionOperandKind::ImmediateInteger(trailing_flags)),
+                        ]),
+                        PlatformCallData::DirectoryRelativePathPair {
+                            first_dirfd: None,
+                            second_dirfd,
+                            trailing_flags: None,
+                        } => operands.insert_many([
+                            operand(result),
+                            from,
+                            operand(InstructionOperandKind::ImmediateInteger(second_dirfd)),
+                            to,
+                        ]),
+                        _ => operands.insert_many([operand(result), from, to]),
+                    }
+                }
                 _ => HandleSpan::empty(),
             }
         }
