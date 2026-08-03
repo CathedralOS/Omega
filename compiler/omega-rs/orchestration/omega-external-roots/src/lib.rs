@@ -85,6 +85,35 @@ normalized_id!(
     InterruptAcknowledgementReceiptId,
     "interrupt acknowledgement receipt"
 );
+normalized_id!(OpaqueCallbackRegistrationId, "opaque callback registration");
+normalized_id!(OpaqueCallbackProviderId, "opaque callback provider");
+normalized_id!(
+    ProcessLifetimeGatewayId,
+    "process-lifetime callback gateway"
+);
+normalized_id!(
+    GatewayDispatchContractId,
+    "callback gateway dispatch contract"
+);
+normalized_id!(
+    GatewayAdmissionReceiptId,
+    "callback gateway admission receipt"
+);
+normalized_id!(
+    OpaqueCallbackUnregistrationContractId,
+    "opaque callback unregistration contract"
+);
+normalized_id!(
+    OpaqueCallbackRegistrationReceiptId,
+    "opaque callback registration receipt"
+);
+normalized_id!(
+    OpaqueCallbackUnregistrationReceiptId,
+    "opaque callback unregistration receipt"
+);
+
+mod opaque_callback_replacement;
+pub use opaque_callback_replacement::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ComponentVersionPin {
@@ -3405,6 +3434,29 @@ mod tests {
         .expect("admitted provider exit")
     }
 
+    fn install_test_root<'code>(
+        code: &'code InstalledCode,
+        entry: EntryStubId,
+    ) -> (InstalledRootLedger, InstalledExternalRoot<'code>) {
+        let validated = validate_external_root(candidate(entry), &boundary()).expect("root plan");
+        let authority = slot();
+        let execution = provider_execution(&validated);
+        let admission = RootAdmission::from_admitted_provider(
+            root_id(22, RootAdmissionId::from_normalized_identity),
+            &validated,
+            &execution,
+            code,
+            &authority,
+            validated.candidate().trust_receipts.iter().copied(),
+        )
+        .expect("root admission");
+        let mut ledger = InstalledRootLedger::default();
+        let installed = ledger
+            .install(code, validated, authority, admission)
+            .expect("installed external root");
+        (ledger, installed)
+    }
+
     fn interrupt_boundary() -> ValidatedBoundaryEntryPlan {
         let signature = CallSignature {
             parameters: vec![ValueShape::integer(8, 8)],
@@ -4218,6 +4270,145 @@ mod tests {
         assert_eq!(returned.slot(), root_slot);
         assert!(ledger.record(root_identity).is_none());
         assert_ne!(ledger.report_fingerprint(), installed_report_fingerprint);
+    }
+
+    #[test]
+    fn opaque_callback_gateway_must_be_exact_current_dispatch_and_process_lifetime() {
+        let entry = entry_id(1001);
+        let admitted_code = installed_code_with_fill(1, entry, 0x90);
+        let substituted_code = installed_code_with_fill(1, entry, 0xcc);
+        let receipt = ProcessLifetimeGatewayAdmissionReceipt::from_provider(
+            root_id(70, GatewayAdmissionReceiptId::from_normalized_identity),
+            root_id(71, OpaqueCallbackRegistrationId::from_normalized_identity),
+            root_id(72, OpaqueCallbackProviderId::from_normalized_identity),
+            root_id(73, ProcessLifetimeGatewayId::from_normalized_identity),
+            root_id(74, GatewayDispatchContractId::from_normalized_identity),
+            &admitted_code,
+            entry,
+            true,
+            true,
+            true,
+        );
+        let error = admit_process_lifetime_opaque_callback(&substituted_code, receipt)
+            .expect_err("compact installed identities cannot substitute gateway code");
+        assert!(error.diagnostic().0.contains("exact installed code"));
+        let receipt = (*error).into_receipt();
+        let gateway = admit_process_lifetime_opaque_callback(&admitted_code, receipt)
+            .expect("exact process-lifetime gateway");
+        assert_eq!(gateway.entry(), entry);
+        assert_eq!(gateway.installed_code(), admitted_code.identity());
+
+        let incomplete = ProcessLifetimeGatewayAdmissionReceipt::from_provider(
+            root_id(75, GatewayAdmissionReceiptId::from_normalized_identity),
+            root_id(76, OpaqueCallbackRegistrationId::from_normalized_identity),
+            root_id(72, OpaqueCallbackProviderId::from_normalized_identity),
+            root_id(73, ProcessLifetimeGatewayId::from_normalized_identity),
+            root_id(74, GatewayDispatchContractId::from_normalized_identity),
+            &admitted_code,
+            entry,
+            true,
+            false,
+            true,
+        );
+        assert!(
+            admit_process_lifetime_opaque_callback(&admitted_code, incomplete)
+                .expect_err("replaceable gateway cannot be advertised as process lifetime")
+                .diagnostic()
+                .0
+                .contains("not retained for process lifetime")
+        );
+    }
+
+    #[test]
+    fn reclaimable_opaque_callback_requires_unregister_and_root_quiescence() {
+        let entry = entry_id(1001);
+        let code = installed_code(1, entry);
+        let (mut ledger, installed) = install_test_root(&code, entry);
+        let root_identity = installed.root();
+        let not_quiesced = RootRemovalReceipt::from_provider(
+            root_id(80, RootRemovalReceiptId::from_normalized_identity),
+            &installed,
+            true,
+            false,
+        );
+        let quiesced = RootRemovalReceipt::from_provider(
+            root_id(81, RootRemovalReceiptId::from_normalized_identity),
+            &installed,
+            true,
+            true,
+        );
+        let registration_receipt = OpaqueCallbackRegistrationReceipt::from_provider(
+            root_id(
+                82,
+                OpaqueCallbackRegistrationReceiptId::from_normalized_identity,
+            ),
+            root_id(83, OpaqueCallbackRegistrationId::from_normalized_identity),
+            root_id(84, OpaqueCallbackProviderId::from_normalized_identity),
+            root_id(
+                85,
+                OpaqueCallbackUnregistrationContractId::from_normalized_identity,
+            ),
+            &installed,
+            true,
+        );
+        let registration = admit_reclaimable_opaque_callback(installed, registration_receipt)
+            .expect("accepted unregister contract");
+
+        let provider_incomplete = OpaqueCallbackUnregistrationReceipt::from_provider(
+            root_id(
+                86,
+                OpaqueCallbackUnregistrationReceiptId::from_normalized_identity,
+            ),
+            &registration,
+            false,
+        );
+        let error = registration
+            .unregister_and_quiesce(&mut ledger, provider_incomplete, not_quiesced)
+            .expect_err("provider did not unregister the callback");
+        assert!(error.diagnostic().0.contains("does not remove"));
+        let (registration, _, not_quiesced) = (*error).into_parts();
+        assert!(ledger.record(root_identity).is_some());
+
+        let provider_complete = OpaqueCallbackUnregistrationReceipt::from_provider(
+            root_id(
+                87,
+                OpaqueCallbackUnregistrationReceiptId::from_normalized_identity,
+            ),
+            &registration,
+            true,
+        );
+        let error = registration
+            .unregister_and_quiesce(&mut ledger, provider_complete, not_quiesced)
+            .expect_err("unregistration alone cannot stand in for quiescence");
+        assert!(
+            error
+                .diagnostic()
+                .0
+                .contains("quiescence is not established")
+        );
+        let (registration, _, _) = (*error).into_parts();
+        assert!(ledger.record(root_identity).is_some());
+
+        let provider_complete = OpaqueCallbackUnregistrationReceipt::from_provider(
+            root_id(
+                88,
+                OpaqueCallbackUnregistrationReceiptId::from_normalized_identity,
+            ),
+            &registration,
+            true,
+        );
+        let completion = registration
+            .unregister_and_quiesce(&mut ledger, provider_complete, quiesced)
+            .expect("foreign callback unreachable and external root quiesced");
+        assert_eq!(
+            completion.registration(),
+            root_id(83, OpaqueCallbackRegistrationId::from_normalized_identity)
+        );
+        assert!(ledger.record(root_identity).is_none());
+        assert_eq!(
+            completion.into_slot_authority().slot(),
+            root_id(20, RootSlotId::from_normalized_identity)
+        );
     }
 
     #[test]
