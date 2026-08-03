@@ -1,20 +1,18 @@
 [package]
-name = "omega-terminal-machine-emission"
+name = "omega-terminal-target-operations-to-assigned-target-operations"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
 
 [lib]
-name = "omega_terminal_machine_emission"
+name = "omega_terminal_target_operations_to_assigned_target_operations"
 path = "src/lib.rs"
 
 [dependencies]
 omega-target = { path = "../../foundation/omega-target" }
 omega-terminal-assigned-target-operations = { path = "../../representations/omega-terminal-assigned-target-operations" }
-omega-terminal-machine-code = { path = "../../representations/omega-terminal-machine-code" }
 omega-terminal-target-operations = { path = "../../representations/omega-terminal-target-operations" }
 psi-core = { path = "../../../psi-rs/foundation/psi-core" }
 
 [dev-dependencies]
-omega-terminal-target-operations-to-assigned-target-operations = { path = "../../pipeline/omega-terminal-target-operations-to-assigned-target-operations" }
 psi-terminal = { path = "../../../psi-rs/representations/psi-terminal" }

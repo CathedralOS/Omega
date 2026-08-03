@@ -1179,13 +1179,18 @@ improvements do not change public identity.
   recursive target expressions without a semantic-version change. Compile-known
   subexpressions still fold; mixed immediate/register/stack wrapping and
   saturating additions emit for signed or unsigned 8/16/32/64-bit integers on
-  AArch64 and x86-64. AArch64 preserves referenced argument registers in an
-  aligned spill frame before evaluating into `x0`, and both emitters retain the
-  original incoming-stack base across recursive evaluation. A nested v4
+  AArch64 and x86-64. The first explicit terminal assigned-target stage now
+  validates selected parameter registers against the exact architecture,
+  rejects repeated-parameter home drift, and assigns referenced AArch64
+  argument registers to stable aligned frame spills before evaluation into
+  `x0`. Terminal machine emission accepts only that assigned representation;
+  both emitters retain the original incoming-stack base across recursive
+  evaluation. A nested v4
   `u8` canary consumes the ninth stack argument, wraps to 4, saturates to 255,
   and matches interpretation through a real C ABI call; a signed `i64` canary
-  independently reaches both saturation bounds. General register assignment
-  remains later implementation work. The next arithmetic slice is live in v5:
+  independently reaches both saturation bounds. General value liveness, spill
+  reuse, and non-scalar assignment remain later implementation work. The next
+  arithmetic slice is live in v5:
   `WrappingIntegerSubtract` requires two defined operands of the exact result
   integer type, reduces `left - right` modulo the declared 1–128-bit width, and
   reinterprets signed reduced bits as two's complement. Its verifier axiom,
@@ -1284,7 +1289,7 @@ improvements do not change public identity.
   edges; synthesized return edges retain their source-state declaration
   fallback. Terminal contract and obligation subjects now use the exact
   authored `ensures` fact site instead of the enclosing machine declaration.
-  General register assignment, further closed arithmetic variants,
+  Broader register assignment, further closed arithmetic variants,
   and migration of the legacy backend remain.
   Move or rename the current target-neutral `omega-*` frontend crates under Psi
   ownership as each slice migrates; do not leave parsing or checking on an

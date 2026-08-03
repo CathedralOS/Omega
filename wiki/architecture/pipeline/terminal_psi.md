@@ -141,6 +141,15 @@ parameters. Direct parameter returns stay explicit; parameter-fed wrapping and
 saturating addition plus wrapping and saturating subtraction and wrapping and
 saturating multiplication lower to recursive, exact-width
 target expressions.
+`omega-terminal-target-operations-to-assigned-target-operations` is the next
+explicit boundary. Its first correctness-oriented rung validates every selected
+parameter register against the target, freezes repeated parameter locations,
+and assigns stable aligned AArch64 frame spills before any expression scratch
+register may overwrite an incoming argument. The resulting
+`omega-terminal-assigned-target-operations` plan is the only expression-home
+input accepted by terminal machine emission. X86-64 register and incoming-stack
+homes remain explicit because the current scratch discipline preserves them;
+broader allocation, spill reuse, and non-scalar homes remain later work.
 `omega-terminal-machine-emission` emits ordinary scalar-return code for
 AArch64 and x86-64 and rejects non-native integer widths.
 `omega-terminal-image-emission` then constructs an owned, canonical-order
@@ -152,16 +161,18 @@ and 8/16/32/64-bit integers in selected native registers or incoming stack
 slots on both architectures. Runtime wrapping/saturating addition,
 wrapping/saturating subtraction, and wrapping/saturating multiplication support
 signed and unsigned 8/16/32/64-bit operands, recursive expressions, and mixed
-immediate/register/stack leaves. The AArch64 emitter preserves every referenced
-argument register in an aligned local spill frame before evaluating into `x0`;
-both emitters compensate incoming-stack addresses for their expression stack.
+immediate/register/stack leaves. The assigned plan preserves every referenced
+AArch64 argument register in an aligned local spill frame before evaluation
+into `x0`; both emitters compensate incoming-stack addresses for their assigned
+frame and expression stack.
 The relocation-free slice requires exact
 final text, complete provenance-bearing compiler regions, and no unclassified
 executable gaps. The source, Boolean, wrapping-add, and saturating-add canaries
 drop all producing semantic and lowering state before artifact emission; the
 host linker harness executes the retained entry bytes, and the macOS host
-canary also executes the emitted Mach-O image directly. General register
-assignment and migration of the legacy backend remain outside this checkpoint.
+canary also executes the emitted Mach-O image directly. General value liveness,
+spill reuse, non-scalar assignment, and migration of the legacy backend remain
+outside this checkpoint.
 
 Canonical semantic serialization and identity are now live for this initial
 vocabulary in `psi-terminal-codec`. The real-source canary encodes the semantic
