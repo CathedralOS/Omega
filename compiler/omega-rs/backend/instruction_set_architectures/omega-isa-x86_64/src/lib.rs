@@ -3407,34 +3407,19 @@ pub fn sysv_vtable_call_width_with_plan<T: InstructionOperandLike>(
     .unwrap_or(0)
 }
 
-pub fn sysv_vtable_call_data_relocation_byte_offset<T: InstructionOperandLike>(
-    operands: &[T],
-    byte_offset: i64,
-    result_present: bool,
-    operand_index: usize,
-) -> usize {
-    sysv_vtable_call_data_relocation_byte_offset_with_plan(
-        operands,
-        byte_offset,
-        result_present,
-        operand_index,
-        None,
-    )
-}
-
 pub fn sysv_vtable_call_data_relocation_byte_offset_with_plan<T: InstructionOperandLike>(
     operands: &[T],
     byte_offset: i64,
     result_present: bool,
     operand_index: usize,
-    authoritative_plan: Option<&CallPlan>,
+    authoritative_plan: &CallPlan,
 ) -> usize {
     sysv_field_call_layout(
         operands,
         byte_offset,
         result_present,
         true,
-        authoritative_plan,
+        Some(authoritative_plan),
     )
     .ok()
     .and_then(|layout| {
@@ -3482,34 +3467,19 @@ pub fn sysv_table_function_call_width_with_plan<T: InstructionOperandLike>(
     .unwrap_or(0)
 }
 
-pub fn sysv_table_function_call_data_relocation_byte_offset<T: InstructionOperandLike>(
-    operands: &[T],
-    byte_offset: i64,
-    result_present: bool,
-    operand_index: usize,
-) -> usize {
-    sysv_table_function_call_data_relocation_byte_offset_with_plan(
-        operands,
-        byte_offset,
-        result_present,
-        operand_index,
-        None,
-    )
-}
-
 pub fn sysv_table_function_call_data_relocation_byte_offset_with_plan<T: InstructionOperandLike>(
     operands: &[T],
     byte_offset: i64,
     result_present: bool,
     operand_index: usize,
-    authoritative_plan: Option<&CallPlan>,
+    authoritative_plan: &CallPlan,
 ) -> usize {
     sysv_field_call_layout(
         operands,
         byte_offset,
         result_present,
         false,
-        authoritative_plan,
+        Some(authoritative_plan),
     )
     .ok()
     .and_then(|layout| {
@@ -6849,83 +6819,46 @@ pub fn win64_table_function_call_width_with_plan<T: InstructionOperandLike>(
     width
 }
 
-/// The region-base fixup byte offset for vtable-call argument `operand_index`
-/// (the `mov r11, imm64` imm), matching `encode_win64_vtable_call`'s layout.
-pub fn vtable_call_data_relocation_byte_offset<T: InstructionOperandLike>(
-    operands: &[T],
-    operand_index: usize,
-    result_present: bool,
-) -> usize {
-    win64_vtable_call_relocation_sites(operands, result_present)
-        .into_iter()
-        .find(|site| site.operand_index == Some(operand_index))
-        .map(|site| site.byte_offset)
-        .unwrap_or(0)
-}
-
-/// The region-base fixup byte offset for table-function-call operand
-/// `operand_index`, matching `encode_win64_table_function_call`'s layout.
-pub fn table_function_call_data_relocation_byte_offset<T: InstructionOperandLike>(
-    operands: &[T],
-    operand_index: usize,
-    result_present: bool,
-) -> usize {
-    win64_table_function_call_relocation_sites(operands, result_present)
-        .into_iter()
-        .find(|site| site.operand_index == Some(operand_index))
-        .map(|site| site.byte_offset)
-        .unwrap_or(0)
-}
-
 /// Relocation sites for a vtable call: the staged-argument region bases (no
 /// call relocation -- the callee is a runtime pointer read from RCX) and,
 /// when a result place leads the operands, the result region base inside the
 /// store tail's `mov r11, imm64`.
-pub fn win64_vtable_call_relocation_sites<T: InstructionOperandLike>(
+#[cfg(test)]
+fn win64_vtable_call_relocation_sites<T: InstructionOperandLike>(
     operands: &[T],
     result_present: bool,
 ) -> Vec<X86_64RelocationSite> {
-    win64_vtable_call_relocation_sites_with_plan(operands, result_present, None)
+    let arg_start = usize::from(result_present);
+    let Ok(plan) = normalized_win64_call_plan(operands, result_present.then_some(0), arg_start)
+    else {
+        return Vec::new();
+    };
+    win64_vtable_call_relocation_sites_with_plan(operands, result_present, &plan)
 }
 
 pub fn win64_vtable_call_relocation_sites_with_plan<T: InstructionOperandLike>(
     operands: &[T],
     result_present: bool,
-    authoritative_plan: Option<&CallPlan>,
+    authoritative_plan: &CallPlan,
 ) -> Vec<X86_64RelocationSite> {
     let arg_start = usize::from(result_present);
     let arg_count = operands.len() - arg_start;
-    let plan = authoritative_plan
-        .filter(|plan| {
-            validate_win64_encoder_plan(plan).is_ok()
-                && validate_win64_call_plan_operand_shapes(
-                    plan,
-                    operands,
-                    result_present.then_some(0),
-                    arg_start,
-                )
-                .is_ok()
-        })
-        .cloned()
-        .or_else(|| {
-            authoritative_plan.is_none().then(|| {
-                normalized_win64_call_plan(operands, result_present.then_some(0), arg_start).ok()
-            })?
-        });
-    if authoritative_plan.is_some() && plan.is_none() {
+    if validate_win64_encoder_plan(authoritative_plan).is_err()
+        || validate_win64_call_plan_operand_shapes(
+            authoritative_plan,
+            operands,
+            result_present.then_some(0),
+            arg_start,
+        )
+        .is_err()
+    {
         return Vec::new();
     }
-    let reserve = plan
-        .as_ref()
-        .map(win64_import_reserve_for_plan)
-        .unwrap_or_else(|| win64_import_reserve(arg_count));
+    let plan = authoritative_plan;
+    let reserve = win64_import_reserve_for_plan(plan);
     let mut sites = Vec::new();
     let mut cursor = rsp_adjust_width(reserve);
-    if plan
-        .as_ref()
-        .and_then(|plan| plan.result.as_ref())
-        .is_some_and(win64_result_is_indirect)
-    {
+    if plan.result.as_ref().is_some_and(win64_result_is_indirect) {
         sites.push(X86_64RelocationSite {
             operand_index: Some(0),
             byte_offset: cursor + 2,
@@ -6943,18 +6876,13 @@ pub fn win64_vtable_call_relocation_sites_with_plan<T: InstructionOperandLike>(
                 kind: X86_64RelocationSiteKind::Absolute64,
             });
         }
-        cursor += win64_import_arg_width(
-            operands,
-            arg_start,
-            index,
-            plan.as_ref().and_then(|plan| plan.parameters.get(index)),
-        );
+        cursor += win64_import_arg_width(operands, arg_start, index, plan.parameters.get(index));
     }
     cursor += 7 + 2 + rsp_adjust_width(reserve); // fn-ptr read + call rax + add rsp
     if result_present
         && plan
+            .result
             .as_ref()
-            .and_then(|plan| plan.result.as_ref())
             .is_some_and(|placement| !win64_result_is_indirect(placement))
         && operands.first().is_some_and(|operand| {
             operand.runtime_scalar_integer().is_some()
@@ -6975,52 +6903,43 @@ pub fn win64_vtable_call_relocation_sites_with_plan<T: InstructionOperandLike>(
 /// Relocation sites for a table-function call: the staged-argument region
 /// bases, the TABLE pointer's region base (inside its dispatch load -- always
 /// staged), and (result-present) the result region base in the store tail.
-pub fn win64_table_function_call_relocation_sites<T: InstructionOperandLike>(
+#[cfg(test)]
+fn win64_table_function_call_relocation_sites<T: InstructionOperandLike>(
     operands: &[T],
     result_present: bool,
 ) -> Vec<X86_64RelocationSite> {
-    win64_table_function_call_relocation_sites_with_plan(operands, result_present, None)
+    let arg_start = usize::from(result_present) + 1;
+    let Ok(plan) = normalized_win64_call_plan(operands, result_present.then_some(0), arg_start)
+    else {
+        return Vec::new();
+    };
+    win64_table_function_call_relocation_sites_with_plan(operands, result_present, &plan)
 }
 
 pub fn win64_table_function_call_relocation_sites_with_plan<T: InstructionOperandLike>(
     operands: &[T],
     result_present: bool,
-    authoritative_plan: Option<&CallPlan>,
+    authoritative_plan: &CallPlan,
 ) -> Vec<X86_64RelocationSite> {
     let table_index = usize::from(result_present);
     let arg_start = table_index + 1;
     let arg_count = operands.len().saturating_sub(arg_start);
-    let plan = authoritative_plan
-        .filter(|plan| {
-            validate_win64_encoder_plan(plan).is_ok()
-                && validate_win64_call_plan_operand_shapes(
-                    plan,
-                    operands,
-                    result_present.then_some(0),
-                    arg_start,
-                )
-                .is_ok()
-        })
-        .cloned()
-        .or_else(|| {
-            authoritative_plan.is_none().then(|| {
-                normalized_win64_call_plan(operands, result_present.then_some(0), arg_start).ok()
-            })?
-        });
-    if authoritative_plan.is_some() && plan.is_none() {
+    if validate_win64_encoder_plan(authoritative_plan).is_err()
+        || validate_win64_call_plan_operand_shapes(
+            authoritative_plan,
+            operands,
+            result_present.then_some(0),
+            arg_start,
+        )
+        .is_err()
+    {
         return Vec::new();
     }
-    let reserve = plan
-        .as_ref()
-        .map(win64_import_reserve_for_plan)
-        .unwrap_or_else(|| win64_import_reserve(arg_count));
+    let plan = authoritative_plan;
+    let reserve = win64_import_reserve_for_plan(plan);
     let mut sites = Vec::new();
     let mut cursor = rsp_adjust_width(reserve);
-    if plan
-        .as_ref()
-        .and_then(|plan| plan.result.as_ref())
-        .is_some_and(win64_result_is_indirect)
-    {
+    if plan.result.as_ref().is_some_and(win64_result_is_indirect) {
         sites.push(X86_64RelocationSite {
             operand_index: Some(0),
             byte_offset: cursor + 2,
@@ -7038,12 +6957,7 @@ pub fn win64_table_function_call_relocation_sites_with_plan<T: InstructionOperan
                 kind: X86_64RelocationSiteKind::Absolute64,
             });
         }
-        cursor += win64_import_arg_width(
-            operands,
-            arg_start,
-            index,
-            plan.as_ref().and_then(|plan| plan.parameters.get(index)),
-        );
+        cursor += win64_import_arg_width(operands, arg_start, index, plan.parameters.get(index));
     }
     if win64_import_arg_is_staged(operands.get(table_index)) {
         sites.push(X86_64RelocationSite {
@@ -7057,8 +6971,8 @@ pub fn win64_table_function_call_relocation_sites_with_plan<T: InstructionOperan
     cursor += 7 + 2 + rsp_adjust_width(reserve); // fn-ptr read + call rax + add rsp
     if result_present
         && plan
+            .result
             .as_ref()
-            .and_then(|plan| plan.result.as_ref())
             .is_some_and(|placement| !win64_result_is_indirect(placement))
         && operands.first().is_some_and(|operand| {
             operand.runtime_scalar_integer().is_some()
