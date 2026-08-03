@@ -1657,8 +1657,12 @@ and allocation handles expose no compiler-owned stack/control storage.
   `omega.float.hardware.macos_arm64.minimum-maximum-square-root.v1` /
   `0x8b3cf5ec26298fed`, binding its six exact plans to both-format NaN operand
   order, the settled signed-zero choices, exact square roots,
-  interpreter/native results, and both Linux cross-builds. The directed-FMA
-  slice retains
+  interpreter/native results, and both Linux cross-builds. The negate/`is_nan`
+  cohort retains `omega.float.hardware.macos_arm64.negate-is-nan.v1` /
+  `0x57aa3468298305e9`, binding its four exact plans to both-format signed-zero
+  and infinity negation, NaN/infinity/finite predicate separation, selected-root
+  unary evaluation shape, interpreter/native results, and both Linux
+  cross-builds. The directed-FMA slice retains
   `omega.float.hardware.macos_arm64.directed-fma.v1` /
   `0x75be2c4963f3f15a`, binding its six exact plans to binary32/binary64 half-ULP
   edges, all three directions, one fused rounding, control-state restoration,
