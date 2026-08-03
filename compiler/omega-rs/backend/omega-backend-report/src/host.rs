@@ -86,7 +86,7 @@ fn write_host_binding(output: &mut String, binding: &HostBinding) {
             field,
             byte_offset,
         } => {
-            let parameter_count = binding.call_plan().map_or(0, |plan| plan.parameters.len());
+            let parameter_count = retained_parameter_count(binding, 0);
             output.push_str(&format!(
                 "- {}.{} vtable field {}.{} (+{}) arity {} boundary `{}`\n",
                 binding.operation_key.capability_name(),
@@ -103,9 +103,7 @@ fn write_host_binding(output: &mut String, binding: &HostBinding) {
             field,
             byte_offset,
         } => {
-            let parameter_count = binding
-                .call_plan()
-                .map_or(1, |plan| plan.parameters.len() + 1);
+            let parameter_count = retained_parameter_count(binding, 1);
             output.push_str(&format!(
                 "- {}.{} table function {}.{} (+{}) arity {} (table not passed) boundary `{}`\n",
                 binding.operation_key.capability_name(),
@@ -138,6 +136,13 @@ fn write_host_binding(output: &mut String, binding: &HostBinding) {
             ));
         }
     }
+}
+
+fn retained_parameter_count(binding: &HostBinding, dispatch_only: usize) -> String {
+    binding.call_plan().map_or_else(
+        || "<missing-plan>".to_owned(),
+        |plan| (plan.parameters.len() + dispatch_only).to_string(),
+    )
 }
 
 fn write_platform_call_lowering(
@@ -281,4 +286,17 @@ fn write_lowered_host_operation(output: &mut String, operation: &LoweredHostOper
         operation.operation_key.capability_name(),
         operation.operation_key.operation_name()
     ));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::retained_parameter_count;
+    use omega_calling_conventions::HostBinding;
+
+    #[test]
+    fn missing_plan_never_fabricates_field_model_arity() {
+        let binding = HostBinding::default();
+        assert_eq!(retained_parameter_count(&binding, 0), "<missing-plan>");
+        assert_eq!(retained_parameter_count(&binding, 1), "<missing-plan>");
+    }
 }

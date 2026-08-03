@@ -970,7 +970,9 @@ Remaining:
 - delete compatibility fields after their final consumer migrates. The
   vtable-field and service-table declared-parameter-count copies are retired;
   result presence now comes from the retained wire plan plus the service
-  table's explicit dispatch-only operand topology.
+  table's explicit dispatch-only operand topology. Backend reports likewise
+  render a missing retained plan explicitly instead of fabricating zero- or
+  one-parameter legacy arity.
 
 Acceptance: changing a normalized plan changes lowering or rejects; changing
 only policy source while producing the same canonical plan preserves contract
