@@ -1011,8 +1011,9 @@ improvements do not change public identity.
   validator are live; architecture tests forbid Psi dependencies on Omega.
   The first frontend-ownership migration slice is live: `psi-source` owns
   source identities, byte spans, and source-backed text; `psi-tokens` owns the
-  token representation; `psi-arena` owns the generic typed arena storage needed
-  by source representations; `psi-diagnostics` owns target-neutral diagnostics
+  token representation; `psi-arena` owns generic dense, paged, generational,
+  and hierarchy arena storage needed by source representations;
+  `psi-diagnostics` owns target-neutral diagnostics
   and phase snapshots; `psi-language-core` owns source-level atomic-ordering,
   cast-form, and operator-spelling vocabulary; `psi-numerics` owns exact
   numerics, host-independent float semantics, arithmetic domains, and literal

@@ -7,3 +7,6 @@ version.workspace = true
 [lib]
 name = "psi_arena"
 path = "src/lib.rs"
+
+[dependencies]
+arc-swap = "1.7"

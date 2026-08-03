@@ -4,8 +4,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use arc_swap::ArcSwapOption;
 
-use crate::arena::Handle;
-use crate::arena::free_stack::FreeStack;
+use crate::Handle;
+use crate::free_stack::FreeStack;
 
 const SLOT_EMPTY: u8 = 0;
 const SLOT_ACTIVE: u8 = 1;
@@ -15,7 +15,7 @@ const PAGE_SIZE: usize = 16;
 
 /// A bounded, lazily paged, generational arena for concurrent handle allocation.
 ///
-/// This is intentionally narrower than [`Arena`](crate::arena::Arena) today:
+/// This is intentionally narrower than [`Arena`](crate::Arena) today:
 /// slots contain `T::default()` and are not mutated through the arena. That
 /// keeps `SlotRef` safe even if another thread frees the handle while the page
 /// reference is still alive. A future initialized-value variant needs a slot
@@ -362,7 +362,7 @@ fn unpack_slot(metadata: u64) -> (u8, u32) {
 
 #[cfg(test)]
 mod tests {
-    use crate::arena::{GenerationalPagedArena, Handle};
+    use crate::{GenerationalPagedArena, Handle};
 
     #[test]
     fn resolves_invalid_handles_to_dummy() {

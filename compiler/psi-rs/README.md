@@ -13,8 +13,8 @@ the old Omega pipeline.
 
 Current roots:
 
-- `foundation/psi-arena`: typed arena handles and contiguous handle spans used
-  by Psi-owned source representations;
+- `foundation/psi-arena`: typed dense, paged, generational, hierarchy, and
+  ordered-root arena storage used by Psi-owned source representations;
 - `foundation/psi-diagnostics`: target-neutral diagnostic values and phase
   snapshot contracts;
 - `foundation/psi-language-core`: target-neutral atomic-ordering, cast-form,

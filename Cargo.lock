@@ -414,7 +414,6 @@ dependencies = [
 name = "omega-core"
 version = "0.1.0"
 dependencies = [
- "arc-swap",
  "psi-arena",
  "psi-diagnostics",
  "psi-language-core",
@@ -1229,6 +1228,9 @@ dependencies = [
 [[package]]
 name = "psi-arena"
 version = "0.1.0"
+dependencies = [
+ "arc-swap",
+]
 
 [[package]]
 name = "psi-core"
