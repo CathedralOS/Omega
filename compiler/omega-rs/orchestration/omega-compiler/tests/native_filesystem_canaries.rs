@@ -121,9 +121,10 @@ fn dir_walk_wrappers_exit_runs() {
 
 // A directory whose packed dirents exceed the std wrapper's 512-byte buffer
 // must be drained through repeated native getdirentries64 calls. This seeds the
-// directory from Rust so the Omega probe can focus on the count contract.
+// directory from Rust so the Omega probe can exercise count, stats, and indexed
+// entry lookup beyond the first fill.
 #[test]
-fn read_dir_count_drains_multiple_native_fills() {
+fn posix_directory_wrappers_drain_multiple_native_fills() {
     let base = std::env::temp_dir().join(format!(
         "omega-native-readdir-multifill-{}",
         std::process::id()
@@ -148,16 +149,59 @@ data Main {{
     fs: Filesystem;
     console: Console;
     result: IoResult;
+    stats_result: DirStatsResult;
+    entry_result: DirEntryResult;
+    open_result: OpenResult;
+    file_fd: i32;
+    close_rc: i32;
 }}
 
 machine Main::main(&mut self) {{
     self.result = self.fs.read_dir_count("{}");
     transition self.result {{ IoResult::Ok {{ count }} -> check(count) _ -> fail() }}
-    state check(&mut self, count: u64) {{ transition count == 48 {{ true -> pass() _ -> fail() }} }}
+    state check(&mut self, count: u64) {{ transition count == 48 {{ true -> stats() _ -> fail() }} }}
+    state stats(&mut self) {{
+        self.stats_result = self.fs.read_dir_stats("{}");
+        transition self.stats_result {{ DirStatsResult::Ok {{ stats }} -> check_stats(stats) _ -> fail() }}
+    }}
+    state check_stats(&mut self, stats: DirStats) {{
+        transition stats.entries == 48 && stats.subdirs == 0 && stats.files == 48 {{ true -> nth() _ -> fail() }}
+    }}
+    state nth(&mut self) {{
+        self.entry_result = self.fs.read_dir_nth("{}", 47);
+        transition self.entry_result {{ DirEntryResult::Ok {{ entry }} -> check_entry(entry) _ -> fail() }}
+    }}
+    state check_entry(&mut self, entry: DirEntry) {{
+        transition entry.is_file && entry.name_len > 0 {{ true -> end() _ -> fail() }}
+    }}
+    state end(&mut self) {{
+        self.entry_result = self.fs.read_dir_nth("{}", 48);
+        transition self.entry_result {{ DirEntryResult::End -> fd_open() _ -> fail() }}
+    }}
+    state fd_open(&mut self) {{
+        self.open_result = self.fs.open("{}");
+        transition self.open_result {{ OpenResult::Ok {{ file }} -> fd_lookup(file) _ -> fail() }}
+    }}
+    state fd_lookup(&mut self, file: File) {{
+        self.file_fd = file.fd;
+        self.entry_result = self.fs.read_dir_entry_fd(self.file_fd, 47);
+        transition self.entry_result {{ DirEntryResult::Ok {{ entry }} -> fd_check(entry) _ -> fail() }}
+    }}
+    state fd_check(&mut self, entry: DirEntry) {{
+        transition entry.is_file && entry.name_len > 0 {{ true -> fd_close() _ -> fail() }}
+    }}
+    state fd_close(&mut self) {{
+        self.close_rc = self.fs.close(File {{ fd: self.file_fd }});
+        transition self.close_rc == 0 {{ true -> pass() _ -> fail() }}
+    }}
     state pass(&mut self) {{ self.console.exit_process(70); }}
     state fail(&mut self) {{ self.console.exit_process(71); }}
 }}
 "#,
+        assets.display(),
+        assets.display(),
+        assets.display(),
+        assets.display(),
         assets.display()
     );
     std::fs::write(&main_path, source).expect("write multifill probe");
@@ -169,7 +213,7 @@ machine Main::main(&mut self) {{
         target_name: None,
         write_output: true,
     })
-    .unwrap_or_else(|d| panic!("multifill read_dir_count should compile:\n{d:#?}"));
+    .unwrap_or_else(|d| panic!("multifill POSIX wrappers should compile:\n{d:#?}"));
     let output = Command::new(build_dir.join("omega-program"))
         .output()
         .expect("run multifill probe");
@@ -177,7 +221,7 @@ machine Main::main(&mut self) {{
     assert_eq!(
         output.status.code(),
         Some(70),
-        "read_dir_count must drain every native buffer fill"
+        "count, stats, and indexed lookup must drain every native buffer fill"
     );
 }
 #[test]
