@@ -84,7 +84,7 @@ fn vtable_call_sequence_width_with_dispatch<T: InstructionOperandLike>(
                 operands,
                 index_or_offset,
                 result_present,
-                Some(authoritative_plan),
+                authoritative_plan,
             )
         }
         Architecture::X86_64
@@ -95,7 +95,7 @@ fn vtable_call_sequence_width_with_dispatch<T: InstructionOperandLike>(
                 operands,
                 index_or_offset,
                 result_present,
-                Some(authoritative_plan),
+                authoritative_plan,
             )
         }
         Architecture::X86_64 => 0,
@@ -134,7 +134,7 @@ pub fn table_function_call_sequence_width_with_plan<T: InstructionOperandLike>(
                 operands,
                 i64::try_from(byte_offset).unwrap_or(i64::MAX),
                 result_present,
-                Some(authoritative_plan),
+                authoritative_plan,
             )
         }
         Architecture::X86_64
@@ -145,7 +145,7 @@ pub fn table_function_call_sequence_width_with_plan<T: InstructionOperandLike>(
                 operands,
                 i64::try_from(byte_offset).unwrap_or(i64::MAX),
                 result_present,
-                Some(authoritative_plan),
+                authoritative_plan,
             )
         }
         Architecture::X86_64 => 0,

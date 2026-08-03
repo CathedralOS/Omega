@@ -953,13 +953,14 @@ plan on both x86-64 and AArch64; the historical duplicate register-slot and
 immediate fields are retired, so reports and encoders cannot treat mechanism
 metadata as a second placement oracle.
 
-The remaining vtable-slot, vtable-field, and service-table compatibility entry
-points now have an exact differential lock: on Microsoft x64, SysV AMD64, and
-AAPCS64, default compatibility selection must emit the same bytes as supplying
-the independently evaluated native `CallPlan`. Result-bearing field and table
-calls also require identical planned widths. This pins compatibility as an
-oracle comparison rather than a second placement policy while later consumers
-migrate to mandatory plans. Scalar authored imports carry the same byte/width
+The vtable-slot, vtable-field, and service-table compatibility shapes have an
+exact differential lock: on Microsoft x64, SysV AMD64, and AAPCS64, normalized
+compatibility selection must emit the same bytes as supplying the independently
+evaluated native `CallPlan`. Result-bearing field and table calls also require
+identical planned widths. The production x86-64 ISA encoder and width APIs now
+require that authoritative plan directly; normalized Win64 reconstruction is a
+test-only oracle, and the unused SysV no-plan entry points are retired. Scalar
+authored imports carry the same byte/width
 lock on Microsoft x64 and both AAPCS64 targets. The x86-64 compatibility host
 encoder has no SysV authored-import path, so that target instead proves it
 fails closed without a plan and succeeds with the explicit SysV plan.

@@ -817,6 +817,9 @@ Remaining:
   vtable-slot, vtable-field, and service-table emission and layout now require
   the selected binding's evaluated plan; their no-plan encoders, width oracles,
   AArch64 placement helpers, and target-policy compatibility tests are retired.
+  The x86-64 ISA vtable/field/service-table encoder and width APIs now require
+  an authoritative plan directly as well; Win64 normalization remains only in
+  test oracles, and the unused SysV no-plan entry points are retired.
   A malformed selected field binding without a plan fails emission explicitly
   and cannot reserve a compatibility width. Source-authored imports now have
   the same mandatory-plan encoder and width surface; their operation-key and

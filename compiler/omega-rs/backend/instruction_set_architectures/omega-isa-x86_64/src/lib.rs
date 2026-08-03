@@ -3374,50 +3374,34 @@ struct SysvImportLayout {
 /// Encode a SysV AMD64 indirect call through a function pointer field on the
 /// receiver. The receiver is the first wire argument and therefore must be
 /// placed in `rdi` by the normalized plan.
-pub fn encode_sysv_vtable_call<T: InstructionOperandLike>(
-    operands: &[T],
-    byte_offset: i64,
-    result_present: bool,
-) -> Result<Vec<u8>, Diagnostic> {
-    encode_sysv_vtable_call_with_plan(operands, byte_offset, result_present, None)
-}
-
 pub fn encode_sysv_vtable_call_with_plan<T: InstructionOperandLike>(
     operands: &[T],
     byte_offset: i64,
     result_present: bool,
-    authoritative_plan: Option<&CallPlan>,
+    authoritative_plan: &CallPlan,
 ) -> Result<Vec<u8>, Diagnostic> {
     Ok(sysv_field_call_layout(
         operands,
         byte_offset,
         result_present,
         true,
-        authoritative_plan,
+        Some(authoritative_plan),
     )?
     .bytes)
-}
-
-pub fn sysv_vtable_call_width<T: InstructionOperandLike>(
-    operands: &[T],
-    byte_offset: i64,
-    result_present: bool,
-) -> usize {
-    sysv_vtable_call_width_with_plan(operands, byte_offset, result_present, None)
 }
 
 pub fn sysv_vtable_call_width_with_plan<T: InstructionOperandLike>(
     operands: &[T],
     byte_offset: i64,
     result_present: bool,
-    authoritative_plan: Option<&CallPlan>,
+    authoritative_plan: &CallPlan,
 ) -> usize {
     sysv_field_call_layout(
         operands,
         byte_offset,
         result_present,
         true,
-        authoritative_plan,
+        Some(authoritative_plan),
     )
     .map(|layout| layout.bytes.len())
     .unwrap_or(0)
@@ -3465,50 +3449,34 @@ pub fn sysv_vtable_call_data_relocation_byte_offset_with_plan<T: InstructionOper
 
 /// Encode a SysV AMD64 service-table call. The table operand is used only to
 /// find the callee; it is deliberately excluded from the wire signature.
-pub fn encode_sysv_table_function_call<T: InstructionOperandLike>(
-    operands: &[T],
-    byte_offset: i64,
-    result_present: bool,
-) -> Result<Vec<u8>, Diagnostic> {
-    encode_sysv_table_function_call_with_plan(operands, byte_offset, result_present, None)
-}
-
 pub fn encode_sysv_table_function_call_with_plan<T: InstructionOperandLike>(
     operands: &[T],
     byte_offset: i64,
     result_present: bool,
-    authoritative_plan: Option<&CallPlan>,
+    authoritative_plan: &CallPlan,
 ) -> Result<Vec<u8>, Diagnostic> {
     Ok(sysv_field_call_layout(
         operands,
         byte_offset,
         result_present,
         false,
-        authoritative_plan,
+        Some(authoritative_plan),
     )?
     .bytes)
-}
-
-pub fn sysv_table_function_call_width<T: InstructionOperandLike>(
-    operands: &[T],
-    byte_offset: i64,
-    result_present: bool,
-) -> usize {
-    sysv_table_function_call_width_with_plan(operands, byte_offset, result_present, None)
 }
 
 pub fn sysv_table_function_call_width_with_plan<T: InstructionOperandLike>(
     operands: &[T],
     byte_offset: i64,
     result_present: bool,
-    authoritative_plan: Option<&CallPlan>,
+    authoritative_plan: &CallPlan,
 ) -> usize {
     sysv_field_call_layout(
         operands,
         byte_offset,
         result_present,
         false,
-        authoritative_plan,
+        Some(authoritative_plan),
     )
     .map(|layout| layout.bytes.len())
     .unwrap_or(0)
@@ -6493,22 +6461,35 @@ fn win64_import_call_relocation_sites_with_plan<T: InstructionOperandLike>(
 /// (legacy void shape), no import thunk, no call relocation (the target is a
 /// runtime pointer). The receiver (arg 0) must already sit in RCX -- so it is
 /// a plain register arg like any other; the `mov rax, [rcx..]` reads it back.
-pub fn encode_win64_vtable_call<T: InstructionOperandLike>(
+#[cfg(test)]
+fn encode_win64_vtable_call<T: InstructionOperandLike>(
     operands: &[T],
     index: i64,
 ) -> Result<Vec<u8>, Diagnostic> {
-    encode_win64_vtable_call_with_plan(operands, index, None)
+    let plan = normalized_win64_call_plan(operands, None, 0)?;
+    encode_win64_vtable_call_with_plan(operands, index, &plan)
 }
 
 pub fn encode_win64_vtable_call_with_plan<T: InstructionOperandLike>(
     operands: &[T],
     index: i64,
-    authoritative_plan: Option<&CallPlan>,
+    authoritative_plan: &CallPlan,
 ) -> Result<Vec<u8>, Diagnostic> {
     let byte_offset = index
         .checked_mul(8)
         .ok_or_else(|| Diagnostic::error("vtable slot index overflows a byte offset"))?;
     encode_win64_vtable_call_at_offset_with_plan(operands, byte_offset, false, authoritative_plan)
+}
+
+#[cfg(test)]
+fn encode_win64_vtable_call_at_offset<T: InstructionOperandLike>(
+    operands: &[T],
+    byte_offset: i64,
+    result_present: bool,
+) -> Result<Vec<u8>, Diagnostic> {
+    let arg_start = usize::from(result_present);
+    let plan = normalized_win64_call_plan(operands, result_present.then_some(0), arg_start)?;
+    encode_win64_vtable_call_at_offset_with_plan(operands, byte_offset, result_present, &plan)
 }
 
 /// The result store tail shared by the field-model call encoders (the same
@@ -6621,19 +6602,11 @@ fn append_win64_vtable_dispatch_load(
 /// protocols). When `result_present`, `operands[0]` is the RESULT place
 /// (`let status = ...` prepends one); the receiver and declared arguments
 /// follow, and the callee's return value stores through the import-call tail.
-pub fn encode_win64_vtable_call_at_offset<T: InstructionOperandLike>(
-    operands: &[T],
-    byte_offset: i64,
-    result_present: bool,
-) -> Result<Vec<u8>, Diagnostic> {
-    encode_win64_vtable_call_at_offset_with_plan(operands, byte_offset, result_present, None)
-}
-
 pub fn encode_win64_vtable_call_at_offset_with_plan<T: InstructionOperandLike>(
     operands: &[T],
     byte_offset: i64,
     result_present: bool,
-    authoritative_plan: Option<&CallPlan>,
+    authoritative_plan: &CallPlan,
 ) -> Result<Vec<u8>, Diagnostic> {
     let arg_start = usize::from(result_present);
     if operands.len() <= arg_start {
@@ -6641,18 +6614,14 @@ pub fn encode_win64_vtable_call_at_offset_with_plan<T: InstructionOperandLike>(
             "cannot encode X86_64 vtable call: the receiver (arg 0) did not lower to an operand",
         ));
     }
-    let plan = if let Some(plan) = authoritative_plan {
-        validate_win64_encoder_plan(plan)?;
-        validate_win64_call_plan_operand_shapes(
-            plan,
-            operands,
-            result_present.then_some(0),
-            arg_start,
-        )?;
-        plan.clone()
-    } else {
-        normalized_win64_call_plan(operands, result_present.then_some(0), arg_start)?
-    };
+    validate_win64_encoder_plan(authoritative_plan)?;
+    validate_win64_call_plan_operand_shapes(
+        authoritative_plan,
+        operands,
+        result_present.then_some(0),
+        arg_start,
+    )?;
+    let plan = authoritative_plan.clone();
     let indirect_result = plan.result.as_ref().is_some_and(win64_result_is_indirect);
     if !indirect_result {
         normalized_win64_result_register(&plan, result_present)?;
@@ -6662,7 +6631,7 @@ pub fn encode_win64_vtable_call_at_offset_with_plan<T: InstructionOperandLike>(
         operands,
         byte_offset,
         result_present,
-        Some(&plan),
+        &plan,
     ));
     append_sub_rsp(&mut bytes, reserve);
     if indirect_result {
@@ -6688,68 +6657,55 @@ pub fn encode_win64_vtable_call_at_offset_with_plan<T: InstructionOperandLike>(
     }
     debug_assert_eq!(
         bytes.len(),
-        win64_vtable_call_width_with_plan(operands, byte_offset, result_present, Some(&plan))
+        win64_vtable_call_width_with_plan(operands, byte_offset, result_present, &plan)
     );
     Ok(bytes)
 }
 
-pub fn win64_vtable_call_width<T: InstructionOperandLike>(
+#[cfg(test)]
+fn win64_vtable_call_width<T: InstructionOperandLike>(
     operands: &[T],
     _index: i64,
     result_present: bool,
 ) -> usize {
-    win64_vtable_call_width_with_plan(operands, _index, result_present, None)
+    let arg_start = usize::from(result_present);
+    let Ok(plan) = normalized_win64_call_plan(operands, result_present.then_some(0), arg_start)
+    else {
+        return 0;
+    };
+    win64_vtable_call_width_with_plan(operands, _index, result_present, &plan)
 }
 
 pub fn win64_vtable_call_width_with_plan<T: InstructionOperandLike>(
     operands: &[T],
     _index: i64,
     result_present: bool,
-    authoritative_plan: Option<&CallPlan>,
+    authoritative_plan: &CallPlan,
 ) -> usize {
     let arg_start = usize::from(result_present);
     let arg_count = operands.len() - arg_start;
-    let plan = authoritative_plan
-        .filter(|plan| {
-            validate_win64_encoder_plan(plan).is_ok()
-                && validate_win64_call_plan_operand_shapes(
-                    plan,
-                    operands,
-                    result_present.then_some(0),
-                    arg_start,
-                )
-                .is_ok()
-        })
-        .cloned()
-        .or_else(|| {
-            authoritative_plan.is_none().then(|| {
-                normalized_win64_call_plan(operands, result_present.then_some(0), arg_start).ok()
-            })?
-        });
-    if authoritative_plan.is_some() && plan.is_none() {
+    if validate_win64_encoder_plan(authoritative_plan).is_err()
+        || validate_win64_call_plan_operand_shapes(
+            authoritative_plan,
+            operands,
+            result_present.then_some(0),
+            arg_start,
+        )
+        .is_err()
+    {
         return 0;
     }
-    let reserve = plan
-        .as_ref()
-        .map(win64_import_reserve_for_plan)
-        .unwrap_or_else(|| win64_import_reserve(arg_count));
+    let plan = authoritative_plan;
+    let reserve = win64_import_reserve_for_plan(plan);
     let mut width = rsp_adjust_width(reserve);
-    width += plan.as_ref().map(win64_result_pre_call_width).unwrap_or(0);
+    width += win64_result_pre_call_width(plan);
     for index in 0..arg_count {
-        width += win64_import_arg_width(
-            operands,
-            arg_start,
-            index,
-            plan.as_ref().and_then(|plan| plan.parameters.get(index)),
-        );
+        width += win64_import_arg_width(operands, arg_start, index, plan.parameters.get(index));
     }
     width += 7; // mov rax, [rcx + disp32]
     width += 2; // call rax (no REX.B for rax)
     width += rsp_adjust_width(reserve);
-    width += plan
-        .as_ref()
-        .map(win64_result_post_call_width)
-        .unwrap_or_else(|| usize::from(result_present) * 17);
+    width += win64_result_post_call_width(plan);
     width
 }
 
@@ -6759,19 +6715,22 @@ pub fn win64_vtable_call_width_with_plan<T: InstructionOperandLike>(
 /// callee loads from the table's fn-ptr field: `mov r11, imm64` (relocated
 /// to the table's region base), `mov rax, [r11 + slot]`, `mov rax, [rax +
 /// field_offset]`, `call rax`. Operand roles: `[result?][table][args...]`.
-pub fn encode_win64_table_function_call<T: InstructionOperandLike>(
+#[cfg(test)]
+fn encode_win64_table_function_call<T: InstructionOperandLike>(
     operands: &[T],
     byte_offset: i64,
     result_present: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
-    encode_win64_table_function_call_with_plan(operands, byte_offset, result_present, None)
+    let arg_start = usize::from(result_present) + 1;
+    let plan = normalized_win64_call_plan(operands, result_present.then_some(0), arg_start)?;
+    encode_win64_table_function_call_with_plan(operands, byte_offset, result_present, &plan)
 }
 
 pub fn encode_win64_table_function_call_with_plan<T: InstructionOperandLike>(
     operands: &[T],
     byte_offset: i64,
     result_present: bool,
-    authoritative_plan: Option<&CallPlan>,
+    authoritative_plan: &CallPlan,
 ) -> Result<Vec<u8>, Diagnostic> {
     let table_index = usize::from(result_present);
     if operands.len() <= table_index {
@@ -6787,18 +6746,14 @@ pub fn encode_win64_table_function_call_with_plan<T: InstructionOperandLike>(
         ));
     };
     let arg_start = table_index + 1;
-    let plan = if let Some(plan) = authoritative_plan {
-        validate_win64_encoder_plan(plan)?;
-        validate_win64_call_plan_operand_shapes(
-            plan,
-            operands,
-            result_present.then_some(0),
-            arg_start,
-        )?;
-        plan.clone()
-    } else {
-        normalized_win64_call_plan(operands, result_present.then_some(0), arg_start)?
-    };
+    validate_win64_encoder_plan(authoritative_plan)?;
+    validate_win64_call_plan_operand_shapes(
+        authoritative_plan,
+        operands,
+        result_present.then_some(0),
+        arg_start,
+    )?;
+    let plan = authoritative_plan.clone();
     let indirect_result = plan.result.as_ref().is_some_and(win64_result_is_indirect);
     if !indirect_result {
         normalized_win64_result_register(&plan, result_present)?;
@@ -6808,7 +6763,7 @@ pub fn encode_win64_table_function_call_with_plan<T: InstructionOperandLike>(
         operands,
         byte_offset,
         result_present,
-        Some(&plan),
+        &plan,
     ));
     append_sub_rsp(&mut bytes, reserve);
     if indirect_result {
@@ -6840,75 +6795,57 @@ pub fn encode_win64_table_function_call_with_plan<T: InstructionOperandLike>(
     }
     debug_assert_eq!(
         bytes.len(),
-        win64_table_function_call_width_with_plan(
-            operands,
-            byte_offset,
-            result_present,
-            Some(&plan),
-        )
+        win64_table_function_call_width_with_plan(operands, byte_offset, result_present, &plan,)
     );
     Ok(bytes)
 }
 
-pub fn win64_table_function_call_width<T: InstructionOperandLike>(
+#[cfg(test)]
+fn win64_table_function_call_width<T: InstructionOperandLike>(
     operands: &[T],
     _byte_offset: i64,
     result_present: bool,
 ) -> usize {
-    win64_table_function_call_width_with_plan(operands, _byte_offset, result_present, None)
+    let arg_start = usize::from(result_present) + 1;
+    let Ok(plan) = normalized_win64_call_plan(operands, result_present.then_some(0), arg_start)
+    else {
+        return 0;
+    };
+    win64_table_function_call_width_with_plan(operands, _byte_offset, result_present, &plan)
 }
 
 pub fn win64_table_function_call_width_with_plan<T: InstructionOperandLike>(
     operands: &[T],
     _byte_offset: i64,
     result_present: bool,
-    authoritative_plan: Option<&CallPlan>,
+    authoritative_plan: &CallPlan,
 ) -> usize {
     let arg_start = usize::from(result_present) + 1;
     let arg_count = operands.len().saturating_sub(arg_start);
-    let plan = authoritative_plan
-        .filter(|plan| {
-            validate_win64_encoder_plan(plan).is_ok()
-                && validate_win64_call_plan_operand_shapes(
-                    plan,
-                    operands,
-                    result_present.then_some(0),
-                    arg_start,
-                )
-                .is_ok()
-        })
-        .cloned()
-        .or_else(|| {
-            authoritative_plan.is_none().then(|| {
-                normalized_win64_call_plan(operands, result_present.then_some(0), arg_start).ok()
-            })?
-        });
-    if authoritative_plan.is_some() && plan.is_none() {
+    if validate_win64_encoder_plan(authoritative_plan).is_err()
+        || validate_win64_call_plan_operand_shapes(
+            authoritative_plan,
+            operands,
+            result_present.then_some(0),
+            arg_start,
+        )
+        .is_err()
+    {
         return 0;
     }
-    let reserve = plan
-        .as_ref()
-        .map(win64_import_reserve_for_plan)
-        .unwrap_or_else(|| win64_import_reserve(arg_count));
+    let plan = authoritative_plan;
+    let reserve = win64_import_reserve_for_plan(plan);
     let mut width = rsp_adjust_width(reserve);
-    width += plan.as_ref().map(win64_result_pre_call_width).unwrap_or(0);
+    width += win64_result_pre_call_width(plan);
     for index in 0..arg_count {
-        width += win64_import_arg_width(
-            operands,
-            arg_start,
-            index,
-            plan.as_ref().and_then(|plan| plan.parameters.get(index)),
-        );
+        width += win64_import_arg_width(operands, arg_start, index, plan.parameters.get(index));
     }
     width += 10; // mov r11, imm64 (table region base)
     width += 7; // mov rax, [r11 + disp32]
     width += 7; // mov rax, [rax + disp32]
     width += 2; // call rax
     width += rsp_adjust_width(reserve);
-    width += plan
-        .as_ref()
-        .map(win64_result_post_call_width)
-        .unwrap_or_else(|| usize::from(result_present) * 17);
+    width += win64_result_post_call_width(plan);
     width
 }
 
