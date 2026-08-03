@@ -304,7 +304,8 @@ embeddings and arithmetic), semantic-domain identity, and the stable projection
 fingerprint. It does not publish placeholder backing or conservation witnesses;
 those rows remain absent until their actual checked proofs exist.
 
-- **BUMP-ALLOCATOR-CANARY — BLOCKED on `CONSERVATION-CONTRACT`:** implement an
+- **BUMP-ALLOCATOR-CANARY — DESIGN BLOCKED through
+  `TERMINAL-CONTENT-CLAIMS`:** implement an
   ordinary package-level bump strategy over a consumed `Extent` once source
   content-conservation contracts can state
   its split, retirement, reset recomposition, and backing return. Keep
@@ -1516,8 +1517,6 @@ layouts brief. Complete the implementation in dependency order:
 - extend repeated encode/decode to `Vec<T>` once its allocator obligations are
   available; packed scalar decode into `&[T]` remains intentionally
   unsupported because varints cannot form a zero-copy scalar view;
-- implement the preserving package carrier `Relayed<T>` with an opaque
-  round-trip remainder.
 
 Keep `compact_binary` strict while extending its normalized plan and generated
 realizations. Additional native or ecosystem codec families are ordinary
@@ -1540,6 +1539,10 @@ ordinary code never receives a raw executable address.
 
 - **ENTRY-CONTENT-ROOTS:** blocked on `OWNER_QUESTIONS.md` Q1's stable semantic
   owner/identity for image and initial-storage handoff roots.
+- **TERMINAL-CONTENT-CLAIMS:** blocked on a versioned terminal-Psi entry-claim
+  binding that identifies a partition theorem's consumed inputs without
+  asserting the stronger, false one-to-one input/output equality. This also
+  blocks the dependent bump-allocator canary and frontier work.
 
 ## Vertical acceptance slices
 
