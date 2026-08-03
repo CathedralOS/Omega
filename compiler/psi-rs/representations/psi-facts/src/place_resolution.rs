@@ -1,6 +1,6 @@
-use omega_core::symbols::SymbolHandle;
-use omega_typed_trees::TypedTrees;
-use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableMemberExpression};
+use psi_symbols::SymbolHandle;
+use psi_typed_trees::TypedTrees;
+use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableMemberExpression};
 
 use crate::{FactPlan, Place, PlaceHandle, PlaceRoot, PlaceSegment};
 
@@ -13,7 +13,7 @@ pub fn payload_variant_for_field(
     }
     program.data_definitions().iter().find_map(|definition| {
         program.data_members(definition).iter().find_map(|member| {
-            let omega_typed_trees::data::DataMember::Variant(variant) = member else {
+            let psi_typed_trees::data::DataMember::Variant(variant) = member else {
                 return None;
             };
             program
@@ -143,15 +143,13 @@ fn symbol_label(program: &TypedTrees, symbol: SymbolHandle) -> String {
 
         for member in program.data_members(data) {
             match member {
-                omega_typed_trees::data::DataMember::Field(field) if field.symbol == symbol => {
+                psi_typed_trees::data::DataMember::Field(field) if field.symbol == symbol => {
                     return field.name.as_str().to_owned();
                 }
-                omega_typed_trees::data::DataMember::Variant(variant)
-                    if variant.symbol == symbol =>
-                {
+                psi_typed_trees::data::DataMember::Variant(variant) if variant.symbol == symbol => {
                     return variant.name.as_str().to_owned();
                 }
-                omega_typed_trees::data::DataMember::Variant(variant) => {
+                psi_typed_trees::data::DataMember::Variant(variant) => {
                     if let Some(field) = program
                         .data_payload_fields(variant)
                         .iter()
@@ -160,7 +158,7 @@ fn symbol_label(program: &TypedTrees, symbol: SymbolHandle) -> String {
                         return field.name.as_str().to_owned();
                     }
                 }
-                omega_typed_trees::data::DataMember::Field(_) => {}
+                psi_typed_trees::data::DataMember::Field(_) => {}
             }
         }
     }
@@ -271,10 +269,10 @@ fn symbol_type_symbol(program: &TypedTrees, symbol: SymbolHandle) -> Option<Symb
     for data in program.data_definitions() {
         for member in program.data_members(data) {
             match member {
-                omega_typed_trees::data::DataMember::Field(field) if field.symbol == symbol => {
+                psi_typed_trees::data::DataMember::Field(field) if field.symbol == symbol => {
                     return Some(type_reference_base_symbol(program, field.type_reference));
                 }
-                omega_typed_trees::data::DataMember::Variant(variant) => {
+                psi_typed_trees::data::DataMember::Variant(variant) => {
                     if let Some(field) = program
                         .data_payload_fields(variant)
                         .iter()
@@ -293,28 +291,28 @@ fn symbol_type_symbol(program: &TypedTrees, symbol: SymbolHandle) -> Option<Symb
 
 fn type_reference_base_symbol(
     program: &TypedTrees,
-    type_reference: omega_typed_trees::types::TypeReferenceHandle,
+    type_reference: psi_typed_trees::types::TypeReferenceHandle,
 ) -> SymbolHandle {
     match program.type_reference_table.type_reference(type_reference) {
-        omega_typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
+        psi_typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
             type_reference_base_symbol(program, *referee)
         }
-        omega_typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+        psi_typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
             type_reference_base_symbol(program, *base_type)
         }
-        omega_typed_trees::types::TypeReferenceNode::Generic { base_symbol, .. }
-        | omega_typed_trees::types::TypeReferenceNode::DynamicTrait {
+        psi_typed_trees::types::TypeReferenceNode::Generic { base_symbol, .. }
+        | psi_typed_trees::types::TypeReferenceNode::DynamicTrait {
             symbol: base_symbol,
             ..
         }
-        | omega_typed_trees::types::TypeReferenceNode::Named {
+        | psi_typed_trees::types::TypeReferenceNode::Named {
             symbol: base_symbol,
             ..
         } => *base_symbol,
-        omega_typed_trees::types::TypeReferenceNode::FixedArray { .. }
-        | omega_typed_trees::types::TypeReferenceNode::Slice { .. }
-        | omega_typed_trees::types::TypeReferenceNode::ConstExpression(_)
-        | omega_typed_trees::types::TypeReferenceNode::Unit => SymbolHandle::invalid(),
+        psi_typed_trees::types::TypeReferenceNode::FixedArray { .. }
+        | psi_typed_trees::types::TypeReferenceNode::Slice { .. }
+        | psi_typed_trees::types::TypeReferenceNode::ConstExpression(_)
+        | psi_typed_trees::types::TypeReferenceNode::Unit => SymbolHandle::invalid(),
     }
 }
 
@@ -357,17 +355,17 @@ pub(crate) fn resolve_place_member_symbol(
 
 fn data_member_symbol_by_name(
     program: &TypedTrees,
-    data: &omega_typed_trees::data::DataDefinition,
+    data: &psi_typed_trees::data::DataDefinition,
     member_name: &str,
 ) -> Option<SymbolHandle> {
     program
         .data_members(data)
         .iter()
         .find_map(|member| match member {
-            omega_typed_trees::data::DataMember::Field(field) => {
+            psi_typed_trees::data::DataMember::Field(field) => {
                 (field.name.as_str() == member_name).then_some(field.symbol)
             }
-            omega_typed_trees::data::DataMember::Variant(variant) => (variant.name.as_str()
+            psi_typed_trees::data::DataMember::Variant(variant) => (variant.name.as_str()
                 == member_name)
                 .then_some(variant.symbol)
                 .or_else(|| {

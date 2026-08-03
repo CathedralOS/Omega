@@ -2,16 +2,16 @@ use super::{
     Fact, FactOrigin, FactPayload, FactPlace, FactPlan, PlaceRoot, PlaceSegment, ProgramPoint,
     build_definition_fact_plan,
 };
-use omega_core::arena::HandleSpan;
-use omega_core::symbols::SymbolHandle;
-use omega_typed_trees::TypedTrees;
-use omega_typed_trees::domain::{DomainDefinition, ProofFact, ProofMembershipFact};
-use omega_typed_trees::expression::{
+use psi_arena::HandleSpan;
+use psi_symbols::SymbolHandle;
+use psi_typed_trees::TypedTrees;
+use psi_typed_trees::domain::{DomainDefinition, ProofFact, ProofMembershipFact};
+use psi_typed_trees::expression::{
     ExpressionNode, TableIndexedExpression, TableMemberExpression, TableNamePath,
 };
-use omega_typed_trees::invariant::InvariantDefinition;
-use omega_typed_trees::name::Identifier;
-use omega_typed_trees::types::{TypeConstraintNode, TypeReferenceHandle};
+use psi_typed_trees::invariant::InvariantDefinition;
+use psi_typed_trees::name::Identifier;
+use psi_typed_trees::types::{TypeConstraintNode, TypeReferenceHandle};
 
 #[test]
 fn builds_definition_fact_plan_for_domains_and_invariants() {
@@ -42,8 +42,8 @@ fn builds_definition_fact_plan_for_domains_and_invariants() {
         index_arguments: Vec::new(),
         is_public: false,
         alias: None,
-        predicate_body: omega_core::semantics::DomainPredicateBody::Present,
-        semantic_id: omega_core::semantics::SemanticDomainId::NULL,
+        predicate_body: psi_language_semantics::DomainPredicateBody::Present,
+        semantic_id: psi_language_semantics::SemanticDomainId::NULL,
         semantic_roles: Default::default(),
         facts: HandleSpan::from_parts(fact, 2),
         operators: HandleSpan::empty(),
@@ -58,8 +58,8 @@ fn builds_definition_fact_plan_for_domains_and_invariants() {
         index_arguments: Vec::new(),
         is_public: false,
         alias: None,
-        predicate_body: omega_core::semantics::DomainPredicateBody::Bodyless,
-        semantic_id: omega_core::semantics::SemanticDomainId::NULL,
+        predicate_body: psi_language_semantics::DomainPredicateBody::Bodyless,
+        semantic_id: psi_language_semantics::SemanticDomainId::NULL,
         semantic_roles: Default::default(),
         facts: HandleSpan::empty(),
         operators: HandleSpan::empty(),
@@ -141,8 +141,8 @@ fn domain_membership_queries_follow_domain_imports() {
         index_arguments: Vec::new(),
         is_public: false,
         alias: None,
-        predicate_body: omega_core::semantics::DomainPredicateBody::Present,
-        semantic_id: omega_core::semantics::SemanticDomainId::NULL,
+        predicate_body: psi_language_semantics::DomainPredicateBody::Present,
+        semantic_id: psi_language_semantics::SemanticDomainId::NULL,
         semantic_roles: Default::default(),
         facts: HandleSpan::from_parts(membership, 1),
         operators: HandleSpan::empty(),
@@ -157,8 +157,8 @@ fn domain_membership_queries_follow_domain_imports() {
         index_arguments: Vec::new(),
         is_public: false,
         alias: None,
-        predicate_body: omega_core::semantics::DomainPredicateBody::Bodyless,
-        semantic_id: omega_core::semantics::SemanticDomainId::NULL,
+        predicate_body: psi_language_semantics::DomainPredicateBody::Bodyless,
+        semantic_id: psi_language_semantics::SemanticDomainId::NULL,
         semantic_roles: Default::default(),
         facts: HandleSpan::empty(),
         operators: HandleSpan::empty(),
@@ -218,7 +218,7 @@ fn expression_places_preserve_roots_and_segments() {
             symbol: field_symbol,
         }));
     let index = program.expression_table.insert(ExpressionNode::Integer(
-        omega_core::literals::IntegerLiteral::from_value(0),
+        psi_numerics::literals::IntegerLiteral::from_value(0),
     ));
     let indexed =
         program
@@ -287,7 +287,7 @@ fn proves_domain_membership_for_structurally_equal_places() {
         origin: FactOrigin::DomainDefinition { domain_symbol },
         evidence: Default::default(),
         payload: FactPayload::DomainMembership {
-            value: omega_typed_trees::expression::ExpressionHandle::invalid(),
+            value: psi_typed_trees::expression::ExpressionHandle::invalid(),
             domain: HandleSpan::empty(),
             domain_symbol,
         },
@@ -313,26 +313,26 @@ fn expression_places_resolve_attached_data_members() {
     let main_data_symbol = SymbolHandle::from_arena_index(54);
 
     let mut program = TypedTrees::default();
-    program.push_data_definition(omega_typed_trees::data::DataDefinition {
+    program.push_data_definition(psi_typed_trees::data::DataDefinition {
         symbol: player_type_symbol,
         name: Identifier::generated("Player"),
         supply_mode: Default::default(),
         lifetime_parameters: Vec::new(),
         type_parameters: HandleSpan::empty(),
-        properties: omega_typed_trees::data::DataProperties::default(),
+        properties: psi_typed_trees::data::DataProperties::default(),
         quotient: None,
         where_facts: Default::default(),
         zero_gated: false,
         retired_identities: Vec::new(),
         members: HandleSpan::empty(),
     });
-    let mut main_data = omega_typed_trees::data::DataDefinition {
+    let mut main_data = psi_typed_trees::data::DataDefinition {
         symbol: main_data_symbol,
         name: Identifier::generated("Main"),
         supply_mode: Default::default(),
         lifetime_parameters: Vec::new(),
         type_parameters: HandleSpan::empty(),
-        properties: omega_typed_trees::data::DataProperties::default(),
+        properties: psi_typed_trees::data::DataProperties::default(),
         quotient: None,
         where_facts: Default::default(),
         zero_gated: false,
@@ -341,7 +341,7 @@ fn expression_places_resolve_attached_data_members() {
     };
     program.push_data_member(
         &mut main_data,
-        omega_typed_trees::data::DataMember::Field(omega_typed_trees::data::DataField {
+        psi_typed_trees::data::DataMember::Field(psi_typed_trees::data::DataField {
             identity: None,
             symbol: player_field_symbol,
             name: Identifier::generated("player"),
@@ -350,7 +350,7 @@ fn expression_places_resolve_attached_data_members() {
     );
     program.push_data_definition(main_data);
 
-    let mut machine = omega_typed_trees::machine::Machine {
+    let mut machine = psi_typed_trees::machine::Machine {
         symbol: machine_symbol,
         name: Identifier::generated("Main::main"),
         boundary: false,
@@ -373,7 +373,7 @@ fn expression_places_resolve_attached_data_members() {
         contracts: HandleSpan::empty(),
         states: HandleSpan::empty(),
     };
-    let mut state = omega_typed_trees::state::State {
+    let mut state = psi_typed_trees::state::State {
         symbol: SymbolHandle::from_arena_index(55),
         name: Identifier::generated("main"),
         parameters: HandleSpan::empty(),
@@ -384,13 +384,13 @@ fn expression_places_resolve_attached_data_members() {
     let self_type =
         program
             .type_reference_table
-            .insert(omega_typed_trees::types::TypeReferenceNode::Named {
+            .insert(psi_typed_trees::types::TypeReferenceNode::Named {
                 symbol: machine_symbol,
                 name: Identifier::generated("Self"),
             });
     program.push_state_parameter(
         &mut state,
-        omega_typed_trees::signature::StateParameter {
+        psi_typed_trees::signature::StateParameter {
             symbol: self_symbol,
             name: Identifier::generated("self"),
             type_reference: self_type,

@@ -325,6 +325,10 @@ fn frontend_implementation_is_psi_owned() {
             "pub use psi_typed_trees::*;",
         ),
         (
+            "compiler/omega-rs/representations/omega-facts/src/lib.rs",
+            "pub use psi_facts::*;",
+        ),
+        (
             "compiler/omega-rs/pipeline/omega-source-files-to-tokens/src/lib.rs",
             "pub use psi_source_files_to_tokens::*;",
         ),

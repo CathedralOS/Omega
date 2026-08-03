@@ -1,9 +1,9 @@
-use omega_core::arena::{Handle, HandleSpan};
-use omega_core::symbols::SymbolHandle;
-use omega_typed_trees::domain::ProofFact;
-use omega_typed_trees::expression::ExpressionHandle;
-use omega_typed_trees::name::Identifier;
-use omega_typed_trees::types::{TypeConstraintNode, TypeReferenceHandle};
+use psi_arena::{Handle, HandleSpan};
+use psi_symbols::SymbolHandle;
+use psi_typed_trees::domain::ProofFact;
+use psi_typed_trees::expression::ExpressionHandle;
+use psi_typed_trees::name::Identifier;
+use psi_typed_trees::types::{TypeConstraintNode, TypeReferenceHandle};
 
 pub type FactHandle = Handle<Fact>;
 pub type FactRefHandle = Handle<FactRef>;
@@ -187,7 +187,7 @@ pub enum FactOrigin {
 /// identity after the checked program retains its selected provider plans.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct QualificationEvidence {
-    pub origin: omega_core::semantics::QualificationEvidenceOrigin,
+    pub origin: psi_language_semantics::QualificationEvidenceOrigin,
     pub source_symbol: SymbolHandle,
     pub requirement_symbol: SymbolHandle,
     pub receipt_identity: u64,
@@ -195,7 +195,7 @@ pub struct QualificationEvidence {
 
 impl QualificationEvidence {
     pub const fn from_origin(
-        origin: omega_core::semantics::QualificationEvidenceOrigin,
+        origin: psi_language_semantics::QualificationEvidenceOrigin,
         source_symbol: SymbolHandle,
     ) -> Self {
         Self {
@@ -211,7 +211,7 @@ impl QualificationEvidence {
         requirement_symbol: SymbolHandle,
     ) -> Self {
         Self {
-            origin: omega_core::semantics::QualificationEvidenceOrigin::AdmittedReceipt,
+            origin: psi_language_semantics::QualificationEvidenceOrigin::AdmittedReceipt,
             source_symbol,
             requirement_symbol,
             receipt_identity: 0,
@@ -258,7 +258,7 @@ pub enum FactPayload {
     },
     CarryPermission {
         value: ExpressionHandle,
-        permission: omega_core::semantics::CarryPermission,
+        permission: psi_language_semantics::CarryPermission,
     },
     /// An undischarged resource provenance with a born-strict carry policy.
     /// This is independent of the current qualification fact set so
@@ -295,7 +295,7 @@ pub enum FactPayload {
         kind: ContractFactKind,
         fact: Handle<ProofFact>,
         value: ExpressionHandle,
-        permission: omega_core::semantics::CarryPermission,
+        permission: psi_language_semantics::CarryPermission,
     },
     InvariantDefinition {
         constraint_count: usize,

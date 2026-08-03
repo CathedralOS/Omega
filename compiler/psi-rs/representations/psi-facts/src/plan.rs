@@ -1,8 +1,8 @@
-use omega_core::arena::{Arena, Handle, HandleSpan};
-use omega_core::symbols::SymbolHandle;
-use omega_typed_trees::TypedTrees;
-use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use omega_typed_trees::types::TypeReferenceHandle;
+use psi_arena::{Arena, Handle, HandleSpan};
+use psi_symbols::SymbolHandle;
+use psi_typed_trees::TypedTrees;
+use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use psi_typed_trees::types::TypeReferenceHandle;
 
 use crate::{
     BooleanFact, DomainMembershipFact, Fact, FactContext, FactContextHandle, FactContextView,
@@ -179,7 +179,7 @@ impl FactPlan {
 
     fn push_field_place_segment(
         &mut self,
-        program: &omega_typed_trees::TypedTrees,
+        program: &psi_typed_trees::TypedTrees,
         place: PlaceHandle,
         symbol: SymbolHandle,
     ) {
