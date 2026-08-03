@@ -41,17 +41,21 @@ pub struct X86_64RelocationSite {
 }
 
 /// Bytes reserved by the fixed ordinary x86-64 frame. Saving eight registers
-/// keeps the entry stack's modulo-16 alignment unchanged, so the existing
-/// SysV and Microsoft x64 outbound-call reservations remain valid.
-pub const FUNCTION_FRAME_BYTES: usize = 64;
+/// plus one 16-byte control-state slot keeps the entry stack's modulo-16
+/// alignment unchanged, so the existing SysV and Microsoft x64 outbound-call
+/// reservations remain valid. The slot retains the caller's complete MXCSR;
+/// only Omega's canonical value is live while checked code executes.
+pub const FUNCTION_FRAME_BYTES: usize = 80;
 
 pub fn function_enter_width() -> usize {
-    12
+    33
 }
 
 /// Preserve the union of the SysV AMD64 and Microsoft x64 nonvolatile GPRs
-/// used by generated Omega code: rbx, rbp, rsi, rdi, and r12-r15.
-pub fn encode_function_enter_bytes() -> [u8; 12] {
+/// used by generated Omega code: rbx, rbp, rsi, rdi, and r12-r15. The extra
+/// aligned slot saves the incoming MXCSR before installing `0x1f80`: masked
+/// exceptions, nearest-even rounding, and gradual underflow (FTZ/DAZ clear).
+pub fn encode_function_enter_bytes() -> [u8; 33] {
     [
         0x53, // push rbx
         0x55, // push rbp
@@ -61,15 +65,21 @@ pub fn encode_function_enter_bytes() -> [u8; 12] {
         0x41, 0x55, // push r13
         0x41, 0x56, // push r14
         0x41, 0x57, // push r15
+        0x48, 0x83, 0xec, 0x10, // sub rsp, 16
+        0x0f, 0xae, 0x1c, 0x24, // stmxcsr [rsp]
+        0xc7, 0x44, 0x24, 0x04, 0x80, 0x1f, 0x00, 0x00, // mov dword [rsp+4], 0x1f80
+        0x0f, 0xae, 0x54, 0x24, 0x04, // ldmxcsr [rsp+4]
     ]
 }
 
 pub fn return_width() -> usize {
-    13
+    21
 }
 
-pub fn encode_return_bytes() -> [u8; 13] {
+pub fn encode_return_bytes() -> [u8; 21] {
     [
+        0x0f, 0xae, 0x14, 0x24, // ldmxcsr [rsp]
+        0x48, 0x83, 0xc4, 0x10, // add rsp, 16
         0x41, 0x5f, // pop r15
         0x41, 0x5e, // pop r14
         0x41, 0x5d, // pop r13
@@ -89,7 +99,7 @@ pub fn function_enter_register_writes() -> RegisterSet {
 }
 
 pub fn function_enter_additional_machine_state() -> MachineStateSet {
-    MachineStateSet::new([MachineState::StackPointer])
+    MachineStateSet::new([MachineState::StackPointer, MachineState::ControlState])
 }
 
 /// Exact state written while restoring the fixed frame and returning. The
@@ -109,7 +119,11 @@ pub fn return_register_writes() -> RegisterSet {
 }
 
 pub fn return_additional_machine_state() -> MachineStateSet {
-    MachineStateSet::new([MachineState::InstructionPointer, MachineState::StackPointer])
+    MachineStateSet::new([
+        MachineState::InstructionPointer,
+        MachineState::StackPointer,
+        MachineState::ControlState,
+    ])
 }
 
 pub fn machine_halt_width() -> usize {
@@ -754,20 +768,31 @@ mod entry_argument_register_tests {
 
     #[test]
     fn ordinary_frame_preserves_generated_nonvolatile_gprs_and_alignment() {
-        assert_eq!(FUNCTION_FRAME_BYTES, 64);
+        assert_eq!(FUNCTION_FRAME_BYTES, 80);
         assert_eq!(encode_function_enter_bytes().len(), function_enter_width());
         assert_eq!(encode_return_bytes().len(), return_width());
         assert_eq!(
             encode_function_enter_bytes(),
             [
-                0x53, 0x55, 0x56, 0x57, 0x41, 0x54, 0x41, 0x55, 0x41, 0x56, 0x41, 0x57
+                0x53, 0x55, 0x56, 0x57, 0x41, 0x54, 0x41, 0x55, 0x41, 0x56, 0x41, 0x57, 0x48, 0x83,
+                0xec, 0x10, 0x0f, 0xae, 0x1c, 0x24, 0xc7, 0x44, 0x24, 0x04, 0x80, 0x1f, 0x00, 0x00,
+                0x0f, 0xae, 0x54, 0x24, 0x04,
             ]
         );
         assert_eq!(
             encode_return_bytes(),
             [
-                0x41, 0x5f, 0x41, 0x5e, 0x41, 0x5d, 0x41, 0x5c, 0x5f, 0x5e, 0x5d, 0x5b, 0xc3
+                0x0f, 0xae, 0x14, 0x24, 0x48, 0x83, 0xc4, 0x10, 0x41, 0x5f, 0x41, 0x5e, 0x41, 0x5d,
+                0x41, 0x5c, 0x5f, 0x5e, 0x5d, 0x5b, 0xc3,
             ]
+        );
+        assert!(
+            function_enter_additional_machine_state()
+                .contains_all(MachineStateSet::new([MachineState::ControlState]))
+        );
+        assert!(
+            return_additional_machine_state()
+                .contains_all(MachineStateSet::new([MachineState::ControlState]))
         );
     }
 
@@ -799,7 +824,7 @@ mod entry_argument_register_tests {
         let bytes =
             encode_entry_stack_argument_write_bytes(32, 24, 8).expect("incoming stack copy");
         assert_eq!(bytes.len(), 25);
-        assert_eq!(&bytes[10..18], &[0x4c, 0x8b, 0x94, 0x24, 104, 0, 0, 0]);
+        assert_eq!(&bytes[10..18], &[0x4c, 0x8b, 0x94, 0x24, 120, 0, 0, 0]);
         assert_eq!(&bytes[18..25], &[0x4d, 0x89, 0x97, 24, 0, 0, 0]);
     }
 
@@ -835,7 +860,7 @@ mod entry_argument_register_tests {
             entry_indirect_argument_write_width(pointer, 16)
         );
         assert_eq!(entry_indirect_argument_frame_base_offset(pointer), 8);
-        assert_eq!(&bytes[..8], &[0x4c, 0x8b, 0x9c, 0x24, 104, 0, 0, 0]);
+        assert_eq!(&bytes[..8], &[0x4c, 0x8b, 0x9c, 0x24, 120, 0, 0, 0]);
         assert_eq!(&bytes[8..10], &[0x49, 0xbf]);
     }
 }

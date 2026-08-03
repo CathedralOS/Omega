@@ -1632,19 +1632,25 @@ mod syscall_plan_register_tests {
     }
 }
 
-/// Bytes reserved by the ordinary AArch64 function-enter prologue. Incoming
-/// stack arguments remain relative to the caller's pre-prologue SP.
-pub const FUNCTION_FRAME_BYTES: usize = 96;
+/// Bytes reserved by the ordinary AArch64 function-enter prologue. The final
+/// 16-byte slot retains the caller's FPCR; incoming stack arguments remain
+/// relative to the caller's pre-prologue SP.
+pub const FUNCTION_FRAME_BYTES: usize = 112;
 
-pub fn encode_function_enter_bytes() -> [u8; 28] {
-    let mut bytes = [0; 28];
-    bytes[0..4].copy_from_slice(&encode_instruction(0xA9BA7BFD));
+pub fn encode_function_enter_bytes() -> [u8; 40] {
+    let mut bytes = [0; 40];
+    bytes[0..4].copy_from_slice(&encode_instruction(0xA9B97BFD));
     bytes[4..8].copy_from_slice(&encode_instruction(0x910003FD));
     bytes[8..12].copy_from_slice(&encode_instruction(0xA90153F3));
     bytes[12..16].copy_from_slice(&encode_instruction(0xA9025BF5));
     bytes[16..20].copy_from_slice(&encode_instruction(0xA90363F7));
     bytes[20..24].copy_from_slice(&encode_instruction(0xA9046BF9));
     bytes[24..28].copy_from_slice(&encode_instruction(0xA90573FB));
+    bytes[28..32].copy_from_slice(&encode_instruction(0xD53B4410)); // mrs x16, fpcr
+    bytes[32..36].copy_from_slice(&encode_instruction(0xF90033F0)); // str x16, [sp, #96]
+    // FPCR zero is Omega's canonical binary32/binary64 state: nearest-even,
+    // gradual underflow, default NaN disabled, and exception traps masked.
+    bytes[36..40].copy_from_slice(&encode_instruction(0xD51B441F)); // msr fpcr, xzr
     bytes
 }
 
@@ -1652,33 +1658,43 @@ pub fn encode_function_enter_bytes() -> [u8; 28] {
 /// allocates the frame, saves x19-x30, and establishes x29 as its frame base;
 /// the stores read the saved registers but only x29 and SP are overwritten.
 pub fn function_enter_register_writes() -> RegisterSet {
-    RegisterSet::new([MachineRegister::Aarch64X(29)])
+    RegisterSet::new([MachineRegister::Aarch64X(16), MachineRegister::Aarch64X(29)])
 }
 
 pub fn function_enter_additional_machine_state() -> MachineStateSet {
-    MachineStateSet::new([MachineState::StackPointer])
+    MachineStateSet::new([MachineState::StackPointer, MachineState::ControlState])
 }
 
-pub fn encode_return_bytes() -> [u8; 28] {
-    let mut bytes = [0; 28];
-    bytes[0..4].copy_from_slice(&encode_instruction(0xA94153F3));
-    bytes[4..8].copy_from_slice(&encode_instruction(0xA9425BF5));
-    bytes[8..12].copy_from_slice(&encode_instruction(0xA94363F7));
-    bytes[12..16].copy_from_slice(&encode_instruction(0xA9446BF9));
-    bytes[16..20].copy_from_slice(&encode_instruction(0xA94573FB));
-    bytes[20..24].copy_from_slice(&encode_instruction(0xA8C67BFD));
-    bytes[24..28].copy_from_slice(&encode_instruction(0xD65F03C0));
+pub fn encode_return_bytes() -> [u8; 36] {
+    let mut bytes = [0; 36];
+    bytes[0..4].copy_from_slice(&encode_instruction(0xF94033F0)); // ldr x16, [sp, #96]
+    bytes[4..8].copy_from_slice(&encode_instruction(0xD51B4410)); // msr fpcr, x16
+    bytes[8..12].copy_from_slice(&encode_instruction(0xA94153F3));
+    bytes[12..16].copy_from_slice(&encode_instruction(0xA9425BF5));
+    bytes[16..20].copy_from_slice(&encode_instruction(0xA94363F7));
+    bytes[20..24].copy_from_slice(&encode_instruction(0xA9446BF9));
+    bytes[24..28].copy_from_slice(&encode_instruction(0xA94573FB));
+    bytes[28..32].copy_from_slice(&encode_instruction(0xA8C77BFD));
+    bytes[32..36].copy_from_slice(&encode_instruction(0xD65F03C0));
     bytes
 }
 
 /// Exact registers restored (therefore written) by the fixed AArch64 epilogue.
 /// Its final `ret x30` and post-indexed frame restore also write control and SP.
 pub fn return_register_writes() -> RegisterSet {
-    RegisterSet::new((19..=30).map(MachineRegister::Aarch64X))
+    RegisterSet::new(
+        [MachineRegister::Aarch64X(16)]
+            .into_iter()
+            .chain((19..=30).map(MachineRegister::Aarch64X)),
+    )
 }
 
 pub fn return_additional_machine_state() -> MachineStateSet {
-    MachineStateSet::new([MachineState::InstructionPointer, MachineState::StackPointer])
+    MachineStateSet::new([
+        MachineState::InstructionPointer,
+        MachineState::StackPointer,
+        MachineState::ControlState,
+    ])
 }
 
 /// The AArch64 idle instruction `wfi` (wait for interrupt, 0xD503207F) -- the
@@ -1723,6 +1739,35 @@ pub fn encode_return_register_integer_write_bytes(
 /// Exact register footprint of immediate result materialization.
 pub fn return_register_integer_write_clobbers(register: MachineRegister) -> RegisterSet {
     RegisterSet::new([register])
+}
+
+#[cfg(test)]
+mod function_control_state_tests {
+    use super::*;
+
+    #[test]
+    fn ordinary_frame_establishes_and_restores_canonical_fpcr() {
+        assert_eq!(FUNCTION_FRAME_BYTES, 112);
+        let enter = encode_function_enter_bytes();
+        let leave = encode_return_bytes();
+        assert_eq!(enter.len(), function_enter_width());
+        assert_eq!(leave.len(), return_width());
+        assert_eq!(&enter[0..4], &0xA9B9_7BFDu32.to_le_bytes());
+        assert_eq!(&enter[28..32], &0xD53B_4410u32.to_le_bytes());
+        assert_eq!(&enter[32..36], &0xF900_33F0u32.to_le_bytes());
+        assert_eq!(&enter[36..40], &0xD51B_441Fu32.to_le_bytes());
+        assert_eq!(&leave[0..4], &0xF940_33F0u32.to_le_bytes());
+        assert_eq!(&leave[4..8], &0xD51B_4410u32.to_le_bytes());
+        assert_eq!(&leave[28..32], &0xA8C7_7BFDu32.to_le_bytes());
+        assert!(
+            function_enter_additional_machine_state()
+                .contains_all(MachineStateSet::new([MachineState::ControlState]))
+        );
+        assert!(
+            return_additional_machine_state()
+                .contains_all(MachineStateSet::new([MachineState::ControlState]))
+        );
+    }
 }
 
 #[cfg(test)]

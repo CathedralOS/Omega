@@ -1037,6 +1037,7 @@ mod tests {
             MachineState::GeneralRegisters,
             MachineState::InstructionPointer,
             MachineState::StackPointer,
+            MachineState::ControlState,
         ])));
     }
 
@@ -1060,12 +1061,16 @@ mod tests {
 
         assert_eq!(
             evidence.registers().as_slice(),
-            &(19..=30).map(MachineRegister::Aarch64X).collect::<Vec<_>>()
+            &[MachineRegister::Aarch64X(16)]
+                .into_iter()
+                .chain((19..=30).map(MachineRegister::Aarch64X))
+                .collect::<Vec<_>>()
         );
         assert!(evidence.machine_state().contains_all(MachineStateSet::new([
             MachineState::GeneralRegisters,
             MachineState::InstructionPointer,
             MachineState::StackPointer,
+            MachineState::ControlState,
         ])));
     }
 

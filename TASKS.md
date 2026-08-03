@@ -750,6 +750,11 @@ ceilings, and publication-before-ledger-record all reject.
   integer/float cast spelling remains in the module; the complete named
   integer-to-float matrix plus the native provider and GUI sample cohort pin
   the migration.
+- The user-facing CLI sample corpus now has no cross-carrier `as f32`/`as f64`
+  spellings. `fibonacci_golden` uses named signed-integer-to-f64 and saturating
+  f64-to-i32 requirements, while both Mandelbrot samples use `F64::from_i32`
+  for pixel coordinates. Their residual integer casts explicitly erase an
+  arithmetic policy on the same carrier.
 - Checked-result narrowing is design-blocked on the open arithmetic-library
   question in `wiki/language_guide/appendix_open_questions.md`; do not invent a
   result family merely to mirror another language. Remaining numeric-conversion
@@ -1494,10 +1499,19 @@ and allocation handles expose no compiler-owned stack/control storage.
   edges prove the positive residual in both formats and reject substitution of
   the two-rounding provider. Generic x86-64 remains an SSE2 baseline, so its
   FMA slot deliberately remains unselected until a feature-qualified or checked
-  software realization exists. Remaining rung-3 work includes that x86-64 FMA
-  realization, directed-rounding families, checked software fallbacks,
-  canonical floating-control-state
-  preconditions/restoration, and rung-4 differential evidence.
+  software realization exists. The first canonical-control-state slice is now
+  live in every generated callable frame. x86-64 saves the incoming MXCSR,
+  installs masked exceptions plus nearest-even and gradual underflow, and
+  restores the caller's complete value; AArch64 does the same for FPCR with its
+  zero-valued canonical controls. Call-return footprint evidence now retains
+  `ControlState`, and validation authorizes that state only for prescribed
+  `CallReturn` mechanics. This establishes checked state for ordinary generated
+  entry and callbacks and restores the foreign caller on exit. It does not yet
+  discharge outbound foreign calls: each selected binding must prove that it
+  preserves the semantic controls or gain an explicit save/restore trampoline.
+  Remaining rung-3 work includes that outbound binding proof/trampoline seam,
+  x86-64 FMA realization, directed-rounding families, checked software
+  fallbacks, and rung-4 differential evidence.
   The first checked-software provider slice is now live independently of a
   float algorithm: an ordinary body may satisfy one exact named boundary
   operator without `via`, provided its machine-checked equality/`&&` ensures

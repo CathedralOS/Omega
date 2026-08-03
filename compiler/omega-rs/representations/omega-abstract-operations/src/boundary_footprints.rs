@@ -174,6 +174,7 @@ mod tests {
                 MachineStateSet::new([
                     MachineState::InstructionPointer,
                     MachineState::StackPointer,
+                    MachineState::ControlState,
                 ]),
             )
         };

@@ -672,10 +672,11 @@ pub fn validate_state_footprint(
 }
 
 /// Validate compiler-owned ordinary call-entry/return mechanics. Their
-/// stack-pointer and control-transfer effects are prescribed by `CallReturn`;
-/// they are not handler-body transitive use and therefore sit outside that
-/// ceiling. All other machine state remains constrained by the ordinary
-/// transitive ceiling, and interrupted state still has to be saved.
+/// stack-pointer, control-transfer, and canonical floating-control-state
+/// effects are prescribed by `CallReturn`; they are not handler-body
+/// transitive use and therefore sit outside that ceiling. All other machine
+/// state remains constrained by the ordinary transitive ceiling, and
+/// interrupted state still has to be saved.
 pub fn validate_call_return_mechanics_footprint(
     validated: &ValidatedBoundaryEntryPlan,
     evidence: &StateFootprintEvidence,
@@ -685,8 +686,11 @@ pub fn validate_call_return_mechanics_footprint(
             "ordinary call-return footprint evidence requires CallReturn entry control".into(),
         ));
     }
-    let prescribed_control =
-        MachineStateSet::new([MachineState::InstructionPointer, MachineState::StackPointer]);
+    let prescribed_control = MachineStateSet::new([
+        MachineState::InstructionPointer,
+        MachineState::StackPointer,
+        MachineState::ControlState,
+    ]);
     validate_state_footprint_under_ceiling(
         validated,
         evidence,

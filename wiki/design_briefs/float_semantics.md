@@ -208,6 +208,11 @@ A failure-returning conversion changes result shape. Its public name and
 carrier stay deferred with checked-result arithmetic; this does not block the
 ordinary, trapping, saturating, format, or integer-to-float requirements.
 
+The user-facing CLI sample corpus now consumes this named family for every
+integer-to-float conversion. The Fibonacci/golden-ratio sample also selects the
+saturating `I32::from_f64` result overload explicitly; its remaining integer
+cast only erases that same-carrier policy before the process-exit boundary.
+
 Rung-2 checkpoint (2026-07-29): executable policy adapters now live beside
 `FloatSemantics`. `Trapping` checks the semantic result alone, so propagating a
 pre-existing NaN or infinity traps; diagnostics may inspect the operands but
@@ -302,10 +307,15 @@ This is provider infrastructure, not an FMA implementation: the x86 slots stay
 unselected until a checked binary32/binary64 algorithm or honest feature-
 qualified target provider is present.
 Primitive spellings, the twenty-two cross-target named slots above, and two
-AArch64 FMA slots are migrated, not all of rung 3: x86-64 FMA,
-directed-rounding families, checked software fallbacks, canonical
-floating-control-state proof/restoration, and admitted-hardware differential
-evidence remain.
+AArch64 FMA slots are migrated, not all of rung 3. Fixed generated callable
+frames now save the caller's complete MXCSR/FPCR, install Omega's canonical
+semantic controls, and restore the caller's value on return. Their composed
+footprints retain `ControlState`, which the state validator admits only as
+prescribed `CallReturn` mechanics. This covers ordinary generated entry and
+the callback entry/exit seam. Outbound foreign bindings still need an explicit
+preservation proof or save/restore trampoline; x86-64 FMA, directed-rounding
+families, checked software fallbacks, and admitted-hardware differential
+evidence remain as well.
 
 ## 2. Domains: the value/policy split
 
