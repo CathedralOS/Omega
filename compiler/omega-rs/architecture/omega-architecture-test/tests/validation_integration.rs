@@ -135,6 +135,49 @@ fn local_dynamic_call_rejects_self_result() {
 }
 
 #[test]
+fn named_whole_trait_conformance_survives_typing() {
+    let typed = typed_program_from_source(
+        r#"
+        trait Marker {}
+        data Item {}
+        Item satisfies Marker as Primary;
+        "#,
+    );
+
+    let [conformance] = typed.data_conformances() else {
+        panic!("one conformance");
+    };
+    assert_eq!(conformance.type_name.as_str(), "Item");
+    assert_eq!(conformance.trait_name.as_str(), "Marker");
+    assert_eq!(
+        conformance.alias.as_ref().map(|alias| alias.as_str()),
+        Some("Primary")
+    );
+    validate_program(&typed).expect("one named conformance should validate");
+}
+
+#[test]
+fn duplicate_named_whole_trait_conformance_rejects() {
+    let typed = typed_program_from_source(
+        r#"
+        trait Left {}
+        trait Right {}
+        data Item {}
+        Item satisfies Left as Primary;
+        Item satisfies Right as Primary;
+        "#,
+    );
+
+    let diagnostics =
+        validate_program(&typed).expect_err("a conformance path must be unique within its type");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("data `Item` declares conformance name `Primary` more than once")
+    }));
+}
+
+#[test]
 fn exact_qualification_may_publish_one_checked_content_projection() {
     let typed = typed_program_from_source(
         r#"

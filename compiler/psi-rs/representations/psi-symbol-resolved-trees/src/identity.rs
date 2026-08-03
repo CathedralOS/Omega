@@ -107,6 +107,9 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
     for conformance in &program.conformances {
         count_declaration_name(&conformance.type_name, &mut counts);
         count_declaration_name(&conformance.trait_name, &mut counts);
+        if let Some(alias) = &conformance.alias {
+            count_declaration_name(alias, &mut counts);
+        }
         for argument in child_type_references.span_or_empty(conformance.arguments) {
             count_type_reference(
                 argument,

@@ -95,6 +95,7 @@ pub fn lower_symbol_resolved_trees(
             type_name: crate::name::lower_name(&conformance.type_name),
             trait_name: crate::name::lower_name(&conformance.trait_name),
             arguments,
+            alias: conformance.alias.as_ref().map(crate::name::lower_name),
         };
         lowerer.typed_trees.push_data_conformance(conformance);
     }

@@ -318,7 +318,7 @@ fn parses_generic_standalone_conformance_arguments() {
         data Adapter {
         }
 
-        Adapter satisfies Converter<i32, bool>;
+        Adapter satisfies Converter<i32, bool> as ScalarConversion;
     "#;
 
     let tokens = Lexer::new(source)
@@ -344,6 +344,10 @@ fn parses_generic_standalone_conformance_arguments() {
         parsed.type_references.type_reference(arguments[1]),
         TypeReferenceNode::Named(name) if name.as_str() == "bool"
     ));
+    assert_eq!(
+        conformance.alias.as_ref().map(|alias| alias.as_str()),
+        Some("ScalarConversion")
+    );
 }
 
 #[test]

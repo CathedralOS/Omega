@@ -195,6 +195,7 @@ impl SyntaxTrees {
                 trait_name: conformance.trait_name.clone(),
                 trait_arguments: self
                     .copy_type_reference_handle_span(other, conformance.trait_arguments),
+                alias: conformance.alias.clone(),
             }),
             Item::Const(constant) => Item::Const(crate::item::ConstDefinition {
                 scope: constant.scope.clone(),

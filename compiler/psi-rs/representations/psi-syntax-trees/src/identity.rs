@@ -55,6 +55,9 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
         Item::Conformance(conformance) => {
             count_identifier(&conformance.type_name, counts);
             count_identifier(&conformance.trait_name, counts);
+            if let Some(alias) = &conformance.alias {
+                count_identifier(alias, counts);
+            }
             for argument in syntax_trees
                 .type_references
                 .type_reference_handles(conformance.trait_arguments)

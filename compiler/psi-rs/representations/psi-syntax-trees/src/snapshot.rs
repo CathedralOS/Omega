@@ -53,6 +53,8 @@ pub enum ItemSnapshot {
         type_name: IdentifierSnapshot,
         trait_name: IdentifierSnapshot,
         trait_arguments: Vec<TypeReferenceSnapshot>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        alias: Option<IdentifierSnapshot>,
     },
     Const {
         scope: IdentifierSnapshot,
@@ -633,6 +635,7 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                 .iter()
                 .map(|argument| snapshot_type_reference_handle(syntax_trees, *argument))
                 .collect(),
+            alias: value.alias.as_ref().map(snapshot_identifier),
         },
         Item::Const(value) => ItemSnapshot::Const {
             scope: snapshot_identifier(&value.scope),

@@ -96,6 +96,9 @@ pub fn count_identity_storage(typed_trees: &TypedTrees) -> IdentityStorageCounts
     for conformance in typed_trees.data_conformances() {
         count_declaration_name(&conformance.type_name, &mut counts);
         count_declaration_name(&conformance.trait_name, &mut counts);
+        if let Some(alias) = &conformance.alias {
+            count_declaration_name(alias, &mut counts);
+        }
         for argument in typed_trees
             .type_reference_table
             .type_reference_handles(conformance.arguments)

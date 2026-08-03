@@ -30,14 +30,15 @@ impl Default for TraitDefinition {
     }
 }
 
-/// A standalone conformance item (`Point satisfies Equatable;`, frozen
-/// decision 8): a data type claims a whole, optionally generic trait;
+/// A standalone conformance item (`Point satisfies Equatable as ValueEq;`,
+/// frozen decision 8): a data type claims a whole, optionally generic trait;
 /// validation checks its written/default attached machines.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DataConformance {
     pub type_name: Identifier,
     pub trait_name: Identifier,
     pub arguments: HandleSpan<crate::types::TypeReferenceHandle>,
+    pub alias: Option<Identifier>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
