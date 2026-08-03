@@ -914,15 +914,28 @@ fn aggregate_argument_projection(
         return Some(expression);
     };
     match (head, program.expression_table.expression(expression)) {
-        (ContentPlaceSegment::Field(expected), ExpressionNode::StructLiteral(literal))
-            if literal.case_name.is_none() =>
+        (ContentPlaceSegment::Case(expected), ExpressionNode::StructLiteral(literal))
+            if literal
+                .case_name
+                .as_ref()
+                .is_some_and(|case| case.as_str() == expected.name) =>
         {
+            aggregate_argument_projection(program, expression, tail)
+        }
+        (ContentPlaceSegment::Field(expected), ExpressionNode::StructLiteral(literal)) => {
             let field = program
                 .expression_table
                 .struct_fields(literal.fields)
                 .iter()
                 .find(|field| field.name.as_str() == expected.name)?;
             aggregate_argument_projection(program, field.value, tail)
+        }
+        (ContentPlaceSegment::FixedIndex(index), ExpressionNode::ArrayLiteral(values)) => {
+            let value = program
+                .expression_table
+                .expression_handles(*values)
+                .get(usize::try_from(*index).ok()?)?;
+            aggregate_argument_projection(program, *value, tail)
         }
         _ => None,
     }
@@ -1139,29 +1152,34 @@ fn contract_structural_place(
                 .expression_table
                 .name_path_member_symbols(path.member_symbols);
             let root_symbol = symbols.first().copied().unwrap_or(path.head_symbol);
-            let segments = names
-                .iter()
-                .enumerate()
-                .skip(1)
-                .map(|(index, name)| {
-                    ContentPlaceSegment::Field(ContentFieldSegment {
-                        symbol: symbols
-                            .get(index)
-                            .copied()
-                            .unwrap_or(SymbolHandle::invalid()),
-                        name: name.as_str().to_owned(),
-                    })
-                })
-                .collect();
+            let segments =
+                names
+                    .iter()
+                    .enumerate()
+                    .skip(1)
+                    .fold(Vec::new(), |mut segments, (index, name)| {
+                        push_contract_field(
+                            program,
+                            &mut segments,
+                            symbols
+                                .get(index)
+                                .copied()
+                                .unwrap_or(SymbolHandle::invalid()),
+                            name.as_str(),
+                        );
+                        segments
+                    });
             Some((root, root_symbol, segments))
         }
         ExpressionNode::Member(member) => {
             let (root, root_symbol, mut segments) =
                 contract_structural_place(program, member.receiver)?;
-            segments.push(ContentPlaceSegment::Field(ContentFieldSegment {
-                symbol: member.member_symbol,
-                name: member.member.as_str().to_owned(),
-            }));
+            push_contract_field(
+                program,
+                &mut segments,
+                member.member_symbol,
+                member.member.as_str(),
+            );
             Some((root, root_symbol, segments))
         }
         ExpressionNode::Indexed(indexed) => {
@@ -1177,6 +1195,26 @@ fn contract_structural_place(
         ExpressionNode::Mutable(inner) => contract_structural_place(program, *inner),
         _ => None,
     }
+}
+
+fn push_contract_field(
+    program: &TypedTrees,
+    segments: &mut Vec<ContentPlaceSegment>,
+    field_symbol: SymbolHandle,
+    field_name: &str,
+) {
+    if let Some(variant_symbol) = psi_facts::payload_variant_for_field(program, field_symbol)
+        && let Some(variant_name) = data_variant_name(program, variant_symbol)
+    {
+        segments.push(ContentPlaceSegment::Case(ContentCaseSegment {
+            symbol: variant_symbol,
+            name: variant_name.to_owned(),
+        }));
+    }
+    segments.push(ContentPlaceSegment::Field(ContentFieldSegment {
+        symbol: field_symbol,
+        name: field_name.to_owned(),
+    }));
 }
 
 fn content_paths_match(left: &[ContentPlaceSegment], right: &[ContentPlaceSegment]) -> bool {

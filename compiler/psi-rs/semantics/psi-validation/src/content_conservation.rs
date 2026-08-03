@@ -7,10 +7,10 @@
 
 use psi_diagnostics::Diagnostic;
 use psi_language_semantics::content::{
-    ContentAlgebraIdentity, ContentConservationEquation, ContentConservationOwnerKind,
-    ContentConservationPlan, ContentConservationTerm, ContentFieldSegment, ContentPlaceRoot,
-    ContentPlaceSegment, ContentPlaceVersion, ContentProjectionPlan, ContentStructuralPlace,
-    conservation_fingerprint,
+    ContentAlgebraIdentity, ContentCaseSegment, ContentConservationEquation,
+    ContentConservationOwnerKind, ContentConservationPlan, ContentConservationTerm,
+    ContentFieldSegment, ContentPlaceRoot, ContentPlaceSegment, ContentPlaceVersion,
+    ContentProjectionPlan, ContentStructuralPlace, conservation_fingerprint,
 };
 use psi_symbols::{BuiltinFunction, SymbolHandle};
 use psi_typed_trees::TypedTrees;
@@ -399,6 +399,7 @@ fn normalize_projection_subject(
     };
 
     let final_type = structural_place_type(context.program, root_type, &mut segments)?;
+    retain_payload_case_segments(context.program, &mut segments);
     let carrier = crate::places::unwrapped_type_reference(context.program, final_type)
         .ok_or_else(|| "the projected structural place has no resolved carrier type".to_owned())?;
     let carrier_identity = context
@@ -448,22 +449,26 @@ fn collect_structural_place(
             let root_symbol = symbols.first().copied().unwrap_or(path.head_symbol);
             let mut segments = Vec::new();
             for (index, name) in names.iter().enumerate().skip(1) {
-                segments.push(ContentPlaceSegment::Field(ContentFieldSegment {
-                    symbol: symbols
+                push_structural_field(
+                    program,
+                    &mut segments,
+                    symbols
                         .get(index)
                         .copied()
                         .unwrap_or(SymbolHandle::invalid()),
-                    name: name.as_str().to_owned(),
-                }));
+                    name.as_str(),
+                );
             }
             Ok((root_name, root_symbol, segments))
         }
         ExpressionNode::Member(member) => {
             let (root, symbol, mut segments) = collect_structural_place(program, member.receiver)?;
-            segments.push(ContentPlaceSegment::Field(ContentFieldSegment {
-                symbol: member.member_symbol,
-                name: member.member.as_str().to_owned(),
-            }));
+            push_structural_field(
+                program,
+                &mut segments,
+                member.member_symbol,
+                member.member.as_str(),
+            );
             Ok((root, symbol, segments))
         }
         ExpressionNode::Indexed(indexed) => {
@@ -489,6 +494,58 @@ fn collect_structural_place(
             program.expression_table.display_name(expression),
         )),
     }
+}
+
+fn push_structural_field(
+    program: &TypedTrees,
+    segments: &mut Vec<ContentPlaceSegment>,
+    field_symbol: SymbolHandle,
+    field_name: &str,
+) {
+    if let Some(variant_symbol) = psi_facts::payload_variant_for_field(program, field_symbol)
+        && let Some(variant_name) = data_variant_name(program, variant_symbol)
+    {
+        segments.push(ContentPlaceSegment::Case(ContentCaseSegment {
+            symbol: variant_symbol,
+            name: variant_name.to_owned(),
+        }));
+    }
+    segments.push(ContentPlaceSegment::Field(ContentFieldSegment {
+        symbol: field_symbol,
+        name: field_name.to_owned(),
+    }));
+}
+
+fn retain_payload_case_segments(program: &TypedTrees, segments: &mut Vec<ContentPlaceSegment>) {
+    let source = std::mem::take(segments);
+    for segment in source {
+        if let ContentPlaceSegment::Field(field) = &segment
+            && let Some(variant_symbol) =
+                psi_facts::payload_variant_for_field(program, field.symbol)
+            && !matches!(
+                segments.last(),
+                Some(ContentPlaceSegment::Case(case)) if case.symbol == variant_symbol
+            )
+            && let Some(variant_name) = data_variant_name(program, variant_symbol)
+        {
+            segments.push(ContentPlaceSegment::Case(ContentCaseSegment {
+                symbol: variant_symbol,
+                name: variant_name.to_owned(),
+            }));
+        }
+        segments.push(segment);
+    }
+}
+
+fn data_variant_name(program: &TypedTrees, variant_symbol: SymbolHandle) -> Option<&str> {
+    program.data_definitions().iter().find_map(|definition| {
+        program.data_members(definition).iter().find_map(|member| {
+            let psi_typed_trees::data::DataMember::Variant(variant) = member else {
+                return None;
+            };
+            (variant.symbol == variant_symbol).then_some(variant.name.as_str())
+        })
+    })
 }
 
 fn structural_place_type(
