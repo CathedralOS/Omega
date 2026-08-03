@@ -56,7 +56,7 @@ Omega/
 |-- compiler/
 |   |-- psi-rs/                                         # Psi owns target-neutral semantics through terminal Psi.
 |   |   |-- foundation/
-|   |   |   |-- [CRATE] psi-source/                     # Source coordinates owned by the Psi frontend.
+|   |   |   |-- [CRATE] psi-source/                     # Loaded-source data and coordinates owned by the Psi frontend.
 |   |   |   `-- [CRATE] psi-core/                       # Stable semantic ids and typed proposition vocabulary.
 |   |   |-- representations/
 |   |   |   |-- [CRATE] psi-tokens/                     # Omega spelling-level token streams.
