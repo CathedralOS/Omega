@@ -30,11 +30,21 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.semantic_version, SemanticVersion::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "f5939272cbb8d15cd8201a16ba7eed0b6851398996d416752b415c7aef7aeb4a"
+        "6cc8107a9a366b943151ecf8c766065d77d4ea1bb9c3b62c5603471e2e25e6e6"
     );
     assert_eq!(
         identity.program_fingerprint,
         semantic_fingerprint(&module).unwrap()
+    );
+}
+
+#[test]
+fn archived_v12_current_fixture_keeps_its_identity() {
+    let mut module = fixture();
+    module.semantic_version = SemanticVersion::V12;
+    assert_eq!(
+        semantic_fingerprint(&module).unwrap().to_string(),
+        "f5939272cbb8d15cd8201a16ba7eed0b6851398996d416752b415c7aef7aeb4a"
     );
 }
 

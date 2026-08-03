@@ -3,11 +3,12 @@
 //! Lower verified terminal Psi into source-independent Omega realization
 //! requirements.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use omega_terminal_abstract_operations::{
-    TerminalAbstractFunction, TerminalAbstractOperation, TerminalAbstractOperationPlan,
-    TerminalAbstractParameter, TerminalAbstractResult, TerminalValueBinding,
+    TerminalAbstractBlockEntry, TerminalAbstractFunction, TerminalAbstractOperation,
+    TerminalAbstractOperationPlan, TerminalAbstractParameter, TerminalAbstractResult,
+    TerminalAbstractSuccessor, TerminalValueBinding,
 };
 use psi_core::{BlockId, MachineId, ScalarType};
 use psi_terminal::{OperationKind, TerminalMachine, Terminator};
@@ -47,23 +48,13 @@ fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, 
         .map(|block| (block.id, block))
         .collect::<BTreeMap<_, _>>();
     let mut operations = Vec::new();
-    let mut visited = BTreeSet::new();
-    let mut current = machine.entry;
+    let mut block_entries = Vec::with_capacity(machine.blocks.len());
 
-    loop {
-        if !visited.insert(current) {
-            return Err(LoweringError::VerifiedControlCycle {
-                machine: machine.id,
-                block: current,
-            });
-        }
-        let block = blocks
-            .get(&current)
-            .copied()
-            .ok_or(LoweringError::VerifiedBlockMissing {
-                machine: machine.id,
-                block: current,
-            })?;
+    for block in &machine.blocks {
+        block_entries.push(TerminalAbstractBlockEntry {
+            block: block.id,
+            operation_offset: operations.len(),
+        });
         for operation in &block.operations {
             match operation.kind {
                 OperationKind::IntegerConstant { value } => {
@@ -194,7 +185,44 @@ fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, 
                         })
                         .collect(),
                 });
-                current = *target;
+            }
+            Terminator::Conditional {
+                condition,
+                when_true,
+                when_false,
+            } => {
+                let lower_successor = |successor: &psi_terminal::SuccessorEdge| {
+                    let target_block = blocks.get(&successor.target).copied().ok_or(
+                        LoweringError::VerifiedBlockMissing {
+                            machine: machine.id,
+                            block: successor.target,
+                        },
+                    )?;
+                    if target_block.parameters.len() != successor.arguments.len() {
+                        return Err(LoweringError::VerifiedJumpArityMismatch {
+                            edge: successor.edge,
+                        });
+                    }
+                    Ok(TerminalAbstractSuccessor {
+                        psi_edge: successor.edge,
+                        target: successor.target,
+                        bindings: target_block
+                            .parameters
+                            .iter()
+                            .zip(&successor.arguments)
+                            .map(|(parameter, argument)| TerminalValueBinding {
+                                parameter: parameter.id,
+                                argument: *argument,
+                                scalar_type: parameter.scalar_type,
+                            })
+                            .collect(),
+                    })
+                };
+                operations.push(TerminalAbstractOperation::Conditional {
+                    condition: *condition,
+                    when_true: lower_successor(when_true)?,
+                    when_false: lower_successor(when_false)?,
+                });
             }
             Terminator::Return { edge, value } => {
                 operations.push(TerminalAbstractOperation::Return {
@@ -203,7 +231,6 @@ fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, 
                     value: *value,
                     scalar_type: machine.result.scalar_type,
                 });
-                break;
             }
         }
     }
@@ -223,6 +250,7 @@ fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, 
             value: machine.result.id,
             scalar_type: machine.result.scalar_type,
         },
+        block_entries,
         operations,
     })
 }

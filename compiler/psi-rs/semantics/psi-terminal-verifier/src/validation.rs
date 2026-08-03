@@ -57,6 +57,7 @@ pub fn validate_module(
             | SemanticVersion::V10
             | SemanticVersion::V11
             | SemanticVersion::V12
+            | SemanticVersion::V13
     ) {
         return Err(ModuleError::UnsupportedSemanticVersion(
             module.semantic_version,
@@ -309,11 +310,18 @@ fn validate_machine(
                 }
             }
         }
-        insert_unique(
-            &mut registry.edges,
-            block.terminator.edge(),
-            ModuleError::DuplicateEdge,
-        )?;
+        if semantic_version < SemanticVersion::V13
+            && matches!(block.terminator, Terminator::Conditional { .. })
+        {
+            return Err(ModuleError::ConditionalRequiresSemanticVersion {
+                block: block.id,
+                required: SemanticVersion::V13,
+                actual: semantic_version,
+            });
+        }
+        for edge in block.terminator.edges() {
+            insert_unique(&mut registry.edges, edge, ModuleError::DuplicateEdge)?;
+        }
     }
 
     let Some(entry) = blocks.get(&machine.entry) else {
@@ -395,7 +403,7 @@ fn validate_machine(
         )?;
     }
 
-    validate_straight_line_flow(machine, &blocks, &value_types)
+    validate_control_flow(machine, &blocks, &value_types)
 }
 
 fn validate_content_identity_reshuffles(
@@ -1037,163 +1045,194 @@ fn validate_term_scope(
     Ok(())
 }
 
-fn validate_straight_line_flow(
+fn validate_control_flow(
     machine: &TerminalMachine,
     blocks: &BTreeMap<BlockId, &psi_terminal::Block>,
     value_types: &BTreeMap<ValueId, ScalarType>,
 ) -> Result<(), ModuleError> {
-    let mut defined = machine
+    let globally_defined = machine
         .parameters
         .iter()
         .map(|parameter| parameter.id)
         .collect::<BTreeSet<_>>();
-    let mut visited = BTreeSet::new();
-    let mut current = machine.entry;
-
-    loop {
-        if !visited.insert(current) {
-            return Err(ModuleError::ControlCycle(current));
-        }
-        let block = blocks
-            .get(&current)
-            .copied()
-            .ok_or(ModuleError::UnknownTargetBlock(current))?;
+    let mut definition_blocks = BTreeMap::new();
+    for block in blocks.values() {
         for parameter in &block.parameters {
-            defined.insert(parameter.id);
+            definition_blocks.insert(parameter.id, block.id);
         }
         for operation in &block.operations {
-            if let Some((left, right, arithmetic)) = match operation.kind {
-                OperationKind::WrappingIntegerAdd { left, right } => {
-                    Some((left, right, ArithmeticOperandKind::WrappingAdd))
-                }
-                OperationKind::SaturatingIntegerAdd { left, right } => {
-                    Some((left, right, ArithmeticOperandKind::SaturatingAdd))
-                }
-                OperationKind::WrappingIntegerSubtract { left, right } => {
-                    Some((left, right, ArithmeticOperandKind::WrappingSubtract))
-                }
-                OperationKind::SaturatingIntegerSubtract { left, right } => {
-                    Some((left, right, ArithmeticOperandKind::SaturatingSubtract))
-                }
-                OperationKind::WrappingIntegerMultiply { left, right } => {
-                    Some((left, right, ArithmeticOperandKind::WrappingMultiply))
-                }
-                OperationKind::SaturatingIntegerMultiply { left, right } => {
-                    Some((left, right, ArithmeticOperandKind::SaturatingMultiply))
-                }
-                OperationKind::IntegerConstant { .. } | OperationKind::BooleanConstant { .. } => {
-                    None
-                }
-            } {
-                let ScalarType::Integer(integer_type) = operation.result.scalar_type else {
-                    unreachable!("operation shape validation requires an integer result")
-                };
-                for operand in [left, right] {
-                    if !defined.contains(&operand) {
-                        return Err(ModuleError::ValueUsedBeforeDefinition(operand));
-                    }
-                    let actual = value_types
-                        .get(&operand)
-                        .copied()
-                        .ok_or(ModuleError::UnknownValue(operand))?;
-                    let expected = ScalarType::Integer(integer_type);
-                    if actual != expected {
-                        return Err(match arithmetic {
-                            ArithmeticOperandKind::SaturatingAdd => {
-                                ModuleError::SaturatingIntegerAddOperandTypeMismatch {
-                                    operation: operation.id,
-                                    operand,
-                                    expected,
-                                    actual,
-                                }
-                            }
-                            ArithmeticOperandKind::WrappingAdd => {
-                                ModuleError::WrappingIntegerAddOperandTypeMismatch {
-                                    operation: operation.id,
-                                    operand,
-                                    expected,
-                                    actual,
-                                }
-                            }
-                            ArithmeticOperandKind::WrappingSubtract => {
-                                ModuleError::WrappingIntegerSubtractOperandTypeMismatch {
-                                    operation: operation.id,
-                                    operand,
-                                    expected,
-                                    actual,
-                                }
-                            }
-                            ArithmeticOperandKind::SaturatingSubtract => {
-                                ModuleError::SaturatingIntegerSubtractOperandTypeMismatch {
-                                    operation: operation.id,
-                                    operand,
-                                    expected,
-                                    actual,
-                                }
-                            }
-                            ArithmeticOperandKind::WrappingMultiply => {
-                                ModuleError::WrappingIntegerMultiplyOperandTypeMismatch {
-                                    operation: operation.id,
-                                    operand,
-                                    expected,
-                                    actual,
-                                }
-                            }
-                            ArithmeticOperandKind::SaturatingMultiply => {
-                                ModuleError::SaturatingIntegerMultiplyOperandTypeMismatch {
-                                    operation: operation.id,
-                                    operand,
-                                    expected,
-                                    actual,
-                                }
-                            }
-                        });
-                    }
-                }
+            definition_blocks.insert(operation.result.id, block.id);
+        }
+    }
+
+    let mut successors = BTreeMap::<BlockId, Vec<BlockId>>::new();
+    let mut predecessors = blocks
+        .keys()
+        .map(|block| (*block, Vec::<BlockId>::new()))
+        .collect::<BTreeMap<_, _>>();
+    for block in blocks.values() {
+        let targets = match &block.terminator {
+            Terminator::Jump { target, .. } => vec![*target],
+            Terminator::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => vec![when_true.target, when_false.target],
+            Terminator::Return { .. } => Vec::new(),
+        };
+        for target in &targets {
+            if !blocks.contains_key(target) {
+                return Err(ModuleError::UnknownTargetBlock(*target));
             }
+            predecessors
+                .get_mut(target)
+                .expect("known target has a predecessor row")
+                .push(block.id);
+        }
+        successors.insert(block.id, targets);
+    }
+
+    let mut reachable = BTreeSet::new();
+    let mut pending = vec![machine.entry];
+    while let Some(block) = pending.pop() {
+        if reachable.insert(block) {
+            pending.extend(
+                successors
+                    .get(&block)
+                    .expect("every block has successors")
+                    .iter()
+                    .copied(),
+            );
+        }
+    }
+    if reachable.len() != blocks.len() {
+        let block = blocks
+            .keys()
+            .find(|block| !reachable.contains(block))
+            .copied()
+            .expect("different set lengths guarantee an unreachable block");
+        return Err(ModuleError::UnreachableBlock(block));
+    }
+
+    let mut indegree = predecessors
+        .iter()
+        .map(|(block, incoming)| (*block, incoming.len()))
+        .collect::<BTreeMap<_, _>>();
+    let mut ready = indegree
+        .iter()
+        .filter_map(|(block, count)| (*count == 0).then_some(*block))
+        .collect::<BTreeSet<_>>();
+    let mut order = Vec::with_capacity(blocks.len());
+    while let Some(block) = ready.pop_first() {
+        order.push(block);
+        for target in successors.get(&block).expect("every block has successors") {
+            let count = indegree
+                .get_mut(target)
+                .expect("known target has an indegree");
+            *count -= 1;
+            if *count == 0 {
+                ready.insert(*target);
+            }
+        }
+    }
+    if order.len() != blocks.len() {
+        let block = indegree
+            .iter()
+            .find_map(|(block, count)| (*count != 0).then_some(*block))
+            .expect("a cyclic graph leaves positive indegree");
+        return Err(ModuleError::ControlCycle(block));
+    }
+
+    let mut dominators = BTreeMap::<BlockId, BTreeSet<BlockId>>::new();
+    for block in &order {
+        let incoming = predecessors
+            .get(block)
+            .expect("every block has predecessors");
+        let mut set = if *block == machine.entry {
+            BTreeSet::new()
+        } else {
+            let mut incoming = incoming.iter();
+            let first = incoming
+                .next()
+                .expect("reachable non-entry block has a predecessor");
+            let mut intersection = dominators
+                .get(first)
+                .expect("topological predecessor has dominators")
+                .clone();
+            for predecessor in incoming {
+                intersection = intersection
+                    .intersection(
+                        dominators
+                            .get(predecessor)
+                            .expect("topological predecessor has dominators"),
+                    )
+                    .copied()
+                    .collect();
+            }
+            intersection
+        };
+        set.insert(*block);
+        dominators.insert(*block, set);
+    }
+
+    for block_id in order {
+        let block = blocks
+            .get(&block_id)
+            .copied()
+            .expect("topological order contains known blocks");
+        let block_dominators = dominators
+            .get(&block_id)
+            .expect("every ordered block has dominators");
+        let mut defined = globally_defined.clone();
+        defined.extend(block.parameters.iter().map(|parameter| parameter.id));
+        defined.extend(definition_blocks.iter().filter_map(|(value, definition)| {
+            (*definition != block_id && block_dominators.contains(definition)).then_some(*value)
+        }));
+        for operation in &block.operations {
+            validate_operation_operands(operation, value_types, &defined)?;
             defined.insert(operation.result.id);
         }
         match &block.terminator {
             Terminator::Jump {
-                target, arguments, ..
+                edge,
+                target,
+                arguments,
+            } => validate_successor_bindings(
+                *edge,
+                *target,
+                arguments,
+                blocks,
+                value_types,
+                &defined,
+            )?,
+            Terminator::Conditional {
+                condition,
+                when_true,
+                when_false,
             } => {
-                let target_block = blocks
-                    .get(target)
-                    .copied()
-                    .ok_or(ModuleError::UnknownTargetBlock(*target))?;
-                if target_block.parameters.len() != arguments.len() {
-                    return Err(ModuleError::JumpArityMismatch {
-                        edge: block.terminator.edge(),
-                        expected: target_block.parameters.len(),
-                        actual: arguments.len(),
+                require_defined(*condition, value_types, &defined)?;
+                let actual = value_types[condition];
+                if actual != ScalarType::Boolean {
+                    return Err(ModuleError::ConditionalConditionTypeMismatch {
+                        block: block.id,
+                        condition: *condition,
+                        actual,
                     });
                 }
-                for (argument, parameter) in arguments.iter().zip(&target_block.parameters) {
-                    if !defined.contains(argument) {
-                        return Err(ModuleError::ValueUsedBeforeDefinition(*argument));
-                    }
-                    let argument_type = value_types
-                        .get(argument)
-                        .copied()
-                        .ok_or(ModuleError::UnknownValue(*argument))?;
-                    if argument_type != parameter.scalar_type {
-                        return Err(ModuleError::JumpTypeMismatch {
-                            edge: block.terminator.edge(),
-                            argument: argument_type,
-                            parameter: parameter.scalar_type,
-                        });
-                    }
+                for successor in [when_true, when_false] {
+                    validate_successor_bindings(
+                        successor.edge,
+                        successor.target,
+                        &successor.arguments,
+                        blocks,
+                        value_types,
+                        &defined,
+                    )?;
                 }
-                current = *target;
             }
             Terminator::Return { value, .. } => {
-                if !defined.contains(value) {
-                    return Err(ModuleError::ValueUsedBeforeDefinition(*value));
-                }
-                let value_type = value_types
-                    .get(value)
-                    .copied()
-                    .ok_or(ModuleError::UnknownValue(*value))?;
+                require_defined(*value, value_types, &defined)?;
+                let value_type = value_types[value];
                 if value_type != machine.result.scalar_type {
                     return Err(ModuleError::ReturnTypeMismatch {
                         machine: machine.id,
@@ -1201,23 +1240,150 @@ fn validate_straight_line_flow(
                         result: machine.result.scalar_type,
                     });
                 }
-                break;
             }
         }
-    }
-
-    if visited.len() != blocks.len() {
-        let block = blocks
-            .keys()
-            .find(|block| !visited.contains(block))
-            .copied()
-            .expect("different set lengths guarantee an unvisited block");
-        return Err(ModuleError::UnreachableBlock(block));
     }
     Ok(())
 }
 
-#[derive(Debug, Clone, Copy)]
+fn validate_operation_operands(
+    operation: &psi_terminal::Operation,
+    value_types: &BTreeMap<ValueId, ScalarType>,
+    defined: &BTreeSet<ValueId>,
+) -> Result<(), ModuleError> {
+    let Some((left, right, arithmetic)) = (match operation.kind {
+        OperationKind::WrappingIntegerAdd { left, right } => {
+            Some((left, right, ArithmeticOperandKind::WrappingAdd))
+        }
+        OperationKind::SaturatingIntegerAdd { left, right } => {
+            Some((left, right, ArithmeticOperandKind::SaturatingAdd))
+        }
+        OperationKind::WrappingIntegerSubtract { left, right } => {
+            Some((left, right, ArithmeticOperandKind::WrappingSubtract))
+        }
+        OperationKind::SaturatingIntegerSubtract { left, right } => {
+            Some((left, right, ArithmeticOperandKind::SaturatingSubtract))
+        }
+        OperationKind::WrappingIntegerMultiply { left, right } => {
+            Some((left, right, ArithmeticOperandKind::WrappingMultiply))
+        }
+        OperationKind::SaturatingIntegerMultiply { left, right } => {
+            Some((left, right, ArithmeticOperandKind::SaturatingMultiply))
+        }
+        OperationKind::IntegerConstant { .. } | OperationKind::BooleanConstant { .. } => None,
+    }) else {
+        return Ok(());
+    };
+    let ScalarType::Integer(integer_type) = operation.result.scalar_type else {
+        unreachable!("operation shape validation requires an integer result")
+    };
+    for operand in [left, right] {
+        require_defined(operand, value_types, defined)?;
+        let actual = value_types[&operand];
+        let expected = ScalarType::Integer(integer_type);
+        if actual != expected {
+            return Err(match arithmetic {
+                ArithmeticOperandKind::SaturatingAdd => {
+                    ModuleError::SaturatingIntegerAddOperandTypeMismatch {
+                        operation: operation.id,
+                        operand,
+                        expected,
+                        actual,
+                    }
+                }
+                ArithmeticOperandKind::WrappingAdd => {
+                    ModuleError::WrappingIntegerAddOperandTypeMismatch {
+                        operation: operation.id,
+                        operand,
+                        expected,
+                        actual,
+                    }
+                }
+                ArithmeticOperandKind::WrappingSubtract => {
+                    ModuleError::WrappingIntegerSubtractOperandTypeMismatch {
+                        operation: operation.id,
+                        operand,
+                        expected,
+                        actual,
+                    }
+                }
+                ArithmeticOperandKind::SaturatingSubtract => {
+                    ModuleError::SaturatingIntegerSubtractOperandTypeMismatch {
+                        operation: operation.id,
+                        operand,
+                        expected,
+                        actual,
+                    }
+                }
+                ArithmeticOperandKind::WrappingMultiply => {
+                    ModuleError::WrappingIntegerMultiplyOperandTypeMismatch {
+                        operation: operation.id,
+                        operand,
+                        expected,
+                        actual,
+                    }
+                }
+                ArithmeticOperandKind::SaturatingMultiply => {
+                    ModuleError::SaturatingIntegerMultiplyOperandTypeMismatch {
+                        operation: operation.id,
+                        operand,
+                        expected,
+                        actual,
+                    }
+                }
+            });
+        }
+    }
+    Ok(())
+}
+
+fn require_defined(
+    value: ValueId,
+    value_types: &BTreeMap<ValueId, ScalarType>,
+    defined: &BTreeSet<ValueId>,
+) -> Result<(), ModuleError> {
+    if !defined.contains(&value) {
+        return Err(ModuleError::ValueUsedBeforeDefinition(value));
+    }
+    if !value_types.contains_key(&value) {
+        return Err(ModuleError::UnknownValue(value));
+    }
+    Ok(())
+}
+
+fn validate_successor_bindings(
+    edge: EdgeId,
+    target: BlockId,
+    arguments: &[ValueId],
+    blocks: &BTreeMap<BlockId, &psi_terminal::Block>,
+    value_types: &BTreeMap<ValueId, ScalarType>,
+    defined: &BTreeSet<ValueId>,
+) -> Result<(), ModuleError> {
+    let target_block = blocks
+        .get(&target)
+        .copied()
+        .ok_or(ModuleError::UnknownTargetBlock(target))?;
+    if target_block.parameters.len() != arguments.len() {
+        return Err(ModuleError::JumpArityMismatch {
+            edge,
+            expected: target_block.parameters.len(),
+            actual: arguments.len(),
+        });
+    }
+    for (argument, parameter) in arguments.iter().zip(&target_block.parameters) {
+        require_defined(*argument, value_types, defined)?;
+        let argument_type = value_types[argument];
+        if argument_type != parameter.scalar_type {
+            return Err(ModuleError::JumpTypeMismatch {
+                edge,
+                argument: argument_type,
+                parameter: parameter.scalar_type,
+            });
+        }
+    }
+    Ok(())
+}
+
 enum ArithmeticOperandKind {
     WrappingAdd,
     SaturatingAdd,
@@ -1319,6 +1485,11 @@ pub enum ModuleError {
     },
     ContentPartitionCompositionsRequireSemanticVersion {
         machine: MachineId,
+        required: SemanticVersion,
+        actual: SemanticVersion,
+    },
+    ConditionalRequiresSemanticVersion {
+        block: BlockId,
         required: SemanticVersion,
         actual: SemanticVersion,
     },
@@ -1432,6 +1603,11 @@ pub enum ModuleError {
         edge: EdgeId,
         argument: ScalarType,
         parameter: ScalarType,
+    },
+    ConditionalConditionTypeMismatch {
+        block: BlockId,
+        condition: ValueId,
+        actual: ScalarType,
     },
     ReturnTypeMismatch {
         machine: MachineId,

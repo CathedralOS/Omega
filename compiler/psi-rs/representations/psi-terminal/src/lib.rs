@@ -9,12 +9,12 @@
 //! subtraction, v7 adds wrapping integer multiplication, v8 adds saturating
 //! integer multiplication, v9 adds proof-only structural-place content
 //! conservation, v10 adds identity-preserving claim reshuffles, v11 adds
-//! stable sum-case structural paths, and current v12 adds exact authored
-//! partition substitutions.
+//! stable sum-case structural paths, v12 adds exact authored partition
+//! substitutions, and current v13 adds ordered structural conditional edges.
 //! This small executable slice
 //! exercises values, control, bodyful contracts, and one width-relative
-//! arithmetic policy without pretending that branching or other arithmetic
-//! policies have already been specified. Every later operation extends this
+//! arithmetic policy plus Boolean control without pretending that other
+//! arithmetic policies have already been specified. Every later operation extends this
 //! vocabulary together with its execution transition, generated facts, proof
 //! rule, and lowering contract.
 
