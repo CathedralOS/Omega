@@ -889,7 +889,11 @@ Remaining:
   consume the binding-retained three-argument/result syscall plan in emission
   and layout, with x86-64/AArch64 compatibility bytes and widths locked to the
   explicit plan. Any selected syscall binding that loses its plan now rejects
-  in layout/emission rather than reconstructing registers from the target. The
+  in layout/emission rather than reconstructing registers from the target;
+  syscall result-versus-statement selection also comes from that plan rather
+  than the operation catalog. Host layout now requires retained plan evidence
+  for every selected mechanism before reserving bytes, so indirect table calls
+  cannot collapse to a zero-width compatibility path either. The
   base `Stdin::read`, `Stdout::write`, and `Stderr::write`
   rows now actually retain those exact plans on both Linux targets rather than
   activating the no-plan compatibility path; `Process::exit_group` likewise
