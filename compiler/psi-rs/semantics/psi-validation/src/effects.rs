@@ -5,20 +5,20 @@ use psi_typed_trees::statement::StatementNode;
 
 pub fn validate_behavior_plan(
     program: &TypedTrees,
-    operations: &psi_effects::OperationalPlan,
+    operational: &psi_effects::OperationalPlan,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
-    let service_reaches = psi_effects::infer_service_reaches(program, operations);
+    let service_reaches = psi_effects::infer_service_reaches(program, operational);
 
-    validate_pure_discards(program, operations, &service_reaches, &mut diagnostics);
-    validate_asm_intrinsic_declarations(program, operations, &service_reaches, &mut diagnostics);
+    validate_pure_discards(program, operational, &service_reaches, &mut diagnostics);
+    validate_asm_intrinsic_declarations(program, operational, &service_reaches, &mut diagnostics);
     validate_service_reach_ceilings(program, &service_reaches, &mut diagnostics);
 
-    for machine_operations in operations.machines() {
+    for machine_summary in operational.machines() {
         let Some(machine) = program
             .machines()
             .iter()
-            .find(|machine| machine.symbol == machine_operations.symbol)
+            .find(|machine| machine.symbol == machine_summary.symbol)
         else {
             continue;
         };
@@ -30,13 +30,13 @@ pub fn validate_behavior_plan(
         // points so a published machine cannot launder behavior through a
         // local helper or a pinned requirement.
         if machine.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody {
-            if machine_operations.body_may_suspend && !machine.suspends {
+            if machine_summary.body_may_suspend && !machine.suspends {
                 diagnostics.push(Diagnostic::error(format!(
                     "machine `{}` omits `suspends;` from its published contract, but its body may suspend",
                     machine.name
                 )));
             }
-            if machine_operations.body_may_block && !machine.blocks {
+            if machine_summary.body_may_block && !machine.blocks {
                 diagnostics.push(Diagnostic::error(format!(
                     "machine `{}` omits `blocks;` from its published contract, but its body may block",
                     machine.name
@@ -179,7 +179,7 @@ pub fn validate_asm_discharge(
 ///    boundary call that happens to reach the same service into inline asm.
 fn validate_asm_intrinsic_declarations(
     program: &TypedTrees,
-    operations: &psi_effects::OperationalPlan,
+    operational: &psi_effects::OperationalPlan,
     service_reaches: &psi_effects::ServiceReachInferencePlan,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -241,7 +241,7 @@ fn validate_asm_intrinsic_declarations(
                 continue;
             }
             let Some(path) =
-                find_inline_asm_service_path(program, operations, machine.symbol, service_name)
+                find_inline_asm_service_path(program, operational, machine.symbol, service_name)
             else {
                 continue;
             };
@@ -338,13 +338,13 @@ struct InlineAsmServicePathStep {
 
 fn find_inline_asm_service_path(
     program: &TypedTrees,
-    operations: &psi_effects::OperationalPlan,
+    operational: &psi_effects::OperationalPlan,
     root_machine_symbol: SymbolHandle,
     service_name: &str,
 ) -> Option<Vec<InlineAsmServicePathStep>> {
     find_inline_asm_service_path_inner(
         program,
-        operations,
+        operational,
         root_machine_symbol,
         service_name,
         &mut Vec::new(),
@@ -353,7 +353,7 @@ fn find_inline_asm_service_path(
 
 fn find_inline_asm_service_path_inner(
     program: &TypedTrees,
-    operations: &psi_effects::OperationalPlan,
+    operational: &psi_effects::OperationalPlan,
     machine_symbol: SymbolHandle,
     service_name: &str,
     visited: &mut Vec<SymbolHandle>,
@@ -363,7 +363,7 @@ fn find_inline_asm_service_path_inner(
     }
     visited.push(machine_symbol);
 
-    let Some(machine) = operations
+    let Some(machine) = operational
         .machines()
         .iter()
         .find(|machine| machine.symbol == machine_symbol)
@@ -371,8 +371,8 @@ fn find_inline_asm_service_path_inner(
         visited.pop();
         return None;
     };
-    for state in operations.states.span_or_empty(machine.states) {
-        for call in operations.calls.span_or_empty(state.calls) {
+    for state in operational.states.span_or_empty(machine.states) {
+        for call in operational.calls.span_or_empty(state.calls) {
             let step = InlineAsmServicePathStep {
                 caller_machine_symbol: machine_symbol,
                 caller_state_symbol: state.symbol,
@@ -389,7 +389,7 @@ fn find_inline_asm_service_path_inner(
             if call.target_machine_symbol.is_valid()
                 && let Some(mut suffix) = find_inline_asm_service_path_inner(
                     program,
-                    operations,
+                    operational,
                     call.target_machine_symbol,
                     service_name,
                     visited,
@@ -451,7 +451,7 @@ fn append_inline_asm_service_path(
 /// from their recursive plans, never the lowercase compatibility set.
 fn validate_pure_discards(
     program: &TypedTrees,
-    operations: &psi_effects::OperationalPlan,
+    operational: &psi_effects::OperationalPlan,
     service_reaches: &psi_effects::ServiceReachInferencePlan,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -482,7 +482,7 @@ fn validate_pure_discards(
                 // errors are owned by other passes.
                 let Some(callee) = resolve_discard_callee(
                     program,
-                    operations,
+                    operational,
                     service_reaches,
                     call.target_symbol,
                 ) else {
@@ -531,7 +531,7 @@ fn machine_owning_state(
 
 fn resolve_discard_callee(
     program: &TypedTrees,
-    operations: &psi_effects::OperationalPlan,
+    operational: &psi_effects::OperationalPlan,
     service_reaches: &psi_effects::ServiceReachInferencePlan,
     target_symbol: SymbolHandle,
 ) -> Option<DiscardCallee> {
@@ -551,7 +551,7 @@ fn resolve_discard_callee(
         // The callee machine's transitive set is the conservative surface: a
         // called state may transition through sibling states, so anything the
         // machine can reach counts against purity.
-        let operational = operations
+        let operational_may = operational
             .machines()
             .iter()
             .find(|entry| entry.symbol == machine.symbol)
@@ -565,8 +565,8 @@ fn resolve_discard_callee(
                         .services(summary.inferred_transitive)
                         .is_empty()
                 }),
-            may_suspend: operational.0,
-            may_block: operational.1,
+            may_suspend: operational_may.0,
+            may_block: operational_may.1,
             has_mutable_parameter: program
                 .state_parameters(state)
                 .iter()

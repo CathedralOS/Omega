@@ -4,7 +4,7 @@ use psi_language_semantics::{OperationalMaySummary, ServiceReachSummary};
 pub(super) fn attach_reach_summaries(
     flow: &mut FlowFacts,
     service_reaches: &psi_effects::ServiceReachInferencePlan,
-    operations: &psi_effects::OperationalPlan,
+    operational: &psi_effects::OperationalPlan,
 ) {
     let FlowControlFacts { states, calls, .. } = &mut flow.control;
     states.for_each_mut(|_, state| {
@@ -16,21 +16,21 @@ pub(super) fn attach_reach_summaries(
             })
             .unwrap_or_default();
 
-        let operational_state = operations
+        let operational_state = operational
             .machines()
             .iter()
-            .flat_map(|machine| operations.states.span_or_empty(machine.states))
+            .flat_map(|machine| operational.states.span_or_empty(machine.states))
             .find(|summary| summary.symbol == state.state_symbol);
         state.operational = operational_state
             .map(|summary| {
                 let direct_may_suspend = summary.direct_may_suspend
-                    || operations
+                    || operational
                         .calls
                         .span_or_empty(summary.calls)
                         .iter()
                         .any(|call| call.direct_may_suspend);
                 let direct_may_block = summary.direct_may_block
-                    || operations
+                    || operational
                         .calls
                         .span_or_empty(summary.calls)
                         .iter()
@@ -60,7 +60,7 @@ pub(super) fn attach_reach_summaries(
                 .unwrap_or_default();
 
             let operational_call = operational_state.and_then(|state| {
-                operations
+                operational
                     .calls
                     .span_or_empty(state.calls)
                     .iter()
