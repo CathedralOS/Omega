@@ -2152,15 +2152,16 @@ fn build_debug_map(
         DebugSubject::Machine(terminal_machine.id),
         checked.symbols.symbol_source_span(source_machine.symbol),
     );
+    let contract_span = source_ensures_span_for_machine(checked, source_machine)
+        .filter(|span| *span != psi_source::SourceSpan::default())
+        .filter(|span| checked.symbols.source_file(*span).is_some())
+        .or_else(|| checked.symbols.symbol_source_span(source_machine.symbol));
     push(
         DebugSubject::Contract(terminal_machine.contract.id),
-        checked.symbols.symbol_source_span(source_machine.symbol),
+        contract_span,
     );
     for clause in &terminal_machine.contract.ensures {
-        push(
-            DebugSubject::Obligation(clause.obligation),
-            checked.symbols.symbol_source_span(source_machine.symbol),
-        );
+        push(DebugSubject::Obligation(clause.obligation), contract_span);
     }
 
     for (index, block) in terminal_machine.blocks.iter().enumerate() {
@@ -2305,6 +2306,21 @@ fn build_debug_map(
     };
     validate_debug_map(module, &debug_map).map_err(LoweringError::InvalidDebugMap)?;
     Ok(debug_map)
+}
+
+fn source_ensures_span_for_machine(
+    checked: &CheckedTrees,
+    machine: &psi_checked_trees::machine::Machine,
+) -> Option<psi_source::SourceSpan> {
+    let contract = checked
+        .machine_contracts(machine)
+        .iter()
+        .find(|contract| contract.kind == SignatureContractKind::Ensures)?;
+    let [ProofFact::Expression(expression)] = checked.proof_facts.span_or_empty(contract.facts)
+    else {
+        return None;
+    };
+    Some(checked.expression_table.source_span(*expression))
 }
 
 fn source_transition_span_for_state(

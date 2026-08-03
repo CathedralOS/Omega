@@ -1403,7 +1403,9 @@ improvements do not change public identity.
   through checked trees, and terminal operation/result-value rows use those
   exact sites. Authored transition arrows likewise survive into terminal jump
   edges; synthesized return edges retain their source-state declaration
-  fallback. General register assignment, further closed arithmetic variants,
+  fallback. Terminal contract and obligation subjects now use the exact
+  authored `ensures` fact site instead of the enclosing machine declaration.
+  General register assignment, further closed arithmetic variants,
   and migration of the legacy backend remain.
   Move or rename the current target-neutral `omega-*` frontend crates under Psi
   ownership as each slice migrates; do not leave parsing or checking on an

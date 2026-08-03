@@ -182,7 +182,9 @@ authored integer/Boolean literal and operator-token spans through syntax,
 resolution, typing, and checking; terminal operations and their result values
 therefore point to their exact authored expression sites. Authored transition
 arrows likewise survive into terminal jump-edge sites; a synthesized return
-edge honestly retains its source-state declaration fallback. The real-source
+edge honestly retains its source-state declaration fallback. Terminal contract
+and obligation subjects point to the exact authored `ensures` fact site rather
+than the enclosing machine declaration. The real-source
 canary encodes and manifests the debug section,
 drops checked trees, and decodes it against the reconstructed semantic module.
 Branching, the remaining
