@@ -1351,8 +1351,8 @@ fn summarize_transition_target_written_paths(
         // A bare `-> self` re-enters this exact state with the same receiver
         // and parameter namespace. The body's writes have already been
         // collected, so another iteration adds no new caller-visible path.
-        // Named cycles remain opaque below because their arguments may rebind
-        // a state parameter onto a different caller place on each traversal.
+        // Named cycles remain opaque below unless an exact same-state edge
+        // forwards every state parameter without rebinding.
         TransitionTargetNode::SelfTarget => Some(Vec::new()),
         TransitionTargetNode::Named { path, arguments } => {
             let arguments = program.statement_table.expression_handles(*arguments);
@@ -1365,7 +1365,13 @@ fn summarize_transition_target_written_paths(
                     matches!(members, [member] if member.as_str() == "self").then_some(source_state)
                 })?;
             if active_states.contains(&target_state.symbol) {
-                return None;
+                return named_transition_preserves_state_namespace(
+                    program,
+                    source_state,
+                    target_state,
+                    arguments,
+                )
+                .then(Vec::new);
             }
             active_states.push(target_state.symbol);
             let target_writes = summarize_state_written_paths(
@@ -1395,6 +1401,45 @@ fn summarize_transition_target_written_paths(
             }
             Some(instantiated)
         }
+    }
+}
+
+/// A named edge back to the same state is frame-equivalent to bare `self`
+/// only when every explicit state parameter is forwarded as that exact
+/// parameter. Any projection, computation, omission, reordering, or other
+/// state cycle remains opaque.
+fn named_transition_preserves_state_namespace(
+    program: &TypedTrees,
+    source_state: &State,
+    target_state: &State,
+    arguments: &[ExpressionHandle],
+) -> bool {
+    if source_state.symbol != target_state.symbol {
+        return false;
+    }
+    let parameters = program
+        .state_parameters(target_state)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .collect::<Vec<_>>();
+    parameters.len() == arguments.len()
+        && parameters
+            .into_iter()
+            .zip(arguments.iter().copied())
+            .all(|(parameter, argument)| {
+                expression_forwards_exact_symbol(program, argument, parameter.symbol)
+            })
+}
+
+fn expression_forwards_exact_symbol(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    symbol: SymbolHandle,
+) -> bool {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Mutable(inner) => expression_forwards_exact_symbol(program, *inner, symbol),
+        ExpressionNode::Name(path) => path.symbol == symbol,
+        _ => false,
     }
 }
 

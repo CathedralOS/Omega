@@ -573,9 +573,11 @@ Ordered rungs, each independently shippable, each with its acceptance driver:
   shapes that remain opaque. Acyclic state-transition graphs now compose exact
   frames, including conditional-arm union, positional argument forwarding, and
   nested value-call frames across every state expression position. Direct
-  bare-self loops retain that finite frame, while named/rebinding cycles and
-  genuinely unresolved frames remain opaque. Normalized per-state frame
-  publication is live and kept outside public contract identity. Driver:
+  bare-self loops retain that finite frame. Named edges back to the same state
+  also retain it when every state parameter is forwarded by exact symbol
+  identity; any rebinding or multi-state cycle and every genuinely unresolved
+  frame remain opaque. Normalized per-state frame publication is live and kept
+  outside public contract identity. Driver:
   dependent facts across sibling-machine calls.
 - **R6 — Proof propositions and index telescopes:** add Prop-valued families
   over representative values, typed proof-static carrier-family index packs,
