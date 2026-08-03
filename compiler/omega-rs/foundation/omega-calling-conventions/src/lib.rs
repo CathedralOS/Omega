@@ -1579,6 +1579,58 @@ mod binding_plan_tests {
     }
 
     #[test]
+    fn darwin_console_and_exit_bindings_retain_exact_import_plans() {
+        let plan = build_host_abi_plan(NativeTarget::macos_arm64());
+        for (capability, operation, symbol, parameter_count, has_result) in [
+            (HostCapability::Stdin, HostOperation::Read, "_read", 3, true),
+            (
+                HostCapability::Stdout,
+                HostOperation::Write,
+                "_write",
+                3,
+                true,
+            ),
+            (
+                HostCapability::Stderr,
+                HostOperation::Write,
+                "_write",
+                3,
+                true,
+            ),
+            (
+                HostCapability::Process,
+                HostOperation::Exit,
+                "_exit",
+                1,
+                false,
+            ),
+        ] {
+            let (_, binding) = plan
+                .bindings
+                .iter()
+                .find(|(_, binding)| {
+                    binding.operation_key.capability == capability
+                        && binding.operation_key.operation == operation
+                })
+                .expect("built-in Darwin binding");
+            assert!(matches!(
+                binding.mechanism,
+                HostBindingMechanism::Import {
+                    symbol: ref actual_symbol,
+                    ..
+                } if actual_symbol.as_ref() == symbol
+            ));
+            let boundary = binding
+                .boundary_entry_plan
+                .as_ref()
+                .expect("fixed Darwin import signature must retain its plan");
+            assert_eq!(boundary.call.policy, CallingPolicy::Aapcs64);
+            assert_eq!(boundary.call.parameters.len(), parameter_count);
+            assert_eq!(boundary.call.result.is_some(), has_result);
+        }
+    }
+
+    #[test]
     fn compiler_intrinsic_selects_only_an_exact_existing_target_lowering() {
         let row = |name: &str, method: &str| ExternalBindingRow {
             target_name: "macos_arm64".to_owned(),

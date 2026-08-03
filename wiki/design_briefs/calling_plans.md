@@ -688,7 +688,10 @@ The base Linux binding rows make that retention literal: `Stdin::read`,
 `Stdout::write`, and `Stderr::write` each carry the exact three-word/result
 syscall plan, while `Process::exit_group` carries its one-word/no-result plan.
 No composite or terminal process path needs to rediscover those fixed external
-signatures from the target architecture.
+signatures from the target architecture. The direct Darwin libc rows retain
+the corresponding three-word/result AAPCS64 plans for `_read` and `_write`,
+and the one-word/no-result plan for `_exit`; unlike Windows' composite adapter,
+these are the actual external calls made by the runtime-text and process paths.
 Register-resident AArch64 C/import emission now also evaluates AAPCS64 from the
 selected operand shapes and passes the exact planned X/V argument and result
 registers to the ISA encoder. Scalar stack arguments and flat HFA arguments and
