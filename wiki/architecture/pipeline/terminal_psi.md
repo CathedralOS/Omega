@@ -42,10 +42,13 @@ proof bundle. `omega-interpreter` executes only a `VerifiedTerminalModule` on
 this path.
 
 The checked-frontend migration also keeps the ownership firewall explicit:
-target-neutral facts and effect summaries are Psi-owned, while concrete
-selected provider plans and target/layout-specific task activation plans are
-Omega-owned and travel as orchestration sidecars. `CheckedTrees` does not
-embed that target/provider realization state.
+`psi-checked-trees` now owns the target-neutral checked representation and
+`omega-checked-trees` is a compatibility export. Target-neutral facts and
+effect summaries are likewise Psi-owned, while concrete selected provider
+plans and target/layout-specific task activation plans are Omega-owned and
+travel as orchestration sidecars. `CheckedTrees` does not embed that
+target/provider realization state. The checking transform itself remains the
+next frontend-ownership migration boundary.
 
 The first transitional source producer is now live as
 `omega-checked-trees-to-terminal-psi`. It accepts one exact free-machine slice:

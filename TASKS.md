@@ -1042,6 +1042,10 @@ improvements do not change public identity.
   native realization.
   `psi-facts` owns durable target-neutral places, contexts, propositions, and
   checked-fact plans; `omega-facts` is now only a compatibility export.
+  `psi-checked-trees` owns the checked semantic representation, including
+  proof, borrow, flow, reach, value-origin, and admissibility evidence;
+  `omega-checked-trees` is now only a compatibility export for unmigrated
+  consumers.
   `psi-effects` owns operational ceilings, service reach, synchronous
   invocation inference, and capability-flow facts. Provider declarations,
   target/provider bindings, approval, installation, and the exact selected-plan

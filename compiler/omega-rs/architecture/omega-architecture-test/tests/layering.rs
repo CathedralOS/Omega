@@ -592,9 +592,21 @@ fn target_neutral_effect_inference_is_psi_owned() {
 }
 
 #[test]
-fn checked_semantics_do_not_retain_provider_realization() {
+fn checked_semantics_are_psi_owned_without_provider_realization() {
     let root = workspace_root();
-    let manifest = root.join("compiler/omega-rs/representations/omega-checked-trees/Cargo.toml");
+    let legacy = root.join("compiler/omega-rs/representations/omega-checked-trees");
+    let legacy_source = std::fs::read_to_string(legacy.join("src/lib.rs"))
+        .expect("read legacy checked-tree compatibility export");
+    assert!(
+        legacy_source.contains("pub use psi_checked_trees::*;"),
+        "legacy checked-tree crate must re-export the Psi-owned representation"
+    );
+    assert!(
+        !legacy.join("src/trees.rs").exists(),
+        "legacy checked-tree crate must not regain semantic implementation"
+    );
+
+    let manifest = root.join("compiler/psi-rs/representations/psi-checked-trees/Cargo.toml");
     let manifest_source = std::fs::read_to_string(&manifest)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", manifest.display()));
     assert!(
@@ -606,7 +618,7 @@ fn checked_semantics_do_not_retain_provider_realization() {
         "checked semantics must not depend on target/provider task activation realization"
     );
 
-    let checked_root = root.join("compiler/omega-rs/representations/omega-checked-trees/src");
+    let checked_root = root.join("compiler/psi-rs/representations/psi-checked-trees/src");
     for relative in ["lib.rs", "trees.rs"] {
         let path = checked_root.join(relative);
         let source = std::fs::read_to_string(&path)

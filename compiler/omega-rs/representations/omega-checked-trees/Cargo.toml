@@ -9,7 +9,4 @@ name = "omega_checked_trees"
 path = "src/lib.rs"
 
 [dependencies]
-omega-core = { path = "../../foundation/omega-core" }
-omega-facts = { path = "../omega-facts" }
-omega-typed-trees = { path = "../omega-typed-trees" }
-psi-effects = { path = "../../../psi-rs/representations/psi-effects" }
+psi-checked-trees = { path = "../../../psi-rs/representations/psi-checked-trees" }
