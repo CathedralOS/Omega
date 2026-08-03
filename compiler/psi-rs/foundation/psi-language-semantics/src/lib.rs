@@ -7,6 +7,8 @@
 //! backend policy.
 
 pub mod byte_predicates;
+pub mod const_value;
+pub mod wire;
 
 pub use psi_language_core::{
     CallOperationalAcknowledgement, CallOperationalAcknowledgementOrigin, CarryAddress, CarryCpu,
