@@ -230,7 +230,7 @@ pub(super) fn encode_write_place_binary(
     operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
     is_float: bool,
-    domain: omega_core::arithmetic::ArithmeticDomain,
+    domain: psi_numerics::arithmetic::ArithmeticDomain,
     target_signed: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
     validate_runtime_value_home(input, left)?;

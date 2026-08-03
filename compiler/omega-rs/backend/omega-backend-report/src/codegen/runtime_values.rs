@@ -147,7 +147,7 @@ pub(super) fn runtime_value_operand_name(
             "({} {operator:?}{}/{byte_width}{} {})",
             runtime_value_operand_name(backend_plan, *left),
             if *is_float { " f" } else { "" },
-            if *arithmetic_domain == omega_core::arithmetic::ArithmeticDomain::Exact {
+            if *arithmetic_domain == psi_numerics::arithmetic::ArithmeticDomain::Exact {
                 String::new()
             } else {
                 format!(" in {arithmetic_domain:?}")

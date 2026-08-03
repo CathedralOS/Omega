@@ -309,10 +309,10 @@ fn resolve_runtime_value_operand_in_table_with_root(
             source_signed: source_primitive.is_signed_integer(),
             target_signed: target_primitive.is_signed_integer(),
             // F4: a Trapping float->int cast carries its trap guard.
-            trapping: cast.domain == omega_core::arithmetic::ArithmeticDomain::Trapping
+            trapping: cast.domain == psi_numerics::arithmetic::ArithmeticDomain::Trapping
                 && source_primitive.accepts_float_literal()
                 && !target_primitive.accepts_float_literal(),
-            saturating: cast.domain == omega_core::arithmetic::ArithmeticDomain::Saturating
+            saturating: cast.domain == psi_numerics::arithmetic::ArithmeticDomain::Saturating
                 && source_primitive.accepts_float_literal()
                 && !target_primitive.accepts_float_literal(),
         }));
@@ -469,7 +469,7 @@ fn resolve_runtime_value_operand_in_table_with_root(
                     byte_width,
                 )?
             } else {
-                omega_core::arithmetic::ArithmeticDomain::Exact
+                psi_numerics::arithmetic::ArithmeticDomain::Exact
             };
             return Some(runtime_value_operands.insert(RuntimeValueOperand::Binary {
                 left,
@@ -755,7 +755,7 @@ pub(super) fn resolve_selected_ternary_float_operand_in_table_with_root(
         right: third,
         is_float: true,
         byte_width,
-        arithmetic_domain: omega_core::arithmetic::ArithmeticDomain::Exact,
+        arithmetic_domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
         operands_signed: true,
     });
     Some(runtime_value_operands.insert(RuntimeValueOperand::Binary {
@@ -919,7 +919,7 @@ pub(in crate::selection::runtime_dispatch) fn resolve_runtime_text_equals_operan
         // Integer 0/1 bool compare; width is unread by the integer emission arm.
         byte_width: 1,
         // A synthesized 0/1 bool compare cannot overflow.
-        arithmetic_domain: omega_core::arithmetic::ArithmeticDomain::Exact,
+        arithmetic_domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
         operands_signed: false,
     }))
 }
@@ -1161,7 +1161,8 @@ fn resolve_runtime_value_operand_with_root(
             // The plain integer arm ignores the width; a non-Exact
             // operand needs its REAL operand width for the width-correct op +
             // clamp bounds.
-            byte_width: if domain_signedness.0 != omega_core::arithmetic::ArithmeticDomain::Exact {
+            byte_width: if domain_signedness.0 != psi_numerics::arithmetic::ArithmeticDomain::Exact
+            {
                 crate::selection::runtime_dispatch::guards::runtime_value_compare_byte_size(
                     runtime_value_operands,
                     left,
@@ -1233,7 +1234,7 @@ fn resolve_runtime_value_operand_with_root(
             byte_width: 8,
             // min/max SELECTS one operand -- no overflow exists for a
             // domain to clamp/trap. Signedness already rode the operator.
-            arithmetic_domain: omega_core::arithmetic::ArithmeticDomain::Exact,
+            arithmetic_domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
             operands_signed: true,
         }));
     }

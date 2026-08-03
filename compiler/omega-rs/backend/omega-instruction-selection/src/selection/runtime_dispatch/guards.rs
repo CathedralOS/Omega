@@ -1906,10 +1906,10 @@ fn resolve_runtime_value_operand_in_table(
             source_signed: source_primitive.is_signed_integer(),
             target_signed: target_primitive.is_signed_integer(),
             // F4: a Trapping float->int cast carries its trap guard.
-            trapping: cast.domain == omega_core::arithmetic::ArithmeticDomain::Trapping
+            trapping: cast.domain == psi_numerics::arithmetic::ArithmeticDomain::Trapping
                 && source_primitive.accepts_float_literal()
                 && !target_primitive.accepts_float_literal(),
-            saturating: cast.domain == omega_core::arithmetic::ArithmeticDomain::Saturating
+            saturating: cast.domain == psi_numerics::arithmetic::ArithmeticDomain::Saturating
                 && source_primitive.accepts_float_literal()
                 && !target_primitive.accepts_float_literal(),
         }));

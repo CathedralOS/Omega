@@ -101,7 +101,7 @@ pub fn encode_runtime_storage_binary_write(
     operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
     is_float: bool,
-    domain: omega_core::arithmetic::ArithmeticDomain,
+    domain: psi_numerics::arithmetic::ArithmeticDomain,
     target_signed: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
@@ -1722,7 +1722,7 @@ pub fn encode_write_place_binary(
     operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
     is_float: bool,
-    domain: omega_core::arithmetic::ArithmeticDomain,
+    domain: psi_numerics::arithmetic::ArithmeticDomain,
     target_signed: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
@@ -1741,7 +1741,7 @@ pub fn encode_write_place_binary(
         Architecture::Aarch64 => {
             let shape = classify_write_place_shape(target);
             if !matches!(shape, WritePlaceShape::Direct { .. })
-                && (is_float || domain != omega_core::arithmetic::ArithmeticDomain::Exact)
+                && (is_float || domain != psi_numerics::arithmetic::ArithmeticDomain::Exact)
             {
                 return Err(Diagnostic::error(
                     "WritePlaceBinary on aarch64: shaped (deref/indexed) targets \
@@ -1882,7 +1882,7 @@ pub fn write_place_binary_width(
     operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
     is_float: bool,
-    domain: omega_core::arithmetic::ArithmeticDomain,
+    domain: psi_numerics::arithmetic::ArithmeticDomain,
     target_signed: bool,
 ) -> Result<usize, Diagnostic> {
     encode_write_place_binary(
@@ -2809,7 +2809,7 @@ pub fn x86_64_encode_write_place_binary_with_sites(
     operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
     is_float: bool,
-    domain: omega_core::arithmetic::ArithmeticDomain,
+    domain: psi_numerics::arithmetic::ArithmeticDomain,
     target_signed: bool,
 ) -> Result<(Vec<u8>, omega_isa_x86_64::PlaceCopySites), Diagnostic> {
     x86_64::encode_place_binary_write(

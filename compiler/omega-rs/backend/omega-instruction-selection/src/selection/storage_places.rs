@@ -1163,7 +1163,7 @@ pub(in crate::selection) fn resolve_binary_operand_arithmetic_domain_in_table(
     expressions: &ExpressionTable,
     left: ExpressionHandle,
     right: ExpressionHandle,
-) -> (omega_core::arithmetic::ArithmeticDomain, bool) {
+) -> (psi_numerics::arithmetic::ArithmeticDomain, bool) {
     let left_witness = resolve_expression_arithmetic_domain_witness_in_table(
         input,
         dispatch_index,
@@ -1171,7 +1171,7 @@ pub(in crate::selection) fn resolve_binary_operand_arithmetic_domain_in_table(
         expressions,
         left,
     );
-    if left_witness.0 != omega_core::arithmetic::ArithmeticDomain::Exact {
+    if left_witness.0 != psi_numerics::arithmetic::ArithmeticDomain::Exact {
         return left_witness;
     }
     let right_witness = resolve_expression_arithmetic_domain_witness_in_table(
@@ -1181,7 +1181,7 @@ pub(in crate::selection) fn resolve_binary_operand_arithmetic_domain_in_table(
         expressions,
         right,
     );
-    if right_witness.0 != omega_core::arithmetic::ArithmeticDomain::Exact {
+    if right_witness.0 != psi_numerics::arithmetic::ArithmeticDomain::Exact {
         return right_witness;
     }
     left_witness
@@ -1200,7 +1200,7 @@ fn resolve_expression_arithmetic_domain_witness_in_table(
     source_key: StateKey,
     expressions: &ExpressionTable,
     expression: ExpressionHandle,
-) -> (omega_core::arithmetic::ArithmeticDomain, bool) {
+) -> (psi_numerics::arithmetic::ArithmeticDomain, bool) {
     if let ExpressionNode::Binary(binary) = expressions.expression(expression) {
         return resolve_binary_operand_arithmetic_domain_in_table(
             input,
@@ -1244,7 +1244,7 @@ pub(in crate::selection) fn resolve_binary_write_arithmetic_domain_in_table(
     expressions: &ExpressionTable,
     left: ExpressionHandle,
     right: ExpressionHandle,
-) -> omega_core::arithmetic::ArithmeticDomain {
+) -> psi_numerics::arithmetic::ArithmeticDomain {
     resolve_binary_operand_arithmetic_domain_in_table(
         input,
         dispatch_index,
@@ -1276,7 +1276,7 @@ pub(in crate::selection) fn resolve_binary_operation_arithmetic_domain_in_table(
     right: ExpressionHandle,
     is_float: bool,
     byte_width: usize,
-) -> Option<omega_core::arithmetic::ArithmeticDomain> {
+) -> Option<psi_numerics::arithmetic::ArithmeticDomain> {
     if is_float {
         match crate::selection::lookups::carried_float_provider_plan(
             input,
@@ -1334,7 +1334,7 @@ pub(super) fn resolve_binary_write_arithmetic_domain(
     source_key: StateKey,
     left: &Expression,
     right: &Expression,
-) -> omega_core::arithmetic::ArithmeticDomain {
+) -> psi_numerics::arithmetic::ArithmeticDomain {
     let mut delegated_expressions = ExpressionTable::default();
     let left_handle = delegated_expressions.insert_tree(left);
     let right_handle = delegated_expressions.insert_tree(right);
@@ -1359,7 +1359,7 @@ pub(super) fn resolve_runtime_storage_arithmetic_domain_in_table(
     source_key: StateKey,
     expressions: &ExpressionTable,
     expression: ExpressionHandle,
-) -> omega_core::arithmetic::ArithmeticDomain {
+) -> psi_numerics::arithmetic::ArithmeticDomain {
     // A domain `as` cast (`x as u8 in Saturating`, decision 17 S2) re-tags the
     // value's domain explicitly, overriding the operand's own type.
     if let ExpressionNode::Cast(cast) = expressions.expression(expression) {
@@ -1373,7 +1373,7 @@ pub(super) fn resolve_runtime_storage_arithmetic_domain_in_table(
         expression,
     )
     .map(|descriptor| descriptor.arithmetic_domain())
-    .unwrap_or(omega_core::arithmetic::ArithmeticDomain::Exact)
+    .unwrap_or(psi_numerics::arithmetic::ArithmeticDomain::Exact)
 }
 
 /// The scalar primitive type of a VALUE/source expression, for codegen
@@ -1641,7 +1641,7 @@ pub(super) fn resolve_runtime_storage_arithmetic_domain(
     dispatch_index: u32,
     source_key: StateKey,
     expression: &Expression,
-) -> omega_core::arithmetic::ArithmeticDomain {
+) -> psi_numerics::arithmetic::ArithmeticDomain {
     let mut delegated_expressions = ExpressionTable::default();
     let delegated_expression = delegated_expressions.insert_tree(expression);
     resolve_runtime_storage_arithmetic_domain_in_table(

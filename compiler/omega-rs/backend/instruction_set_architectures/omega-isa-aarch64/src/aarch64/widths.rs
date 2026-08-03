@@ -507,10 +507,10 @@ pub fn runtime_storage_binary_write_width(
     operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
     is_float: bool,
-    domain: omega_core::arithmetic::ArithmeticDomain,
+    domain: psi_numerics::arithmetic::ArithmeticDomain,
     target_signed: bool,
 ) -> usize {
-    use omega_core::arithmetic::ArithmeticDomain;
+    use psi_numerics::arithmetic::ArithmeticDomain;
     let indexed_operand_restore_width = if runtime_value_operands.frame_indexed(left).is_some()
         || runtime_value_operands.frame_indexed(right).is_some()
         || runtime_value_operands.frame_base_indexed(left).is_some()
@@ -590,14 +590,14 @@ pub fn runtime_storage_binary_write_width(
 /// Byte count of [`super::runtime_storage::append_saturating_trapping_arithmetic`]
 /// — the wide op + two range-checked clamp/trap blocks. MUST stay in lockstep.
 fn saturating_trapping_arithmetic_width(
-    domain: omega_core::arithmetic::ArithmeticDomain,
+    domain: psi_numerics::arithmetic::ArithmeticDomain,
     operator: StateGuardOperator,
     byte_size: usize,
     target_signed: bool,
     left_is_wide_immediate: bool,
     right_is_wide_immediate: bool,
 ) -> usize {
-    use omega_core::arithmetic::ArithmeticDomain;
+    use psi_numerics::arithmetic::ArithmeticDomain;
     if byte_size == 8 {
         // 64-bit shl: the recovery witness -- mov save (4) [+ movz/movk MIN
         // (8) for saturating-signed] + lslv (4) + asrv/lsrv (4) + cmp (4)
@@ -618,9 +618,9 @@ fn saturating_trapping_arithmetic_width(
             return match (domain, target_signed) {
                 // smulh + eor + movz/movk MIN (8) + mul + cmp-asr + b.eq +
                 // cmp + csinv.
-                (omega_core::arithmetic::ArithmeticDomain::Saturating, true) => 36,
+                (psi_numerics::arithmetic::ArithmeticDomain::Saturating, true) => 36,
                 // umulh + mul + cmp + csinv.
-                (omega_core::arithmetic::ArithmeticDomain::Saturating, false) => 16,
+                (psi_numerics::arithmetic::ArithmeticDomain::Saturating, false) => 16,
                 // (s/u)mulh + mul + cmp(+asr) + b.eq + brk.
                 _ => 20,
             };
@@ -713,11 +713,11 @@ fn saturating_signed_divide_modulo_width(byte_size: usize, want_remainder: bool)
 pub(in crate::aarch64) fn runtime_binary_operation_width_with_domain(
     operator: StateGuardOperator,
     byte_size: usize,
-    domain: omega_core::arithmetic::ArithmeticDomain,
+    domain: psi_numerics::arithmetic::ArithmeticDomain,
 ) -> usize {
-    let wrapping = domain == omega_core::arithmetic::ArithmeticDomain::Wrapping;
-    let trapping = domain == omega_core::arithmetic::ArithmeticDomain::Trapping;
-    let non_exact = domain != omega_core::arithmetic::ArithmeticDomain::Exact;
+    let wrapping = domain == psi_numerics::arithmetic::ArithmeticDomain::Wrapping;
+    let trapping = domain == psi_numerics::arithmetic::ArithmeticDomain::Trapping;
+    let non_exact = domain != psi_numerics::arithmetic::ArithmeticDomain::Exact;
     runtime_binary_operation_width(operator, byte_size)
         + if wrapping
             && matches!(
@@ -754,7 +754,7 @@ pub(in crate::aarch64) fn runtime_binary_operation_width_with_domain(
 fn runtime_float_binary_operation_width_with_domain(
     operator: StateGuardOperator,
     byte_size: usize,
-    domain: omega_core::arithmetic::ArithmeticDomain,
+    domain: psi_numerics::arithmetic::ArithmeticDomain,
 ) -> usize {
     if operator == StateGuardOperator::FloatPair {
         return 8;
@@ -2215,8 +2215,8 @@ pub fn runtime_value_operand_width(
             .filter(|(domain, _)| {
                 matches!(
                     domain,
-                    omega_core::arithmetic::ArithmeticDomain::Saturating
-                        | omega_core::arithmetic::ArithmeticDomain::Trapping
+                    psi_numerics::arithmetic::ArithmeticDomain::Saturating
+                        | psi_numerics::arithmetic::ArithmeticDomain::Trapping
                 )
             })
             .filter(|_| {
@@ -2231,7 +2231,7 @@ pub fn runtime_value_operand_width(
         let saturating_signed_div_mod = runtime_value_operands
             .binary_arithmetic_domain(operand)
             .is_some_and(|(domain, operands_signed)| {
-                domain == omega_core::arithmetic::ArithmeticDomain::Saturating
+                domain == psi_numerics::arithmetic::ArithmeticDomain::Saturating
                     && operands_signed
                     && matches!(
                         operator,
@@ -2259,7 +2259,7 @@ pub fn runtime_value_operand_width(
                 runtime_value_operands
                     .binary_arithmetic_domain(operand)
                     .map(|(domain, _)| domain)
-                    .unwrap_or(omega_core::arithmetic::ArithmeticDomain::Exact),
+                    .unwrap_or(psi_numerics::arithmetic::ArithmeticDomain::Exact),
             )
         } else if let Some((domain, operands_signed)) = operand_domain {
             // Saturating/Trapping operand-position arithmetic: MUST mirror the
@@ -2289,7 +2289,7 @@ pub fn runtime_value_operand_width(
             // lockstep with the operand evaluator.
             let wrapping_truncation = if matches!(
                 runtime_value_operands.binary_arithmetic_domain(operand),
-                Some((omega_core::arithmetic::ArithmeticDomain::Wrapping, _))
+                Some((psi_numerics::arithmetic::ArithmeticDomain::Wrapping, _))
             ) && runtime_value_operands
                 .binary_byte_width(operand)
                 .is_some_and(|width| width < 8)
@@ -2310,7 +2310,7 @@ pub fn runtime_value_operand_width(
                 runtime_value_operands
                     .binary_arithmetic_domain(operand)
                     .map(|(domain, _)| domain)
-                    .unwrap_or(omega_core::arithmetic::ArithmeticDomain::Exact),
+                    .unwrap_or(psi_numerics::arithmetic::ArithmeticDomain::Exact),
             ) + wrapping_truncation
         };
         runtime_value_operand_width(runtime_value_operands, left)

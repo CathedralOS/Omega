@@ -613,7 +613,7 @@ pub(super) fn invalidate_runtime_static_collection_for_indexed_write(
 
 #[cfg(test)]
 mod tests {
-    use omega_core::arithmetic::ArithmeticDomain;
+    use psi_numerics::arithmetic::ArithmeticDomain;
     use psi_numerics::literals::{IntegerLanding, LandedIntegerType};
 
     use super::{RuntimeStaticInteger, RuntimeStaticValues};

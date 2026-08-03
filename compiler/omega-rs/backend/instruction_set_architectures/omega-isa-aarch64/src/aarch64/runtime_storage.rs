@@ -1429,10 +1429,10 @@ pub fn encode_runtime_storage_binary_write(
     operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
     is_float: bool,
-    domain: omega_core::arithmetic::ArithmeticDomain,
+    domain: psi_numerics::arithmetic::ArithmeticDomain,
     target_signed: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
-    use omega_core::arithmetic::ArithmeticDomain;
+    use psi_numerics::arithmetic::ArithmeticDomain;
     // Decision 17 (aarch64): Saturating/Trapping add/sub/mul are implemented via a
     // wide (64-bit) op whose result is EXACT for <=32-bit operands, range-compared
     // against the target type's [min,max], then clamped (Saturating: CSEL-style
@@ -1588,7 +1588,7 @@ pub fn encode_runtime_storage_binary_write(
 /// `saturating_trapping_arithmetic_width` in `widths.rs`.
 fn append_saturating_trapping_arithmetic(
     bytes: &mut Vec<u8>,
-    domain: omega_core::arithmetic::ArithmeticDomain,
+    domain: psi_numerics::arithmetic::ArithmeticDomain,
     operator: StateGuardOperator,
     byte_size: usize,
     target_signed: bool,
@@ -1598,7 +1598,7 @@ fn append_saturating_trapping_arithmetic(
     left_is_wide_immediate: bool,
     right_is_wide_immediate: bool,
 ) -> Result<(), Diagnostic> {
-    use omega_core::arithmetic::ArithmeticDomain;
+    use psi_numerics::arithmetic::ArithmeticDomain;
     // Register-parametric so the OPERAND-position lowering (fused arithmetic
     // under a guard compare) can reuse these proven sequences at whatever
     // dest/rhs the operand evaluator assigned. The binary WRITE path passes
@@ -4728,7 +4728,7 @@ fn append_runtime_value_operand(
                 runtime_value_operands
                     .binary_arithmetic_domain(operand)
                     .map(|(domain, _)| domain)
-                    .unwrap_or(omega_core::arithmetic::ArithmeticDomain::Exact),
+                    .unwrap_or(psi_numerics::arithmetic::ArithmeticDomain::Exact),
                 // x15/x14 are outside the operand register set on this path;
                 // the F5 guard clobbers them.
                 [15, 14],
@@ -4738,8 +4738,8 @@ fn append_runtime_value_operand(
             .filter(|(domain, _)| {
                 matches!(
                     domain,
-                    omega_core::arithmetic::ArithmeticDomain::Saturating
-                        | omega_core::arithmetic::ArithmeticDomain::Trapping
+                    psi_numerics::arithmetic::ArithmeticDomain::Saturating
+                        | psi_numerics::arithmetic::ArithmeticDomain::Trapping
                 )
             })
             .filter(|_| {
@@ -4776,7 +4776,7 @@ fn append_runtime_value_operand(
         } else if runtime_value_operands
             .binary_arithmetic_domain(operand)
             .is_some_and(|(domain, operands_signed)| {
-                domain == omega_core::arithmetic::ArithmeticDomain::Saturating
+                domain == psi_numerics::arithmetic::ArithmeticDomain::Saturating
                     && operands_signed
                     && matches!(
                         operator,
@@ -4826,7 +4826,7 @@ fn append_runtime_value_operand(
                 runtime_value_operands
                     .binary_arithmetic_domain(operand)
                     .map(|(domain, _)| domain)
-                    .unwrap_or(omega_core::arithmetic::ArithmeticDomain::Exact),
+                    .unwrap_or(psi_numerics::arithmetic::ArithmeticDomain::Exact),
             )?;
             // A nested WRAPPING binary must hand its PARENT the width-wrapped
             // VALUE: the plain 64-bit op leaves the untruncated result
@@ -4838,7 +4838,7 @@ fn append_runtime_value_operand(
             // Extension picks the node's own signedness; Exact is proven
             // non-overflowing and Saturating/Trapping clamp/trap above.
             // Width tracked in widths.rs -- MUST stay in lockstep.
-            if let Some((omega_core::arithmetic::ArithmeticDomain::Wrapping, operands_signed)) =
+            if let Some((psi_numerics::arithmetic::ArithmeticDomain::Wrapping, operands_signed)) =
                 runtime_value_operands.binary_arithmetic_domain(operand)
                 && let Some(byte_width) = runtime_value_operands.binary_byte_width(operand)
                 && byte_width < 8
@@ -5277,10 +5277,10 @@ fn append_runtime_binary_operation_with_domain(
     operator: StateGuardOperator,
     rhs_register: u8,
     byte_size: usize,
-    domain: omega_core::arithmetic::ArithmeticDomain,
+    domain: psi_numerics::arithmetic::ArithmeticDomain,
 ) -> Result<(), Diagnostic> {
-    let wrapping = domain == omega_core::arithmetic::ArithmeticDomain::Wrapping;
-    let non_exact = domain != omega_core::arithmetic::ArithmeticDomain::Exact;
+    let wrapping = domain == psi_numerics::arithmetic::ArithmeticDomain::Wrapping;
+    let non_exact = domain != psi_numerics::arithmetic::ArithmeticDomain::Exact;
     // F8b (ch5 shift-count ruling, settled 2026-07-18): WRAPPING masks the
     // COUNT to the operand width (`k & (width - 1)`). The register-form
     // shifts mask natively at the FORM width (W mod 32, X mod 64) -- exactly
@@ -5324,7 +5324,7 @@ fn append_runtime_binary_operation_with_domain(
             byte_size,
         );
     }
-    let trapping = domain == omega_core::arithmetic::ArithmeticDomain::Trapping;
+    let trapping = domain == psi_numerics::arithmetic::ArithmeticDomain::Trapping;
     if trapping
         && matches!(
             operator,
@@ -5387,7 +5387,7 @@ fn append_runtime_binary_operation_with_domain(
 pub(in crate::aarch64) fn float_policy_guard_width(
     operator: StateGuardOperator,
     byte_size: usize,
-    domain: omega_core::arithmetic::ArithmeticDomain,
+    domain: psi_numerics::arithmetic::ArithmeticDomain,
 ) -> usize {
     float_policy_guard_bytes(
         domain,
@@ -5426,7 +5426,7 @@ pub(in crate::aarch64) fn float_policy_guard_width(
 /// this with fixed registers and takes `.len()` -- one source of truth (the
 /// place-copy rung-2a discipline), no hand-counted lockstep constant.
 fn float_policy_guard_bytes(
-    domain: omega_core::arithmetic::ArithmeticDomain,
+    domain: psi_numerics::arithmetic::ArithmeticDomain,
     operator: StateGuardOperator,
     byte_size: usize,
     left: u8,
@@ -5435,7 +5435,7 @@ fn float_policy_guard_bytes(
     s0: u8,
     s1: u8,
 ) -> Result<Vec<u8>, Diagnostic> {
-    use omega_core::arithmetic::ArithmeticDomain;
+    use psi_numerics::arithmetic::ArithmeticDomain;
     if !matches!(
         domain,
         ArithmeticDomain::Saturating | ArithmeticDomain::Trapping
@@ -6381,7 +6381,7 @@ fn append_runtime_float_binary_operation(
     left_register: u8,
     operator: StateGuardOperator,
     right_register: u8,
-    domain: omega_core::arithmetic::ArithmeticDomain,
+    domain: psi_numerics::arithmetic::ArithmeticDomain,
     guard_scratches: [u8; 2],
 ) -> Result<(), Diagnostic> {
     if operator == StateGuardOperator::FloatPair {
@@ -6933,7 +6933,7 @@ mod tests {
                     17,
                     operator,
                     26,
-                    omega_core::arithmetic::ArithmeticDomain::Exact,
+                    psi_numerics::arithmetic::ArithmeticDomain::Exact,
                     [15, 14],
                 )
                 .expect("encode float classification");
@@ -6951,7 +6951,7 @@ mod tests {
                 17,
                 StateGuardOperator::FloatClassify,
                 26,
-                omega_core::arithmetic::ArithmeticDomain::Exact,
+                psi_numerics::arithmetic::ArithmeticDomain::Exact,
                 [15, 14],
             )
             .expect("encode enum float classification");
@@ -7853,7 +7853,7 @@ mod tests {
     /// internal `debug_assert_eq!` also fires here. Covers all 1/2/4-byte widths.
     #[test]
     fn saturating_trapping_binary_write_width_matches_emission() {
-        use omega_core::arithmetic::ArithmeticDomain;
+        use psi_numerics::arithmetic::ArithmeticDomain;
         let (arena, left, right) = immediate_pair(100, 100);
         for &domain in &[ArithmeticDomain::Saturating, ArithmeticDomain::Trapping] {
             for &operator in &[
@@ -7886,7 +7886,7 @@ mod tests {
     /// with MOVZ/MOVK, and clamp with CMP + b.cond + MOV (no BRK).
     #[test]
     fn signed_saturating_add_byte_sign_extends_and_clamps() {
-        use omega_core::arithmetic::ArithmeticDomain;
+        use psi_numerics::arithmetic::ArithmeticDomain;
         let (arena, left, right) = immediate_pair(100, 100);
         let bytes = encode_runtime_storage_binary_write(
             &arena,
@@ -7937,7 +7937,7 @@ mod tests {
         // each narrow unsigned trapping arm emits exactly ONE brk (the old
         // both-checks tail emitted two -- and its SIGNED lower compare
         // misread 2^63+ products); signed arms keep both bound checks.
-        use omega_core::arithmetic::ArithmeticDomain;
+        use psi_numerics::arithmetic::ArithmeticDomain;
         let brk_count = |bytes: &[u8]| {
             bytes
                 .chunks_exact(4)
@@ -7978,7 +7978,7 @@ mod tests {
     /// the width helper, or relocation offsets drift.
     #[test]
     fn saturating_eight_byte_arithmetic_width_matches_emission() {
-        use omega_core::arithmetic::ArithmeticDomain;
+        use psi_numerics::arithmetic::ArithmeticDomain;
         for domain in [ArithmeticDomain::Saturating, ArithmeticDomain::Trapping] {
             for signed in [true, false] {
                 for operator in [
@@ -8010,7 +8010,7 @@ mod tests {
 
     #[test]
     fn trapping_float_policy_is_one_result_only_guard() {
-        use omega_core::arithmetic::ArithmeticDomain;
+        use psi_numerics::arithmetic::ArithmeticDomain;
 
         for byte_size in [4usize, 8] {
             for operator in [
@@ -8046,7 +8046,7 @@ mod tests {
 
     #[test]
     fn multiply_then_add_emission_keeps_two_operations_and_width_lockstep() {
-        use omega_core::arithmetic::ArithmeticDomain;
+        use psi_numerics::arithmetic::ArithmeticDomain;
 
         for byte_size in [4usize, 8] {
             for domain in [
@@ -8099,7 +8099,7 @@ mod tests {
 
     #[test]
     fn fused_multiply_add_emission_keeps_one_fmadd_and_width_lockstep() {
-        use omega_core::arithmetic::ArithmeticDomain;
+        use psi_numerics::arithmetic::ArithmeticDomain;
 
         for byte_size in [4usize, 8] {
             for domain in [

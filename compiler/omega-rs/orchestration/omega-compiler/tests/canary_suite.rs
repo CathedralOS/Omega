@@ -35378,10 +35378,10 @@ fn migrated_float_provider_plans_are_selected_for_every_native_target() {
                     .type_reference_table
                     .arithmetic_domain(operator.return_type)
                 {
-                    omega_core::arithmetic::ArithmeticDomain::Exact => "exact",
-                    omega_core::arithmetic::ArithmeticDomain::Trapping => "trapping",
-                    omega_core::arithmetic::ArithmeticDomain::Saturating => "saturating",
-                    omega_core::arithmetic::ArithmeticDomain::Wrapping => return None,
+                    psi_numerics::arithmetic::ArithmeticDomain::Exact => "exact",
+                    psi_numerics::arithmetic::ArithmeticDomain::Trapping => "trapping",
+                    psi_numerics::arithmetic::ArithmeticDomain::Saturating => "saturating",
+                    psi_numerics::arithmetic::ArithmeticDomain::Wrapping => return None,
                 };
                 Some(format!("{path}.{format}.{policy}"))
             } else {
@@ -35748,11 +35748,11 @@ fn named_float_to_integer_requirements_execute_in_both_engines() {
             panic!("selected conversion `{intrinsic}` must rewrite to one typed cast");
         };
         let expected_domain = if intrinsic.ends_with(".trapping") {
-            omega_core::arithmetic::ArithmeticDomain::Trapping
+            psi_numerics::arithmetic::ArithmeticDomain::Trapping
         } else if intrinsic.ends_with(".saturating") {
-            omega_core::arithmetic::ArithmeticDomain::Saturating
+            psi_numerics::arithmetic::ArithmeticDomain::Saturating
         } else {
-            omega_core::arithmetic::ArithmeticDomain::Exact
+            psi_numerics::arithmetic::ArithmeticDomain::Exact
         };
         assert_eq!(
             cast.domain, expected_domain,

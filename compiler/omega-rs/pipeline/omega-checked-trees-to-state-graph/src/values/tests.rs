@@ -115,7 +115,7 @@ fn state_value_summary_carries_nested_checked_policy_adapter_evidence() {
     assert_eq!(
         nested.arithmetic_policy_adapter,
         Some(
-            omega_core::arithmetic::ArithmeticPolicyAdapter::FloatTrappingNonFinite {
+            psi_numerics::arithmetic::ArithmeticPolicyAdapter::FloatTrappingNonFinite {
                 format: psi_numerics::float_semantics::FloatFormat::BINARY64,
             }
         )

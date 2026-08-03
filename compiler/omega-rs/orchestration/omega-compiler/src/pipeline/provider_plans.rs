@@ -706,10 +706,10 @@ fn expected_float_intrinsic(
                 .type_reference_table
                 .arithmetic_domain(operator.return_type)
             {
-                omega_core::arithmetic::ArithmeticDomain::Exact => "exact",
-                omega_core::arithmetic::ArithmeticDomain::Trapping => "trapping",
-                omega_core::arithmetic::ArithmeticDomain::Saturating => "saturating",
-                omega_core::arithmetic::ArithmeticDomain::Wrapping => return None,
+                psi_numerics::arithmetic::ArithmeticDomain::Exact => "exact",
+                psi_numerics::arithmetic::ArithmeticDomain::Trapping => "trapping",
+                psi_numerics::arithmetic::ArithmeticDomain::Saturating => "saturating",
+                psi_numerics::arithmetic::ArithmeticDomain::Wrapping => return None,
             };
             return Some(format!(
                 "{}::{}.{source_name}.{policy}",

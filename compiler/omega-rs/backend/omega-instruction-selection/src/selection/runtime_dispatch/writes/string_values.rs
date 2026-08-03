@@ -56,7 +56,7 @@ pub(in crate::selection) fn emit_runtime_frame_slot_text_comparison_write_in_tab
             StateGuardOperator::Or,
             zero,
             false,
-            omega_core::arithmetic::ArithmeticDomain::Exact,
+            psi_numerics::arithmetic::ArithmeticDomain::Exact,
             false,
         ),
         source_key: value_source_key,

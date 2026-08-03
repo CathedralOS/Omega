@@ -19,12 +19,12 @@ use omega_calling_conventions::{
     RegisterSet, SystemVEightbyteClass, ValueClass, ValueLocation, ValuePlacement, ValueShape,
     evaluate_call_plan, validate_call_plan,
 };
-use omega_core::arithmetic::ArithmeticDomain;
 use omega_core::diagnostics::Diagnostic;
 use omega_target_operations::{
     InstructionOperandLike, RuntimeStorageRegion, RuntimeValueOperandHandle,
     RuntimeValueOperandSource, StateGuardOperator,
 };
+use psi_numerics::arithmetic::ArithmeticDomain;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum X86_64RelocationSiteKind {
@@ -13611,7 +13611,7 @@ pub fn runtime_value_operand_width(
                 runtime_value_operands.binary_arithmetic_domain(operand),
                 runtime_value_operands.binary_byte_width(operand),
             ) {
-                (Some((omega_core::arithmetic::ArithmeticDomain::Wrapping, _)), Some(width))
+                (Some((psi_numerics::arithmetic::ArithmeticDomain::Wrapping, _)), Some(width))
                     if width < 8 =>
                 {
                     wrapping_node_width_extension_width(width)
@@ -13953,7 +13953,7 @@ fn append_runtime_value_operand(
             // Extension follows the node's own signedness. Width tracked in
             // runtime_value_operand_width -- MUST stay in lockstep (4 bytes,
             // except 3 for the width-4 forms).
-            if let Some((omega_core::arithmetic::ArithmeticDomain::Wrapping, operands_signed)) =
+            if let Some((psi_numerics::arithmetic::ArithmeticDomain::Wrapping, operands_signed)) =
                 runtime_value_operands.binary_arithmetic_domain(operand)
                 && let Some(byte_width) = runtime_value_operands.binary_byte_width(operand)
                 && byte_width < 8
@@ -17415,7 +17415,7 @@ mod machine_control_tests {
         fn binary_arithmetic_domain(
             &self,
             _: RuntimeValueOperandHandle,
-        ) -> Option<(omega_core::arithmetic::ArithmeticDomain, bool)> {
+        ) -> Option<(psi_numerics::arithmetic::ArithmeticDomain, bool)> {
             None
         }
         fn convert(

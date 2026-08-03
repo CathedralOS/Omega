@@ -1,7 +1,7 @@
-use omega_core::arithmetic::ArithmeticDomain;
 use omega_core::symbols::SymbolHandle;
 use psi_checked_trees::expression::{BinaryExpression, BinaryOperator, Expression};
 use psi_checked_trees::types::PrimitiveType;
+use psi_numerics::arithmetic::ArithmeticDomain;
 use psi_numerics::literals::IntegerLiteral;
 
 /// The folder reads literals through the i64 VALUE WINDOW (D14): an anonymous

@@ -41,7 +41,7 @@ pub enum TypeLayoutDescriptor {
     },
     Constrained {
         base_type: Box<TypeLayoutDescriptor>,
-        domain: omega_core::arithmetic::ArithmeticDomain,
+        domain: psi_numerics::arithmetic::ArithmeticDomain,
     },
     FixedArray {
         element_type: Box<TypeLayoutDescriptor>,
@@ -129,11 +129,11 @@ impl TypeLayoutDescriptor {
     /// type via `T in <Domain>`. Defaults to `Exact` for unconstrained types.
     /// Looks through a leading `&`/`&mut` reference so a `&mut (u8 in Saturating)`
     /// target still reports its domain at the binary-write site.
-    pub fn arithmetic_domain(&self) -> omega_core::arithmetic::ArithmeticDomain {
+    pub fn arithmetic_domain(&self) -> psi_numerics::arithmetic::ArithmeticDomain {
         match self {
             Self::Constrained { domain, .. } => *domain,
             Self::Reference { referee, .. } => referee.arithmetic_domain(),
-            _ => omega_core::arithmetic::ArithmeticDomain::Exact,
+            _ => psi_numerics::arithmetic::ArithmeticDomain::Exact,
         }
     }
 }

@@ -320,7 +320,7 @@ fn initializer_carries_trapping_arithmetic(
     local_statement_index: usize,
     initial_value: ExpressionHandle,
 ) -> bool {
-    use omega_core::arithmetic::ArithmeticDomain;
+    use psi_numerics::arithmetic::ArithmeticDomain;
 
     if let Some(StatementNode::LocalData(local_data)) = statements.get(local_statement_index)
         && local_data.type_reference.is_valid()
@@ -354,8 +354,8 @@ fn expression_contains_trapping_op(
     local_statement_index: usize,
     expression: ExpressionHandle,
 ) -> bool {
-    use omega_core::arithmetic::ArithmeticDomain;
     use psi_checked_trees::expression::{BinaryOperator, ExpressionNode};
+    use psi_numerics::arithmetic::ArithmeticDomain;
 
     match expressions.expression(expression) {
         ExpressionNode::Binary(binary) => {
@@ -437,8 +437,8 @@ fn operand_declared_trapping(
     local_statement_index: usize,
     operand: ExpressionHandle,
 ) -> bool {
-    use omega_core::arithmetic::ArithmeticDomain;
     use psi_checked_trees::expression::ExpressionNode;
+    use psi_numerics::arithmetic::ArithmeticDomain;
 
     let reference_is_trapping = |handle: psi_checked_trees::types::TypeReferenceHandle| {
         handle.is_valid()

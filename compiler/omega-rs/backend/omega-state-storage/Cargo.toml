@@ -12,6 +12,7 @@ path = "src/lib.rs"
 psi-checked-trees = { path = "../../../psi-rs/representations/psi-checked-trees" }
 omega-control-flow = { path = "../../representations/omega-control-flow" }
 omega-core = { path = "../../foundation/omega-core" }
+psi-numerics = { path = "../../../psi-rs/foundation/psi-numerics" }
 omega-state-calls = { path = "../omega-state-calls" }
 omega-state-graph = { path = "../../representations/omega-state-graph" }
 omega-state-values = { path = "../omega-state-values" }

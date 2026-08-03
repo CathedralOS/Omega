@@ -475,7 +475,7 @@ pub enum TargetOperationKind {
         operator: StateGuardOperator,
         right: TargetValueOperandHandle,
         is_float: bool,
-        domain: omega_core::arithmetic::ArithmeticDomain,
+        domain: psi_numerics::arithmetic::ArithmeticDomain,
         target_signed: bool,
     },
 

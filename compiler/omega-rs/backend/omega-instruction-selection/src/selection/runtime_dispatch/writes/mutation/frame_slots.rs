@@ -73,7 +73,7 @@ fn trapping_frame_slot_constant_overflow_write(
         source_key,
         &scratch,
         target,
-    ) != omega_core::arithmetic::ArithmeticDomain::Trapping
+    ) != psi_numerics::arithmetic::ArithmeticDomain::Trapping
     {
         return None;
     }
@@ -104,7 +104,7 @@ fn trapping_frame_slot_constant_overflow_write(
             operator,
             right,
             false,
-            omega_core::arithmetic::ArithmeticDomain::Trapping,
+            psi_numerics::arithmetic::ArithmeticDomain::Trapping,
             primitive.is_signed_integer(),
         ),
     )

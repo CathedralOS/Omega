@@ -31,7 +31,7 @@ fn copies_control_flow_values_into_abstract_summary() {
                 role: StateValueStatementRole::TransitionGuard,
             },
             arithmetic_policy_adapter: Some(
-                omega_core::arithmetic::ArithmeticPolicyAdapter::FloatSaturatingOverflowOnly {
+                psi_numerics::arithmetic::ArithmeticPolicyAdapter::FloatSaturatingOverflowOnly {
                     format: psi_numerics::float_semantics::FloatFormat::BINARY32,
                 },
             ),
@@ -61,7 +61,7 @@ fn copies_control_flow_values_into_abstract_summary() {
     assert_eq!(
         copied.arithmetic_policy_adapter,
         Some(
-            omega_core::arithmetic::ArithmeticPolicyAdapter::FloatSaturatingOverflowOnly {
+            psi_numerics::arithmetic::ArithmeticPolicyAdapter::FloatSaturatingOverflowOnly {
                 format: psi_numerics::float_semantics::FloatFormat::BINARY32,
             }
         )
