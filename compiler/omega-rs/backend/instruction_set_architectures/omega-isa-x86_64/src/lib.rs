@@ -3513,12 +3513,12 @@ pub fn encode_sysv_vtable_call_with_plan<T: InstructionOperandLike>(
     result_present: bool,
     authoritative_plan: &CallPlan,
 ) -> Result<Vec<u8>, Diagnostic> {
-    Ok(sysv_field_call_layout(
+    Ok(sysv_field_call_layout_for_plan(
         operands,
         byte_offset,
         result_present,
         true,
-        Some(authoritative_plan),
+        HostCallPlan::Authoritative(authoritative_plan),
     )?
     .bytes)
 }
@@ -3529,12 +3529,12 @@ pub fn sysv_vtable_call_width_with_plan<T: InstructionOperandLike>(
     result_present: bool,
     authoritative_plan: &CallPlan,
 ) -> usize {
-    sysv_field_call_layout(
+    sysv_field_call_layout_for_plan(
         operands,
         byte_offset,
         result_present,
         true,
-        Some(authoritative_plan),
+        HostCallPlan::Authoritative(authoritative_plan),
     )
     .map(|layout| layout.bytes.len())
     .unwrap_or(0)
@@ -3547,12 +3547,12 @@ pub fn sysv_vtable_call_data_relocation_byte_offset_with_plan<T: InstructionOper
     operand_index: usize,
     authoritative_plan: &CallPlan,
 ) -> usize {
-    sysv_field_call_layout(
+    sysv_field_call_layout_for_plan(
         operands,
         byte_offset,
         result_present,
         true,
-        Some(authoritative_plan),
+        HostCallPlan::Authoritative(authoritative_plan),
     )
     .ok()
     .and_then(|layout| {
@@ -3573,12 +3573,12 @@ pub fn encode_sysv_table_function_call_with_plan<T: InstructionOperandLike>(
     result_present: bool,
     authoritative_plan: &CallPlan,
 ) -> Result<Vec<u8>, Diagnostic> {
-    Ok(sysv_field_call_layout(
+    Ok(sysv_field_call_layout_for_plan(
         operands,
         byte_offset,
         result_present,
         false,
-        Some(authoritative_plan),
+        HostCallPlan::Authoritative(authoritative_plan),
     )?
     .bytes)
 }
@@ -3589,12 +3589,12 @@ pub fn sysv_table_function_call_width_with_plan<T: InstructionOperandLike>(
     result_present: bool,
     authoritative_plan: &CallPlan,
 ) -> usize {
-    sysv_field_call_layout(
+    sysv_field_call_layout_for_plan(
         operands,
         byte_offset,
         result_present,
         false,
-        Some(authoritative_plan),
+        HostCallPlan::Authoritative(authoritative_plan),
     )
     .map(|layout| layout.bytes.len())
     .unwrap_or(0)
@@ -3607,12 +3607,12 @@ pub fn sysv_table_function_call_data_relocation_byte_offset_with_plan<T: Instruc
     operand_index: usize,
     authoritative_plan: &CallPlan,
 ) -> usize {
-    sysv_field_call_layout(
+    sysv_field_call_layout_for_plan(
         operands,
         byte_offset,
         result_present,
         false,
-        Some(authoritative_plan),
+        HostCallPlan::Authoritative(authoritative_plan),
     )
     .ok()
     .and_then(|layout| {
@@ -3625,12 +3625,12 @@ pub fn sysv_table_function_call_data_relocation_byte_offset_with_plan<T: Instruc
     .unwrap_or(0)
 }
 
-fn sysv_field_call_layout<T: InstructionOperandLike>(
+fn sysv_field_call_layout_for_plan<T: InstructionOperandLike>(
     operands: &[T],
     byte_offset: i64,
     result_present: bool,
     passes_receiver: bool,
-    authoritative_plan: Option<&CallPlan>,
+    plan_source: HostCallPlan<'_>,
 ) -> Result<SysvImportLayout, Diagnostic> {
     let result_index = result_present.then_some(0);
     let dispatch_index = usize::from(result_present);
@@ -3666,19 +3666,22 @@ fn sysv_field_call_layout<T: InstructionOperandLike>(
             .map(|index| sysv_operand_shape(&operands[index]))
             .transpose()?,
     };
-    let plan = if let Some(plan) = authoritative_plan {
-        validate_call_plan(plan, &signature).map_err(|error| {
-            Diagnostic::error(format!(
-                "source-selected SysV AMD64 field-call plan does not match the lowered signature: {error}"
-            ))
-        })?;
-        plan.clone()
-    } else {
-        evaluate_call_plan(CallingPolicy::SystemVAMD64, &signature).map_err(|error| {
-            Diagnostic::error(format!(
-                "cannot evaluate SysV AMD64 field-call plan: {error}"
-            ))
-        })?
+    let plan = match plan_source {
+        HostCallPlan::Authoritative(plan) => {
+            validate_call_plan(plan, &signature).map_err(|error| {
+                Diagnostic::error(format!(
+                    "source-selected SysV AMD64 field-call plan does not match the lowered signature: {error}"
+                ))
+            })?;
+            plan.clone()
+        }
+        HostCallPlan::CompatibilityOracle => {
+            evaluate_call_plan(CallingPolicy::SystemVAMD64, &signature).map_err(|error| {
+                Diagnostic::error(format!(
+                    "cannot evaluate SysV AMD64 field-call plan: {error}"
+                ))
+            })?
+        }
     };
     validate_sysv_import_plan(&plan)?;
 
@@ -5814,8 +5817,14 @@ mod x86_import_plan_tests {
                 alignment: 8,
             }),
         ];
-        let layout = sysv_field_call_layout(&operands, 24, true, true, None)
-            .expect("SysV vtable field call");
+        let layout = sysv_field_call_layout_for_plan(
+            &operands,
+            24,
+            true,
+            true,
+            HostCallPlan::CompatibilityOracle,
+        )
+        .expect("SysV vtable field call");
 
         assert!(
             layout
@@ -5871,8 +5880,14 @@ mod x86_import_plan_tests {
                 byte_count: 8,
             }),
         ];
-        let layout = sysv_field_call_layout(&operands, 40, true, false, None)
-            .expect("SysV table-function call");
+        let layout = sysv_field_call_layout_for_plan(
+            &operands,
+            40,
+            true,
+            false,
+            HostCallPlan::CompatibilityOracle,
+        )
+        .expect("SysV table-function call");
 
         assert!(
             layout
@@ -6161,8 +6176,14 @@ mod x86_import_plan_tests {
                 byte_count: 8,
             }),
         ];
-        let layout =
-            sysv_field_call_layout(&operands, 24, true, true, None).expect("SysV sret vtable call");
+        let layout = sysv_field_call_layout_for_plan(
+            &operands,
+            24,
+            true,
+            true,
+            HostCallPlan::CompatibilityOracle,
+        )
+        .expect("SysV sret vtable call");
 
         assert!(
             layout

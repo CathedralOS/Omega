@@ -820,7 +820,9 @@ Remaining:
   The x86-64 ISA vtable/field/service-table encoder, width, and data-relocation
   APIs now require an authoritative plan directly as well; Win64 normalization
   remains only in test oracles, and the unused SysV no-plan entry points are
-  retired. Ordinary import encoding, width, AArch64 placement, and x86-64
+  retired. The shared SysV field-call layout also keeps production authority
+  distinct from its explicitly named test oracle through final plan selection.
+  Ordinary import encoding, width, AArch64 placement, and x86-64
   call/data relocation `with_plan` APIs now require `&CallPlan` rather than an
   optional plan; the no-plan route is a separately named differential oracle.
   The shared ordinary-import encoder now carries that distinction as an
