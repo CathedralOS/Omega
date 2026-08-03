@@ -1015,6 +1015,10 @@ Linux statement, value-result, timespec-result, and timespec-argument syscall
 families likewise compare compatibility selection with an independently
 evaluated x86-64/AArch64 plan. Their emitted bytes and planned widths must
 match; result and argument relocation sites must remain identical as well.
+Their `with_plan` encoding and width APIs require a concrete plan, while the
+separately named compatibility functions own the no-plan differential side.
+Production syscall emission therefore cannot request a plan-aware operation
+while silently omitting its plan.
 
 Ordinary non-variadic built-in imports now retain the selected binding plan
 through machine emission, layout, and x86-64 relocation accounting instead of

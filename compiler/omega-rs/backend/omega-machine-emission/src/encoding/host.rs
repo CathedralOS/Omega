@@ -23,7 +23,7 @@ pub(super) fn encode_host_operation(
                 input.target.architecture,
                 operands,
                 *number,
-                Some(required_syscall_call_plan(binding)?),
+                required_syscall_call_plan(binding)?,
             )
         }
         Some(HostBindingMechanism::Syscall { number, .. })
@@ -33,7 +33,7 @@ pub(super) fn encode_host_operation(
                 input.target.architecture,
                 operands,
                 *number,
-                Some(required_syscall_call_plan(binding)?),
+                required_syscall_call_plan(binding)?,
             )
         }
         Some(HostBindingMechanism::Syscall { number, .. }) if operation_key.returns_value() => {
@@ -41,7 +41,7 @@ pub(super) fn encode_host_operation(
                 input.target.architecture,
                 operands,
                 *number,
-                Some(required_syscall_call_plan(binding)?),
+                required_syscall_call_plan(binding)?,
             )
         }
         Some(HostBindingMechanism::Syscall { number, .. }) => {
@@ -49,7 +49,7 @@ pub(super) fn encode_host_operation(
                 input.target.architecture,
                 operands,
                 *number,
-                Some(required_syscall_call_plan(binding)?),
+                required_syscall_call_plan(binding)?,
             )
         }
         Some(HostBindingMechanism::VtableSlot { index }) => {

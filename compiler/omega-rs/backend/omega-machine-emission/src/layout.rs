@@ -122,7 +122,7 @@ fn machine_instruction_width(
                                 input.target.architecture,
                                 operands,
                                 *number,
-                                Some(plan),
+                                plan,
                             )
                         })
                 }
@@ -138,7 +138,7 @@ fn machine_instruction_width(
                                 input.target.architecture,
                                 operands,
                                 *number,
-                                Some(plan),
+                                plan,
                             )
                         })
                 }
@@ -152,7 +152,7 @@ fn machine_instruction_width(
                                 input.target.architecture,
                                 operands,
                                 *number,
-                                Some(plan),
+                                plan,
                             )
                         })
                 }
@@ -164,7 +164,7 @@ fn machine_instruction_width(
                                 input.target.architecture,
                                 operands,
                                 *number,
-                                Some(plan),
+                                plan,
                             )
                         })
                 }
