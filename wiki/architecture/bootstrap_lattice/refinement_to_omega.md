@@ -10,7 +10,7 @@ view the pillar earned: **which of its techniques carry to the ω rung, and what
 `omega-rs`'s proof pipeline actually consists of.**
 
 `omega-rs` (untouched reference producer, per D1) already sketches the destination in
-`semantics/omega-proof`: `obligations.rs` (proof obligations attached to compilation), `boundary.rs`
+`semantics/psi-proof`: `obligations.rs` (proof obligations attached to compilation), `boundary.rs`
 (boundary obligations at capability seams), `lemmas.rs`, `checker.rs`. The lattice's job is to reach that
 shape with *its own trust story* — obligations discharged by certificates the δ anchor checks, not by a
 244k-line Rust codebase we take on faith.

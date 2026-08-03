@@ -9,7 +9,4 @@ name = "omega_proof"
 path = "src/lib.rs"
 
 [dependencies]
-omega-syntax-trees = { path = "../../representations/omega-syntax-trees" }
-omega-core = { path = "../../foundation/omega-core" }
-omega-typed-trees = { path = "../../representations/omega-typed-trees" }
-omega-validation = { path = "../omega-validation" }
+psi-proof = { path = "../../../psi-rs/semantics/psi-proof" }

@@ -12,7 +12,7 @@
 //! primitive symbol to its provider is another lane's concern; here we only
 //! describe the obligations the prover must account for.
 
-use omega_typed_trees::name::Identifier;
+use psi_typed_trees::name::Identifier;
 
 /// Why a primitive crosses a boundary instead of being proven from Omega code.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

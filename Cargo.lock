@@ -752,10 +752,7 @@ dependencies = [
 name = "omega-proof"
 version = "0.1.0"
 dependencies = [
- "omega-core",
- "omega-syntax-trees",
- "omega-typed-trees",
- "omega-validation",
+ "psi-proof",
 ]
 
 [[package]]
@@ -1301,6 +1298,20 @@ version = "0.1.0"
 [[package]]
 name = "psi-numerics"
 version = "0.1.0"
+
+[[package]]
+name = "psi-proof"
+version = "0.1.0"
+dependencies = [
+ "psi-arena",
+ "psi-diagnostics",
+ "psi-language-semantics",
+ "psi-numerics",
+ "psi-symbols",
+ "psi-syntax-trees",
+ "psi-typed-trees",
+ "psi-validation",
+]
 
 [[package]]
 name = "psi-proof-kernel"

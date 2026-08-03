@@ -84,6 +84,7 @@ Omega/
 |   |   |   `-- [CRATE] psi-symbol-resolved-trees-to-typed-trees/ # Psi-owned type/signature normalization.
 |   |   `-- semantics/
 |   |       |-- [CRATE] psi-validation/                 # Cross-semantic source validation and diagnostics.
+|   |       |-- [CRATE] psi-proof/                      # Source proof obligations, planning, and checking.
 |   |       |-- [CRATE] psi-proof-kernel/               # Total judgments, proof certificates, and admission checks.
 |   |       `-- [CRATE] psi-terminal-verifier/          # Module validation and reconstructed-obligation checking.
 |   |
@@ -94,7 +95,7 @@ Omega/
 |   |   |-- [CRATE] omega-types/                        # Type checking, inference, coercions, layout preconditions.
 |   |   |-- [CRATE] omega-graph/                        # Machine/state graph construction and graph-facing semantic facts.
 |   |   |-- [CRATE] omega-validation/                   # Transitional re-export of Psi-owned source validation.
-|   |   `-- [CRATE] omega-proof/                        # Proof obligations, invariants, liveness hooks.
+|   |   `-- [CRATE] omega-proof/                        # Transitional re-export of Psi-owned source proof checking.
 |   |
 |   |-- representations/
 |   |   |-- [CRATE] omega-tokens/                       # Transitional re-export of Psi-owned tokens.
@@ -257,8 +258,8 @@ Omega/
   invariants, and validation. It has been consolidated: there are no separate
   `omega-borrow`, `omega-invariants`, `omega-contracts`, or `omega-consteval`
   crates today. Borrow, invariant, contract, and const-evaluation reasoning live
-  inside the existing semantic crates (chiefly `omega-types`, `omega-facts`,
-  `omega-validation`, and `omega-proof`).
+  inside the existing semantic crates (chiefly `omega-types`, `psi-facts`,
+  `psi-validation`, and `psi-proof`).
 - `psi-facts` carries checked facts, invariants, and refinement data: what
   remains true. The old `omega-facts` name is a compatibility export while
   downstream Omega consumers migrate to terminal Psi.
@@ -275,7 +276,8 @@ Omega/
   who may read or mutate and what a callable requires or promises. The old
   `omega-validation` name is a compatibility export; provider installation and
   approval remain in Omega.
-- `omega-proof` discharges obligations.
+- `psi-proof` plans and discharges source-level obligations. The old
+  `omega-proof` name is a compatibility export.
 - `omega-graph` stays language/proof-facing; do not bury state-machine reasoning
   in backend crates.
 

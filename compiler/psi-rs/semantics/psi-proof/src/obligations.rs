@@ -1,19 +1,17 @@
-use omega_core::arena::{Arena, HandleSpan};
-use omega_core::bignum::BigInt;
-use omega_core::symbols::SymbolHandle;
-use omega_typed_trees::TypedTrees;
-use omega_typed_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, FloatLiteral,
-};
-use omega_typed_trees::machine::Machine;
-use omega_typed_trees::name::Identifier;
-use omega_typed_trees::signature::StateParameter;
-use omega_typed_trees::state::State;
-use omega_typed_trees::statement::{
+use psi_arena::{Arena, HandleSpan};
+use psi_numerics::bignum::BigInt;
+use psi_symbols::SymbolHandle;
+use psi_typed_trees::TypedTrees;
+use psi_typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, FloatLiteral};
+use psi_typed_trees::machine::Machine;
+use psi_typed_trees::name::Identifier;
+use psi_typed_trees::signature::StateParameter;
+use psi_typed_trees::state::State;
+use psi_typed_trees::statement::{
     StatementNode, TableAssignment, TableCall, TableLocalData, TransitionGuardNode,
     TransitionTargetHandle, TransitionTargetNode,
 };
-use omega_typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+use psi_typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 use std::fmt;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -65,12 +63,12 @@ impl<'program> ProofPlan<'program> {
 pub enum ProofConstraint {
     Named(Identifier),
     IntegerRange {
-        minimum: omega_core::bignum::BigInt,
-        maximum: omega_core::bignum::BigInt,
+        minimum: psi_numerics::bignum::BigInt,
+        maximum: psi_numerics::bignum::BigInt,
     },
     /// R1 dependent range (`[0..=self.count]`): the maximum names a `self`
     /// FIELD's entry value plus a literal offset. Minted only for the
-    /// recognizer's admissible class (omega-typed-trees dependent_ranges);
+    /// recognizer's admissible class (`psi-typed-trees::dependent_ranges`);
     /// consumed by the bounded-argument checks, which must DISCHARGE it --
     /// an unrecognized carrier refuses at the validation fence long before
     /// proofs run, so this variant never silently widens.
@@ -96,7 +94,7 @@ pub enum ProofConstraint {
     /// Operand-driven arithmetic behavior carried through expression
     /// derivation. This is metadata for deciding which value facts an
     /// operation establishes, not itself a proof predicate.
-    ArithmeticDomain(omega_core::arithmetic::ArithmeticDomain),
+    ArithmeticDomain(psi_numerics::arithmetic::ArithmeticDomain),
 }
 
 impl Default for ProofConstraint {
@@ -115,7 +113,7 @@ impl ProofConstraint {
             // float-range, and invariant-window machinery without pretending
             // that an authored carrier domain was declared.
             TypeConstraintNode::Domain(name) => {
-                omega_core::value_domain::ValueDomain::from_name(name.as_str())
+                psi_language_semantics::value_domain::ValueDomain::from_name(name.as_str())
                     .map(|domain| Self::Named(Identifier::generated_static(domain.proof_name())))
             }
             TypeConstraintNode::Range { minimum, maximum } => {
@@ -157,7 +155,7 @@ impl ProofConstraint {
         // the parser's `- 1` normalization): literal minimum + admissible
         // symbolic maximum mints the relational atom.
         if let Some(minimum) = integer_bound(minimum)
-            && let Some(symbolic) = omega_typed_trees::dependent_ranges::symbolic_max_bound(
+            && let Some(symbolic) = psi_typed_trees::dependent_ranges::symbolic_max_bound(
                 &program.expression_table,
                 maximum,
             )
@@ -170,7 +168,7 @@ impl ProofConstraint {
         }
         // R1 sibling-length maximum (`[0..items.len]` -> len - 1).
         if let Some(minimum) = integer_bound(minimum)
-            && let Some(sibling) = omega_typed_trees::dependent_ranges::sibling_len_bound(
+            && let Some(sibling) = psi_typed_trees::dependent_ranges::sibling_len_bound(
                 &program.expression_table,
                 maximum,
             )
@@ -458,8 +456,8 @@ pub struct BoundedTransitionArgumentObligation {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct IntegerRange {
-    pub(crate) minimum: omega_core::bignum::BigInt,
-    pub(crate) maximum: omega_core::bignum::BigInt,
+    pub(crate) minimum: psi_numerics::bignum::BigInt,
+    pub(crate) maximum: psi_numerics::bignum::BigInt,
 }
 
 /// A top-level BINARY assignment value's operands with their DECLARED ranges,
@@ -867,7 +865,7 @@ fn collect_bounded_assignment_obligation(
 /// adds its own ensures-bounded `&mut` argument places. Assignments invalidate
 /// overlapping paths. (Sibling of the validation recast walk and the checker
 /// ranges walk; the signature chain is the shared
-/// `omega_typed_trees::boundary::called_boundary_signature` -- validation's
+/// `psi_typed_trees::boundary::called_boundary_signature` -- validation's
 /// stays cache-based because it also covers `contains`-clause receivers.)
 fn ensures_witness_bounds_at(
     program: &TypedTrees,
@@ -875,9 +873,9 @@ fn ensures_witness_bounds_at(
     statements: &[StatementNode],
     upto: usize,
 ) -> Vec<(String, i64)> {
-    use omega_typed_trees::domain::ProofFact;
-    use omega_typed_trees::signature::SignatureContractKind;
-    let call_frames = omega_validation::CallFrameResolver::new(program);
+    use psi_typed_trees::domain::ProofFact;
+    use psi_typed_trees::signature::SignatureContractKind;
+    let call_frames = psi_validation::CallFrameResolver::new(program);
     let mut witnesses: Vec<(String, i64)> = Vec::new();
     for statement in &statements[..upto] {
         match statement {
@@ -889,13 +887,13 @@ fn ensures_witness_bounds_at(
                     witnesses.retain(|(place, _)| {
                         written
                             .iter()
-                            .all(|written| !omega_validation::frame_paths_overlap(place, written))
+                            .all(|written| !psi_validation::frame_paths_overlap(place, written))
                     });
                 } else {
                     witnesses.clear();
                 }
                 let Some(signature) =
-                    omega_typed_trees::boundary::called_boundary_signature(program, machine, call)
+                    psi_typed_trees::boundary::called_boundary_signature(program, machine, call)
                 else {
                     continue;
                 };
@@ -928,8 +926,7 @@ fn ensures_witness_bounds_at(
             }
             StatementNode::Assignment(assignment) => {
                 let target = program.expression_table.display_name(assignment.target);
-                witnesses
-                    .retain(|(place, _)| !omega_validation::frame_paths_overlap(place, &target));
+                witnesses.retain(|(place, _)| !psi_validation::frame_paths_overlap(place, &target));
             }
             _ => {}
         }
@@ -1174,7 +1171,7 @@ fn payload_field_constraints_under_case_guard(
 /// the SAME place as `receiver`, returning the matched case's variant symbol.
 /// Case membership lowers to exactly this equality shape, with the case
 /// reference a `Name` whose `.symbol` is the variant symbol (see
-/// omega-symbol-resolved-trees-to-typed-trees domain_membership.rs).
+/// `psi-symbol-resolved-trees-to-typed-trees/src/domain_membership.rs`).
 fn case_guard_proven_variant(
     program: &TypedTrees,
     condition: ExpressionHandle,
@@ -1228,7 +1225,7 @@ fn variant_payload_field_type_reference(
 ) -> Option<TypeReferenceHandle> {
     program.data_definitions().iter().find_map(|definition| {
         program.data_members(definition).iter().find_map(|member| {
-            let omega_typed_trees::data::DataMember::Variant(variant) = member else {
+            let psi_typed_trees::data::DataMember::Variant(variant) = member else {
                 return None;
             };
             if variant.symbol != variant_symbol {
@@ -1346,7 +1343,7 @@ fn collect_bounded_state_return_obligation(
     let Some((base_type, constraints)) = constrained_type_reference(program, return_type) else {
         return;
     };
-    let Some(omega_typed_trees::statement::StatementNode::Expression(value)) = program
+    let Some(psi_typed_trees::statement::StatementNode::Expression(value)) = program
         .statement_table
         .statements(state.statement_nodes)
         .last()
@@ -1468,7 +1465,7 @@ fn table_transition_target_state_and_arguments<'program>(
     target: TransitionTargetHandle,
 ) -> Option<(
     &'program State,
-    &'program [omega_typed_trees::expression::ExpressionHandle],
+    &'program [psi_typed_trees::expression::ExpressionHandle],
 )> {
     let TransitionTargetNode::Named { path, arguments } =
         program.statement_table.transition_target(target)
@@ -1636,7 +1633,7 @@ fn expression_constraints(
                 .map(|member| member.as_str())
                 .eq(["u32", "MAX"]) =>
         {
-            integer_literal_constraints(&omega_core::literals::IntegerLiteral::from_value(
+            integer_literal_constraints(&psi_numerics::literals::IntegerLiteral::from_value(
                 u32::MAX as i64,
             ))
         }
@@ -1748,16 +1745,16 @@ fn element_type_reference(
         return None;
     }
     match program.type_reference_table.type_reference(type_reference) {
-        omega_typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
+        psi_typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
             element_type_reference(program, *referee)
         }
-        omega_typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+        psi_typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
             element_type_reference(program, *base_type)
         }
-        omega_typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. } => {
+        psi_typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. } => {
             Some(*element_type)
         }
-        omega_typed_trees::types::TypeReferenceNode::Slice { element_type } => Some(*element_type),
+        psi_typed_trees::types::TypeReferenceNode::Slice { element_type } => Some(*element_type),
         _ => None,
     }
 }
@@ -1765,7 +1762,7 @@ fn element_type_reference(
 /// Resolve a `self.a.b.c` field place (ONE level `self.f` or NESTED) to the
 /// final field's DECLARED type reference (constraints intact) via the machine's
 /// attached data, descending into each intermediate field's data type. `None` for
-/// any other expression shape. Mirrors `omega-typed-trees-to-checked-trees`
+/// any other expression shape. Mirrors `psi-typed-trees-to-checked-trees`
 /// `field_domain::attached_data_field_type` -- both sides must agree so a nested
 /// domained field is trusted at reads exactly where it is enforced at writes.
 fn attached_data_field_type(
@@ -1818,14 +1815,14 @@ fn self_field_path(program: &TypedTrees, expression: ExpressionHandle) -> Option
 
 pub(crate) fn data_field_type_by_name(
     program: &TypedTrees,
-    data: &omega_typed_trees::data::DataDefinition,
+    data: &psi_typed_trees::data::DataDefinition,
     field_name: &str,
 ) -> Option<TypeReferenceHandle> {
     program
         .data_members(data)
         .iter()
         .find_map(|member| match member {
-            omega_typed_trees::data::DataMember::Field(field)
+            psi_typed_trees::data::DataMember::Field(field)
                 if field.name.as_str() == field_name =>
             {
                 field
@@ -2044,7 +2041,7 @@ fn type_reference_for_symbol(
                         .data_members(data_definition)
                         .iter()
                         .find_map(|member| {
-                            let omega_typed_trees::data::DataMember::Field(field) = member else {
+                            let psi_typed_trees::data::DataMember::Field(field) = member else {
                                 return None;
                             };
 
@@ -2093,7 +2090,7 @@ fn data_definition_by_symbol_or_name<'program>(
     program: &'program TypedTrees,
     symbol: SymbolHandle,
     name: &Identifier,
-) -> Option<&'program omega_typed_trees::data::DataDefinition> {
+) -> Option<&'program psi_typed_trees::data::DataDefinition> {
     program.data_definitions().iter().find(|data_definition| {
         (symbol.is_valid() && data_definition.symbol == symbol) || data_definition.name == *name
     })
@@ -2101,7 +2098,7 @@ fn data_definition_by_symbol_or_name<'program>(
 
 fn data_field_in_definition(
     program: &TypedTrees,
-    data_definition: &omega_typed_trees::data::DataDefinition,
+    data_definition: &psi_typed_trees::data::DataDefinition,
     member_symbol: SymbolHandle,
     member_name: &Identifier,
 ) -> Option<TypeReferenceHandle> {
@@ -2109,7 +2106,7 @@ fn data_field_in_definition(
         .data_members(data_definition)
         .iter()
         .find_map(|member| {
-            let omega_typed_trees::data::DataMember::Field(field) = member else {
+            let psi_typed_trees::data::DataMember::Field(field) = member else {
                 return None;
             };
 
@@ -2119,7 +2116,9 @@ fn data_field_in_definition(
         })
 }
 
-fn integer_literal_constraints(literal: &omega_core::literals::IntegerLiteral) -> ConstraintBuffer {
+fn integer_literal_constraints(
+    literal: &psi_numerics::literals::IntegerLiteral,
+) -> ConstraintBuffer {
     let mut constraints = ConstraintBuffer::new();
     // N2: literal facts are EXACT at any magnitude (canonical text always
     // parses); the D14 width gate still owns which POSITIONS may spell an
@@ -2176,7 +2175,7 @@ fn derived_binary_constraints(
     let mut constraints = ConstraintBuffer::new();
     let arithmetic_domain = arithmetic_domain_from_constraints(left_constraints)
         .combine(arithmetic_domain_from_constraints(right_constraints));
-    if arithmetic_domain != omega_core::arithmetic::ArithmeticDomain::Exact {
+    if arithmetic_domain != psi_numerics::arithmetic::ArithmeticDomain::Exact {
         constraints.push(ProofConstraint::ArithmeticDomain(arithmetic_domain));
     }
 
@@ -2184,7 +2183,7 @@ fn derived_binary_constraints(
     // finite for the operations whose only non-finite route is overflow.
     // Divide/modulo deliberately stay out: zero divisors and invalid
     // operations retain IEEE Inf/NaN under the settled policy.
-    if arithmetic_domain == omega_core::arithmetic::ArithmeticDomain::Saturating
+    if arithmetic_domain == psi_numerics::arithmetic::ArithmeticDomain::Saturating
         && constraints_prove_finite(left_constraints)
         && constraints_prove_finite(right_constraints)
         && matches!(
@@ -2272,7 +2271,7 @@ fn derived_builtin_call_constraints(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
-    call: &omega_typed_trees::expression::TableCallExpression,
+    call: &psi_typed_trees::expression::TableCallExpression,
 ) -> Option<ConstraintBuffer> {
     match call.target.as_str() {
         "max" => derived_extrema_call_constraints(program, machine, state, call, true),
@@ -2286,7 +2285,7 @@ fn derived_extrema_call_constraints(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
-    call: &omega_typed_trees::expression::TableCallExpression,
+    call: &psi_typed_trees::expression::TableCallExpression,
     is_max: bool,
 ) -> Option<ConstraintBuffer> {
     let [left, right] = program.expression_table.expression_handles(call.arguments) else {
@@ -2350,7 +2349,7 @@ fn derived_range_call_constraints(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
-    call: &omega_typed_trees::expression::TableCallExpression,
+    call: &psi_typed_trees::expression::TableCallExpression,
 ) -> Option<ConstraintBuffer> {
     let [_, exclusive_max] = program.expression_table.expression_handles(call.arguments) else {
         return None;
@@ -2377,7 +2376,7 @@ fn call_expression_return_type(
     program: &TypedTrees,
     _machine: &Machine,
     _state: &State,
-    call: &omega_typed_trees::expression::TableCallExpression,
+    call: &psi_typed_trees::expression::TableCallExpression,
 ) -> Option<TypeReferenceHandle> {
     callable_return_type_by_symbol(program, call.target_symbol)
 }
@@ -2462,19 +2461,19 @@ fn integer_constraints_are_exact(constraints: &ConstraintBuffer) -> bool {
 fn integer_constraints_are_wrapping(constraints: &ConstraintBuffer) -> bool {
     has_named_constraint(constraints, "wrapping")
         || arithmetic_domain_from_constraints(constraints)
-            == omega_core::arithmetic::ArithmeticDomain::Wrapping
+            == psi_numerics::arithmetic::ArithmeticDomain::Wrapping
 }
 
 fn arithmetic_domain_from_constraints(
     constraints: &ConstraintBuffer,
-) -> omega_core::arithmetic::ArithmeticDomain {
+) -> psi_numerics::arithmetic::ArithmeticDomain {
     constraints
         .iter()
         .find_map(|constraint| match constraint {
             ProofConstraint::ArithmeticDomain(domain) => Some(*domain),
             _ => None,
         })
-        .unwrap_or(omega_core::arithmetic::ArithmeticDomain::Exact)
+        .unwrap_or(psi_numerics::arithmetic::ArithmeticDomain::Exact)
 }
 
 fn constraints_prove_finite(constraints: &ConstraintBuffer) -> bool {

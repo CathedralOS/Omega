@@ -1049,6 +1049,8 @@ improvements do not change public identity.
   `psi-validation` owns target-neutral cross-semantic source validation;
   `omega-validation` is a compatibility export whose retained tests also cover
   the separate Omega provider-admission subsystem.
+  `psi-proof` owns source proof-surface collection, obligation planning, and
+  checking; `omega-proof` is now only a compatibility export.
   `psi-effects` owns operational ceilings, service reach, synchronous
   invocation inference, and capability-flow facts. Provider declarations,
   target/provider bindings, approval, installation, and the exact selected-plan
