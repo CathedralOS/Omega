@@ -18,7 +18,7 @@ rather than extending old booleans and bitsets by convention.
 
 ### Domains
 
-`omega-symbol-resolved-trees/src/domain.rs` and
+`psi-symbol-resolved-trees/src/domain.rs` and
 `omega-typed-trees/src/domain.rs` represent every domain as one
 `DomainDefinition` containing independent predicate-body, semantic-role,
 establishment-route, alias, fact, and operator records. Operator-bearing source

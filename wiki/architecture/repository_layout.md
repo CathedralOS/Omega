@@ -101,9 +101,7 @@ Omega/
 |   |   `-- [CRATE] omega-proof/                        # Transitional re-export of Psi-owned source proof checking.
 |   |
 |   |-- representations/
-|   |   |-- [CRATE] omega-tokens/                       # Transitional re-export of Psi-owned tokens.
 |   |   |-- [CRATE] omega-syntax-trees/                 # Transitional re-export of Psi-owned syntax trees.
-|   |   |-- [CRATE] omega-symbol-resolved-trees/        # Transitional re-export of Psi-owned resolved trees.
 |   |   |-- [CRATE] omega-typed-trees/                  # Transitional re-export of Psi-owned typed trees.
 |   |   |-- [CRATE] omega-facts/                        # Transitional re-export of Psi-owned checked fact vocabulary.
 |   |   |-- [CRATE] omega-effects/                      # Omega provider bindings/admission plus transitional Psi-effect exports.

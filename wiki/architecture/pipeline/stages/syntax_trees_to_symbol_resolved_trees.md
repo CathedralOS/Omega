@@ -55,8 +55,8 @@ The implementation should stay split by identity task:
   compatibility export for unmigrated orchestration.
 
 - `compiler/psi-rs/representations/psi-symbol-resolved-trees` owns the stage
-  output. The old `omega-symbol-resolved-trees` crate is an implementation-free
-  compatibility export for later stages that have not migrated yet.
+  output. The unused `omega-symbol-resolved-trees` compatibility package is
+  retired.
 
 - `compiler/psi-rs/foundation/psi-language-semantics` owns the resolved
   semantic identities, service/domain tables, machine supply/termination
