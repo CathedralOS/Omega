@@ -1,0 +1,36 @@
+// ENT2c provider-view dual: a provider-owned view remains an ordinary receiver
+// borrow. An invalidator requiring `&mut self` cannot run while a later use
+// keeps the shared view live.
+
+boundary trait ForeignStorage {
+    machine view(&self) -> &[u8];
+    machine invalidate(&mut self);
+}
+
+data ForeignBuffer {
+    bytes: [u8; 2];
+}
+
+machine ForeignBuffer::view(&self) -> &[u8]
+satisfies ForeignStorage::view
+{
+    self.bytes.as_slice()
+}
+
+machine ForeignBuffer::invalidate(&mut self)
+satisfies ForeignStorage::invalidate
+{
+    self.bytes[0] = 0;
+}
+
+machine observe(view: &[u8]) {}
+
+data Main {
+    provider: ForeignBuffer;
+}
+
+machine Main::main(&mut self) {
+    let view: &[u8] = self.provider.view();
+    self.provider.invalidate();
+    observe(view);
+}

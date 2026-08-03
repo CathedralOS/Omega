@@ -782,17 +782,16 @@ service-table paths are already plan-driven.
 Remaining:
 
 - remove residual hardcoded placement decisions;
-- implement the settled foreign-storage lifetime model: derive ordinary
-  call-scoped borrows from reference-shaped ABI parameters; require storage
-  used after return to move into an ordinary linear protocol claim; infer the
-  consumed-input-to-produced-claim mapping through resource conservation; and
-  preserve exact provider-era dependencies as compiler-owned claim metadata.
-  The fixed-array pointer-form import canary now mutates its owner immediately
-  after the synchronous leaf returns, pinning the reference-shaped ABI loan as
-  call-scoped rather than retained;
-- add the provider-view dual for foreign-owned storage, using ordinary borrows
-  where all invalidators require exclusive access and explicit claims where
-  runtime protocol events end validity;
+- finish the retained foreign-storage path beyond the live safety gates.
+  Reference-shaped ABI parameters already create call-scoped borrows; retained
+  custody sourced only from a borrow rejects; an owned-input/linear-pending/
+  terminal-redemption canary pins the content-conserving protocol shape.
+  Preserve exact provider-era dependencies as compiler-owned claim metadata
+  and connect protocol-correlated runtime completion receipts;
+- add explicit provider-view claims where runtime protocol events end validity.
+  The ordinary-borrow dual is pinned: provider-owned views whose every
+  invalidator requires exclusive receiver access end at last use, and a live
+  view rejects an overlapping exclusive invalidator;
 - keep raw `addr` and `Ptr<T>` inert and non-dereferenceable; a calling plan may
   describe their ABI representation but cannot manufacture authority. The
   stale raw `Ptr::read`/`Ptr::write` bootstrap operators are retired, and a
@@ -1634,8 +1633,6 @@ move it to a convenience library.
   instance-bound completion evidence, and restore Stable CPU observation only
   when custody returns. Terminal Psi must retain scoped ordering events; erased
   evidence and generic call effects are not lowering barriers.
-- Implement the settled retained-storage and provider-view canaries under
-  ENT2c; keep `addr`/`Ptr<T>` inert and require protocol-correlated redemption.
 - Implement registered callback lowering and the Windows adapter canary under
   ENT4 without introducing a general source-visible code-address value.
 
