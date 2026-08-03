@@ -169,6 +169,13 @@ scope-completeness and containment evidence. Fully checked Omega eras coexist
 as separate owned state trees; process-static services define their own
 versioned-registration or atomic-handover semantics for shared logical names.
 
+The current live-manifest carrier admits only profile-accepted manifests,
+retains the process-static baseline separately from exact component eras, and
+attributes every unioned executable entry to its contributing sources. The
+weakest source completeness governs the live scope, and containment is claimed
+only when every contributing row supplies independent evidence. It does not
+invent a combined selected-provider closure identity.
+
 A reclaimed mapping may reuse its virtual address only after quiescence proves
 that no live authority reaches it. Bare `addr` and sealed inert `Ptr<T>` values
 cannot recreate such authority. An incomplete drain or a possible untracked

@@ -1426,9 +1426,15 @@ improvements do not change public identity.
   quarantine. The retained record attributes incomplete drain or possible
   opaque custody, reports exact virtual-address capacity loss, and produces
   only a non-discharging stale-entry fault. Quiescent retirement remains the
-  sole route that returns reusable W+NX placement. Coexisting-era TCB union,
-  process-static handover, gateway/unregister validation, and the concrete era
-  entry ledger remain.
+  sole route that returns reusable W+NX placement. A profile-accepted live
+  manifest set now retains the process-static baseline separately from sorted,
+  exact component-era identities and unions their executable subjects with
+  source attribution. It rejects scope drift and duplicate/zero eras, makes
+  any incomplete source weaken the live report without fabricating a combined
+  selected-provider closure identity, and counts a containment axis only when
+  every contributing row carries independent evidence. Process-static
+  handover, gateway/unregister validation, and the concrete era entry ledger
+  remain.
 - **BLOCKEXEC:** provide an ordinary package-level blocking executor for
   codec-style native calls using activations, bounded queues, moved custody,
   linear completion claims, suspension, and provider selection. It is not a
