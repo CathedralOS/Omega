@@ -6,7 +6,9 @@ use super::super::offsets::{
 };
 use super::context::InstructionRelocationContext;
 use super::queries::selected_host_operation;
-use omega_calling_conventions::{HostAbiPlan, HostBinding, HostBindingMechanism, HostOperationKey};
+use omega_calling_conventions::{
+    HostAbiPlan, HostBinding, HostBindingMechanism, HostOperationKey, PlatformCallData,
+};
 use omega_object_file::{RelocationRecord, object_symbol_handle_by_name};
 use omega_target_operations::{InstructionOperand, SelectedInstructionKind};
 use psi_arena::HandleSpan;
@@ -40,7 +42,16 @@ fn validate_host_relocation_plan(
     operation_key: omega_calling_conventions::HostOperationKey,
     operands: HandleSpan<InstructionOperand>,
 ) -> Result<(), Diagnostic> {
-    let binding = retained_host_binding(context.input.host_abi, operation_key)?;
+    let Some(binding) = retained_host_binding_or_constant_result(
+        context.input.host_abi,
+        operation_key,
+    )? else {
+        // The selected platform row materializes a deterministic constant and
+        // transfers no control, so there is deliberately no host binding or
+        // call relocation to validate. Result-place relocations are still
+        // collected below by the constant-result layout.
+        return Ok(());
+    };
     let plan = binding.call_plan();
     if !matches!(binding.mechanism, HostBindingMechanism::Import { .. }) {
         return Ok(());
@@ -57,6 +68,31 @@ fn validate_host_relocation_plan(
         plan,
     )?;
     Ok(())
+}
+
+fn retained_host_binding_or_constant_result(
+    host_abi: &HostAbiPlan,
+    operation_key: HostOperationKey,
+) -> Result<Option<&HostBinding>, Diagnostic> {
+    match retained_host_binding(host_abi, operation_key) {
+        Ok(binding) => Ok(Some(binding)),
+        Err(_) if selected_constant_result(host_abi, operation_key) => Ok(None),
+        Err(diagnostic) => Err(diagnostic),
+    }
+}
+
+fn selected_constant_result(host_abi: &HostAbiPlan, operation_key: HostOperationKey) -> bool {
+    host_abi.platform_call_lowerings.iter().any(|(_, lowering)| {
+        matches!(lowering.data, PlatformCallData::ConstantResult { .. })
+            && host_abi
+                .host_operations
+                .span(lowering.operations)
+                .is_some_and(|operations| {
+                    operations
+                        .iter()
+                        .any(|operation| operation.key == operation_key)
+                })
+    })
 }
 
 fn retained_host_binding(
@@ -125,7 +161,7 @@ fn collect_host_operation_call_relocation(
 
 #[cfg(test)]
 mod tests {
-    use super::retained_host_binding;
+    use super::{retained_host_binding, retained_host_binding_or_constant_result};
     use omega_calling_conventions::{
         HostCapability, HostOperation, HostOperationKey, build_host_abi_plan,
     };
@@ -138,5 +174,19 @@ mod tests {
         let error = retained_host_binding(&host_abi, missing)
             .expect_err("a selected host operation cannot use the compatibility layout");
         assert!(error.message.contains("without its retained binding"));
+    }
+
+    #[test]
+    fn selected_constant_result_needs_no_host_binding() {
+        let host_abi = build_host_abi_plan(NativeTarget::linux_x64());
+        let constant = HostOperationKey::new(
+            HostCapability::Clock,
+            HostOperation::WallClockUnitsPerSecond,
+        );
+        assert!(
+            retained_host_binding_or_constant_result(&host_abi, constant)
+                .expect("selected constant-result lowering")
+                .is_none()
+        );
     }
 }
