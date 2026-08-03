@@ -45,14 +45,16 @@ verified module object and rejects out-of-range integer arguments before
 execution.
 
 The first Psi-owned checked-tree producer, `psi-checked-trees-to-terminal`,
-lowers two exact closed-contract source forms: a direct return from any one of
-a nonempty sequence of ordinary primitive-integer parameters, or an
+lowers two exact closed-contract source forms: a direct return or one builtin
+wrapping/saturating add, subtract, or multiply over exact parameter/literal
+operands from a nonempty sequence of ordinary primitive-integer parameters; or an
 integer-constant/unconditional-jump whose return is the matching literal or a
 builtin parameter-plus-literal wrapping/saturating add, subtract, or multiply.
 It emits the semantic module and proof bundle separately and fails closed on
 all other shapes. Its canaries drop the frontend trees before terminal
 verification and interpretation; a nine-parameter `u8` machine additionally
-crosses the selected host incoming-stack ABI. Parsing through checked semantics
+crosses the selected host incoming-stack ABI, while runtime wrapping add
+combines its ninth stack argument with its first register argument. Parsing through checked semantics
 and this first terminal producer are now Psi-owned; general terminal vocabulary
 must extend the same direction. The same producer independently revalidates checked content
 conservation fingerprints, exact claim-preserving reshuffles, and direct

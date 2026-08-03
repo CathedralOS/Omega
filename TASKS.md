@@ -1010,11 +1010,13 @@ improvements do not change public identity.
   matching literal or a builtin parameter-plus-literal add/subtract/multiply
   in the settled Wrapping or Saturating domain. A second exact form lowers any
   nonempty sequence of ordinary primitive-integer machine parameters and an
-  exact direct return of one named parameter. It emits the module and proof
-  bundle separately; real-source canaries cover all six versioned integer
-  policy operations and a ninth-parameter stack return after `CheckedTrees`
-  are dropped, and both wrapping add and the stack return reach emitted host
-  machine code. Because the
+  exact direct return or one builtin parameter-plus-parameter/literal
+  add/subtract/multiply in a settled arithmetic domain. It emits the module and
+  proof bundle separately; real-source canaries cover all six versioned integer
+  policy operations in constant-fed and runtime-fed forms plus a
+  ninth-parameter stack return after `CheckedTrees` are dropped. Constant-fed
+  wrapping add, the direct stack return, and a register-plus-stack runtime
+  wrapping add all reach emitted host machine code. Because the
   legacy exit prover cannot establish ordinary `result == literal` contracts,
   this bootstrap canary preserves a closed typed `requires`/`ensures` fact and
   asserts the returned `i32` independently; do not generalize that workaround

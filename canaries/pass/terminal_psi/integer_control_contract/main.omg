@@ -74,5 +74,57 @@ ensures 77u8 == 77u8
     ninth
 }
 
+machine terminal_runtime_wrapping_add(
+    first: u8 in Wrapping,
+    second: u8,
+    third: u8,
+    fourth: u8,
+    fifth: u8,
+    sixth: u8,
+    seventh: u8,
+    eighth: u8,
+    ninth: u8 in Wrapping
+) -> u8 in Wrapping
+requires 44u8 == 44u8
+ensures 44u8 == 44u8
+{
+    ninth + first
+}
+
+machine terminal_runtime_saturating_add(value: u8 in Saturating) -> u8 in Saturating
+requires 255u8 == 255u8
+ensures 255u8 == 255u8
+{
+    value + 100u8
+}
+
+machine terminal_runtime_wrapping_subtract(value: u8 in Wrapping) -> u8 in Wrapping
+requires 251u8 == 251u8
+ensures 251u8 == 251u8
+{
+    value - 10u8
+}
+
+machine terminal_runtime_saturating_subtract(value: u8 in Saturating) -> u8 in Saturating
+requires 0u8 == 0u8
+ensures 0u8 == 0u8
+{
+    value - 10u8
+}
+
+machine terminal_runtime_wrapping_multiply(value: u8 in Wrapping) -> u8 in Wrapping
+requires 4u8 == 4u8
+ensures 4u8 == 4u8
+{
+    value * 13u8
+}
+
+machine terminal_runtime_saturating_multiply(value: u8 in Saturating) -> u8 in Saturating
+requires 255u8 == 255u8
+ensures 255u8 == 255u8
+{
+    value * 13u8
+}
+
 data Main {}
 machine Main::main(&mut self) {}
