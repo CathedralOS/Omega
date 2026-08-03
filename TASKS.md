@@ -956,9 +956,14 @@ improvements do not change public identity.
   concrete activation facts retain the exact selected provider plan plus
   `start`/`try_start` requirement identity. Dynamic provider-instance and
   invocation receipts now bind those facts and their preservation evidence
-  before the normalized lifecycle ledger can issue a claim. Fixed-stack
-  reservation, cancellation conformance, transactional argument custody,
-  routed task-claim establishment, and task-claim provenance remain.
+  before the normalized lifecycle ledger can issue a claim. The normalized
+  task-stack composer now validates exact local frame summaries and derives the
+  maximum aligned live chain over acyclic same-stack calls; sibling calls share
+  capacity, opaque same-stack leaves require explicit admissions, and malformed
+  graphs reject. Compiler call-graph collection, binding that evidence into the
+  emitted `StackPlan`, fixed-stack reservation, cancellation conformance,
+  transactional argument custody, routed task-claim establishment, and
+  task-claim provenance remain.
 - **PSIIR — IMPLEMENTATION WORK:** build the terminal Psi boundary settled in
   `wiki/architecture/pipeline/terminal_psi.md`. Psi owns Omega-file parsing
   through one concrete, post-instantiation semantic module; Omega starts at
