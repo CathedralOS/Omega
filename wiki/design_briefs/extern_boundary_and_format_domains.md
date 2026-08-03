@@ -209,6 +209,16 @@ not every executable actually present. A constrained dynamic-loading envelope
 is enforceable only inside a containment regime that controls executable
 admission. A checked adapter cannot remove this provenance.
 
+The implemented runtime ledger is an append-only snapshot scoped to one exact
+execution domain. Only its Omega-mediation boundary can add an entry, and that
+boundary requires pinned executable, provider-plan, implementation-evidence,
+and admission-receipt identities; it rejects receipt replay and has no path or
+loader-name identity input. Union marks each such entry as a runtime admission.
+Without separate executable-closure evidence the entry remains known but adds
+an attributed incompleteness cause. With that evidence, the union retains a
+complete static scope as complete; evidence remains visible beside unrelated
+causes, and repeated union is idempotent.
+
 Build and deployment profiles evaluate the selected entry set, manifest
 completeness and evidence, required containment guarantees, and approved
 platform or third-party identities. Platform baselines are policy allowlists,

@@ -98,14 +98,22 @@ pub struct ExecutableTcbEntry {
     pub containment: Vec<ContainmentEvidence>,
 }
 
-/// Exact selected row that prevents an exhaustive inventory for a scope.
+/// Attributed reason a scope-relative executable inventory is not exhaustive.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct IncompleteCause {
-    pub provider_identity: ProviderIdentity,
-    pub provider_plan_identity: u64,
-    pub method: String,
-    pub requirement_identity: String,
-    pub binding: OpaqueInProcessBinding,
+pub enum IncompleteCause {
+    SelectedOpaqueProvider {
+        provider_identity: ProviderIdentity,
+        provider_plan_identity: u64,
+        method: String,
+        requirement_identity: String,
+        binding: OpaqueInProcessBinding,
+    },
+    OmegaRuntimeAdmission {
+        provider_identity: ProviderIdentity,
+        provider_plan_identity: u64,
+        executable_identity: String,
+        admission_receipt_identity: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -122,11 +130,13 @@ pub enum ScopeCompleteness {
         scope: ExecutionScope,
         selected_provider_closure_identity: u64,
         opaque_closure_evidence: Vec<OpaqueClosureEvidence>,
+        runtime_closure_evidence: Vec<RuntimeExecutableClosureEvidence>,
     },
     Incomplete {
         scope: ExecutionScope,
         causes: Vec<IncompleteCause>,
         opaque_closure_evidence: Vec<OpaqueClosureEvidence>,
+        runtime_closure_evidence: Vec<RuntimeExecutableClosureEvidence>,
     },
 }
 
@@ -136,6 +146,44 @@ pub struct OpaqueClosureEvidence {
     pub method: String,
     pub requirement_identity: String,
     pub evidence_identity: String,
+}
+
+/// Evidence that one Omega-mediated runtime admission cannot introduce
+/// executable bytes beyond the pinned entry reported by the ledger.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RuntimeExecutableClosureEvidence {
+    pub provider_identity: ProviderIdentity,
+    pub provider_plan_identity: u64,
+    pub executable_identity: String,
+    pub admission_receipt_identity: String,
+    pub evidence_identity: String,
+}
+
+/// Input accepted only through the Omega runtime-ledger admission boundary.
+/// A loader path is intentionally absent: runtime code identity must already
+/// be pinned by content, signer, or an admitted platform profile.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OmegaRuntimeExecutableAdmissionCandidate {
+    pub provider_identity: ProviderIdentity,
+    pub provider_plan_identity: u64,
+    pub executable_identity: String,
+    pub implementation_evidence_identity: String,
+    pub admission_receipt_identity: String,
+    pub execution_scope: ExecutionScope,
+    pub containment: Vec<ContainmentEvidence>,
+    pub executable_closure_evidence_identity: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ValidatedOmegaRuntimeExecutableAdmission(OmegaRuntimeExecutableAdmissionCandidate);
+
+/// Append-only snapshot of executable admissions performed through Omega's
+/// runtime mediation boundary. It makes no claim about code introduced by an
+/// opaque provider outside that boundary.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OmegaRuntimeExecutableLedger {
+    scope: ExecutionScope,
+    admissions: Vec<ValidatedOmegaRuntimeExecutableAdmission>,
 }
 
 /// TCB information derivable from the exact selected-provider closure.
@@ -148,6 +196,250 @@ pub struct OpaqueClosureEvidence {
 pub struct ExecutableTcbManifest {
     pub known_entries: Vec<ExecutableTcbEntry>,
     pub completeness: ScopeCompleteness,
+}
+
+impl OmegaRuntimeExecutableLedger {
+    pub const fn new(scope: ExecutionScope) -> Self {
+        Self {
+            scope,
+            admissions: Vec::new(),
+        }
+    }
+
+    pub const fn scope(&self) -> ExecutionScope {
+        self.scope
+    }
+
+    pub fn len(&self) -> usize {
+        self.admissions.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.admissions.is_empty()
+    }
+
+    /// Admit one exact executable through Omega mediation. The sealed ledger
+    /// entry is the only route by which runtime-origin entries reach a unioned
+    /// manifest.
+    pub fn admit(
+        &mut self,
+        mut candidate: OmegaRuntimeExecutableAdmissionCandidate,
+    ) -> Result<(), String> {
+        validate_runtime_admission(self.scope, &mut candidate)?;
+        if self.admissions.iter().any(|admission| {
+            admission.0.admission_receipt_identity == candidate.admission_receipt_identity
+        }) {
+            return Err(format!(
+                "Omega runtime executable admission reuses receipt `{}`",
+                candidate.admission_receipt_identity
+            ));
+        }
+        if self.admissions.iter().any(|admission| {
+            admission.0.provider_identity == candidate.provider_identity
+                && admission.0.provider_plan_identity == candidate.provider_plan_identity
+                && admission.0.executable_identity == candidate.executable_identity
+        }) {
+            return Err(format!(
+                "Omega runtime executable admission duplicates artifact `{}` in provider plan {:#018x}",
+                candidate.executable_identity, candidate.provider_plan_identity
+            ));
+        }
+        self.admissions
+            .push(ValidatedOmegaRuntimeExecutableAdmission(candidate));
+        self.admissions.sort_by(|left, right| {
+            left.0
+                .provider_plan_identity
+                .cmp(&right.0.provider_plan_identity)
+                .then_with(|| left.0.executable_identity.cmp(&right.0.executable_identity))
+                .then_with(|| {
+                    left.0
+                        .admission_receipt_identity
+                        .cmp(&right.0.admission_receipt_identity)
+                })
+        });
+        Ok(())
+    }
+
+    /// Union this Omega-mediated ledger snapshot with the static selected-plan
+    /// manifest. A runtime admission without executable-closure evidence adds
+    /// a known entry but also contributes an attributed incomplete cause.
+    pub fn union_with_static_manifest(
+        &self,
+        static_manifest: &ExecutableTcbManifest,
+    ) -> Result<ExecutableTcbManifest, String> {
+        let static_scope = match &static_manifest.completeness {
+            ScopeCompleteness::Complete { scope, .. }
+            | ScopeCompleteness::Incomplete { scope, .. } => *scope,
+        };
+        if static_scope != self.scope {
+            return Err(format!(
+                "Omega runtime executable ledger scope {:?} does not match static manifest scope {:?}",
+                self.scope, static_scope
+            ));
+        }
+
+        let mut manifest = static_manifest.clone();
+        let mut runtime_causes = Vec::new();
+        let mut runtime_closure_evidence = Vec::new();
+        for admission in &self.admissions {
+            let candidate = &admission.0;
+            let entry = ExecutableTcbEntry {
+                provider_identity: candidate.provider_identity.clone(),
+                provider_plan_identity: candidate.provider_plan_identity,
+                executable_identity: ExecutableIdentity::PinnedOpaqueArtifact(
+                    candidate.executable_identity.clone(),
+                ),
+                implementation_evidence: ImplementationEvidence::AdmittedOpaque {
+                    receipt_identity: candidate.implementation_evidence_identity.clone(),
+                },
+                origin: ExecutableEntryOrigin::OmegaRuntimeAdmission,
+                execution_scope: candidate.execution_scope,
+                containment: candidate.containment.clone(),
+            };
+            if !manifest.known_entries.contains(&entry) {
+                manifest.known_entries.push(entry);
+            }
+            if let Some(evidence_identity) = &candidate.executable_closure_evidence_identity {
+                runtime_closure_evidence.push(RuntimeExecutableClosureEvidence {
+                    provider_identity: candidate.provider_identity.clone(),
+                    provider_plan_identity: candidate.provider_plan_identity,
+                    executable_identity: candidate.executable_identity.clone(),
+                    admission_receipt_identity: candidate.admission_receipt_identity.clone(),
+                    evidence_identity: evidence_identity.clone(),
+                });
+            } else {
+                runtime_causes.push(IncompleteCause::OmegaRuntimeAdmission {
+                    provider_identity: candidate.provider_identity.clone(),
+                    provider_plan_identity: candidate.provider_plan_identity,
+                    executable_identity: candidate.executable_identity.clone(),
+                    admission_receipt_identity: candidate.admission_receipt_identity.clone(),
+                });
+            }
+        }
+
+        manifest.completeness = match manifest.completeness {
+            ScopeCompleteness::Complete {
+                scope,
+                selected_provider_closure_identity,
+                opaque_closure_evidence,
+                runtime_closure_evidence: mut retained_runtime_evidence,
+            } if runtime_causes.is_empty() => {
+                extend_unique(&mut retained_runtime_evidence, runtime_closure_evidence);
+                ScopeCompleteness::Complete {
+                    scope,
+                    selected_provider_closure_identity,
+                    opaque_closure_evidence,
+                    runtime_closure_evidence: retained_runtime_evidence,
+                }
+            }
+            ScopeCompleteness::Complete {
+                scope,
+                opaque_closure_evidence,
+                runtime_closure_evidence: mut retained_runtime_evidence,
+                ..
+            } => {
+                extend_unique(&mut retained_runtime_evidence, runtime_closure_evidence);
+                ScopeCompleteness::Incomplete {
+                    scope,
+                    causes: runtime_causes,
+                    opaque_closure_evidence,
+                    runtime_closure_evidence: retained_runtime_evidence,
+                }
+            }
+            ScopeCompleteness::Incomplete {
+                scope,
+                mut causes,
+                opaque_closure_evidence,
+                runtime_closure_evidence: mut retained_runtime_evidence,
+            } => {
+                extend_unique(&mut causes, runtime_causes);
+                extend_unique(&mut retained_runtime_evidence, runtime_closure_evidence);
+                ScopeCompleteness::Incomplete {
+                    scope,
+                    causes,
+                    opaque_closure_evidence,
+                    runtime_closure_evidence: retained_runtime_evidence,
+                }
+            }
+        };
+        Ok(manifest)
+    }
+}
+
+fn extend_unique<T: PartialEq>(target: &mut Vec<T>, additions: impl IntoIterator<Item = T>) {
+    for addition in additions {
+        if !target.contains(&addition) {
+            target.push(addition);
+        }
+    }
+}
+
+fn validate_runtime_admission(
+    scope: ExecutionScope,
+    candidate: &mut OmegaRuntimeExecutableAdmissionCandidate,
+) -> Result<(), String> {
+    if candidate.provider_plan_identity == 0 {
+        return Err(
+            "Omega runtime executable admission has the reserved zero provider-plan identity"
+                .into(),
+        );
+    }
+    let provider_name = match &candidate.provider_identity {
+        ProviderIdentity::NominalType(name) | ProviderIdentity::FreeExternalPlan(name) => name,
+    };
+    if provider_name.trim().is_empty() {
+        return Err("Omega runtime executable admission has no provider identity".into());
+    }
+    if candidate.executable_identity.trim().is_empty() {
+        return Err("Omega runtime executable admission has no pinned executable identity".into());
+    }
+    if candidate.implementation_evidence_identity.trim().is_empty() {
+        return Err(
+            "Omega runtime executable admission has no implementation-evidence identity".into(),
+        );
+    }
+    if candidate.admission_receipt_identity.trim().is_empty() {
+        return Err("Omega runtime executable admission has no mediation receipt".into());
+    }
+    if candidate.execution_scope != scope {
+        return Err(format!(
+            "Omega runtime executable admission scope {:?} does not match ledger scope {:?}",
+            candidate.execution_scope, scope
+        ));
+    }
+    if candidate
+        .executable_closure_evidence_identity
+        .as_ref()
+        .is_some_and(|identity| identity.trim().is_empty())
+    {
+        return Err(
+            "Omega runtime executable admission has empty executable-closure evidence".into(),
+        );
+    }
+    candidate.containment.sort_by(|left, right| {
+        left.guarantee
+            .cmp(&right.guarantee)
+            .then_with(|| left.evidence_identity.cmp(&right.evidence_identity))
+    });
+    for evidence in &candidate.containment {
+        if evidence.evidence_identity.trim().is_empty() {
+            return Err(format!(
+                "Omega runtime executable admission has no evidence identity for {:?}",
+                evidence.guarantee
+            ));
+        }
+    }
+    if candidate
+        .containment
+        .windows(2)
+        .any(|pair| pair[0].guarantee == pair[1].guarantee)
+    {
+        return Err(
+            "Omega runtime executable admission repeats one containment guarantee; each axis needs one exact result"
+                .into(),
+        );
+    }
+    Ok(())
 }
 
 pub(crate) fn validate_opaque_executable_admission(
@@ -357,12 +649,14 @@ pub(crate) fn derive_static_manifest(
             scope,
             selected_provider_closure_identity,
             opaque_closure_evidence,
+            runtime_closure_evidence: Vec::new(),
         }
     } else {
         ScopeCompleteness::Incomplete {
             scope,
             causes,
             opaque_closure_evidence,
+            runtime_closure_evidence: Vec::new(),
         }
     };
     ExecutableTcbManifest {
@@ -425,11 +719,139 @@ fn incomplete_cause(
     binding: OpaqueInProcessBinding,
 ) -> IncompleteCause {
     let requirement_identity = row_requirement_identity(plan, row);
-    IncompleteCause {
+    IncompleteCause::SelectedOpaqueProvider {
         provider_identity: provider_identity(plan),
         provider_plan_identity: plan.identity_fingerprint(),
         method: row.method.clone(),
         requirement_identity,
         binding,
+    }
+}
+
+#[cfg(test)]
+mod runtime_ledger_tests {
+    use super::*;
+
+    fn candidate(
+        executable_identity: &str,
+        closure: Option<&str>,
+    ) -> OmegaRuntimeExecutableAdmissionCandidate {
+        OmegaRuntimeExecutableAdmissionCandidate {
+            provider_identity: ProviderIdentity::NominalType("RuntimePlugin".into()),
+            provider_plan_identity: 41,
+            executable_identity: executable_identity.into(),
+            implementation_evidence_identity: "receipt:implementation-v1".into(),
+            admission_receipt_identity: format!("receipt:admission:{executable_identity}"),
+            execution_scope: ExecutionScope::CallerAddressSpace,
+            containment: vec![ContainmentEvidence {
+                guarantee: ContainmentGuarantee::BoundedResources,
+                evidence_identity: "receipt:runtime-quota-v1".into(),
+            }],
+            executable_closure_evidence_identity: closure.map(str::to_owned),
+        }
+    }
+
+    fn static_manifest() -> ExecutableTcbManifest {
+        ExecutableTcbManifest {
+            known_entries: Vec::new(),
+            completeness: ScopeCompleteness::Complete {
+                scope: ExecutionScope::CallerAddressSpace,
+                selected_provider_closure_identity: 17,
+                opaque_closure_evidence: Vec::new(),
+                runtime_closure_evidence: Vec::new(),
+            },
+        }
+    }
+
+    #[test]
+    fn mediated_runtime_admission_adds_an_origin_marked_known_entry() {
+        let mut ledger = OmegaRuntimeExecutableLedger::new(ExecutionScope::CallerAddressSpace);
+        ledger
+            .admit(candidate(
+                "sha256:plugin-a",
+                Some("receipt:closed-loader-v1"),
+            ))
+            .expect("exact mediated admission");
+
+        let manifest = ledger
+            .union_with_static_manifest(&static_manifest())
+            .expect("matching scope");
+        assert_eq!(manifest.known_entries.len(), 1);
+        assert_eq!(
+            manifest.known_entries[0].origin,
+            ExecutableEntryOrigin::OmegaRuntimeAdmission
+        );
+        assert!(matches!(
+            manifest.known_entries[0].executable_identity,
+            ExecutableIdentity::PinnedOpaqueArtifact(ref identity)
+                if identity == "sha256:plugin-a"
+        ));
+        assert!(matches!(
+            manifest.completeness,
+            ScopeCompleteness::Complete {
+                ref runtime_closure_evidence,
+                ..
+            } if runtime_closure_evidence.len() == 1
+                && runtime_closure_evidence[0].admission_receipt_identity
+                        == "receipt:admission:sha256:plugin-a"
+        ));
+
+        let repeated = ledger
+            .union_with_static_manifest(&manifest)
+            .expect("set union is reusable");
+        assert_eq!(repeated, manifest);
+    }
+
+    #[test]
+    fn runtime_admission_without_closure_is_known_but_attributed_incomplete() {
+        let mut ledger = OmegaRuntimeExecutableLedger::new(ExecutionScope::CallerAddressSpace);
+        ledger
+            .admit(candidate("sha256:plugin-open", None))
+            .expect("pinned executable can be reported without closure evidence");
+
+        let manifest = ledger
+            .union_with_static_manifest(&static_manifest())
+            .expect("matching scope");
+        assert_eq!(manifest.known_entries.len(), 1);
+        assert!(matches!(
+            manifest.completeness,
+            ScopeCompleteness::Incomplete { ref causes, .. }
+                if matches!(
+                    causes.as_slice(),
+                    [IncompleteCause::OmegaRuntimeAdmission {
+                        executable_identity,
+                        admission_receipt_identity,
+                        ..
+                    }] if executable_identity == "sha256:plugin-open"
+                        && admission_receipt_identity
+                            == "receipt:admission:sha256:plugin-open"
+                )
+        ));
+    }
+
+    #[test]
+    fn ledger_rejects_unmediated_entries_and_receipt_replay() {
+        let mut ledger = OmegaRuntimeExecutableLedger::new(ExecutionScope::CallerAddressSpace);
+        let mut unmediated = candidate("sha256:no-receipt", None);
+        unmediated.admission_receipt_identity.clear();
+        assert!(
+            ledger
+                .admit(unmediated)
+                .expect_err("missing mediation receipt")
+                .contains("no mediation receipt")
+        );
+
+        let admitted = candidate("sha256:plugin-a", Some("receipt:closed-loader-v1"));
+        ledger
+            .admit(admitted.clone())
+            .expect("first receipt use is exact");
+        let mut replay = candidate("sha256:plugin-b", Some("receipt:closed-loader-v2"));
+        replay.admission_receipt_identity = admitted.admission_receipt_identity;
+        assert!(
+            ledger
+                .admit(replay)
+                .expect_err("receipt replay")
+                .contains("reuses receipt")
+        );
     }
 }

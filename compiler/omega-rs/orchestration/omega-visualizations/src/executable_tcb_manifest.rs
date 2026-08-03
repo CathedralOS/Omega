@@ -1,7 +1,7 @@
 use omega_effects::{
     ExecutableEntryOrigin, ExecutableIdentity, ExecutableTcbEntry, ExecutionScope,
-    ImplementationEvidence, OpaqueInProcessBinding, ProviderIdentity, ScopeCompleteness,
-    SelectedProviderPlanFacts,
+    ImplementationEvidence, IncompleteCause, OpaqueInProcessBinding, ProviderIdentity,
+    ScopeCompleteness, SelectedProviderPlanFacts,
 };
 use std::fmt::Write;
 
@@ -9,6 +9,13 @@ use std::fmt::Write;
 /// exact selected-provider closure.
 pub fn executable_tcb_manifest_json(selected: &SelectedProviderPlanFacts) -> String {
     let manifest = selected.executable_tcb_manifest();
+    executable_tcb_manifest_value_json(&manifest)
+}
+
+/// Stable artifact surface for a manifest after static/runtime union.
+pub fn executable_tcb_manifest_value_json(
+    manifest: &omega_effects::ExecutableTcbManifest,
+) -> String {
     let mut json = String::from("{\n  \"known_entries\": [");
     for (index, entry) in manifest.known_entries.iter().enumerate() {
         if index > 0 {
@@ -28,6 +35,7 @@ pub fn executable_tcb_manifest_json(selected: &SelectedProviderPlanFacts) -> Str
             scope,
             selected_provider_closure_identity,
             opaque_closure_evidence,
+            runtime_closure_evidence,
         } => {
             json.push_str("\n    \"status\": \"complete\",\n    \"scope\": ");
             push_json_string(&mut json, scope_name(*scope));
@@ -51,12 +59,14 @@ pub fn executable_tcb_manifest_json(selected: &SelectedProviderPlanFacts) -> Str
                 push_json_string(&mut json, &evidence.evidence_identity);
                 json.push('}');
             }
+            push_runtime_closure_evidence_json(&mut json, runtime_closure_evidence, true);
             json.push_str("\n    ]");
         }
         ScopeCompleteness::Incomplete {
             scope,
             causes,
             opaque_closure_evidence,
+            runtime_closure_evidence,
         } => {
             json.push_str("\n    \"status\": \"incomplete\",\n    \"scope\": ");
             push_json_string(&mut json, scope_name(*scope));
@@ -65,20 +75,7 @@ pub fn executable_tcb_manifest_json(selected: &SelectedProviderPlanFacts) -> Str
                 if index > 0 {
                     json.push(',');
                 }
-                json.push_str("\n      {\n        \"provider\": ");
-                push_provider_identity_json(&mut json, &cause.provider_identity);
-                json.push_str(",\n        \"provider_plan_identity\": ");
-                push_json_string(
-                    &mut json,
-                    &format!("0x{:016x}", cause.provider_plan_identity),
-                );
-                json.push_str(",\n        \"method\": ");
-                push_json_string(&mut json, &cause.method);
-                json.push_str(",\n        \"requirement_identity\": ");
-                push_json_string(&mut json, &cause.requirement_identity);
-                json.push_str(",\n        \"reason\": \"uncontained_opaque_in_process_provider\",\n        \"binding\": ");
-                push_opaque_binding_json(&mut json, &cause.binding);
-                json.push_str("\n      }");
+                push_incomplete_cause_json(&mut json, cause);
             }
             if !causes.is_empty() {
                 json.push('\n');
@@ -103,7 +100,12 @@ pub fn executable_tcb_manifest_json(selected: &SelectedProviderPlanFacts) -> Str
                 push_json_string(&mut json, &evidence.evidence_identity);
                 json.push('}');
             }
-            if !opaque_closure_evidence.is_empty() {
+            push_runtime_closure_evidence_json(
+                &mut json,
+                runtime_closure_evidence,
+                !opaque_closure_evidence.is_empty(),
+            );
+            if !opaque_closure_evidence.is_empty() || !runtime_closure_evidence.is_empty() {
                 json.push('\n');
                 json.push_str("    ");
             }
@@ -112,6 +114,71 @@ pub fn executable_tcb_manifest_json(selected: &SelectedProviderPlanFacts) -> Str
     }
     json.push_str("\n  }\n}\n");
     json
+}
+
+fn push_incomplete_cause_json(json: &mut String, cause: &IncompleteCause) {
+    json.push_str("\n      {\n        \"provider\": ");
+    match cause {
+        IncompleteCause::SelectedOpaqueProvider {
+            provider_identity,
+            provider_plan_identity,
+            method,
+            requirement_identity,
+            binding,
+        } => {
+            push_provider_identity_json(json, provider_identity);
+            json.push_str(",\n        \"provider_plan_identity\": ");
+            push_json_string(json, &format!("0x{provider_plan_identity:016x}"));
+            json.push_str(",\n        \"method\": ");
+            push_json_string(json, method);
+            json.push_str(",\n        \"requirement_identity\": ");
+            push_json_string(json, requirement_identity);
+            json.push_str(",\n        \"reason\": \"uncontained_opaque_in_process_provider\",\n        \"binding\": ");
+            push_opaque_binding_json(json, binding);
+        }
+        IncompleteCause::OmegaRuntimeAdmission {
+            provider_identity,
+            provider_plan_identity,
+            executable_identity,
+            admission_receipt_identity,
+        } => {
+            push_provider_identity_json(json, provider_identity);
+            json.push_str(",\n        \"provider_plan_identity\": ");
+            push_json_string(json, &format!("0x{provider_plan_identity:016x}"));
+            json.push_str(",\n        \"executable_identity\": ");
+            push_json_string(json, executable_identity);
+            json.push_str(",\n        \"admission_receipt_identity\": ");
+            push_json_string(json, admission_receipt_identity);
+            json.push_str(
+                ",\n        \"reason\": \"runtime_admission_without_executable_closure\"",
+            );
+        }
+    }
+    json.push_str("\n      }");
+}
+
+fn push_runtime_closure_evidence_json(
+    json: &mut String,
+    evidence: &[omega_effects::RuntimeExecutableClosureEvidence],
+    mut has_prior: bool,
+) {
+    for evidence in evidence {
+        if has_prior {
+            json.push(',');
+        }
+        has_prior = true;
+        json.push_str("\n      {\"kind\": \"omega_runtime_executable_closure\", \"provider\": ");
+        push_provider_identity_json(json, &evidence.provider_identity);
+        json.push_str(", \"provider_plan_identity\": ");
+        push_json_string(json, &format!("0x{:016x}", evidence.provider_plan_identity));
+        json.push_str(", \"executable_identity\": ");
+        push_json_string(json, &evidence.executable_identity);
+        json.push_str(", \"admission_receipt_identity\": ");
+        push_json_string(json, &evidence.admission_receipt_identity);
+        json.push_str(", \"evidence_identity\": ");
+        push_json_string(json, &evidence.evidence_identity);
+        json.push('}');
+    }
 }
 
 fn push_entry_json(json: &mut String, entry: &ExecutableTcbEntry) {
@@ -351,5 +418,33 @@ mod tests {
         assert!(json.contains("\"guarantee\": \"bounded_resources\""));
         assert!(json.contains("\"kind\": \"admitted_opaque_executable_closure\""));
         assert!(json.contains("\"status\": \"complete\""));
+    }
+
+    #[test]
+    fn artifact_reports_only_mediated_runtime_entries_and_their_closure() {
+        let static_manifest = SelectedProviderPlanFacts::default().executable_tcb_manifest();
+        let mut ledger =
+            omega_effects::OmegaRuntimeExecutableLedger::new(ExecutionScope::CallerAddressSpace);
+        ledger
+            .admit(omega_effects::OmegaRuntimeExecutableAdmissionCandidate {
+                provider_identity: ProviderIdentity::NominalType("RuntimePlugin".into()),
+                provider_plan_identity: 91,
+                executable_identity: "sha256:runtime-plugin-v1".into(),
+                implementation_evidence_identity: "receipt:implementation-v1".into(),
+                admission_receipt_identity: "receipt:omega-loader-v1".into(),
+                execution_scope: ExecutionScope::CallerAddressSpace,
+                containment: Vec::new(),
+                executable_closure_evidence_identity: Some("receipt:closed-loader-v1".into()),
+            })
+            .expect("mediated runtime admission");
+        let manifest = ledger
+            .union_with_static_manifest(&static_manifest)
+            .expect("matching caller scope");
+
+        let json = executable_tcb_manifest_value_json(&manifest);
+        assert!(json.contains("\"origin\": \"omega_runtime_admission\""));
+        assert!(json.contains("\"identity\": \"sha256:runtime-plugin-v1\""));
+        assert!(json.contains("\"kind\": \"omega_runtime_executable_closure\""));
+        assert!(json.contains("\"admission_receipt_identity\": \"receipt:omega-loader-v1\""));
     }
 }

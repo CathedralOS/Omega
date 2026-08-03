@@ -520,6 +520,16 @@ a rejection occurs before the installer creates an output path. The existing
 unprofiled compile entry remains available during migration. Selecting named
 profiles through the ordinary `Build` package API remains pending API design.
 
+Runtime admission uses a separate append-only ledger for one exact execution
+scope. Its public admission boundary requires a pinned executable identity,
+implementation evidence, and an Omega-mediation receipt; paths and loader names
+cannot enter the ledger, receipt replay rejects, and callers cannot append a
+manifest entry directly. Union with the static manifest marks every added entry
+`OmegaRuntimeAdmission`. An admission without executable-closure evidence is
+still a known entry but adds an attributed runtime incompleteness cause;
+independent closure and containment evidence remain visible. Union is a
+canonical idempotent set operation and rejects scope mismatch.
+
 Source `boundary` remains insufficient to reconstruct this enum: a checked
 exported callable and an accepted bodyless declaration both mention the word
 but have different supply modes. Likewise, body absence distinguishes a trait
