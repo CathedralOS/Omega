@@ -838,8 +838,9 @@ Remaining:
   adapters use it for their independently normalized native subcall plans too;
   no optional `CallPlan` remains as an authority selector in the x86-64 ISA
   layer. The x86-64 external/data relocation walker consumes the same explicit
-  mode,
-  keeping encoded bytes and relocation accounting on one authority route.
+  mode, keeping encoded bytes and relocation accounting on one authority
+  route; a failed authoritative site lookup no longer retries through the
+  no-plan oracle.
   The crate-local object call/data offset helpers enforce the same
   required-plan/named-no-plan split.
   AArch64 vtable/service-table plan normalization and field-call data

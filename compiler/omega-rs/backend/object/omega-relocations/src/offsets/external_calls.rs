@@ -3,6 +3,8 @@ use omega_object_file::RelocationKind;
 use omega_target::{Architecture, NativeTarget};
 use omega_target_operations::InstructionOperandLike;
 
+use super::CallPlanSource;
+
 #[cfg(test)]
 pub(crate) fn external_call_relocation_offset_no_plan<T: InstructionOperandLike>(
     target: NativeTarget,
@@ -11,13 +13,13 @@ pub(crate) fn external_call_relocation_offset_no_plan<T: InstructionOperandLike>
     operands: &[T],
     authored_import: bool,
 ) -> usize {
-    external_call_relocation_offset_optional_plan(
+    external_call_relocation_offset_for_plan(
         target,
         operation_key,
         selected_text_offset,
         operands,
         authored_import,
-        None,
+        CallPlanSource::CompatibilityOracle,
     )
 }
 
@@ -29,45 +31,47 @@ pub(crate) fn external_call_relocation_offset_with_plan<T: InstructionOperandLik
     authored_import: bool,
     authoritative_plan: &omega_calling_conventions::CallPlan,
 ) -> usize {
-    external_call_relocation_offset_optional_plan(
+    external_call_relocation_offset_for_plan(
         target,
         operation_key,
         selected_text_offset,
         operands,
         authored_import,
-        Some(authoritative_plan),
+        CallPlanSource::Authoritative(authoritative_plan),
     )
 }
 
-fn external_call_relocation_offset_optional_plan<T: InstructionOperandLike>(
+fn external_call_relocation_offset_for_plan<T: InstructionOperandLike>(
     target: NativeTarget,
     operation_key: HostOperationKey,
     selected_text_offset: usize,
     operands: &[T],
     authored_import: bool,
-    authoritative_plan: Option<&omega_calling_conventions::CallPlan>,
+    plan_source: CallPlanSource<'_>,
 ) -> usize {
     let architecture = target.architecture;
+    let authoritative_plan = plan_source.authoritative();
     let returns_value = authoritative_plan
         .map(|plan| plan.result.is_some())
         .unwrap_or_else(|| operation_key.returns_value());
     if architecture == Architecture::X86_64
-        && let Some(site) = authoritative_plan
-            .and_then(|plan| {
+        && let Some(site) = match plan_source {
+            CallPlanSource::Authoritative(plan) => {
                 omega_isa_x86_64::host_call_external_relocation_site_with_plan(
                     omega_calling_conventions::CallingPolicy::native_for_target(target),
                     operation_key,
                     operands,
                     plan,
                 )
-            })
-            .or_else(|| {
+            }
+            CallPlanSource::CompatibilityOracle => {
                 omega_isa_x86_64::host_call_external_relocation_site_no_plan(
                     omega_calling_conventions::CallingPolicy::native_for_target(target),
                     operation_key,
                     operands,
                 )
-            })
+            }
+        }
     {
         return selected_text_offset + site.byte_offset;
     }
@@ -81,8 +85,8 @@ fn external_call_relocation_offset_optional_plan<T: InstructionOperandLike>(
     // result-binding shape and the encoder routes it there; the catalog
     // cannot know authored operations.
     if architecture == Architecture::Aarch64 && (returns_value || authored_import) {
-        let argument_placements = match authoritative_plan {
-            Some(plan) => {
+        let argument_placements = match plan_source {
+            CallPlanSource::Authoritative(plan) => {
                 omega_instruction_selection::normalized_aarch64_host_argument_placements_with_plan(
                     operation_key,
                     operands,
@@ -90,7 +94,7 @@ fn external_call_relocation_offset_optional_plan<T: InstructionOperandLike>(
                     plan,
                 )
             }
-            None => {
+            CallPlanSource::CompatibilityOracle => {
                 omega_instruction_selection::normalized_aarch64_host_argument_placements_no_plan(
                     operation_key,
                     operands,
@@ -117,8 +121,8 @@ fn external_call_relocation_offset_optional_plan<T: InstructionOperandLike>(
         .sum::<usize>();
 
     let planned_stack_bytes = if architecture == Architecture::Aarch64 {
-        match authoritative_plan {
-            Some(plan) => {
+        match plan_source {
+            CallPlanSource::Authoritative(plan) => {
                 omega_instruction_selection::normalized_aarch64_host_argument_placements_with_plan(
                     operation_key,
                     operands,
@@ -126,7 +130,7 @@ fn external_call_relocation_offset_optional_plan<T: InstructionOperandLike>(
                     plan,
                 )
             }
-            None => {
+            CallPlanSource::CompatibilityOracle => {
                 omega_instruction_selection::normalized_aarch64_host_argument_placements_no_plan(
                     operation_key,
                     operands,
