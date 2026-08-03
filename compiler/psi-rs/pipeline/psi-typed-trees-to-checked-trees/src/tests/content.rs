@@ -559,7 +559,7 @@ fn checked_facts_compose_authored_partitions_through_a_direct_wrapper() {
     );
     assert_eq!(forward_row.call_ordinal, 0);
     assert_eq!(forward_row.input_claim_identities.len(), 2);
-    assert!(forward_row.result_rewrite_claim_identities.is_empty());
+    assert!(forward_row.result_rewrites.is_empty());
     assert_eq!(
         forward_row.substitutions.len(),
         4,
@@ -604,6 +604,7 @@ fn checked_facts_compose_partitions_through_exact_staged_result_rewrites() {
             left: Region in Owned;
             right: Region in Owned;
         }
+        data Envelope { pair: Pair; }
 
         boundary trait Splitter {
             machine partition(
@@ -629,36 +630,57 @@ fn checked_facts_compose_partitions_through_exact_staged_result_rewrites() {
             let result: Pair = self.splitter.partition(pair.left, pair.right);
             result
         }
+        machine Main::envelope(&mut self, pair: Pair) -> Envelope
+        requires
+            pair.left in Region::Owned;
+            pair.right in Region::Owned
+        {
+            let result: Pair = self.splitter.partition(pair.left, pair.right);
+            Envelope { pair: result }
+        }
+        machine Main::two_hop(&mut self, pair: Pair) -> Pair
+        requires
+            pair.left in Region::Owned;
+            pair.right in Region::Owned
+        {
+            let result: Pair = self.splitter.partition(pair.left, pair.right);
+            let forwarded: Pair = result;
+            forwarded
+        }
         machine Main::main(&mut self) {}
     "#;
 
     let checked_program = checked(source);
-    let [composition] = checked_program
+    let compositions = &checked_program
         .facts
         .qualifications
         .content
-        .partition_compositions
-        .as_slice()
-    else {
-        panic!(
-            "the staged local should retain one exact partition composition: {:#?}",
-            checked_program
-                .facts
-                .qualifications
-                .content
-                .partition_compositions
-        );
+        .partition_compositions;
+    assert_eq!(compositions.len(), 2, "compositions: {compositions:#?}");
+    let state_symbol = |name: &str| {
+        checked_program
+            .machines()
+            .iter()
+            .flat_map(|machine| checked_program.machine_states(machine))
+            .find(|state| state.name.as_str() == name)
+            .expect("named state")
+            .symbol
     };
+    let composition = compositions
+        .iter()
+        .find(|composition| composition.state_symbol == state_symbol("repack"))
+        .expect("staged-local composition");
     assert_eq!(composition.statement_index, 0);
     assert_eq!(composition.call_ordinal, 0);
     assert_eq!(composition.input_claim_identities.len(), 2);
-    assert_eq!(composition.result_rewrite_claim_identities.len(), 2);
+    assert_eq!(composition.result_rewrites.len(), 2);
     assert_eq!(composition.substitutions.len(), 4);
     assert!(
         composition
-            .result_rewrite_claim_identities
+            .result_rewrites
             .iter()
-            .all(|identity| *identity != psi_language_semantics::PermissionClaimIdentity::Unknown)
+            .all(|rewrite| rewrite.claim_identity
+                != psi_language_semantics::PermissionClaimIdentity::Unknown)
     );
     assert!(matches!(
         composition.plan.equation.left(),
@@ -669,19 +691,28 @@ fn checked_facts_compose_partitions_through_exact_staged_result_rewrites() {
         ContentConservationTerm::Separate(children) if children.len() == 2
     ));
 
-    let repacked_source = source.replace(
-        "            result\n",
-        "            Pair { left: result.left, right: result.right }\n",
-    );
-    let repacked = checked(&repacked_source);
+    let envelope = compositions
+        .iter()
+        .find(|composition| composition.state_symbol == state_symbol("envelope"))
+        .expect("nested aggregate composition");
+    assert_eq!(envelope.result_rewrites.len(), 2);
+    let output_substitutions = envelope
+        .substitutions
+        .iter()
+        .filter(|substitution| substitution.source.root == ContentPlaceRoot::Result)
+        .collect::<Vec<_>>();
+    assert_eq!(output_substitutions.len(), 2);
+    assert!(output_substitutions.iter().all(|substitution| {
+        matches!(
+            substitution.target.segments.as_slice(),
+            [ContentPlaceSegment::Field(outer), ContentPlaceSegment::Field(_)]
+                if outer.name == "pair"
+        )
+    }));
     assert!(
-        repacked
-            .facts
-            .qualifications
-            .content
-            .partition_compositions
-            .is_empty(),
-        "aggregate result reconstruction remains fail-closed until its exact structural rewrite is composed"
+        compositions
+            .iter()
+            .all(|composition| composition.state_symbol != state_symbol("two_hop"))
     );
 }
 

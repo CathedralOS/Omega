@@ -616,12 +616,18 @@ pub fn claim_outcome_manifest_json(program: &CheckedTrees) -> String {
             }
             push_claim_identity_json(&mut json, program, *identity);
         }
-        json.push_str("],\n      \"result_rewrite_claim_identities\": [");
-        for (claim_index, identity) in row.result_rewrite_claim_identities.iter().enumerate() {
-            if claim_index > 0 {
+        json.push_str("],\n      \"result_rewrites\": [");
+        for (rewrite_index, rewrite) in row.result_rewrites.iter().enumerate() {
+            if rewrite_index > 0 {
                 json.push_str(", ");
             }
-            push_claim_identity_json(&mut json, program, *identity);
+            json.push_str("{\"claim_identity\": ");
+            push_claim_identity_json(&mut json, program, rewrite.claim_identity);
+            json.push_str(", \"source\": ");
+            push_content_structural_place_json(&mut json, &rewrite.source);
+            json.push_str(", \"target\": ");
+            push_content_structural_place_json(&mut json, &rewrite.target);
+            json.push('}');
         }
         json.push_str("],\n      \"algebra\": ");
         push_content_algebra_json(&mut json, &row.plan.algebra);
@@ -2629,9 +2635,10 @@ mod tests {
     };
     use psi_checked_trees::{
         CheckedTrees, ClaimCarryPolicyFact, ContentIdentityReshuffleFact,
-        ContentPartitionCompositionFact, ContentPartitionPlaceSubstitution, DataCarryFact,
-        FlowClaimOutcomeEntryFact, FlowClaimOutcomeMapFact, FlowClaimOutcomeSource,
-        MachineActivationCarryFact, MachineContractPlan, MachineTerminationFact,
+        ContentPartitionCompositionFact, ContentPartitionPlaceSubstitution,
+        ContentPartitionResultRewrite, DataCarryFact, FlowClaimOutcomeEntryFact,
+        FlowClaimOutcomeMapFact, FlowClaimOutcomeSource, MachineActivationCarryFact,
+        MachineContractPlan, MachineTerminationFact,
     };
     use psi_facts::{
         Fact, FactOrigin, FactPayload, FactPlace, ProgramPoint, QualificationEvidence,
@@ -2789,6 +2796,18 @@ mod tests {
                 target: output_subject.clone(),
             },
         ];
+        let result_rewrite = ContentPartitionResultRewrite {
+            claim_identity: psi_language_semantics::PermissionClaimIdentity::Established {
+                machine_symbol: SymbolHandle::invalid(),
+                state_symbol: SymbolHandle::invalid(),
+                source: psi_language_semantics::PermissionEventSource::Statement {
+                    statement_index: 4,
+                },
+                ordinal: 12,
+            },
+            source: substitutions[1].source.clone(),
+            target: substitutions[1].target.clone(),
+        };
         let equation = ContentConservationEquation::new(input, output);
         let fingerprint = conservation_fingerprint(&algebra, &equation);
         let plan = ContentConservationPlan {
@@ -2839,16 +2858,7 @@ mod tests {
                         ordinal: 11,
                     },
                 ],
-                result_rewrite_claim_identities: vec![
-                    psi_language_semantics::PermissionClaimIdentity::Established {
-                        machine_symbol: SymbolHandle::invalid(),
-                        state_symbol: SymbolHandle::invalid(),
-                        source: psi_language_semantics::PermissionEventSource::Statement {
-                            statement_index: 4,
-                        },
-                        ordinal: 12,
-                    },
-                ],
+                result_rewrites: vec![result_rewrite],
                 substitutions,
                 plan,
             });
@@ -2871,7 +2881,11 @@ mod tests {
         assert!(json.contains("\"substitutions\": [{\"source\": {\"version\": \"entry\""));
         assert!(json.contains("\"call\": {\"statement_index\": 4, \"call_ordinal\": 2}"));
         assert!(json.contains("\"input_claim_identities\": [{\"kind\": \"established\""));
-        assert!(json.contains("\"result_rewrite_claim_identities\": [{\"kind\": \"established\""));
+        assert!(
+            json.contains("\"result_rewrites\": [{\"claim_identity\": {\"kind\": \"established\"")
+        );
+        assert!(json.contains("\"source\": {\"version\": \"current\""));
+        assert!(json.contains("\"target\": {\"version\": \"current\""));
         assert!(json.contains("\"ordinal\": 11"));
         assert!(json.contains("\"ordinal\": 12"));
         assert!(json.contains("\"input\": {\"parameter\": \"invalid\", \"path\": []}"));

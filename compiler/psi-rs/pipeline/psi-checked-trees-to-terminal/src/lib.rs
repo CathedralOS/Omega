@@ -358,7 +358,7 @@ pub fn lower_content_partition_compositions(
     let mut compositions = Vec::new();
 
     for fact in facts {
-        if !fact.result_rewrite_claim_identities.is_empty() {
+        if !fact.result_rewrites.is_empty() {
             return Err(LoweringError::ContentPartitionResultRewriteUnsupported);
         }
         if (fact.machine_symbol, fact.state_symbol) != callable
@@ -2130,7 +2130,7 @@ mod tests {
             input_claim_identities: vec![
                 identity_fact(SemanticDomainId(9), "left", 1).claim_identity,
             ],
-            result_rewrite_claim_identities: Vec::new(),
+            result_rewrites: Vec::new(),
             substitutions: places
                 .into_iter()
                 .map(
@@ -2223,9 +2223,15 @@ mod tests {
         assert_eq!(row.source, row.derived);
 
         let mut staged = fact.clone();
+        let source = staged.substitutions[0].source.clone();
+        let target = staged.substitutions[0].target.clone();
         staged
-            .result_rewrite_claim_identities
-            .push(identity_fact(SemanticDomainId(9), "left", 2).claim_identity);
+            .result_rewrites
+            .push(psi_checked_trees::ContentPartitionResultRewrite {
+                claim_identity: identity_fact(SemanticDomainId(9), "left", 2).claim_identity,
+                source,
+                target,
+            });
         assert_eq!(
             lower_content_partition_compositions(&[staged], &identities),
             Err(LoweringError::ContentPartitionResultRewriteUnsupported)

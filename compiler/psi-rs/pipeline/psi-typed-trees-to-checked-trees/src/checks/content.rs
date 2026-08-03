@@ -9,7 +9,7 @@
 
 use psi_checked_trees::{
     CheckFacts, ContentIdentityReshuffleFact, ContentPartitionCompositionFact,
-    ContentPartitionPlaceSubstitution, FlowClaimOutcomeSource,
+    ContentPartitionPlaceSubstitution, ContentPartitionResultRewrite, FlowClaimOutcomeSource,
 };
 use psi_diagnostics::Diagnostic;
 use psi_language_semantics::content::{
@@ -212,21 +212,21 @@ enum ReturnedPartitionInvocationForm {
 struct PartitionCompositionEvidence {
     call_ordinal: Option<usize>,
     input_claim_identities: Vec<PermissionClaimIdentity>,
-    result_rewrite_claim_identities: Vec<PermissionClaimIdentity>,
+    result_rewrites: Vec<ContentPartitionResultRewrite>,
     substitutions: Vec<ContentPartitionPlaceSubstitution>,
     observed_entry_projection: bool,
 }
 
 /// Instantiate an already-authored partition theorem through an exact wrapper.
 /// This pass can substitute caller-entry paths and either a directly returned
-/// result or a result staged through one exact local identity rewrite;
+/// result or a result staged through exact local and aggregate identity rewrites;
 /// it cannot construct a `separate(...)` node. Every entry projection must bind
 /// to one caller parameter claim whose transfer-stable identity reaches the
 /// exact returned call site.
 ///
 /// Derived rows are made available to later rounds so wrapper chains close to
-/// a fixed point. Aggregate construction and other non-identity result rewrites
-/// remain the responsibility of the later general frontier composition pass.
+/// a fixed point. Every staged source-result projection must retain one exact
+/// claim identity into a unique callable-result path.
 pub(crate) fn compose_partition_wrappers(program: &TypedTrees, facts: &mut CheckFacts) {
     let mut available = facts.qualifications.content.conservation_plans.clone();
     let state_count = program
@@ -312,10 +312,9 @@ fn returned_partition_invocation(
     let statements = program.statement_table.statements(state.statement_nodes);
     if let [
         StatementNode::LocalData(local),
-        StatementNode::Expression(return_expression),
+        StatementNode::Expression(_),
     ] = statements
         && local.initial_value.is_valid()
-        && expression_names_symbol(program, state.symbol, 1, *return_expression, local.symbol)
     {
         let mut invocation = direct_expression_invocation(program, 0, local.initial_value)?;
         invocation.form = ReturnedPartitionInvocationForm::StagedLocal {
@@ -376,24 +375,6 @@ fn returned_partition_invocation(
         .target_symbol
         .is_valid()
         .then(|| invocation.clone())
-}
-
-fn expression_names_symbol(
-    program: &TypedTrees,
-    state_symbol: SymbolHandle,
-    statement_index: usize,
-    expression: ExpressionHandle,
-    symbol: SymbolHandle,
-) -> bool {
-    crate::flow::canonical_place_from_expression_in_state(
-        program,
-        state_symbol,
-        statement_index,
-        expression,
-    )
-    .is_some_and(|place| {
-        place.root == psi_facts::PlaceRoot::Symbol(symbol) && place.segments.is_empty()
-    })
 }
 
 fn direct_expression_invocation(
@@ -472,10 +453,14 @@ fn instantiate_partition_wrapper(
         .input_claim_identities
         .sort_by_key(|identity| format!("{identity:?}"));
     evidence.input_claim_identities.dedup();
-    evidence
-        .result_rewrite_claim_identities
-        .sort_by_key(|identity| format!("{identity:?}"));
-    evidence.result_rewrite_claim_identities.dedup();
+    evidence.result_rewrites.sort_by_key(|rewrite| {
+        (
+            format!("{:?}", rewrite.source),
+            format!("{:?}", rewrite.target),
+            format!("{:?}", rewrite.claim_identity),
+        )
+    });
+    evidence.result_rewrites.dedup();
     evidence.substitutions.sort_by_key(|substitution| {
         (
             format!("{:?}", substitution.source),
@@ -502,7 +487,7 @@ fn instantiate_partition_wrapper(
         statement_index: invocation.statement_index,
         call_ordinal,
         input_claim_identities: evidence.input_claim_identities,
-        result_rewrite_claim_identities: evidence.result_rewrite_claim_identities,
+        result_rewrites: evidence.result_rewrites,
         substitutions: evidence.substitutions,
         plan,
     })
@@ -866,14 +851,19 @@ fn instantiate_partition_result_subject(
     let [output_path] = output_paths.as_slice() else {
         return None;
     };
-    evidence
-        .result_rewrite_claim_identities
-        .push(*claim_identity);
-    Some(ContentStructuralPlace {
+    let target = ContentStructuralPlace {
         version: ContentPlaceVersion::Current,
         root: ContentPlaceRoot::Result,
         segments: content_path(program, output_path)?,
-    })
+    };
+    evidence
+        .result_rewrites
+        .push(ContentPartitionResultRewrite {
+            claim_identity: *claim_identity,
+            source: subject.clone(),
+            target: target.clone(),
+        });
+    Some(target)
 }
 
 fn argument_for_target_parameter(
