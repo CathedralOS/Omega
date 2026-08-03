@@ -11,14 +11,14 @@ use psi_typed_trees::TypedTrees;
 use psi_typed_trees::machine::Machine;
 
 pub(super) struct BuildTimeAdmissionPlan {
-    operations: omega_effects::OperationalPlan,
-    service_reaches: omega_effects::ServiceReachInferencePlan,
+    operations: psi_effects::OperationalPlan,
+    service_reaches: psi_effects::ServiceReachInferencePlan,
 }
 
 impl BuildTimeAdmissionPlan {
     pub(super) fn infer(program: &TypedTrees) -> Self {
-        let operations = omega_effects::infer_operational_may(program);
-        let service_reaches = omega_effects::infer_service_reaches(program, &operations);
+        let operations = psi_effects::infer_operational_may(program);
+        let service_reaches = psi_effects::infer_service_reaches(program, &operations);
         Self {
             operations,
             service_reaches,

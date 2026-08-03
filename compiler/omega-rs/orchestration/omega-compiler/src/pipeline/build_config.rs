@@ -142,8 +142,8 @@ pub(crate) fn compute_build_config(
     // canonical boundary-service identities, never lowercase compatibility
     // categories. Custom boundary wrappers are distinct services and refuse
     // unless the build contract is deliberately extended.
-    let effect_plan = omega_effects::infer_operational_may(typed);
-    let service_plan = omega_effects::infer_service_reaches(typed, &effect_plan);
+    let effect_plan = psi_effects::infer_operational_may(typed);
+    let service_plan = psi_effects::infer_service_reaches(typed, &effect_plan);
     let transitive = service_plan
         .for_machine(machine.symbol)
         .map(|entry| service_plan.services(entry.inferred_transitive))

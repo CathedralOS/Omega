@@ -556,8 +556,8 @@ fn target_neutral_effect_inference_is_psi_owned() {
     let source = std::fs::read_to_string(&legacy)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", legacy.display()));
     assert!(
-        source.contains("pub use psi_effects::*;"),
-        "legacy effect consumers must receive target-neutral facts from Psi"
+        !source.contains("pub use psi_effects::*;"),
+        "Omega provider APIs must not blanket-re-export target-neutral Psi effects"
     );
     for retired in ["operational.rs", "service_reach.rs", "invocations.rs"] {
         assert!(
