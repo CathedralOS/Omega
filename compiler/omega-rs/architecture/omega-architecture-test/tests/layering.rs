@@ -340,26 +340,6 @@ fn frontend_implementation_is_psi_owned() {
             "compiler/omega-rs/semantics/omega-types/src/lib.rs",
             "pub use psi_types::*;",
         ),
-        (
-            "compiler/omega-rs/pipeline/omega-source-files-to-tokens/src/lib.rs",
-            "pub use psi_source_files_to_tokens::*;",
-        ),
-        (
-            "compiler/omega-rs/pipeline/omega-tokens-to-syntax-trees/src/lib.rs",
-            "pub use psi_tokens_to_syntax_trees::*;",
-        ),
-        (
-            "compiler/omega-rs/pipeline/omega-syntax-trees-to-symbol-resolved-trees/src/lib.rs",
-            "pub use psi_syntax_trees_to_symbol_resolved_trees::*;",
-        ),
-        (
-            "compiler/omega-rs/pipeline/omega-symbol-resolved-trees-to-typed-trees/src/lib.rs",
-            "pub use psi_symbol_resolved_trees_to_typed_trees::*;",
-        ),
-        (
-            "compiler/omega-rs/pipeline/omega-typed-trees-to-checked-trees/src/lib.rs",
-            "pub use psi_typed_trees_to_checked_trees::*;",
-        ),
     ] {
         let path = root.join(relative);
         let source = std::fs::read_to_string(&path)
@@ -568,6 +548,23 @@ fn frontend_implementation_is_psi_owned() {
         !source.contains("mod "),
         "legacy symbols module must not regain implementation modules"
     );
+}
+
+#[test]
+fn retired_omega_frontend_pipeline_adapters_do_not_return() {
+    let root = workspace_root();
+    for relative in [
+        "compiler/omega-rs/pipeline/omega-source-files-to-tokens",
+        "compiler/omega-rs/pipeline/omega-tokens-to-syntax-trees",
+        "compiler/omega-rs/pipeline/omega-syntax-trees-to-symbol-resolved-trees",
+        "compiler/omega-rs/pipeline/omega-symbol-resolved-trees-to-typed-trees",
+        "compiler/omega-rs/pipeline/omega-typed-trees-to-checked-trees",
+    ] {
+        assert!(
+            !root.join(relative).join("Cargo.toml").exists(),
+            "retired Omega-named frontend pipeline adapter must not return: {relative}"
+        );
+    }
 }
 
 #[test]

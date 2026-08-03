@@ -975,9 +975,9 @@ improvements do not change public identity.
   dependency. `psi-syntax-trees-to-symbol-resolved-trees` owns name lookup,
   source-scope resolution, and stable symbol stamping;
   `psi-symbol-resolved-trees-to-typed-trees` owns type identity,
-  compatibility, and signature normalization. Their former Omega
-  crates are implementation-free compatibility re-exports for remaining legacy
-  consumers. `omega-compiler` now invokes the Psi-owned lexer, parser,
+  compatibility, and signature normalization. The five former Omega-named
+  source-to-checked pipeline packages have been retired after their last
+  backend and validation harness consumers moved to Psi. `omega-compiler` invokes the Psi-owned lexer, parser,
   resolver, typer, checker, and source representations directly; it no longer
   reaches them through those compatibility packages. The driver still threads
   checked semantics into the legacy Omega state-graph lane until general

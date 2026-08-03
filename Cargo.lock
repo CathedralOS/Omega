@@ -817,13 +817,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "omega-source-files-to-tokens"
-version = "0.1.0"
-dependencies = [
- "psi-source-files-to-tokens",
-]
-
-[[package]]
 name = "omega-state-calls"
 version = "0.1.0"
 dependencies = [
@@ -933,24 +926,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "omega-symbol-resolved-trees-to-typed-trees"
-version = "0.1.0"
-dependencies = [
- "psi-symbol-resolved-trees-to-typed-trees",
-]
-
-[[package]]
 name = "omega-syntax-trees"
 version = "0.1.0"
 dependencies = [
  "psi-syntax-trees",
-]
-
-[[package]]
-name = "omega-syntax-trees-to-symbol-resolved-trees"
-version = "0.1.0"
-dependencies = [
- "psi-syntax-trees-to-symbol-resolved-trees",
 ]
 
 [[package]]
@@ -1090,13 +1069,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "omega-tokens-to-syntax-trees"
-version = "0.1.0"
-dependencies = [
- "psi-tokens-to-syntax-trees",
-]
-
-[[package]]
 name = "omega-typed-trees"
 version = "0.1.0"
 dependencies = [
@@ -1104,13 +1076,6 @@ dependencies = [
  "omega-core",
  "omega-effects",
  "psi-typed-trees",
-]
-
-[[package]]
-name = "omega-typed-trees-to-checked-trees"
-version = "0.1.0"
-dependencies = [
- "psi-typed-trees-to-checked-trees",
 ]
 
 [[package]]
