@@ -107,11 +107,15 @@ provider plan, obtains one `Granted` root after `ExitBootServices`, and carries
 that linear value into owned idle. The remaining authority migrations and
 composite claim-frontier work remain.
 
-- Add entry-provisioned content roots for the loaded image and initial
+- **ENTRY-CONTENT-ROOTS — DESIGN BLOCKED (OWNER_QUESTIONS Q1):** add
+  entry-provisioned content roots for the loaded image and initial
   stack/storage to the typed boot handoff. Derive sections and statics as
   subextents; allocate later frames and task stacks from existing roots. The
   startup provider admits only the handful of mappings it actually supplies,
-  not each object independently.
+  not each object independently. The missing decision is the stable semantic
+  owner and identity of those routed root domains/entry requirement; core
+  `Extent::Granted` cannot name a UEFI/Cathedral-specific route, while arbitrary
+  target-owned domains give generic compiler derivation no portable identity.
 
 - `Task<T>` plus the interrupt mask guard and acknowledgement token are now
   ordinary linear data. The interrupt carriers expose the compact
