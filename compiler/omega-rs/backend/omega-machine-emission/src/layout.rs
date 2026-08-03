@@ -1,5 +1,5 @@
 use crate::MachineEmissionContext;
-use crate::host_bindings::host_binding;
+use crate::host_bindings::{host_binding, instruction_requires_float_control_restore};
 use crate::selected_instruction_queries::{selected_host_operation, selected_host_text_read};
 use omega_assigned_target_operations::{
     RuntimeTextReadSource, SelectedInstructionKind, StateGuardLowering, StateGuardOperator,
@@ -221,10 +221,18 @@ fn machine_instruction_width(
                 host_operation.operation_key.operation_name(),
             )));
         }
-        return Ok(width);
+        let control_restore_width =
+            if binding.is_some_and(|binding| binding.mechanism.requires_float_control_restore()) {
+                omega_instruction_selection::foreign_float_control_trampoline_width(
+                    input.target.architecture,
+                )
+            } else {
+                0
+            };
+        return Ok(width + control_restore_width);
     }
 
-    Ok(match kind {
+    let width = match kind {
         SelectedInstructionKind::EnterDispatchLoop { .. } => {
             dispatch_loop_enter_width(input.target.architecture)
         }
@@ -1071,5 +1079,13 @@ fn machine_instruction_width(
                 "internal error: host operation was not handled by machine layout host query",
             ));
         }
-    })
+    };
+    let control_restore_width = if instruction_requires_float_control_restore(input, kind) {
+        omega_instruction_selection::foreign_float_control_trampoline_width(
+            input.target.architecture,
+        )
+    } else {
+        0
+    };
+    Ok(width + control_restore_width)
 }

@@ -47,6 +47,25 @@ pub struct X86_64RelocationSite {
 /// only Omega's canonical value is live while checked code executes.
 pub const FUNCTION_FRAME_BYTES: usize = 80;
 
+/// Save/restore envelope placed around a returning foreign call. Its private
+/// 16-byte slot preserves stack alignment while retaining the complete MXCSR.
+pub const FOREIGN_FLOAT_CONTROL_PREFIX_WIDTH: usize = 8;
+pub const FOREIGN_FLOAT_CONTROL_SUFFIX_WIDTH: usize = 8;
+
+pub fn encode_foreign_float_control_prefix_bytes() -> [u8; FOREIGN_FLOAT_CONTROL_PREFIX_WIDTH] {
+    [
+        0x48, 0x83, 0xec, 0x10, // sub rsp, 16
+        0x0f, 0xae, 0x1c, 0x24, // stmxcsr [rsp]
+    ]
+}
+
+pub fn encode_foreign_float_control_suffix_bytes() -> [u8; FOREIGN_FLOAT_CONTROL_SUFFIX_WIDTH] {
+    [
+        0x0f, 0xae, 0x14, 0x24, // ldmxcsr [rsp]
+        0x48, 0x83, 0xc4, 0x10, // add rsp, 16
+    ]
+}
+
 pub fn function_enter_width() -> usize {
     33
 }

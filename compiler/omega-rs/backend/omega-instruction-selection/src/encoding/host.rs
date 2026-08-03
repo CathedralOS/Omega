@@ -1474,6 +1474,86 @@ pub fn encode_constant_host_result<T: InstructionOperandLike>(
     }
 }
 
+pub const fn foreign_float_control_prefix_width(architecture: Architecture) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::FOREIGN_FLOAT_CONTROL_PREFIX_WIDTH,
+        Architecture::X86_64 => x86_64::FOREIGN_FLOAT_CONTROL_PREFIX_WIDTH,
+    }
+}
+
+pub const fn foreign_float_control_trampoline_width(architecture: Architecture) -> usize {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::FOREIGN_FLOAT_CONTROL_PREFIX_WIDTH
+                + aarch64::FOREIGN_FLOAT_CONTROL_SUFFIX_WIDTH
+        }
+        Architecture::X86_64 => {
+            x86_64::FOREIGN_FLOAT_CONTROL_PREFIX_WIDTH + x86_64::FOREIGN_FLOAT_CONTROL_SUFFIX_WIDTH
+        }
+    }
+}
+
+/// Surround one returning foreign-call instruction program with an aligned
+/// save/restore envelope. The inner encoder keeps its original stack-relative
+/// layout because both target envelopes preserve the ABI alignment modulus.
+pub fn wrap_foreign_float_control(architecture: Architecture, inner: Vec<u8>) -> Vec<u8> {
+    let mut bytes =
+        Vec::with_capacity(inner.len() + foreign_float_control_trampoline_width(architecture));
+    match architecture {
+        Architecture::Aarch64 => {
+            bytes.extend(aarch64::encode_foreign_float_control_prefix_bytes());
+            bytes.extend(inner);
+            bytes.extend(aarch64::encode_foreign_float_control_suffix_bytes());
+        }
+        Architecture::X86_64 => {
+            bytes.extend(x86_64::encode_foreign_float_control_prefix_bytes());
+            bytes.extend(inner);
+            bytes.extend(x86_64::encode_foreign_float_control_suffix_bytes());
+        }
+    }
+    bytes
+}
+
+#[cfg(test)]
+mod foreign_float_control_tests {
+    use super::*;
+
+    #[test]
+    fn envelopes_preserve_inner_bytes_and_target_alignment() {
+        let inner = vec![0xaa, 0xbb, 0xcc, 0xdd];
+
+        let x86 = wrap_foreign_float_control(Architecture::X86_64, inner.clone());
+        assert_eq!(foreign_float_control_prefix_width(Architecture::X86_64), 8);
+        assert_eq!(
+            foreign_float_control_trampoline_width(Architecture::X86_64),
+            16
+        );
+        assert_eq!(&x86[..8], &[0x48, 0x83, 0xec, 0x10, 0x0f, 0xae, 0x1c, 0x24]);
+        assert_eq!(&x86[8..12], inner.as_slice());
+        assert_eq!(
+            &x86[12..],
+            &[0x0f, 0xae, 0x14, 0x24, 0x48, 0x83, 0xc4, 0x10]
+        );
+
+        let aarch64 = wrap_foreign_float_control(Architecture::Aarch64, inner.clone());
+        assert_eq!(
+            foreign_float_control_prefix_width(Architecture::Aarch64),
+            12
+        );
+        assert_eq!(
+            foreign_float_control_trampoline_width(Architecture::Aarch64),
+            24
+        );
+        assert_eq!(&aarch64[12..16], inner.as_slice());
+        assert_eq!(&aarch64[..4], &0xD100_43FFu32.to_le_bytes());
+        assert_eq!(&aarch64[4..8], &0xD53B_4410u32.to_le_bytes());
+        assert_eq!(&aarch64[8..12], &0xF900_03F0u32.to_le_bytes());
+        assert_eq!(&aarch64[16..20], &0xF940_03F0u32.to_le_bytes());
+        assert_eq!(&aarch64[20..24], &0xD51B_4410u32.to_le_bytes());
+        assert_eq!(&aarch64[24..28], &0x9100_43FFu32.to_le_bytes());
+    }
+}
+
 pub fn encode_function_enter_bytes(
     architecture: Architecture,
 ) -> Result<(Vec<u8>, usize), Diagnostic> {

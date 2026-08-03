@@ -638,6 +638,32 @@ fn native_float_three_args_preserves_fused_semantics() {
     );
 }
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn returning_foreign_call_restores_canonical_float_control_state() {
+    let main_path = repo_root().join("canaries/pass/float/foreign_control_state_restore/main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-float-control-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path.clone(),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .unwrap_or_else(|d| panic!("foreign float-control canary should compile:\n{d:#?}"));
+    let out = Command::new(build_dir.join("omega-program"))
+        .output()
+        .expect("run foreign float-control canary");
+    let _ = std::fs::remove_dir_all(&build_dir);
+    assert_eq!(
+        out.status.code(),
+        Some(70),
+        "checked arithmetic after fesetround must resume nearest-even; stderr:\n{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
+
 // Multi-dylib linking: the first call into a SECOND dylib. objc_getClass lives in
 // /usr/lib/libobjc.A.dylib (not libSystem), so the Mach-O must emit a 2nd
 // LC_LOAD_DYLIB and bind the symbol at dylib ordinal 2. objc_getClass("NSObject")

@@ -123,6 +123,27 @@ impl TargetOperationKind {
         OperationSemanticQuery::crosses_host_boundary(self)
     }
 
+    /// The concrete host operation whose binding realizes this crossing.
+    /// Structural boundary markers carry no operation and therefore no key.
+    pub fn host_operation_key(&self) -> Option<crate::HostOperationKey> {
+        match self {
+            Self::HostOperation { operation_key, .. }
+            | Self::ReadRuntimeTextLine {
+                source: RuntimeTextReadSource::HostOperation { operation_key },
+                ..
+            }
+            | Self::ReadRuntimeByte {
+                source: RuntimeTextReadSource::HostOperation { operation_key },
+                ..
+            }
+            | Self::WriteRuntimeByte {
+                source: RuntimeTextReadSource::HostOperation { operation_key },
+                ..
+            } => Some(*operation_key),
+            _ => None,
+        }
+    }
+
     pub fn touches_runtime_storage(&self) -> bool {
         OperationSemanticQuery::touches_runtime_storage(self)
     }

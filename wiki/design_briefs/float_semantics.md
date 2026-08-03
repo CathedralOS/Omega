@@ -312,10 +312,16 @@ frames now save the caller's complete MXCSR/FPCR, install Omega's canonical
 semantic controls, and restore the caller's value on return. Their composed
 footprints retain `ControlState`, which the state validator admits only as
 prescribed `CallReturn` mechanics. This covers ordinary generated entry and
-the callback entry/exit seam. Outbound foreign bindings still need an explicit
-preservation proof or save/restore trampoline; x86-64 FMA, directed-rounding
-families, checked software fallbacks, and admitted-hardware differential
-evidence remain as well.
+the callback entry/exit seam. Returning foreign mechanisms now conservatively
+receive an aligned control-state trampoline too: imported and indirect
+vtable/table calls save and restore the complete MXCSR/FPCR around the existing
+call program, while direct syscalls add no user-space crossing and receive no
+envelope. Layout, emission, and relocation planning share that mechanism
+classification; a hostile AArch64 canary calls `_fesetround(FE_UPWARD)` and
+proves the following half-ULP checked addition still ties nearest-even. An
+explicit preservation-proof optimization may later remove redundant envelopes;
+x86-64 FMA, directed-rounding families, checked software fallbacks, and
+admitted-hardware differential evidence remain.
 
 ## 2. Domains: the value/policy split
 
