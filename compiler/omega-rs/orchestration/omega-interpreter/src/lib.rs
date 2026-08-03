@@ -118,6 +118,21 @@ impl EvaluationStepScheduleIdentity {
 pub const CURRENT_EVALUATION_STEP_SCHEDULE: EvaluationStepScheduleIdentity =
     EvaluationStepScheduleIdentity(1);
 
+/// Version of the canonical evaluator usage-record schema. This is distinct
+/// from the step schedule: adding an attributed count changes the record shape
+/// without changing the meaning or weight of an evaluator step.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EvaluationUsageSchemaIdentity(u32);
+
+impl EvaluationUsageSchemaIdentity {
+    pub const fn schema_version(self) -> u32 {
+        self.0
+    }
+}
+
+pub const CURRENT_EVALUATION_USAGE_SCHEMA: EvaluationUsageSchemaIdentity =
+    EvaluationUsageSchemaIdentity(1);
+
 /// Deterministic work measured by the current evaluator-step schedule.
 ///
 /// The fields are private so future attributed telemetry can extend this
@@ -125,15 +140,19 @@ pub const CURRENT_EVALUATION_STEP_SCHEDULE: EvaluationStepScheduleIdentity =
 /// cannot observe this record or its remaining sponsor allowance.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EvaluationUsage {
+    schema: EvaluationUsageSchemaIdentity,
     schedule: EvaluationStepScheduleIdentity,
     fuel_units: u64,
+    result_cells: u64,
 }
 
 impl EvaluationUsage {
     const fn empty() -> Self {
         Self {
+            schema: CURRENT_EVALUATION_USAGE_SCHEMA,
             schedule: CURRENT_EVALUATION_STEP_SCHEDULE,
             fuel_units: 0,
+            result_cells: 0,
         }
     }
 
@@ -141,13 +160,28 @@ impl EvaluationUsage {
         self.schedule
     }
 
+    pub const fn schema(self) -> EvaluationUsageSchemaIdentity {
+        self.schema
+    }
+
     pub const fn fuel_units(self) -> u64 {
         self.fuel_units
+    }
+
+    /// Number of value cells retained by the successful evaluation result.
+    /// Scalar and unit roots count as one cell; each structured value counts
+    /// its root plus every recursively retained field, payload, or element.
+    pub const fn result_cells(self) -> u64 {
+        self.result_cells
     }
 
     fn charge_step(&mut self) -> Option<()> {
         self.fuel_units = self.fuel_units.checked_add(1)?;
         Some(())
+    }
+
+    fn record_result_cells(&mut self, result_cells: u64) {
+        self.result_cells = result_cells;
     }
 }
 

@@ -219,6 +219,20 @@ with this usage, and ordinary interpreted outcomes retain it as well. Equal
 invocations reproduce equal usage. This record is not terminal-Psi fuel and
 cannot support an IR fixed-work certificate.
 
+The usage record carries a schema identity independently from the evaluator
+step-schedule identity: adding an attributed field does not change what one
+scheduled step means. Usage schema v1 now records `result_cells` for
+successful semantic evaluation.
+Each returned scalar, unit, text, or aggregate root contributes one cell, and
+aggregate fields, case payload values, and array elements contribute their
+recursive cell counts. Text byte volume belongs to logical-work telemetry, so
+it does not inflate the retained-cell count. Augmenting-machine results sum the
+cells in every returned argument. The evaluator computes this count with
+checked arithmetic and rejects accounting overflow rather than publishing a
+partial record. `logical_words_processed`,
+`aggregate_elements_constructed`, and `peak_live_cells` still require execution
+and allocator instrumentation.
+
 This meter supports three policies without becoming program semantics:
 
 1. live progress attribution;
@@ -289,9 +303,10 @@ artifact.
 - Constant positions, const-generic leaves, machine-backed domain facts, and
   layout/wire/calling policy sites already use the reference interpreter.
 - The interpreter publishes deterministic measured outcomes under evaluator
-  step schedule v1 while preserving the old value-only entry points. Canonical
-  usage telemetry beyond the scalar, progress attribution, cache charging, and
-  root-selected warning/ceiling policy remain.
+  step schedule v1 while preserving the old value-only entry points. Usage
+  schema v1 also records exact recursively retained `result_cells`; logical
+  word, aggregate-construction, and peak-live-cell telemetry, progress
+  attribution, cache charging, and root-selected warning/ceiling policy remain.
 - Canonical service reach, recursive suspension/blocking summaries, and
   ordinary checked termination across the concrete typed call closure are
   checked. Pre-check semantic positions consume the same pure termination
