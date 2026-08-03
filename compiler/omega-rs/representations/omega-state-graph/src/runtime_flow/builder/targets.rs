@@ -3,7 +3,7 @@ use crate::{CallContext, RuntimeTransitionTarget};
 use omega_control_flow::{PlannedTransitionTarget, StateKey};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
-use omega_typed_trees::name::Identifier;
+use psi_typed_trees::name::Identifier;
 
 impl RuntimeFlowBuilder<'_> {
     pub(super) fn visit_target(

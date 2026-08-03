@@ -71,8 +71,8 @@ The implementation should make typed semantic surfaces visible by file:
   typed `Placed<P, T>` surfaces retain. Concrete ABI selection and target
   lowering remain Omega-owned.
 - `compiler/psi-rs/representations/psi-typed-trees` owns the typed source
-  representation. The old `omega-typed-trees` package is an implementation-free
-  compatibility export for later stages that have not migrated yet.
+  representation. The old `omega-typed-trees` compatibility package is retired;
+  legacy consumers depend on the Psi owner directly.
 
 - `lowerer.rs` owns stage entry and the top-level lowering conveyor. Behavior
   coverage belongs in `lowerer/tests.rs`, not inline with the entrypoint.

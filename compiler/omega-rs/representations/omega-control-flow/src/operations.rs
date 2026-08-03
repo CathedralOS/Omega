@@ -1,7 +1,7 @@
 use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
-use omega_typed_trees::expression::ExpressionHandle;
-use omega_typed_trees::name::Identifier;
+use psi_typed_trees::expression::ExpressionHandle;
+use psi_typed_trees::name::Identifier;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Operation {

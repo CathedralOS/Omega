@@ -7,7 +7,7 @@
 //! and the broader operation vocabulary migrate.
 //!
 //! The interpreter evaluates the program at the level of the typed/checked trees
-//! (`omega_checked_trees::CheckedTrees`, which derefs to `omega_typed_trees::TypedTrees`)
+//! (`omega_checked_trees::CheckedTrees`, which derefs to `psi_typed_trees::TypedTrees`)
 //! -- the source-of-truth semantics, ABOVE all backend lowering. It is therefore
 //! independent of the backend bugs it must catch: if `interpret()` and the native
 //! binary disagree on exit code or stdout for the same program, the backend is wrong.
@@ -307,7 +307,7 @@ pub fn interpret_with_options(
 /// Works over `TypedTrees` (pre-checking) so the compiler pipeline can
 /// substitute results BEFORE range checking and layout consume the lengths.
 pub fn evaluate_const_machine(
-    program: &omega_typed_trees::TypedTrees,
+    program: &psi_typed_trees::TypedTrees,
     machine_name: &str,
 ) -> Result<i64, String> {
     evaluate_const_machine_measured(program, machine_name).map(MeasuredEvaluation::into_value)
@@ -315,7 +315,7 @@ pub fn evaluate_const_machine(
 
 /// [`evaluate_const_machine`] with its deterministic evaluator usage.
 pub fn evaluate_const_machine_measured(
-    program: &omega_typed_trees::TypedTrees,
+    program: &psi_typed_trees::TypedTrees,
     machine_name: &str,
 ) -> Result<MeasuredEvaluation<i64>, String> {
     evaluator::run_const_machine(program, machine_name)
@@ -331,7 +331,7 @@ pub fn evaluate_const_machine_measured(
 /// marks build-time machines -- the position makes the evaluation build-time,
 /// and the effect system makes it legal.
 pub fn evaluate_build_time_machine(
-    program: &omega_typed_trees::TypedTrees,
+    program: &psi_typed_trees::TypedTrees,
     machine_name: &str,
     arguments: Vec<BuildTimeValue>,
 ) -> Result<BuildTimeValue, String> {
@@ -341,7 +341,7 @@ pub fn evaluate_build_time_machine(
 
 /// [`evaluate_build_time_machine`] with its deterministic evaluator usage.
 pub fn evaluate_build_time_machine_measured(
-    program: &omega_typed_trees::TypedTrees,
+    program: &psi_typed_trees::TypedTrees,
     machine_name: &str,
     arguments: Vec<BuildTimeValue>,
 ) -> Result<MeasuredEvaluation<BuildTimeValue>, String> {
@@ -354,7 +354,7 @@ pub fn evaluate_build_time_machine_measured(
 /// augmented arguments. A unit terminal is accepted. The caller owns the
 /// legality gate, exactly as for [`evaluate_build_time_machine`].
 pub fn evaluate_build_time_machine_arguments(
-    program: &omega_typed_trees::TypedTrees,
+    program: &psi_typed_trees::TypedTrees,
     machine_name: &str,
     arguments: Vec<BuildTimeValue>,
 ) -> Result<Vec<BuildTimeValue>, String> {
@@ -365,7 +365,7 @@ pub fn evaluate_build_time_machine_arguments(
 /// [`evaluate_build_time_machine_arguments`] with deterministic evaluator
 /// usage.
 pub fn evaluate_build_time_machine_arguments_measured(
-    program: &omega_typed_trees::TypedTrees,
+    program: &psi_typed_trees::TypedTrees,
     machine_name: &str,
     arguments: Vec<BuildTimeValue>,
 ) -> Result<MeasuredEvaluation<Vec<BuildTimeValue>>, String> {
@@ -382,7 +382,7 @@ pub fn evaluate_build_time_machine_arguments_measured(
 /// require an empty transitive effect surface for the filesystem effect --
 /// but should still gate the rest.
 pub fn evaluate_build_machine_with_filesystem(
-    program: &omega_typed_trees::TypedTrees,
+    program: &psi_typed_trees::TypedTrees,
     machine_name: &str,
     arguments: Vec<BuildTimeValue>,
     options: InterpretOptions,
@@ -394,7 +394,7 @@ pub fn evaluate_build_machine_with_filesystem(
 /// [`evaluate_build_machine_with_filesystem`] with deterministic evaluator
 /// usage.
 pub fn evaluate_build_machine_with_filesystem_measured(
-    program: &omega_typed_trees::TypedTrees,
+    program: &psi_typed_trees::TypedTrees,
     machine_name: &str,
     arguments: Vec<BuildTimeValue>,
     options: InterpretOptions,

@@ -309,10 +309,6 @@ fn frontend_implementation_is_psi_owned() {
     let root = workspace_root();
     for (relative, expected_export) in [
         (
-            "compiler/omega-rs/representations/omega-typed-trees/src/lib.rs",
-            "pub use psi_typed_trees::*;",
-        ),
-        (
             "compiler/omega-rs/representations/omega-facts/src/lib.rs",
             "pub use psi_facts::*;",
         ),
@@ -542,6 +538,7 @@ fn retired_omega_frontend_adapters_do_not_return() {
         "compiler/omega-rs/representations/omega-tokens",
         "compiler/omega-rs/representations/omega-symbol-resolved-trees",
         "compiler/omega-rs/representations/omega-syntax-trees",
+        "compiler/omega-rs/representations/omega-typed-trees",
         "compiler/omega-rs/semantics/omega-proof",
         "compiler/omega-rs/semantics/omega-types",
     ] {

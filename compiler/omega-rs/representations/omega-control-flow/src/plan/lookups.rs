@@ -1,6 +1,6 @@
 use omega_core::symbols::SymbolHandle;
-use omega_typed_trees::expression::ExpressionHandle;
-use omega_typed_trees::name::Identifier;
+use psi_typed_trees::expression::ExpressionHandle;
+use psi_typed_trees::name::Identifier;
 
 use crate::{
     ContainedFlow, ControlFlowPlan, MachineFlow, MachineOwnedDataFlow, StateFlow, StateKey,
@@ -185,10 +185,10 @@ impl ControlFlowPlan {
 }
 
 fn first_call_subexpression(
-    table: &omega_typed_trees::expression::ExpressionTable,
+    table: &psi_typed_trees::expression::ExpressionTable,
     handle: ExpressionHandle,
 ) -> ExpressionHandle {
-    use omega_typed_trees::expression::ExpressionNode;
+    use psi_typed_trees::expression::ExpressionNode;
     if !handle.is_valid() {
         return handle;
     }

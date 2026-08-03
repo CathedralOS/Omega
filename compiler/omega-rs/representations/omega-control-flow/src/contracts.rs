@@ -12,7 +12,7 @@ pub enum StateContractFactKind {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateContractFactRef {
     pub kind: StateContractFactKind,
-    pub fact: Handle<omega_typed_trees::domain::ProofFact>,
+    pub fact: Handle<psi_typed_trees::domain::ProofFact>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

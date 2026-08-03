@@ -1,5 +1,5 @@
 use omega_core::arena::Arena;
-use omega_typed_trees::expression::{ExpressionTable, ExpressionTableCapacity};
+use psi_typed_trees::expression::{ExpressionTable, ExpressionTableCapacity};
 
 use crate::{
     StateGraph, StateGraphBorrowRoots, StateGraphBoundaryRoots, StateGraphCode,

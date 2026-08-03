@@ -11,4 +11,7 @@ name = "omega_architecture_test"
 path = "src/lib.rs"
 
 [dev-dependencies]
+omega-control-flow = { path = "../../representations/omega-control-flow" }
+omega-core = { path = "../../foundation/omega-core" }
+psi-typed-trees = { path = "../../../psi-rs/representations/psi-typed-trees" }
 serde_json = "1.0"

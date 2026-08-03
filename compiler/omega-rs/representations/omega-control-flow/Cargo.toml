@@ -12,4 +12,4 @@ path = "src/lib.rs"
 omega-core = { path = "../../foundation/omega-core" }
 omega-checked-trees = { path = "../omega-checked-trees" }
 omega-facts = { path = "../omega-facts" }
-omega-typed-trees = { path = "../omega-typed-trees" }
+psi-typed-trees = { path = "../../../psi-rs/representations/psi-typed-trees" }

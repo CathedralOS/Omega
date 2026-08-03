@@ -9,10 +9,10 @@
 //! it -- it is to re-pin the NEW shape and check the migration carried the
 //! distinction the comment names.
 
-use omega_typed_trees::data::DataProperties;
-use omega_typed_trees::domain::DomainDefinition;
-use omega_typed_trees::machine::Machine;
-use omega_typed_trees::types::DomainConstraint;
+use psi_typed_trees::data::DataProperties;
+use psi_typed_trees::domain::DomainDefinition;
+use psi_typed_trees::machine::Machine;
+use psi_typed_trees::types::DomainConstraint;
 
 /// LOSS 1 -- PARTIALLY RE-PINNED (DOM theory records, 2026-07-28): predicate
 /// body, role-keyed semantic contributions, and normalized establishment

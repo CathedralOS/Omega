@@ -1,8 +1,8 @@
 use omega_core::arena::HandleSpan;
 use omega_core::semantics::{OperationalMaySummary, ServiceReachSummary};
 use omega_core::symbols::SymbolHandle;
-use omega_typed_trees::name::Identifier;
-use omega_typed_trees::types::TypeReferenceHandle;
+use psi_typed_trees::name::Identifier;
+use psi_typed_trees::types::TypeReferenceHandle;
 
 use crate::{
     Operation, StateBorrowSummary, StateBoundarySummary, StateContractSummary,
