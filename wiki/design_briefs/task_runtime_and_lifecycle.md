@@ -106,9 +106,12 @@ Compiler elaboration remains live for concrete `TaskRuntime::start<M>` and
 artifact now carries a fixed-stack `StackPlan`, canonical suspension-crossing
 identities, and demand-driven CPU/thread preservation obligations; the
 superseded continuation-demand and `SafePoints | Asynchronous` runtime-join
-fields are gone. Its current byte count is still the local machine/park-frontier
-layout bridge. Whole-call-graph WCSU composition and stack reservation remain
-the fixed-stack lowering rung below. `05_carry_manifest.json` remains useful
+fields are gone. It is an Omega-owned post-check sidecar, not a field of
+`CheckedTrees`: target layout, calling-plan, stack, and selected-runtime state
+must not enter Psi checked semantics. Its current byte count is still the local
+machine/park-frontier layout bridge. Whole-call-graph WCSU composition and
+stack reservation remain the fixed-stack lowering rung below.
+`05_carry_manifest.json` remains useful
 because it names each suspension crossing and its typed live-value/storage
 frontier; tools consume that checked artifact rather than reinterpret source.
 

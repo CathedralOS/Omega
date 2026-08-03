@@ -40673,11 +40673,11 @@ fn boundary_equality_recast_witness_compiles_to_checked_trees() {
 }
 
 #[test]
-fn task_runtime_machine_selection_reaches_checked_activation_plans() {
+fn task_runtime_machine_selection_builds_omega_activation_sidecar() {
     let canary = pass_canary("tasks/task_runtime_machine_selection_compile");
     let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("core task-runtime machine selection should reach checked trees");
-    let activations = checked.facts.contract_plans.task_activations.as_slice();
+    let activations = checked.task_activations().as_slice();
 
     assert_eq!(
         activations.len(),
@@ -40686,11 +40686,11 @@ fn task_runtime_machine_selection_reaches_checked_activation_plans() {
     );
     assert!(activations.iter().any(|activation| matches!(
         activation.operation,
-        omega_checked_trees::TaskStartOperation::Start
+        omega_task_plans::TaskStartOperation::Start
     )));
     assert!(activations.iter().any(|activation| matches!(
         activation.operation,
-        omega_checked_trees::TaskStartOperation::TryStart
+        omega_task_plans::TaskStartOperation::TryStart
     )));
     for activation in activations {
         let target = checked
@@ -40728,9 +40728,10 @@ fn task_runtime_machine_selection_reaches_checked_activation_plans() {
     }
 
     // Runtime-instance dispatch/lowering is a later rung. Exercise the exact
-    // checked artifacts directly instead of pretending the canary provider's
+    // Omega sidecar directly instead of pretending the canary provider's
     // placeholder intrinsic is an executable backend implementation.
-    let manifest = omega_visualizations::task_activation_manifest_json(&checked);
+    let manifest =
+        omega_visualizations::task_activation_manifest_json(&checked, checked.task_activations());
     let carry_manifest = omega_visualizations::carry_manifest_json(&checked);
     assert!(manifest.contains("\"operation\": \"start\""));
     assert!(manifest.contains("\"operation\": \"try_start\""));

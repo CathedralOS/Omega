@@ -219,9 +219,8 @@ fn task_start_acknowledges_only_the_start_operation_not_the_target_machine() {
     let checked = compile_to_checked(&canary, None)
         .expect("task-start canary should compile with unmarked immediate start calls");
     let start_symbols = checked
-        .facts
-        .contract_plans
-        .task_activations
+        .task_activations()
+        .as_slice()
         .iter()
         .map(|activation| activation.start_requirement)
         .collect::<Vec<_>>();

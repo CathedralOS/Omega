@@ -282,7 +282,6 @@ version = "0.1.0"
 dependencies = [
  "omega-core",
  "omega-facts",
- "omega-task-plans",
  "omega-typed-trees",
  "psi-effects",
 ]
@@ -1037,6 +1036,9 @@ dependencies = [
 [[package]]
 name = "omega-task-plans"
 version = "0.1.0"
+dependencies = [
+ "psi-symbols",
+]
 
 [[package]]
 name = "omega-terminal-abstract-operations"

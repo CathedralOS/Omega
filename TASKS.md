@@ -154,10 +154,12 @@ composite claim-frontier work remain.
   occurrence evidence to the checked `Pending` parameter fact and make the
   transitional empty core domain routed before treating the feature complete.
 - `TaskRuntime` is now an ordinary boundary trait. Each concrete `start<M>` /
-  `try_start<M>` activation fact binds the exact retained selected-provider
-  plan and exact operation requirement, rejecting a missing provider or a
-  provider that narrows the published machine-parameter contract. Continue
-  from that static binding into per-invocation behavior receipts,
+  `try_start<M>` Omega activation-sidecar fact binds the exact retained
+  selected-provider plan and exact operation requirement, rejecting a missing
+  provider or a provider that narrows the published machine-parameter
+  contract. `CheckedTrees` retains the source/checking facts but no target
+  layout, calling-plan, stack, or runtime-selection artifact. Continue from
+  that static binding into per-invocation behavior receipts,
   stack-resource authority, and custody under TR3–TR8.
 
 Acceptance: reconstructing an authority carrier does not establish its facts;
@@ -1044,7 +1046,8 @@ improvements do not change public identity.
   invocation inference, and capability-flow facts. Provider declarations,
   target/provider bindings, approval, installation, and the exact selected-plan
   carrier remain Omega-owned. `CheckedTrees` no longer embeds that concrete
-  selection; Omega orchestration threads it beside checked semantics until the
+  selection or target/layout-specific task activation plans; Omega
+  orchestration threads both sidecars beside checked semantics until the
   terminal-Psi cut retires the legacy backend lane.
   `psi-source-files-to-tokens` owns Omega lexing and
   `psi-tokens-to-syntax-trees` owns unresolved parsing, both with no Omega

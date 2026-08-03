@@ -507,16 +507,18 @@ impl Compiler {
                 .typed,
             &checked.selected_provider_plans,
         )?;
-        crate::pipeline::task_plans::elaborate_task_activation_plans(
+        let task_activations = crate::pipeline::task_plans::elaborate_task_activation_plans(
             Arc::get_mut(&mut checked.program)
                 .expect("checked program must be uniquely owned before backend fan-out"),
             &checked.selected_provider_plans,
             selected_native_target,
         )?;
+        checked.task_activations = Arc::new(task_activations);
         write_checked_snapshot(
             &self.options,
             &checked.program,
             &checked.selected_provider_plans,
+            &checked.task_activations,
         )?;
         write_boundary_report_with_capabilities(&self.options, &syntax_trees, &checked.program)?;
         let backend_surface = build_backend_surface_report(&checked.program);
