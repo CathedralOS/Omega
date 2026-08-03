@@ -9,6 +9,7 @@
 // truncated back. The swap goes through a `tmp` FIELD (read from its slot) rather than a `let`
 // local, the same idiom euclid_gcd documents. Expected exit: 161.
 
+use omega::language::core::float_operations;
 use omega::language::std::console;
 
 data Fib [copy] {
@@ -24,7 +25,7 @@ data Main {
     fa: f64;
     fb: f64;
     ratio: f64;
-    result: i32 in Wrapping;
+    result: i32 in Saturating;
     pause: [u8; 256];
 }
 
@@ -56,14 +57,14 @@ machine Main::main(&mut self) {
     }
 
     state ratio_calc(&mut self) {
-        self.fa = self.fib.a as f64;
-        self.fb = self.fib.b as f64;
+        self.fa = F64::from_i32(self.fib.a as i32);
+        self.fb = F64::from_i32(self.fib.b as i32);
         self.ratio = self.fb / self.fa;
         self.ratio = self.ratio * 100.0;
-        self.result = self.ratio as i32 in Saturating; // F4: float casts have no Wrapping reading
+        self.result = I32::from_f64(self.ratio);
         self.console.write_line("result: floor(100 * fib(15)/fib(14)), 161 for this run (the exit code)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
-        self.console.exit_process(self.result);
+        self.console.exit_process(self.result as i32);
     }
 }
