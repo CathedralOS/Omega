@@ -139,3 +139,30 @@ slice. The checked-to-terminal producer must remain fail-closed, and no
 content-bearing executable source canary may claim completion, until the
 verifier, codec, migration, proof bundle, and producer consume one reviewed
 shape end to end.
+
+## Q7 — How does a named whole-trait conformance bind its requirement satisfiers?
+
+Omega promises that `Type satisfies Trait as Name` selects one coherent,
+complete requirement surface and that one type may provide several such
+surfaces. The live representation gives the standalone whole-trait edge a
+stable `Type::Name` symbol, but validation currently chooses attached states by
+requirement name without consulting `Name`. Separately, a machine may spell
+`satisfies Trait::requirement as Name`; the guide's one-requirement proxy
+example treats that spelling as enough to cast to `dyn Type::Name`, even though
+no standalone whole-trait edge is declared. Which binding model is canonical?
+
+- make the standalone whole-trait declaration own an explicit, complete
+  requirement-to-satisfier map (including defaults and laws), with machine
+  aliases serving only as references used by that map; or
+- define a conformance as the coherent group of attached satisfiers carrying
+  the same `as Name`, with a precise rule for whether a standalone declaration
+  is required and whether unique unaliased/default satisfiers may fill missing
+  members.
+
+The choice fixes completeness checking, default-member inclusion, overload
+selection, whether two named conformances may deliberately share a satisfier,
+third-party conformance coherence, and the exact per-requirement adapter rows
+stored in a local dynamic table. Checked selection may retain the stable edge
+identity, but Psi and Omega must not emit requirement adapters or a table by
+guessing satisfiers from matching state names until this association is
+settled.
