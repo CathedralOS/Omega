@@ -858,7 +858,9 @@ Remaining:
   named no-plan functions retain only the differential oracle. Shared syscall
   normalization, encoding, relocation, and runtime-text consumers now carry an
   explicit authoritative-plan versus compatibility-oracle mode rather than an
-  optional plan. Ordinary
+  optional plan. The instruction-selection host module now projects only
+  optional contextual value shapes; it never turns either explicit mode back
+  into an optional borrowed `CallPlan`. Ordinary
   non-variadic scalar built-in imports now consume the binding-retained plan in
   emission, layout, and relocation accounting; their Windows x64/macOS arm64
   compatibility bytes and widths,
