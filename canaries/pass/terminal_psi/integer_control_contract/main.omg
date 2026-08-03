@@ -143,5 +143,29 @@ ensures 255u8 == 255u8
     value * 13u8
 }
 
+machine terminal_boolean_constant() -> bool
+requires true == true
+ensures true == true
+{
+    true
+}
+
+machine terminal_ninth_boolean(
+    first: bool,
+    second: bool,
+    third: bool,
+    fourth: bool,
+    fifth: bool,
+    sixth: bool,
+    seventh: bool,
+    eighth: bool,
+    ninth: bool
+) -> bool
+requires true == true
+ensures true == true
+{
+    ninth
+}
+
 data Main {}
 machine Main::main(&mut self) {}

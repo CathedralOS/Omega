@@ -79,6 +79,12 @@ enum LoweredDirectExpression {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LoweredBooleanReturnExpression {
+    Constant { value: bool },
+    Parameter { position: usize },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum LoweredIntegerBinaryKind {
     WrappingAdd,
     SaturatingAdd,
@@ -722,6 +728,13 @@ fn lower_content_place(
 /// Accepted shape:
 ///
 /// ```text
+/// machine name(p0: bool, ...) -> bool
+/// requires B == B
+/// ensures B == B
+/// {
+///     B | pN
+/// }
+///
 /// machine name(p0: integer, ...) -> integer
 /// requires C == C
 /// ensures C == C
@@ -772,7 +785,10 @@ pub fn lower_machine(
 
     let states = checked.machine_states(machine);
     if let [entry_state] = states {
-        return lower_direct_parameter_machine(checked, machine, entry_state);
+        return match checked.primitive_type_reference(entry_state.return_type) {
+            Some(PrimitiveType::Bool) => lower_boolean_machine(checked, machine, entry_state),
+            _ => lower_direct_parameter_machine(checked, machine, entry_state),
+        };
     }
     let [entry_state, return_state] = states else {
         return unsupported(
@@ -870,6 +886,57 @@ pub fn lower_machine(
         return_type,
         value,
         lowered_return,
+        contract_value,
+        identity_reshuffles,
+        partition_compositions,
+    ))
+}
+
+fn lower_boolean_machine(
+    checked: &CheckedTrees,
+    machine: &psi_checked_trees::machine::Machine,
+    entry_state: &psi_checked_trees::state::State,
+) -> Result<LoweredTerminalPsi, LoweringError> {
+    if !checked.state_contracts(entry_state).is_empty() {
+        return unsupported("state contracts are not supported");
+    }
+    let parameters = checked.state_parameters(entry_state);
+    if parameters
+        .iter()
+        .any(|parameter| parameter.is_self || parameter.is_const || parameter.is_mutable)
+    {
+        return unsupported("qualified Boolean machine parameters are not supported");
+    }
+    if parameters.iter().any(|parameter| {
+        checked.primitive_type_reference(parameter.type_reference) != Some(PrimitiveType::Bool)
+    }) {
+        return unsupported("Boolean source machines require Boolean parameters");
+    }
+    let statements = checked
+        .statement_table
+        .statements(entry_state.statement_nodes);
+    let [StatementNode::Expression(return_expression)] = statements else {
+        return unsupported("Boolean source machine must contain exactly one value expression");
+    };
+    let return_expression = match checked.expression_table.expression(*return_expression) {
+        ExpressionNode::Boolean(value) => {
+            LoweredBooleanReturnExpression::Constant { value: *value }
+        }
+        ExpressionNode::Name(path) => LoweredBooleanReturnExpression::Parameter {
+            position: direct_parameter_position(checked, path, parameters)?,
+        },
+        _ => {
+            return unsupported(
+                "Boolean source machine must return a literal or declared parameter",
+            );
+        }
+    };
+    let contract_value = validate_boolean_contract(checked, machine)?;
+    let (identity_reshuffles, partition_compositions) =
+        lower_content_evidence(checked, machine, entry_state)?;
+    Ok(build_boolean_module(
+        parameters.len(),
+        return_expression,
         contract_value,
         identity_reshuffles,
         partition_compositions,
@@ -1251,6 +1318,54 @@ fn validate_contract(
     ))
 }
 
+fn validate_boolean_contract(
+    checked: &CheckedTrees,
+    machine: &psi_checked_trees::machine::Machine,
+) -> Result<bool, LoweringError> {
+    let contracts = checked.machine_contracts(machine);
+    if contracts.len() != 2 {
+        return unsupported("machine must have exactly one requires and one ensures clause");
+    }
+    let mut shared_value = None;
+    for kind in [
+        SignatureContractKind::Requires,
+        SignatureContractKind::Ensures,
+    ] {
+        let contract = contracts
+            .iter()
+            .find(|contract| contract.kind == kind)
+            .ok_or(LoweringError::Unsupported(
+                "machine must have exactly one requires and one ensures clause",
+            ))?;
+        let facts = checked.proof_facts.span_or_empty(contract.facts);
+        let [ProofFact::Expression(fact)] = facts else {
+            return unsupported("each contract clause must contain exactly one expression fact");
+        };
+        let ExpressionNode::Binary(binary) = checked.expression_table.expression(*fact) else {
+            return unsupported("contract facts must be equalities");
+        };
+        if binary.operator != BinaryOperator::Equal {
+            return unsupported("contract facts must be equalities");
+        }
+        let (ExpressionNode::Boolean(left), ExpressionNode::Boolean(right)) = (
+            checked.expression_table.expression(binary.left),
+            checked.expression_table.expression(binary.right),
+        ) else {
+            return unsupported("Boolean contract facts must compare Boolean literals");
+        };
+        if left != right {
+            return unsupported("contract equality must be reflexive");
+        }
+        if shared_value.is_some_and(|previous| previous != *left) {
+            return unsupported("requires and ensures must carry the same closed equality");
+        }
+        shared_value = Some(*left);
+    }
+    shared_value.ok_or(LoweringError::Unsupported(
+        "machine must have exactly one requires and one ensures clause",
+    ))
+}
+
 fn integer_scalar_type(primitive: PrimitiveType) -> Result<ScalarType, LoweringError> {
     let (sign, bits) = match primitive {
         PrimitiveType::I8 => (IntegerSign::Signed, 8),
@@ -1303,6 +1418,106 @@ fn integer_value(
         return Err(LoweringError::IntegerLiteralOutsidePsiType);
     }
     Ok(value)
+}
+
+fn build_boolean_module(
+    parameter_count: usize,
+    return_expression: LoweredBooleanReturnExpression,
+    contract_value: bool,
+    identity_reshuffles: LoweredContentIdentityReshuffles,
+    partition_compositions: LoweredContentPartitionCompositions,
+) -> LoweredTerminalPsi {
+    let parameters = (0..parameter_count)
+        .map(|index| ValueDeclaration {
+            id: value_id(
+                u64::try_from(index)
+                    .expect("parameter index fits a semantic identity")
+                    .checked_add(1)
+                    .expect("parameter identity is nonzero"),
+            ),
+            scalar_type: ScalarType::Boolean,
+        })
+        .collect::<Vec<_>>();
+    let mut next_value_identity = u64::try_from(parameter_count)
+        .expect("parameter count fits a semantic identity")
+        .checked_add(1)
+        .expect("generated identities follow the parameter identities");
+    let mut operations = Vec::new();
+    let returned = match return_expression {
+        LoweredBooleanReturnExpression::Constant { value } => {
+            let id = value_id(next_value_identity);
+            next_value_identity = next_value_identity
+                .checked_add(1)
+                .expect("machine result identity follows the Boolean constant");
+            operations.push(Operation {
+                id: operation_id(1),
+                result: ValueDeclaration {
+                    id,
+                    scalar_type: ScalarType::Boolean,
+                },
+                kind: OperationKind::BooleanConstant { value },
+            });
+            id
+        }
+        LoweredBooleanReturnExpression::Parameter { position } => parameters[position].id,
+    };
+    let result_id = value_id(next_value_identity);
+    let literal = ScalarTerm::boolean(contract_value);
+    let goal = Proposition::Equal(literal.clone(), literal);
+    let obligation = obligation_id(1);
+    let mut structural_places = identity_reshuffles
+        .structural_places
+        .into_iter()
+        .map(|place| (place.id, place.kind))
+        .collect::<BTreeMap<_, _>>();
+    for place in partition_compositions.structural_places {
+        merge_content_place_declaration(&mut structural_places, place)
+            .expect("checked lowering rejects conflicting structural places");
+    }
+    LoweredTerminalPsi {
+        semantic_module: TerminalModule {
+            semantic_version: SemanticVersion::CURRENT,
+            entry: machine_id(1),
+            machines: vec![TerminalMachine {
+                id: machine_id(1),
+                parameters,
+                result: ValueDeclaration {
+                    id: result_id,
+                    scalar_type: ScalarType::Boolean,
+                },
+                structural_places: structural_places
+                    .into_iter()
+                    .map(|(id, kind)| StructuralPlaceDeclaration { id, kind })
+                    .collect(),
+                content_identity_reshuffles: identity_reshuffles.reshuffles,
+                content_partition_compositions: partition_compositions.compositions,
+                entry: block_id(1),
+                blocks: vec![Block {
+                    id: block_id(1),
+                    parameters: Vec::new(),
+                    operations,
+                    terminator: Terminator::Return {
+                        edge: edge_id(1),
+                        value: returned,
+                    },
+                }],
+                contract: MachineContract {
+                    id: contract_id(1),
+                    requires: vec![goal.clone()],
+                    ensures: vec![ContractClause {
+                        obligation,
+                        proposition: goal,
+                    }],
+                },
+            }],
+        },
+        proof_bundle: ProofBundle {
+            evidence: vec![ObligationEvidence {
+                obligation,
+                route: EvidenceRoute::KernelDerived(PrimitiveJudgment::ReflexiveEquality),
+            }],
+        },
+    }
 }
 
 fn build_direct_parameter_module(

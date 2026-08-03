@@ -451,6 +451,98 @@ fn source_runtime_arithmetic_combines_register_and_stack_parameters() {
 }
 
 #[test]
+fn checked_source_booleans_survive_frontend_drop() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("terminal-Psi Boolean source canary should compile");
+    let constant = lower_machine(&checked, "terminal_boolean_constant")
+        .expect("Boolean constant source should lower");
+    let parameter = lower_machine(&checked, "terminal_ninth_boolean")
+        .expect("Boolean parameter source should lower");
+    drop(checked);
+
+    let constant_verified = verify_module(
+        &constant.semantic_module,
+        &constant.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("source Boolean constant should verify");
+    let constant_fuel = derive_fixed_entry_fuel(&constant_verified, constant.semantic_module.entry)
+        .expect("Boolean constant should have fixed fuel");
+    assert_eq!(constant_fuel.ceiling_units(), 2);
+    let constant_result = interpret_terminal_measured(&constant_verified, &[])
+        .expect("source Boolean constant should execute");
+    assert_eq!(constant_result.value(), TerminalScalarValue::Boolean(true));
+    assert_eq!(constant_result.usage().total_units(), 2);
+
+    let parameter_verified = verify_module(
+        &parameter.semantic_module,
+        &parameter.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("source Boolean parameter should verify");
+    let parameter_fuel =
+        derive_fixed_entry_fuel(&parameter_verified, parameter.semantic_module.entry)
+            .expect("Boolean parameter should have fixed fuel");
+    assert_eq!(parameter_fuel.ceiling_units(), 1);
+    let arguments = [false, false, false, false, false, false, false, false, true]
+        .into_iter()
+        .map(TerminalScalarValue::Boolean)
+        .collect::<Vec<_>>();
+    let parameter_result = interpret_terminal_measured(&parameter_verified, &arguments)
+        .expect("source Boolean parameter should execute");
+    assert_eq!(parameter_result.value(), TerminalScalarValue::Boolean(true));
+    assert_eq!(parameter_result.usage().total_units(), 1);
+}
+
+#[cfg(unix)]
+#[test]
+fn source_booleans_reach_constant_and_stack_parameter_machine_code() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("terminal-Psi Boolean source canary should compile");
+    let lowered = [
+        ("terminal_boolean_constant", true),
+        ("terminal_ninth_boolean", false),
+    ]
+    .into_iter()
+    .map(|(machine, has_operation)| {
+        (
+            machine,
+            has_operation,
+            lower_machine(&checked, machine)
+                .unwrap_or_else(|error| panic!("{machine} should lower: {error:?}")),
+        )
+    })
+    .collect::<Vec<_>>();
+    drop(checked);
+
+    for (machine, has_operation, lowered) in lowered {
+        let verified = verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &AdmissionProfile::default(),
+        )
+        .unwrap_or_else(|error| panic!("{machine} should verify: {error:?}"));
+        let abstract_operations = lower_verified_module(&verified)
+            .unwrap_or_else(|error| panic!("{machine} should lower: {error:?}"));
+        let target_operations =
+            lower_to_target_operations(&abstract_operations, NativeTarget::host())
+                .unwrap_or_else(|error| panic!("{machine} should select: {error:?}"));
+        let machine_code = emit_machine_code(&target_operations)
+            .unwrap_or_else(|error| panic!("{machine} should emit: {error:?}"));
+        let object_artifact = build_terminal_object_artifact(&machine_code)
+            .unwrap_or_else(|error| panic!("{machine} should form an object: {error:?}"));
+        let entry = object_artifact.entry_function();
+        assert_eq!(!entry.provenance.operations.is_empty(), has_operation);
+        let exit = if has_operation {
+            run_host_machine_code(entry.bytes(&object_artifact))
+        } else {
+            run_host_machine_code_with_nine_bool(entry.bytes(&object_artifact))
+        };
+        assert_eq!(exit, 1, "{machine} native Boolean result");
+    }
+}
+
+#[test]
 fn psi_terminal_producer_rejects_source_outside_its_declared_slice() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("terminal-Psi source canary should compile");
@@ -962,6 +1054,57 @@ int main(void) {{ return terminal_entry({first}, {second}, 3, 4, 5, 6, 7, 8, {ni
         .expect("execute terminal parameter canary")
         .code()
         .expect("terminal parameter canary exited normally")
+}
+
+#[cfg(unix)]
+fn run_host_machine_code_with_nine_bool(bytes: &[u8]) -> i32 {
+    let nonce = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .expect("wall clock after epoch")
+        .as_nanos();
+    let directory = std::env::temp_dir().join(format!(
+        "omega-terminal-nine-boolean-{}-{nonce}",
+        std::process::id()
+    ));
+    std::fs::create_dir(&directory).expect("create terminal Boolean test directory");
+    let _cleanup = ScratchDirectory(directory.clone());
+    let assembly_path = directory.join("entry.s");
+    let driver_path = directory.join("driver.c");
+    let executable_path = directory.join("entry");
+    let bytes = bytes
+        .iter()
+        .map(|byte| format!("0x{byte:02x}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let assembly = if cfg!(target_os = "macos") {
+        format!(".text\n.globl _terminal_entry\n.p2align 2\n_terminal_entry:\n.byte {bytes}\n")
+    } else {
+        format!(
+            ".text\n.globl terminal_entry\n.type terminal_entry,@function\nterminal_entry:\n.byte {bytes}\n.size terminal_entry, .-terminal_entry\n.section .note.GNU-stack,\"\",@progbits\n"
+        )
+    };
+    let driver = "#include <stdbool.h>\n\
+extern bool terminal_entry(bool, bool, bool, bool, bool, bool, bool, bool, bool);\n\
+int main(void) { return terminal_entry(false, false, false, false, false, false, false, false, true); }\n";
+    std::fs::write(&assembly_path, assembly).expect("write Boolean assembly harness");
+    std::fs::write(&driver_path, driver).expect("write Boolean C harness");
+    let link = Command::new("cc")
+        .arg(&assembly_path)
+        .arg(&driver_path)
+        .arg("-o")
+        .arg(&executable_path)
+        .output()
+        .expect("invoke host C linker driver");
+    assert!(
+        link.status.success(),
+        "host linker rejected Boolean terminal machine code:\n{}",
+        String::from_utf8_lossy(&link.stderr)
+    );
+    Command::new(&executable_path)
+        .status()
+        .expect("execute terminal Boolean canary")
+        .code()
+        .expect("terminal Boolean canary exited normally")
 }
 
 #[cfg(unix)]

@@ -63,23 +63,26 @@ Omega concerns, and Omega orchestration runs that admission explicitly after
 the Psi check.
 
 The first Psi-owned terminal source producer is live as
-`psi-checked-trees-to-terminal`. It accepts two exact free-machine forms. A
-single-state direct-parameter machine may declare any nonempty sequence of
-ordinary primitive-integer parameters and return one exact named parameter or
-a recursively nested expression over parameters and landed literals using the
-six builtin add/subtract/multiply operations in the settled Wrapping or
-Saturating domains. A
-two-state machine may carry one typed integer constant through an unconditional
+`psi-checked-trees-to-terminal`. It accepts three exact free-machine forms. A
+single-state Boolean machine may return a literal or one exact named parameter
+from any sequence of ordinary Boolean parameters. A single-state integer
+machine may declare any nonempty sequence of ordinary primitive-integer
+parameters and return one exact named parameter or a recursively nested
+expression over parameters and landed literals using the six builtin
+add/subtract/multiply operations in the settled Wrapping or Saturating domains.
+A two-state machine may carry one typed integer constant through an unconditional
 jump and return either the matching literal or one builtin
 parameter-plus-literal add/subtract/multiply in the settled Wrapping or
-Saturating domains. Both forms require a matching closed
+Saturating domains. All three forms require a matching closed
 `requires`/`ensures` pair. The producer rejects all other checked-tree shapes,
 including selected domain-owned operator meanings. The source canary lowers
 all six versioned integer-policy operations in both constant-fed and
-runtime-parameter forms plus a nine-parameter direct return, discards
+runtime-parameter forms, Boolean literal and ninth-parameter returns, plus a
+nine-parameter integer direct return, discards
 `CheckedTrees`, then verifies and executes the produced semantic modules.
-Constant-fed wrapping add reaches emitted host machine code; the direct ninth
-`u8` return crosses the host incoming-stack ABI; and runtime wrapping add
+Constant-fed wrapping add and the Boolean literal reach emitted host machine
+code; direct ninth `bool` and `u8` returns cross the host incoming-stack ABI;
+and runtime wrapping add
 combines the first register argument with the ninth stack argument. A nested
 wrapping add-then-multiply source expression also crosses those ABI locations
 and reaches emitted host code. The
