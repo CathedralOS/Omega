@@ -322,6 +322,7 @@ fn frontend_implementation_is_psi_owned() {
         "compiler/omega-rs/foundation/omega-core/src/source",
         "compiler/omega-rs/foundation/omega-core/src/span.rs",
         "compiler/omega-rs/foundation/omega-core/src/symbols/mod.rs",
+        "compiler/omega-rs/foundation/omega-core/src/trust.rs",
         "compiler/omega-rs/foundation/omega-core/src/value_domain.rs",
         "compiler/omega-rs/foundation/omega-core/src/wire.rs",
     ] {

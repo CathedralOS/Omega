@@ -998,7 +998,8 @@ improvements do not change public identity.
   literal-payload aliases are retired; their
   remaining Omega consumers depend on the Psi owners directly. `omega-core`
   now contains only Omega-owned compiler/runtime infrastructure rather than a
-  second target-neutral semantic owner.
+  second target-neutral semantic owner; the unused generic trust grant/receipt
+  carrier and its Psi-semantics dependency are retired as well.
   `psi-syntax-trees` owns the parsed source representation; the unused former
   Omega compatibility package is retired.
   `psi-symbol-resolved-trees` owns the source-shaped representation carrying
