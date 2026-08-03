@@ -3,13 +3,13 @@ mod operations;
 mod parameters;
 mod transitions;
 
-use omega_checked_trees::CheckedTrees;
-use omega_checked_trees::machine::Machine;
-use omega_checked_trees::name::Identifier;
-use omega_checked_trees::state::State;
-use omega_checked_trees::statement::StatementNode;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_state_graph::{Operation, StateGraph, StateKey, StateParameterNode};
+use psi_checked_trees::CheckedTrees;
+use psi_checked_trees::machine::Machine;
+use psi_checked_trees::name::Identifier;
+use psi_checked_trees::state::State;
+use psi_checked_trees::statement::StatementNode;
 
 use self::branching::BranchCallTargetResolver;
 use self::operations::{operation_expression_refs, operation_kind};

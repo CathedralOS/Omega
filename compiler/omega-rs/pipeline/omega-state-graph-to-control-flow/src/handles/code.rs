@@ -42,7 +42,7 @@ pub(crate) fn remap_transition_span(
 }
 
 pub(crate) fn remap_expression_span(
-    expressions: HandleSpan<omega_checked_trees::expression::ExpressionHandle>,
-) -> HandleSpan<omega_checked_trees::expression::ExpressionHandle> {
+    expressions: HandleSpan<psi_checked_trees::expression::ExpressionHandle>,
+) -> HandleSpan<psi_checked_trees::expression::ExpressionHandle> {
     remap_span(expressions)
 }

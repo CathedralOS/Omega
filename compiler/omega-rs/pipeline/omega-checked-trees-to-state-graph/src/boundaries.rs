@@ -1,6 +1,6 @@
-use omega_checked_trees::{CheckedTrees, FlowBoundaryEdgeFact};
 use omega_core::arena::HandleSpan;
 use omega_state_graph::{StateBoundaryEdge, StateBoundarySummary, StateGraph, StateKey};
+use psi_checked_trees::{CheckedTrees, FlowBoundaryEdgeFact};
 
 pub(crate) fn state_boundary_summary(
     state_graph: &mut StateGraph,

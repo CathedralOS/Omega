@@ -1,12 +1,12 @@
 use super::*;
-use omega_checked_trees::data::{DataDefinition, DataField, DataMember};
-use omega_checked_trees::name::Identifier;
-use omega_checked_trees::types::TypeReferenceNode;
-use omega_checked_trees::{
-    ContainedMachineFieldFact, ContainedMachineTargetFact, MachineCarryTopologyFact,
-};
 use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
+use psi_checked_trees::data::{DataDefinition, DataField, DataMember};
+use psi_checked_trees::name::Identifier;
+use psi_checked_trees::types::TypeReferenceNode;
+use psi_checked_trees::{
+    ContainedMachineFieldFact, ContainedMachineTargetFact, MachineCarryTopologyFact,
+};
 
 #[test]
 fn contained_topology_is_derived_only_from_fields_with_attached_machines() {

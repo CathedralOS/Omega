@@ -10,7 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 omega-backend-report-types = { path = "../../foundation/omega-backend-report-types" }
-omega-checked-trees = { path = "../../representations/omega-checked-trees" }
+psi-checked-trees = { path = "../../../psi-rs/representations/psi-checked-trees" }
 omega-core = { path = "../../foundation/omega-core" }
 omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }
 omega-executable-installation = { path = "../../foundation/omega-executable-installation" }

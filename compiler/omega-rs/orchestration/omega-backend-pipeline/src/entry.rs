@@ -1,6 +1,6 @@
-use omega_checked_trees::CheckedTrees;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::{SymbolHandle, SymbolKind};
+use psi_checked_trees::CheckedTrees;
 
 /// The CANONICAL entry: `machine Main::run(&self, args: &[u8])` -- Main's
 /// members are the program's statics, and `args` is the platform handoff as raw

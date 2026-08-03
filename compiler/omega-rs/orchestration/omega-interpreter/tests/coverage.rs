@@ -177,7 +177,7 @@ machine Main::main(&mut self) {
     });
     assert!(checked.facts.operators.named_uses().any(|operator_use| {
         operator_use.policy_adapter
-            == omega_checked_trees::CheckedArithmeticPolicyAdapter::FloatSaturatingOverflowOnly {
+            == psi_checked_trees::CheckedArithmeticPolicyAdapter::FloatSaturatingOverflowOnly {
                 format: omega_core::float_semantics::FloatFormat::BINARY32,
             }
     }));
@@ -214,7 +214,7 @@ machine Main::main(&mut self) {
     });
     assert!(checked.facts.operators.named_uses().any(|operator_use| {
         operator_use.policy_adapter
-            == omega_checked_trees::CheckedArithmeticPolicyAdapter::FloatTrappingNonFinite {
+            == psi_checked_trees::CheckedArithmeticPolicyAdapter::FloatTrappingNonFinite {
                 format: omega_core::float_semantics::FloatFormat::BINARY64,
             }
     }));

@@ -1,9 +1,9 @@
-use omega_checked_trees::CheckedTrees;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_state_graph::{
     StateContractCall, StateContractExit, StateContractFactKind, StateContractFactRef,
     StateContractSummary, StateGraph,
 };
+use psi_checked_trees::CheckedTrees;
 
 pub(crate) fn state_contract_summary(
     state_graph: &mut StateGraph,
@@ -100,7 +100,7 @@ fn segment_contains_statement_index(
 fn append_state_contract_fact_refs(
     state_graph: &mut StateGraph,
     program: &CheckedTrees,
-    refs: HandleSpan<omega_checked_trees::ContractProofFactRef>,
+    refs: HandleSpan<psi_checked_trees::ContractProofFactRef>,
 ) -> HandleSpan<StateContractFactRef> {
     let mut fact_refs = HandleSpan::empty();
 
@@ -110,13 +110,13 @@ fn append_state_contract_fact_refs(
             &mut fact_refs,
             StateContractFactRef {
                 kind: match contract_fact.kind {
-                    omega_checked_trees::ContractProofFactKind::Requires => {
+                    psi_checked_trees::ContractProofFactKind::Requires => {
                         StateContractFactKind::Requires
                     }
-                    omega_checked_trees::ContractProofFactKind::Ensures => {
+                    psi_checked_trees::ContractProofFactKind::Ensures => {
                         StateContractFactKind::Ensures
                     }
-                    omega_checked_trees::ContractProofFactKind::Boundary => {
+                    psi_checked_trees::ContractProofFactKind::Boundary => {
                         StateContractFactKind::Boundary
                     }
                 },

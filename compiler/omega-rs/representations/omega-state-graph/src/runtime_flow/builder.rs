@@ -33,7 +33,7 @@ pub(super) struct RuntimeFlowBuilder<'plan> {
     /// the NEXT call's arguments (machine-owned, so frame-independent); for a true
     /// tail call it is empty.
     context_entry_arguments:
-        Vec<omega_core::arena::HandleSpan<omega_checked_trees::expression::ExpressionHandle>>,
+        Vec<omega_core::arena::HandleSpan<psi_checked_trees::expression::ExpressionHandle>>,
     /// The caller call-result slot a clone returns into, indexed by context id.
     /// `Some` only for a clone created by a VALUE-position call (`let n = f(..)`):
     /// its terminal value is written to this slot when the clone returns. `None`
@@ -105,7 +105,7 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
     fn entry_arguments(
         &self,
         context: CallContext,
-    ) -> omega_core::arena::HandleSpan<omega_checked_trees::expression::ExpressionHandle> {
+    ) -> omega_core::arena::HandleSpan<psi_checked_trees::expression::ExpressionHandle> {
         self.context_entry_arguments
             .get(context.0 as usize)
             .copied()
@@ -445,7 +445,7 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
         &mut self,
         return_continuation: crate::RuntimeTransitionTarget,
         return_arguments: omega_core::arena::HandleSpan<
-            omega_checked_trees::expression::ExpressionHandle,
+            psi_checked_trees::expression::ExpressionHandle,
         >,
         call_result: Option<crate::CallResultReturn>,
     ) -> Result<CallContext, Diagnostic> {
@@ -472,7 +472,7 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
         &self,
         state_key: StateKey,
         statement_index: usize,
-    ) -> omega_core::arena::HandleSpan<omega_checked_trees::expression::ExpressionHandle> {
+    ) -> omega_core::arena::HandleSpan<psi_checked_trees::expression::ExpressionHandle> {
         let Ok(state) = self.state_flow_by_key(state_key) else {
             return omega_core::arena::HandleSpan::empty();
         };
@@ -552,10 +552,10 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
     /// (descending operand subexpressions), or `None` if there is no call.
     fn first_call_arguments(
         &self,
-        expression: omega_checked_trees::expression::ExpressionHandle,
-    ) -> Option<omega_core::arena::HandleSpan<omega_checked_trees::expression::ExpressionHandle>>
+        expression: psi_checked_trees::expression::ExpressionHandle,
+    ) -> Option<omega_core::arena::HandleSpan<psi_checked_trees::expression::ExpressionHandle>>
     {
-        use omega_checked_trees::expression::ExpressionNode;
+        use psi_checked_trees::expression::ExpressionNode;
         match self.control_flow.expressions.expression(expression) {
             ExpressionNode::Call(call) => Some(call.arguments),
             ExpressionNode::Binary(binary) => self

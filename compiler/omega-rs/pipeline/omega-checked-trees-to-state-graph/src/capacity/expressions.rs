@@ -1,7 +1,7 @@
-use omega_checked_trees::CheckedTrees;
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTableCapacity};
-use omega_checked_trees::machine::Machine;
 use omega_core::arena::HandleSpan;
+use psi_checked_trees::CheckedTrees;
+use psi_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTableCapacity};
+use psi_checked_trees::machine::Machine;
 
 pub(super) fn machine_expression_capacity(
     program: &CheckedTrees,
@@ -22,24 +22,24 @@ pub(super) fn machine_expression_capacity(
 
 fn statement_expression_capacity(
     program: &CheckedTrees,
-    statement: &omega_checked_trees::statement::StatementNode,
+    statement: &psi_checked_trees::statement::StatementNode,
 ) -> ExpressionTableCapacity {
     match statement {
-        omega_checked_trees::statement::StatementNode::AssemblyFact(_) => {
+        psi_checked_trees::statement::StatementNode::AssemblyFact(_) => {
             ExpressionTableCapacity::default()
         }
-        omega_checked_trees::statement::StatementNode::Assignment(assignment) => {
+        psi_checked_trees::statement::StatementNode::Assignment(assignment) => {
             let mut capacity = copied_expression_capacity(program, assignment.target);
             capacity.saturating_add_assign(copied_expression_capacity(program, assignment.value));
             capacity
         }
-        omega_checked_trees::statement::StatementNode::Call(call) => {
+        psi_checked_trees::statement::StatementNode::Call(call) => {
             expression_span_capacity(program, call.arguments)
         }
-        omega_checked_trees::statement::StatementNode::Expression(expression) => {
+        psi_checked_trees::statement::StatementNode::Expression(expression) => {
             copied_expression_capacity(program, *expression)
         }
-        omega_checked_trees::statement::StatementNode::Transition(transition) => {
+        psi_checked_trees::statement::StatementNode::Transition(transition) => {
             let mut capacity = transition_guard_expression_capacity(program, transition.guard);
             capacity.saturating_add_assign(transition_target_expression_capacity(
                 program,
@@ -51,7 +51,7 @@ fn statement_expression_capacity(
             ));
             capacity
         }
-        omega_checked_trees::statement::StatementNode::LocalData(_) => {
+        psi_checked_trees::statement::StatementNode::LocalData(_) => {
             ExpressionTableCapacity::default()
         }
     }
@@ -74,13 +74,13 @@ fn expression_span_capacity(
 
 fn transition_guard_expression_capacity(
     program: &CheckedTrees,
-    guard: omega_checked_trees::statement::TransitionGuardNode,
+    guard: psi_checked_trees::statement::TransitionGuardNode,
 ) -> ExpressionTableCapacity {
     match guard {
-        omega_checked_trees::statement::TransitionGuardNode::Always => {
+        psi_checked_trees::statement::TransitionGuardNode::Always => {
             ExpressionTableCapacity::default()
         }
-        omega_checked_trees::statement::TransitionGuardNode::When(expression) => {
+        psi_checked_trees::statement::TransitionGuardNode::When(expression) => {
             copied_expression_capacity(program, expression)
         }
     }
@@ -88,21 +88,21 @@ fn transition_guard_expression_capacity(
 
 fn transition_target_expression_capacity(
     program: &CheckedTrees,
-    target: omega_checked_trees::statement::TransitionTargetHandle,
+    target: psi_checked_trees::statement::TransitionTargetHandle,
 ) -> ExpressionTableCapacity {
     if !target.is_valid() {
         return ExpressionTableCapacity::default();
     }
 
     match program.statement_table.transition_target(target) {
-        omega_checked_trees::statement::TransitionTargetNode::Named { arguments, .. } => {
+        psi_checked_trees::statement::TransitionTargetNode::Named { arguments, .. } => {
             expression_span_capacity(program, *arguments)
         }
-        omega_checked_trees::statement::TransitionTargetNode::Value(expression) => {
+        psi_checked_trees::statement::TransitionTargetNode::Value(expression) => {
             copied_expression_capacity(program, *expression)
         }
-        omega_checked_trees::statement::TransitionTargetNode::SelfTarget
-        | omega_checked_trees::statement::TransitionTargetNode::Terminal => {
+        psi_checked_trees::statement::TransitionTargetNode::SelfTarget
+        | psi_checked_trees::statement::TransitionTargetNode::Terminal => {
             ExpressionTableCapacity::default()
         }
     }

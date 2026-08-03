@@ -1,9 +1,9 @@
-use omega_checked_trees::CheckedTrees;
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
 use omega_state_graph::{
     PlannedTransitionTarget, StateGraph, StateNode, TransitionEdge, TransitionExpressionRefs,
 };
+use psi_checked_trees::CheckedTrees;
 
 use crate::borrows::state_borrow_summary;
 use crate::boundaries::state_boundary_summary;

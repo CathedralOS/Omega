@@ -1,13 +1,13 @@
-use omega_checked_trees::CheckedTrees;
 use omega_core::arena::HandleSpan;
 use omega_state_graph::{
     StateBorrowAccessKind, StateBorrowArgumentAccess, StateBorrowCall, StateGraph,
 };
+use psi_checked_trees::CheckedTrees;
 
 pub(crate) fn state_borrow_calls(
     state_graph: &mut StateGraph,
     program: &CheckedTrees,
-    calls: HandleSpan<omega_checked_trees::BorrowCallFact>,
+    calls: HandleSpan<psi_checked_trees::BorrowCallFact>,
 ) -> HandleSpan<StateBorrowCall> {
     let mut state_calls = HandleSpan::empty();
     for call in program.facts.borrow.calls.span_or_empty(calls) {
@@ -30,8 +30,8 @@ pub(crate) fn state_borrow_calls(
                             .copied(),
                     ),
                     kind: match access.kind {
-                        omega_checked_trees::BorrowAccessKind::Read => StateBorrowAccessKind::Read,
-                        omega_checked_trees::BorrowAccessKind::Mutable => {
+                        psi_checked_trees::BorrowAccessKind::Read => StateBorrowAccessKind::Read,
+                        psi_checked_trees::BorrowAccessKind::Mutable => {
                             StateBorrowAccessKind::Mutable
                         }
                     },

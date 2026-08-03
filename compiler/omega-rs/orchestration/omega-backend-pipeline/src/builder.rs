@@ -5,7 +5,6 @@ use omega_abstract_operations_to_target_operations::build_target_operation_plan;
 use omega_assigned_target_operations_to_machine_instructions::build_machine_instructions;
 use omega_backend_plan::BackendPlan;
 use omega_calling_conventions::build_host_abi_plan;
-use omega_checked_trees::CheckedTrees;
 use omega_control_flow::ControlFlowPlan;
 use omega_control_flow_to_abstract_operations::{
     AbstractOperationLoweringInput, build_abstract_operation_plan,
@@ -49,6 +48,7 @@ use omega_state_storage::{StateStoragePlanningContext, build_state_storage_plan_
 use omega_state_values::{StateValuePlanningContext, build_state_value_plan_with_workers};
 use omega_target::NativeTarget;
 use omega_target_operations_to_assigned_target_operations::build_assigned_target_operations;
+use psi_checked_trees::CheckedTrees;
 use std::sync::Arc;
 
 pub(super) fn build_backend_plan_from_control_flow_with_workers(
@@ -551,10 +551,10 @@ fn host_computed_scalar_argument_slot_count(
                         argument.kind,
                         omega_platform_interface::HostCallArgumentKind::Expression(expression)
                             if match host_calls.expressions.expression(expression) {
-                                omega_checked_trees::expression::ExpressionNode::Binary(_)
-                                | omega_checked_trees::expression::ExpressionNode::Cast(_)
-                                | omega_checked_trees::expression::ExpressionNode::Indexed(_) => true,
-                                omega_checked_trees::expression::ExpressionNode::Call(call) => [
+                                psi_checked_trees::expression::ExpressionNode::Binary(_)
+                                | psi_checked_trees::expression::ExpressionNode::Cast(_)
+                                | psi_checked_trees::expression::ExpressionNode::Indexed(_) => true,
+                                psi_checked_trees::expression::ExpressionNode::Call(call) => [
                                     omega_core::symbols::BuiltinFunction::Max,
                                     omega_core::symbols::BuiltinFunction::Min,
                                     omega_core::symbols::BuiltinFunction::Sqrt,
@@ -603,13 +603,13 @@ fn entry_native_expression_result_layout(
             .expressions
             .expression(transition.expressions.target_value)
         {
-            omega_checked_trees::expression::ExpressionNode::Binary(_)
-            | omega_checked_trees::expression::ExpressionNode::Cast(_)
-            | omega_checked_trees::expression::ExpressionNode::Float(_)
-            | omega_checked_trees::expression::ExpressionNode::Indexed(_)
-            | omega_checked_trees::expression::ExpressionNode::StructLiteral(_)
-            | omega_checked_trees::expression::ExpressionNode::Unary(_) => true,
-            omega_checked_trees::expression::ExpressionNode::Call(call) => [
+            psi_checked_trees::expression::ExpressionNode::Binary(_)
+            | psi_checked_trees::expression::ExpressionNode::Cast(_)
+            | psi_checked_trees::expression::ExpressionNode::Float(_)
+            | psi_checked_trees::expression::ExpressionNode::Indexed(_)
+            | psi_checked_trees::expression::ExpressionNode::StructLiteral(_)
+            | psi_checked_trees::expression::ExpressionNode::Unary(_) => true,
+            psi_checked_trees::expression::ExpressionNode::Call(call) => [
                 omega_core::symbols::BuiltinFunction::Max,
                 omega_core::symbols::BuiltinFunction::Min,
                 omega_core::symbols::BuiltinFunction::Sqrt,
@@ -619,13 +619,13 @@ fn entry_native_expression_result_layout(
             .any(|builtin| {
                 program.symbols.builtin_function_symbol(builtin) == Some(call.target_symbol)
             }),
-            omega_checked_trees::expression::ExpressionNode::Name(path) => {
+            psi_checked_trees::expression::ExpressionNode::Name(path) => {
                 path.head_symbol == result_symbol
             }
-            omega_checked_trees::expression::ExpressionNode::Member(member) => {
+            psi_checked_trees::expression::ExpressionNode::Member(member) => {
                 matches!(
                     control_flow.expressions.expression(member.receiver),
-                    omega_checked_trees::expression::ExpressionNode::Name(path)
+                    psi_checked_trees::expression::ExpressionNode::Name(path)
                         if path.symbol == result_symbol
                 )
             }

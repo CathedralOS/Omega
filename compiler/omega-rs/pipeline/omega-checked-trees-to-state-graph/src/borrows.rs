@@ -2,10 +2,10 @@ mod calls;
 mod lifetimes;
 mod remap;
 
-use omega_checked_trees::CheckedTrees;
 use omega_state_graph::{
     StateBorrowRootKind, StateBorrowSummary, StateBorrowWritableRoot, StateGraph, StateKey,
 };
+use psi_checked_trees::CheckedTrees;
 
 use calls::state_borrow_calls;
 use lifetimes::state_borrow_lifetime_summary;
@@ -39,13 +39,9 @@ pub(crate) fn state_borrow_summary(
             .map(|root| StateBorrowWritableRoot {
                 symbol: root.symbol,
                 kind: match root.kind {
-                    omega_checked_trees::BorrowRootKind::OwnedData => {
-                        StateBorrowRootKind::OwnedData
-                    }
-                    omega_checked_trees::BorrowRootKind::LocalData => {
-                        StateBorrowRootKind::LocalData
-                    }
-                    omega_checked_trees::BorrowRootKind::MutableParameter => {
+                    psi_checked_trees::BorrowRootKind::OwnedData => StateBorrowRootKind::OwnedData,
+                    psi_checked_trees::BorrowRootKind::LocalData => StateBorrowRootKind::LocalData,
+                    psi_checked_trees::BorrowRootKind::MutableParameter => {
                         StateBorrowRootKind::MutableParameter
                     }
                 },

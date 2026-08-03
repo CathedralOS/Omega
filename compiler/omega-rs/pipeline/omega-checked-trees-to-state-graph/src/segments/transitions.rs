@@ -1,7 +1,7 @@
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
-use omega_checked_trees::statement::{TableTransition, TransitionGuardNode};
 use omega_core::arena::{Arena, HandleSpan};
 use omega_state_graph::StateGraph;
+use psi_checked_trees::expression::{ExpressionHandle, ExpressionTable};
+use psi_checked_trees::statement::{TableTransition, TransitionGuardNode};
 
 use super::StateSegment;
 
@@ -65,7 +65,7 @@ pub(crate) fn segment_has_unconditional_transition(
 pub(crate) fn copy_statement_expression_span(
     state_graph: &mut StateGraph,
     source_expressions: &ExpressionTable,
-    statement_table: &omega_checked_trees::statement::StatementTable,
+    statement_table: &psi_checked_trees::statement::StatementTable,
     expressions: HandleSpan<ExpressionHandle>,
 ) -> HandleSpan<ExpressionHandle> {
     state_graph.expressions.copy_expression_handles_from_slice(

@@ -6,7 +6,6 @@ use omega_calling_conventions::{
     MachineRegime, MachineRegister, Preemption, RegisterSet, SystemVEightbyteClass, ValueClass,
     ValueLocation, ValuePlacement, ValueShape,
 };
-use omega_checked_trees::{CheckedTrees, machine::Machine};
 use omega_core::allocations::AllocationDelta;
 use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
@@ -14,6 +13,7 @@ use omega_executable_installation::{Artifact, ContainerLimits, encode_executable
 use omega_external_roots::{InstalledRootLedger, InstalledRootRecord};
 use omega_image::{EmittedImageOutput, ImageOutputKind};
 use omega_target::NativeTarget;
+use psi_checked_trees::{CheckedTrees, machine::Machine};
 
 // Foundational report/plan data types live in `omega-backend-report-types` so the
 // backend report passes can depend on them downward. Re-exported here so existing
@@ -2022,10 +2022,6 @@ mod tests {
         ProviderExitRealization, RegisterSet, StateFootprintEvidence, ValueShape,
         evaluate_ordinary_boundary_entry_plan,
     };
-    use omega_checked_trees::CheckedTrees;
-    use omega_checked_trees::machine::Machine;
-    use omega_checked_trees::name::Identifier;
-    use omega_checked_trees::state::State;
     use omega_core::symbols::SymbolHandle;
     use omega_executable_installation::{
         Artifact, ArtifactContentId, ArtifactEntry, ArtifactId, ContainerLimits,
@@ -2046,6 +2042,10 @@ mod tests {
         compose_artifact_stacks, compose_fixed_fuel,
     };
     use omega_target::Architecture;
+    use psi_checked_trees::CheckedTrees;
+    use psi_checked_trees::machine::Machine;
+    use psi_checked_trees::name::Identifier;
+    use psi_checked_trees::state::State;
     use psi_layout_plans::{EntryStubId, PlacementConstraints, PlacementPhase};
 
     use super::{
@@ -2194,7 +2194,7 @@ mod tests {
         let worker_field_symbol = SymbolHandle::from_arena_index(5);
         let mut program = CheckedTrees::default();
         let worker_type = program.typed.type_reference_table.insert(
-            omega_checked_trees::types::TypeReferenceNode::Named {
+            psi_checked_trees::types::TypeReferenceNode::Named {
                 symbol: worker_data_symbol,
                 name: Identifier::generated("Worker"),
             },
@@ -2202,19 +2202,19 @@ mod tests {
 
         program
             .typed
-            .push_data_definition(omega_checked_trees::data::DataDefinition {
+            .push_data_definition(psi_checked_trees::data::DataDefinition {
                 symbol: worker_data_symbol,
                 name: Identifier::generated("Worker"),
                 ..Default::default()
             });
-        let mut main_data = omega_checked_trees::data::DataDefinition {
+        let mut main_data = psi_checked_trees::data::DataDefinition {
             symbol: main_data_symbol,
             name: Identifier::generated("Main"),
             ..Default::default()
         };
         program.typed.push_data_member(
             &mut main_data,
-            omega_checked_trees::data::DataMember::Field(omega_checked_trees::data::DataField {
+            psi_checked_trees::data::DataMember::Field(psi_checked_trees::data::DataField {
                 identity: None,
                 symbol: worker_field_symbol,
                 name: Identifier::generated("worker"),
@@ -2235,12 +2235,12 @@ mod tests {
             ..Default::default()
         });
         let targets = program.facts.carry.contained_targets.insert_many([
-            omega_checked_trees::ContainedMachineTargetFact {
+            psi_checked_trees::ContainedMachineTargetFact {
                 machine: worker_machine_symbol,
             },
         ]);
         let fields = program.facts.carry.contained_fields.insert_many([
-            omega_checked_trees::ContainedMachineFieldFact {
+            psi_checked_trees::ContainedMachineFieldFact {
                 field: worker_field_symbol,
                 data: worker_data_symbol,
                 type_reference: worker_type,
@@ -2248,13 +2248,13 @@ mod tests {
             },
         ]);
         program.facts.carry.machine_topologies.insert(
-            omega_checked_trees::MachineCarryTopologyFact {
+            psi_checked_trees::MachineCarryTopologyFact {
                 machine: worker_machine_symbol,
                 fields: omega_core::arena::HandleSpan::empty(),
             },
         );
         program.facts.carry.machine_topologies.insert(
-            omega_checked_trees::MachineCarryTopologyFact {
+            psi_checked_trees::MachineCarryTopologyFact {
                 machine: main_machine_symbol,
                 fields,
             },

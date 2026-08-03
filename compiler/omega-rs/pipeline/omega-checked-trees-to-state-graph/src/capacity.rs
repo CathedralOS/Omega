@@ -1,9 +1,9 @@
 mod expressions;
 
-use omega_checked_trees::CheckedTrees;
-use omega_checked_trees::expression::ExpressionTableCapacity;
-use omega_checked_trees::machine::Machine;
 use omega_state_graph::StateGraph;
+use psi_checked_trees::CheckedTrees;
+use psi_checked_trees::expression::ExpressionTableCapacity;
+use psi_checked_trees::machine::Machine;
 
 use crate::capacity::expressions::machine_expression_capacity;
 
@@ -261,7 +261,7 @@ fn machine_value_count(program: &CheckedTrees, machine: &Machine) -> usize {
         .filter(|(_, value)| {
             matches!(
                 value.origin,
-                omega_checked_trees::CheckedValueOrigin::StateStatement { machine_symbol, .. }
+                psi_checked_trees::CheckedValueOrigin::StateStatement { machine_symbol, .. }
                     if machine_symbol == machine.symbol
             )
         })

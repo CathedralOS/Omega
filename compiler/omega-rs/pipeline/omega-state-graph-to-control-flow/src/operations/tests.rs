@@ -1,9 +1,9 @@
 use super::remap_operation_owned;
-use omega_checked_trees::expression::ExpressionHandle;
-use omega_checked_trees::name::Identifier;
 use omega_control_flow::{OperationExpressionRefs, OperationKind};
 use omega_core::arena::{Handle, HandleSpan};
 use omega_core::symbols::SymbolHandle;
+use psi_checked_trees::expression::ExpressionHandle;
+use psi_checked_trees::name::Identifier;
 
 #[test]
 fn remap_owned_call_operation_preserves_call_shape_and_argument_span() {
