@@ -724,10 +724,11 @@ Remaining:
   accepting call or data offsets; missing or incompatible plan evidence cannot
   fall back to catalog-shaped relocation arithmetic. A selected
   `HostOperation` with no retained binding now rejects at that independent
-  relocation gate instead of reaching a no-plan data-offset path. Every other
-  selected host mechanism now requires its retained plan before data-address
-  relocation too, so a syscall or indirect-table binding cannot activate the
-  no-plan oracle.
+  relocation gate instead of reaching a no-plan data-offset path. Runtime line
+  and byte I/O host keys pass the same binding gate on every target before any
+  Windows composite-subplan check or relocation collection. Every other selected
+  host mechanism now requires its retained plan before data-address relocation
+  too, so a syscall or indirect-table binding cannot activate the no-plan oracle.
   The dead clock out-pointer
   compatibility classifier is retired;
   composite encoders own their concrete subcall shapes. Authoritative AArch64
