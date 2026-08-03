@@ -4,11 +4,17 @@
 // read_dir seam to Linux getdents64(fd, buffer, count).
 // Expected native exit: 70.
 use omega::language::std::filesystem_host;
+use omega::language::std::filesystem;
 use omega::language::std::console;
 
 data Main {
     fs: FilesystemHost;
+    semantic_fs: Filesystem;
     console: Console;
+    open_result: OpenResult;
+    io_result: IoResult;
+    unit_result: UnitResult;
+    entry_result: DirEntryResult;
     fd: i32;
     rc: i32;
     count: i64;
@@ -56,7 +62,58 @@ machine Main::main(&mut self) {
     state read_directory(&mut self) {
         self.count = self.fs.read_dir(self.fd, &mut self.buffer, 512, &mut self.position);
         self.rc = self.fs.close(self.fd);
-        transition self.count >= 0 && self.rc == 0 { true -> good() _ -> fail_read_dir() }
+        transition self.count >= 0 && self.rc == 0 { true -> classify_missing() _ -> fail_read_dir() }
+    }
+    state classify_missing(&mut self) {
+        let options: OpenOptions = OpenOptions { read: true };
+        self.open_result = self.semantic_fs.open_with("/omega_definitely_absent_linux", options);
+        transition self.open_result {
+            OpenResult::Error { kind } -> check_missing(kind)
+            _ -> fail_error_kind()
+        }
+    }
+    state check_missing(&mut self, kind: ErrorKind) {
+        transition kind { ErrorKind::NotFound -> classify_bad_fd() _ -> fail_error_kind() }
+    }
+    state classify_bad_fd(&mut self) {
+        self.io_result = self.semantic_fs.read(File { fd: -1 }, &mut self.buffer, 1);
+        transition self.io_result {
+            IoResult::Error { kind } -> check_bad_fd(kind)
+            _ -> fail_error_kind()
+        }
+    }
+    state check_bad_fd(&mut self, kind: ErrorKind) {
+        transition kind { ErrorKind::BadDescriptor -> remove_missing() _ -> fail_error_kind() }
+    }
+    state remove_missing(&mut self) {
+        self.unit_result = self.semantic_fs.remove("/omega_definitely_absent_linux");
+        transition self.unit_result {
+            UnitResult::Error { kind } -> check_remove_missing(kind)
+            _ -> fail_error_kind()
+        }
+    }
+    state check_remove_missing(&mut self, kind: ErrorKind) {
+        transition kind { ErrorKind::NotFound -> read_missing_directory() _ -> fail_error_kind() }
+    }
+    state read_missing_directory(&mut self) {
+        self.entry_result = self.semantic_fs.read_dir_nth("/omega_definitely_absent_linux", 0);
+        transition self.entry_result {
+            DirEntryResult::Error { kind } -> check_directory_missing(kind)
+            _ -> fail_error_kind()
+        }
+    }
+    state check_directory_missing(&mut self, kind: ErrorKind) {
+        transition kind { ErrorKind::NotFound -> remove_missing_tree() _ -> fail_error_kind() }
+    }
+    state remove_missing_tree(&mut self) {
+        self.unit_result = self.semantic_fs.remove_dir_all("/omega_definitely_absent_linux");
+        transition self.unit_result {
+            UnitResult::Error { kind } -> check_tree_missing(kind)
+            _ -> fail_error_kind()
+        }
+    }
+    state check_tree_missing(&mut self, kind: ErrorKind) {
+        transition kind { ErrorKind::NotFound -> good() _ -> fail_error_kind() }
     }
     state good(&mut self) { self.console.exit_process(70); }
     state fail_open_create(&mut self) { self.console.exit_process(1); }
@@ -65,4 +122,5 @@ machine Main::main(&mut self) {
     state fail_read(&mut self) { self.console.exit_process(4); }
     state fail_stat(&mut self) { self.console.exit_process(5); }
     state fail_read_dir(&mut self) { self.console.exit_process(6); }
+    state fail_error_kind(&mut self) { self.console.exit_process(7); }
 }

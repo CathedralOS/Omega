@@ -186,8 +186,10 @@ boundary trait FilesystemHost {
     // Change owner/group by open descriptor (Rust `os::unix::fs::fchown` ->
     // `fchown`). Same -1 = unchanged convention.
     machine change_file_owner(fd: i32, uid: i32, gid: i32) -> i32 reaches FilesystemHost;
-    // Read the thread-local errno (darwin `___error()` -> `&errno`, dereferenced
-    // in the lowering). Call it immediately after a raw op returned negative.
+    // Read the thread-local errno on libc-backed targets (Darwin `___error()`
+    // and Windows `_errno()`, both dereferenced in lowering). Direct Linux
+    // syscalls do not bind this operation: they return `-errno`, which the
+    // target wrapper carries explicitly into checked Omega classification.
     machine errno() -> i32 reaches FilesystemHost;
 }
 

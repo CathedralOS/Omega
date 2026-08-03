@@ -46,6 +46,19 @@ macos_arm64 machine Filesystem::encode_open_options(&mut self) {
         | ((self.open_options.create_new as i32) << 11));
 }
 
+// Darwin libc operations report -1 and retain detail in thread-local errno.
+// The explicit result parameter keeps the portable wrapper shape aligned with
+// Linux's direct-syscall path; it is intentionally not interpreted here.
+macos_arm64 machine Filesystem::native_error_code_i32(&mut self, result: i32) -> i32 {
+    let code: i32 = self.host.errno();
+    code
+}
+
+macos_arm64 machine Filesystem::native_error_code_i64(&mut self, result: i64) -> i32 {
+    let code: i32 = self.host.errno();
+    code
+}
+
 macos_arm64 machine Filesystem::open_with(&mut self, path: &[u8] in Path, options: OpenOptions) -> OpenResult {
     self.open_options = options;
     self.encode_open_options();
