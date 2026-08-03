@@ -378,6 +378,24 @@ pub fn encode_runtime_byte_read_with_plan(
     binding: &HostBindingMechanism,
     authoritative_plan: Option<&CallPlan>,
 ) -> Result<Vec<u8>, Diagnostic> {
+    encode_runtime_byte_read_with_plans(
+        architecture,
+        target_offset,
+        payload_offset,
+        binding,
+        authoritative_plan,
+        None,
+    )
+}
+
+pub fn encode_runtime_byte_read_with_plans(
+    architecture: Architecture,
+    target_offset: usize,
+    payload_offset: usize,
+    binding: &HostBindingMechanism,
+    authoritative_plan: Option<&CallPlan>,
+    get_std_handle_plan: Option<&CallPlan>,
+) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => match binding {
             HostBindingMechanism::Import { .. } => {
@@ -409,6 +427,10 @@ pub fn encode_runtime_byte_read_with_plan(
         },
         Architecture::X86_64 => match binding {
             HostBindingMechanism::Import { .. } => {
+                x86_64::validate_win64_runtime_file_adapter_plans(
+                    get_std_handle_plan,
+                    authoritative_plan,
+                )?;
                 x86_64::encode_runtime_byte_read_import(target_offset, payload_offset)
             }
             HostBindingMechanism::Syscall { number, .. } => {
@@ -453,6 +475,22 @@ pub fn encode_runtime_byte_write_with_plan(
     binding: &HostBindingMechanism,
     authoritative_plan: Option<&CallPlan>,
 ) -> Result<Vec<u8>, Diagnostic> {
+    encode_runtime_byte_write_with_plans(
+        architecture,
+        source_offset,
+        binding,
+        authoritative_plan,
+        None,
+    )
+}
+
+pub fn encode_runtime_byte_write_with_plans(
+    architecture: Architecture,
+    source_offset: usize,
+    binding: &HostBindingMechanism,
+    authoritative_plan: Option<&CallPlan>,
+    get_std_handle_plan: Option<&CallPlan>,
+) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => match binding {
             HostBindingMechanism::Import { .. } => {
@@ -483,6 +521,10 @@ pub fn encode_runtime_byte_write_with_plan(
         },
         Architecture::X86_64 => match binding {
             HostBindingMechanism::Import { .. } => {
+                x86_64::validate_win64_runtime_file_adapter_plans(
+                    get_std_handle_plan,
+                    authoritative_plan,
+                )?;
                 x86_64::encode_runtime_byte_write_import(source_offset)
             }
             HostBindingMechanism::Syscall { number, .. } => {
@@ -534,6 +576,26 @@ pub fn encode_runtime_text_line_read_with_plan(
     binding: &HostBindingMechanism,
     target: RuntimeTextReadTarget,
     authoritative_plan: Option<&CallPlan>,
+) -> Result<Vec<u8>, Diagnostic> {
+    encode_runtime_text_line_read_with_plans(
+        architecture,
+        target_offset,
+        byte_capacity,
+        binding,
+        target,
+        authoritative_plan,
+        None,
+    )
+}
+
+pub fn encode_runtime_text_line_read_with_plans(
+    architecture: Architecture,
+    target_offset: usize,
+    byte_capacity: usize,
+    binding: &HostBindingMechanism,
+    target: RuntimeTextReadTarget,
+    authoritative_plan: Option<&CallPlan>,
+    get_std_handle_plan: Option<&CallPlan>,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => match binding {
@@ -608,17 +670,26 @@ pub fn encode_runtime_text_line_read_with_plan(
             }
         },
         Architecture::X86_64 => match binding {
-            HostBindingMechanism::Import { .. } => match target {
-                RuntimeTextReadTarget::BoundedByteBuffer => {
-                    x86_64::encode_runtime_text_line_read_carrier(target_offset, byte_capacity)
+            HostBindingMechanism::Import { .. } => {
+                x86_64::validate_win64_runtime_file_adapter_plans(
+                    get_std_handle_plan,
+                    authoritative_plan,
+                )?;
+                match target {
+                    RuntimeTextReadTarget::BoundedByteBuffer => {
+                        x86_64::encode_runtime_text_line_read_carrier(target_offset, byte_capacity)
+                    }
+                    RuntimeTextReadTarget::FixedByteArray => {
+                        x86_64::encode_runtime_text_line_read_fixed_array(
+                            target_offset,
+                            byte_capacity,
+                        )
+                    }
+                    RuntimeTextReadTarget::StringDescriptor => {
+                        x86_64::encode_runtime_text_line_read(target_offset, byte_capacity)
+                    }
                 }
-                RuntimeTextReadTarget::FixedByteArray => {
-                    x86_64::encode_runtime_text_line_read_fixed_array(target_offset, byte_capacity)
-                }
-                RuntimeTextReadTarget::StringDescriptor => {
-                    x86_64::encode_runtime_text_line_read(target_offset, byte_capacity)
-                }
-            },
+            }
             HostBindingMechanism::Syscall { number, .. } => {
                 let registers = normalized_syscall_registers_with_plan(
                     architecture,
@@ -711,6 +782,20 @@ mod plan_differential_tests {
             },
         )
         .expect("runtime text syscall plan")
+    }
+
+    fn win64_plan(parameters: &[u16], result: Option<u16>) -> CallPlan {
+        evaluate_call_plan(
+            CallingPolicy::MicrosoftX64,
+            &CallSignature {
+                parameters: parameters
+                    .iter()
+                    .map(|byte_size| ValueShape::integer(*byte_size, *byte_size))
+                    .collect(),
+                result: result.map(|byte_size| ValueShape::integer(byte_size, byte_size)),
+            },
+        )
+        .expect("Microsoft x64 native plan")
     }
 
     #[test]
@@ -862,5 +947,95 @@ mod plan_differential_tests {
             0,
             "layout must fail closed with emission"
         );
+    }
+
+    #[test]
+    fn win64_runtime_text_imports_require_both_retained_native_subcall_plans() {
+        let binding = HostBindingMechanism::Import {
+            library: Arc::from("Kernel32.dll"),
+            symbol: Arc::from("ReadFile"),
+        };
+        let get_std_handle = win64_plan(&[4], Some(8));
+        let file_io = win64_plan(&[8, 8, 4, 8, 8], Some(4));
+
+        assert_eq!(
+            encode_runtime_byte_read(Architecture::X86_64, 16, 24, &binding)
+                .expect("compatibility byte read"),
+            encode_runtime_byte_read_with_plans(
+                Architecture::X86_64,
+                16,
+                24,
+                &binding,
+                Some(&file_io),
+                Some(&get_std_handle),
+            )
+            .expect("planned byte read")
+        );
+        assert_eq!(
+            encode_runtime_byte_write(Architecture::X86_64, 32, &binding)
+                .expect("compatibility byte write"),
+            encode_runtime_byte_write_with_plans(
+                Architecture::X86_64,
+                32,
+                &binding,
+                Some(&file_io),
+                Some(&get_std_handle),
+            )
+            .expect("planned byte write")
+        );
+        for target in [
+            RuntimeTextReadTarget::BoundedByteBuffer,
+            RuntimeTextReadTarget::FixedByteArray,
+            RuntimeTextReadTarget::StringDescriptor,
+        ] {
+            assert_eq!(
+                encode_runtime_text_line_read(Architecture::X86_64, 40, 64, &binding, target)
+                    .expect("compatibility line read"),
+                encode_runtime_text_line_read_with_plans(
+                    Architecture::X86_64,
+                    40,
+                    64,
+                    &binding,
+                    target,
+                    Some(&file_io),
+                    Some(&get_std_handle),
+                )
+                .expect("planned line read")
+            );
+        }
+
+        let partial = encode_runtime_byte_read_with_plans(
+            Architecture::X86_64,
+            16,
+            24,
+            &binding,
+            Some(&file_io),
+            None,
+        )
+        .expect_err("a partial composite plan must reject");
+        assert!(partial.message.contains("requires both retained"));
+        assert_eq!(
+            crate::runtime_byte_read_width_with_plans(
+                Architecture::X86_64,
+                &binding,
+                16,
+                24,
+                Some(&file_io),
+                None,
+            ),
+            0,
+            "layout must fail closed with emission"
+        );
+
+        let wrong_get_std_handle = win64_plan(&[8], Some(8));
+        let error = encode_runtime_byte_write_with_plans(
+            Architecture::X86_64,
+            32,
+            &binding,
+            Some(&file_io),
+            Some(&wrong_get_std_handle),
+        )
+        .expect_err("a changed native subcall signature must reject");
+        assert!(error.message.contains("GetStdHandle"));
     }
 }

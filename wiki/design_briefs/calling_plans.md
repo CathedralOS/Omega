@@ -685,9 +685,12 @@ a different normalized plan rather than silently overriding it. On the direct
 Darwin import route, the same composites validate the retained native
 three-word/result AAPCS64 signature against their fixed `x0`/`x1`/`x2`/`x0`
 sequence and layout fails closed with emission when placement drifts. Windows
-runtime byte/line imports remain composite adapters over their separately
-normalized GetStdHandle and ReadFile/WriteFile subcalls; the outer semantic
-binding plan is not substituted for those internal signatures.
+runtime byte/line imports remain composite adapters over their separate
+GetStdHandle and ReadFile/WriteFile subcalls. Production layout and emission
+take both concrete plans from the retained catalog bindings and reject if
+either is absent or changes incompatibly; independent normalization remains
+only the no-plan differential oracle. The outer semantic binding plan is not
+substituted for either internal signature.
 The base Linux binding rows make that retention literal: `Stdin::read`,
 `Stdout::write`, and `Stderr::write` each carry the exact three-word/result
 syscall plan, while `Process::exit_group` carries its one-word/no-result plan.
@@ -774,9 +777,11 @@ Composite `ReadFile`/`WriteFile` sequences now evaluate their actual five-value
 native signature and ignored RAX `BOOL` result. Their four register arguments,
 shadow-relative fifth argument, and scratch-slot reservation consume that plan;
 the scratch slot itself remains an encoder materialization detail. Dedicated
-runtime line/byte Windows sequences now reuse the same file layout and validate
-the actual one-DWORD/RAX `GetStdHandle` plan without changing their fixed bytes
-or relocation sites.
+runtime line/byte Windows sequences now reuse the same file layout and consume
+the retained one-DWORD/RAX `GetStdHandle` plan alongside the retained
+five-parameter file plan without changing their fixed bytes or relocation
+sites. Supplying only one native subcall plan fails closed in both layout and
+emission.
 
 AArch64 `VtableSlot` and `VtableField` compatibility calls now consume the
 same normalized AAPCS64 argument and stack placements as direct imports. The

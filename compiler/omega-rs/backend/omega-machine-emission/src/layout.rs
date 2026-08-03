@@ -1,5 +1,7 @@
 use crate::MachineEmissionContext;
-use crate::host_bindings::{host_binding, instruction_requires_float_control_restore};
+use crate::host_bindings::{
+    host_binding, instruction_requires_float_control_restore, windows_get_std_handle_plan,
+};
 use crate::selected_instruction_queries::{selected_host_operation, selected_host_text_read};
 use omega_assigned_target_operations::{
     RuntimeTextReadSource, SelectedInstructionKind, StateGuardLowering, StateGuardOperator,
@@ -18,9 +20,9 @@ use omega_instruction_selection::{
     runtime_atomic_fetch_and_width, runtime_atomic_fetch_or_width, runtime_atomic_fetch_sub_width,
     runtime_atomic_fetch_xor_width, runtime_atomic_load_to_storage_width,
     runtime_atomic_store_from_operand_width, runtime_atomic_swap_width,
-    runtime_byte_read_width_with_plan, runtime_byte_write_width_with_plan,
+    runtime_byte_read_width_with_plans, runtime_byte_write_width_with_plans,
     runtime_storage_convert_width, runtime_storage_copy_to_return_register_width,
-    runtime_text_buffer_materialize_width, runtime_text_line_read_width_with_plan,
+    runtime_text_buffer_materialize_width, runtime_text_line_read_width_with_plans,
     runtime_text_literal_append_width, runtime_text_literal_compare_width,
     runtime_text_literal_segment_write_width, runtime_text_literal_write_width,
     runtime_text_storage_compare_width, runtime_text_stored_place_append_width,
@@ -890,13 +892,14 @@ fn machine_instruction_width(
                     read.operation_key.operation_name()
                 )));
             };
-            runtime_text_line_read_width_with_plan(
+            runtime_text_line_read_width_with_plans(
                 input.target.architecture,
                 read.byte_capacity,
                 &binding.mechanism,
                 read.target,
                 read.target_offset,
                 binding.call_plan(),
+                windows_get_std_handle_plan(input, read.operation_key)?,
             )
         }
         SelectedInstructionKind::ReadRuntimeByte {
@@ -914,12 +917,13 @@ fn machine_instruction_width(
                     "missing host binding for runtime byte read",
                 ));
             };
-            runtime_byte_read_width_with_plan(
+            runtime_byte_read_width_with_plans(
                 input.target.architecture,
                 &binding.mechanism,
                 *target_offset,
                 *payload_offset,
                 binding.call_plan(),
+                windows_get_std_handle_plan(input, *operation_key)?,
             )
         }
         SelectedInstructionKind::WriteRuntimeByte {
@@ -936,11 +940,12 @@ fn machine_instruction_width(
                     "missing host binding for runtime byte write",
                 ));
             };
-            runtime_byte_write_width_with_plan(
+            runtime_byte_write_width_with_plans(
                 input.target.architecture,
                 &binding.mechanism,
                 *source_offset,
                 binding.call_plan(),
+                windows_get_std_handle_plan(input, *operation_key)?,
             )
         }
         SelectedInstructionKind::CopyPlaces {
