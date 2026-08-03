@@ -1011,12 +1011,17 @@ improvements do not change public identity.
   in the settled Wrapping or Saturating domain. A second exact form lowers any
   nonempty sequence of ordinary primitive-integer machine parameters and an
   exact recursively nested parameter/literal expression using builtin
-  add/subtract/multiply in a settled arithmetic domain. It emits the module and
+  add/subtract/multiply in a settled arithmetic domain. A third exact form
+  lowers a Boolean literal or one exact named parameter from ordinary Boolean
+  parameters. It emits the module and
   proof bundle separately; real-source canaries cover all six versioned integer
-  policy operations in constant-fed and runtime-fed forms plus a
-  ninth-parameter stack return after `CheckedTrees` are dropped. Constant-fed
+  policy operations in constant-fed and runtime-fed forms, Boolean literal and
+  ninth-parameter returns, plus a ninth-parameter integer stack return after
+  `CheckedTrees` are dropped. Constant-fed
   wrapping add, the direct stack return, and a register-plus-stack runtime
-  wrapping add all reach emitted host machine code; a nested wrapping
+  wrapping add all reach emitted host machine code; Boolean literal and ninth-
+  parameter returns independently cover constant materialization and the host
+  incoming-stack ABI. A nested wrapping
   add-then-multiply source expression does too. Because the
   legacy exit prover cannot establish ordinary `result == literal` contracts,
   this bootstrap canary preserves a closed typed `requires`/`ensures` fact and
