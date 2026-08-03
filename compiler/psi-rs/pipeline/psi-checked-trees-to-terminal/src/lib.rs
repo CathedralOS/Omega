@@ -358,6 +358,9 @@ pub fn lower_content_partition_compositions(
     let mut compositions = Vec::new();
 
     for fact in facts {
+        if !fact.result_rewrite_claim_identities.is_empty() {
+            return Err(LoweringError::ContentPartitionResultRewriteUnsupported);
+        }
         if (fact.machine_symbol, fact.state_symbol) != callable
             || fact.plan.owner_kind != ContentConservationOwnerKind::Machine
             || fact.plan.owner != fact.machine_symbol
@@ -1858,6 +1861,7 @@ pub enum LoweringError {
     ContentPartitionInputClaimNotLowered,
     DuplicateContentPartitionSubstitution,
     DuplicateContentPartitionComposition,
+    ContentPartitionResultRewriteUnsupported,
     ContentPartitionSubstitutionCoverageMismatch,
     ContentPartitionReplayMismatch,
     UnknownContentClaimIdentity,
@@ -2126,6 +2130,7 @@ mod tests {
             input_claim_identities: vec![
                 identity_fact(SemanticDomainId(9), "left", 1).claim_identity,
             ],
+            result_rewrite_claim_identities: Vec::new(),
             substitutions: places
                 .into_iter()
                 .map(
@@ -2216,6 +2221,15 @@ mod tests {
         assert_eq!(row.input_claims, vec![ClaimId::new(1).expect("claim")]);
         assert_eq!(row.substitutions.len(), 3);
         assert_eq!(row.source, row.derived);
+
+        let mut staged = fact.clone();
+        staged
+            .result_rewrite_claim_identities
+            .push(identity_fact(SemanticDomainId(9), "left", 2).claim_identity);
+        assert_eq!(
+            lower_content_partition_compositions(&[staged], &identities),
+            Err(LoweringError::ContentPartitionResultRewriteUnsupported)
+        );
 
         let mut drifted = fact;
         let projection = drifted.plan.equation.left().clone();

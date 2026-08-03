@@ -340,16 +340,21 @@ those rows remain absent until their actual checked proofs exist.
   segment; the legacy checker precursor, verifier, semantic codec, and proof format v9
   retain case-plus-field identity without arena-local symbols or collision with
   equal field spellings in other cases. Checked lowering now also instantiates
-  an authored partition equation through an exact direct returned call. Every
+  an authored partition equation through an exact direct returned call or one
+  result staged through an exact local identity rewrite. Every
   source entry projection must substitute to a caller-parameter structural
   place whose transfer-stable claim identity reaches that exact call; the
   derived row retains the source theorem fingerprint, call site, all input
-  claim identities, and the substituted equation in
-  `05_claim_outcomes.json`. Composition copies the source `separate(...)`
-  structure and cannot manufacture a partition. Eligible direct wrapper chains
-  close to a fixed point; staged locals, aggregate argument construction,
-  and nested result reshaping remain fail-closed. Terminal semantic v12 carries
-  each direct composition as its exact source theorem, source fingerprint,
+  claim identities, any staged-result rewrite claims, and the substituted
+  equation in `05_claim_outcomes.json`. Composition copies the source `separate(...)`
+  structure and cannot manufacture a partition. Eligible wrapper chains close
+  to a fixed point. A staged-local result composes only when every projected
+  call-result claim is established at that exact call, transferred unchanged
+  at the exact return, and published at one unique callable-result path.
+  Aggregate argument construction and nested result reshaping remain
+  fail-closed. These staged rows remain checked/debug evidence because
+  terminal semantic v12 deliberately carries only direct composition as its
+  exact source theorem, source fingerprint,
   dense input-claim references, total structural-place substitution, and
   derived equation. The verifier requires the source to contain separation,
   binds every entry projection to one listed identity-reshuffle claim, replays
@@ -361,10 +366,11 @@ those rows remain absent until their actual checked proofs exist.
   conservation plans, exact identity reshuffles, and direct partition
   compositions into the existing v9-v12 terminal vocabulary, including dense
   claim identities and replayable place substitutions. The executable source
-  canary remains content-free and fail-closed. Next compose identity rewrites
-  around non-direct authored-partition calls, connect a real content-bearing
-  source slice, insert sealed introduction and custody-exit rows, and discharge
-  or admit the exact frontier theorem.
+  canary remains content-free and fail-closed. Next compose aggregate and
+  nested structural rewrites around authored-partition calls, connect a real
+  content-bearing source slice after its separately recorded design blocker is
+  resolved, insert sealed introduction and custody-exit rows, and discharge or
+  admit the exact frontier theorem.
 - **TERMINAL-CONTENT-CLAIMS — BLOCKED on language/IR design:** a real direct
   partition wrapper exposes a gap hidden by the synthetic terminal fixture.
   Checked composition correctly carries distinct entry claim identities but no

@@ -15,10 +15,10 @@ pub struct ContentProjectionFacts {
     /// one exact input-relative claim outcome and never invents a partition
     /// between otherwise independent claims.
     pub identity_reshuffles: Vec<ContentIdentityReshuffleFact>,
-    /// Checked direct wrappers instantiated from an already-authored partition
-    /// theorem. These facts retain the exact source theorem, call site, and
-    /// transfer-stable input claims used by the substitution; they never add a
-    /// new `separate(...)` node.
+    /// Checked wrappers instantiated from an already-authored partition
+    /// theorem. These facts retain the exact source theorem, call site,
+    /// transfer-stable input claims, and any result-identity rewrite claims
+    /// used by the substitution; they never add a new `separate(...)` node.
     pub partition_compositions: Vec<ContentPartitionCompositionFact>,
 }
 
@@ -46,6 +46,10 @@ pub struct ContentPartitionCompositionFact {
     pub statement_index: usize,
     pub call_ordinal: usize,
     pub input_claim_identities: Vec<PermissionClaimIdentity>,
+    /// Claims proving that a staged call result reaches the callable result
+    /// through exact identity-preserving local transfers. Direct returns need
+    /// no such intermediate evidence.
+    pub result_rewrite_claim_identities: Vec<PermissionClaimIdentity>,
     pub substitutions: Vec<ContentPartitionPlaceSubstitution>,
     pub plan: ContentConservationPlan,
 }

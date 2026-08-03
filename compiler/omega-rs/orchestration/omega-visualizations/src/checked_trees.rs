@@ -616,6 +616,13 @@ pub fn claim_outcome_manifest_json(program: &CheckedTrees) -> String {
             }
             push_claim_identity_json(&mut json, program, *identity);
         }
+        json.push_str("],\n      \"result_rewrite_claim_identities\": [");
+        for (claim_index, identity) in row.result_rewrite_claim_identities.iter().enumerate() {
+            if claim_index > 0 {
+                json.push_str(", ");
+            }
+            push_claim_identity_json(&mut json, program, *identity);
+        }
         json.push_str("],\n      \"algebra\": ");
         push_content_algebra_json(&mut json, &row.plan.algebra);
         json.push_str(",\n      \"equation\": {\"left\": ");
@@ -2832,6 +2839,16 @@ mod tests {
                         ordinal: 11,
                     },
                 ],
+                result_rewrite_claim_identities: vec![
+                    psi_language_semantics::PermissionClaimIdentity::Established {
+                        machine_symbol: SymbolHandle::invalid(),
+                        state_symbol: SymbolHandle::invalid(),
+                        source: psi_language_semantics::PermissionEventSource::Statement {
+                            statement_index: 4,
+                        },
+                        ordinal: 12,
+                    },
+                ],
                 substitutions,
                 plan,
             });
@@ -2854,7 +2871,9 @@ mod tests {
         assert!(json.contains("\"substitutions\": [{\"source\": {\"version\": \"entry\""));
         assert!(json.contains("\"call\": {\"statement_index\": 4, \"call_ordinal\": 2}"));
         assert!(json.contains("\"input_claim_identities\": [{\"kind\": \"established\""));
+        assert!(json.contains("\"result_rewrite_claim_identities\": [{\"kind\": \"established\""));
         assert!(json.contains("\"ordinal\": 11"));
+        assert!(json.contains("\"ordinal\": 12"));
         assert!(json.contains("\"input\": {\"parameter\": \"invalid\", \"path\": []}"));
         assert!(json.contains("\"ordinal\": 9"));
         assert!(json.contains("\"semantic_domain_id\": 41"));
