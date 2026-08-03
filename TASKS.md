@@ -1070,6 +1070,8 @@ improvements do not change public identity.
   `psi-validation` owns target-neutral cross-semantic source validation;
   `omega-validation` is a compatibility export whose retained tests also cover
   the separate Omega provider-admission subsystem.
+  `psi-types` owns the unresolved source type-surface analysis;
+  `omega-types` is now only a compatibility export.
   `psi-proof` owns source proof-surface collection, obligation planning, and
   checking; `omega-proof` is now only a compatibility export.
   `psi-typed-trees-to-checked-trees` owns semantic checking and checked-fact
