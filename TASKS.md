@@ -767,11 +767,11 @@ ceilings, and publication-before-ledger-record all reject.
   f64-to-i32 requirements, while both Mandelbrot samples use `F64::from_i32`
   for pixel coordinates. Their residual integer casts explicitly erase an
   arithmetic policy on the same carrier.
-- Checked-result narrowing is design-blocked on the open arithmetic-library
-  question in `wiki/language_guide/appendix_open_questions.md`; do not invent a
-  result family merely to mirror another language. Remaining numeric-conversion
-  implementation work is float/integer and float-format policy operations;
-  exact integer `as` is complete. Keep
+- **CHECKED-RESULT-ARITHMETIC — DESIGN BLOCKED:** checked-result narrowing is
+  blocked on the open arithmetic-library question in
+  `wiki/language_guide/appendix_open_questions.md`; do not invent a result
+  family merely to mirror another language. The settled integer/float and
+  float-format policy matrices and exact integer `as` are complete. Keep
   `arithmetic/runtime_integer_casts_exit` as coverage for sign/zero extension,
   proved truncation, and cast-valued transition lowering; the named policy
   surface has separate coverage.
@@ -1927,6 +1927,10 @@ ordinary code never receives a raw executable address.
   `wiki/language_guide/appendix_open_questions.md`. This blocks portable fences
   and protocol verification, not placed atomic accessors, checked ISA barriers,
   or installed-root same-context evidence.
+- **CHECKED-RESULT-ARITHMETIC:** blocked on whether failure-returning checked
+  arithmetic earns a distinct public library carrier beyond exact-by-default
+  obligations and the existing explicit policy families, as recorded in
+  `wiki/language_guide/appendix_open_questions.md`.
 
 ## Vertical acceptance slices
 
