@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::arena::{Arena, Handle, HandleSpan, PagedArena, PagedSlice};
+use crate::{Arena, Handle, HandleSpan, PagedArena, PagedSlice};
 
 pub trait HierarchyNode: Clone + Default + Sized {
     fn parent(&self) -> Handle<Self>;
@@ -245,7 +245,7 @@ impl<T> Iterator for HierarchyChildHandles<T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::arena::{Handle, HandleSpan, HierarchyArenaBuilder, HierarchyNode};
+    use crate::{Handle, HandleSpan, HierarchyArenaBuilder, HierarchyNode};
 
     #[derive(Debug, Clone, Default, PartialEq, Eq)]
     struct TestNode {

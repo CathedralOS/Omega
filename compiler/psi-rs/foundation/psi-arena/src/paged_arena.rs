@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 use std::ops::Range;
 
-use crate::arena::{Handle, HandleSpan};
+use crate::{Handle, HandleSpan};
 
 const DEFAULT_PAGE_SIZE: usize = 256;
 
@@ -330,7 +330,7 @@ impl<'arena, T: Default> Iterator for PagedArenaIter<'arena, T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::arena::{Handle, PagedArena};
+    use crate::{Handle, PagedArena};
 
     #[test]
     fn resolves_invalid_handles_to_dummy() {

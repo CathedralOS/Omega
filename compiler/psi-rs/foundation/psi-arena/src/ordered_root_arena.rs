@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 use std::ops::Index;
 
-use crate::arena::{Arena, Handle, HandleSpan};
+use crate::{Arena, Handle, HandleSpan};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OrderedRootArena<T: Default> {

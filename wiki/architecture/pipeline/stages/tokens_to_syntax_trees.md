@@ -19,10 +19,10 @@ source shape without turning nested syntax into scattered heap objects.
 
 ## Implementation Map
 
-- `compiler/psi-rs/foundation/psi-arena` owns the generic typed arena handles,
-  contiguous handle spans, and dense arena storage required by the syntax
-  representation. `omega-core::arena` temporarily re-exports these exact types
-  for unmigrated frontend consumers.
+- `compiler/psi-rs/foundation/psi-arena` owns the generic typed dense, paged,
+  generational, hierarchy, and ordered-root arena storage required by source
+  representations. `omega-core::arena` temporarily re-exports these exact
+  types for unmigrated frontend consumers.
 - `compiler/psi-rs/foundation/psi-diagnostics` owns the target-neutral
   `PhaseSnapshot` contract used to materialize readable source-shaped trees.
 - `compiler/psi-rs/foundation/psi-language-core` owns the grammar-facing

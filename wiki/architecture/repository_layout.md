@@ -56,7 +56,7 @@ Omega/
 |-- compiler/
 |   |-- psi-rs/                                         # Psi owns target-neutral semantics through terminal Psi.
 |   |   |-- foundation/
-|   |   |   |-- [CRATE] psi-arena/                      # Typed arena storage for Psi source representations.
+|   |   |   |-- [CRATE] psi-arena/                      # Generic typed arena storage for Psi source representations.
 |   |   |   |-- [CRATE] psi-diagnostics/                # Source diagnostics and phase-snapshot contracts.
 |   |   |   |-- [CRATE] psi-language-core/              # Target-neutral source-language vocabulary.
 |   |   |   |-- [CRATE] psi-numerics/                   # Exact numerics, float semantics, and literal payloads.
