@@ -472,13 +472,26 @@ pub fn encode_host_call_sequence<T: InstructionOperandLike>(
     operation_key: HostOperationKey,
     operands: &[T],
 ) -> Result<Vec<u8>, Diagnostic> {
+    encode_host_call_sequence_with_plan(target, operation_key, operands, None)
+}
+
+pub fn encode_host_call_sequence_with_plan<T: InstructionOperandLike>(
+    target: NativeTarget,
+    operation_key: HostOperationKey,
+    operands: &[T],
+    authoritative_plan: Option<&CallPlan>,
+) -> Result<Vec<u8>, Diagnostic> {
     match target.architecture {
         // Deref-result ops (errno) must be checked before the plain
         // value-returning arm: they share `returns_value()` but insert an extra
         // `ldr` to deref the returned pointer.
         Architecture::Aarch64 if operation_key.dereferences_result() => {
-            let (arguments, result) =
-                normalized_aarch64_import_plan(operands, Aarch64ImportResult::Integer, false)?;
+            let (arguments, result) = normalized_aarch64_import_plan_with_authoritative(
+                operands,
+                Aarch64ImportResult::Integer,
+                false,
+                authoritative_plan,
+            )?;
             aarch64::encode_host_call_sequence_value_returning_deref_from_operands(
                 operands.iter().map(aarch64_call_operand),
                 &arguments,
@@ -487,7 +500,9 @@ pub fn encode_host_call_sequence<T: InstructionOperandLike>(
         }
         // Stack-mode ops (`open_create`) also share `returns_value()` but bracket
         // the call with `sub sp`/`str [sp]`/`add sp` to pass the variadic `mode`
-        // on the stack; checked before the plain value-returning arm.
+        // on the stack; checked before the plain value-returning arm. Its outer
+        // source signature still describes `mode` as an ordinary parameter, so
+        // it cannot validate the concrete anonymous-variadic subcall plan yet.
         Architecture::Aarch64 if operation_key.passes_trailing_mode_on_stack() => {
             let (arguments, result) =
                 normalized_aarch64_import_plan(operands, Aarch64ImportResult::Integer, true)?;
@@ -501,8 +516,12 @@ pub fn encode_host_call_sequence<T: InstructionOperandLike>(
         // result comes back in `d0`; the encoder inserts `fmov x0, d0` before the
         // result store. Checked before the plain value-returning arm.
         Architecture::Aarch64 if operation_key.returns_float() => {
-            let (arguments, result) =
-                normalized_aarch64_import_plan(operands, Aarch64ImportResult::Float, false)?;
+            let (arguments, result) = normalized_aarch64_import_plan_with_authoritative(
+                operands,
+                Aarch64ImportResult::Float,
+                false,
+                authoritative_plan,
+            )?;
             aarch64::encode_host_call_sequence_value_returning_float_from_operands(
                 operands.iter().map(aarch64_call_operand),
                 &arguments,
@@ -519,8 +538,12 @@ pub fn encode_host_call_sequence<T: InstructionOperandLike>(
             )
         }
         Architecture::Aarch64 if operation_key.returns_value() => {
-            let (arguments, result) =
-                normalized_aarch64_import_plan(operands, Aarch64ImportResult::Integer, false)?;
+            let (arguments, result) = normalized_aarch64_import_plan_with_authoritative(
+                operands,
+                Aarch64ImportResult::Integer,
+                false,
+                authoritative_plan,
+            )?;
             aarch64::encode_host_call_sequence_value_returning_from_operands(
                 operands.iter().map(aarch64_call_operand),
                 &arguments,
@@ -528,18 +551,23 @@ pub fn encode_host_call_sequence<T: InstructionOperandLike>(
             )
         }
         Architecture::Aarch64 => {
-            let (arguments, result) =
-                normalized_aarch64_import_plan(operands, Aarch64ImportResult::None, false)?;
+            let (arguments, result) = normalized_aarch64_import_plan_with_authoritative(
+                operands,
+                Aarch64ImportResult::None,
+                false,
+                authoritative_plan,
+            )?;
             debug_assert!(result.is_none());
             aarch64::encode_host_call_sequence_from_operands(
                 operands.iter().map(aarch64_call_operand),
                 &arguments,
             )
         }
-        Architecture::X86_64 => x86_64::encode_host_call_sequence(
+        Architecture::X86_64 => x86_64::encode_host_call_sequence_with_plan(
             CallingPolicy::native_for_target(target),
             operation_key,
             operands,
+            authoritative_plan,
         ),
     }
 }
@@ -2179,6 +2207,66 @@ mod compatibility_encoder_differential_tests {
             Some(&plan(linux_x64, 1, true)),
         )
         .expect("the explicit SysV plan remains supported");
+    }
+
+    #[test]
+    fn built_in_import_compatibility_bytes_widths_and_x86_sites_equal_the_explicit_plan() {
+        // A scalar built-in import exercises both argument and result storage
+        // without crossing an adapter-internal composite native call.
+        let operands = [scalar(0), scalar(8)];
+        let operation = HostOperationKey::from_names("Filesystem", "close");
+        for target in [NativeTarget::windows_x64(), NativeTarget::macos_arm64()] {
+            let plan = plan(target, 1, true);
+            let compatibility = encode_host_call_sequence(target, operation, &operands)
+                .expect("compatibility built-in import encoding");
+            let planned =
+                encode_host_call_sequence_with_plan(target, operation, &operands, Some(&plan))
+                    .expect("explicit-plan built-in import encoding");
+            assert_eq!(compatibility, planned, "target {target:?}");
+            assert_eq!(
+                crate::host_call_sequence_width(target, operation, &operands),
+                crate::host_call_sequence_width_with_plan(
+                    target,
+                    operation,
+                    &operands,
+                    Some(&plan),
+                ),
+                "target {target:?}"
+            );
+        }
+
+        let target = NativeTarget::windows_x64();
+        let plan = plan(target, 1, true);
+        let policy = CallingPolicy::native_for_target(target);
+        assert_eq!(
+            omega_isa_x86_64::host_call_external_relocation_site_for_policy(
+                policy, operation, &operands,
+            ),
+            omega_isa_x86_64::host_call_external_relocation_site_with_plan(
+                policy,
+                operation,
+                &operands,
+                Some(&plan),
+            )
+        );
+        for operand_index in 0..operands.len() {
+            assert_eq!(
+                omega_isa_x86_64::host_call_data_relocation_site_for_policy(
+                    policy,
+                    operation,
+                    &operands,
+                    operand_index,
+                ),
+                omega_isa_x86_64::host_call_data_relocation_site_with_plan(
+                    policy,
+                    operation,
+                    &operands,
+                    operand_index,
+                    Some(&plan),
+                ),
+                "operand {operand_index}"
+            );
+        }
     }
 }
 

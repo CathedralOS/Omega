@@ -883,6 +883,17 @@ families likewise compare compatibility selection with an independently
 evaluated x86-64/AArch64 plan. Their emitted bytes and planned widths must
 match; result and argument relocation sites must remain identical as well.
 
+Ordinary non-variadic built-in imports now retain the selected binding plan
+through machine emission, layout, and x86-64 relocation accounting instead of
+reconstructing placement at those consumers. Direct scalar Windows x64 and
+macOS arm64 calls have the same byte/width differential lock as authored
+imports, and the Windows x64 comparison includes the call, argument, and result
+relocation sites. Composite adapter-owned native calls continue to consume
+their separately normalized concrete subcall signatures; an outer source
+boundary plan is not a replacement for the adapter's internal ABI call. The
+Darwin anonymous-variadic `open_create` seam remains explicitly outside this
+claim until `CallSignature` can represent its concrete trailing variadic.
+
 Remaining order:
 
 1. Complete plan-driven outbound calls and their results;

@@ -795,7 +795,10 @@ Remaining:
   fails closed without its required plan. Linux statement, value-result,
   timespec-result, and timespec-argument syscall families now prove byte and
   width equality on x86-64/AArch64; result/argument relocation sites are
-  differential-locked too; and
+  differential-locked too. Ordinary non-variadic scalar built-in imports now
+  consume the binding-retained plan in emission, layout, and relocation
+  accounting; their Windows x64/macOS arm64 compatibility bytes and widths,
+  plus Windows x64 relocation sites, are differential-locked; and
 - delete compatibility fields after their final consumer migrates.
 
 Acceptance: changing a normalized plan changes lowering or rejects; changing

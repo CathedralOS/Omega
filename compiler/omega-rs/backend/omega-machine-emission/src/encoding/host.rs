@@ -96,7 +96,12 @@ pub(super) fn encode_host_operation(
                 binding.and_then(omega_calling_conventions::HostBinding::call_plan),
             )
         }
-        _ => architecture::encode_host_call_sequence(input.target, operation_key, operands),
+        _ => architecture::encode_host_call_sequence_with_plan(
+            input.target,
+            operation_key,
+            operands,
+            binding.and_then(omega_calling_conventions::HostBinding::call_plan),
+        ),
     }
 }
 
