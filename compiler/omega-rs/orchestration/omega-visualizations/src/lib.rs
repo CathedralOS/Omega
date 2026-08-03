@@ -19,7 +19,9 @@ pub use checked_trees::{
     qualification_evidence_manifest_json, task_activation_manifest_json,
 };
 pub use control_flow::control_flow_html;
-pub use executable_tcb_manifest::executable_tcb_manifest_json;
+pub use executable_tcb_manifest::{
+    executable_tcb_manifest_json, executable_tcb_manifest_value_json,
+};
 pub use phase_diagram::{
     PipelineEmbeddedPage, pipeline_index_html, pipeline_shell_html, text_report_html,
 };

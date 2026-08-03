@@ -17,8 +17,9 @@ pub use capabilities::providers::{
 pub use executable_tcb_manifest::{
     ContainmentEvidence, ContainmentGuarantee, ExecutableEntryOrigin, ExecutableIdentity,
     ExecutableTcbEntry, ExecutableTcbManifest, ExecutionScope, ImplementationEvidence,
-    IncompleteCause, OpaqueClosureEvidence, OpaqueExecutableAdmissionCandidate,
-    OpaqueInProcessBinding, ProviderIdentity, ScopeCompleteness,
+    IncompleteCause, OmegaRuntimeExecutableAdmissionCandidate, OmegaRuntimeExecutableLedger,
+    OpaqueClosureEvidence, OpaqueExecutableAdmissionCandidate, OpaqueInProcessBinding,
+    ProviderIdentity, RuntimeExecutableClosureEvidence, ScopeCompleteness,
     ValidatedOpaqueExecutableAdmission,
 };
 pub use executable_tcb_profile::{

@@ -1384,8 +1384,16 @@ improvements do not change public identity.
   independent implementation and containment receipts. Pinning alone retains
   the attributed incompleteness cause; only a separate executable-closure
   receipt removes it, and closure evidence survives when another row keeps the
-  overall scope incomplete. Runtime-ledger union and isolated-scope manifests
-  remain. The compiler now accepts a deployment-owned TCB build-policy carrier
+  overall scope incomplete. Isolated-scope manifests remain. The append-only
+  runtime ledger now admits pinned executable identities only through an
+  Omega-mediation receipt, rejects receipt replay and duplicate artifact rows,
+  and unions its canonical entries with the static manifest under the exact
+  same scope. Runtime entries retain their distinct origin, implementation and
+  containment evidence; a missing executable-closure receipt contributes an
+  attributed runtime incompleteness cause, while valid closure evidence remains
+  visible even beside another cause. Repeated union is idempotent, and the JSON
+  artifact surface renders runtime entries, causes, and evidence distinctly.
+  The compiler now accepts a deployment-owned TCB build-policy carrier
   separately from source syntax, binds its opaque admission candidates against
   the exact selected rows, evaluates the selected profile, and carries the
   sealed acceptance to the filesystem installation gate. The legacy compile

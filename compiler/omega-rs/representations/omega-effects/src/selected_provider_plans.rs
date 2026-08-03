@@ -328,13 +328,13 @@ mod tests {
             panic!("opaque in-process selection must make the scope incomplete");
         };
         assert_eq!(causes.len(), 1);
-        assert_eq!(
-            causes[0].provider_plan_identity,
-            opaque_leaf.identity_fingerprint()
-        );
         assert!(matches!(
-            causes[0].binding,
-            crate::OpaqueInProcessBinding::Import { .. }
+            &causes[0],
+            crate::IncompleteCause::SelectedOpaqueProvider {
+                provider_plan_identity,
+                binding: crate::OpaqueInProcessBinding::Import { .. },
+                ..
+            } if *provider_plan_identity == opaque_leaf.identity_fingerprint()
         ));
     }
 
@@ -481,10 +481,13 @@ mod tests {
             panic!("unadmitted opaque row keeps scope incomplete");
         };
         assert_eq!(causes.len(), 1);
-        assert_eq!(
-            causes[0].provider_plan_identity,
-            open.identity_fingerprint()
-        );
+        assert!(matches!(
+            &causes[0],
+            crate::IncompleteCause::SelectedOpaqueProvider {
+                provider_plan_identity,
+                ..
+            } if *provider_plan_identity == open.identity_fingerprint()
+        ));
         assert_eq!(opaque_closure_evidence.len(), 1);
         assert_eq!(
             opaque_closure_evidence[0].evidence_identity,

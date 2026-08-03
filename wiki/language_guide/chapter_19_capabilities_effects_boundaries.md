@@ -1363,6 +1363,13 @@ Omega admission. The runtime ledger therefore reports what Omega admitted,
 never a falsely exhaustive map of an opaque process. Build profiles may permit
 and mark that result or reject it before installation; platform baselines are
 ordinary policy allowlists.
+Omega-mediated runtime loading uses an append-only ledger for the exact
+execution scope. Admission requires pinned executable and implementation
+identities plus a unique mediation receipt—never merely a path—and the unioned
+manifest marks those entries as runtime-origin. A runtime executable without a
+separate closure receipt is reported as known while making the scope
+attributed-incomplete; the ledger does not claim code loaded outside its
+mediation boundary.
 The compiler currently receives these deployment-owned admissions and profile
 rules through a programmatic build-policy input. It validates them only after
 exact provider selection and carries a successful, manifest-bound acceptance

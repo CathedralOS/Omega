@@ -287,6 +287,7 @@ mod tests {
                 scope: ExecutionScope::CallerAddressSpace,
                 selected_provider_closure_identity: 9,
                 opaque_closure_evidence: Vec::new(),
+                runtime_closure_evidence: Vec::new(),
             },
         }
     }
@@ -329,9 +330,26 @@ mod tests {
     }
 
     #[test]
+    fn static_allowance_cannot_launder_a_runtime_admission_origin() {
+        let mut entry = opaque_entry();
+        entry.origin = ExecutableEntryOrigin::OmegaRuntimeAdmission;
+        let mut runtime_profile = profile(&entry);
+        evaluate_executable_tcb_profile(&complete_manifest(entry.clone()), &runtime_profile)
+            .expect("exact runtime-origin allowance");
+
+        runtime_profile.exact_allowances[0].origin = ExecutableEntryOrigin::StaticSelection;
+        let rejected = evaluate_executable_tcb_profile(&complete_manifest(entry), &runtime_profile)
+            .expect_err("static allowance must not accept runtime admission");
+        assert!(matches!(
+            rejected.violations.as_slice(),
+            [ExecutableTcbProfileViolation::EntryNotAllowed { .. }]
+        ));
+    }
+
+    #[test]
     fn incomplete_scope_is_rejected_or_permitted_and_marked() {
         let entry = opaque_entry();
-        let cause = IncompleteCause {
+        let cause = IncompleteCause::SelectedOpaqueProvider {
             provider_identity: entry.provider_identity.clone(),
             provider_plan_identity: entry.provider_plan_identity,
             method: "open".into(),
@@ -347,6 +365,7 @@ mod tests {
                 scope: ExecutionScope::CallerAddressSpace,
                 causes: vec![cause.clone()],
                 opaque_closure_evidence: Vec::new(),
+                runtime_closure_evidence: Vec::new(),
             },
         };
         let rejected = evaluate_executable_tcb_profile(&manifest, &profile(&entry))
