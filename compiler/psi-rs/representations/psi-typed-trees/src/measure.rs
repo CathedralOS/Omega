@@ -1,6 +1,6 @@
 use crate::types::TypeReferenceHandle;
-use omega_core::arena::HandleSpan;
-use omega_core::symbols::SymbolHandle;
+use psi_arena::HandleSpan;
+use psi_symbols::SymbolHandle;
 
 /// A well-founded termination measure declared with the `measure` keyword.
 #[derive(Debug, Clone, PartialEq, Eq)]

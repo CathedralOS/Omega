@@ -1,6 +1,6 @@
 use crate::name::Identifier;
-use omega_core::arena::{Arena, Handle, HandleSpan};
-use omega_core::symbols::SymbolHandle;
+use psi_arena::{Arena, Handle, HandleSpan};
+use psi_symbols::SymbolHandle;
 
 pub type StatementHandle = Handle<StatementNode>;
 pub type TransitionTargetHandle = Handle<TransitionTargetNode>;
@@ -453,7 +453,7 @@ pub struct TableCall {
     pub target: Identifier,
     pub machine_arguments: Box<[crate::expression::StaticMachineArgument]>,
     pub arguments: HandleSpan<crate::expression::ExpressionHandle>,
-    pub operational_acknowledgement: omega_core::semantics::CallOperationalAcknowledgement,
+    pub operational_acknowledgement: psi_language_semantics::CallOperationalAcknowledgement,
     /// `_ = call();` -- the caller explicitly discards a non-unit result.
     pub discards_result: bool,
 }
@@ -548,7 +548,7 @@ mod tests {
     use crate::expression::{ExpressionNode, ExpressionTable};
     use crate::name::Identifier;
     use crate::types::{TypeReferenceNode, TypeReferenceTable};
-    use omega_core::symbols::SymbolHandle;
+    use psi_symbols::SymbolHandle;
 
     #[test]
     fn statement_table_appends_handle_native_payloads_directly() {
@@ -556,13 +556,13 @@ mod tests {
         let mut statements = StatementTable::new();
         let mut expressions = ExpressionTable::new();
         let argument = expressions.insert(crate::expression::ExpressionNode::Integer(
-            omega_core::literals::IntegerLiteral::from_value(99),
+            psi_numerics::literals::IntegerLiteral::from_value(99),
         ));
 
-        let mut arguments = omega_core::arena::HandleSpan::empty();
+        let mut arguments = psi_arena::HandleSpan::empty();
         statements.push_expression_handle(&mut arguments, argument);
 
-        let mut path = omega_core::arena::HandleSpan::empty();
+        let mut path = psi_arena::HandleSpan::empty();
         statements.push_name_path_member(&mut path, Identifier::generated("next"));
 
         let target = statements.insert_transition_target(TransitionTargetNode::Named {
@@ -574,7 +574,7 @@ mod tests {
             arguments,
         });
 
-        let mut state_statements = omega_core::arena::HandleSpan::empty();
+        let mut state_statements = psi_arena::HandleSpan::empty();
         let statement = statements.push_statement(
             &mut state_statements,
             StatementNode::Transition(super::TableTransition {
@@ -611,14 +611,14 @@ mod tests {
         let mut source_types = TypeReferenceTable::new();
 
         let initial = source_expressions.insert(ExpressionNode::Integer(
-            omega_core::literals::IntegerLiteral::from_value(7),
+            psi_numerics::literals::IntegerLiteral::from_value(7),
         ));
         let guard = source_expressions.insert(ExpressionNode::Boolean(true));
         let local_type = source_types.insert(TypeReferenceNode::Named {
             symbol: SymbolHandle::invalid(),
             name: Identifier::generated("i32"),
         });
-        let mut source_span = omega_core::arena::HandleSpan::empty();
+        let mut source_span = psi_arena::HandleSpan::empty();
         source_statements.push_statement(
             &mut source_span,
             StatementNode::LocalData(super::TableLocalData {
@@ -630,9 +630,9 @@ mod tests {
             }),
         );
 
-        let mut members = omega_core::arena::HandleSpan::empty();
+        let mut members = psi_arena::HandleSpan::empty();
         source_statements.push_name_path_member(&mut members, Identifier::generated("next"));
-        let mut arguments = omega_core::arena::HandleSpan::empty();
+        let mut arguments = psi_arena::HandleSpan::empty();
         source_statements.push_expression_handle(&mut arguments, initial);
         let target = source_statements.insert_transition_target(TransitionTargetNode::Named {
             path: super::TableNamePath {
@@ -650,10 +650,10 @@ mod tests {
                 guard: super::TransitionGuardNode::When(guard),
             }),
         );
-        let mut expression_members = omega_core::arena::HandleSpan::empty();
+        let mut expression_members = psi_arena::HandleSpan::empty();
         source_expressions
             .push_name_path_member(&mut expression_members, Identifier::generated("value"));
-        let mut expression_member_symbols = omega_core::arena::HandleSpan::empty();
+        let mut expression_member_symbols = psi_arena::HandleSpan::empty();
         source_expressions
             .push_name_path_member_symbol(&mut expression_member_symbols, local_symbol);
         let local_reference =
@@ -680,7 +680,7 @@ mod tests {
 
         // Mutating the source tables after the copy cannot alter the clone.
         *source_expressions.expression_mut(initial) =
-            ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(99));
+            ExpressionNode::Integer(psi_numerics::literals::IntegerLiteral::from_value(99));
         source_types.substitute_node(local_type, TypeReferenceNode::Unit);
         let remapped_local = SymbolHandle::from_arena_index(31);
         let remapped_target = SymbolHandle::from_arena_index(32);
@@ -702,7 +702,7 @@ mod tests {
         assert_eq!(copied_types.display_name(local.type_reference), "i32");
         assert_eq!(
             copied_expressions.expression(local.initial_value),
-            &ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(7))
+            &ExpressionNode::Integer(psi_numerics::literals::IntegerLiteral::from_value(7))
         );
 
         let StatementNode::Transition(transition) = &copied[1] else {
@@ -722,7 +722,7 @@ mod tests {
         let copied_argument = copied_statements.expression_handles(*arguments)[0];
         assert_eq!(
             copied_expressions.expression(copied_argument),
-            &ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(7))
+            &ExpressionNode::Integer(psi_numerics::literals::IntegerLiteral::from_value(7))
         );
         let super::TransitionGuardNode::When(copied_guard) = transition.guard else {
             panic!("copied transition guard should be conditional");

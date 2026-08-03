@@ -19,16 +19,16 @@ fn snapshots_empty_typed_tree_as_json() {
 #[test]
 fn snapshots_normalized_domain_semantic_roles() {
     let mut program = TypedTrees::default();
-    let trait_definition = omega_core::symbols::SymbolHandle::from_arena_index(25);
-    let requirement = omega_core::symbols::SymbolHandle::from_arena_index(26);
+    let trait_definition = psi_symbols::SymbolHandle::from_arena_index(25);
+    let requirement = psi_symbols::SymbolHandle::from_arena_index(26);
     program.push_domain_definition(DomainDefinition {
-        semantic_id: omega_core::semantics::SemanticDomainId(23),
-        semantic_roles: omega_core::semantics::DomainSemanticRoles {
-            denotation_dimension: Some(omega_core::semantics::SemanticDomainId(23)),
+        semantic_id: psi_language_semantics::SemanticDomainId(23),
+        semantic_roles: psi_language_semantics::DomainSemanticRoles {
+            denotation_dimension: Some(psi_language_semantics::SemanticDomainId(23)),
             arithmetic_policy: None,
         },
         establishment_routes: vec![
-            omega_core::semantics::DomainEstablishmentRoute::CheckedRequirement {
+            psi_language_semantics::DomainEstablishmentRoute::CheckedRequirement {
                 trait_definition,
                 requirement,
             },
@@ -60,8 +60,8 @@ fn snapshots_normalized_domain_semantic_roles() {
 #[test]
 fn snapshots_transparent_alias_theory_independently_from_facts() {
     let mut program = TypedTrees::default();
-    let atom_symbol = omega_core::symbols::SymbolHandle::from_arena_index(41);
-    let mut domain = omega_core::arena::HandleSpan::empty();
+    let atom_symbol = psi_symbols::SymbolHandle::from_arena_index(41);
+    let mut domain = psi_arena::HandleSpan::empty();
     program
         .domain_path_members
         .append_to_span(&mut domain, Identifier::generated("Socket"));
@@ -94,10 +94,10 @@ fn snapshots_transparent_alias_theory_independently_from_facts() {
 #[test]
 fn snapshots_normalized_domain_constraint_identity_and_roles() {
     let program = TypedTrees::default();
-    let symbol = omega_core::symbols::SymbolHandle::from_arena_index(31);
-    let semantic_id = omega_core::semantics::SemanticDomainId(7);
-    let boundary_trait = omega_core::symbols::SymbolHandle::from_arena_index(32);
-    let requirement = omega_core::symbols::SymbolHandle::from_arena_index(33);
+    let symbol = psi_symbols::SymbolHandle::from_arena_index(31);
+    let semantic_id = psi_language_semantics::SemanticDomainId(7);
+    let boundary_trait = psi_symbols::SymbolHandle::from_arena_index(32);
+    let requirement = psi_symbols::SymbolHandle::from_arena_index(33);
     let snapshot = type_constraint_snapshot(
         &program,
         &TypeConstraintNode::Domain(DomainConstraint {
@@ -105,13 +105,13 @@ fn snapshots_normalized_domain_constraint_identity_and_roles() {
             arguments: Vec::new(),
             symbol,
             semantic_id,
-            predicate_body: omega_core::semantics::DomainPredicateBody::Present,
-            semantic_roles: omega_core::semantics::DomainSemanticRoles {
+            predicate_body: psi_language_semantics::DomainPredicateBody::Present,
+            semantic_roles: psi_language_semantics::DomainSemanticRoles {
                 denotation_dimension: Some(semantic_id),
                 arithmetic_policy: None,
             },
             establishment_routes: vec![
-                omega_core::semantics::DomainEstablishmentRoute::BoundaryRequirement {
+                psi_language_semantics::DomainEstablishmentRoute::BoundaryRequirement {
                     boundary_trait,
                     requirement,
                 },
@@ -151,8 +151,8 @@ fn snapshots_normalized_machine_supply_including_external_binding_identity() {
     });
     program.push_machine(Machine {
         name: Identifier::generated("leaf"),
-        supply_mode: omega_core::semantics::MachineSupplyMode::ExternalRealization {
-            binding: omega_core::semantics::ExternalBindingId(17),
+        supply_mode: psi_language_semantics::MachineSupplyMode::ExternalRealization {
+            binding: psi_language_semantics::ExternalBindingId(17),
         },
         ..Machine::default()
     });

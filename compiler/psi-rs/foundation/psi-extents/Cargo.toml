@@ -1,0 +1,9 @@
+[package]
+name = "psi-extents"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "psi_extents"
+path = "src/lib.rs"

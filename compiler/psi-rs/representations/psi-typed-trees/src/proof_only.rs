@@ -11,7 +11,7 @@ use crate::TypedTrees;
 use crate::data::DataMember;
 use crate::name::Identifier;
 use crate::types::{TypeReferenceHandle, TypeReferenceNode};
-use omega_core::symbols::SymbolHandle;
+use psi_symbols::SymbolHandle;
 use std::collections::HashMap;
 
 /// Why a data definition is proof-only. `describe` renders the chain.

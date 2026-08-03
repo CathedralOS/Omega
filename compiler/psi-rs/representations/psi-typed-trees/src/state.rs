@@ -2,8 +2,8 @@ use crate::name::Identifier;
 use crate::signature::SignatureContract;
 use crate::signature::StateParameter;
 use crate::statement::StatementNode;
-use omega_core::arena::HandleSpan;
-use omega_core::symbols::SymbolHandle;
+use psi_arena::HandleSpan;
+use psi_symbols::SymbolHandle;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct State {

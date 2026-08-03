@@ -49,6 +49,10 @@ Must not own:
 
 - Final proof discharge, liveness, borrow overlap, move/drop scheduling,
   graph/control-flow shape, ABI layout, or target storage.
+- Concrete boundary calling plans, including registers, stack locations, ABI
+  classes, and target machine state. Typed trees retain only the semantic
+  boundary key and canonical contract fingerprint; Omega orchestration retains
+  the selected realization plan for native lowering.
 
 ## Implementation Map
 
@@ -58,6 +62,13 @@ The implementation should make typed semantic surfaces visible by file:
   const-value atoms and normalized wire scalar ranges used by typed
   normalization. The corresponding `omega-core` modules are compatibility
   exports only.
+- `compiler/psi-rs/foundation/{psi-extents,psi-layout-plans,psi-access-plans}`
+  own the normalized author-selected geometry and placed-access semantics that
+  typed `Placed<P, T>` surfaces retain. Concrete ABI selection and target
+  lowering remain Omega-owned.
+- `compiler/psi-rs/representations/psi-typed-trees` owns the typed source
+  representation. The old `omega-typed-trees` package is an implementation-free
+  compatibility export for later stages that have not migrated yet.
 
 - `lowerer.rs` owns stage entry and the top-level lowering conveyor. Behavior
   coverage belongs in `lowerer/tests.rs`, not inline with the entrypoint.

@@ -9,6 +9,4 @@ name = "omega_access_plans"
 path = "src/lib.rs"
 
 [dependencies]
-omega-core = { path = "../omega-core" }
-omega-extents = { path = "../omega-extents" }
-omega-layout-plans = { path = "../omega-layout-plans" }
+psi-access-plans = { path = "../../../psi-rs/foundation/psi-access-plans" }

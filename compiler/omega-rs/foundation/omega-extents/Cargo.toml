@@ -7,3 +7,6 @@ version.workspace = true
 [lib]
 name = "omega_extents"
 path = "src/lib.rs"
+
+[dependencies]
+psi-extents = { path = "../../../psi-rs/foundation/psi-extents" }

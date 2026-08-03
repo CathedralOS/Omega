@@ -1,9 +1,9 @@
 use crate::TypedTrees;
 use crate::name::Identifier;
 use crate::types::TypeReferenceHandle;
-use omega_core::arena::HandleSpan;
-use omega_core::diagnostics::Diagnostic;
-use omega_core::symbols::SymbolHandle;
+use psi_arena::HandleSpan;
+use psi_diagnostics::Diagnostic;
+use psi_symbols::SymbolHandle;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DomainDefinition {
@@ -17,20 +17,20 @@ pub struct DomainDefinition {
     /// record before normalization rather than treating the alias as evidence.
     pub alias: Option<DomainAliasDefinition>,
     /// Explicit predicate-body presence copied from the resolved theory.
-    pub predicate_body: omega_core::semantics::DomainPredicateBody,
+    pub predicate_body: psi_language_semantics::DomainPredicateBody,
     pub facts: HandleSpan<ProofFact>,
     pub operators: HandleSpan<crate::operator::OperatorDefinition>,
     pub body_token_count: usize,
     /// STR4 checked plans, slice 1: the normalized semantic identity from
     /// the program's SemanticDomainTable (populated ONCE at
     /// syntax->resolved, copied downstream; NULL only pre-lowering).
-    pub semantic_id: omega_core::semantics::SemanticDomainId,
+    pub semantic_id: psi_language_semantics::SemanticDomainId,
     /// Role-keyed semantic contributions copied from the resolved declaration
     /// without re-derivation.
-    pub semantic_roles: omega_core::semantics::DomainSemanticRoles,
+    pub semantic_roles: psi_language_semantics::DomainSemanticRoles,
     /// Normalized authored introduction relationships copied from the resolved
     /// domain theory without re-derivation.
-    pub establishment_routes: Vec<omega_core::semantics::DomainEstablishmentRoute>,
+    pub establishment_routes: Vec<psi_language_semantics::DomainEstablishmentRoute>,
 }
 
 impl Default for DomainDefinition {
@@ -43,12 +43,12 @@ impl Default for DomainDefinition {
             index_arguments: Vec::new(),
             is_public: false,
             alias: None,
-            predicate_body: omega_core::semantics::DomainPredicateBody::Bodyless,
+            predicate_body: psi_language_semantics::DomainPredicateBody::Bodyless,
             facts: HandleSpan::empty(),
             operators: HandleSpan::empty(),
             body_token_count: 0,
-            semantic_id: omega_core::semantics::SemanticDomainId::NULL,
-            semantic_roles: omega_core::semantics::DomainSemanticRoles::default(),
+            semantic_id: psi_language_semantics::SemanticDomainId::NULL,
+            semantic_roles: psi_language_semantics::DomainSemanticRoles::default(),
             establishment_routes: Vec::new(),
         }
     }
@@ -160,7 +160,9 @@ fn closed_domain_argument_identity(
             "indexed-domain arguments must be canonical const values, direct const binders, or supported open const expressions",
         ));
     };
-    if let Some(value) = omega_core::const_value::CanonicalConstValue::from_atom(name.as_str()) {
+    if let Some(value) =
+        psi_language_semantics::const_value::CanonicalConstValue::from_atom(name.as_str())
+    {
         if value.type_name != expected {
             return Err(Diagnostic::error(format!(
                 "indexed-domain argument has canonical type `{}`, expected `{expected}`",

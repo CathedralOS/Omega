@@ -1,7 +1,7 @@
 use crate::name::Identifier;
 use crate::types::TypeReferenceHandle;
-use omega_core::arena::HandleSpan;
-use omega_core::symbols::SymbolHandle;
+use psi_arena::HandleSpan;
+use psi_symbols::SymbolHandle;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateSignature {
@@ -15,7 +15,7 @@ pub struct StateSignature {
     pub service_reaches: HandleSpan<Identifier>,
     pub invokes: HandleSpan<Identifier>,
     /// EFX: normalized symbol-resolved boundary-service row.
-    pub service_reach_row: omega_core::semantics::ServiceReachRowId,
+    pub service_reach_row: psi_language_semantics::ServiceReachRowId,
     pub suspends: bool,
     pub blocks: bool,
     pub contracts: HandleSpan<SignatureContract>,
@@ -38,7 +38,7 @@ impl Default for StateSignature {
             return_type: TypeReferenceHandle::invalid(),
             service_reaches: HandleSpan::empty(),
             invokes: HandleSpan::empty(),
-            service_reach_row: omega_core::semantics::ServiceReachRowId::NULL,
+            service_reach_row: psi_language_semantics::ServiceReachRowId::NULL,
             suspends: false,
             blocks: false,
             contracts: HandleSpan::empty(),
@@ -73,7 +73,7 @@ impl Default for StateParameter {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct SignatureContract {
     pub kind: SignatureContractKind,
-    pub facts: omega_core::arena::HandleSpan<crate::domain::ProofFact>,
+    pub facts: psi_arena::HandleSpan<crate::domain::ProofFact>,
     pub token_count: usize,
 }
 

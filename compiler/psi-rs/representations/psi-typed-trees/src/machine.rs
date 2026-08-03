@@ -3,8 +3,8 @@ use crate::name::Identifier;
 use crate::signature::SignatureContract;
 use crate::state::State;
 use crate::types::TypeReferenceHandle;
-use omega_core::arena::HandleSpan;
-use omega_core::symbols::SymbolHandle;
+use psi_arena::HandleSpan;
+use psi_symbols::SymbolHandle;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Machine {
@@ -17,15 +17,15 @@ pub struct Machine {
     /// syntax->resolved lowering, copied -- never re-derived -- downstream.
     /// Requirement/Accepted gain their own sources when their spellings
     /// reach this record.
-    pub supply_mode: omega_core::semantics::MachineSupplyMode,
+    pub supply_mode: psi_language_semantics::MachineSupplyMode,
     /// TPR2 (decision 23): the normalized termination plan (published
     /// guarantee vs private ranking witness), populated ONCE at the
     /// syntax->resolved lowering and COPIED here -- never re-derived. Ranking
     /// subjects below are implementation witnesses, not compatibility
     /// contract flags.
-    pub termination_plan: omega_core::semantics::MachineTerminationPlan,
+    pub termination_plan: psi_language_semantics::MachineTerminationPlan,
     /// EFX: normalized symbol-resolved boundary-service row.
-    pub service_reach_row: omega_core::semantics::ServiceReachRowId,
+    pub service_reach_row: psi_language_semantics::ServiceReachRowId,
     pub lifetime_parameters: Vec<Identifier>,
     pub type_parameters: HandleSpan<crate::data::TypeParameter>,
     pub owned_data: HandleSpan<OwnedData>,
@@ -52,9 +52,9 @@ impl Default for Machine {
             name: Identifier::default(),
             attached_data: None,
             boundary: false,
-            supply_mode: omega_core::semantics::MachineSupplyMode::CheckedBody,
-            termination_plan: omega_core::semantics::MachineTerminationPlan::default(),
-            service_reach_row: omega_core::semantics::ServiceReachRowId::NULL,
+            supply_mode: psi_language_semantics::MachineSupplyMode::CheckedBody,
+            termination_plan: psi_language_semantics::MachineTerminationPlan::default(),
+            service_reach_row: psi_language_semantics::ServiceReachRowId::NULL,
             lifetime_parameters: Vec::new(),
             type_parameters: HandleSpan::empty(),
             owned_data: HandleSpan::empty(),

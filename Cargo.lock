@@ -110,9 +110,7 @@ dependencies = [
 name = "omega-access-plans"
 version = "0.1.0"
 dependencies = [
- "omega-core",
- "omega-extents",
- "omega-layout-plans",
+ "psi-access-plans",
 ]
 
 [[package]]
@@ -491,6 +489,9 @@ dependencies = [
 [[package]]
 name = "omega-extents"
 version = "0.1.0"
+dependencies = [
+ "psi-extents",
+]
 
 [[package]]
 name = "omega-external-roots"
@@ -655,6 +656,9 @@ dependencies = [
 [[package]]
 name = "omega-layout-plans"
 version = "0.1.0"
+dependencies = [
+ "psi-layout-plans",
+]
 
 [[package]]
 name = "omega-machine-bytes"
@@ -1134,13 +1138,10 @@ dependencies = [
 name = "omega-typed-trees"
 version = "0.1.0"
 dependencies = [
- "omega-access-plans",
- "omega-calling-conventions",
  "omega-control-flow",
  "omega-core",
  "omega-effects",
- "serde",
- "serde_json",
+ "psi-typed-trees",
 ]
 
 [[package]]
@@ -1217,6 +1218,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "psi-access-plans"
+version = "0.1.0"
+dependencies = [
+ "psi-extents",
+ "psi-language-core",
+ "psi-layout-plans",
+]
+
+[[package]]
 name = "psi-arena"
 version = "0.1.0"
 dependencies = [
@@ -1235,6 +1245,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "psi-extents"
+version = "0.1.0"
+
+[[package]]
 name = "psi-language-core"
 version = "0.1.0"
 
@@ -1245,6 +1259,10 @@ dependencies = [
  "psi-language-core",
  "psi-symbols",
 ]
+
+[[package]]
+name = "psi-layout-plans"
+version = "0.1.0"
 
 [[package]]
 name = "psi-numerics"
@@ -1395,6 +1413,22 @@ dependencies = [
  "psi-source-files-to-tokens",
  "psi-syntax-trees",
  "psi-tokens",
+]
+
+[[package]]
+name = "psi-typed-trees"
+version = "0.1.0"
+dependencies = [
+ "psi-access-plans",
+ "psi-arena",
+ "psi-diagnostics",
+ "psi-language-core",
+ "psi-language-semantics",
+ "psi-numerics",
+ "psi-source",
+ "psi-symbols",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

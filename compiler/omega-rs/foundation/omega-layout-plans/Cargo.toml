@@ -7,3 +7,6 @@ version.workspace = true
 [lib]
 name = "omega_layout_plans"
 path = "src/lib.rs"
+
+[dependencies]
+psi-layout-plans = { path = "../../../psi-rs/foundation/psi-layout-plans" }

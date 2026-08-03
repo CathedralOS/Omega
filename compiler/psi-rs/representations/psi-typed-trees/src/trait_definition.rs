@@ -1,7 +1,7 @@
 use crate::name::Identifier;
 use crate::signature::StateSignature;
-use omega_core::arena::HandleSpan;
-use omega_core::symbols::SymbolHandle;
+use psi_arena::HandleSpan;
+use psi_symbols::SymbolHandle;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TraitDefinition {
@@ -47,7 +47,7 @@ pub struct TraitRequirement {
     pub arguments: HandleSpan<crate::types::TypeReferenceHandle>,
     /// Authored relationship location retained for declaration-site semantic
     /// diagnostics after source-backed names are lowered to owned text.
-    pub source_span: omega_core::source::SourceSpan,
+    pub source_span: psi_source::SourceSpan,
 }
 
 /// The semantic role of a trait-composition edge. It is derived from the
@@ -65,7 +65,7 @@ impl Default for TraitRequirement {
             symbol: SymbolHandle::invalid(),
             name: Identifier::default(),
             arguments: HandleSpan::empty(),
-            source_span: omega_core::source::SourceSpan::default(),
+            source_span: psi_source::SourceSpan::default(),
         }
     }
 }

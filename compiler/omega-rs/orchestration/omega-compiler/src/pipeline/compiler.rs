@@ -68,6 +68,9 @@ fn extract_external_binding_rows(
     selected_target: Option<&str>,
     selected_plan_names: &[String],
     provider_plans: &[omega_effects::provider_plan::ProviderPlan],
+    boundary_calling_plan_realizations: &[
+        crate::pipeline::calling_policy_plans::BoundaryCallingPlanRealization
+    ],
     typed: &omega_typed_trees::TypedTrees,
 ) -> Vec<omega_calling_conventions::ExternalBindingRow> {
     use omega_calling_conventions::{ExternalBindingKind, ExternalBindingRow};
@@ -167,6 +170,7 @@ fn extract_external_binding_rows(
                     typed,
                     provider_plans,
                     selected_plan_names,
+                    boundary_calling_plan_realizations,
                     &plan_name,
                     clause.trait_name.as_str(),
                     requirement.as_str(),
@@ -187,6 +191,9 @@ fn selected_source_boundary_entry_plan(
     typed: &omega_typed_trees::TypedTrees,
     provider_plans: &[omega_effects::provider_plan::ProviderPlan],
     selected_plan_names: &[String],
+    boundary_calling_plan_realizations: &[
+        crate::pipeline::calling_policy_plans::BoundaryCallingPlanRealization
+    ],
     provider_plan_name: &str,
     trait_name: &str,
     method_name: &str,
@@ -210,13 +217,12 @@ fn selected_source_boundary_entry_plan(
         })?
         .calling_plan_fingerprint?;
     let trait_leaf = trait_name.rsplit("::").next().unwrap_or(trait_name);
-    typed
-        .boundary_calling_plans
+    boundary_calling_plan_realizations
         .iter()
-        .find(|identity| {
-            identity.fingerprint == fingerprint
+        .find(|realization| {
+            realization.fingerprint == fingerprint
                 && typed.traits().iter().any(|definition| {
-                    definition.symbol == identity.boundary_trait
+                    definition.symbol == realization.boundary_trait
                         && definition
                             .name
                             .as_str()
@@ -229,7 +235,7 @@ fn selected_source_boundary_entry_plan(
                         .trait_machine_signatures(definition)
                         .iter()
                         .any(|signature| {
-                            signature.symbol == identity.requirement_machine
+                            signature.symbol == realization.requirement_machine
                                 && signature.name.as_str() == method_name
                                 && (requirement_identity.is_empty()
                                     || typed
@@ -241,7 +247,7 @@ fn selected_source_boundary_entry_plan(
                         })
                 })
         })
-        .map(|identity| identity.boundary_entry_plan.clone())
+        .map(|realization| realization.boundary_entry_plan.clone())
 }
 
 /// The declared parameter count of `method` on the boundary trait named
@@ -385,7 +391,8 @@ impl Compiler {
         // placement plan; the wire codec selection consumes it (tag + framing
         // from the plan, asserted against its own walk).
         crate::pipeline::wire_plans::compute_wire_plans(&mut typed)?;
-        crate::pipeline::calling_policy_plans::compute_boundary_calling_plans(&mut typed)?;
+        let boundary_calling_plan_realizations =
+            crate::pipeline::calling_policy_plans::compute_boundary_calling_plans(&mut typed)?;
         // PDI3 selected operation/algebra authority is public type identity,
         // including for generic trust receipts emitted before checked
         // lowering. Bind it on the typed tree before snapshots and lockfile
@@ -467,6 +474,7 @@ impl Compiler {
             self.options.target_name.as_deref(),
             &selected_provider_plans,
             &provider_plans,
+            &boundary_calling_plan_realizations,
             &typed,
         );
 

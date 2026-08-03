@@ -64,12 +64,26 @@ struct MaterializedBoundarySignature {
     result: Option<u16>,
 }
 
+/// Omega-owned realization state for one canonical source boundary contract.
+///
+/// Typed trees retain only the semantic key and fingerprint. Concrete ABI,
+/// register, and stack choices stay beside the native/provider pipeline that
+/// consumes them.
+#[derive(Debug, Clone)]
+pub(crate) struct BoundaryCallingPlanRealization {
+    pub(crate) boundary_trait: omega_core::symbols::SymbolHandle,
+    pub(crate) boundary_arguments: Vec<TypeReferenceHandle>,
+    pub(crate) requirement_machine: omega_core::symbols::SymbolHandle,
+    pub(crate) fingerprint: u64,
+    pub(crate) boundary_entry_plan: BoundaryEntryPlan,
+}
+
 /// Discover concrete `Calling<C>` relationships, evaluate `C::plan` once for
 /// every method in the boundary service surface, and retain only canonical
 /// evaluated identities on the typed program.
 pub(crate) fn compute_boundary_calling_plans(
     typed: &mut TypedTrees,
-) -> Result<(), Vec<Diagnostic>> {
+) -> Result<Vec<BoundaryCallingPlanRealization>, Vec<Diagnostic>> {
     let Some(calling_policy_trait) = typed
         .traits()
         .iter()
@@ -77,7 +91,7 @@ pub(crate) fn compute_boundary_calling_plans(
     else {
         // Programs that do not import std::calling cannot accidentally opt in
         // merely by having an unrelated local trait named Calling.
-        return Ok(());
+        return Ok(Vec::new());
     };
     let calling_policy_symbol = calling_policy_trait.symbol;
     let Some(calling_trait) = typed.traits().iter().find(|definition| {
@@ -85,7 +99,7 @@ pub(crate) fn compute_boundary_calling_plans(
             && typed.trait_type_parameters(definition).len() == 1
             && typed.trait_machine_signatures(definition).is_empty()
     }) else {
-        return Ok(());
+        return Ok(Vec::new());
     };
     let calling_symbol = calling_trait.symbol;
 
@@ -204,7 +218,7 @@ pub(crate) fn compute_boundary_calling_plans(
     }
 
     if pending.is_empty() {
-        return Ok(());
+        return Ok(Vec::new());
     }
     let admission = super::build_time_admission::BuildTimeAdmissionPlan::infer(typed);
     let mut evaluated = Vec::with_capacity(pending.len());
@@ -224,20 +238,25 @@ pub(crate) fn compute_boundary_calling_plans(
             &signature,
         )
         .map_err(|reason| vec![Diagnostic::error(reason).with_source_span(relationship_span)])?;
-        evaluated.push(
+        evaluated.push(BoundaryCallingPlanRealization {
+            boundary_trait,
+            boundary_arguments,
+            requirement_machine,
+            fingerprint: validated.contract_fingerprint(),
+            boundary_entry_plan: validated.plan().clone(),
+        });
+    }
+    for realization in &evaluated {
+        typed.record_boundary_calling_plan(
             omega_typed_trees::typed_trees::BoundaryCallingPlanIdentity {
-                boundary_trait,
-                boundary_arguments,
-                requirement_machine,
-                fingerprint: validated.contract_fingerprint(),
-                boundary_entry_plan: validated.plan().clone(),
+                boundary_trait: realization.boundary_trait,
+                boundary_arguments: realization.boundary_arguments.clone(),
+                requirement_machine: realization.requirement_machine,
+                fingerprint: realization.fingerprint,
             },
         );
     }
-    for identity in evaluated {
-        typed.record_boundary_calling_plan(identity);
-    }
-    Ok(())
+    Ok(evaluated)
 }
 
 fn boundary_policy_instances(

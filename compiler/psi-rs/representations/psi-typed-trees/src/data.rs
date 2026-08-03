@@ -1,13 +1,13 @@
 use crate::name::Identifier;
 use crate::types::TypeReferenceHandle;
-use omega_core::arena::HandleSpan;
-use omega_core::symbols::SymbolHandle;
+use psi_arena::HandleSpan;
+use psi_symbols::SymbolHandle;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DataDefinition {
     pub symbol: SymbolHandle,
     pub name: Identifier,
-    pub supply_mode: omega_core::semantics::DataSupplyMode,
+    pub supply_mode: psi_language_semantics::DataSupplyMode,
     pub lifetime_parameters: Vec<Identifier>,
     pub type_parameters: HandleSpan<TypeParameter>,
     pub properties: DataProperties,
@@ -30,7 +30,7 @@ impl Default for DataDefinition {
         Self {
             symbol: SymbolHandle::invalid(),
             name: Identifier::default(),
-            supply_mode: omega_core::semantics::DataSupplyMode::CheckedShape,
+            supply_mode: psi_language_semantics::DataSupplyMode::CheckedShape,
             lifetime_parameters: Vec::new(),
             type_parameters: HandleSpan::empty(),
             properties: DataProperties::default(),
@@ -56,11 +56,11 @@ pub struct QuotientDefinition {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct DataProperties {
     pub copy: bool,
-    pub carry: Option<omega_core::semantics::CarryPolicy>,
+    pub carry: Option<psi_language_semantics::CarryPolicy>,
     /// STR3: the first-class usage model (`[copy]` -> Unrestricted,
     /// ordinary data -> Affine, `[linear]` -> Linear). `copy` survives as the
     /// compatibility bool until STR7 retires it.
-    pub multiplicity: omega_core::semantics::Multiplicity,
+    pub multiplicity: psi_language_semantics::Multiplicity,
 }
 
 impl DataDefinition {

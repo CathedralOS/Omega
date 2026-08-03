@@ -1,7 +1,7 @@
 use crate::name::Identifier;
-use omega_core::arena::{Arena, Handle, HandleSpan};
-use omega_core::literals::IntegerLiteral;
-use omega_core::symbols::SymbolHandle;
+use psi_arena::{Arena, Handle, HandleSpan};
+use psi_numerics::literals::IntegerLiteral;
+use psi_symbols::SymbolHandle;
 use std::ops::Deref;
 use std::sync::Arc;
 
@@ -38,7 +38,7 @@ pub enum Expression {
 pub struct AtomicExpression {
     pub value: Expression,
     pub result: Option<Expression>,
-    pub ordering: omega_core::atomic::AtomicOrderingPlan,
+    pub ordering: psi_language_core::atomic::AtomicOrderingPlan,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1422,7 +1422,7 @@ impl ExpressionTable {
                     semantic_domain: HandleSpan::empty(),
                     semantic_domain_arguments: HandleSpan::empty(),
                     semantic_domain_symbol: SymbolHandle::invalid(),
-                    semantic_domain_id: omega_core::semantics::SemanticDomainId::NULL,
+                    semantic_domain_id: psi_language_semantics::SemanticDomainId::NULL,
                     form: cast.form,
                 }))
             }
@@ -1786,7 +1786,7 @@ pub enum ExpressionNode {
 pub struct TableAtomicExpression {
     pub value: ExpressionHandle,
     pub result: ExpressionHandle,
-    pub ordering: omega_core::atomic::AtomicOrderingPlan,
+    pub ordering: psi_language_core::atomic::AtomicOrderingPlan,
 }
 
 impl Default for ExpressionNode {
@@ -1821,7 +1821,7 @@ pub struct TableCastExpression {
     /// Diagnostic spelling only; semantic identity uses `target_type`.
     pub target_label: HandleSpan<Identifier>,
     /// Arithmetic domain cast (`x as u8 in Saturating`), decision 17 S2.
-    pub domain: omega_core::arithmetic::ArithmeticDomain,
+    pub domain: psi_numerics::arithmetic::ArithmeticDomain,
     /// A NON-policy `in <Name>` suffix -- the semantic-domain qualification
     /// spelling (decision 19), judged at validation (the staged mint fence).
     /// EMPTY = no suffix.
@@ -1833,11 +1833,11 @@ pub struct TableCastExpression {
     pub semantic_domain_symbol: SymbolHandle,
     /// Exact normalized family-instance identity. Equal to the declaration ID
     /// for a monomorphic domain and distinct per canonical closed index pack.
-    pub semantic_domain_id: omega_core::semantics::SemanticDomainId,
+    pub semantic_domain_id: psi_language_semantics::SemanticDomainId,
     /// Value conversion vs §5b borrow recast (`&x as &T`). Only `Value`
     /// survives past the typed trees today: the resolved->typed lowering is
     /// the recast judgment's choke point (rung A).
-    pub form: omega_core::cast_form::CastForm,
+    pub form: psi_language_core::cast_form::CastForm,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1886,7 +1886,7 @@ pub struct CallExpression {
     pub target_symbol: SymbolHandle,
     pub target: Identifier,
     pub arguments: Arc<[Expression]>,
-    pub operational_acknowledgement: omega_core::semantics::CallOperationalAcknowledgement,
+    pub operational_acknowledgement: psi_language_semantics::CallOperationalAcknowledgement,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1896,7 +1896,7 @@ pub struct TableCallExpression {
     pub target: Identifier,
     pub machine_arguments: Box<[StaticMachineArgument]>,
     pub arguments: HandleSpan<ExpressionHandle>,
-    pub operational_acknowledgement: omega_core::semantics::CallOperationalAcknowledgement,
+    pub operational_acknowledgement: psi_language_semantics::CallOperationalAcknowledgement,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2148,7 +2148,7 @@ impl<'path> IntoIterator for &'path NamePath {
 /// optional format landing ride every tree layer, exactly like
 /// IntegerLiteral -- per-format reads are each correctly rounded from the
 /// spelling, so f32 never routes through f64.
-pub use omega_core::literals::FloatLiteral;
+pub use psi_numerics::literals::FloatLiteral;
 
 fn identifier_texts_equal(a: &[Identifier], b: &[Identifier]) -> bool {
     a.len() == b.len()
@@ -2198,9 +2198,9 @@ pub struct CastExpression {
     /// Diagnostic spelling only; semantic identity uses `target_type`.
     pub target_label: NamePath,
     /// Arithmetic domain cast (`x as u8 in Saturating`), decision 17 S2.
-    pub domain: omega_core::arithmetic::ArithmeticDomain,
+    pub domain: psi_numerics::arithmetic::ArithmeticDomain,
     /// Value conversion vs §5b borrow recast (`&x as &T`).
-    pub form: omega_core::cast_form::CastForm,
+    pub form: psi_language_core::cast_form::CastForm,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -1,6 +1,6 @@
-use omega_core::arena::HandleSpan;
-use omega_core::operator_spelling::OperatorSpelling;
-use omega_core::symbols::SymbolHandle;
+use psi_arena::HandleSpan;
+use psi_language_core::operator_spelling::OperatorSpelling;
+use psi_symbols::SymbolHandle;
 
 use crate::TypedTrees;
 use crate::data::TypeParameter;
