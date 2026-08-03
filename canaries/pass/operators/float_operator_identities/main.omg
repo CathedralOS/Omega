@@ -4,34 +4,60 @@
 // from arithmetic.
 
 use omega::language::core::float_operations;
+use omega::language::std::console;
 
 data Main {
+    console: Console;
     left32: f32;
     right32: f32;
     sum32: f32;
+    difference32: f32;
+    product32: f32;
+    quotient32: f32;
     left64: f64;
     right64: f64;
+    sum64: f64;
+    difference64: f64;
+    product64: f64;
     quotient64: f64;
 }
 
 machine Main::main(&mut self) {
-    self.left32 = 1.5;
+    self.left32 = 6.0;
     self.right32 = 2.0;
     self.sum32 = self.left32 + self.right32;
-    self.sum32 = self.sum32 * self.right32;
-    self.sum32 = self.sum32 - self.left32;
+    self.difference32 = self.left32 - self.right32;
+    self.product32 = self.left32 * self.right32;
+    self.quotient32 = self.left32 / self.right32;
     self.left64 = 9.0;
     self.right64 = 3.0;
+    self.sum64 = self.left64 + self.right64;
+    self.difference64 = self.left64 - self.right64;
+    self.product64 = self.left64 * self.right64;
     self.quotient64 = self.left64 / self.right64;
-    transition self.sum32 > self.right32
-        && self.sum32 >= self.right32
-        && self.right32 < self.sum32
-        && self.right32 <= self.sum32
-        && self.sum32 != self.left32
-        && self.quotient64 == self.right64 {
+    transition self.sum32 == 8.0
+        && self.difference32 == 4.0
+        && self.product32 == 12.0
+        && self.quotient32 == 3.0
+        && self.left32 == self.left32
+        && self.left32 != self.right32
+        && self.right32 < self.left32
+        && self.right32 <= self.left32
+        && self.left32 > self.right32
+        && self.left32 >= self.right32
+        && self.sum64 == 12.0
+        && self.difference64 == 6.0
+        && self.product64 == 27.0
+        && self.quotient64 == 3.0
+        && self.left64 == self.left64
+        && self.left64 != self.right64
+        && self.right64 < self.left64
+        && self.right64 <= self.left64
+        && self.left64 > self.right64
+        && self.left64 >= self.right64 {
         true -> good()
         _ -> bad()
     }
-    state good(&mut self) { }
-    state bad(&mut self) { }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(77); }
 }

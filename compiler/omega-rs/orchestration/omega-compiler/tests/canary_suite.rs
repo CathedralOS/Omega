@@ -35497,15 +35497,25 @@ fn migrated_float_provider_plans_are_selected_for_every_native_target() {
             used_intrinsics,
             [
                 "Float::add.f32".to_owned(),
+                "Float::add.f64".to_owned(),
+                "Float::divide.f32".to_owned(),
                 "Float::divide.f64".to_owned(),
+                "Float::equal.f32".to_owned(),
                 "Float::equal.f64".to_owned(),
                 "Float::greater.f32".to_owned(),
+                "Float::greater.f64".to_owned(),
                 "Float::greater_or_equal.f32".to_owned(),
+                "Float::greater_or_equal.f64".to_owned(),
                 "Float::less.f32".to_owned(),
+                "Float::less.f64".to_owned(),
                 "Float::less_or_equal.f32".to_owned(),
+                "Float::less_or_equal.f64".to_owned(),
                 "Float::multiply.f32".to_owned(),
+                "Float::multiply.f64".to_owned(),
                 "Float::not_equal.f32".to_owned(),
+                "Float::not_equal.f64".to_owned(),
                 "Float::subtract.f32".to_owned(),
+                "Float::subtract.f64".to_owned(),
             ]
             .into_iter()
             .collect(),
@@ -35577,6 +35587,177 @@ fn migrated_float_provider_plans_are_selected_for_every_native_target() {
             "only baseline-FMADD AArch64 targets may select nearest or directed FMA slots"
         );
     }
+}
+
+#[test]
+fn primitive_float_arithmetic_and_comparisons_execute_in_both_engines() {
+    const DIFFERENTIAL_SUITE_ID: &str =
+        "omega.float.hardware.macos_arm64.primitive-arithmetic-comparison.v1";
+    const DIFFERENTIAL_COVERAGE: &[&str] = &[
+        "binary32 finite add/subtract/multiply/divide",
+        "binary64 finite add/subtract/multiply/divide",
+        "binary32 equality and ordered comparisons",
+        "binary64 equality and ordered comparisons",
+    ];
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0xab78_9e85_39fe_9f96;
+    const PRIMITIVE_REQUIREMENTS: &[&str] = &[
+        "Float::add",
+        "Float::subtract",
+        "Float::multiply",
+        "Float::divide",
+        "Float::equal",
+        "Float::not_equal",
+        "Float::less",
+        "Float::less_or_equal",
+        "Float::greater",
+        "Float::greater_or_equal",
+    ];
+
+    let canary = pass_canary("operators/float_operator_identities");
+    let main_path = canary.join("main.omg");
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("primitive float arithmetic and comparisons should compile");
+    let operator_path = |operator: &psi_typed_trees::operator::OperatorDefinition| {
+        checked
+            .typed
+            .operator_path_members(operator.name)
+            .iter()
+            .map(|member| member.as_str())
+            .collect::<Vec<_>>()
+            .join("::")
+    };
+    let mut selected_intrinsics = std::collections::BTreeSet::new();
+    let mut selected_plan_identities = Vec::new();
+    for operator_use in checked.facts.operators.resolved_uses() {
+        let Some(candidate) = checked.facts.operators.selected_candidate(operator_use) else {
+            continue;
+        };
+        let Some(operator) = checked
+            .typed
+            .operators()
+            .iter()
+            .find(|operator| operator.symbol == candidate.operator_symbol)
+        else {
+            continue;
+        };
+        if !PRIMITIVE_REQUIREMENTS.contains(&operator_path(operator).as_str()) {
+            continue;
+        }
+        let plan = checked
+            .selected_provider_plans()
+            .plan_by_identity(operator_use.provider_plan_identity)
+            .expect("primitive float evidence must retain its selected plan");
+        let [row] = plan.rows.as_slice() else {
+            panic!("primitive float plan must retain one exact realization row");
+        };
+        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { name } =
+            &row.binding
+        else {
+            panic!("primitive float plan must select a compiler intrinsic");
+        };
+        selected_intrinsics.insert(name.clone());
+        selected_plan_identities.push(plan.identity_fingerprint());
+    }
+    let expected_intrinsics = [
+        "Float::add.f32",
+        "Float::add.f64",
+        "Float::divide.f32",
+        "Float::divide.f64",
+        "Float::equal.f32",
+        "Float::equal.f64",
+        "Float::greater.f32",
+        "Float::greater.f64",
+        "Float::greater_or_equal.f32",
+        "Float::greater_or_equal.f64",
+        "Float::less.f32",
+        "Float::less.f64",
+        "Float::less_or_equal.f32",
+        "Float::less_or_equal.f64",
+        "Float::multiply.f32",
+        "Float::multiply.f64",
+        "Float::not_equal.f32",
+        "Float::not_equal.f64",
+        "Float::subtract.f32",
+        "Float::subtract.f64",
+    ]
+    .into_iter()
+    .map(str::to_owned)
+    .collect();
+    assert_eq!(selected_intrinsics, expected_intrinsics);
+    selected_plan_identities.sort_unstable();
+    selected_plan_identities.dedup();
+    assert_eq!(
+        selected_plan_identities.len(),
+        20,
+        "{DIFFERENTIAL_SUITE_ID} must bind one exact plan per operation and format"
+    );
+
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter must execute the complete primitive float matrix; error: {:?}",
+        outcome.error
+    );
+
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-primitive-float-arithmetic-comparison-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("primitive float arithmetic and comparisons should compile natively");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("primitive float arithmetic and comparison canary should run");
+    assert_eq!(output.status.code(), Some(70));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    for target in ["linux_x64", "linux_arm64"] {
+        let scratch = std::env::temp_dir().join(format!(
+            "omega-primitive-float-arithmetic-comparison-{target}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&scratch);
+        let source_dir = scratch.join("src");
+        fs::create_dir_all(&source_dir).expect("primitive float cross-target source directory");
+        fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
+            .expect("copy primitive float canary");
+        fs::write(
+            source_dir.join("build.omg"),
+            format!("target {target} {{\n}}\n"),
+        )
+        .expect("write primitive float target manifest");
+        compile(CompileOptions {
+            root_path: source_dir.join("main.omg"),
+            build_dir: Some(scratch.join("out")),
+            target_name: Some(target.to_owned()),
+            write_output: true,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!("primitive float operations should compile for {target}: {diagnostics:#?}")
+        });
+        let _ = fs::remove_dir_all(&scratch);
+    }
+
+    let result_identity = retained_float_differential_result_identity(
+        DIFFERENTIAL_SUITE_ID,
+        "macos_arm64",
+        DIFFERENTIAL_COVERAGE,
+        &selected_intrinsics,
+        &selected_plan_identities,
+        &outcome,
+        &output,
+        &["linux_x64", "linux_arm64"],
+    );
+    assert_eq!(
+        result_identity, EXPECTED_DIFFERENTIAL_RESULT_IDENTITY,
+        "{DIFFERENTIAL_SUITE_ID} result changed ({result_identity:#018x}); validate the exact plans, edge corpus, interpreter/native results, and cross-target builds before refreshing the retained identity"
+    );
 }
 
 #[test]

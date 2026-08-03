@@ -393,7 +393,13 @@ cross-builds. The float-to-integer cohort retains
 `0x297cb8ce8d1adc1c`, binding all twenty exact source/destination/domain plan
 identities to both-format truncation toward zero across every integer width,
 in-range Trapping dispatch, signed/unsigned/NaN saturation, interpreter/native
-outputs, and both Linux cross-builds. Directed FMA separately
+outputs, and both Linux cross-builds. The primitive arithmetic/comparison
+cohort retains
+`omega.float.hardware.macos_arm64.primitive-arithmetic-comparison.v1` /
+`0xab789e8539fe9f96`, binding all twenty exact operation/format plan identities
+to finite add/subtract/multiply/divide and all six equality/ordered comparisons
+in both formats, interpreter/native outputs, and both Linux cross-builds.
+Directed FMA separately
 retains `omega.float.hardware.macos_arm64.directed-fma.v1` /
 `0x75be2c4963f3f15a`, binding its six exact plan identities to binary32/binary64
 half-ULP cases, all three requested directions, one fused rounding,
