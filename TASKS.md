@@ -1017,6 +1017,8 @@ improvements do not change public identity.
   and phase snapshots; `psi-language-core` owns source-level multiplicity,
   data-supply, carry, domain-body, call-acknowledgement, atomic-ordering,
   cast-form, operator-spelling, and source-assembly contract vocabulary;
+  `psi-language-semantics` owns resolved semantic identities, service/domain
+  tables, termination/supply plans, establishment routes, and byte predicates;
   `psi-numerics` owns exact
   numerics, host-independent float semantics, arithmetic domains, and literal
   payloads; `psi-source-loader` owns root-file loading; and
