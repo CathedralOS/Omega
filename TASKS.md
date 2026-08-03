@@ -834,7 +834,11 @@ Remaining:
   selects the production-versus-oracle route there either. The x86-64 Win64
   and SysV ordinary-import marshallers and their relocation planners now carry
   that mode through their final plan validation/evaluation choice as well. The
-  x86-64 external/data relocation walker consumes the same explicit mode,
+  Win64 key-state, file-I/O, clock out-parameter, and runtime-text concrete
+  adapters use it for their independently normalized native subcall plans too;
+  no optional `CallPlan` remains as an authority selector in the x86-64 ISA
+  layer. The x86-64 external/data relocation walker consumes the same explicit
+  mode,
   keeping encoded bytes and relocation accounting on one authority route.
   The crate-local object call/data offset helpers enforce the same
   required-plan/named-no-plan split.
