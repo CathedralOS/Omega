@@ -126,10 +126,14 @@ The provider-independent selection gate is also live in `omega-task-plans`.
 It consumes one exact checked-conformance or admission-receipt identity for
 each demanded CPU/host-thread preservation axis, rejects missing or mismatched
 evidence, and folds the validated executor selection into the task lifecycle
-claim and dependency record. This is deliberately not a generalized runtime
-behavior/supply record. Connecting those identities to the ordinary selected
-`TaskRuntime` provider plan is live; connecting dynamic provider-instance and
-source invocation receipts remains TR3–TR8 work.
+claim and dependency record. The dynamic seam is now structural too: one
+provider invocation receipt must match the Omega-owned activation fact's exact
+selected runtime, provider plan, `start`/`try_start` requirement and operation,
+and activation-plan identity before the lifecycle ledger accepts it. The
+receipt binds the runtime instance and preservation evidence, and invocation
+and receipt identities are single-use within that instance. This is
+deliberately not a generalized runtime behavior/supply record or source fact;
+routed establishment of the source `Task<T>` value remains later TR3–TR8 work.
 
 Architectural preemption does not itself create a semantic crossing. A runtime
 may stop and restore opaque register/stack state without changing the
@@ -514,9 +518,11 @@ arguments remain TR3–TR8 work.
    `PreemptionGranularity`, and the generalized activation/runtime join from
    `omega-task-plans`. The ordinary selected `TaskRuntime` provider plan and
    operation-specific requirement are connected to each concrete activation.
-   Next connect the provider-instance/invocation receipt, stack
-   resource/reservation, carry obligations, and cancellation conformance; then
-   add transactional `start`/`try_start` ownership.
+   The normalized provider-instance/invocation receipt now binds that static
+   fact, its exact activation plan, and the executor's preservation evidence
+   before lifecycle accounting. Next connect stack resource/reservation,
+   cancellation conformance, and routed source establishment; then add
+   transactional `start`/`try_start` ownership.
 5. Connect the implemented normalized provider-provenance/child-lease ledger
    to selected runtime values and source `Task<T>` after provider selection and
    routed establishment lands. The ledger already prevents premature

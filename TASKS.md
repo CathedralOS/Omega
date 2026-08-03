@@ -149,9 +149,13 @@ composite claim-frontier work remain.
   selected-provider plan and exact operation requirement, rejecting a missing
   provider or a provider that narrows the published machine-parameter
   contract. `CheckedTrees` retains the source/checking facts but no target
-  layout, calling-plan, stack, or runtime-selection artifact. Continue from
-  that static binding into per-invocation behavior receipts,
-  stack-resource authority, and custody under TR3–TR8.
+  layout, calling-plan, stack, or runtime-selection artifact. A dynamic
+  provider-instance/invocation receipt now revalidates that exact static
+  provider, requirement, operation, activation plan, and preservation evidence
+  before lifecycle accounting; invocation and receipt identities are
+  single-use within the instance. Continue into stack-resource authority,
+  cancellation conformance, routed source establishment, and transactional
+  custody under TR3–TR8.
 
 Acceptance: reconstructing an authority carrier does not establish its facts;
 an authorized route cannot satisfy a predicate-bearing result without proving
@@ -951,8 +955,10 @@ improvements do not change public identity.
   complete. The core runtime surface is now an ordinary boundary trait, and
   concrete activation facts retain the exact selected provider plan plus
   `start`/`try_start` requirement identity. Dynamic provider-instance and
-  invocation receipts, fixed-stack reservation, cancellation conformance,
-  transactional argument custody, and task-claim provenance remain.
+  invocation receipts now bind those facts and their preservation evidence
+  before the normalized lifecycle ledger can issue a claim. Fixed-stack
+  reservation, cancellation conformance, transactional argument custody,
+  routed task-claim establishment, and task-claim provenance remain.
 - **PSIIR — IMPLEMENTATION WORK:** build the terminal Psi boundary settled in
   `wiki/architecture/pipeline/terminal_psi.md`. Psi owns Omega-file parsing
   through one concrete, post-instantiation semantic module; Omega starts at

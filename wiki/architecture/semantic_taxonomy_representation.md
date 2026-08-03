@@ -599,9 +599,12 @@ lowering. Every activation requires the cancellation operation because
 cancellation-request authority is part of every `Task<T>` claim. Provider
 plans now bind each concrete activation to the exact selected `TaskRuntime`
 plan and exact `start`/`try_start` requirement; missing selection and provider
-machine-contract narrowing reject. Dynamic provider-instance/invocation
-receipts, dispatch, claim provenance, stack leases, and child accounting remain
-later task-runtime rungs.
+machine-contract narrowing reject. A normalized dynamic invocation receipt now
+revalidates that static provider, requirement, operation, and activation-plan
+binding, retains the runtime instance plus exact preservation evidence, and is
+single-use beside its invocation identity in the lifecycle ledger. Dispatch,
+routed source-claim establishment, stack leases, and transactional argument
+custody remain later task-runtime rungs.
 
 ### Multiplicity and permission context
 
