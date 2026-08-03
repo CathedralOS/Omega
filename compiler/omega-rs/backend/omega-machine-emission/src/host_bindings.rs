@@ -66,6 +66,31 @@ pub(super) fn windows_get_std_handle_plan<'plan>(
         })
 }
 
+pub(super) fn runtime_text_call_plans<'plan>(
+    input: MachineEmissionContext<'plan>,
+    operation_key: HostOperationKey,
+    binding: &'plan HostBinding,
+) -> Result<omega_instruction_selection::RuntimeTextCallPlans<'plan>, Diagnostic> {
+    let operation_plan = binding.call_plan().ok_or_else(|| {
+        Diagnostic::error(format!(
+            "runtime text operation {}.{} has no retained call plan",
+            operation_key.capability_name(),
+            operation_key.operation_name()
+        ))
+    })?;
+    match windows_get_std_handle_plan(input, operation_key)? {
+        Some(get_std_handle) => Ok(
+            omega_instruction_selection::RuntimeTextCallPlans::WindowsFileAdapter {
+                get_std_handle,
+                file_io: operation_plan,
+            },
+        ),
+        None => Ok(omega_instruction_selection::RuntimeTextCallPlans::Direct(
+            operation_plan,
+        )),
+    }
+}
+
 pub(super) fn instruction_requires_float_control_restore(
     input: MachineEmissionContext<'_>,
     instruction: &SelectedInstructionKind,

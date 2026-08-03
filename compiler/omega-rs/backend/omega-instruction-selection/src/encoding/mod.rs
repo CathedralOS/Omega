@@ -81,7 +81,7 @@ pub use runtime_storage::{
     x86_64_encode_write_place_string_with_sites,
 };
 pub use runtime_text::{
-    encode_runtime_byte_read, encode_runtime_byte_read_with_plan,
+    RuntimeTextCallPlans, encode_runtime_byte_read, encode_runtime_byte_read_with_plan,
     encode_runtime_byte_read_with_plans, encode_runtime_byte_write,
     encode_runtime_byte_write_with_plan, encode_runtime_byte_write_with_plans,
     encode_runtime_text_buffer_materialize,
