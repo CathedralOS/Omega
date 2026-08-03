@@ -68,8 +68,9 @@ Boolean machine may return a literal or one exact named parameter from any
 sequence of ordinary Boolean parameters, either directly or through a
 nonempty linear sequence of unconditional state bindings. Every non-entry
 Boolean state has one ordinary Boolean parameter, and each jump carries a
-literal or an exact parameter from its source state. A single-state integer
-machine may declare any nonempty sequence of ordinary primitive-integer
+literal or an exact parameter from its source state. Compile-known Boolean
+bindings likewise must match the closed reflexive contract. A single-state
+integer machine may declare any nonempty sequence of ordinary primitive-integer
 parameters and return one exact named parameter or a recursively nested
 expression over parameters and landed literals using the six builtin
 add/subtract/multiply operations in the settled Wrapping or Saturating domains.

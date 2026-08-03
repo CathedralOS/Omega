@@ -1108,7 +1108,9 @@ improvements do not change public identity.
   add/subtract/multiply in a settled arithmetic domain. A third exact form
   lowers a Boolean literal or one exact named parameter from ordinary Boolean
   parameters, either directly or through a nonempty linear sequence of
-  unconditional one-parameter Boolean state bindings. It emits the module and
+  unconditional one-parameter Boolean state bindings. Optional compile-known
+  propagation also requires its result to match the closed reflexive contract.
+  It emits the module and
   proof bundle separately; real-source canaries cover all six versioned integer
   policy operations in constant-fed and runtime-fed forms, Boolean literal,
   ninth-parameter direct and three-state bound returns, a closed three-state
