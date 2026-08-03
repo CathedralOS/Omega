@@ -716,6 +716,11 @@ register streams from those exact selected shapes. The remaining scalar Core
 Graphics rows—color-space creation, bitmap-context creation/snapshot, image
 width, release calls, and event-source key state—retain their exact zero-,
 one-, two-, or seven-word parameter plans and word/source-scratch results.
+The no-argument Darwin `___error()` row retains an I32 stored-result plan for
+its pointer-dereference adapter. Other Darwin filesystem imports remain on an
+explicitly named compatibility helper until their seam canonicalizes a stored
+I32/U32 and a synthesized immediate to the same typed external scalar; binding
+one plan before that normalization would reject a valid call-site spelling.
 Register-resident AArch64 C/import emission now also evaluates AAPCS64 from the
 selected operand shapes and passes the exact planned X/V argument and result
 registers to the ISA encoder. Scalar stack arguments and flat HFA arguments and
