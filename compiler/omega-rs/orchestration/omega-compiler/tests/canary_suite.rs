@@ -42646,7 +42646,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "ownership/linear_zero_storage_unestablished",
     "arithmetic/bare_name_scopes",
     "arithmetic/bounded_max_call",
-    "arithmetic/bounded_float_division",
+    "arithmetic/float_unit_ratio_compile",
     "arithmetic/bounded_return_literal",
     "arithmetic/const_fold_overflow_compiles",
     "arithmetic/exact_integer_cast_proven",
