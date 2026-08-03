@@ -1004,8 +1004,11 @@ improvements do not change public identity.
   checked-source producer lowers an ordered positive-Boolean/fallback branch
   whose successors bind already-defined integer entry parameters to direct-
   return branch states. The restricted fixed-work checker derives the maximum
-  acyclic branch cost and complete safe-point graph partition. Target/native
-  block lowering remains implementation work.
+  acyclic branch cost and complete safe-point graph partition. That exact
+  three-block/direct-parameter shape now retains both structural and return
+  edges through target assignment and emits executable x86-64/AArch64
+  conditional returns. General target/native block programs and branch-local
+  computation remain implementation work.
   The first frontend-ownership migration slice is live: `psi-source` owns
   source identities, byte spans, and source-backed text; `psi-tokens` owns the
   token representation; `psi-arena` owns generic dense, paged, generational,
@@ -1159,9 +1162,11 @@ improvements do not change public identity.
   across both edges and agrees across its ten-unit certificate, interpretation,
   and emitted host execution.
   The source conditional survives frontend disposal, executes either arm with
-  only its selected edge charged, and retains both successors through the Omega
-  abstract boundary. Its fixed-work certificate is two units; target/native
-  lowering refuses it honestly.
+  only its selected edge charged, retains both successors through the Omega
+  abstract boundary, and reaches emitted host machine code for both arms. Its
+  fixed-work certificate is two units. The target/native continuation remains
+  deliberately exact: runtime Boolean selection between two direct integer
+  parameter returns is live; general branch-local operations fail closed.
   Because the
   legacy exit prover cannot establish ordinary `result == literal` contracts,
   this bootstrap canary preserves a closed typed `requires`/`ensures` fact and

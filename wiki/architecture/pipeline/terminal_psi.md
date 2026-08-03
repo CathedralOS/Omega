@@ -60,8 +60,11 @@ path. The canonical codec round-trips both ordered successors, the interpreter
 executes and charges only the selected edge, and Omega's source-independent
 abstract plan retains canonical block entries and both successor records.
 The checked-source producer lowers one exact direct-binding conditional form.
-The restricted fixed-work checker derives its maximum acyclic branch bound;
-target/native block lowering remains implementation work.
+The restricted fixed-work checker derives its maximum acyclic branch bound.
+That same three-block form now crosses target assignment and emits x86-64 and
+AArch64 code when a runtime Boolean selects between two direct integer
+parameter returns. General block programs and branch-local computation remain
+implementation work and fail closed.
 
 The checked-frontend migration also keeps the ownership firewall explicit:
 `psi-checked-trees` now owns the target-neutral checked representation and
@@ -116,9 +119,10 @@ integer chain, a direct zero-parameter integer literal, plus a nine-parameter
 integer direct return, discards
 `CheckedTrees`, then verifies and executes the produced semantic modules.
 The source conditional likewise survives frontend disposal, selects both arms,
-charges only the taken edge, and crosses Omega's abstract boundary with both
-successors intact. Its fixed-work certificate is two units; target lowering
-continues to refuse it.
+charges only the taken edge, crosses Omega's abstract boundary with both
+successors intact, and executes both selections through emitted host machine
+code. Its fixed-work certificate is two units. Target lowering accepts only
+this direct-parameter shape; computed branch-local work remains fail-closed.
 Constant-fed wrapping add and the Boolean literal reach emitted host machine
 code; direct ninth `bool` and `u8` returns cross the host incoming-stack ABI;
 and runtime wrapping add
@@ -236,9 +240,9 @@ and obligation subjects point to the exact authored `ensures` fact site rather
 than the enclosing machine declaration. The real-source
 canary encodes and manifests the debug section,
 drops checked trees, and decodes it against the reconstructed semantic module.
-Target/native conditional lowering, the remaining arithmetic-policy variants,
-general register assignment, build-time fuel migration, and native fuel
-metering remain next.
+General target/native conditional block lowering, the remaining arithmetic-
+policy variants, general register assignment, build-time fuel migration, and
+native fuel metering remain next.
 The v5 wrapping-subtract canary independently round-trips, verifies,
 costs one operation plus one return edge, lowers, and executes parameter-fed
 `u8` 5-10 as 251 through a real C ABI call.

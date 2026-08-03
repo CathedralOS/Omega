@@ -74,6 +74,27 @@ pub enum TerminalTargetOperation {
         scalar_type: IntegerType,
         expression: TerminalTargetIntegerExpression,
     },
+    /// Select between two direct integer-parameter returns using one caller-
+    /// supplied Boolean. This is the first target realization of terminal-Psi
+    /// block control; both structural and return edges remain explicit.
+    ReturnIntegerConditionalParameters {
+        condition_source: ValueId,
+        condition_parameter_index: usize,
+        condition_location: TerminalScalarParameterLocation,
+        scalar_type: IntegerType,
+        when_true: TerminalTargetConditionalIntegerParameter,
+        when_false: TerminalTargetConditionalIntegerParameter,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalTargetConditionalIntegerParameter {
+    pub psi_edge: EdgeId,
+    pub psi_return_edge: EdgeId,
+    pub source_value: ValueId,
+    pub argument_value: ValueId,
+    pub parameter_index: usize,
+    pub location: TerminalScalarParameterLocation,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
