@@ -1119,6 +1119,7 @@ pub fn validate_access_plan(
     }
     validate_external_write_units(&descriptors)?;
     validate_destructive_access_units(&descriptors)?;
+    validate_atomic_transfer_units(&descriptors)?;
 
     let layout_fingerprint = plan.layout_fingerprint;
     let identity = normalized_access_plan_identity(&plan, layout_fingerprint);
@@ -1129,6 +1130,32 @@ pub fn validate_access_plan(
         fields: descriptors,
         layout_size_bytes: layout_size,
     })
+}
+
+fn validate_atomic_transfer_units(
+    descriptors: &[FieldAccessDescriptor],
+) -> Result<(), AccessPlanDiagnostic> {
+    let atomic = descriptors
+        .iter()
+        .filter(|descriptor| descriptor.observation == ObservationModel::Atomic)
+        .collect::<Vec<_>>();
+    for (index, left) in atomic.iter().enumerate() {
+        if let Some(right) = atomic[index + 1..].iter().find(|right| {
+            left.effect_footprint.overlaps(right.effect_footprint)
+                && left.effect_footprint != right.effect_footprint
+        }) {
+            return Err(AccessPlanDiagnostic(format!(
+                "atomic fields `{}` and `{}` select overlapping transfer containers {}..{} and {}..{}; one active atomic placement cannot mix widths over the same bytes",
+                left.field,
+                right.field,
+                left.effect_footprint.byte_offset,
+                left.effect_footprint.end(),
+                right.effect_footprint.byte_offset,
+                right.effect_footprint.end(),
+            )));
+        }
+    }
+    Ok(())
 }
 
 fn validate_external_write_units(
@@ -3497,6 +3524,48 @@ mod tests {
             })
         );
         assert_eq!(request.reach(), &BoundaryReach::default());
+    }
+
+    #[test]
+    fn overlapping_atomic_fields_cannot_select_mixed_widths() {
+        let layout = LayoutPlanReport {
+            schema_identity: 0xa70,
+            entries: vec![
+                LayoutFieldEntryReport {
+                    field: "wide".into(),
+                    member_identity: None,
+                    placement: LayoutPlacementReport::At { offset: 0 },
+                },
+                LayoutFieldEntryReport {
+                    field: "upper".into(),
+                    member_identity: None,
+                    placement: LayoutPlacementReport::At { offset: 4 },
+                },
+            ],
+            offsets: Some(vec![0, 4]),
+            size: Some(8),
+            align: 8,
+        };
+        let atomic_load = |transfer_width_bits| FieldAccess::Atomic {
+            transfer_width_bits,
+            operations: AtomicPermissions {
+                load: true,
+                ..AtomicPermissions::default()
+            },
+            exposure: AccessExposure::Exported,
+        };
+        let error = validate_access_plan(
+            access_plan(
+                &layout,
+                &[("wide", atomic_load(64)), ("upper", atomic_load(32))],
+            ),
+            &layout,
+        )
+        .expect_err("one active placement cannot mix overlapping atomic widths");
+        assert!(
+            error.0.contains("overlapping transfer containers") && error.0.contains("mix widths"),
+            "diagnostic must identify both the overlap and granularity conflict: {error}"
+        );
     }
 
     #[test]
