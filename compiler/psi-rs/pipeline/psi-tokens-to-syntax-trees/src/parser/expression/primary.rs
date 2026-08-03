@@ -143,23 +143,35 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
     context: ExpressionContext,
 ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
     if input.at_keyword(KeywordKind::True) {
+        let source_span = input
+            .tokens
+            .first()
+            .map(|token| input.source_span(token))
+            .expect("recognized boolean literal has a source token");
         let input = input.take_keyword(KeywordKind::True, "true")?;
-        return Ok((
-            syntax_trees
-                .expressions
-                .insert(ExpressionNode::Boolean(true)),
-            input,
-        ));
+        let expression = syntax_trees
+            .expressions
+            .insert(ExpressionNode::Boolean(true));
+        syntax_trees
+            .expressions
+            .set_source_span(expression, source_span);
+        return Ok((expression, input));
     }
 
     if input.at_keyword(KeywordKind::False) {
+        let source_span = input
+            .tokens
+            .first()
+            .map(|token| input.source_span(token))
+            .expect("recognized boolean literal has a source token");
         let input = input.take_keyword(KeywordKind::False, "false")?;
-        return Ok((
-            syntax_trees
-                .expressions
-                .insert(ExpressionNode::Boolean(false)),
-            input,
-        ));
+        let expression = syntax_trees
+            .expressions
+            .insert(ExpressionNode::Boolean(false));
+        syntax_trees
+            .expressions
+            .set_source_span(expression, source_span);
+        return Ok((expression, input));
     }
 
     if input.at_keyword(KeywordKind::SelfValue) {
@@ -200,13 +212,19 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
             TokenKind::NumericLiteral(NumericLiteralKind::Integer(_))
         )
     }) {
+        let source_span = input
+            .tokens
+            .first()
+            .map(|token| input.source_span(token))
+            .expect("recognized integer literal has a source token");
         let (literal, input) = input.take_integer_literal()?;
-        return Ok((
-            syntax_trees
-                .expressions
-                .insert(ExpressionNode::Integer(literal)),
-            input,
-        ));
+        let expression = syntax_trees
+            .expressions
+            .insert(ExpressionNode::Integer(literal));
+        syntax_trees
+            .expressions
+            .set_source_span(expression, source_span);
+        return Ok((expression, input));
     }
 
     if input.tokens.first().is_some_and(|token| {

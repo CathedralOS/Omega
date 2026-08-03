@@ -177,9 +177,11 @@ spans. Decoding rejects wrong-module attachment, unknown subjects/files,
 alternate ordering, invalid spans, unknown tags, truncation, and trailing
 bytes. The exact checked-source producer populates honest declaration spans
 retained by the Psi symbol/source tables for machines, states, parameters, and
-the terminal subjects derived from them. It does not manufacture operation-site
-precision after expression spans have been discarded; retaining those exact
-sites remains. The real-source canary encodes and manifests the debug section,
+the terminal subjects derived from them. Psi expression tables now retain
+authored integer/Boolean literal and operator-token spans through syntax,
+resolution, typing, and checking; terminal operations and their result values
+therefore point to their exact authored expression sites. Exact transition-edge
+sites remain. The real-source canary encodes and manifests the debug section,
 drops checked trees, and decodes it against the reconstructed semantic module.
 Branching, the remaining
 arithmetic-policy variants, general register assignment, general
@@ -482,8 +484,9 @@ metadata, not executable authority and not a replacement for the separate
 `omega-executable-installation` admission/placement ladder. Typed debug-map v1
 is independently live in `psi-terminal-codec`; it is replaceable presentation
 metadata bound to one exact semantic identity. The checked-source producer
-populates retained declaration spans; exact expression/transition-site span
-retention remains.
+populates retained declaration spans plus exact integer/Boolean-literal and
+operator sites for terminal operations and their result values. Exact
+transition-edge site retention remains.
 
 ## Logical-fuel v1
 

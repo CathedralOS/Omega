@@ -2142,24 +2142,24 @@ fn build_debug_map(
         .expect("the exact source slice always emits one terminal machine");
     let source_states = checked.machine_states(source_machine);
     let mut subjects = Vec::<(DebugSubject, psi_source::SourceSpan)>::new();
-    let mut push = |subject, symbol| {
-        if let Some(span) = checked.symbols.symbol_source_span(symbol) {
+    let mut push = |subject, span| {
+        if let Some(span) = span {
             subjects.push((subject, span));
         }
     };
 
     push(
         DebugSubject::Machine(terminal_machine.id),
-        source_machine.symbol,
+        checked.symbols.symbol_source_span(source_machine.symbol),
     );
     push(
         DebugSubject::Contract(terminal_machine.contract.id),
-        source_machine.symbol,
+        checked.symbols.symbol_source_span(source_machine.symbol),
     );
     for clause in &terminal_machine.contract.ensures {
         push(
             DebugSubject::Obligation(clause.obligation),
-            source_machine.symbol,
+            checked.symbols.symbol_source_span(source_machine.symbol),
         );
     }
 
@@ -2167,17 +2167,34 @@ fn build_debug_map(
         let source_state = source_states
             .get(index)
             .expect("terminal blocks follow accepted source-state order");
-        push(DebugSubject::Block(block.id), source_state.symbol);
+        push(
+            DebugSubject::Block(block.id),
+            checked.symbols.symbol_source_span(source_state.symbol),
+        );
         push(
             DebugSubject::Edge(block.terminator.edge()),
-            source_state.symbol,
+            checked.symbols.symbol_source_span(source_state.symbol),
         );
-        for operation in &block.operations {
-            push(DebugSubject::Operation(operation.id), source_state.symbol);
-            push(
-                DebugSubject::Value(operation.result.id),
-                source_state.symbol,
-            );
+        let operation_spans = source_operation_spans_for_state(checked, source_state);
+        for (operation_index, operation) in block.operations.iter().enumerate() {
+            let source_span = operation_spans
+                .get(operation_index)
+                .copied()
+                .filter(|span| *span != psi_source::SourceSpan::default())
+                .filter(|span| checked.symbols.source_file(*span).is_some());
+            if let Some(source_span) = source_span {
+                push(DebugSubject::Operation(operation.id), Some(source_span));
+                push(DebugSubject::Value(operation.result.id), Some(source_span));
+            } else {
+                push(
+                    DebugSubject::Operation(operation.id),
+                    checked.symbols.symbol_source_span(source_state.symbol),
+                );
+                push(
+                    DebugSubject::Value(operation.result.id),
+                    checked.symbols.symbol_source_span(source_state.symbol),
+                );
+            }
         }
         for (parameter_index, parameter) in block.parameters.iter().enumerate() {
             if let Some(source_parameter) = checked
@@ -2186,7 +2203,10 @@ fn build_debug_map(
                 .filter(|parameter| !parameter.is_self)
                 .nth(parameter_index)
             {
-                push(DebugSubject::Value(parameter.id), source_parameter.symbol);
+                push(
+                    DebugSubject::Value(parameter.id),
+                    checked.symbols.symbol_source_span(source_parameter.symbol),
+                );
             }
         }
     }
@@ -2199,13 +2219,16 @@ fn build_debug_map(
                 .filter(|parameter| !parameter.is_self)
                 .nth(parameter_index)
             {
-                push(DebugSubject::Value(parameter.id), source_parameter.symbol);
+                push(
+                    DebugSubject::Value(parameter.id),
+                    checked.symbols.symbol_source_span(source_parameter.symbol),
+                );
             }
         }
     }
     push(
         DebugSubject::Value(terminal_machine.result.id),
-        source_machine.symbol,
+        checked.symbols.symbol_source_span(source_machine.symbol),
     );
 
     subjects.sort_by_key(|(subject, _)| *subject);
@@ -2279,6 +2302,49 @@ fn build_debug_map(
     };
     validate_debug_map(module, &debug_map).map_err(LoweringError::InvalidDebugMap)?;
     Ok(debug_map)
+}
+
+fn source_operation_spans_for_state(
+    checked: &CheckedTrees,
+    state: &psi_checked_trees::state::State,
+) -> Vec<psi_source::SourceSpan> {
+    let mut spans = Vec::new();
+    for statement in checked.statement_table.statements(state.statement_nodes) {
+        match statement {
+            StatementNode::Expression(expression) => {
+                collect_source_operation_spans(checked, *expression, &mut spans);
+            }
+            StatementNode::Transition(transition) => {
+                if let TransitionTargetNode::Named { arguments, .. } =
+                    checked.statement_table.transition_target(transition.target)
+                {
+                    for expression in checked.statement_table.expression_handles(*arguments) {
+                        collect_source_operation_spans(checked, *expression, &mut spans);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    spans
+}
+
+fn collect_source_operation_spans(
+    checked: &CheckedTrees,
+    expression: psi_checked_trees::expression::ExpressionHandle,
+    spans: &mut Vec<psi_source::SourceSpan>,
+) {
+    match checked.expression_table.expression(expression) {
+        ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => {
+            spans.push(checked.expression_table.source_span(expression));
+        }
+        ExpressionNode::Binary(binary) => {
+            collect_source_operation_spans(checked, binary.left, spans);
+            collect_source_operation_spans(checked, binary.right, spans);
+            spans.push(checked.expression_table.source_span(expression));
+        }
+        _ => {}
+    }
 }
 
 fn unsupported<T>(message: &'static str) -> Result<T, LoweringError> {

@@ -266,6 +266,11 @@ fn parse_binary_chain_handle<'tokens, 'source>(
             break;
         };
 
+        let operator_span = input
+            .tokens
+            .first()
+            .map(|token| input.source_span(token))
+            .expect("recognized binary punctuation has a source token");
         input = input.take_punctuation(punctuation, punctuation_label(punctuation))?;
         let (right, rest) = lower(syntax_trees, input, context)?;
         input = rest;
@@ -277,6 +282,9 @@ fn parse_binary_chain_handle<'tokens, 'source>(
                     operator,
                     right,
                 }));
+        syntax_trees
+            .expressions
+            .set_source_span(expression, operator_span);
     }
 
     Ok((expression, input))
@@ -400,6 +408,11 @@ fn parse_unary_expression_handle<'tokens, 'source>(
     }
 
     if input.at_punctuation(PunctuationKind::Minus) {
+        let operator_span = input
+            .tokens
+            .first()
+            .map(|token| input.source_span(token))
+            .expect("recognized unary punctuation has a source token");
         let input = input.take_punctuation(PunctuationKind::Minus, "-")?;
         let (operand, rest) = parse_unary_expression_handle(syntax_trees, input, context)?;
         // Fold numeric literals into their negative value so a negative literal
@@ -422,7 +435,11 @@ fn parse_unary_expression_handle<'tokens, 'source>(
                 })
             }
         };
-        return Ok((syntax_trees.expressions.insert(negated), rest));
+        let negated = syntax_trees.expressions.insert(negated);
+        syntax_trees
+            .expressions
+            .set_source_span(negated, operator_span);
+        return Ok((negated, rest));
     }
 
     if input.at_contextual("move") {

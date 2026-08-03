@@ -19,11 +19,14 @@ pub(crate) fn lower_expression_into_table(
     syntax_trees: &SyntaxTrees,
     expression: syntax::expression::ExpressionHandle,
 ) -> Result<ExpressionHandle, Diagnostic> {
-    lower_expression_node_into_table(
+    let source_span = syntax_trees.expressions.source_span(expression);
+    let lowered = lower_expression_node_into_table(
         lowerer,
         syntax_trees,
         syntax_trees.expressions.expression(expression),
-    )
+    )?;
+    expression_table(lowerer).set_source_span(lowered, source_span);
+    Ok(lowered)
 }
 
 fn lower_expression_node_into_table(
