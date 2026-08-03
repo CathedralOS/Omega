@@ -40,6 +40,27 @@ pub enum BuildTimeValue {
 }
 
 impl BuildTimeValue {
+    /// Canonical result-cell count for evaluator usage schema v1. Every value
+    /// contributes one root cell; aggregate fields, case payloads, and array
+    /// elements contribute their recursively retained cells as well. Text is
+    /// one value cell regardless of byte length; byte processing belongs to
+    /// the separate logical-work counters.
+    pub(crate) fn retained_cell_count(&self) -> Option<u64> {
+        let children = match self {
+            Self::Struct { fields, .. }
+            | Self::Case {
+                payload: fields, ..
+            } => fields.iter().try_fold(0u64, |count, (_, value)| {
+                count.checked_add(value.retained_cell_count()?)
+            })?,
+            Self::Array(elements) => elements.iter().try_fold(0u64, |count, value| {
+                count.checked_add(value.retained_cell_count()?)
+            })?,
+            Self::Unit | Self::Int(_) | Self::Bool(_) | Self::Float(_) | Self::Text(_) => 0,
+        };
+        children.checked_add(1)
+    }
+
     /// Materialize into an interpreter value tree (fresh cells throughout --
     /// build-time arguments never alias compiler state).
     pub(crate) fn into_value(self) -> Value {
@@ -117,5 +138,36 @@ impl BuildTimeValue {
             ),
             Value::Ref(cell) => Self::from_value(&cell.borrow()),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::BuildTimeValue;
+
+    #[test]
+    fn result_cell_count_is_recursive_and_text_is_one_cell() {
+        let value = BuildTimeValue::Struct {
+            type_name: "Envelope".to_owned(),
+            fields: vec![
+                (
+                    "payload".to_owned(),
+                    BuildTimeValue::Case {
+                        variant: "Ready".to_owned(),
+                        payload: vec![(
+                            "items".to_owned(),
+                            BuildTimeValue::Array(vec![
+                                BuildTimeValue::Int(1),
+                                BuildTimeValue::Text(vec![0; 4096]),
+                            ]),
+                        )],
+                    },
+                ),
+                ("valid".to_owned(), BuildTimeValue::Bool(true)),
+            ],
+        };
+
+        // Struct + case + array + two elements + bool.
+        assert_eq!(value.retained_cell_count(), Some(6));
     }
 }

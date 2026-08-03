@@ -252,9 +252,12 @@ fn run_const_machine_on_current_thread(
     let mut evaluator = Evaluator::new(program, &[]);
     evaluator.step_budget = CONST_EVAL_STEP_BUDGET;
     let result = evaluator.run_const_machine(machine_name);
-    let usage = evaluator.usage;
+    let mut usage = evaluator.usage;
     match result {
-        Ok(value) => Ok(MeasuredEvaluation::new(value, usage)),
+        Ok(value) => {
+            usage.record_result_cells(1);
+            Ok(MeasuredEvaluation::new(value, usage))
+        }
         Err(Halt::Exit(code)) => Err(format!(
             "the machine attempted to exit the process (code {code}) instead of returning a value"
         )),
@@ -280,9 +283,15 @@ pub(crate) fn run_build_time_machine(
                 let mut evaluator = Evaluator::new(program, &[]);
                 evaluator.step_budget = CONST_EVAL_STEP_BUDGET;
                 let result = evaluator.run_build_time_machine(machine_name, arguments);
-                let usage = evaluator.usage;
+                let mut usage = evaluator.usage;
                 match result {
-                    Ok(value) => Ok(MeasuredEvaluation::new(value, usage)),
+                    Ok(value) => {
+                        let result_cells = value.retained_cell_count().ok_or_else(|| {
+                            "build-time evaluator result-cell count overflowed".to_owned()
+                        })?;
+                        usage.record_result_cells(result_cells);
+                        Ok(MeasuredEvaluation::new(value, usage))
+                    }
                     Err(Halt::Exit(code)) => Err(format!(
                         "the machine attempted to exit the process (code {code}) instead of returning a value"
                     )),
@@ -312,9 +321,17 @@ pub(crate) fn run_build_time_machine_arguments(
                 let mut evaluator = Evaluator::new(program, &[]);
                 evaluator.step_budget = CONST_EVAL_STEP_BUDGET;
                 let result = evaluator.run_build_time_machine_arguments(machine_name, arguments);
-                let usage = evaluator.usage;
+                let mut usage = evaluator.usage;
                 match result {
-                    Ok(values) => Ok(MeasuredEvaluation::new(values, usage)),
+                    Ok(values) => {
+                        let result_cells = values.iter().try_fold(0u64, |count, value| {
+                            count.checked_add(value.retained_cell_count()?)
+                        }).ok_or_else(|| {
+                            "build-time evaluator result-cell count overflowed".to_owned()
+                        })?;
+                        usage.record_result_cells(result_cells);
+                        Ok(MeasuredEvaluation::new(values, usage))
+                    }
                     Err(Halt::Exit(code)) => Err(format!(
                         "the machine attempted to exit the process (code {code}) instead of returning"
                     )),
@@ -371,9 +388,17 @@ pub(crate) fn run_granted_build_machine_arguments(
                     let _ = std::io::stderr().write_all(&evaluator.stderr);
                     let _ = std::io::stderr().flush();
                 }
-                let usage = evaluator.usage;
+                let mut usage = evaluator.usage;
                 match result {
-                    Ok(values) => Ok(MeasuredEvaluation::new(values, usage)),
+                    Ok(values) => {
+                        let result_cells = values.iter().try_fold(0u64, |count, value| {
+                            count.checked_add(value.retained_cell_count()?)
+                        }).ok_or_else(|| {
+                            "build-time evaluator result-cell count overflowed".to_owned()
+                        })?;
+                        usage.record_result_cells(result_cells);
+                        Ok(MeasuredEvaluation::new(values, usage))
+                    }
                     Err(Halt::Exit(code)) => Err(format!(
                         "the machine attempted to exit the process (code {code}) instead of returning"
                     )),

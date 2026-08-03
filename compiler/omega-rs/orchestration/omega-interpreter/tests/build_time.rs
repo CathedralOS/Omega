@@ -72,8 +72,10 @@ machine Main::main(&mut self) { }
         evaluate_build_time_machine_measured(&checked.typed, "Planner::plan", vec![schema])
             .expect("equal evaluation should reproduce usage");
     assert_eq!(first.usage(), second.usage());
+    assert_eq!(first.usage().schema().schema_version(), 1);
     assert_eq!(first.usage().schedule().schedule_version(), 1);
     assert!(first.usage().fuel_units() > 0);
+    assert_eq!(first.usage().result_cells(), 4);
     assert_eq!(first.value(), second.value());
     let plan = first.into_value();
 
