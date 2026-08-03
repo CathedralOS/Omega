@@ -1294,13 +1294,13 @@ mod tests {
     use crate::StateCallPlanningContext;
     use omega_calling_conventions::build_host_abi_plan;
     use omega_platform_interface::build_host_call_plan;
-    use omega_source_files_to_tokens::Lexer;
+    use psi_source_files_to_tokens::Lexer;
     use omega_state_graph::build_runtime_flow_plan;
     use omega_state_graph_to_control_flow::build_control_flow_plan;
-    use omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-    use omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-    use omega_tokens_to_syntax_trees::parse_syntax_trees;
-    use omega_typed_trees_to_checked_trees::lower_typed_trees;
+    use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+    use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+    use psi_tokens_to_syntax_trees::parse_syntax_trees;
+    use psi_typed_trees_to_checked_trees::lower_typed_trees;
     use std::sync::Arc;
 
     #[test]

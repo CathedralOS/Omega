@@ -154,7 +154,7 @@ schema cardinality from `AccessPlan::inaccessible(schema)` and keyed functional
 replacement. The compiler evaluates `Access::plan` against a reified validated
 layout, derives transfer widths from that geometry, and evaluates
 `Placement::plan` into one normalized layout/access/reach identity. The
-`omega-access-plans` bootstrap validates geometry, exact widths,
+`psi-access-plans` bootstrap validates geometry, exact widths,
 observation/operation compatibility, borrow polarity, atomic orderings, exact
 internal loan facts, and sealed lowering requests. Its normalized `PlacementPlan` owns
 the complete layout/access pairing and one normalized boundary reach, which
