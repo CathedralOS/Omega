@@ -559,6 +559,31 @@ fn frontend_implementation_is_psi_owned() {
 }
 
 #[test]
+fn target_neutral_effect_inference_is_psi_owned() {
+    let root = workspace_root();
+    let legacy = root.join("compiler/omega-rs/representations/omega-effects/src/lib.rs");
+    let source = std::fs::read_to_string(&legacy)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", legacy.display()));
+    assert!(
+        source.contains("pub use psi_effects::*;"),
+        "legacy effect consumers must receive target-neutral facts from Psi"
+    );
+    for retired in ["operational.rs", "service_reach.rs", "invocations.rs"] {
+        assert!(
+            !legacy.with_file_name(retired).exists(),
+            "target-neutral effect inference returned to Omega: {retired}"
+        );
+    }
+
+    let providers = root
+        .join("compiler/omega-rs/representations/omega-effects/src/capabilities/provider_plan.rs");
+    assert!(
+        providers.exists(),
+        "provider bindings and installation policy must remain Omega-owned"
+    );
+}
+
+#[test]
 fn omega_to_psi_compatibility_adapter_stays_narrow() {
     let path = workspace_root()
         .join("compiler/omega-rs/pipeline/omega-checked-trees-to-terminal-psi/src/lib.rs");

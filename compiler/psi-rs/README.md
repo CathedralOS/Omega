@@ -49,6 +49,8 @@ Current roots:
   canonical semantic boundary identities;
 - `representations/psi-facts`: durable target-neutral places, contexts,
   propositions, and checked-fact plans;
+- `representations/psi-effects`: target-neutral operational ceilings, service
+  reach, synchronous invocation summaries, and capability-flow facts;
 - `representations/psi-terminal`: the in-memory terminal semantic module and
   its first integer-constant / jump / return operation vocabulary;
 - `pipeline/psi-source-files-to-tokens`: the Psi-owned Omega lexer;

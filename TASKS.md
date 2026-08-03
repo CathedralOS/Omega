@@ -1039,6 +1039,9 @@ improvements do not change public identity.
   native realization.
   `psi-facts` owns durable target-neutral places, contexts, propositions, and
   checked-fact plans; `omega-facts` is now only a compatibility export.
+  `psi-effects` owns operational ceilings, service reach, synchronous
+  invocation inference, and capability-flow facts. Provider declarations,
+  target/provider bindings, approval, and installation remain Omega-owned.
   `psi-source-files-to-tokens` owns Omega lexing and
   `psi-tokens-to-syntax-trees` owns unresolved parsing, both with no Omega
   dependency. `psi-syntax-trees-to-symbol-resolved-trees` owns name lookup,

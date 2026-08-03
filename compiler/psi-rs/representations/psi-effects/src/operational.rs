@@ -5,12 +5,12 @@
 //! capability approval, carry checks, and reports can join the same topology
 //! without rebuilding leaf `Vec`s or reintroducing a global service catalog.
 
-use omega_core::arena::{Arena, HandleSpan};
-use omega_core::symbols::SymbolHandle;
-use omega_typed_trees::TypedTrees;
-use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
-use omega_typed_trees::state::State;
-use omega_typed_trees::statement::{StatementNode, TableCall};
+use psi_arena::{Arena, HandleSpan};
+use psi_symbols::SymbolHandle;
+use psi_typed_trees::TypedTrees;
+use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
+use psi_typed_trees::state::State;
+use psi_typed_trees::statement::{StatementNode, TableCall};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct OperationalPlan {
@@ -62,7 +62,7 @@ pub struct CallOperational {
     pub direct_may_block: bool,
     pub transitive_may_suspend: bool,
     pub transitive_may_block: bool,
-    pub acknowledgement: omega_core::semantics::CallOperationalAcknowledgement,
+    pub acknowledgement: psi_language_semantics::CallOperationalAcknowledgement,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -98,7 +98,7 @@ struct CallWork {
     direct_may_block: bool,
     transitive_may_suspend: bool,
     transitive_may_block: bool,
-    acknowledgement: omega_core::semantics::CallOperationalAcknowledgement,
+    acknowledgement: psi_language_semantics::CallOperationalAcknowledgement,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -118,7 +118,7 @@ fn build_machine_work(program: &TypedTrees) -> Vec<MachineWork> {
 
     for machine in program.machines() {
         let uses_published_contract =
-            machine.supply_mode != omega_core::semantics::MachineSupplyMode::CheckedBody;
+            machine.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody;
         let states = program
             .machine_states(machine)
             .iter()
@@ -216,8 +216,7 @@ fn collect_statement_calls(
             }
         }
         StatementNode::Transition(transition) => {
-            if let omega_typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard
-            {
+            if let psi_typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard {
                 collect_expression_calls(program, guard, statement_index, call_ordinal, calls);
             }
             collect_transition_target_expression_calls(
@@ -242,7 +241,7 @@ fn collect_statement_calls(
 
 fn collect_transition_target_expression_calls(
     program: &TypedTrees,
-    target: omega_typed_trees::statement::TransitionTargetHandle,
+    target: psi_typed_trees::statement::TransitionTargetHandle,
     statement_index: usize,
     call_ordinal: &mut usize,
     calls: &mut Vec<CallWork>,
@@ -251,16 +250,16 @@ fn collect_transition_target_expression_calls(
         return;
     }
     match program.statement_table.transition_target(target) {
-        omega_typed_trees::statement::TransitionTargetNode::Named { arguments, .. } => {
+        psi_typed_trees::statement::TransitionTargetNode::Named { arguments, .. } => {
             for argument in program.statement_table.expression_handles(*arguments) {
                 collect_expression_calls(program, *argument, statement_index, call_ordinal, calls);
             }
         }
-        omega_typed_trees::statement::TransitionTargetNode::Value(expression) => {
+        psi_typed_trees::statement::TransitionTargetNode::Value(expression) => {
             collect_expression_calls(program, *expression, statement_index, call_ordinal, calls);
         }
-        omega_typed_trees::statement::TransitionTargetNode::SelfTarget
-        | omega_typed_trees::statement::TransitionTargetNode::Terminal => {}
+        psi_typed_trees::statement::TransitionTargetNode::SelfTarget
+        | psi_typed_trees::statement::TransitionTargetNode::Terminal => {}
     }
 }
 
@@ -390,7 +389,7 @@ fn push_expression_call(
 fn push_call(
     program: &TypedTrees,
     target_state_symbol: SymbolHandle,
-    acknowledgement: omega_core::semantics::CallOperationalAcknowledgement,
+    acknowledgement: psi_language_semantics::CallOperationalAcknowledgement,
     statement_index: usize,
     call_ordinal: &mut usize,
     calls: &mut Vec<CallWork>,
@@ -453,7 +452,7 @@ fn direct_operational_for_signature_symbol(
 
 fn signature_operational(
     program: &TypedTrees,
-    signature: &omega_typed_trees::signature::StateSignature,
+    signature: &psi_typed_trees::signature::StateSignature,
 ) -> DirectCallOperational {
     let mut operational = DirectCallOperational {
         may_suspend: signature.suspends,
@@ -603,9 +602,9 @@ fn build_plan(machines: Vec<MachineWork>) -> OperationalPlan {
             let mut calls = HandleSpan::empty();
             for call in state.calls {
                 let acknowledgement = if call.acknowledgement.origin
-                    == omega_core::semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized
+                    == psi_language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized
                 {
-                    omega_core::semantics::CallOperationalAcknowledgement {
+                    psi_language_semantics::CallOperationalAcknowledgement {
                         acknowledges_suspend: call.transitive_may_suspend,
                         acknowledges_block: call.transitive_may_block,
                         ..call.acknowledgement

@@ -1,7 +1,7 @@
-use omega_core::arena::{Arena, HandleSpan};
-use omega_core::semantics::{ServiceReachId, ServiceReachRowId, ServiceReachRowTable};
-use omega_core::symbols::SymbolHandle;
-use omega_typed_trees::TypedTrees;
+use psi_arena::{Arena, HandleSpan};
+use psi_language_semantics::{ServiceReachId, ServiceReachRowId, ServiceReachRowTable};
+use psi_symbols::SymbolHandle;
+use psi_typed_trees::TypedTrees;
 
 use crate::OperationalPlan;
 
@@ -121,7 +121,7 @@ pub fn infer_service_reaches(
             symbol: machine.symbol,
             published: published.clone(),
             uses_published: machine.supply_mode
-                != omega_core::semantics::MachineSupplyMode::CheckedBody
+                != psi_language_semantics::MachineSupplyMode::CheckedBody
                 || !program
                     .service_reach_rows
                     .services(machine.service_reach_row)
@@ -255,7 +255,7 @@ fn direct_service_reach_for_call(
     // contract reaches a canonical boundary-service identity. Resolve that
     // identity through the same symbol-backed table as authored `reaches`
     // rows; never consult the lowercase/u64 compatibility catalog here.
-    for function in omega_core::symbols::BuiltinFunction::asm_intrinsics() {
+    for function in psi_symbols::BuiltinFunction::asm_intrinsics() {
         if program.symbols.builtin_function_symbol(function) != Some(target) {
             continue;
         }
@@ -313,7 +313,7 @@ fn direct_service_reach_for_call(
 
 fn extend_invoked_binding_services(
     program: &TypedTrees,
-    signature: &omega_typed_trees::signature::StateSignature,
+    signature: &psi_typed_trees::signature::StateSignature,
     services: &mut Vec<ServiceReachId>,
 ) {
     let parameters = program
