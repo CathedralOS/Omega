@@ -932,6 +932,12 @@ boundary plan is not a replacement for the adapter's internal ABI call. The
 Darwin anonymous-variadic `open_create` seam remains explicitly outside this
 claim until `CallSignature` can represent its concrete trailing variadic.
 
+The unused x86-64 call/data relocation wrappers that silently selected
+Microsoft x64 are now retired. The object relocation walk also no longer makes
+a redundant second no-plan data-site query after its plan-aware query. The
+remaining x86-64 relocation consumers therefore either name the policy being
+tested as a compatibility oracle or supply the retained authoritative plan.
+
 Remaining order:
 
 1. Complete plan-driven outbound calls and their results;
