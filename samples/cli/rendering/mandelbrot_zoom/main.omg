@@ -4,6 +4,7 @@
 // framebuffer, in-place console redraw, and timed animation -- the full stack.
 // Expected exit: 0.
 // Expected output contains: #
+use omega::language::core::float_operations;
 use omega::language::std::console;
 
 domain [u8]::Utf8
@@ -71,8 +72,8 @@ machine Main::main(&mut self) {
         transition self.x >= 0 && self.x < 48 { true -> pixel_init() _ -> emit_row() }
     }
     state pixel_init(&mut self) {
-        self.cr = (self.x as f64 / 48.0 - 0.5) * self.span - 0.743644;
-        self.ci = (self.y as f64 / 22.0 - 0.5) * self.span * 0.5 + 0.131826;
+        self.cr = (F64::from_i32(self.x) / 48.0 - 0.5) * self.span - 0.743644;
+        self.ci = (F64::from_i32(self.y) / 22.0 - 0.5) * self.span * 0.5 + 0.131826;
         self.zr = 0.0;
         self.zi = 0.0;
         self.k = 0;
@@ -106,7 +107,7 @@ machine Main::main(&mut self) {
     }
     state write_pixel(&mut self) {
         self.ch = self.palette[self.idx] as u8 in Wrapping;
-        self.row[self.x] = self.ch;
+        self.row[self.x] = self.ch as u8;
         self.x = self.x + 1;
         transition { _ -> col_loop() }
     }
