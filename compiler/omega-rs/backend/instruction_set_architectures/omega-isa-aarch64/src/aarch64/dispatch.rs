@@ -544,7 +544,7 @@ mod entry_argument_register_tests {
     fn ninth_aapcs64_argument_loads_above_the_function_frame() {
         let bytes = encode_entry_stack_argument_write_bytes(0, 0, 8).expect("incoming stack copy");
         assert_eq!(bytes.len(), 16);
-        assert_eq!(&bytes[8..12], &0xf940_33f1u32.to_le_bytes());
+        assert_eq!(&bytes[8..12], &0xf940_3bf1u32.to_le_bytes());
         assert_eq!(&bytes[12..16], &0xf900_0211u32.to_le_bytes());
     }
 

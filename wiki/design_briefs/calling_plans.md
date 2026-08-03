@@ -882,6 +882,14 @@ parameter fact without creating a detachable receipt; the eventual concrete
 provider entry executor must require this borrowed handoff before dispatching
 the checked adapter body.
 
+Fixed generated call-return frames now make `ControlState` part of their exact
+machine footprint. They save the caller's complete MXCSR/FPCR, establish
+Omega's canonical semantic controls before checked execution, and restore the
+caller on return; footprint validation permits that state only for prescribed
+`CallReturn` mechanics. This supplies the concrete callback entry/exit seam.
+It does not replace outbound binding validation: a foreign call must still
+carry a preservation proof or use a save/restore trampoline.
+
 Syscall bindings now retain only syscall identity and number. Register
 placement and supervisor-call control come exclusively from the normalized
 plan on both x86-64 and AArch64; the historical duplicate register-slot and

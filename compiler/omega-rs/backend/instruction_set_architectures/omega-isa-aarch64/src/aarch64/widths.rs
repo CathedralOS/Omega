@@ -107,11 +107,11 @@ pub fn syscall_sequence_width_from_operands(
 }
 
 pub fn function_enter_width() -> usize {
-    28
+    40
 }
 
 pub fn return_width() -> usize {
-    28
+    36
 }
 
 pub fn machine_halt_width() -> usize {
