@@ -350,7 +350,12 @@ evidence remain. The first retained differential results are
 binary32/binary64 rounding-edge cases, the three requested directions,
 control-state restoration, interpreter/native outputs, and Linux
 x86-64/AArch64 cross-build success. These are five target/family slices, not
-evidence for the remaining hardware realizations.
+evidence for the remaining hardware realizations. Directed FMA separately
+retains `omega.float.hardware.macos_arm64.directed-fma.v1` /
+`0x75be2c4963f3f15a`, binding its six exact plan identities to binary32/binary64
+half-ULP cases, all three requested directions, one fused rounding,
+control-state restoration, interpreter/native outputs, and Linux AArch64
+cross-build success.
 
 ## 2. Domains: the value/policy split
 

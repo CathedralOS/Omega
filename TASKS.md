@@ -1622,8 +1622,13 @@ and allocation handles expose no compiler-owned stack/control storage.
   `0x8b87625fd5e9f1b7`. Each identity binds the family's six exact selected plans,
   binary32/binary64 rounding edges, all three directions, control-state
   restoration, interpreter/native results, and Linux x86-64/AArch64 cross-build
-  results. Every other admitted hardware realization still needs an equally
-  target-specific retained suite result.
+  results. The directed-FMA slice separately retains
+  `omega.float.hardware.macos_arm64.directed-fma.v1` /
+  `0x75be2c4963f3f15a`, binding its six exact plans to binary32/binary64 half-ULP
+  edges, all three directions, one fused rounding, control-state restoration,
+  interpreter/native results, and Linux AArch64 cross-build success. Every other
+  admitted hardware realization still needs an equally target-specific retained
+  suite result.
   The first checked-software provider slice is now live independently of a
   float algorithm: an ordinary body may satisfy one exact named boundary
   operator without `via`, provided its machine-checked equality/`&&` ensures
