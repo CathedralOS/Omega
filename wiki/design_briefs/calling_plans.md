@@ -868,6 +868,14 @@ plan on both x86-64 and AArch64; the historical duplicate register-slot and
 immediate fields are retired, so reports and encoders cannot treat mechanism
 metadata as a second placement oracle.
 
+The remaining vtable-slot, vtable-field, and service-table compatibility entry
+points now have an exact differential lock: on Microsoft x64, SysV AMD64, and
+AAPCS64, default compatibility selection must emit the same bytes as supplying
+the independently evaluated native `CallPlan`. Result-bearing field and table
+calls also require identical planned widths. This pins compatibility as an
+oracle comparison rather than a second placement policy while later consumers
+migrate to mandatory plans.
+
 Remaining order:
 
 1. Complete plan-driven outbound calls and their results;
