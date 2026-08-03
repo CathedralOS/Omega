@@ -836,7 +836,9 @@ Remaining:
   AAPCS64 plan too, and `Process::exit` retains its one-word/no-result plan.
   Darwin's fixed `lround`, `sqrt`, `hypot`, and `fma` rows likewise retain
   their exact F64 parameter and F64/I64 result plans instead of asking the
-  encoder to reconstruct vector-register placement.
+  encoder to reconstruct vector-register placement. Its `poll` sleep adapter
+  now retains the three-word/no-result plan, and the calibrated monotonic/wall
+  clock rows retain their one-word/result `clock_gettime_nsec_np` plans.
   The matching AArch64 direct-import composites now validate
   that same retained native signature and reject placement drift in lockstep
   with layout; Windows composites retain their independently normalized
@@ -1537,13 +1539,13 @@ and allocation handles expose no compiler-owned stack/control storage.
   `_fesetround(FE_UPWARD)` and proves the following half-ULP addition still
   ties nearest-even. A later admitted preservation proof may remove a redundant
   envelope without changing call layout. The first directed-rounding provider
-  cohorts now select exact F32/F64 add/subtract-toward-zero/positive/negative
+  cohorts now select exact F32/F64 add/subtract/multiply-toward-zero/positive/negative
   slots on all four native targets. Each baseline ISA realization saves its complete
   MXCSR/FPCR, installs the requested direction for one scalar operation, and restores
   the prior state before result-policy adaptation; midpoint dual-engine
   canaries also prove subsequent ordinary arithmetic remains nearest-even.
   Remaining rung-3 work includes x86-64 FMA realization, the directed
-  multiply/divide/square-root/FMA cohorts, checked software fallbacks,
+  divide/square-root/FMA cohorts, checked software fallbacks,
   and rung-4 differential evidence.
   The first checked-software provider slice is now live independently of a
   float algorithm: an ordinary body may satisfy one exact named boundary

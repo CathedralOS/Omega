@@ -5133,6 +5133,12 @@ impl<'program> Evaluator<'program> {
                 | "float#subtract_toward_positive_f64"
                 | "float#subtract_toward_negative_f32"
                 | "float#subtract_toward_negative_f64"
+                | "float#multiply_toward_zero_f32"
+                | "float#multiply_toward_zero_f64"
+                | "float#multiply_toward_positive_f32"
+                | "float#multiply_toward_positive_f64"
+                | "float#multiply_toward_negative_f32"
+                | "float#multiply_toward_negative_f64"
         ) && call.receiver == ExpressionHandle::invalid()
         {
             let args = self
@@ -8353,27 +8359,37 @@ impl<'program> Evaluator<'program> {
         }
         let meaning = match (
             intrinsic.starts_with("float#subtract_"),
+            intrinsic.starts_with("float#multiply_"),
             intrinsic.contains("toward_zero"),
             intrinsic.contains("toward_positive"),
             intrinsic.contains("toward_negative"),
         ) {
-            (false, true, false, false) => {
+            (false, false, true, false, false) => {
                 FloatSemantics::add_toward_zero(format, &operands[0], &operands[1])
             }
-            (false, false, true, false) => {
+            (false, false, false, true, false) => {
                 FloatSemantics::add_toward_positive(format, &operands[0], &operands[1])
             }
-            (false, false, false, true) => {
+            (false, false, false, false, true) => {
                 FloatSemantics::add_toward_negative(format, &operands[0], &operands[1])
             }
-            (true, true, false, false) => {
+            (true, false, true, false, false) => {
                 FloatSemantics::subtract_toward_zero(format, &operands[0], &operands[1])
             }
-            (true, false, true, false) => {
+            (true, false, false, true, false) => {
                 FloatSemantics::subtract_toward_positive(format, &operands[0], &operands[1])
             }
-            (true, false, false, true) => {
+            (true, false, false, false, true) => {
                 FloatSemantics::subtract_toward_negative(format, &operands[0], &operands[1])
+            }
+            (false, true, true, false, false) => {
+                FloatSemantics::multiply_toward_zero(format, &operands[0], &operands[1])
+            }
+            (false, true, false, true, false) => {
+                FloatSemantics::multiply_toward_positive(format, &operands[0], &operands[1])
+            }
+            (false, true, false, false, true) => {
+                FloatSemantics::multiply_toward_negative(format, &operands[0], &operands[1])
             }
             _ => return unsupported("unknown selected directed-float intrinsic"),
         };

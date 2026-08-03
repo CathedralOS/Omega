@@ -1273,6 +1273,9 @@ fn runtime_value_operand_uses_control_state(
                 | StateGuardOperator::SubtractTowardZero
                 | StateGuardOperator::SubtractTowardPositive
                 | StateGuardOperator::SubtractTowardNegative
+                | StateGuardOperator::MultiplyTowardZero
+                | StateGuardOperator::MultiplyTowardPositive
+                | StateGuardOperator::MultiplyTowardNegative
         ) || runtime_value_operand_uses_control_state(runtime_value_operands, left)
             || runtime_value_operand_uses_control_state(runtime_value_operands, right)
     } else if let Some((source, ..)) = runtime_value_operands.convert(operand) {
@@ -5482,6 +5485,9 @@ fn float_policy_guard_bytes(
             | StateGuardOperator::SubtractTowardPositive
             | StateGuardOperator::SubtractTowardNegative
             | StateGuardOperator::Multiply
+            | StateGuardOperator::MultiplyTowardZero
+            | StateGuardOperator::MultiplyTowardPositive
+            | StateGuardOperator::MultiplyTowardNegative
             | StateGuardOperator::MultiplyThenAdd
             | StateGuardOperator::FusedMultiplyAdd
             | StateGuardOperator::Divide
@@ -6507,15 +6513,15 @@ fn append_runtime_float_binary_operation(
     };
     let directed_rounding = match operator {
         // FPCR.RMode bits 22..23: +inf=01, -inf=10, zero=11.
-        StateGuardOperator::AddTowardPositive | StateGuardOperator::SubtractTowardPositive => {
-            Some(0x0040_0000)
-        }
-        StateGuardOperator::AddTowardNegative | StateGuardOperator::SubtractTowardNegative => {
-            Some(0x0080_0000)
-        }
-        StateGuardOperator::AddTowardZero | StateGuardOperator::SubtractTowardZero => {
-            Some(0x00c0_0000)
-        }
+        StateGuardOperator::AddTowardPositive
+        | StateGuardOperator::SubtractTowardPositive
+        | StateGuardOperator::MultiplyTowardPositive => Some(0x0040_0000),
+        StateGuardOperator::AddTowardNegative
+        | StateGuardOperator::SubtractTowardNegative
+        | StateGuardOperator::MultiplyTowardNegative => Some(0x0080_0000),
+        StateGuardOperator::AddTowardZero
+        | StateGuardOperator::SubtractTowardZero
+        | StateGuardOperator::MultiplyTowardZero => Some(0x00c0_0000),
         _ => None,
     };
     if let Some(fpcr) = directed_rounding {
@@ -6547,8 +6553,14 @@ fn append_runtime_float_binary_operation(
             }
             guard(bytes)?;
         }
-        StateGuardOperator::Multiply => {
+        StateGuardOperator::Multiply
+        | StateGuardOperator::MultiplyTowardZero
+        | StateGuardOperator::MultiplyTowardPositive
+        | StateGuardOperator::MultiplyTowardNegative => {
             bytes.extend(encode_float_multiply(byte_size, 0, 0, 1)?);
+            if directed_rounding.is_some() {
+                bytes.extend(encode_write_fpcr(13));
+            }
             guard(bytes)?;
         }
         StateGuardOperator::Divide => {
@@ -8200,6 +8212,21 @@ mod tests {
                 0x00c0_0000_u64,
                 true,
             ),
+            (
+                StateGuardOperator::MultiplyTowardPositive,
+                0x0040_0000_u64,
+                false,
+            ),
+            (
+                StateGuardOperator::MultiplyTowardNegative,
+                0x0080_0000_u64,
+                false,
+            ),
+            (
+                StateGuardOperator::MultiplyTowardZero,
+                0x00c0_0000_u64,
+                false,
+            ),
         ] {
             for byte_size in [4usize, 8] {
                 let mut bytes = Vec::new();
@@ -8238,6 +8265,13 @@ mod tests {
                     words[6],
                     u32::from_le_bytes(if subtract {
                         encode_float_subtract(byte_size, 0, 0, 1).unwrap()
+                    } else if matches!(
+                        operator,
+                        StateGuardOperator::MultiplyTowardZero
+                            | StateGuardOperator::MultiplyTowardPositive
+                            | StateGuardOperator::MultiplyTowardNegative
+                    ) {
+                        encode_float_multiply(byte_size, 0, 0, 1).unwrap()
                     } else {
                         encode_float_add(byte_size, 0, 0, 1).unwrap()
                     })
