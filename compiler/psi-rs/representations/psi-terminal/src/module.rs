@@ -21,6 +21,9 @@ use psi_core::{
 /// Version 11 adds stable sum-case segments to structural content paths.
 /// Version 12 adds exact authored-partition substitution rows. The verifier
 /// replays each substitution and reconstructs only the resulting theorem.
+/// Version 13 adds a structural conditional terminator over an already-defined
+/// Boolean value. Its ordered true and false successors have independent edge
+/// identities and bindings.
 /// Older bytes retain their original meaning and identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SemanticVersion(NonZeroU16);
@@ -38,7 +41,8 @@ impl SemanticVersion {
     pub const V10: Self = Self(NonZeroU16::new(10).expect("ten is nonzero"));
     pub const V11: Self = Self(NonZeroU16::new(11).expect("eleven is nonzero"));
     pub const V12: Self = Self(NonZeroU16::new(12).expect("twelve is nonzero"));
-    pub const CURRENT: Self = Self::V12;
+    pub const V13: Self = Self(NonZeroU16::new(13).expect("thirteen is nonzero"));
+    pub const CURRENT: Self = Self::V13;
 
     pub fn new(raw: u16) -> Option<Self> {
         NonZeroU16::new(raw).map(Self)
@@ -240,14 +244,49 @@ pub enum Terminator {
         target: BlockId,
         arguments: Vec<ValueId>,
     },
+    /// Select exactly one ordered successor from an already-defined Boolean
+    /// value. Exhaustiveness and mutual exclusion are structural.
+    Conditional {
+        condition: ValueId,
+        when_true: SuccessorEdge,
+        when_false: SuccessorEdge,
+    },
     /// Bind the machine's stable result pseudo-value and finish execution.
     Return { edge: EdgeId, value: ValueId },
 }
 
 impl Terminator {
+    /// The sole edge of an unconditional terminator.
+    ///
+    /// Conditional consumers must use [`Self::edges`] or inspect the selected
+    /// successor instead of silently treating one arm as the terminator edge.
     pub const fn edge(&self) -> EdgeId {
         match self {
             Self::Jump { edge, .. } | Self::Return { edge, .. } => *edge,
+            Self::Conditional { .. } => {
+                panic!("a conditional terminator has two successor edges")
+            }
         }
     }
+
+    pub fn edges(&self) -> impl Iterator<Item = EdgeId> + '_ {
+        let (first, second) = match self {
+            Self::Jump { edge, .. } | Self::Return { edge, .. } => (*edge, None),
+            Self::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => (when_true.edge, Some(when_false.edge)),
+        };
+        std::iter::once(first).chain(second)
+    }
+}
+
+/// One ordered conditional successor and its simultaneous block-parameter
+/// bindings. The bindings are the current scalar edge-action vocabulary.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SuccessorEdge {
+    pub edge: EdgeId,
+    pub target: BlockId,
+    pub arguments: Vec<ValueId>,
 }

@@ -506,6 +506,11 @@ fn lower_function(
                 }
                 provenance.edges.push(*psi_edge);
             }
+            TerminalAbstractOperation::Conditional { .. } => {
+                return Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(
+                    function.machine,
+                ));
+            }
             TerminalAbstractOperation::Return {
                 psi_edge,
                 result,
@@ -692,6 +697,7 @@ pub enum LoweringError {
     OperationAfterReturn(MachineId),
     FunctionHasNoReturn(MachineId),
     FunctionResultMismatch(MachineId),
+    ConditionalControlFlowRequiresBlockLowering(MachineId),
     DuplicateValue(ValueId),
     UnknownValue(ValueId),
     ValueTypeMismatch(ValueId),
@@ -745,6 +751,7 @@ mod tests {
                     value: result,
                     scalar_type: ScalarType::Integer(i32_type),
                 },
+                block_entries: Vec::new(),
                 operations: vec![TerminalAbstractOperation::Return {
                     psi_edge: EdgeId::new(1).expect("edge"),
                     result,
@@ -1133,6 +1140,7 @@ mod tests {
                     value: result,
                     scalar_type,
                 },
+                block_entries: Vec::new(),
                 operations: vec![TerminalAbstractOperation::Return {
                     psi_edge: EdgeId::new(10).expect("edge"),
                     result,

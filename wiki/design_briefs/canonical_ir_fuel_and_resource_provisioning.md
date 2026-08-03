@@ -28,10 +28,11 @@ v7 exact-width wrapping integer multiplication, and v8 exact-width saturating
 integer multiplication, unconditional jump/return control, and bodyful
 contracts. Semantic v9 adds proof-only structural places and content
 conservation, v10 adds identity-preserving claim reshuffles, v11 adds stable
-sum-case content-path segments, and current v12 adds exact authored-partition
-substitution rows without adding executable operations. The
-verifier reconstructs operation, edge-binding, and return-binding axioms from
-the executable path, rejects unreachable fact sources and out-of-scope contract
+sum-case content-path segments, v12 adds exact authored-partition substitution
+rows, and current v13 adds structural Boolean conditional control without
+adding an executable operation. The verifier reconstructs operation, edge-
+binding, and return-binding axioms guaranteed on every return path, rejects
+unreachable fact sources and out-of-scope contract
 values, and requires evidence for every `ensures`; the proof kernel checks
 semantic-axiom citations, equality composition, and closed integer relations
 over all six arithmetic terms. Wrapping addition reduces modulo the declared
@@ -69,7 +70,7 @@ v9-v12 evidence rows; the executable canary remains content-free. A
 source-independent Omega abstract-operation consumer accepts only the verified
 module and emits owned scalar-materialization, wrapping-add, saturating-add,
 wrapping-subtract, saturating-subtract, wrapping-multiply,
-saturating-multiply, jump-binding, and return requirements
+saturating-multiply, jump-binding, structural conditional, and return requirements
 with stable Psi provenance and no source
 handles. The clean
 target continuation resolves the current compile-known stream to a
@@ -132,25 +133,28 @@ register assignment remains on the legacy backend.
 Semantic v1 integer, v2 Boolean, v3 wrapping-add, v4 saturating-add, v5
 wrapping-subtract, v6 saturating-subtract, v7 wrapping-multiply, v8
 saturating-multiply, v9 content, and v10 reshuffle modules retain their frozen
-bytes and execution semantics; explicit migration produces a new current-v12
+bytes and execution semantics; explicit migration produces a new current-v13
 fingerprint. The v3 wrapping slice round-trips, verifies,
 meters, lowers, emits,
 and executes `u8` 200+100 as 44. The v4 saturating slice traverses the
-same path and clamps that sum to 255. The checkpoint still has no branching.
+same path and clamps that sum to 255. Semantic v13 conditionals round-trip,
+validate, execute both arms, charge only the selected successor, and retain both
+ordered successors through Omega's abstract boundary.
 `psi-terminal-fuel` defines schedule v1 as one unit per executed terminal
 operation and one unit per taken terminal edge. The verified interpreter returns
 exact schedule-keyed usage attributed to stable operation/edge identities; a
 finite sponsor allowance fails atomically before an unpaid site. Explicit
 in-memory execution state resumes at that exact site after checked allowance
-replenishment without replaying prior work. The current acyclic single-path
-vocabulary also has an exact entry-to-return certificate keyed by semantic
+replenishment without replaying prior work. The unconditional acyclic subset
+also has an exact entry-to-return certificate keyed by semantic
 identity, entry, return edge, and fuel schedule; consumers recompute every field
 without trusting the producer. The same checker now derives exact selected
 block-to-edge segment certificates, including the endpoint charge, so adjacent
 segments neither omit nor double-charge a jump. The current-vocabulary semantic
 safe-point selector now returns the complete ordered partition at every
 explicit jump/return edge; validation rejects omitted or reordered segments.
-Build-time migration, branch/loop certificates, and native metering remain.
+Build-time migration, branch/loop certificates, target/native conditional
+lowering, and native metering remain.
 Attributed response reporting additionally waits on executable terminal
 wait/foreign-edge variants carrying their response-contract status. The current
 total operation plus unconditional jump/return vocabulary can close a bounded

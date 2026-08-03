@@ -37,24 +37,30 @@ subtraction; v7 adds exact-width wrapping integer multiplication; v8 adds
 exact-width saturating integer multiplication; v9 adds proof-only
 structural-place declarations and content-conservation propositions; v10 adds
 canonical identity-preserving claim reshuffles; v11 adds distinct stable
-sum-case segments to structural content paths; and current v12 adds exact
-authored-partition substitution witnesses. None of v9-v12 adds an executable
-operation. Every executable slice uses unconditional jump and return edges.
+sum-case segments to structural content paths; v12 adds exact authored-
+partition substitution witnesses; and current v13 adds one structural Boolean
+conditional with ordered true/false successors. None of v9-v13 adds an
+executable operation. The conditional is control vocabulary rather than an
+operation.
 `psi-terminal-verifier` rejects malformed identities, types, contract scopes,
 cycles, unreachable fact sources, and missing/extra evidence, reconstructs the
 exact operation/edge/return axioms, and checks every `ensures` from a separate
 proof bundle. `omega-interpreter` executes only a `VerifiedTerminalModule` on
 this path.
 
-The next control-flow slice uses one conditional terminator over an
-already-defined Boolean value. It owns ordered true and false successor edge
+The first control-flow slice is live in v13. One conditional terminator reads
+an already-defined Boolean value and owns ordered true and false successor edge
 records, each with its own stable `EdgeId`, target, typed block-parameter
-bindings, edge actions, and fuel site. Mutual exclusion and exhaustiveness are
-structural properties of the terminator, not propositions reconstructed from
-two arbitrary guards. Predicate terms never appear as executable guards. Only
-the selected successor edge is charged and reported in exact-path evidence.
-The verifier, canonical codec, interpreter, fuel derivation, and Omega lowering
-must land this semantic-version extension together.
+bindings, scalar binding actions, and fuel site. Mutual exclusion and
+exhaustiveness are structural properties of the terminator, not propositions
+reconstructed from two arbitrary guards. Predicate terms never appear as
+executable guards. The verifier validates an acyclic CFG and dominance of every
+value use; proof reconstruction retains only facts common to every return
+path. The canonical codec round-trips both ordered successors, the interpreter
+executes and charges only the selected edge, and Omega's source-independent
+abstract plan retains canonical block entries and both successor records.
+Checked-source conditional production, restricted branch-bound certificates,
+and target/native block lowering remain implementation work.
 
 The checked-frontend migration also keeps the ownership firewall explicit:
 `psi-checked-trees` now owns the target-neutral checked representation and
@@ -220,8 +226,8 @@ and obligation subjects point to the exact authored `ensures` fact site rather
 than the enclosing machine declaration. The real-source
 canary encodes and manifests the debug section,
 drops checked trees, and decodes it against the reconstructed semantic module.
-Branching, the remaining
-arithmetic-policy variants, general register assignment, general
+Checked-source conditional production, target/native conditional lowering, the
+remaining arithmetic-policy variants, general register assignment, general
 safe-point/branch fixed-work checking, build-time fuel migration, and native
 fuel metering remain next.
 The v5 wrapping-subtract canary independently round-trips, verifies,
@@ -464,19 +470,19 @@ adds `SaturatingIntegerSubtract`; version 7 adds `WrappingIntegerMultiply`;
 version 8 adds `SaturatingIntegerMultiply`; version 9 adds proof-only
 structural places and content-conservation propositions; version 10 adds
 canonical identity-preserving claim reshuffles; version 11 adds stable sum-case
-content-path segments; current version 12 adds exact authored-partition
-substitution rows.
+content-path segments; version 12 adds exact authored-partition substitution
+rows; and current version 13 adds the ordered Boolean conditional terminator.
 The arithmetic operations require two already defined operands of the exact
 result integer type and have distinct canonical recursive proposition terms for
 their exact logical results. Validation and execution continue to accept valid
 v1/v2/v3/v4/v5/v6/v7/v8/v9/v10 modules under their original meaning, while an older
 module cannot claim a later operation or proposition tag.
-`migrate_module_to_current` is an explicit validated older-to-v12 translation:
+`migrate_module_to_current` is an explicit validated older-to-v13 translation:
 it preserves the graph and obligations, changes the version field, and therefore
 creates new canonical bytes and a new semantic fingerprint. An unchanged proof
 bundle retains its separate bytes and identity but is verified again against the
-migrated module. Golden tests retain the archived v1 through v11 fingerprints
-and independently freeze the current v12 fingerprint, v10 identity-reshuffle
+migrated module. Golden tests retain the archived v1 through v12 fingerprints
+and independently freeze the current v13 fingerprint, v10 identity-reshuffle
 fixture, v11 sum-case fixture, and v12 partition-composition fixture.
 
 The same codec gives proof bundles their own canonical `PSIPRF` bytes and golden
@@ -658,7 +664,7 @@ generic installation ladder. Migrating the Cathedral hard-root graph remains.
    proof bytes and role-separated semantic/proof/install/debug manifest hashes
    are also live. Semantic migration is exercised: archived v1 and v2 bytes
    retain their identities and migrate explicitly into separately fingerprinted
-   current-v12 modules; archived v3 wrapping-add, v4 saturating-add, v5
+   current-v13 modules; archived v3 wrapping-add, v4 saturating-add, v5
    wrapping-subtract, v6 saturating-subtract, and v7 wrapping-multiply
    identities plus the v8 saturating-multiply identity are frozen as well. Typed
    installation records, the canonical typed debug/source-map schema, and

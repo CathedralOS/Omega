@@ -26,8 +26,18 @@ pub struct TerminalAbstractFunction {
     /// Runtime values supplied by the caller, in declared terminal-Psi order.
     pub parameters: Vec<TerminalAbstractParameter>,
     pub result: TerminalAbstractResult,
-    /// Operations in the verified terminal machine's executable order.
+    /// Canonical block starts in `operations`. This keeps conditional targets
+    /// source-independent without flattening away control-flow identity.
+    pub block_entries: Vec<TerminalAbstractBlockEntry>,
+    /// Operations in canonical block order. Straight-line functions retain
+    /// their historical executable order.
     pub operations: Vec<TerminalAbstractOperation>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalAbstractBlockEntry {
+    pub block: BlockId,
+    pub operation_offset: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -102,12 +112,24 @@ pub enum TerminalAbstractOperation {
         target: BlockId,
         bindings: Vec<TerminalValueBinding>,
     },
+    Conditional {
+        condition: ValueId,
+        when_true: TerminalAbstractSuccessor,
+        when_false: TerminalAbstractSuccessor,
+    },
     Return {
         psi_edge: EdgeId,
         result: ValueId,
         value: ValueId,
         scalar_type: ScalarType,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalAbstractSuccessor {
+    pub psi_edge: EdgeId,
+    pub target: BlockId,
+    pub bindings: Vec<TerminalValueBinding>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

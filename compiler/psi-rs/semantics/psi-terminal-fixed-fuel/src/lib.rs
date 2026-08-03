@@ -194,6 +194,8 @@ pub fn validate_fixed_segment_fuel(
 /// safe point in this slice: operations are total, no partial call/suspension
 /// state can cross the edge, and the successor block begins the next segment.
 /// The returned order is execution order from the machine entry.
+/// Semantic-v13 conditional machines refuse until the restricted checker can
+/// derive and validate a complete maximum-path branch certificate.
 pub fn derive_fixed_safe_point_segments(
     verified: &VerifiedTerminalModule<'_>,
     machine: MachineId,
@@ -221,6 +223,9 @@ pub fn derive_fixed_safe_point_segments(
             .get(&current)
             .copied()
             .ok_or(FixedFuelError::UnknownBlock(current))?;
+        if matches!(block.terminator, Terminator::Conditional { .. }) {
+            return Err(FixedFuelError::BranchingNotYetSupported(current));
+        }
         segments.push(derive_fixed_segment_fuel(
             verified,
             machine,
@@ -229,6 +234,7 @@ pub fn derive_fixed_safe_point_segments(
         )?);
         match block.terminator {
             Terminator::Jump { target, .. } => current = target,
+            Terminator::Conditional { .. } => unreachable!("rejected above"),
             Terminator::Return { .. } => return Ok(segments),
         }
     }
@@ -278,6 +284,9 @@ fn derive_straight_line_bound(machine: &TerminalMachine) -> Result<(EdgeId, u64)
             .ok_or(FixedFuelError::BoundOverflow)?;
         match block.terminator {
             Terminator::Jump { target, .. } => current = target,
+            Terminator::Conditional { .. } => {
+                return Err(FixedFuelError::BranchingNotYetSupported(current));
+            }
             Terminator::Return { edge, .. } => return Ok((edge, units)),
         }
     }
@@ -317,11 +326,17 @@ fn derive_segment_bound(
         units = units
             .checked_add(schedule.terminator_units(&block.terminator))
             .ok_or(FixedFuelError::BoundOverflow)?;
-        if block.terminator.edge() == end_edge {
+        if block.terminator.edges().any(|edge| edge == end_edge) {
+            if matches!(block.terminator, Terminator::Conditional { .. }) {
+                return Err(FixedFuelError::BranchingNotYetSupported(current));
+            }
             return Ok(units);
         }
         match block.terminator {
             Terminator::Jump { target, .. } => current = target,
+            Terminator::Conditional { .. } => {
+                return Err(FixedFuelError::BranchingNotYetSupported(current));
+            }
             Terminator::Return { edge, .. } => {
                 return Err(FixedFuelError::SegmentEndNotReached {
                     requested: end_edge,
@@ -338,6 +353,7 @@ pub enum FixedFuelError {
     UnknownEntry(MachineId),
     UnknownBlock(BlockId),
     ControlCycle(BlockId),
+    BranchingNotYetSupported(BlockId),
     SegmentEndNotReached {
         requested: EdgeId,
         reached_return: EdgeId,

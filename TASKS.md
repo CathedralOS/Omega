@@ -985,14 +985,16 @@ improvements do not change public identity.
   small structural proof kernel, versioned certificate envelope, total truth /
   reflexive-equality / closed-integer judgments, and sealed exact admission
   validator are live; architecture tests forbid Psi dependencies on Omega.
-  **CONDITIONAL-EDGE — DESIGN CLEAR:** add one conditional terminator over an
-  already-defined Boolean value with ordered true/false successor edge records.
-  Each successor owns its stable `EdgeId`, typed block-parameter bindings, edge
-  actions, and fuel site. The form is exhaustive and mutually exclusive by
-  construction; it generates no proposition merely to prove its own shape, and
-  only the selected successor edge is charged. Predicates remain proposition
-  vocabulary rather than executable terminator operands. Land this as one
-  semantic-v13 verifier/codec/interpreter/fuel/lowering vertical slice.
+  Semantic v13 conditional control is live: one already-defined Boolean value
+  selects between ordered true/false successor records with independent stable
+  `EdgeId`s, typed block-parameter bindings, scalar binding actions, and fuel
+  sites. The verifier checks acyclic CFG reachability, value dominance, and both
+  successor bindings; common-path proof reconstruction does not manufacture a
+  proposition for the structural branch. Canonical bytes retain both ordered
+  arms, interpretation charges only the selected edge, and Omega abstract
+  lowering retains canonical block entries plus both successors. Checked-source
+  production, branch fixed-work certificates, and target/native block lowering
+  remain implementation work.
   The first frontend-ownership migration slice is live: `psi-source` owns
   source identities, byte spans, and source-backed text; `psi-tokens` owns the
   token representation; `psi-arena` owns generic dense, paged, generational,
@@ -1097,8 +1099,9 @@ improvements do not change public identity.
   multiplication, v8 exact-width saturating integer multiplication, v9
   proof-only structural-place/content-conservation propositions, v10 canonical
   identity-preserving claim reshuffles, v11 stable sum-case content paths, and
-  current-v12 exact authored-partition substitution rows; the executable slice
-  retains unconditional jump/return edges,
+  v12 exact authored-partition substitution rows, and current-v13 structural
+  Boolean conditional edges; the executable slice retains unconditional
+  jump/return edges plus the ordered conditional,
   bodyful contracts, verifier-reconstructed semantic axioms, exhaustive proof-
   bundle checking, and direct execution of the verified module in
   `omega-interpreter`. Its validator rejects unreachable axiom sources and
@@ -1266,10 +1269,11 @@ improvements do not change public identity.
   `SaturatingIntegerSubtract`; v7 adds `WrappingIntegerMultiply`; v8 adds
   `SaturatingIntegerMultiply`; v9 adds proof-only structural places and
   content-conservation propositions; v10 adds canonical identity-preserving
-  claim reshuffles; v11 adds stable sum-case content-path segments; current v12
-  adds exact authored-partition substitution rows; and explicit validated
-  migration preserves an older semantic graph while producing a new v12
-  fingerprint. Archived v1 through v11 identities remain frozen. The clean
+  claim reshuffles; v11 adds stable sum-case content-path segments; v12 adds
+  exact authored-partition substitution rows; current v13 adds structural
+  Boolean conditional control; and explicit validated migration preserves an
+  older semantic graph while producing a new v13
+  fingerprint. Archived v1 through v12 identities remain frozen. The clean
   lane now also constructs an owned, semantic-identity-bound object artifact
   with canonical function spans and retained Psi provenance, emits the Omega
   object container plus ELF/AArch64, ELF/x86-64, Mach-O/AArch64, and PE/x86-64
@@ -1337,7 +1341,7 @@ improvements do not change public identity.
   schedules, and reports logical fuel rather than structural work; continue
   from terminal Psi and its interpreter meter rather than treating that
   provider-authored precursor as a Psi proof. The terminal-Psi
-  v1/v2/v3/v4/v5/v6/v7/v8/v9/v10/v11/v12
+  v1/v2/v3/v4/v5/v6/v7/v8/v9/v10/v11/v12/v13
   schemas, serialization, migration, and verifier/lowering boundary are owned
   by PSIIR.
   The current TypedTrees evaluator now publishes an explicitly versioned deterministic

@@ -34,8 +34,8 @@ use psi_core::{
 use psi_terminal::{
     Block, ClaimContentProjection, ContentIdentityReshuffle, ContentPartitionComposition,
     ContentPlaceSubstitution, ContractClause, MachineContract, Operation, OperationKind,
-    SemanticVersion, StructuralPlaceDeclaration, TerminalMachine, TerminalModule, Terminator,
-    ValueDeclaration,
+    SemanticVersion, StructuralPlaceDeclaration, SuccessorEdge, TerminalMachine, TerminalModule,
+    Terminator, ValueDeclaration,
 };
 use psi_terminal_verifier::{ModuleError, validate_module};
 use sha2::{Digest, Sha256};
@@ -483,6 +483,26 @@ fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), CodecError> {
             writer.id(*edge);
             writer.id(*value);
         }
+        Terminator::Conditional {
+            condition,
+            when_true,
+            when_false,
+        } => {
+            writer.u8(3);
+            writer.id(*condition);
+            encode_successor_edge(writer, when_true)?;
+            encode_successor_edge(writer, when_false)?;
+        }
+    }
+    Ok(())
+}
+
+fn encode_successor_edge(writer: &mut Writer, successor: &SuccessorEdge) -> Result<(), CodecError> {
+    writer.id(successor.edge);
+    writer.id(successor.target);
+    writer.len("conditional successor arguments", successor.arguments.len())?;
+    for argument in &successor.arguments {
+        writer.id(*argument);
     }
     Ok(())
 }
@@ -980,6 +1000,11 @@ fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError> {
             edge: reader.id("EdgeId")?,
             value: reader.id("ValueId")?,
         },
+        3 => Terminator::Conditional {
+            condition: reader.id("ValueId")?,
+            when_true: decode_successor_edge(reader)?,
+            when_false: decode_successor_edge(reader)?,
+        },
         tag => return Err(CodecError::InvalidTag("Terminator", tag)),
     };
     Ok(Block {
@@ -987,6 +1012,21 @@ fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError> {
         parameters,
         operations,
         terminator,
+    })
+}
+
+fn decode_successor_edge(reader: &mut Reader<'_>) -> Result<SuccessorEdge, CodecError> {
+    let edge = reader.id("EdgeId")?;
+    let target = reader.id("BlockId")?;
+    let argument_count = reader.count()?;
+    let mut arguments = Vec::new();
+    for _ in 0..argument_count {
+        arguments.push(reader.id("ValueId")?);
+    }
+    Ok(SuccessorEdge {
+        edge,
+        target,
+        arguments,
     })
 }
 

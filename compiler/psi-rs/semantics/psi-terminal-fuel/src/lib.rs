@@ -51,7 +51,9 @@ impl TerminalFuelSchedule {
 
     pub const fn terminator_units(self, terminator: &Terminator) -> u64 {
         match terminator {
-            Terminator::Jump { .. } | Terminator::Return { .. } => 1,
+            Terminator::Jump { .. }
+            | Terminator::Conditional { .. }
+            | Terminator::Return { .. } => 1,
         }
     }
 }
@@ -182,8 +184,26 @@ impl TerminalFuelMeter {
     }
 
     pub fn charge_terminator(&mut self, terminator: &Terminator) -> Result<(), FuelMeterError> {
+        let edge = match terminator {
+            Terminator::Jump { edge, .. } | Terminator::Return { edge, .. } => *edge,
+            Terminator::Conditional { .. } => {
+                return Err(FuelMeterError::ConditionalEdgeNotSelected);
+            }
+        };
+        self.charge_edge(edge, terminator)
+    }
+
+    /// Charge exactly the selected successor of a conditional terminator.
+    pub fn charge_edge(
+        &mut self,
+        edge: EdgeId,
+        terminator: &Terminator,
+    ) -> Result<(), FuelMeterError> {
+        if !terminator.edges().any(|candidate| candidate == edge) {
+            return Err(FuelMeterError::EdgeNotOwnedByTerminator(edge));
+        }
         self.charge(
-            FuelChargeSite::Edge(terminator.edge()),
+            FuelChargeSite::Edge(edge),
             self.schedule.terminator_units(terminator),
         )
     }
@@ -246,6 +266,8 @@ pub struct FuelExhaustion {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FuelMeterError {
+    ConditionalEdgeNotSelected,
+    EdgeNotOwnedByTerminator(EdgeId),
     Exhausted(FuelExhaustion),
     AccountingOverflow(FuelChargeSite),
     AllowanceOverflow,

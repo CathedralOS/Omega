@@ -397,13 +397,13 @@ impl<'module> TerminalExecution<'module> {
                 }
                 self.next_operation += 1;
             }
-            if let Err(error) = meter.charge_terminator(&block.terminator) {
-                return meter_status(error);
-            }
             match &block.terminator {
                 Terminator::Jump {
                     target, arguments, ..
                 } => {
+                    if let Err(error) = meter.charge_terminator(&block.terminator) {
+                        return meter_status(error);
+                    }
                     let target_block = self
                         .blocks
                         .get(target)
@@ -424,7 +424,48 @@ impl<'module> TerminalExecution<'module> {
                     self.current = *target;
                     self.next_operation = 0;
                 }
+                Terminator::Conditional {
+                    condition,
+                    when_true,
+                    when_false,
+                } => {
+                    let condition = self
+                        .values
+                        .get(condition)
+                        .copied()
+                        .ok_or(TerminalInterpretError::VerifiedValueMissing(*condition))?;
+                    let TerminalScalarValue::Boolean(condition) = condition else {
+                        return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                    };
+                    let successor = if condition { when_true } else { when_false };
+                    if let Err(error) = meter.charge_edge(successor.edge, &block.terminator) {
+                        return meter_status(error);
+                    }
+                    let target_block = self
+                        .blocks
+                        .get(&successor.target)
+                        .copied()
+                        .ok_or(TerminalInterpretError::VerifiedBlockMissing)?;
+                    let transferred = successor
+                        .arguments
+                        .iter()
+                        .map(|argument| {
+                            self.values
+                                .get(argument)
+                                .copied()
+                                .ok_or(TerminalInterpretError::VerifiedValueMissing(*argument))
+                        })
+                        .collect::<Result<Vec<_>, _>>()?;
+                    for (parameter, value) in target_block.parameters.iter().zip(transferred) {
+                        self.values.insert(parameter.id, value);
+                    }
+                    self.current = successor.target;
+                    self.next_operation = 0;
+                }
                 Terminator::Return { value, .. } => {
+                    if let Err(error) = meter.charge_terminator(&block.terminator) {
+                        return meter_status(error);
+                    }
                     let result = self
                         .values
                         .get(value)
