@@ -683,6 +683,54 @@ pub(super) fn resolve_selected_ternary_float_operand_in_table_with_root(
         {
             (8, StateGuardOperator::FusedMultiplyAdd)
         }
+        symbol
+            if symbol
+                == input.program.symbols.builtin_function_symbol(
+                    psi_symbols::BuiltinFunction::FloatFusedMultiplyAddTowardZeroF32,
+                ) =>
+        {
+            (4, StateGuardOperator::FusedMultiplyAddTowardZero)
+        }
+        symbol
+            if symbol
+                == input.program.symbols.builtin_function_symbol(
+                    psi_symbols::BuiltinFunction::FloatFusedMultiplyAddTowardZeroF64,
+                ) =>
+        {
+            (8, StateGuardOperator::FusedMultiplyAddTowardZero)
+        }
+        symbol
+            if symbol
+                == input.program.symbols.builtin_function_symbol(
+                    psi_symbols::BuiltinFunction::FloatFusedMultiplyAddTowardPositiveF32,
+                ) =>
+        {
+            (4, StateGuardOperator::FusedMultiplyAddTowardPositive)
+        }
+        symbol
+            if symbol
+                == input.program.symbols.builtin_function_symbol(
+                    psi_symbols::BuiltinFunction::FloatFusedMultiplyAddTowardPositiveF64,
+                ) =>
+        {
+            (8, StateGuardOperator::FusedMultiplyAddTowardPositive)
+        }
+        symbol
+            if symbol
+                == input.program.symbols.builtin_function_symbol(
+                    psi_symbols::BuiltinFunction::FloatFusedMultiplyAddTowardNegativeF32,
+                ) =>
+        {
+            (4, StateGuardOperator::FusedMultiplyAddTowardNegative)
+        }
+        symbol
+            if symbol
+                == input.program.symbols.builtin_function_symbol(
+                    psi_symbols::BuiltinFunction::FloatFusedMultiplyAddTowardNegativeF64,
+                ) =>
+        {
+            (8, StateGuardOperator::FusedMultiplyAddTowardNegative)
+        }
         _ => return None,
     };
     let [first_expression, second_expression, third_expression] =

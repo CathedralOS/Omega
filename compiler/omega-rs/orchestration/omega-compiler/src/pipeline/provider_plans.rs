@@ -644,7 +644,11 @@ fn expected_float_intrinsic(
                 | "is_infinite"
                 | "is_normal"
                 | "is_subnormal" => requirement.as_str(),
-                "multiply_then_add" | "fused_multiply_add" => requirement.as_str(),
+                "multiply_then_add"
+                | "fused_multiply_add"
+                | "fused_multiply_add_toward_zero"
+                | "fused_multiply_add_toward_positive"
+                | "fused_multiply_add_toward_negative" => requirement.as_str(),
                 "add_toward_zero" | "add_toward_positive" | "add_toward_negative" => {
                     requirement.as_str()
                 }
@@ -715,7 +719,14 @@ fn expected_float_intrinsic(
                     }
                 }
                 [left, right, addend]
-                    if matches!(operation, "multiply_then_add" | "fused_multiply_add") =>
+                    if matches!(
+                        operation,
+                        "multiply_then_add"
+                            | "fused_multiply_add"
+                            | "fused_multiply_add_toward_zero"
+                            | "fused_multiply_add_toward_positive"
+                            | "fused_multiply_add_toward_negative"
+                    ) =>
                 {
                     if typed.primitive_type_reference(left.type_reference)
                         != Some(expected_primitive)

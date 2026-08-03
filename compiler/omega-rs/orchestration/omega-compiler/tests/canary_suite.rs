@@ -35309,6 +35309,12 @@ fn migrated_float_provider_plans_are_selected_for_every_native_target() {
         "F64::multiply_then_add",
         "F32::fused_multiply_add",
         "F64::fused_multiply_add",
+        "F32::fused_multiply_add_toward_zero",
+        "F64::fused_multiply_add_toward_zero",
+        "F32::fused_multiply_add_toward_positive",
+        "F64::fused_multiply_add_toward_positive",
+        "F32::fused_multiply_add_toward_negative",
+        "F64::fused_multiply_add_toward_negative",
         "F32::add_toward_zero",
         "F64::add_toward_zero",
         "F32::add_toward_positive",
@@ -35541,7 +35547,7 @@ fn migrated_float_provider_plans_are_selected_for_every_native_target() {
         assert_eq!(
             selected_count,
             if matches!(target, "linux_arm64" | "macos_arm64") {
-                140
+                146
             } else {
                 138
             },
@@ -35556,11 +35562,7 @@ fn migrated_float_provider_plans_are_selected_for_every_native_target() {
                     matches!(
                         &row.binding,
                         omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { name }
-                            if matches!(
-                                name.as_str(),
-                                "F32::fused_multiply_add.f32"
-                                    | "F64::fused_multiply_add.f64"
-                            )
+                            if name.contains("::fused_multiply_add")
                     )
                 })
             })
@@ -35568,11 +35570,11 @@ fn migrated_float_provider_plans_are_selected_for_every_native_target() {
         assert_eq!(
             selected_fma_plans,
             if matches!(target, "linux_arm64" | "macos_arm64") {
-                2
+                8
             } else {
                 0
             },
-            "only baseline-FMADD AArch64 targets may select the FMA provider slots"
+            "only baseline-FMADD AArch64 targets may select nearest or directed FMA slots"
         );
     }
 }
@@ -36702,6 +36704,114 @@ fn named_float_fused_multiply_add_selects_aarch64_fmadd_and_executes() {
     })
     .unwrap_or_else(|diagnostics| {
         panic!("named FMA provider calls should compile for linux_arm64: {diagnostics:#?}")
+    });
+    let _ = fs::remove_dir_all(&scratch);
+}
+
+#[test]
+fn named_float_directed_fused_multiply_add_selects_aarch64_fmadd_and_executes() {
+    let canary = pass_canary("float/named_provider_directed_fused_multiply_add_exit");
+    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+        .expect("directed-FMA provider calls should compile to checked trees on macOS AArch64");
+
+    let mut selected_intrinsics = std::collections::BTreeSet::new();
+    for operator_use in checked.facts.operators.named_uses() {
+        let Some(plan) = checked
+            .selected_provider_plans()
+            .plan_by_identity(operator_use.provider_plan_identity)
+        else {
+            continue;
+        };
+        let [row] = plan.rows.as_slice() else {
+            continue;
+        };
+        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { name } =
+            &row.binding
+        else {
+            continue;
+        };
+        if !name.contains("::fused_multiply_add_toward_") {
+            continue;
+        }
+        selected_intrinsics.insert(name.clone());
+
+        let psi_typed_trees::expression::ExpressionNode::Call(call) = checked
+            .typed
+            .expression_table
+            .expression(operator_use.expression)
+        else {
+            panic!("`{name}` must rewrite to an unnameable compiler call");
+        };
+        assert!(!call.receiver.is_valid());
+        assert_eq!(call.arguments.count(), 3);
+        assert!(
+            call.target
+                .as_str()
+                .starts_with("float#fused_multiply_add_toward_")
+        );
+    }
+
+    assert_eq!(
+        selected_intrinsics,
+        [
+            "F32::fused_multiply_add_toward_negative.f32",
+            "F32::fused_multiply_add_toward_positive.f32",
+            "F32::fused_multiply_add_toward_zero.f32",
+            "F64::fused_multiply_add_toward_negative.f64",
+            "F64::fused_multiply_add_toward_positive.f64",
+            "F64::fused_multiply_add_toward_zero.f64",
+        ]
+        .into_iter()
+        .map(str::to_owned)
+        .collect()
+    );
+
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "directed-FMA interpreter semantics must distinguish half-ULP edges"
+    );
+
+    let build_dir = std::env::temp_dir().join(format!("omega-directed-fma-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("directed-FMA providers should compile natively");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("directed-FMA provider canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "directed FMA must restore nearest-even before ordinary FMA; artifact: {}; stderr: {}",
+        build_dir.display(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+
+    let scratch = std::env::temp_dir().join(format!(
+        "omega-directed-fma-linux-arm64-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&scratch);
+    let source_dir = scratch.join("src");
+    fs::create_dir_all(&source_dir).expect("directed-FMA cross-target source directory");
+    fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
+        .expect("copy directed-FMA canary");
+    fs::write(source_dir.join("build.omg"), "target linux_arm64 {\n}\n")
+        .expect("write directed-FMA target manifest");
+    compile(CompileOptions {
+        root_path: source_dir.join("main.omg"),
+        build_dir: Some(scratch.join("out")),
+        target_name: Some("linux_arm64".to_owned()),
+        write_output: true,
+    })
+    .unwrap_or_else(|diagnostics| {
+        panic!("directed-FMA providers should compile for linux_arm64: {diagnostics:#?}")
     });
     let _ = fs::remove_dir_all(&scratch);
 }
@@ -41506,6 +41616,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "float/named_provider_classify_exit",
     "float/named_provider_multiply_then_add_exit",
     "float/named_provider_fused_multiply_add_exit",
+    "float/named_provider_directed_fused_multiply_add_exit",
     "float/runtime_named_format_conversion_exit",
     "float/runtime_named_integer_to_float_conversion_exit",
     "float/runtime_named_float_to_integer_conversion_exit",

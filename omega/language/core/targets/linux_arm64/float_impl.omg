@@ -648,3 +648,51 @@ linux_arm64 machine FloatNativeProvider::square_root_toward_negative32(value: f3
 linux_arm64 machine FloatNativeProvider::square_root_toward_negative64(value: f64) -> f64
     satisfies F64::square_root_toward_negative
     via Binding::CompilerIntrinsic("F64::square_root_toward_negative.f64");
+
+linux_arm64 machine FloatNativeProvider::fused_multiply_add_toward_zero32_linux_arm64(
+    left: f32,
+    right: f32,
+    addend: f32
+) -> f32
+    satisfies F32::fused_multiply_add_toward_zero
+    via Binding::CompilerIntrinsic("F32::fused_multiply_add_toward_zero.f32");
+
+linux_arm64 machine FloatNativeProvider::fused_multiply_add_toward_zero64_linux_arm64(
+    left: f64,
+    right: f64,
+    addend: f64
+) -> f64
+    satisfies F64::fused_multiply_add_toward_zero
+    via Binding::CompilerIntrinsic("F64::fused_multiply_add_toward_zero.f64");
+
+linux_arm64 machine FloatNativeProvider::fused_multiply_add_toward_positive32_linux_arm64(
+    left: f32,
+    right: f32,
+    addend: f32
+) -> f32
+    satisfies F32::fused_multiply_add_toward_positive
+    via Binding::CompilerIntrinsic("F32::fused_multiply_add_toward_positive.f32");
+
+linux_arm64 machine FloatNativeProvider::fused_multiply_add_toward_positive64_linux_arm64(
+    left: f64,
+    right: f64,
+    addend: f64
+) -> f64
+    satisfies F64::fused_multiply_add_toward_positive
+    via Binding::CompilerIntrinsic("F64::fused_multiply_add_toward_positive.f64");
+
+linux_arm64 machine FloatNativeProvider::fused_multiply_add_toward_negative32_linux_arm64(
+    left: f32,
+    right: f32,
+    addend: f32
+) -> f32
+    satisfies F32::fused_multiply_add_toward_negative
+    via Binding::CompilerIntrinsic("F32::fused_multiply_add_toward_negative.f32");
+
+linux_arm64 machine FloatNativeProvider::fused_multiply_add_toward_negative64_linux_arm64(
+    left: f64,
+    right: f64,
+    addend: f64
+) -> f64
+    satisfies F64::fused_multiply_add_toward_negative
+    via Binding::CompilerIntrinsic("F64::fused_multiply_add_toward_negative.f64");

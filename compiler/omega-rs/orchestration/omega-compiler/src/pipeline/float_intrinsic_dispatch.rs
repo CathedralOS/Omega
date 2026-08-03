@@ -25,6 +25,7 @@ enum NamedFloatRealization {
     Negate(FloatFormat),
     MultiplyThenAdd(FloatFormat),
     FusedMultiplyAdd(FloatFormat),
+    DirectedFusedMultiplyAdd(FloatFormat, RoundingDirection),
     DirectedSquareRoot(FloatFormat, RoundingDirection),
     DirectedBinary(DirectedFloatBinaryOperation, FloatFormat, RoundingDirection),
     Convert(ArithmeticDomain),
@@ -101,6 +102,7 @@ pub(crate) fn rewrite_selected_float_intrinsic_calls(
             NamedFloatRealization::Negate(_) => 1,
             NamedFloatRealization::MultiplyThenAdd(_) => 3,
             NamedFloatRealization::FusedMultiplyAdd(_) => 3,
+            NamedFloatRealization::DirectedFusedMultiplyAdd(_, _) => 3,
             NamedFloatRealization::DirectedSquareRoot(_, _) => 1,
             NamedFloatRealization::DirectedBinary(_, _, _) => 2,
             NamedFloatRealization::Convert(_) => 1,
@@ -209,6 +211,46 @@ pub(crate) fn rewrite_selected_float_intrinsic_calls(
                 let Some(symbol) = checked.typed.symbols.builtin_function_symbol(function) else {
                     diagnostics.push(Diagnostic::error(format!(
                         "compiler builtin `{}` is absent while lowering a selected named float intrinsic",
+                        function.name()
+                    )));
+                    continue;
+                };
+                let mut call = call;
+                call.receiver = psi_typed_trees::expression::ExpressionHandle::invalid();
+                call.target = psi_typed_trees::name::Identifier::generated(function.name());
+                call.target_symbol = symbol;
+                ExpressionNode::Call(call)
+            }
+            NamedFloatRealization::DirectedFusedMultiplyAdd(format, direction) => {
+                let function = match (format, direction) {
+                    (FloatFormat::F32, RoundingDirection::TowardZero) => {
+                        BuiltinFunction::FloatFusedMultiplyAddTowardZeroF32
+                    }
+                    (FloatFormat::F64, RoundingDirection::TowardZero) => {
+                        BuiltinFunction::FloatFusedMultiplyAddTowardZeroF64
+                    }
+                    (FloatFormat::F32, RoundingDirection::TowardPositive) => {
+                        BuiltinFunction::FloatFusedMultiplyAddTowardPositiveF32
+                    }
+                    (FloatFormat::F64, RoundingDirection::TowardPositive) => {
+                        BuiltinFunction::FloatFusedMultiplyAddTowardPositiveF64
+                    }
+                    (FloatFormat::F32, RoundingDirection::TowardNegative) => {
+                        BuiltinFunction::FloatFusedMultiplyAddTowardNegativeF32
+                    }
+                    (FloatFormat::F64, RoundingDirection::TowardNegative) => {
+                        BuiltinFunction::FloatFusedMultiplyAddTowardNegativeF64
+                    }
+                    (_, RoundingDirection::NearestTiesToEven) => {
+                        diagnostics.push(Diagnostic::error(
+                            "directed FMA realization cannot select nearest-even",
+                        ));
+                        continue;
+                    }
+                };
+                let Some(symbol) = checked.typed.symbols.builtin_function_symbol(function) else {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "compiler builtin `{}` is absent while lowering a selected directed FMA intrinsic",
                         function.name()
                     )));
                     continue;
@@ -612,6 +654,42 @@ fn named_float_realization(intrinsic: &str) -> Option<NamedFloatRealization> {
             FloatFormat::F64,
             RoundingDirection::TowardNegative,
         )),
+        "F32::fused_multiply_add_toward_zero.f32" => {
+            Some(NamedFloatRealization::DirectedFusedMultiplyAdd(
+                FloatFormat::F32,
+                RoundingDirection::TowardZero,
+            ))
+        }
+        "F64::fused_multiply_add_toward_zero.f64" => {
+            Some(NamedFloatRealization::DirectedFusedMultiplyAdd(
+                FloatFormat::F64,
+                RoundingDirection::TowardZero,
+            ))
+        }
+        "F32::fused_multiply_add_toward_positive.f32" => {
+            Some(NamedFloatRealization::DirectedFusedMultiplyAdd(
+                FloatFormat::F32,
+                RoundingDirection::TowardPositive,
+            ))
+        }
+        "F64::fused_multiply_add_toward_positive.f64" => {
+            Some(NamedFloatRealization::DirectedFusedMultiplyAdd(
+                FloatFormat::F64,
+                RoundingDirection::TowardPositive,
+            ))
+        }
+        "F32::fused_multiply_add_toward_negative.f32" => {
+            Some(NamedFloatRealization::DirectedFusedMultiplyAdd(
+                FloatFormat::F32,
+                RoundingDirection::TowardNegative,
+            ))
+        }
+        "F64::fused_multiply_add_toward_negative.f64" => {
+            Some(NamedFloatRealization::DirectedFusedMultiplyAdd(
+                FloatFormat::F64,
+                RoundingDirection::TowardNegative,
+            ))
+        }
         "F32::is_nan.f32" | "F64::is_nan.f64" => Some(NamedFloatRealization::Builtin {
             function: BuiltinFunction::FloatIsNan,
             arity: 1,
@@ -829,6 +907,13 @@ mod tests {
             Some(NamedFloatRealization::DirectedSquareRoot(
                 FloatFormat::F64,
                 RoundingDirection::TowardPositive,
+            ))
+        );
+        assert_eq!(
+            named_float_realization("F32::fused_multiply_add_toward_zero.f32"),
+            Some(NamedFloatRealization::DirectedFusedMultiplyAdd(
+                FloatFormat::F32,
+                RoundingDirection::TowardZero,
             ))
         );
     }

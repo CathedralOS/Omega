@@ -1282,6 +1282,9 @@ fn runtime_value_operand_uses_control_state(
                 | StateGuardOperator::SqrtTowardZero
                 | StateGuardOperator::SqrtTowardPositive
                 | StateGuardOperator::SqrtTowardNegative
+                | StateGuardOperator::FusedMultiplyAddTowardZero
+                | StateGuardOperator::FusedMultiplyAddTowardPositive
+                | StateGuardOperator::FusedMultiplyAddTowardNegative
         ) || runtime_value_operand_uses_control_state(runtime_value_operands, left)
             || runtime_value_operand_uses_control_state(runtime_value_operands, right)
     } else if let Some((source, ..)) = runtime_value_operands.convert(operand) {
@@ -5438,7 +5441,11 @@ pub(in crate::aarch64) fn float_policy_guard_width(
         26,
         matches!(
             operator,
-            StateGuardOperator::MultiplyThenAdd | StateGuardOperator::FusedMultiplyAdd
+            StateGuardOperator::MultiplyThenAdd
+                | StateGuardOperator::FusedMultiplyAdd
+                | StateGuardOperator::FusedMultiplyAddTowardZero
+                | StateGuardOperator::FusedMultiplyAddTowardPositive
+                | StateGuardOperator::FusedMultiplyAddTowardNegative
         )
         .then_some(9),
         15,
@@ -5496,6 +5503,9 @@ fn float_policy_guard_bytes(
             | StateGuardOperator::MultiplyTowardNegative
             | StateGuardOperator::MultiplyThenAdd
             | StateGuardOperator::FusedMultiplyAdd
+            | StateGuardOperator::FusedMultiplyAddTowardZero
+            | StateGuardOperator::FusedMultiplyAddTowardPositive
+            | StateGuardOperator::FusedMultiplyAddTowardNegative
             | StateGuardOperator::Divide
             | StateGuardOperator::DivideTowardZero
             | StateGuardOperator::DivideTowardPositive
@@ -6468,14 +6478,34 @@ fn append_runtime_float_binary_operation(
         bytes.extend(encode_float_move_to_gpr(byte_size, left_register, 0)?);
         return Ok(());
     }
-    if operator == StateGuardOperator::FusedMultiplyAdd {
+    if matches!(
+        operator,
+        StateGuardOperator::FusedMultiplyAdd
+            | StateGuardOperator::FusedMultiplyAddTowardZero
+            | StateGuardOperator::FusedMultiplyAddTowardPositive
+            | StateGuardOperator::FusedMultiplyAddTowardNegative
+    ) {
         // x9 was populated by the structural FloatPair. FMADD performs the
         // multiply and add with one final rounding; do not split this into
         // FMUL/FADD or reuse the distinct multiply-then-add arm.
         bytes.extend(encode_float_move_from_gpr(byte_size, 0, left_register)?);
         bytes.extend(encode_float_move_from_gpr(byte_size, 1, 9)?);
         bytes.extend(encode_float_move_from_gpr(byte_size, 2, right_register)?);
+        let directed_fpcr = match operator {
+            StateGuardOperator::FusedMultiplyAddTowardPositive => Some(0x0040_0000),
+            StateGuardOperator::FusedMultiplyAddTowardNegative => Some(0x0080_0000),
+            StateGuardOperator::FusedMultiplyAddTowardZero => Some(0x00c0_0000),
+            _ => None,
+        };
+        if let Some(fpcr) = directed_fpcr {
+            bytes.extend(encode_read_fpcr(13));
+            append_unsigned_immediate(bytes, 12, fpcr);
+            bytes.extend(encode_write_fpcr(12));
+        }
         bytes.extend(encode_float_fused_multiply_add(byte_size, 0, 0, 1, 2)?);
+        if directed_fpcr.is_some() {
+            bytes.extend(encode_write_fpcr(13));
+        }
         bytes.extend(float_policy_guard_bytes(
             domain,
             operator,
@@ -8390,6 +8420,66 @@ mod tests {
                     "f{} FMA must not contain a separate add",
                     byte_size * 8,
                 );
+            }
+        }
+    }
+
+    #[test]
+    fn directed_fused_multiply_add_balances_fpcr_and_keeps_one_fmadd() {
+        use psi_numerics::arithmetic::ArithmeticDomain;
+
+        for (operator, fpcr) in [
+            (
+                StateGuardOperator::FusedMultiplyAddTowardPositive,
+                0x0040_0000_u64,
+            ),
+            (
+                StateGuardOperator::FusedMultiplyAddTowardNegative,
+                0x0080_0000_u64,
+            ),
+            (
+                StateGuardOperator::FusedMultiplyAddTowardZero,
+                0x00c0_0000_u64,
+            ),
+        ] {
+            for byte_size in [4usize, 8] {
+                let mut bytes = Vec::new();
+                append_runtime_float_binary_operation(
+                    &mut bytes,
+                    byte_size,
+                    17,
+                    operator,
+                    26,
+                    ArithmeticDomain::Exact,
+                    [15, 14],
+                )
+                .expect("encode directed fused multiply-add");
+                assert_eq!(
+                    bytes.len(),
+                    crate::aarch64::widths::runtime_float_binary_operation_width_with_domain(
+                        operator,
+                        byte_size,
+                        ArithmeticDomain::Exact,
+                    )
+                );
+                let words = bytes
+                    .chunks_exact(4)
+                    .map(|chunk| u32::from_le_bytes(chunk.try_into().unwrap()))
+                    .collect::<Vec<_>>();
+                assert_eq!(words[3], u32::from_le_bytes(encode_read_fpcr(13)));
+                assert_eq!(words[4], u32::from_le_bytes(encode_movz(12, 0)));
+                assert_eq!(
+                    words[5],
+                    u32::from_le_bytes(encode_movk(12, ((fpcr >> 16) & 0xffff) as u16, 1,))
+                );
+                assert_eq!(words[6], u32::from_le_bytes(encode_write_fpcr(12)));
+                assert_eq!(
+                    words[7],
+                    u32::from_le_bytes(
+                        encode_float_fused_multiply_add(byte_size, 0, 0, 1, 2).unwrap()
+                    )
+                );
+                assert_eq!(words[8], u32::from_le_bytes(encode_write_fpcr(13)));
             }
         }
     }
