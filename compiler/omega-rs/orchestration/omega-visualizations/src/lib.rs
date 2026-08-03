@@ -20,7 +20,8 @@ pub use checked_trees::{
 };
 pub use control_flow::control_flow_html;
 pub use executable_tcb_manifest::{
-    executable_tcb_manifest_json, executable_tcb_manifest_value_json,
+    executable_tcb_manifest_json, executable_tcb_manifest_set_json,
+    executable_tcb_manifest_value_json,
 };
 pub use phase_diagram::{
     PipelineEmbeddedPage, pipeline_index_html, pipeline_shell_html, text_report_html,

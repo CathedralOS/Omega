@@ -228,6 +228,14 @@ their requirements are not met. An isolated provider is an endpoint in the
 caller's manifest and receives its own executable manifest for its execution
 scope.
 
+The implemented isolated-scope carrier makes that separation structural. A
+selected closure is assigned a nonzero isolated scope before opaque admissions;
+the manifest-set admission then binds the child's exact manifest and admission
+receipt to one exact endpoint entry in the parent. Endpoint containment stays
+on the parent entry, while every child entry and its completeness result remain
+under the child scope. Scope drift, duplicate child scope identity, and mixed-
+scope child entries reject. Parent and child profiles are evaluated separately.
+
 Binding authors publish the widest contract they can honestly support.
 Over-approximation may cost usability: an unconstrained synchronous invocation
 ceiling rejects from an acyclic context, and a blocking edge without finite

@@ -11,6 +11,7 @@ use std::collections::BTreeSet;
 pub struct SelectedProviderPlanFacts {
     plans: Vec<ProviderPlan>,
     normalized_identity: u64,
+    execution_scope: crate::ExecutionScope,
     opaque_executable_admissions: Vec<crate::ValidatedOpaqueExecutableAdmission>,
 }
 
@@ -19,6 +20,7 @@ impl Default for SelectedProviderPlanFacts {
         Self {
             plans: Vec::new(),
             normalized_identity: fingerprint_selected_plans(&[]),
+            execution_scope: crate::ExecutionScope::CallerAddressSpace,
             opaque_executable_admissions: Vec::new(),
         }
     }
@@ -87,6 +89,7 @@ impl SelectedProviderPlanFacts {
         Ok(Self {
             plans,
             normalized_identity,
+            execution_scope: crate::ExecutionScope::CallerAddressSpace,
             opaque_executable_admissions: Vec::new(),
         })
     }
@@ -107,6 +110,30 @@ impl SelectedProviderPlanFacts {
 
     pub const fn normalized_identity(&self) -> u64 {
         self.normalized_identity
+    }
+
+    pub const fn execution_scope(&self) -> crate::ExecutionScope {
+        self.execution_scope
+    }
+
+    /// Re-scope one selected closure before attaching opaque admissions. The
+    /// provider-plan identity is unchanged; execution scope is artifact
+    /// installation context rather than source/provider identity.
+    pub fn with_execution_scope(
+        mut self,
+        execution_scope: crate::ExecutionScope,
+    ) -> Result<Self, String> {
+        if !self.opaque_executable_admissions.is_empty() {
+            return Err(
+                "selected provider closure must choose its execution scope before opaque executable admissions"
+                    .into(),
+            );
+        }
+        if matches!(execution_scope, crate::ExecutionScope::IsolatedProvider(0)) {
+            return Err("isolated execution scope has the reserved zero identity".into());
+        }
+        self.execution_scope = execution_scope;
+        Ok(self)
     }
 
     pub fn is_empty(&self) -> bool {
@@ -133,6 +160,12 @@ impl SelectedProviderPlanFacts {
             })
             .collect::<BTreeSet<_>>();
         for candidate in candidates {
+            if candidate.execution_scope != self.execution_scope {
+                return Err(format!(
+                    "opaque executable admission scope {:?} does not match selected closure scope {:?}",
+                    candidate.execution_scope, self.execution_scope
+                ));
+            }
             let key = (
                 candidate.provider_plan_identity,
                 candidate.method.clone(),
@@ -174,6 +207,7 @@ impl SelectedProviderPlanFacts {
         crate::executable_tcb_manifest::derive_static_manifest(
             &self.plans,
             self.normalized_identity,
+            self.execution_scope,
             &self.opaque_executable_admissions,
         )
     }

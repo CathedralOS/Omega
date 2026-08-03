@@ -1,6 +1,7 @@
 mod capabilities;
 mod executable_tcb_manifest;
 mod executable_tcb_profile;
+mod isolated_executable_scopes;
 mod selected_provider_plans;
 
 pub use capabilities::analysis::{
@@ -26,5 +27,8 @@ pub use executable_tcb_profile::{
     ExactExecutableTcbAllowance, ExecutableTcbProfile, ExecutableTcbProfileAcceptance,
     ExecutableTcbProfileRejection, ExecutableTcbProfileViolation, IncompleteScopePolicy,
     evaluate_executable_tcb_profile,
+};
+pub use isolated_executable_scopes::{
+    AdmittedIsolatedExecutableScope, ExecutableTcbManifestSet, IsolatedExecutableScopeCandidate,
 };
 pub use selected_provider_plans::SelectedProviderPlanFacts;

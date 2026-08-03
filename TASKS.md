@@ -1384,8 +1384,14 @@ improvements do not change public identity.
   independent implementation and containment receipts. Pinning alone retains
   the attributed incompleteness cause; only a separate executable-closure
   receipt removes it, and closure evidence survives when another row keeps the
-  overall scope incomplete. Isolated-scope manifests remain. The append-only
-  runtime ledger now admits pinned executable identities only through an
+  overall scope incomplete. Selected closures can now be assigned a nonzero
+  isolated execution-scope identity before opaque admissions. A validated
+  manifest set retains an exact admitted endpoint in the parent manifest and a
+  separately addressable child manifest, rejects scope drift and duplicate
+  scope attachment, and keeps parent/child completeness and profile evaluation
+  independent. The JSON artifact surface preserves that separation and the
+  manifest admission receipt. The append-only runtime ledger now admits pinned
+  executable identities only through an
   Omega-mediation receipt, rejects receipt replay and duplicate artifact rows,
   and unions its canonical entries with the static manifest under the exact
   same scope. Runtime entries retain their distinct origin, implementation and

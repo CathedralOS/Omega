@@ -38,7 +38,7 @@ pub fn executable_tcb_manifest_value_json(
             runtime_closure_evidence,
         } => {
             json.push_str("\n    \"status\": \"complete\",\n    \"scope\": ");
-            push_json_string(&mut json, scope_name(*scope));
+            push_execution_scope_json(&mut json, *scope);
             json.push_str(",\n    \"evidence\": [\n      {\"kind\": \"selected_provider_closure\", \"identity\": ");
             push_json_string(
                 &mut json,
@@ -69,7 +69,7 @@ pub fn executable_tcb_manifest_value_json(
             runtime_closure_evidence,
         } => {
             json.push_str("\n    \"status\": \"incomplete\",\n    \"scope\": ");
-            push_json_string(&mut json, scope_name(*scope));
+            push_execution_scope_json(&mut json, *scope);
             json.push_str(",\n    \"causes\": [");
             for (index, cause) in causes.iter().enumerate() {
                 if index > 0 {
@@ -113,6 +113,30 @@ pub fn executable_tcb_manifest_value_json(
         }
     }
     json.push_str("\n  }\n}\n");
+    json
+}
+
+/// Stable artifact surface retaining the caller manifest and each separately
+/// evaluated isolated-provider manifest.
+pub fn executable_tcb_manifest_set_json(set: &omega_effects::ExecutableTcbManifestSet) -> String {
+    let mut json = String::from("{\n  \"root_manifest\": ");
+    json.push_str(executable_tcb_manifest_value_json(set.root()).trim());
+    json.push_str(",\n  \"isolated_scopes\": [");
+    for (index, isolated) in set.isolated().iter().enumerate() {
+        if index > 0 {
+            json.push(',');
+        }
+        json.push_str("\n    {\"manifest_receipt_identity\": ");
+        push_json_string(&mut json, isolated.manifest_receipt_identity());
+        json.push_str(", \"manifest\": ");
+        json.push_str(executable_tcb_manifest_value_json(isolated.manifest()).trim());
+        json.push('}');
+    }
+    if !set.isolated().is_empty() {
+        json.push('\n');
+        json.push_str("  ");
+    }
+    json.push_str("]\n}\n");
     json
 }
 
@@ -205,6 +229,16 @@ fn push_entry_json(json: &mut String, entry: &ExecutableTcbEntry) {
             push_json_string(json, identity);
             json.push('}');
         }
+        ExecutableIdentity::IsolatedProviderEndpoint {
+            scope_identity,
+            endpoint_identity,
+        } => {
+            json.push_str("{\"kind\": \"isolated_provider_endpoint\", \"scope_identity\": ");
+            push_json_string(json, &format!("0x{scope_identity:016x}"));
+            json.push_str(", \"identity\": ");
+            push_json_string(json, endpoint_identity);
+            json.push('}');
+        }
     }
     json.push_str(",\n      \"implementation_evidence\": ");
     match &entry.implementation_evidence {
@@ -225,6 +259,18 @@ fn push_entry_json(json: &mut String, entry: &ExecutableTcbEntry) {
             push_json_string(json, receipt_identity);
             json.push('}');
         }
+        ImplementationEvidence::AdmittedIsolatedEndpoint {
+            endpoint_receipt_identity,
+            isolated_manifest_receipt_identity,
+        } => {
+            json.push_str(
+                "{\"class\": \"admitted_isolated_endpoint\", \"endpoint_receipt_identity\": ",
+            );
+            push_json_string(json, endpoint_receipt_identity);
+            json.push_str(", \"isolated_manifest_receipt_identity\": ");
+            push_json_string(json, isolated_manifest_receipt_identity);
+            json.push('}');
+        }
     }
     json.push_str(",\n      \"origin\": ");
     push_json_string(
@@ -235,7 +281,7 @@ fn push_entry_json(json: &mut String, entry: &ExecutableTcbEntry) {
         },
     );
     json.push_str(",\n      \"execution_scope\": ");
-    push_json_string(json, scope_name(entry.execution_scope));
+    push_execution_scope_json(json, entry.execution_scope);
     json.push_str(",\n      \"containment\": [");
     for (index, evidence) in entry.containment.iter().enumerate() {
         if index > 0 {
@@ -291,9 +337,14 @@ fn push_opaque_binding_json(json: &mut String, binding: &OpaqueInProcessBinding)
     json.push('}');
 }
 
-const fn scope_name(scope: ExecutionScope) -> &'static str {
+fn push_execution_scope_json(json: &mut String, scope: ExecutionScope) {
     match scope {
-        ExecutionScope::CallerAddressSpace => "caller_address_space",
+        ExecutionScope::CallerAddressSpace => push_json_string(json, "caller_address_space"),
+        ExecutionScope::IsolatedProvider(identity) => {
+            json.push_str("{\"kind\": \"isolated_provider\", \"identity\": ");
+            push_json_string(json, &format!("0x{identity:016x}"));
+            json.push('}');
+        }
     }
 }
 
@@ -424,7 +475,8 @@ mod tests {
     fn artifact_reports_only_mediated_runtime_entries_and_their_closure() {
         let static_manifest = SelectedProviderPlanFacts::default().executable_tcb_manifest();
         let mut ledger =
-            omega_effects::OmegaRuntimeExecutableLedger::new(ExecutionScope::CallerAddressSpace);
+            omega_effects::OmegaRuntimeExecutableLedger::new(ExecutionScope::CallerAddressSpace)
+                .expect("valid caller scope");
         ledger
             .admit(omega_effects::OmegaRuntimeExecutableAdmissionCandidate {
                 provider_identity: ProviderIdentity::NominalType("RuntimePlugin".into()),
@@ -446,5 +498,33 @@ mod tests {
         assert!(json.contains("\"identity\": \"sha256:runtime-plugin-v1\""));
         assert!(json.contains("\"kind\": \"omega_runtime_executable_closure\""));
         assert!(json.contains("\"admission_receipt_identity\": \"receipt:omega-loader-v1\""));
+    }
+
+    #[test]
+    fn artifact_keeps_isolated_scope_manifest_separate_from_root_endpoint() {
+        let root = SelectedProviderPlanFacts::default().executable_tcb_manifest();
+        let isolated = SelectedProviderPlanFacts::default()
+            .with_execution_scope(ExecutionScope::IsolatedProvider(501))
+            .expect("isolated scope")
+            .executable_tcb_manifest();
+        let mut set = omega_effects::ExecutableTcbManifestSet::new(root).expect("root manifest");
+        set.attach_isolated_scope(omega_effects::IsolatedExecutableScopeCandidate {
+            provider_identity: ProviderIdentity::NominalType("SandboxedCodec".into()),
+            provider_plan_identity: 501,
+            endpoint_identity: "endpoint:codec-v1".into(),
+            endpoint_receipt_identity: "receipt:endpoint-v1".into(),
+            isolated_manifest_receipt_identity: "receipt:isolated-manifest-v1".into(),
+            isolated_scope_identity: 501,
+            containment: Vec::new(),
+            isolated_manifest: isolated,
+        })
+        .expect("exact isolated attachment");
+
+        let json = executable_tcb_manifest_set_json(&set);
+        assert!(json.contains("\"kind\": \"isolated_provider_endpoint\""));
+        assert!(json.contains("\"kind\": \"isolated_provider\""));
+        assert!(json.contains("\"manifest_receipt_identity\": \"receipt:isolated-manifest-v1\""));
+        assert_eq!(json.matches("\"root_manifest\"").count(), 1);
+        assert_eq!(json.matches("\"isolated_scopes\"").count(), 1);
     }
 }
