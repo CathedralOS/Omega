@@ -148,10 +148,14 @@ composite claim-frontier work remain.
   exact requirement, and a descendant `Calling<C>` policy refines the selected
   plan without replacing the semantic requirement identity. Selected schemas
   retain the normalized parameter position and look-alike requirements publish
-  no accepted claim. Do not add an `[entry]`/`[accepted]` marker, source
-  selector, public receipt, or new trust category. Remaining: connect the
-  existing installed-root occurrence evidence to the checked `Pending`
-  parameter fact, preserving the semantic position until ABI lowering.
+  no accepted claim. An Omega-owned sidecar now resolves each selected
+  `accepts` row to the exact propagated checked parameter fact and admits only
+  a matching unforgeable installed-root occurrence; plan, requirement,
+  semantic parameter position, domain, and carry policy must all agree. Do not
+  add an `[entry]`/`[accepted]` marker, source selector, public receipt, or new
+  trust category. Remaining: require that admitted match in concrete compiler
+  entry lowering before entering the checked adapter body, preserving the
+  semantic position until ABI lowering.
 - `TaskRuntime` is now an ordinary boundary trait. Each concrete `start<M>` /
   `try_start<M>` Omega activation-sidecar fact binds the exact retained
   selected-provider plan and exact operation requirement, rejecting a missing

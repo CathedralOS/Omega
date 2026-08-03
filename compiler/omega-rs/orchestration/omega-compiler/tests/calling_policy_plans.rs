@@ -3,8 +3,8 @@ use omega_calling_conventions::{
     Preemption, ValueShape,
 };
 use omega_compiler::{
-    compile_to_checked, evaluate_calling_policy_plan, selected_external_root_provider_plan,
-    selected_external_root_provider_plan_id,
+    compile_to_checked, evaluate_calling_policy_plan, selected_external_root_entry_fact_bindings,
+    selected_external_root_provider_plan, selected_external_root_provider_plan_id,
 };
 use std::fs;
 use std::path::PathBuf;
@@ -342,6 +342,69 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
         runtime_pending.effective_carry,
         omega_core::semantics::CarryPolicy::STRICT
     );
+    let entry_fact_bindings = selected_external_root_entry_fact_bindings(
+        &checked,
+        checked.selected_provider_plans(),
+        "TimerRoot",
+    )
+    .expect("installed root must bind its accepted claim to one checked entry fact");
+    let [entry_fact] = entry_fact_bindings.as_slice() else {
+        panic!("TimerRoot must bind one checked Pending parameter fact");
+    };
+    assert_eq!(entry_fact.provider_plan(), root_selection.identity);
+    assert_eq!(
+        entry_fact.requirement_identity(),
+        entry.requirement_identity
+    );
+    assert_eq!(entry_fact.parameter_index(), 0);
+    assert_eq!(entry_fact.domain(), "InterruptAcknowledgement::Pending");
+    assert_eq!(
+        entry_fact.parameter_symbol(),
+        checked.typed.state_parameters(
+            checked
+                .typed
+                .machine_states(
+                    checked
+                        .typed
+                        .machines()
+                        .iter()
+                        .find(|machine| machine.name.as_str() == "TimerProvider::enter")
+                        .expect("timer adapter"),
+                )
+                .first()
+                .expect("timer entry state"),
+        )[0]
+        .symbol
+    );
+    assert_eq!(
+        checked
+            .facts
+            .semantic
+            .facts
+            .get(entry_fact.checked_fact())
+            .evidence
+            .origin,
+        omega_core::semantics::QualificationEvidenceOrigin::Propagated,
+        "the checked adapter fact remains an ordinary parameter precondition until occurrence admission"
+    );
+    let mut drifted_checked = checked.clone();
+    drifted_checked
+        .facts
+        .semantic
+        .facts
+        .get_mut(entry_fact.checked_fact())
+        .evidence
+        .origin = omega_core::semantics::QualificationEvidenceOrigin::CheckedTransformation;
+    assert!(
+        selected_external_root_entry_fact_bindings(
+            &drifted_checked,
+            drifted_checked.selected_provider_plans(),
+            "TimerRoot",
+        )
+        .expect_err("a non-precondition fact must not satisfy installed-root entry binding")
+        .0
+        .contains("maps to 0 checked entry facts")
+    );
     let lookalike_entry_plan = checked
         .selected_provider_plans()
         .plan_by_name("LookalikeEntryProvider::satisfies::LookalikeEntry")
@@ -352,6 +415,15 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
     assert!(
         lookalike_entry.entry_claims.is_empty(),
         "a qualified parameter whose requirement is not named by the domain route must remain an ordinary precondition"
+    );
+    assert!(
+        selected_external_root_entry_fact_bindings(
+            &checked,
+            checked.selected_provider_plans(),
+            "LookalikeEntry",
+        )
+        .expect("a look-alike root has no routed entry bindings")
+        .is_empty()
     );
     assert_eq!(
         selected_external_root_provider_plan_id(checked.selected_provider_plans(), "TimerRoot")

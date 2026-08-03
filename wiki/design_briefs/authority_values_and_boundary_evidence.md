@@ -649,9 +649,12 @@ The provider-neutral external-root ledger now retains those rows beside the
 exact selected requirement and includes them in normalized root identity. On a
 concrete interrupt entry, it binds the acknowledgement subject to the selected
 provider plan and invocation receipt and carries the accepted domain and strict
-carry policy into invocation-specific qualification evidence. Compiler entry
-lowering still must require that runtime evidence before admitting the checked
-source-parameter fact; the selected schema alone remains insufficient.
+carry policy into invocation-specific qualification evidence. An Omega-owned
+static sidecar resolves the selected `accepts` row to the exact propagated Psi
+parameter fact and admits the occurrence only when plan, requirement, semantic
+parameter position, domain, and carry policy all match. Concrete compiler entry
+lowering still must consume that admitted match before entering the checked
+adapter body; the selected schema alone remains insufficient.
 
 Mask transitions use the ordinary routed-result path. Core's `Active` domain
 names the exact exclusive-receiver `InterruptMaskControl::save_and_mask`

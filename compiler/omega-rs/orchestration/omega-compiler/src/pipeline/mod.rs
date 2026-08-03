@@ -53,6 +53,7 @@ pub use omega_layout_plans::{
     normalized_layout_plan_fingerprint,
 };
 pub use provider_plans::{
-    SelectedExternalRootProviderPlan, selected_external_root_provider_plan,
+    SelectedExternalRootEntryFactBinding, SelectedExternalRootProviderPlan,
+    selected_external_root_entry_fact_bindings, selected_external_root_provider_plan,
     selected_external_root_provider_plan_id,
 };
