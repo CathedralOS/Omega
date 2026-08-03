@@ -514,6 +514,8 @@ fn checked_source_booleans_survive_frontend_drop() {
         .expect("Boolean constant source should lower");
     let parameter = lower_machine(&checked, "terminal_ninth_boolean")
         .expect("Boolean parameter source should lower");
+    let chain = lower_machine(&checked, "terminal_boolean_chain")
+        .expect("Boolean state chain should lower");
     drop(checked);
 
     let constant_verified = verify_module(
@@ -548,6 +550,20 @@ fn checked_source_booleans_survive_frontend_drop() {
         .expect("source Boolean parameter should execute");
     assert_eq!(parameter_result.value(), TerminalScalarValue::Boolean(true));
     assert_eq!(parameter_result.usage().total_units(), 1);
+
+    let chain_verified = verify_module(
+        &chain.semantic_module,
+        &chain.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("source Boolean state chain should verify");
+    let chain_fuel = derive_fixed_entry_fuel(&chain_verified, chain.semantic_module.entry)
+        .expect("Boolean state chain should have fixed fuel");
+    assert_eq!(chain_fuel.ceiling_units(), 3);
+    let chain_result = interpret_terminal_measured(&chain_verified, &arguments)
+        .expect("source Boolean state chain should execute");
+    assert_eq!(chain_result.value(), TerminalScalarValue::Boolean(true));
+    assert_eq!(chain_result.usage().total_units(), 3);
 }
 
 #[cfg(unix)]
@@ -596,6 +612,45 @@ fn source_booleans_reach_constant_and_stack_parameter_machine_code() {
         };
         assert_eq!(exit, 1, "{machine} native Boolean result");
     }
+}
+
+#[cfg(unix)]
+#[test]
+fn source_boolean_jump_bindings_reach_stack_parameter_machine_code() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("terminal-Psi Boolean state-chain canary should compile");
+    let lowered = lower_machine(&checked, "terminal_boolean_chain")
+        .expect("Boolean state chain should lower");
+    drop(checked);
+
+    let verified = verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("Boolean state chain should verify");
+    let abstract_operations = lower_verified_module(&verified)
+        .expect("Boolean jump bindings should lower without frontend state");
+    let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
+        .expect("Boolean jump bindings should select for the host");
+    let machine_code =
+        emit_machine_code(&target_operations).expect("Boolean jump bindings should emit");
+    let object_artifact = build_terminal_object_artifact(&machine_code)
+        .expect("Boolean state chain should form an object");
+    let entry = object_artifact.entry_function();
+    assert!(entry.provenance.operations.is_empty());
+    assert_eq!(
+        entry.provenance.edges,
+        [
+            EdgeId::new(1).expect("first jump edge"),
+            EdgeId::new(2).expect("second jump edge"),
+            EdgeId::new(3).expect("return edge"),
+        ]
+    );
+    assert_eq!(
+        run_host_machine_code_with_nine_bool(entry.bytes(&object_artifact)),
+        1
+    );
 }
 
 #[test]

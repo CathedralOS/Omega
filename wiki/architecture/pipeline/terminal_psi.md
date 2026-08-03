@@ -64,8 +64,11 @@ the Psi check.
 
 The first Psi-owned terminal source producer is live as
 `psi-checked-trees-to-terminal`. It accepts three exact free-machine forms. A
-single-state Boolean machine may return a literal or one exact named parameter
-from any sequence of ordinary Boolean parameters. A single-state integer
+Boolean machine may return a literal or one exact named parameter from any
+sequence of ordinary Boolean parameters, either directly or through a
+nonempty linear sequence of unconditional state bindings. Every non-entry
+Boolean state has one ordinary Boolean parameter, and each jump carries a
+literal or an exact parameter from its source state. A single-state integer
 machine may declare any nonempty sequence of ordinary primitive-integer
 parameters and return one exact named parameter or a recursively nested
 expression over parameters and landed literals using the six builtin
@@ -82,8 +85,9 @@ Saturating domains. All three forms require a matching closed
 `requires`/`ensures` pair. The producer rejects all other checked-tree shapes,
 including selected domain-owned operator meanings. The source canary lowers
 all six versioned integer-policy operations in both constant-fed and
-runtime-parameter forms, Boolean literal and ninth-parameter returns, plus a
-nine-parameter integer direct return, discards
+runtime-parameter forms, Boolean literal and ninth-parameter returns, a
+three-state Boolean chain carrying its ninth parameter, plus a nine-parameter
+integer direct return, discards
 `CheckedTrees`, then verifies and executes the produced semantic modules.
 Constant-fed wrapping add and the Boolean literal reach emitted host machine
 code; direct ninth `bool` and `u8` returns cross the host incoming-stack ABI;

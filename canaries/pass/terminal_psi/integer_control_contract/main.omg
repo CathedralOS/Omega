@@ -206,5 +206,26 @@ ensures true == true
     ninth
 }
 
+machine terminal_boolean_chain(
+    first: bool,
+    second: bool,
+    third: bool,
+    fourth: bool,
+    fifth: bool,
+    sixth: bool,
+    seventh: bool,
+    eighth: bool,
+    ninth: bool
+) -> bool
+requires true == true
+ensures true == true
+{
+    transition { _ -> carry(ninth) }
+    state carry(value: bool) -> bool {
+        transition { _ -> finish(value) }
+    }
+    state finish(value: bool) -> bool { value }
+}
+
 data Main {}
 machine Main::main(&mut self) {}
