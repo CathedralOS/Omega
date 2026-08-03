@@ -428,7 +428,7 @@ machine ForeignIntegers::plan(&mut self, schema: Schema) -> Plan {
     Plan { entries: self.entries, entry_count: 2, size_fixed: 8, size_is_dynamic: false, align: 1 }
 }
 data PortableStat { seconds: i64; inode: u64; }
-data Main { }
+data Main { value: ForeignIntegers<PortableStat>; }
 machine Main::main(&mut self) { }
 "#,
     );
@@ -455,6 +455,57 @@ machine Main::main(&mut self) { }
             interpretation: IntegerInterpretation::Unsigned,
         }
     ));
+
+    let recorded = checked
+        .typed
+        .plan_laid_layouts
+        .iter()
+        .find(|layout| layout.data_name == "ForeignIntegers<PortableStat>")
+        .expect("stored-width geometry should cross the typed plan-laid boundary");
+    assert_eq!(recorded.offsets, vec![0, 4]);
+    assert_eq!(recorded.integer_fields.len(), 2);
+    assert_eq!(recorded.integer_fields[0].field_index, 0);
+    assert_eq!(recorded.integer_fields[0].stored_width_bits, 32);
+    assert_eq!(
+        recorded.integer_fields[0].interpretation,
+        IntegerInterpretation::Signed
+    );
+    assert_eq!(recorded.integer_fields[1].field_index, 1);
+    assert_eq!(
+        recorded.integer_fields[1].interpretation,
+        IntegerInterpretation::Unsigned
+    );
+
+    let target = NativeTarget::from_omega_target_name(None).expect("host target");
+    let layouts = build_layout_plan(&checked, target).expect("stored integer layout should build");
+    let data_layout = layouts
+        .data_layouts
+        .iter()
+        .map(|(_, layout)| layout)
+        .find(|layout| layout.name.as_str() == "ForeignIntegers<PortableStat>")
+        .expect("synthesized stored-integer record should have a concrete layout");
+    let DataShape::Record { fields } = data_layout.shape else {
+        panic!("stored-integer layout should remain a record");
+    };
+    let fields = layouts.fields.span_or_empty(fields);
+    assert_eq!(
+        fields.iter().map(|field| field.offset).collect::<Vec<_>>(),
+        [0, 4]
+    );
+    assert_eq!(
+        layouts
+            .stored_integer(fields[0].symbol)
+            .expect("signed stored integer metadata")
+            .interpretation,
+        IntegerInterpretation::Signed
+    );
+    assert_eq!(
+        layouts
+            .stored_integer(fields[1].symbol)
+            .expect("unsigned stored integer metadata")
+            .stored_width_bits,
+        32
+    );
 }
 
 #[test]

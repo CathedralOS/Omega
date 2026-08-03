@@ -756,6 +756,13 @@ fn plain_data_value_shape(
             layout.offsets.len()
         ));
     }
+    if let Some(layout) = planned_layout
+        && !layout.integer_fields.is_empty()
+    {
+        return Err(format!(
+            "plan-laid data `{name}` contains stored-width integer fields whose by-value boundary classification awaits direct extension lowering; pass it by reference"
+        ));
+    }
     visiting.push(symbol);
     let mut size = 0usize;
     let mut alignment = 1usize;

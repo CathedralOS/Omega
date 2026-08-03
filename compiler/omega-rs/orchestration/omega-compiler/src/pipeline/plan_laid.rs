@@ -32,7 +32,9 @@ use psi_syntax_trees::SyntaxTrees;
 use psi_syntax_trees::identifier::Identifier;
 use psi_syntax_trees::item::{DataDefinition, DataMember, DataProperties, Item};
 use psi_syntax_trees::types::{TypeReferenceHandle, TypeReferenceNode};
-use psi_typed_trees::{PlanLaidBitField, PlanLaidBitFragment, PlanLaidLayout, TypedTrees};
+use psi_typed_trees::{
+    PlanLaidBitField, PlanLaidBitFragment, PlanLaidIntegerField, PlanLaidLayout, TypedTrees,
+};
 use std::collections::{HashMap, HashSet};
 
 /// One plan-laid instantiation discovered by the desugar: the synthesized
@@ -310,6 +312,7 @@ pub(crate) fn compute_plan_laid_layouts(
 
         let mut offsets = vec![None; field_count];
         let mut bit_fields = Vec::<PlanLaidBitField>::new();
+        let mut integer_fields = Vec::<PlanLaidIntegerField>::new();
         for (field_index, field_name) in schema_fields.iter().enumerate() {
             let field_entries = report
                 .entries
@@ -329,10 +332,30 @@ pub(crate) fn compute_plan_laid_layouts(
                     })?);
                 }
                 [entry] if matches!(entry.placement, LayoutPlacementReport::IntegerAt { .. }) => {
-                    return Err(vec![Diagnostic::error(format!(
-                        "plan-laid value type `{}`: field `{field_name}` uses normalized stored-integer placement, but direct sign/zero-extending projection lowering is not installed yet",
-                        record.synthetic_name
-                    ))]);
+                    let LayoutPlacementReport::IntegerAt {
+                        offset,
+                        stored_width,
+                        interpretation,
+                    } = entry.placement
+                    else {
+                        unreachable!()
+                    };
+                    offsets[field_index] = Some(usize::try_from(offset).map_err(|_| {
+                        vec![Diagnostic::error(format!(
+                            "plan-laid value type `{}`: stored-integer byte offset {offset} cannot be represented on this compiler host",
+                            record.synthetic_name
+                        ))]
+                    })?);
+                    integer_fields.push(PlanLaidIntegerField {
+                        field_index,
+                        stored_width_bits: u16::try_from(stored_width).map_err(|_| {
+                            vec![Diagnostic::error(format!(
+                                "plan-laid value type `{}`: stored-integer width {stored_width} exceeds the backend width vocabulary",
+                                record.synthetic_name
+                            ))]
+                        })?,
+                        interpretation,
+                    });
                 }
                 entries
                     if entries.iter().all(|entry| {
@@ -425,6 +448,7 @@ pub(crate) fn compute_plan_laid_layouts(
             data_name: record.synthetic_name.clone(),
             offsets,
             bit_fields,
+            integer_fields,
             size,
             align,
         });

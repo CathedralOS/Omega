@@ -185,6 +185,17 @@ pub struct BitFieldLayout {
     pub fragments: Vec<BitFieldFragment>,
 }
 
+/// Physical integer encoding selected by a validated plan-laid layout. The
+/// field's ordinary `FieldLayout` continues to describe its semantic carrier;
+/// storage consumers must use this record for the exact load width and
+/// extension rule.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StoredIntegerLayout {
+    pub field: SymbolHandle,
+    pub stored_width_bits: u16,
+    pub interpretation: psi_layout_plans::IntegerInterpretation,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VariantLayout {
     pub symbol: SymbolHandle,
@@ -282,6 +293,7 @@ pub struct LayoutPlan {
     pub data_layouts: Arena<DataLayout>,
     pub fields: Arena<FieldLayout>,
     pub bit_fields: Vec<BitFieldLayout>,
+    pub stored_integers: Vec<StoredIntegerLayout>,
     pub machine_layouts: Arena<MachineLayout>,
     pub variants: Arena<VariantLayout>,
 }
@@ -289,5 +301,11 @@ pub struct LayoutPlan {
 impl LayoutPlan {
     pub fn bit_field(&self, field: SymbolHandle) -> Option<&BitFieldLayout> {
         self.bit_fields.iter().find(|layout| layout.field == field)
+    }
+
+    pub fn stored_integer(&self, field: SymbolHandle) -> Option<&StoredIntegerLayout> {
+        self.stored_integers
+            .iter()
+            .find(|layout| layout.field == field)
     }
 }

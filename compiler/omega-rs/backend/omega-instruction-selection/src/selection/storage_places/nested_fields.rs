@@ -170,6 +170,12 @@ pub(in crate::selection) fn resolve_nested_field_layout_step<'layout>(
                 })?
         }
     };
+    // The normalized plan retains the exact physical width and extension rule,
+    // but ordinary scalar storage resolution must not treat the semantic
+    // carrier width as the stored width before dedicated lowering consumes it.
+    if layouts.stored_integer(field.symbol).is_some() {
+        return None;
+    }
     let containing_byte_offset = cursor.byte_offset;
     let mut next = NestedFieldLayoutCursor {
         byte_offset: cursor.byte_offset + field.offset,
