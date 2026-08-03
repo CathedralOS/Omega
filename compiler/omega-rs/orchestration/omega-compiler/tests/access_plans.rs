@@ -705,6 +705,34 @@ data Main {}
 }
 
 #[test]
+fn placed_view_cannot_recast_around_its_admitted_policy() {
+    let source = POLICY_SOURCE.replace(
+        "data Main {}",
+        r#"
+machine reinterpret(view: Placed<UartPlacement, Registers>) {
+    let alias: &Placed<UartPlacement, Registers> =
+        &view as &Placed<UartPlacement, Registers>;
+}
+
+data Main {}
+"#,
+    );
+    let main = write_program("placed-view-recast", &source);
+    let diagnostics = compile_to_checked(&main, None)
+        .expect_err("a placed view must not be reconstructed through recast");
+    let rendered = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        rendered.contains("placed-view recast")
+            && rendered.contains("explicitly admit the intended placement"),
+        "unexpected diagnostic: {rendered}"
+    );
+}
+
+#[test]
 fn placed_view_rejects_atomic_operations_outside_the_plan() {
     let source = POLICY_SOURCE.replace(
         "data Main {}",

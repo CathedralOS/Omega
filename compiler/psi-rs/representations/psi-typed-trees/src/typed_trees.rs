@@ -1348,6 +1348,16 @@ impl TypedTrees {
             .map(|(_, field)| field)
     }
 
+    pub fn placed_view_plan_for_type_reference(
+        &self,
+        type_reference: types::TypeReferenceHandle,
+    ) -> Option<&PlacedViewPlan> {
+        let view_name = named_type_name_through_shells(&self.type_reference_table, type_reference)?;
+        self.placed_view_plans
+            .iter()
+            .find(|view| view.data_name == view_name)
+    }
+
     pub fn placed_view_field_plan_for_type_reference(
         &self,
         type_reference: types::TypeReferenceHandle,
