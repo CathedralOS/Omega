@@ -148,8 +148,10 @@ and assigns stable aligned AArch64 frame spills before any expression scratch
 register may overwrite an incoming argument. The resulting
 `omega-terminal-assigned-target-operations` plan is the only expression-home
 input accepted by terminal machine emission. X86-64 register and incoming-stack
-homes remain explicit because the current scratch discipline preserves them;
-broader allocation, spill reuse, and non-scalar homes remain later work.
+homes remain explicit when the scratch discipline preserves them; a selected
+input in `rax`, `r10`, or `r11` receives an assigned frame spill, while `rsp`
+cannot be an expression-parameter home. Broader liveness-based allocation,
+spill reuse, and non-scalar homes remain later work.
 `omega-terminal-machine-emission` emits ordinary scalar-return code for
 AArch64 and x86-64 and rejects non-native integer widths.
 `omega-terminal-image-emission` then constructs an owned, canonical-order
