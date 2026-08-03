@@ -24,6 +24,7 @@ omega-target-operations = { path = "../../representations/omega-target-operation
 psi-checked-trees = { path = "../../../psi-rs/representations/psi-checked-trees" }
 psi-effects = { path = "../../../psi-rs/representations/psi-effects" }
 psi-facts = { path = "../../../psi-rs/representations/psi-facts" }
+psi-language-semantics = { path = "../../../psi-rs/foundation/psi-language-semantics" }
 psi-symbol-resolved-trees = { path = "../../../psi-rs/representations/psi-symbol-resolved-trees" }
 psi-syntax-trees = { path = "../../../psi-rs/representations/psi-syntax-trees" }
 psi-typed-trees = { path = "../../../psi-rs/representations/psi-typed-trees" }

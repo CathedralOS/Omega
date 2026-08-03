@@ -1,10 +1,10 @@
 use omega_compiler::{CompileOptions, CompileReport, compile, compile_to_checked};
-use omega_core::content::{
+use omega_core::diagnostics::Diagnostic;
+use psi_language_semantics::content::{
     ContentAlgebraIdentity, ContentArithmeticOperator, ContentConservationOwnerKind,
     ContentConservationTerm, ContentPlaceRoot, ContentPlaceVersion, ContentProjectionExpression,
     ContentScalarExpression,
 };
-use omega_core::diagnostics::Diagnostic;
 use std::fs;
 #[cfg(not(windows))]
 use std::io::Write;

@@ -42,8 +42,10 @@ current packages.
 > `representations/psi-terminal`, `pipeline/psi-source-files-to-tokens`,
 > `semantics/psi-proof-kernel`, and `semantics/psi-terminal-verifier`; parsing-through-
 > lowering crates now live there; their former Omega package adapters are
-> retired. Shared `omega-core` module re-exports remain a separate incremental
-> foundation migration. The
+> retired. The unused `omega-core` source/span, exact-bignum, const-value,
+> content, and built-in-value-domain aliases are retired; consumers use their
+> Psi owners directly. Remaining high-fanout `omega-core` module re-exports are
+> a separate incremental foundation migration. The
 > diagram still uses the old unprefixed shorthand for the larger Omega tree.
 > `compiler/` also holds the bootstrap lattice rungs documented in
 > [TASKS_BOOTSTRAP.md](../../TASKS_BOOTSTRAP.md).
@@ -69,7 +71,7 @@ Omega/
 |   |   |   |-- [CRATE] psi-source/                     # Loaded-source data and coordinates owned by the Psi frontend.
 |   |   |   |-- [CRATE] psi-source-loader/              # Root-file loading into Psi-owned source maps.
 |   |   |   |-- [CRATE] psi-symbols/                    # Stable symbol identities and hierarchy storage.
-|   |   |   `-- [CRATE] psi-core/                       # Stable semantic ids and typed proposition vocabulary.
+|   |   |   `-- [CRATE] psi-core/                       # Stable semantic/fuel ids and typed proposition vocabulary.
 |   |   |-- representations/
 |   |   |   |-- [CRATE] psi-tokens/                     # Omega spelling-level token streams.
 |   |   |   |-- [CRATE] psi-syntax-trees/               # Parsed source shape before symbol resolution.
@@ -221,8 +223,9 @@ Omega/
 ### Source And Packages
 
 - `foundation/` stays dependency-light. If it needs semantic or target details,
-  it is in the wrong layer. It is currently a single crate, `omega-core`, holding
-  shared primitives, ids, arenas, handles, spans, and diagnostics.
+  it is in the wrong layer. `omega-core` now retains Omega execution/build
+  utilities plus transitional high-fanout aliases; source/span and the retired
+  low-fanout semantic aliases live only in their Psi owners.
 - Source-preserving syntax data belongs in `representations/`; source-to-syntax
   transforms belong in `pipeline/`.
 - Package manifests, package graphs, and loading are placement intent for a

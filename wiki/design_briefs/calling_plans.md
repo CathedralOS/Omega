@@ -547,8 +547,8 @@ logical-fuel provision/realized fixed-work ceiling/IR proof evidence, and
 realized facts, and validation receipts; private rankings and codegen proofs stay
 behind the evidence firewall. Fixed logical work proves only a finite admitted
 operation path, not target WCET. The current schedule-keyed fixed-fuel
-provider-summary composer and logical-fuel provision now use the Psi-owned
-schedule identity directly. They remain the implementation precursor to
+provider-summary composer and logical-fuel provision now use the dependency-light
+`psi-core` schedule identity directly. They remain the implementation precursor to
 terminal-Psi fixed-work entry and safe-point segment checking in
 [`canonical_ir_fuel_and_resource_provisioning.md`](canonical_ir_fuel_and_resource_provisioning.md),
 not an IR-derived certificate or a general symbolic cost model.

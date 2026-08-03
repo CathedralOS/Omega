@@ -419,7 +419,7 @@ refine terminal Psi is a separate future proof-carrying-code chain.
 
 Provider-local `FixedFuelProviderSummary` and `LogicalFuelResourceColumn` are
 the current implementation precursor for hard roots. Each summary and
-provision now names the Psi-owned nonzero `FuelScheduleIdentity` directly;
+provision now names the `psi-core`-owned nonzero `FuelScheduleIdentity` directly;
 composition rejects mixed schedules, and the external-root artifact publishes
 the schedule version, provision, ceiling, and composed units. These units are
 still provider-authored logical-fuel summaries, not a derivation from terminal

@@ -19,8 +19,8 @@ pub use content::{
 };
 pub use identity::{
     AdmissionSiteId, BlockId, ClaimId, ContentDomainId, ContractId, EdgeId, EvidenceIdentity,
-    MachineId, ObligationId, OperationId, PlaceId, ProfileDecisionId, PropositionId, PsiSemanticId,
-    ValueId,
+    FuelScheduleIdentity, MachineId, ObligationId, OperationId, PlaceId, ProfileDecisionId,
+    PropositionId, PsiSemanticId, ValueId,
 };
 pub use proposition::{
     IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext, PropositionError,

@@ -310,10 +310,6 @@ fn frontend_implementation_is_psi_owned() {
             "pub use psi_numerics::arithmetic::*;",
         ),
         (
-            "compiler/omega-rs/foundation/omega-core/src/bignum.rs",
-            "pub use psi_numerics::bignum::*;",
-        ),
-        (
             "compiler/omega-rs/foundation/omega-core/src/float_semantics.rs",
             "pub use psi_numerics::float_semantics::*;",
         ),
@@ -331,42 +327,17 @@ fn frontend_implementation_is_psi_owned() {
         );
     }
 
-    for (relative, expected_export) in [
-        (
-            "compiler/omega-rs/foundation/omega-core/src/span.rs",
-            "pub use psi_source::Span;",
-        ),
-        (
-            "compiler/omega-rs/foundation/omega-core/src/source/source_id.rs",
-            "pub use psi_source::SourceId;",
-        ),
-        (
-            "compiler/omega-rs/foundation/omega-core/src/source/source_file.rs",
-            "pub use psi_source::{SourceFile, SourceOrigin, SourcePosition};",
-        ),
-        (
-            "compiler/omega-rs/foundation/omega-core/src/source/source_map.rs",
-            "pub use psi_source::SourceMap;",
-        ),
-        (
-            "compiler/omega-rs/foundation/omega-core/src/source/source_span.rs",
-            "pub use psi_source::SourceSpan;",
-        ),
-        (
-            "compiler/omega-rs/foundation/omega-core/src/source/source_text.rs",
-            "pub use psi_source::SourceText;",
-        ),
-        (
-            "compiler/omega-rs/foundation/omega-core/src/source/resolver.rs",
-            "pub use psi_source_loader::Resolver;",
-        ),
+    for relative in [
+        "compiler/omega-rs/foundation/omega-core/src/bignum.rs",
+        "compiler/omega-rs/foundation/omega-core/src/const_value.rs",
+        "compiler/omega-rs/foundation/omega-core/src/content.rs",
+        "compiler/omega-rs/foundation/omega-core/src/source",
+        "compiler/omega-rs/foundation/omega-core/src/span.rs",
+        "compiler/omega-rs/foundation/omega-core/src/value_domain.rs",
     ] {
-        let path = root.join(relative);
-        let source = std::fs::read_to_string(&path)
-            .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
         assert!(
-            source.contains(expected_export),
-            "legacy source primitive must re-export its Psi-owned implementation: {relative}"
+            !root.join(relative).exists(),
+            "retired Psi-owned omega-core compatibility surface must not return: {relative}"
         );
     }
 
@@ -433,24 +404,10 @@ fn frontend_implementation_is_psi_owned() {
         "legacy byte-predicate module must re-export the Psi-owned implementation"
     );
 
-    for (relative, expected_export) in [
-        (
-            "compiler/omega-rs/foundation/omega-core/src/const_value.rs",
-            "pub use psi_language_semantics::const_value::*;",
-        ),
-        (
-            "compiler/omega-rs/foundation/omega-core/src/content.rs",
-            "pub use psi_language_semantics::content::*;",
-        ),
-        (
-            "compiler/omega-rs/foundation/omega-core/src/value_domain.rs",
-            "pub use psi_language_semantics::value_domain::*;",
-        ),
-        (
-            "compiler/omega-rs/foundation/omega-core/src/wire.rs",
-            "pub use psi_language_semantics::wire::*;",
-        ),
-    ] {
+    for (relative, expected_export) in [(
+        "compiler/omega-rs/foundation/omega-core/src/wire.rs",
+        "pub use psi_language_semantics::wire::*;",
+    )] {
         let path = root.join(relative);
         let source = std::fs::read_to_string(&path)
             .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
