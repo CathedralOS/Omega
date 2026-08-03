@@ -39,6 +39,15 @@ normalized_id!(StackRepresentationId, "stack-representation");
 normalized_id!(SuspensionCrossingId, "suspension-crossing");
 normalized_id!(TaskRuntimeId, "task-runtime");
 normalized_id!(TaskRuntimeInstanceId, "task-runtime-instance");
+normalized_id!(TaskRuntimeInvocationId, "task-runtime-invocation");
+normalized_id!(
+    TaskRuntimeInvocationReceiptId,
+    "task-runtime-invocation-receipt"
+);
+normalized_id!(
+    TaskRuntimeInvocationBindingId,
+    "task-runtime-invocation-binding"
+);
 normalized_id!(ActivationPlanId, "activation-plan");
 normalized_id!(
     ExecutorPreservationEvidenceId,
@@ -337,6 +346,122 @@ pub fn validate_executor_selection(
     })
 }
 
+/// Provider-authored evidence for one dynamic invocation of an already
+/// selected `TaskRuntime::{start,try_start}<M>` specialization.
+///
+/// This is deliberately a candidate rather than authority by construction.
+/// Validation binds every copied field back to the Omega-owned static
+/// activation fact before lifecycle accounting may consume the receipt.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TaskRuntimeInvocationReceiptCandidate {
+    pub receipt: TaskRuntimeInvocationReceiptId,
+    pub invocation: TaskRuntimeInvocationId,
+    pub runtime: TaskRuntimeId,
+    pub runtime_instance: TaskRuntimeInstanceId,
+    pub operation: TaskStartOperation,
+    pub provider_plan_name: String,
+    pub requirement_identity: String,
+    pub activation_plan: ActivationPlanId,
+    pub preservation: Vec<ExecutorPreservationEvidence>,
+}
+
+/// Normalized projection of the static activation fact retained at runtime.
+/// Checked-tree symbol handles remain in the compilation sidecar; runtime
+/// accounting needs only the specialization, operation, provider, and plan.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TaskRuntimeActivationBinding {
+    pub specialization_fingerprint: u64,
+    pub operation: TaskStartOperation,
+    pub selected_runtime: SelectedTaskRuntimeProviderFact,
+    pub activation_plan: ActivationPlanId,
+}
+
+/// Exact static/dynamic binding retained for one provider-accepted task start.
+/// The retained carrier is independent of checked-tree symbol handles: only
+/// normalized Omega realization identity crosses into runtime accounting.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValidatedTaskRuntimeInvocationReceipt {
+    identity: TaskRuntimeInvocationBindingId,
+    candidate: TaskRuntimeInvocationReceiptCandidate,
+    activation: TaskRuntimeActivationBinding,
+    executor_selection: ValidatedExecutorSelection,
+}
+
+impl ValidatedTaskRuntimeInvocationReceipt {
+    pub const fn identity(&self) -> TaskRuntimeInvocationBindingId {
+        self.identity
+    }
+
+    pub const fn candidate(&self) -> &TaskRuntimeInvocationReceiptCandidate {
+        &self.candidate
+    }
+
+    pub const fn activation(&self) -> &TaskRuntimeActivationBinding {
+        &self.activation
+    }
+
+    pub const fn executor_selection(&self) -> &ValidatedExecutorSelection {
+        &self.executor_selection
+    }
+}
+
+/// Bind a provider invocation receipt to one exact post-check activation fact.
+/// Static provider/requirement/operation drift rejects before the normalized
+/// lifecycle ledger can acquire operational or storage custody.
+pub fn validate_task_runtime_invocation_receipt(
+    activation: &TaskActivationPlanFact,
+    candidate: TaskRuntimeInvocationReceiptCandidate,
+) -> Result<ValidatedTaskRuntimeInvocationReceipt, TaskPlanDiagnostic> {
+    if candidate.runtime != activation.selected_runtime.runtime {
+        return Err(TaskPlanDiagnostic(
+            "task runtime invocation receipt names a different selected runtime".into(),
+        ));
+    }
+    if candidate.provider_plan_name != activation.selected_runtime.provider_plan_name {
+        return Err(TaskPlanDiagnostic(
+            "task runtime invocation receipt names a different selected provider plan".into(),
+        ));
+    }
+    if candidate.requirement_identity != activation.selected_runtime.requirement_identity {
+        return Err(TaskPlanDiagnostic(
+            "task runtime invocation receipt names a different start requirement".into(),
+        ));
+    }
+    if candidate.operation != activation.operation {
+        return Err(TaskPlanDiagnostic(
+            "task runtime invocation receipt names a different start operation".into(),
+        ));
+    }
+    if candidate.activation_plan != activation.plan.normalized_identity() {
+        return Err(TaskPlanDiagnostic(
+            "task runtime invocation receipt names a different activation plan".into(),
+        ));
+    }
+    let executor_selection = validate_executor_selection(
+        &activation.plan,
+        ExecutorSelectionCandidate {
+            runtime: candidate.runtime,
+            runtime_instance: candidate.runtime_instance,
+            preservation: candidate.preservation.clone(),
+        },
+    )?;
+    Ok(ValidatedTaskRuntimeInvocationReceipt {
+        identity: TaskRuntimeInvocationBindingId(fingerprint_runtime_invocation(
+            activation,
+            &candidate,
+            &executor_selection,
+        )),
+        candidate,
+        activation: TaskRuntimeActivationBinding {
+            specialization_fingerprint: activation.specialization_fingerprint,
+            operation: activation.operation,
+            selected_runtime: activation.selected_runtime.clone(),
+            activation_plan: activation.plan.normalized_identity(),
+        },
+        executor_selection,
+    })
+}
+
 const fn axis_label(axis: ExecutorPreservationAxis) -> &'static str {
     match axis {
         ExecutorPreservationAxis::Cpu => "CPU",
@@ -373,6 +498,10 @@ pub struct TaskDependencyRecord {
     pub runtime_instance: TaskRuntimeInstanceId,
     pub activation_plan: ActivationPlanId,
     pub executor_selection: ExecutorSelectionId,
+    pub invocation_binding: TaskRuntimeInvocationBindingId,
+    pub invocation: TaskRuntimeInvocationId,
+    pub invocation_receipt: TaskRuntimeInvocationReceiptId,
+    pub operation: TaskStartOperation,
     pub activation: ActivationInstanceId,
     pub storage: TaskStorageBinding,
 }
@@ -381,7 +510,7 @@ pub struct TaskDependencyRecord {
 /// property by withholding `Clone`/`Copy` and exposing no public constructor.
 #[derive(Debug, PartialEq, Eq)]
 pub struct TaskLifecycleClaim {
-    dependency: LiveTaskDependency,
+    dependency: Box<LiveTaskDependency>,
 }
 
 impl TaskLifecycleClaim {
@@ -402,16 +531,16 @@ impl TaskLifecycleClaim {
     }
 }
 
-/// Exact executor selection and activation plan retained behind one live
-/// lifecycle claim.
+/// Exact validated provider invocation retained behind one live lifecycle
+/// claim, including its selected executor and activation plan.
 ///
 /// `TaskDependencyRecord` remains the compact report form. Custody and
 /// settlement compare this carrier so compact identity collisions cannot move
-/// a claim between distinct activation plans.
+/// a claim between distinct invocations or activation plans.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct LiveTaskDependency {
     record: TaskDependencyRecord,
-    selection: Box<ValidatedExecutorSelection>,
+    invocation: Box<ValidatedTaskRuntimeInvocationReceipt>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -466,7 +595,7 @@ impl ClosedTaskRuntime {
 
 #[derive(Debug)]
 pub struct TaskRuntimeCloseError {
-    ledger: TaskLifecycleLedger,
+    ledger: Box<TaskLifecycleLedger>,
     diagnostic: TaskPlanDiagnostic,
 }
 
@@ -476,7 +605,7 @@ impl TaskRuntimeCloseError {
     }
 
     pub fn into_ledger(self) -> TaskLifecycleLedger {
-        self.ledger
+        *self.ledger
     }
 }
 
@@ -484,27 +613,32 @@ impl TaskRuntimeCloseError {
 /// the independently held lifecycle claim.
 ///
 /// A selected runtime instance has one ledger. Recording an already accepted
-/// activation binds its exact plan and storage dependency before a `Task<T>`
-/// claim is issued. Terminal settlement removes that dependency. Runtime close
-/// and storage reclamation fail while any matching child claim remains live.
+/// invocation binds its exact static provider/operation selection, dynamic
+/// receipt, activation plan, and storage dependency before a `Task<T>` claim
+/// is issued. Terminal settlement removes that dependency. Runtime close and
+/// storage reclamation fail while any matching child claim remains live.
 #[derive(Debug)]
 pub struct TaskLifecycleLedger {
     runtime: TaskRuntimeId,
     instance: TaskRuntimeInstanceId,
     live: BTreeMap<TaskLifecycleClaimId, LiveTaskDependency>,
     used_activations: BTreeSet<ActivationInstanceId>,
+    used_invocations: BTreeSet<TaskRuntimeInvocationId>,
+    used_invocation_receipts: BTreeSet<TaskRuntimeInvocationReceiptId>,
     used_storage_leases: BTreeSet<TaskStorageProvenance>,
 }
 
 impl TaskLifecycleLedger {
-    /// Create empty accounting for one runtime instance. Each accepted
-    /// activation must still supply its exact validated executor selection.
+    /// Create empty accounting for one runtime instance. Each accepted start
+    /// must still supply its exact validated provider invocation receipt.
     pub fn new(runtime: TaskRuntimeId, instance: TaskRuntimeInstanceId) -> Self {
         Self {
             runtime,
             instance,
             live: BTreeMap::new(),
             used_activations: BTreeSet::new(),
+            used_invocations: BTreeSet::new(),
+            used_invocation_receipts: BTreeSet::new(),
             used_storage_leases: BTreeSet::new(),
         }
     }
@@ -513,17 +647,35 @@ impl TaskLifecycleLedger {
         self.live.values().map(|dependency| &dependency.record)
     }
 
-    pub fn accept_activation(
+    pub fn accept_invocation(
         &mut self,
-        selection: &ValidatedExecutorSelection,
+        invocation: &ValidatedTaskRuntimeInvocationReceipt,
         activation: ActivationInstanceId,
         storage: TaskStorageBinding,
     ) -> Result<TaskLifecycleClaim, TaskPlanDiagnostic> {
-        if selection.candidate().runtime != self.runtime
-            || selection.candidate().runtime_instance != self.instance
+        if invocation.candidate().runtime != self.runtime
+            || invocation.candidate().runtime_instance != self.instance
         {
             return Err(TaskPlanDiagnostic(
-                "task activation selection belongs to a different runtime instance".into(),
+                "task invocation receipt belongs to a different runtime instance".into(),
+            ));
+        }
+        if self
+            .used_invocations
+            .contains(&invocation.candidate().invocation)
+        {
+            return Err(TaskPlanDiagnostic(
+                "task runtime invocation identity has already been accepted by this runtime instance"
+                    .into(),
+            ));
+        }
+        if self
+            .used_invocation_receipts
+            .contains(&invocation.candidate().receipt)
+        {
+            return Err(TaskPlanDiagnostic(
+                "task runtime invocation receipt has already been accepted by this runtime instance"
+                    .into(),
             ));
         }
         if self.used_activations.contains(&activation) {
@@ -544,7 +696,7 @@ impl TaskLifecycleLedger {
             TaskStorageBinding::InlineCompletion => {}
         }
 
-        let claim = TaskLifecycleClaimId(fingerprint_task_claim(selection, activation, storage));
+        let claim = TaskLifecycleClaimId(fingerprint_task_claim(invocation, activation, storage));
         if self.live.contains_key(&claim) {
             return Err(TaskPlanDiagnostic(
                 "normalized task lifecycle claim identity collides with a live claim".into(),
@@ -554,21 +706,31 @@ impl TaskLifecycleLedger {
             claim,
             runtime: self.runtime,
             runtime_instance: self.instance,
-            activation_plan: selection.plan().normalized_identity(),
-            executor_selection: selection.identity(),
+            activation_plan: invocation.activation().activation_plan,
+            executor_selection: invocation.executor_selection().identity(),
+            invocation_binding: invocation.identity(),
+            invocation: invocation.candidate().invocation,
+            invocation_receipt: invocation.candidate().receipt,
+            operation: invocation.candidate().operation,
             activation,
             storage,
         };
+        self.used_invocations
+            .insert(invocation.candidate().invocation);
+        self.used_invocation_receipts
+            .insert(invocation.candidate().receipt);
         self.used_activations.insert(activation);
         if let TaskStorageBinding::Persistent(provenance) = storage {
             self.used_storage_leases.insert(provenance);
         }
         let dependency = LiveTaskDependency {
             record,
-            selection: Box::new(selection.clone()),
+            invocation: Box::new(invocation.clone()),
         };
         self.live.insert(claim, dependency.clone());
-        Ok(TaskLifecycleClaim { dependency })
+        Ok(TaskLifecycleClaim {
+            dependency: Box::new(dependency),
+        })
     }
 
     /// Cancellation requests preserve the lifecycle obligation. This check is
@@ -577,7 +739,7 @@ impl TaskLifecycleLedger {
         &self,
         claim: &TaskLifecycleClaim,
     ) -> Result<(), TaskPlanDiagnostic> {
-        if self.live.get(&claim.dependency.record.claim) == Some(&claim.dependency) {
+        if self.live.get(&claim.dependency.record.claim) == Some(claim.dependency.as_ref()) {
             Ok(())
         } else {
             Err(TaskPlanDiagnostic(
@@ -590,7 +752,7 @@ impl TaskLifecycleLedger {
         &mut self,
         claim: TaskLifecycleClaim,
     ) -> Result<SettledTaskLifecycle, TaskSettlementError> {
-        if self.live.get(&claim.dependency.record.claim) != Some(&claim.dependency) {
+        if self.live.get(&claim.dependency.record.claim) != Some(claim.dependency.as_ref()) {
             return Err(TaskSettlementError {
                 claim,
                 diagnostic: TaskPlanDiagnostic(
@@ -633,7 +795,7 @@ impl TaskLifecycleLedger {
                     "task runtime cannot close while {} dependent lifecycle claim(s) remain live",
                     self.live.len()
                 )),
-                ledger: self,
+                ledger: Box::new(self),
             });
         }
         Ok(ClosedTaskRuntime {
@@ -688,12 +850,14 @@ fn fingerprint_executor_selection(
 }
 
 fn fingerprint_task_claim(
-    selection: &ValidatedExecutorSelection,
+    invocation: &ValidatedTaskRuntimeInvocationReceipt,
     activation: ActivationInstanceId,
     storage: TaskStorageBinding,
 ) -> u64 {
     let mut fingerprint = Fingerprint::new();
-    fingerprint.word(selection.identity().normalized_identity());
+    fingerprint.word(invocation.identity().normalized_identity());
+    fingerprint.word(invocation.candidate().invocation.normalized_identity());
+    fingerprint.word(invocation.candidate().receipt.normalized_identity());
     fingerprint.word(activation.normalized_identity());
     match storage {
         TaskStorageBinding::Persistent(provenance) => {
@@ -703,6 +867,28 @@ fn fingerprint_task_claim(
         }
         TaskStorageBinding::InlineCompletion => fingerprint.byte(2),
     }
+    fingerprint.finish()
+}
+
+fn fingerprint_runtime_invocation(
+    activation: &TaskActivationPlanFact,
+    candidate: &TaskRuntimeInvocationReceiptCandidate,
+    executor_selection: &ValidatedExecutorSelection,
+) -> u64 {
+    let mut fingerprint = Fingerprint::new();
+    fingerprint.word(candidate.receipt.normalized_identity());
+    fingerprint.word(candidate.invocation.normalized_identity());
+    fingerprint.word(candidate.runtime.normalized_identity());
+    fingerprint.word(candidate.runtime_instance.normalized_identity());
+    fingerprint.byte(match candidate.operation {
+        TaskStartOperation::Start => 1,
+        TaskStartOperation::TryStart => 2,
+    });
+    fingerprint.string(&candidate.provider_plan_name);
+    fingerprint.string(&candidate.requirement_identity);
+    fingerprint.word(candidate.activation_plan.normalized_identity());
+    fingerprint.word(executor_selection.identity().normalized_identity());
+    fingerprint.word(activation.specialization_fingerprint);
     fingerprint.finish()
 }
 
@@ -729,6 +915,13 @@ impl Fingerprint {
         for byte in value.to_le_bytes() {
             self.byte(byte);
         }
+    }
+
+    fn string(&mut self, value: &str) {
+        for byte in value.as_bytes() {
+            self.byte(*byte);
+        }
+        self.byte(0);
     }
 
     fn finish(self) -> u64 {
@@ -790,22 +983,53 @@ mod tests {
         id(80, TaskRuntimeId::from_normalized_identity)
     }
 
-    fn executor_selection(
+    fn activation_fact(plan: &ValidatedActivationPlan) -> TaskActivationPlanFact {
+        TaskActivationPlanFact {
+            start_requirement: psi_symbols::SymbolHandle::invalid(),
+            target_machine: psi_symbols::SymbolHandle::invalid(),
+            target_entry: psi_symbols::SymbolHandle::invalid(),
+            specialization_fingerprint: 79,
+            operation: TaskStartOperation::Start,
+            selected_runtime: SelectedTaskRuntimeProviderFact {
+                runtime: runtime(),
+                provider_plan_name: "LocalTaskRuntime::satisfies::TaskRuntime".into(),
+                requirement_identity: "TaskRuntime::start".into(),
+            },
+            plan: plan.clone(),
+        }
+    }
+
+    fn invocation_receipt(
         plan: &ValidatedActivationPlan,
         instance: TaskRuntimeInstanceId,
-    ) -> ValidatedExecutorSelection {
-        validate_executor_selection(
-            plan,
-            ExecutorSelectionCandidate {
+        invocation: u64,
+        receipt: u64,
+    ) -> ValidatedTaskRuntimeInvocationReceipt {
+        let activation = activation_fact(plan);
+        validate_task_runtime_invocation_receipt(
+            &activation,
+            TaskRuntimeInvocationReceiptCandidate {
+                receipt: id(
+                    receipt,
+                    TaskRuntimeInvocationReceiptId::from_normalized_identity,
+                ),
+                invocation: id(
+                    invocation,
+                    TaskRuntimeInvocationId::from_normalized_identity,
+                ),
                 runtime: runtime(),
                 runtime_instance: instance,
+                operation: TaskStartOperation::Start,
+                provider_plan_name: activation.selected_runtime.provider_plan_name.clone(),
+                requirement_identity: activation.selected_runtime.requirement_identity.clone(),
+                activation_plan: plan.normalized_identity(),
                 preservation: vec![ExecutorPreservationEvidence::new(
                     ExecutorPreservationAxis::Cpu,
                     id(81, ExecutorPreservationEvidenceId::from_normalized_identity),
                 )],
             },
         )
-        .expect("matching executor selection")
+        .expect("matching task runtime invocation receipt")
     }
 
     #[test]
@@ -926,6 +1150,78 @@ mod tests {
     }
 
     #[test]
+    fn invocation_receipt_binds_the_selected_provider_operation_and_plan() {
+        let plan = validate_activation_plan(candidate()).expect("activation plan");
+        let activation = activation_fact(&plan);
+        let instance = id(93, TaskRuntimeInstanceId::from_normalized_identity);
+        let base = TaskRuntimeInvocationReceiptCandidate {
+            receipt: id(94, TaskRuntimeInvocationReceiptId::from_normalized_identity),
+            invocation: id(95, TaskRuntimeInvocationId::from_normalized_identity),
+            runtime: runtime(),
+            runtime_instance: instance,
+            operation: TaskStartOperation::Start,
+            provider_plan_name: activation.selected_runtime.provider_plan_name.clone(),
+            requirement_identity: activation.selected_runtime.requirement_identity.clone(),
+            activation_plan: plan.normalized_identity(),
+            preservation: vec![ExecutorPreservationEvidence::new(
+                ExecutorPreservationAxis::Cpu,
+                id(96, ExecutorPreservationEvidenceId::from_normalized_identity),
+            )],
+        };
+        let validated = validate_task_runtime_invocation_receipt(&activation, base.clone())
+            .expect("exact invocation receipt");
+        assert_eq!(validated.candidate(), &base);
+        assert_eq!(
+            validated.activation().specialization_fingerprint,
+            activation.specialization_fingerprint
+        );
+        assert_eq!(
+            validated.activation().selected_runtime,
+            activation.selected_runtime
+        );
+        assert_eq!(
+            validated.activation().activation_plan,
+            plan.normalized_identity()
+        );
+        assert_ne!(validated.identity().normalized_identity(), 0);
+        assert_eq!(
+            validated.executor_selection().candidate().runtime_instance,
+            instance
+        );
+
+        let mut wrong_provider = base.clone();
+        wrong_provider.provider_plan_name = "OtherRuntime".into();
+        assert!(
+            validate_task_runtime_invocation_receipt(&activation, wrong_provider)
+                .expect_err("provider drift")
+                .0
+                .contains("different selected provider plan")
+        );
+
+        let mut wrong_operation = base.clone();
+        wrong_operation.operation = TaskStartOperation::TryStart;
+        assert!(
+            validate_task_runtime_invocation_receipt(&activation, wrong_operation)
+                .expect_err("operation drift")
+                .0
+                .contains("different start operation")
+        );
+
+        let mut wrong_plan = base;
+        let mut changed = candidate();
+        changed.stack_plan.bytes += 16;
+        wrong_plan.activation_plan = validate_activation_plan(changed)
+            .expect("changed plan")
+            .normalized_identity();
+        assert!(
+            validate_task_runtime_invocation_receipt(&activation, wrong_plan)
+                .expect_err("plan drift")
+                .0
+                .contains("different activation plan")
+        );
+    }
+
+    #[test]
     fn lifecycle_claim_pins_runtime_plan_and_storage_until_settlement() {
         let plan = validate_activation_plan(candidate()).expect("activation plan");
         let instance = id(100, TaskRuntimeInstanceId::from_normalized_identity);
@@ -934,18 +1230,25 @@ mod tests {
             owner: id(102, TaskStorageOwnerId::from_normalized_identity),
             lease: id(103, TaskStorageLeaseId::from_normalized_identity),
         };
-        let selection = executor_selection(&plan, instance);
+        let receipt = invocation_receipt(&plan, instance, 104, 105);
         let mut ledger = TaskLifecycleLedger::new(runtime(), instance);
         let claim = ledger
-            .accept_activation(
-                &selection,
+            .accept_invocation(
+                &receipt,
                 activation,
                 TaskStorageBinding::Persistent(storage),
             )
             .expect("accepted activation");
 
         let record = ledger.records().next().expect("one live dependency");
-        assert_eq!(record.executor_selection, selection.identity());
+        assert_eq!(
+            record.executor_selection,
+            receipt.executor_selection().identity()
+        );
+        assert_eq!(record.invocation, receipt.candidate().invocation);
+        assert_eq!(record.invocation_receipt, receipt.candidate().receipt);
+        assert_eq!(record.invocation_binding, receipt.identity());
+        assert_eq!(record.operation, TaskStartOperation::Start);
         ledger
             .validate_cancellation_request(&claim)
             .expect("cancellation preserves the claim");
@@ -977,20 +1280,21 @@ mod tests {
             owner: storage.owner,
             lease: id(115, TaskStorageLeaseId::from_normalized_identity),
         };
-        let selection = executor_selection(&plan, instance);
+        let receipt = invocation_receipt(&plan, instance, 116, 117);
         let mut ledger = TaskLifecycleLedger::new(runtime(), instance);
         let claim = ledger
-            .accept_activation(
-                &selection,
+            .accept_invocation(
+                &receipt,
                 first_activation,
                 TaskStorageBinding::Persistent(storage),
             )
             .expect("first activation");
 
+        let replayed_activation_receipt = invocation_receipt(&plan, instance, 118, 119);
         assert!(
             ledger
-                .accept_activation(
-                    &selection,
+                .accept_invocation(
+                    &replayed_activation_receipt,
                     first_activation,
                     TaskStorageBinding::Persistent(alternate_storage),
                 )
@@ -998,10 +1302,11 @@ mod tests {
                 .0
                 .contains("already been accepted")
         );
+        let replayed_storage_receipt = invocation_receipt(&plan, instance, 120, 121);
         assert!(
             ledger
-                .accept_activation(
-                    &selection,
+                .accept_invocation(
+                    &replayed_storage_receipt,
                     second_activation,
                     TaskStorageBinding::Persistent(storage),
                 )
@@ -1010,14 +1315,68 @@ mod tests {
                 .contains("new lease era")
         );
         ledger.settle(claim).expect("settle first activation");
+        let post_settlement_receipt = invocation_receipt(&plan, instance, 122, 123);
         assert!(
             ledger
-                .accept_activation(
-                    &selection,
+                .accept_invocation(
+                    &post_settlement_receipt,
                     second_activation,
                     TaskStorageBinding::Persistent(storage),
                 )
                 .is_err()
+        );
+    }
+
+    #[test]
+    fn lifecycle_rejects_replayed_invocations_and_provider_receipts() {
+        let plan = validate_activation_plan(candidate()).expect("activation plan");
+        let instance = id(130, TaskRuntimeInstanceId::from_normalized_identity);
+        let first = invocation_receipt(&plan, instance, 131, 132);
+        let mut ledger = TaskLifecycleLedger::new(runtime(), instance);
+        let claim = ledger
+            .accept_invocation(
+                &first,
+                id(133, ActivationInstanceId::from_normalized_identity),
+                TaskStorageBinding::InlineCompletion,
+            )
+            .expect("first invocation");
+
+        assert!(
+            ledger
+                .accept_invocation(
+                    &first,
+                    id(134, ActivationInstanceId::from_normalized_identity),
+                    TaskStorageBinding::InlineCompletion,
+                )
+                .expect_err("invocation replay")
+                .0
+                .contains("invocation identity has already been accepted")
+        );
+
+        let mut repeated_receipt = invocation_receipt(&plan, instance, 135, 136);
+        repeated_receipt.candidate.receipt = first.candidate().receipt;
+        assert!(
+            ledger
+                .accept_invocation(
+                    &repeated_receipt,
+                    id(137, ActivationInstanceId::from_normalized_identity),
+                    TaskStorageBinding::InlineCompletion,
+                )
+                .expect_err("provider receipt replay")
+                .0
+                .contains("invocation receipt has already been accepted")
+        );
+
+        ledger.settle(claim).expect("settle first invocation");
+        assert!(
+            ledger
+                .accept_invocation(
+                    &first,
+                    id(138, ActivationInstanceId::from_normalized_identity),
+                    TaskStorageBinding::InlineCompletion,
+                )
+                .is_err(),
+            "settlement does not make a provider invocation receipt replayable"
         );
     }
 
@@ -1030,10 +1389,10 @@ mod tests {
             runtime(),
             id(121, TaskRuntimeInstanceId::from_normalized_identity),
         );
-        let selection = executor_selection(&plan, owner_instance);
+        let receipt = invocation_receipt(&plan, owner_instance, 124, 125);
         let claim = owner
-            .accept_activation(
-                &selection,
+            .accept_invocation(
+                &receipt,
                 id(122, ActivationInstanceId::from_normalized_identity),
                 TaskStorageBinding::InlineCompletion,
             )
