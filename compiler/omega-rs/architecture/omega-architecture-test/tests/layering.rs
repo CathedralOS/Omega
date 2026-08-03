@@ -336,6 +336,10 @@ fn frontend_implementation_is_psi_owned() {
             "compiler/omega-rs/pipeline/omega-syntax-trees-to-symbol-resolved-trees/src/lib.rs",
             "pub use psi_syntax_trees_to_symbol_resolved_trees::*;",
         ),
+        (
+            "compiler/omega-rs/pipeline/omega-symbol-resolved-trees-to-typed-trees/src/lib.rs",
+            "pub use psi_symbol_resolved_trees_to_typed_trees::*;",
+        ),
     ] {
         let path = root.join(relative);
         let source = std::fs::read_to_string(&path)

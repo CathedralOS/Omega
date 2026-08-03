@@ -21,6 +21,7 @@ members = [
     "compiler/psi-rs/pipeline/psi-source-files-to-tokens",
     "compiler/psi-rs/pipeline/psi-tokens-to-syntax-trees",
     "compiler/psi-rs/pipeline/psi-syntax-trees-to-symbol-resolved-trees",
+    "compiler/psi-rs/pipeline/psi-symbol-resolved-trees-to-typed-trees",
     "compiler/psi-rs/semantics/psi-proof-kernel",
     "compiler/psi-rs/semantics/psi-terminal-verifier",
     "compiler/psi-rs/semantics/psi-terminal-codec",
