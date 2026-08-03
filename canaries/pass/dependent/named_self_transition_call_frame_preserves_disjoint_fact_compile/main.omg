@@ -1,0 +1,28 @@
+// R5 named-self inferred transition frame: an exact same-state cycle that
+// forwards its complete parameter namespace writes only `self.touched`.
+// The caller therefore retains its exact fact for disjoint `self.stable`.
+data Main {
+    stable: u32;
+    touched: u32;
+    result: u32;
+}
+
+machine Main::main(&mut self) {
+    self.stable = 5;
+    self.cycle_touch();
+    self.result = self.stable + 1;
+}
+
+machine Main::cycle_touch(&mut self) {
+    transition { _ -> loop_() }
+
+    state loop_(&mut self) {
+        self.touched = 1;
+        transition self.touched == 0 {
+            true -> loop_()
+            false -> done()
+        }
+    }
+
+    state done(&mut self) { }
+}
