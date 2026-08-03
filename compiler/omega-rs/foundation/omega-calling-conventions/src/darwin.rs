@@ -47,10 +47,10 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
     });
 
     plan.bindings.insert_many([
-        darwin_planned_import("Stdin", "read", "_read", 3, true, &policy),
-        darwin_planned_import("Stdout", "write", "_write", 3, true, &policy),
-        darwin_planned_import("Stderr", "write", "_write", 3, true, &policy),
-        darwin_planned_import("Process", "exit", "_exit", 1, false, &policy),
+        darwin_word_import("Stdin", "read", "_read", 3, true, &policy),
+        darwin_word_import("Stdout", "write", "_write", 3, true, &policy),
+        darwin_word_import("Stderr", "write", "_write", 3, true, &policy),
+        darwin_word_import("Process", "exit", "_exit", 1, false, &policy),
         darwin_import("Filesystem", "open", "_open", &policy),
         darwin_import("Filesystem", "creat", "_creat", &policy),
         darwin_import("Filesystem", "read", "_read", &policy),
@@ -96,15 +96,51 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         darwin_import("Filesystem", "read_errno", "___error", &policy),
         // First float-arg op: `Math::round_nearest(x: f64) -> i64` → libm `lround`.
         // Proves the arm64 float calling convention (double in v0, long in x0).
-        darwin_import("Math", "round_nearest", "_lround", &policy),
+        darwin_typed_import(
+            "Math",
+            "round_nearest",
+            "_lround",
+            CallSignature {
+                parameters: vec![ValueShape::float(8)],
+                result: Some(ValueShape::integer(8, 8)),
+            },
+            &policy,
+        ),
         // First float-RETURN op: `Math::square_root(x: f64) -> f64` → libm `sqrt`
         // (double in v0, double out d0). `hypotenuse(x, y) -> f64` → `_hypot`
         // adds a second float arg (v0, v1) alongside the float return.
-        darwin_import("Math", "square_root", "_sqrt", &policy),
-        darwin_import("Math", "hypotenuse", "_hypot", &policy),
+        darwin_typed_import(
+            "Math",
+            "square_root",
+            "_sqrt",
+            CallSignature {
+                parameters: vec![ValueShape::float(8)],
+                result: Some(ValueShape::float(8)),
+            },
+            &policy,
+        ),
+        darwin_typed_import(
+            "Math",
+            "hypotenuse",
+            "_hypot",
+            CallSignature {
+                parameters: vec![ValueShape::float(8); 2],
+                result: Some(ValueShape::float(8)),
+            },
+            &policy,
+        ),
         // Three f64 args (v0, v1, v2) → libm `fma`: proves the v-register sequence
         // reaches v2, i.e. an HFA of ≤4 doubles (NSRect) marshals into v0–v3.
-        darwin_import("Math", "fused_multiply_add", "_fma", &policy),
+        darwin_typed_import(
+            "Math",
+            "fused_multiply_add",
+            "_fma",
+            CallSignature {
+                parameters: vec![ValueShape::float(8); 3],
+                result: Some(ValueShape::float(8)),
+            },
+            &policy,
+        ),
         // First SECOND-dylib import: `ObjectiveC::get_class(name) -> u64` →
         // libobjc `objc_getClass`. `darwin_import_library` routes `_objc_*` to
         // libobjc, so the Mach-O emits a 2nd LC_LOAD_DYLIB and binds this at
@@ -819,7 +855,7 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
     );
 }
 
-fn darwin_planned_import(
+fn darwin_word_import(
     capability: &str,
     operation: &str,
     symbol: &str,
@@ -832,6 +868,16 @@ fn darwin_planned_import(
         parameters: vec![word; parameter_count],
         result: has_result.then_some(word),
     };
+    darwin_typed_import(capability, operation, symbol, signature, policy)
+}
+
+fn darwin_typed_import(
+    capability: &str,
+    operation: &str,
+    symbol: &str,
+    signature: CallSignature,
+    policy: &std::sync::Arc<str>,
+) -> HostBinding {
     let boundary_entry_plan =
         evaluate_ordinary_boundary_entry_plan(CallingPolicy::Aapcs64, &signature)
             .expect("the built-in Darwin import signature must have an AAPCS64 plan")
