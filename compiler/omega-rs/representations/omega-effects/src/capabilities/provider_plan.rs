@@ -25,6 +25,10 @@ pub struct ServiceSchema {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ServiceMethod {
     pub name: String,
+    /// Semantic owner of the exact requirement. This differs from the
+    /// enclosing schema when a target root inherits a stable core requirement
+    /// and refines only its calling plan.
+    pub requirement_owner: String,
     /// Stable named-callable identity of the exact requirement overload.
     /// Empty only on legacy/compiler-constructed singleton schemas.
     pub requirement_identity: String,
@@ -218,6 +222,10 @@ impl ServiceSchema {
             ),
             methods: vec![ServiceMethod {
                 name: "realize".to_owned(),
+                requirement_owner:
+                    omega_typed_trees::operator::boundary_operator_requirement_identity(
+                        program, operator,
+                    ),
                 requirement_identity: String::new(),
                 parameter_count: program.operator_parameters(operator).len(),
                 parameter_type_identities: program
@@ -290,6 +298,7 @@ fn collect_service_methods(
         }
         methods.push(ServiceMethod {
             name: signature.name.as_str().to_owned(),
+            requirement_owner: trait_definition.name.as_str().to_owned(),
             requirement_identity,
             parameter_count: program
                 .state_signature_parameters(signature)
@@ -306,7 +315,7 @@ fn collect_service_methods(
                         .into_string()
                 })
                 .collect(),
-            entry_claims: service_entry_claims(program, signature),
+            entry_claims: service_entry_claims(program, trait_definition, signature),
             has_result: signature.return_type.is_valid(),
             result_type_identity: signature.return_type.is_valid().then(|| {
                 program
@@ -329,6 +338,7 @@ fn collect_service_methods(
 
 fn service_entry_claims(
     program: &omega_typed_trees::TypedTrees,
+    trait_definition: &omega_typed_trees::trait_definition::TraitDefinition,
     signature: &omega_typed_trees::signature::StateSignature,
 ) -> Vec<ServiceEntryClaim> {
     let mut claims = Vec::new();
@@ -347,6 +357,8 @@ fn service_entry_claims(
             program,
             parameter.type_reference,
             parameter_index,
+            trait_definition.symbol,
+            signature.symbol,
             &mut claims,
         );
     }
@@ -440,25 +452,50 @@ fn append_bodyless_entry_claims(
     program: &omega_typed_trees::TypedTrees,
     type_reference: omega_typed_trees::types::TypeReferenceHandle,
     parameter_index: usize,
+    boundary_trait: omega_core::symbols::SymbolHandle,
+    requirement: omega_core::symbols::SymbolHandle,
     claims: &mut Vec<ServiceEntryClaim>,
 ) {
     use omega_typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
 
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { referee, .. } => {
-            append_bodyless_entry_claims(program, *referee, parameter_index, claims);
+            append_bodyless_entry_claims(
+                program,
+                *referee,
+                parameter_index,
+                boundary_trait,
+                requirement,
+                claims,
+            );
         }
         TypeReferenceNode::Constrained {
             base_type,
             constraints,
         } => {
-            append_bodyless_entry_claims(program, *base_type, parameter_index, claims);
+            append_bodyless_entry_claims(
+                program,
+                *base_type,
+                parameter_index,
+                boundary_trait,
+                requirement,
+                claims,
+            );
             for constraint in program.type_reference_table.constraints(*constraints) {
                 let TypeConstraintNode::Domain(domain) = constraint else {
                     continue;
                 };
                 if domain.symbol.is_valid()
                     && domain.predicate_body == omega_core::semantics::DomainPredicateBody::Bodyless
+                    && domain.establishment_routes.iter().any(|route| {
+                        matches!(
+                            route,
+                            omega_core::semantics::DomainEstablishmentRoute::BoundaryRequirement {
+                                boundary_trait: route_trait,
+                                requirement: route_requirement,
+                            } if *route_trait == boundary_trait && *route_requirement == requirement
+                        )
+                    })
                 {
                     claims.push(ServiceEntryClaim {
                         parameter_index,
@@ -745,6 +782,7 @@ mod tests {
             methods: vec![
                 ServiceMethod {
                     name: "write_line".to_owned(),
+                    requirement_owner: "Console".to_owned(),
                     requirement_identity: String::new(),
                     parameter_count: 1,
                     parameter_type_identities: vec!["String".to_owned()],
@@ -760,6 +798,7 @@ mod tests {
                 },
                 ServiceMethod {
                     name: "read_byte".to_owned(),
+                    requirement_owner: "Console".to_owned(),
                     requirement_identity: String::new(),
                     parameter_count: 0,
                     parameter_type_identities: Vec::new(),
@@ -775,6 +814,7 @@ mod tests {
                 },
                 ServiceMethod {
                     name: "exit_process".to_owned(),
+                    requirement_owner: "Console".to_owned(),
                     requirement_identity: String::new(),
                     parameter_count: 1,
                     parameter_type_identities: vec!["i32".to_owned()],
@@ -985,11 +1025,13 @@ mod tests {
         plan.schema.methods = vec![
             ServiceMethod {
                 name: "convert".to_owned(),
+                requirement_owner: "Convert".to_owned(),
                 requirement_identity: "Convert::convert(i32)->i32".to_owned(),
                 ..template.clone()
             },
             ServiceMethod {
                 name: "convert".to_owned(),
+                requirement_owner: "Convert".to_owned(),
                 requirement_identity: "Convert::convert(i32)->i32 in Saturating".to_owned(),
                 ..template
             },

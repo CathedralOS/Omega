@@ -89,9 +89,14 @@ fn collect_authored_requirement_routes(
                         .join("::")
                 )));
             };
-            if !requirement_guarantees_domain(program, requirement, domain.symbol) {
+            if !requirement_authorizes_domain_subject(
+                program,
+                requirement,
+                domain.symbol,
+                trait_definition.is_boundary,
+            ) {
                 return Err(Diagnostic::error(format!(
-                    "domain `{}` authorizes `{}` but that requirement does not guarantee the domain on its exact result",
+                    "domain `{}` authorizes `{}` but that requirement does not name the domain on its exact result or an exact non-self external-root parameter",
                     domain.name,
                     path.iter()
                         .map(|member| member.as_str())
@@ -118,24 +123,48 @@ fn collect_authored_requirement_routes(
     Ok(())
 }
 
-fn requirement_guarantees_domain(
+fn requirement_authorizes_domain_subject(
     program: &SymbolResolvedTrees,
     requirement: &psi_symbol_resolved_trees::signature::StateSignature,
     domain_symbol: SymbolHandle,
+    permits_external_root_parameters: bool,
 ) -> bool {
     ensured_result_domain_symbols(program, program.signature_contracts(requirement.contracts))
         .contains(&domain_symbol)
         || requirement.return_type.as_ref().is_some_and(|return_type| {
-            return_type_domain_symbols(program, return_type).contains(&domain_symbol)
+            type_reference_domain_symbols(program, return_type).contains(&domain_symbol)
         })
+        || permits_external_root_parameters
+            && program
+                .state_parameters(requirement.parameters)
+                .iter()
+                .filter(|parameter| !parameter.is_self)
+                .any(|parameter| {
+                    type_reference_domain_symbols(program, &parameter.type_reference)
+                        .contains(&domain_symbol)
+                })
 }
 
-fn return_type_domain_symbols(
+fn type_reference_domain_symbols(
     program: &SymbolResolvedTrees,
     type_reference: &TypeReference,
 ) -> Vec<SymbolHandle> {
-    let TypeReference::Constrained(constrained) = type_reference else {
-        return Vec::new();
+    let constrained = match type_reference {
+        TypeReference::Reference(reference) => {
+            return type_reference_domain_symbols(
+                program,
+                program.child_type_reference(reference.referee),
+            );
+        }
+        TypeReference::Constrained(constrained) => constrained,
+        TypeReference::FixedArray(_)
+        | TypeReference::Slice(_)
+        | TypeReference::Generic(_)
+        | TypeReference::ConstExpression(_)
+        | TypeReference::DynamicTrait { .. }
+        | TypeReference::Named { .. }
+        | TypeReference::SelfType { .. }
+        | TypeReference::Unit => return Vec::new(),
     };
     let mut domains = Vec::new();
     for constraint in program
@@ -160,7 +189,7 @@ fn return_type_domain_symbols(
         }
     }
     for inherited in
-        return_type_domain_symbols(program, program.child_type_reference(constrained.base_type))
+        type_reference_domain_symbols(program, program.child_type_reference(constrained.base_type))
     {
         if !domains.contains(&inherited) {
             domains.push(inherited);

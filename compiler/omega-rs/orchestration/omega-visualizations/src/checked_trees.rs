@@ -247,10 +247,7 @@ pub fn qualification_evidence_manifest_json(
         json.push_str(",\n      \"boundary\": ");
         push_json_string(&mut json, &plan.schema.trait_name);
         json.push_str(",\n      \"requirement\": ");
-        push_json_string(
-            &mut json,
-            &format!("{}::{}", plan.schema.trait_name, method.name),
-        );
+        push_json_string(&mut json, &service_requirement_label(plan, method));
         json.push_str(",\n      \"parameter_index\": ");
         json.push_str(&claim.parameter_index.to_string());
         json.push_str(",\n      \"subject_type\": ");
@@ -280,10 +277,7 @@ pub fn qualification_evidence_manifest_json(
         json.push_str(",\n      \"boundary\": ");
         push_json_string(&mut json, &plan.schema.trait_name);
         json.push_str(",\n      \"requirement\": ");
-        push_json_string(
-            &mut json,
-            &format!("{}::{}", plan.schema.trait_name, method.name),
-        );
+        push_json_string(&mut json, &service_requirement_label(plan, method));
         json.push_str(",\n      \"parameter_index\": null");
         json.push_str(",\n      \"subject_type\": ");
         if let Some(subject_type) = &method.result_type_identity {
@@ -342,6 +336,23 @@ pub fn qualification_evidence_manifest_json(
     }
     json.push_str("\n  ]\n}\n");
     json
+}
+
+/// Render the authored owner of an exact inherited requirement. The selected
+/// schema is the deployment boundary and may be a descendant that only refines
+/// calling policy, so reconstructing `Schema::method` would misattribute the
+/// semantic requirement. Legacy singleton schemas have no exact identity and
+/// retain the compatibility spelling.
+fn service_requirement_label(
+    plan: &omega_effects::provider_plan::ProviderPlan,
+    method: &omega_effects::provider_plan::ServiceMethod,
+) -> String {
+    let owner = if method.requirement_owner.is_empty() {
+        &plan.schema.trait_name
+    } else {
+        &method.requirement_owner
+    };
+    format!("{owner}::{}", method.name)
 }
 
 /// Public PDI3 compatibility surface. The named condition and its exact

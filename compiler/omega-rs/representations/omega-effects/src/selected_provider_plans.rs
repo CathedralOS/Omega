@@ -138,6 +138,7 @@ mod tests {
                 trait_name: format!("{name}Service"),
                 methods: vec![ServiceMethod {
                     name: method.into(),
+                    requirement_owner: format!("{name}Service"),
                     requirement_identity: String::new(),
                     parameter_count: 0,
                     parameter_type_identities: Vec::new(),
