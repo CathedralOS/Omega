@@ -36600,11 +36600,20 @@ fn named_float_multiply_then_add_preserves_two_roundings_and_executes() {
 
 #[test]
 fn named_float_fused_multiply_add_selects_aarch64_fmadd_and_executes() {
+    const DIFFERENTIAL_SUITE_ID: &str = "omega.float.hardware.macos_arm64.nearest-fma.v1";
+    const DIFFERENTIAL_COVERAGE: &[&str] = &[
+        "binary32 cancellation edge",
+        "binary64 cancellation edge",
+        "single fused rounding",
+    ];
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0xa1b8_c9cb_1685_5a61;
+
     let canary = pass_canary("float/named_provider_fused_multiply_add_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
         .expect("named FMA provider calls should compile to checked trees on macOS AArch64");
 
     let mut selected_intrinsics = std::collections::BTreeSet::new();
+    let mut selected_plan_identities = Vec::new();
     for operator_use in checked.facts.operators.named_uses() {
         if operator_use.provider_plan_identity == 0 {
             continue;
@@ -36625,6 +36634,7 @@ fn named_float_fused_multiply_add_selects_aarch64_fmadd_and_executes() {
             continue;
         }
         selected_intrinsics.insert(name.clone());
+        selected_plan_identities.push(plan.identity_fingerprint());
 
         let psi_typed_trees::expression::ExpressionNode::Call(call) = checked
             .typed
@@ -36657,6 +36667,13 @@ fn named_float_fused_multiply_add_selects_aarch64_fmadd_and_executes() {
         ]
         .into_iter()
         .collect()
+    );
+    selected_plan_identities.sort_unstable();
+    selected_plan_identities.dedup();
+    assert_eq!(
+        selected_plan_identities.len(),
+        2,
+        "{DIFFERENTIAL_SUITE_ID} must bind one exact plan per format slot"
     );
 
     let outcome = omega_interpreter::interpret(&checked, &[]);
@@ -36706,6 +36723,21 @@ fn named_float_fused_multiply_add_selects_aarch64_fmadd_and_executes() {
         panic!("named FMA provider calls should compile for linux_arm64: {diagnostics:#?}")
     });
     let _ = fs::remove_dir_all(&scratch);
+
+    let result_identity = retained_float_differential_result_identity(
+        DIFFERENTIAL_SUITE_ID,
+        "macos_arm64",
+        DIFFERENTIAL_COVERAGE,
+        &selected_intrinsics,
+        &selected_plan_identities,
+        &outcome,
+        &output,
+        &["linux_arm64"],
+    );
+    assert_eq!(
+        result_identity, EXPECTED_DIFFERENTIAL_RESULT_IDENTITY,
+        "{DIFFERENTIAL_SUITE_ID} result changed ({result_identity:#018x}); validate the exact plans, edge corpus, interpreter/native results, and cross-target builds before refreshing the retained identity"
+    );
 }
 
 #[test]

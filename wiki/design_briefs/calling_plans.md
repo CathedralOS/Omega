@@ -117,6 +117,10 @@ Those consumers do not reselect a native policy or catalog operation from the
 output target: a missing plan contributes no layout width and produces an
 explicit emission diagnostic, while a changed plan either changes the emitted
 placement or rejects as unrealizable.
+At the final ABI seam, a checked scalar argument's retained parameter shape is
+the foreign type; a wider compiler-owned scratch slot is only storage capacity
+and cannot redefine that type. A slot smaller than the retained shape still
+rejects.
 
 Ordinary packages may author policy types under the same validation rules as
 platform packages. They choose only from the closed placement and machine-state
