@@ -1,6 +1,8 @@
 // ENT2c: fixed arrays are by-value aggregate shapes. They never decay to a
 // pointer merely because a native external leaf consumes them. The explicit
-// `&[u8; 16]` parameter is the distinct pointer form.
+// `&[u8; 16]` parameter is the distinct pointer form. Its ordinary shared loan
+// lasts only through the synchronous call: the owner is mutable again after
+// the foreign leaf returns.
 boundary trait NativeFixedArrays {
     machine take_bytes(value: [u8; 16]) -> i32;
     machine take_floats(value: [f32; 4]) -> i32;
@@ -22,4 +24,5 @@ machine Main::main(&mut self) {
     self.status = self.foreign.take_bytes(self.bytes);
     self.status = self.foreign.take_floats(self.floats);
     self.status = self.foreign.take_pointer(&self.bytes);
+    self.bytes[0] = 70;
 }

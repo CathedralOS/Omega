@@ -229,6 +229,11 @@ that retains storage is a different contract and requires an explicit pinned
 loan, ownership transfer, or registration protocol; it cannot reuse the
 borrowed-out adapter.
 
+The fixed-array pointer-form import canary pins that distinction in the current
+checker: `&[u8; 16]` borrows its owner for the synchronous leaf call, and an
+ordinary owner mutation is legal immediately after return. No calling-plan bit
+extends that loan.
+
 Text has no special ABI. Outbound conversion forgets the `Utf8` domain fact and
 passes bytes through the declared foreign shape. Inbound conversion validates
 the returned bytes before establishing `Utf8`. The foreign side never receives
