@@ -1439,7 +1439,14 @@ improvements do not change public identity.
   binding service contract, old/new era and registration identities, atomic
   publication, old-registration retirement, and explicit obligation transfer.
   Completion records that obligations moved rather than disappeared.
-  Gateway/unregister validation and the concrete era entry ledger remain.
+  Opaque callback admission now has only the two settled replacement-safe
+  routes. A process-lifetime gateway exact-binds installed code and entry,
+  proves the foreign target and current-era dispatch contract, and retains a
+  code borrow with no retirement operation. A direct reclaimable root instead
+  owns the installed external-root handle until an exact provider unregister
+  receipt and the existing independent unreachability/quiescence receipt both
+  succeed; either failed gate returns all linear inputs. The concrete era entry
+  ledger remains.
 - **BLOCKEXEC:** provide an ordinary package-level blocking executor for
   codec-style native calls using activations, bounded queues, moved custody,
   linear completion claims, suspension, and provider selection. It is not a

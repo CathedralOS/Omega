@@ -183,6 +183,14 @@ weakest source completeness governs the live scope, and containment is claimed
 only when every contributing row supplies independent evidence. It does not
 invent a combined selected-provider closure identity.
 
+An opaque provider may retain a callback into replaceable code only through one
+of two admitted routes. A process-lifetime gateway binds an exact installed
+entry and dispatches through the current-era contract while permanently pinning
+that gateway code. A direct reclaimable callback remains an installed external
+root until the provider proves exact unregistration and the root ledger
+separately proves that entry is unreachable and all executions are quiescent.
+Neither proof substitutes for the other.
+
 A reclaimed mapping may reuse its virtual address only after quiescence proves
 that no live authority reaches it. Bare `addr` and sealed inert `Ptr<T>` values
 cannot recreate such authority. An incomplete drain or a possible untracked

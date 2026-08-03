@@ -210,6 +210,16 @@ current era, unless the provider supplies an accepted unregistration and
 quiescence contract. The gateway preserves replaceability of the Omega target;
 it does not make the opaque library reclaimable or complete its TCB manifest.
 
+Implementation status (2026-08-03): opaque callback admission now exposes only
+those two routes. Gateway admission binds the exact installed realization and
+entry, proves that the foreign target is the process-lifetime gateway and that
+the gateway uses the current-era dispatch contract, and retains a code borrow
+without a retirement operation. Direct registration into replaceable code
+instead consumes the installed external-root handle. It returns the root slot
+only after an exact provider unregister receipt succeeds and the existing root
+ledger independently proves entry unreachability and execution quiescence;
+failure at either gate returns the registration and receipts intact.
+
 Mapping reuse has one rule:
 
 > Reuse is legal only after proof that no live authority reaches the mapping.
