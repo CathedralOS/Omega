@@ -1363,7 +1363,13 @@ improvements do not change public identity.
   selections transitively, and let profiles permit-and-mark or reject before
   installation. Add canaries showing that a checked wrapper cannot launder the
   entry, static import adds no loader reach, explicit runtime loading does, and
-  the runtime ledger claims only Omega-mediated admissions.
+  the runtime ledger claims only Omega-mediated admissions. The first artifact
+  slice now derives known checked-machine and compiler-intrinsic entries from
+  the exact selected-plan closure, keeps completeness separate, and attributes
+  every unpinned in-process import/vtable/table row as an opaque cause instead
+  of treating its loader spelling as executable identity. Pinned opaque
+  identities, admitted containment receipts, runtime-ledger union, and profile
+  enforcement remain.
 - **REPLACE-OPAQUE:** extend component acceptance tests with selected-provider
   manifest union across coexisting eras, process-static service handover
   contracts, and mapping reuse only after proof that no live authority reaches

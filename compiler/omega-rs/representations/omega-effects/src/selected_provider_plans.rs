@@ -109,6 +109,15 @@ impl SelectedProviderPlanFacts {
     pub fn is_empty(&self) -> bool {
         self.plans.is_empty()
     }
+
+    /// Derive caller-address-space TCB facts from the selected closure, never
+    /// from source service reach or the unselected candidate set.
+    pub fn executable_tcb_manifest(&self) -> crate::ExecutableTcbManifest {
+        crate::executable_tcb_manifest::derive_static_manifest(
+            &self.plans,
+            self.normalized_identity,
+        )
+    }
 }
 
 fn fingerprint_selected_plans(plans: &[ProviderPlan]) -> u64 {
@@ -237,5 +246,66 @@ mod tests {
             .expect_err("one boundary slot cannot retain two selected plans")
             .contains("more than one selected provider plan")
         );
+    }
+
+    #[test]
+    fn opaque_selection_survives_a_checked_wrapper_as_attributed_incompleteness() {
+        let checked_wrapper = candidate("CheckedWrapper", "read");
+        let mut opaque_leaf = candidate("OpaqueLeaf", "read_raw");
+        opaque_leaf.schema.trait_name = "RawStorage".into();
+        opaque_leaf.rows[0].binding = ProviderBinding::Import {
+            library: "vendor-storage".into(),
+            symbol: "read_raw".into(),
+        };
+        let selected = SelectedProviderPlanFacts::from_selection(
+            &[checked_wrapper.clone(), opaque_leaf.clone()],
+            &[checked_wrapper.name.clone(), opaque_leaf.name.clone()],
+        )
+        .expect("both transitive selections are exact");
+
+        let manifest = selected.executable_tcb_manifest();
+        assert_eq!(manifest.known_entries.len(), 1);
+        let crate::ScopeCompleteness::Incomplete { causes, .. } = manifest.completeness else {
+            panic!("opaque in-process selection must make the scope incomplete");
+        };
+        assert_eq!(causes.len(), 1);
+        assert_eq!(
+            causes[0].provider_plan_identity,
+            opaque_leaf.identity_fingerprint()
+        );
+        assert!(matches!(
+            causes[0].binding,
+            crate::OpaqueInProcessBinding::Import { .. }
+        ));
+    }
+
+    #[test]
+    fn checked_and_intrinsic_entries_are_derived_only_from_selected_plans() {
+        let checked = candidate("Checked", "run");
+        let mut intrinsic = candidate("Intrinsic", "halt");
+        intrinsic.schema.trait_name = "MachineControl".into();
+        intrinsic.rows[0].binding = ProviderBinding::CompilerIntrinsic {
+            name: "MachineControl::halt".into(),
+        };
+        let unselected = candidate("Unselected", "skip");
+        let selected = SelectedProviderPlanFacts::from_selection(
+            &[checked.clone(), intrinsic.clone(), unselected],
+            &[intrinsic.name.clone(), checked.name.clone()],
+        )
+        .expect("selected closure");
+
+        let manifest = selected.executable_tcb_manifest();
+        assert_eq!(manifest.known_entries.len(), 2);
+        assert!(matches!(
+            manifest.completeness,
+            crate::ScopeCompleteness::Complete {
+                selected_provider_closure_identity,
+                ..
+            } if selected_provider_closure_identity == selected.normalized_identity()
+        ));
+        assert!(manifest.known_entries.iter().all(|entry| {
+            entry.origin == crate::ExecutableEntryOrigin::StaticSelection
+                && entry.execution_scope == crate::ExecutionScope::CallerAddressSpace
+        }));
     }
 }
