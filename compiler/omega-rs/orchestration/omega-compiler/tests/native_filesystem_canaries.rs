@@ -118,6 +118,68 @@ fn dir_walk_wrappers_exit_runs() {
     let (code, _) = compile_run("dir_walk_wrappers_exit");
     assert_eq!(code, Some(70), "native dir-walk family should exit 70");
 }
+
+// A directory whose packed dirents exceed the std wrapper's 512-byte buffer
+// must be drained through repeated native getdirentries64 calls. This seeds the
+// directory from Rust so the Omega probe can focus on the count contract.
+#[test]
+fn read_dir_count_drains_multiple_native_fills() {
+    let base = std::env::temp_dir().join(format!(
+        "omega-native-readdir-multifill-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&base);
+    let assets = base.join("assets");
+    std::fs::create_dir_all(&assets).expect("create multifill assets");
+    for index in 0..48 {
+        std::fs::write(
+            assets.join(format!("entry_{index:02}_with_a_long_record_name.dat")),
+            b"x",
+        )
+        .expect("seed multifill entry");
+    }
+
+    let main_path = base.join("main.omg");
+    let source = format!(
+        r#"use omega::language::std::filesystem;
+use omega::language::std::console;
+
+data Main {{
+    fs: Filesystem;
+    console: Console;
+    result: IoResult;
+}}
+
+machine Main::main(&mut self) {{
+    self.result = self.fs.read_dir_count("{}");
+    transition self.result {{ IoResult::Ok {{ count }} -> check(count) _ -> fail() }}
+    state check(&mut self, count: u64) {{ transition count == 48 {{ true -> pass() _ -> fail() }} }}
+    state pass(&mut self) {{ self.console.exit_process(70); }}
+    state fail(&mut self) {{ self.console.exit_process(71); }}
+}}
+"#,
+        assets.display()
+    );
+    std::fs::write(&main_path, source).expect("write multifill probe");
+
+    let build_dir = base.join("build");
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .unwrap_or_else(|d| panic!("multifill read_dir_count should compile:\n{d:#?}"));
+    let output = Command::new(build_dir.join("omega-program"))
+        .output()
+        .expect("run multifill probe");
+    let _ = std::fs::remove_dir_all(&base);
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "read_dir_count must drain every native buffer fill"
+    );
+}
 #[test]
 fn native_at_ops_passes() {
     assert_pass("native_at_ops");

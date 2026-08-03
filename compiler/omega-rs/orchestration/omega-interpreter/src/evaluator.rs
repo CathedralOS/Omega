@@ -449,6 +449,28 @@ fn pack_dirent_records(entries: &[(Vec<u8>, u8)]) -> Vec<u8> {
     buffer
 }
 
+/// Select the next complete-record window from a packed Darwin dirent stream.
+/// `getdirentries64` never splits a record across caller buffers, so the
+/// interpreter advances its synthetic byte cursor only through the last record
+/// that fits in `count` bytes. The std wrapper uses a 512-byte buffer, larger
+/// than the maximum packed record produced above.
+fn dirent_record_chunk(records: &[u8], start: usize, count: usize) -> (&[u8], usize) {
+    if start >= records.len() || count == 0 {
+        return (&records[0..0], start);
+    }
+
+    let limit = start.saturating_add(count).min(records.len());
+    let mut end = start;
+    while end + 18 <= records.len() {
+        let reclen = u16::from_le_bytes([records[end + 16], records[end + 17]]) as usize;
+        if reclen == 0 || end + reclen > records.len() || end + reclen > limit {
+            break;
+        }
+        end += reclen;
+    }
+    (&records[start..end], end)
+}
+
 fn unsupported<T>(message: impl Into<String>) -> EvalResult<T> {
     Err(Halt::Unsupported(message.into()))
 }
@@ -3928,12 +3950,11 @@ impl<'program> Evaluator<'program> {
                 }
             }
             "read_dir" => {
-                // `read_dir(fd, buf, count, &position)`: on the first call
-                // (position == 0) pack the directory's entries as darwin `dirent`
-                // records (`.`, `..`, then each immediate child) into the buffer
-                // and set `position`; a later call returns 0 (end). The record
-                // layout matches native `___getdirentries64` so a parser is
-                // identical on both engines.
+                // `read_dir(fd, buf, count, &position)`: pack the directory's
+                // entries as Darwin `dirent` records and return the next window
+                // of complete records. `position` is a synthetic byte cursor, so
+                // repeated calls drain directories larger than one buffer just
+                // like native `___getdirentries64`.
                 let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
                 let dir_path = self
                     .virtual_fds
@@ -3953,17 +3974,18 @@ impl<'program> Evaluator<'program> {
                     Some(path) => {
                         let count = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as usize;
                         let position = self.read_fs_position(arguments.get(3).copied(), frame);
-                        if position != 0 {
+                        let records = self.build_dirent_records(&path);
+                        let start = position.max(0) as usize;
+                        let (chunk, next_position) = dirent_record_chunk(&records, start, count);
+                        if chunk.is_empty() {
                             0
                         } else {
-                            let records = self.build_dirent_records(&path);
-                            let n = records.len().min(count);
-                            self.write_fs_buffer(arguments.get(1).copied(), frame, &records[..n]);
-                            // Any non-zero marker so the next call reports end.
+                            let n = chunk.len();
+                            self.write_fs_buffer(arguments.get(1).copied(), frame, chunk);
                             self.write_fs_position(
                                 arguments.get(3).copied(),
                                 frame,
-                                n.max(1) as i64,
+                                next_position as i64,
                             );
                             n as i64
                         }

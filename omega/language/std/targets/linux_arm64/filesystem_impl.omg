@@ -78,20 +78,15 @@ linux_arm64 machine Filesystem::open_with(&mut self, path: &[u8] in Path, option
 // Linux calling plan.
 
 // List a directory and return its entry COUNT (Rust `fs::read_dir(path)?.count()`,
-// excluding "." and ".."). Opens the directory, fills ONE buffer of packed Linux
-// `getdents64` records via the raw `read_dir` op, then walks them with a
+// excluding "." and ".."). Opens the directory, repeatedly fills a buffer of
+// packed Linux `getdents64` records via the raw `read_dir` op, then walks them with a
 // runtime-indexed cursor over the little-endian `d_reclen` at record offset +16
 // (the shared d_reclen position in the target-specific record),
-// advancing until the filled byte count. The `d_off < 480` dominating guard keeps
-// each header read provably in bounds of the 512-byte buffer.
-//
-// JUDGEMENT CALL (recorded in TASKS_FS.md as D-readdir): counts the entries of a
-// SINGLE `read_dir` fill -- a 512-byte buffer holds a typical directory; a
-// directory with more entries than fit is undercounted (a single `getdents64`,
-// not a drain-to-empty loop). "." and ".." are the first two records of every real
-// directory, so the child count is `records - 2`. A first, self-contained rung of
-// the `read_dir` iteration surface (name extraction / a `DirEntry` cursor and the
-// multi-fill drain build on this walk).
+// advancing until the filled byte count. The syscall-owned directory cursor is
+// retained across fills until EOF; the descriptor is closed exactly once on the
+// terminal or error path. A malformed record fails as `Other` instead of making
+// the state loop stall. "." and ".." are the first two records of every real
+// directory, so the child count is `records - 2` after the complete drain.
 linux_arm64 machine Filesystem::read_dir_count(&mut self, path: &[u8] in Path) -> IoResult {
     self.read_flags = 0;
     self.rd_position = 0;
@@ -100,18 +95,21 @@ linux_arm64 machine Filesystem::read_dir_count(&mut self, path: &[u8] in Path) -
     let dfd: i32 = self.host.open(path, self.read_flags);
     transition dfd >= 0 { true -> rd_read(dfd) _ -> rd_err_i32(dfd) }
     state rd_read(&mut self, dfd: i32) -> IoResult {
+        self.rd_off = 0;
         let total: i64 = self.host.read_dir(dfd, &mut self.dir_buf, 512, &mut self.rd_position);
-        let closed: i32 = self.host.close(dfd);
         self.rd_total = narrow_i64_to_u64_wrapping(total) as u64 in Wrapping;
-        transition total > 0 { true -> rd_walk() _ -> rd_nonpositive(total) }
+        transition total > 0 { true -> rd_walk(dfd) _ -> rd_nonpositive(dfd, total) }
     }
-    state rd_nonpositive(&mut self, total: i64) -> IoResult {
-        transition total == 0 { true -> rd_empty() _ -> rd_err_i64(total) }
+    state rd_nonpositive(&mut self, dfd: i32, total: i64) -> IoResult {
+        transition total == 0 { true -> rd_finish(dfd) _ -> rd_err_i64(dfd, total) }
     }
-    state rd_walk(&mut self) -> IoResult {
-        transition self.rd_off < 480 { true -> rd_body() _ -> rd_done() }
+    state rd_walk(&mut self, dfd: i32) -> IoResult {
+        transition self.rd_off < self.rd_total { true -> rd_header(dfd) _ -> rd_read(dfd) }
     }
-    state rd_body(&mut self) -> IoResult {
+    state rd_header(&mut self, dfd: i32) -> IoResult {
+        transition self.rd_off < 495 { true -> rd_body(dfd) _ -> rd_malformed(dfd) }
+    }
+    state rd_body(&mut self, dfd: i32) -> IoResult {
         // d_reclen: little-endian u16 at record offset + 16 (RUNTIME-indexed reads).
         self.rd_idx = self.rd_off + 16;
         self.rd_lo = self.dir_buf[self.rd_idx];
@@ -120,15 +118,19 @@ linux_arm64 machine Filesystem::read_dir_count(&mut self, path: &[u8] in Path) -
         self.rd_lou = widen_u8_to_u64(self.rd_lo) as u64 in Wrapping;
         self.rd_hiu = widen_u8_to_u64(self.rd_hi) as u64 in Wrapping;
         self.rd_reclen = (self.rd_hiu << 8) | self.rd_lou;
+        transition self.rd_reclen > 0 && self.rd_off + self.rd_reclen <= self.rd_total { true -> rd_accept(dfd) _ -> rd_malformed(dfd) }
+    }
+    state rd_accept(&mut self, dfd: i32) -> IoResult {
         self.rd_count = self.rd_count + 1;
         self.rd_off = self.rd_off + self.rd_reclen;
-        transition self.rd_off < self.rd_total { true -> rd_walk() _ -> rd_done() }
+        transition { _ -> rd_walk(dfd) }
     }
-    state rd_empty(&mut self) -> IoResult { IoResult::Ok { count: 0 } }
-    state rd_done(&mut self) -> IoResult {
+    state rd_finish(&mut self, dfd: i32) -> IoResult {
+        let closed: i32 = self.host.close(dfd);
         // Every real directory yields "." and ".." first, so children = records - 2.
         transition self.rd_count > 2 { true -> rd_ok() _ -> rd_empty() }
     }
+    state rd_empty(&mut self) -> IoResult { IoResult::Ok { count: 0 } }
     state rd_ok(&mut self) -> IoResult {
         self.rd_lou = narrow_i32_to_u64_wrapping(self.rd_count - 2) as u64 in Wrapping;
         let count: u64 = self.rd_lou as u64;
@@ -138,9 +140,15 @@ linux_arm64 machine Filesystem::read_dir_count(&mut self, path: &[u8] in Path) -
         let kind: ErrorKind = self.last_error_i32(result);
         IoResult::Error { kind: kind }
     }
-    state rd_err_i64(&mut self, result: i64) -> IoResult {
+    state rd_err_i64(&mut self, dfd: i32, result: i64) -> IoResult {
         let kind: ErrorKind = self.last_error_i64(result);
+        let closed: i32 = self.host.close(dfd);
         IoResult::Error { kind: kind }
+    }
+    state rd_malformed(&mut self, dfd: i32) -> IoResult {
+        let closed: i32 = self.host.close(dfd);
+        self.err_kind = ErrorKind::Other;
+        IoResult::Error { kind: self.err_kind }
     }
 }
 

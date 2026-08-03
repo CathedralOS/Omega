@@ -539,43 +539,44 @@ impl<'program> super::Evaluator<'program> {
             }
             "read_dir" => {
                 // `read_dir(fd, buf, count, &position)` -- the virtual
-                // dispatcher's contract, mirrored: the first call (position
-                // == 0) packs `.`/`..` + the immediate children as darwin
-                // dirent records and sets `position`; later calls return 0
-                // (end). Names come from a real `std::fs::read_dir` of the
-                // fd's opened path (std has no fd-based dirent read), sorted
-                // for determinism -- native getdirentries order is
-                // filesystem-defined anyway, so no program may rely on it.
+                // dispatcher's contract, mirrored. Pack `.`/`..` plus immediate
+                // children as Darwin dirent records and return the next window
+                // of complete records. The synthetic byte cursor lets repeated
+                // calls drain directories larger than one caller buffer. Names
+                // come from `std::fs::read_dir` and are sorted for determinism;
+                // native getdirentries order remains filesystem-defined.
                 let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
                 let count = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as usize;
                 let position = self.read_fs_position(arguments.get(3).copied(), frame);
-                if position != 0 {
-                    0
-                } else {
-                    let listed = {
-                        let real = self.real_fs_mut();
-                        match real.files.get(&fd) {
-                            Some(entry) => real_dirent_entries(&entry.path),
-                            None => Err(EBADF),
-                        }
-                    };
-                    match listed {
-                        Ok(entries) => {
-                            let records = super::pack_dirent_records(&entries);
-                            let n = records.len().min(count);
-                            self.write_fs_buffer(arguments.get(1).copied(), frame, &records[..n]);
-                            // Any non-zero marker so the next call reports end.
+                let listed = {
+                    let real = self.real_fs_mut();
+                    match real.files.get(&fd) {
+                        Some(entry) => real_dirent_entries(&entry.path),
+                        None => Err(EBADF),
+                    }
+                };
+                match listed {
+                    Ok(entries) => {
+                        let records = super::pack_dirent_records(&entries);
+                        let start = position.max(0) as usize;
+                        let (chunk, next_position) =
+                            super::dirent_record_chunk(&records, start, count);
+                        if chunk.is_empty() {
+                            0
+                        } else {
+                            let n = chunk.len();
+                            self.write_fs_buffer(arguments.get(1).copied(), frame, chunk);
                             self.write_fs_position(
                                 arguments.get(3).copied(),
                                 frame,
-                                n.max(1) as i64,
+                                next_position as i64,
                             );
                             n as i64
                         }
-                        Err(errno) => {
-                            self.real_fs_mut().errno = errno;
-                            -1
-                        }
+                    }
+                    Err(errno) => {
+                        self.real_fs_mut().errno = errno;
+                        -1
                     }
                 }
             }
