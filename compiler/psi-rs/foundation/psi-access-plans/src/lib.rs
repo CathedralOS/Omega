@@ -541,6 +541,14 @@ impl RelativeEffectFootprint {
     pub const fn length_bytes(self) -> u64 {
         self.length_bytes
     }
+
+    pub const fn end(self) -> u64 {
+        self.byte_offset + self.length_bytes
+    }
+
+    pub const fn overlaps(self, other: Self) -> bool {
+        self.byte_offset < other.end() && other.byte_offset < self.end()
+    }
 }
 
 /// The complete concrete transfer container observed or changed by an event.
@@ -1109,6 +1117,7 @@ pub fn validate_access_plan(
             exposure: policy.exposure,
         });
     }
+    validate_destructive_access_units(&descriptors)?;
 
     let layout_fingerprint = plan.layout_fingerprint;
     let identity = normalized_access_plan_identity(&plan, layout_fingerprint);
@@ -1119,6 +1128,79 @@ pub fn validate_access_plan(
         fields: descriptors,
         layout_size_bytes: layout_size,
     })
+}
+
+fn validate_destructive_access_units(
+    descriptors: &[FieldAccessDescriptor],
+) -> Result<(), AccessPlanDiagnostic> {
+    for destructive in descriptors
+        .iter()
+        .filter(|descriptor| descriptor.permissions.take)
+    {
+        if !logical_extent_covers_effect(&destructive.logical_extent, destructive.effect_footprint)
+        {
+            return Err(AccessPlanDiagnostic(format!(
+                "destructive field `{}` names only part of its {}-byte transfer container; expose one whole-container snapshot and project fields from the owned result",
+                destructive.field, destructive.effect_footprint.length_bytes
+            )));
+        }
+        if let Some(overlapping) = descriptors.iter().find(|candidate| {
+            candidate.key != destructive.key
+                && candidate
+                    .effect_footprint
+                    .overlaps(destructive.effect_footprint)
+        }) {
+            return Err(AccessPlanDiagnostic(format!(
+                "destructive field `{}` and field `{}` expose overlapping transfer containers; one destructive unit derives one whole-snapshot take",
+                destructive.field, overlapping.field
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn logical_extent_covers_effect(
+    logical: &LogicalFieldExtent,
+    effect: RelativeEffectFootprint,
+) -> bool {
+    let Some(effect_start) = effect.byte_offset.checked_mul(8) else {
+        return false;
+    };
+    let Some(effect_end) = effect.end().checked_mul(8) else {
+        return false;
+    };
+    let mut by_layout = logical.fragments.iter().copied().collect::<Vec<_>>();
+    by_layout.sort_unstable_by_key(|fragment| fragment.layout_bit_offset);
+    let mut next_bit = effect_start;
+    for fragment in by_layout {
+        if fragment.layout_bit_offset != next_bit {
+            return false;
+        }
+        let Some(end) = fragment.layout_bit_offset.checked_add(fragment.width_bits) else {
+            return false;
+        };
+        if end > effect_end {
+            return false;
+        }
+        next_bit = end;
+    }
+    if next_bit != effect_end {
+        return false;
+    }
+
+    let mut by_source = logical.fragments.iter().copied().collect::<Vec<_>>();
+    by_source.sort_unstable_by_key(|fragment| fragment.source_bit_offset);
+    let mut next_source_bit = 0;
+    for fragment in by_source {
+        if fragment.source_bit_offset != next_source_bit {
+            return false;
+        }
+        let Some(end) = fragment.source_bit_offset.checked_add(fragment.width_bits) else {
+            return false;
+        };
+        next_source_bit = end;
+    }
+    next_source_bit == effect_end - effect_start
 }
 
 pub fn validate_placement_plan(
@@ -3055,6 +3137,79 @@ mod tests {
             AccessOperation::Take,
         )
         .expect("destructive read requires exclusive access");
+    }
+
+    #[test]
+    fn destructive_access_requires_one_whole_snapshot_accessor() {
+        let layout = uart_layout();
+        let error = validate_access_plan(
+            access_plan(
+                &layout,
+                &[(
+                    "control",
+                    FieldAccess::External {
+                        transfer_width_bits: 32,
+                        read: ExternalRead::Take,
+                        write: false,
+                        exposure: AccessExposure::Exported,
+                    },
+                )],
+            ),
+            &layout,
+        )
+        .expect_err("a narrow field cannot independently consume its container");
+        assert!(
+            error
+                .0
+                .contains("only part of its 4-byte transfer container")
+        );
+
+        let aliased_layout = LayoutPlanReport {
+            schema_identity: 0xdead,
+            entries: vec![
+                LayoutFieldEntryReport {
+                    field: "snapshot".into(),
+                    member_identity: None,
+                    placement: LayoutPlacementReport::At { offset: 0 },
+                },
+                LayoutFieldEntryReport {
+                    field: "status".into(),
+                    member_identity: None,
+                    placement: LayoutPlacementReport::At { offset: 0 },
+                },
+            ],
+            offsets: Some(vec![0, 0]),
+            size: Some(4),
+            align: 4,
+        };
+        let error = validate_access_plan(
+            access_plan(
+                &aliased_layout,
+                &[
+                    (
+                        "snapshot",
+                        FieldAccess::External {
+                            transfer_width_bits: 32,
+                            read: ExternalRead::Take,
+                            write: false,
+                            exposure: AccessExposure::Exported,
+                        },
+                    ),
+                    (
+                        "status",
+                        FieldAccess::Stable {
+                            transfer_width_bits: 32,
+                            read: true,
+                            write: false,
+                            exposure: AccessExposure::Exported,
+                        },
+                    ),
+                ],
+            ),
+            &aliased_layout,
+        )
+        .expect_err("one destructive unit cannot expose a second field accessor");
+        assert!(error.0.contains("one whole-snapshot take"));
     }
 
     #[test]
