@@ -435,8 +435,8 @@ data Filesystem {
     // than msvcrt errno, so target-specific wrappers capture and classify it
     // immediately before any later boundary call can overwrite the thread slot.
     win32_error_kind: ErrorKind;
-    // Scratch for `read_dir_count`: one buffer of packed darwin `dirent` records
-    // plus the runtime-indexed cursor that walks them by `d_reclen`.
+    // Scratch for directory walking: one buffer of packed target `dirent`
+    // records plus the runtime-indexed cursor that walks them by `d_reclen`.
     dir_buf: [u8; 512];
     rd_off: u64 in Wrapping;
     rd_total: u64 in Wrapping;

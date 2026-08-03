@@ -69,12 +69,12 @@ boundary trait FilesystemHost {
     // success, or 0 (NULL) on error — a success FLAG, not a byte count.
     machine canonicalize(path: &[u8] in Path, buffer: &mut [u8]) -> i64 reaches FilesystemHost;
     // Read directory entries (Rust `fs::read_dir`) into `buffer` as packed
-    // darwin dirent records — on darwin arm64 this is `___getdirentries64`
-    // (classic `getdirentries` is unavailable with 64-bit inodes). `position`
-    // is an in/out kernel cursor: pass the same `&mut i64` across calls; a
-    // return of 0 means end of directory. Records: d_reclen u16 @16,
-    // d_namlen u16 @18, d_type u8 @20, d_name @21; advance by d_reclen. Walking
-    // them needs runtime-indexed buffer reads (see TASKS_FS.md step 13).
+    // target records. Darwin lowers to `___getdirentries64`, consumes the
+    // in/out `position` cursor, and returns d_reclen@16, d_namlen@18,
+    // d_type@20, d_name@21. Linux lowers to `getdents64`, omits `position`
+    // from the syscall, and returns d_reclen@16, d_type@18, a NUL-terminated
+    // d_name@19. A return of 0 means end of directory; target implementations
+    // advance by d_reclen and own their record decoding.
     machine read_dir(fd: i32, buffer: &mut [u8], count: u64, position: &mut i64) -> i64 reaches FilesystemHost;
     // The FIND-ENUMERATION family (fs portable-contract rung 3a, 2026-07-18):
     // windows' directory paradigm, DESIGNED signatures (the seam law) over the

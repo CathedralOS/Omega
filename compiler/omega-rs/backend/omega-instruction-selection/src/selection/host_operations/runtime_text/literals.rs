@@ -39,6 +39,7 @@ pub(in crate::selection::host_operations) fn runtime_text_literal_for_host_call(
         | PlatformCallData::ConstantArgument { .. }
         | PlatformCallData::ConstantArguments { .. }
         | PlatformCallData::DirectoryRelativePathPair { .. }
+        | PlatformCallData::OmitTrailingArgument
         | PlatformCallData::TimespecResult { .. }
         | PlatformCallData::TimespecArgument => return None,
     };

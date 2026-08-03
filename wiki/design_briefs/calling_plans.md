@@ -824,9 +824,12 @@ them. Path and descriptor metadata are design-blocked on
 `OWNER_QUESTIONS.md` Q3: the real Linux ABIs vary integer field widths, while
 the current layout vocabulary only relocates representation-identical fields.
 The known Darwin-shaped Linux `StatLayout` placeholder must not be treated as
-native coverage. Directory-record and failure-code adaptation remain explicit
-engineering work rather than a reason to add hidden libc state to the syscall
-path.
+native coverage. Linux directory reads now retain the real three-argument
+`getdents64` plan: selection omits the portable seam's Darwin-only cursor, and
+the x86-64/AArch64 target packages decode `d_reclen` at 16, `d_type` at 18, and
+the NUL-terminated name at 19. Multi-fill iteration and failure-code adaptation
+remain explicit engineering work rather than a reason to add hidden libc state
+to the syscall path.
 
 The compiler's retained source-policy identity carries the complete canonical
 `BoundaryEntryPlan` through checked lowering. Public provider schemas still

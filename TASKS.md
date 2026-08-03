@@ -1606,7 +1606,10 @@ ordinary code never receives a raw executable address.
   through the same plan surface. **Linux metadata is DESIGN BLOCKED
   (`OWNER_QUESTIONS.md` Q3):** the real x86-64/AArch64 `struct stat` fields
   require target-width normalization that the settled layout vocabulary cannot
-  express. Directory-record and errno adapters remain implementation work.
+  express. Linux `read_dir` now retains the real three-argument `getdents64`
+  plan, omits the Darwin-only cursor at selection, and decodes the Linux record
+  offsets in both target packages. Multi-fill directory iteration and errno
+  adapters remain implementation work.
 - Keep unavailable hosts structurally tested; do not claim runtime verification
   without the host.
 - Build the Windows GUI callback canary through the settled callback-requirement
