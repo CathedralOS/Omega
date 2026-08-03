@@ -41426,6 +41426,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "core/extent_core_surface",
     "core/content_projection_owner",
     "core/content_conservation_contract",
+    "core/content_retained_custody_round_trip",
     "core/extent_root_provider_adapter",
     "core/carry_permission_provider_adapter",
     "core/interrupt_obligations_surface",
@@ -41768,6 +41769,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "traits/runtime_equatable_scalar_not_equals_guard_exit",
     "borrow/runtime_view_of_view_chain_exit",
     "borrow/runtime_method_view_write_after_last_use_exit",
+    "borrow/provider_owned_view_after_last_use",
     // Frontend-only scheduler/carry fixtures live in `tests/concurrency_carry.rs`.
     // Their assertion ends at checked trees; requiring native host lowering
     // here would test an unrelated, presently absent Scheduler provider.
@@ -42319,6 +42321,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "borrow/borrow_carrying_local_transfer_invalidated",
     "borrow/borrow_carrying_field_reassignment_invalidated",
     "borrow/persistent_borrow_storage_requires_outlives",
+    "borrow/provider_owned_view_invalidated_by_receiver_call",
     "borrow/multi_lifetime_result_field_invalidated",
     "borrow/undeclared_lifetime_tag",
     "borrow/undeclared_lifetime_argument",

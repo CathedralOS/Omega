@@ -476,6 +476,16 @@ unless its contract returns an exact separated subclaim; cancellation requests
 release nothing until a terminal acknowledgement. Reused tokens require
 generations wherever stale foreign copies can survive.
 
+The compiler canaries pin both halves of this ownership split. A synchronous
+fixed-array pointer import releases its ordinary source loan before the next
+owner mutation. Retained custody cannot originate from a borrow; the accepted
+round trip consumes an owned buffer into one linear pending claim and permits
+only a terminal completion consuming that claim to re-establish buffer custody
+under the same `Content<A>` algebra. Provider-owned storage uses the ordinary
+receiver-borrow path when all invalidators require exclusive receiver access:
+invalidation after the view's last use passes, while invalidation before a
+later use rejects.
+
 The selected provider era enters the compiler-tracked set of live claims for a
 value (its claim frontier) only when that value's meaning depends on state owned
 by the exact era. A

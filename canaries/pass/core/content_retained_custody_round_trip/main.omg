@@ -1,0 +1,46 @@
+// ENT2c: foreign use that survives return is ordinary conserved custody, not a
+// long borrow. `submit` consumes one owned Buffer into a linear PendingWrite;
+// only the correlated terminal operation can redeem that claim as Buffer
+// custody again. Both directions retain the same core Content algebra.
+
+use omega::language::core::content;
+
+data ByteUnit {}
+
+data Buffer [linear] {}
+
+domain Buffer::Owned {
+    Writer::complete;
+}
+
+machine Owned::content(buffer: &Buffer) -> CountedQuantity<ByteUnit>
+satisfies Content<CountedQuantity<ByteUnit>>::project
+{
+    CountedQuantity { magnitude: Nat::Succ { prev: Nat::Zero } }
+}
+
+data PendingWrite [linear] {}
+
+domain PendingWrite::Retained {
+    Writer::submit;
+}
+
+machine Retained::content(pending: &PendingWrite) -> CountedQuantity<ByteUnit>
+satisfies Content<CountedQuantity<ByteUnit>>::project
+{
+    CountedQuantity { magnitude: Nat::Succ { prev: Nat::Zero } }
+}
+
+boundary trait Writer {
+    machine submit(buffer: Buffer in Buffer::Owned) -> PendingWrite
+    ensures
+        result in PendingWrite::Retained;
+
+    machine complete(pending: PendingWrite in PendingWrite::Retained) -> Buffer
+    ensures
+        result in Buffer::Owned;
+}
+
+data Main {}
+
+machine Main::main(&mut self) {}

@@ -1,0 +1,36 @@
+// ENT2c provider-view dual: storage owned by a provider is an ordinary borrow
+// when every invalidator requires exclusive receiver access. The shared view's
+// loan ends at its last use, so the later invalidating call is admitted.
+
+boundary trait ForeignStorage {
+    machine view(&self) -> &[u8];
+    machine invalidate(&mut self);
+}
+
+data ForeignBuffer {
+    bytes: [u8; 2];
+}
+
+machine ForeignBuffer::view(&self) -> &[u8]
+satisfies ForeignStorage::view
+{
+    self.bytes.as_slice()
+}
+
+machine ForeignBuffer::invalidate(&mut self)
+satisfies ForeignStorage::invalidate
+{
+    self.bytes[0] = 0;
+}
+
+machine observe(view: &[u8]) {}
+
+data Main {
+    provider: ForeignBuffer;
+}
+
+machine Main::main(&mut self) {
+    let view: &[u8] = self.provider.view();
+    observe(view);
+    self.provider.invalidate();
+}
