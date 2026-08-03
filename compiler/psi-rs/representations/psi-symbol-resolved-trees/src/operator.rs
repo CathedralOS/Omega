@@ -1,8 +1,8 @@
 use crate::name::DiagnosticName;
 use crate::types::TypeReference;
-use omega_core::arena::HandleSpan;
-use omega_core::operator_spelling::OperatorSpelling;
-use omega_core::symbols::SymbolHandle;
+use psi_arena::HandleSpan;
+use psi_language_core::operator_spelling::OperatorSpelling;
+use psi_symbols::SymbolHandle;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct OperatorDefinition {

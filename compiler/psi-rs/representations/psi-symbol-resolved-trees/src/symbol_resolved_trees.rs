@@ -2,9 +2,9 @@ use crate::{
     data, domain, expression, measure, operator, signature, snapshot, state, statement, tables,
     types, wire,
 };
-use omega_core::arena::{Arena, Handle, HandleSpan, OrderedRootArena};
-use omega_core::diagnostics::PhaseSnapshot;
-use omega_core::symbols::SymbolTable;
+use psi_arena::{Arena, Handle, HandleSpan, OrderedRootArena};
+use psi_diagnostics::PhaseSnapshot;
+use psi_symbols::SymbolTable;
 use std::ops::{Deref, DerefMut};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -14,13 +14,13 @@ pub struct SymbolResolvedTrees {
     pub symbols: SymbolTable,
     /// EFX: boundary-trait symbols normalized into service identities after
     /// symbol assignment. This is the source of truth for service reach.
-    pub service_reaches: omega_core::semantics::ServiceReachTable,
-    pub service_reach_rows: omega_core::semantics::ServiceReachRowTable,
+    pub service_reaches: psi_language_semantics::ServiceReachTable,
+    pub service_reach_rows: psi_language_semantics::ServiceReachRowTable,
     /// STR4 checked plans, slice 1: the deterministic semantic-domain
     /// interner (declared-name identity, declaration order).
-    pub semantic_domains: omega_core::semantics::SemanticDomainTable,
+    pub semantic_domains: psi_language_semantics::SemanticDomainTable,
     /// PRV4: normalized `via` bindings, interned once at lowering.
-    pub external_bindings: omega_core::semantics::ExternalBindingTable,
+    pub external_bindings: psi_language_semantics::ExternalBindingTable,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -114,10 +114,10 @@ impl SymbolResolvedTrees {
             roots,
             tables,
             symbols,
-            service_reaches: omega_core::semantics::ServiceReachTable::default(),
-            service_reach_rows: omega_core::semantics::ServiceReachRowTable::default(),
-            semantic_domains: omega_core::semantics::SemanticDomainTable::default(),
-            external_bindings: omega_core::semantics::ExternalBindingTable::default(),
+            service_reaches: psi_language_semantics::ServiceReachTable::default(),
+            service_reach_rows: psi_language_semantics::ServiceReachRowTable::default(),
+            semantic_domains: psi_language_semantics::SemanticDomainTable::default(),
+            external_bindings: psi_language_semantics::ExternalBindingTable::default(),
         }
     }
 
@@ -409,8 +409,8 @@ mod tests {
         SymbolResolvedRoots, SymbolResolvedTableStorage, SymbolResolvedTrees, data, domain,
         invariant, machine, name::DiagnosticName, operator, trait_definition,
     };
-    use omega_core::arena::{HandleSpan, OrderedRootArena};
-    use omega_core::symbols::SymbolTable;
+    use psi_arena::{HandleSpan, OrderedRootArena};
+    use psi_symbols::SymbolTable;
 
     #[test]
     fn symbol_resolved_roots_constructor_keeps_top_level_roots_explicit() {

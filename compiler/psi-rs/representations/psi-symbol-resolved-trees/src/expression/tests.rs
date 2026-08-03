@@ -3,20 +3,20 @@ use super::{
     TableStructLiteral, TableStructLiteralField,
 };
 use crate::name::DiagnosticName;
-use omega_core::source::SourceText;
-use omega_core::symbols::SymbolHandle;
+use psi_source::SourceText;
+use psi_symbols::SymbolHandle;
 
 #[test]
 fn expression_table_stores_nested_expressions_as_handles() {
     let mut table = ExpressionTable::new();
     let one = table.insert(ExpressionNode::Integer(
-        omega_core::literals::IntegerLiteral::from_value(1),
+        psi_numerics::literals::IntegerLiteral::from_value(1),
     ));
     let two = table.insert(ExpressionNode::Integer(
-        omega_core::literals::IntegerLiteral::from_value(2),
+        psi_numerics::literals::IntegerLiteral::from_value(2),
     ));
     let three = table.insert(ExpressionNode::Integer(
-        omega_core::literals::IntegerLiteral::from_value(3),
+        psi_numerics::literals::IntegerLiteral::from_value(3),
     ));
     let right = table.insert(ExpressionNode::Binary(TableBinaryExpression {
         left: two,

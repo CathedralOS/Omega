@@ -1,7 +1,7 @@
 use crate::name::DiagnosticName;
 use crate::types::TypeReference;
-use omega_core::arena::HandleSpan;
-use omega_core::symbols::SymbolHandle;
+use psi_arena::HandleSpan;
+use psi_symbols::SymbolHandle;
 
 /// A `wire data` protocol schema: explicit field numbers, retired (reserved)
 /// numbers, and historical version eras. Wire schemas describe external

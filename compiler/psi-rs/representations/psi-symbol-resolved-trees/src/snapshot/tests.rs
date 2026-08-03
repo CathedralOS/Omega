@@ -7,8 +7,8 @@ use crate::name::DiagnosticName;
 use crate::state::{State, StateStorage};
 use crate::statement::{Statement, Transition, TransitionGuard, TransitionTarget};
 use crate::types::TypeReference;
-use omega_core::arena::HandleSpan;
-use omega_core::symbols::SymbolHandle;
+use psi_arena::HandleSpan;
+use psi_symbols::SymbolHandle;
 
 #[test]
 fn snapshots_materialize_resolved_roots_and_table_counts() {
@@ -18,7 +18,7 @@ fn snapshots_materialize_resolved_roots_and_table_counts() {
         .bodies
         .expressions
         .insert(ExpressionNode::Integer(
-            omega_core::literals::IntegerLiteral::from_value(1),
+            psi_numerics::literals::IntegerLiteral::from_value(1),
         ));
     let statements =
         program
@@ -77,16 +77,16 @@ fn snapshots_materialize_resolved_roots_and_table_counts() {
     program.domain_definitions.push(DomainDefinition {
         name: DiagnosticName::generated("i64::Km"),
         target_type: TypeReference::Unit,
-        predicate_body: omega_core::semantics::DomainPredicateBody::Present,
-        semantic_id: omega_core::semantics::SemanticDomainId(17),
-        semantic_roles: omega_core::semantics::DomainSemanticRoles {
-            denotation_dimension: Some(omega_core::semantics::SemanticDomainId(17)),
+        predicate_body: psi_language_semantics::DomainPredicateBody::Present,
+        semantic_id: psi_language_semantics::SemanticDomainId(17),
+        semantic_roles: psi_language_semantics::DomainSemanticRoles {
+            denotation_dimension: Some(psi_language_semantics::SemanticDomainId(17)),
             arithmetic_policy: None,
         },
         establishment_routes: vec![
-            omega_core::semantics::DomainEstablishmentRoute::CheckedRequirement {
-                trait_definition: omega_core::symbols::SymbolHandle::from_arena_index(19),
-                requirement: omega_core::symbols::SymbolHandle::from_arena_index(20),
+            psi_language_semantics::DomainEstablishmentRoute::CheckedRequirement {
+                trait_definition: psi_symbols::SymbolHandle::from_arena_index(19),
+                requirement: psi_symbols::SymbolHandle::from_arena_index(20),
             },
         ],
         ..Default::default()

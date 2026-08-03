@@ -1,7 +1,7 @@
 use crate::name::DiagnosticName;
 use crate::types::TypeReference;
-use omega_core::arena::HandleSpan;
-use omega_core::symbols::SymbolHandle;
+use psi_arena::HandleSpan;
+use psi_symbols::SymbolHandle;
 use std::ops::{Deref, DerefMut};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -13,7 +13,7 @@ pub struct DataDefinition {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DataDefinitionStorage {
-    pub supply_mode: omega_core::semantics::DataSupplyMode,
+    pub supply_mode: psi_language_semantics::DataSupplyMode,
     pub lifetime_parameters: Vec<DiagnosticName>,
     pub type_parameters: HandleSpan<TypeParameter>,
     pub properties: DataProperties,
@@ -50,8 +50,8 @@ pub struct QuotientDefinition {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct DataProperties {
     pub copy: bool,
-    pub carry: Option<omega_core::semantics::CarryPolicy>,
-    pub multiplicity: omega_core::semantics::Multiplicity,
+    pub carry: Option<psi_language_semantics::CarryPolicy>,
+    pub multiplicity: psi_language_semantics::Multiplicity,
 }
 
 impl Deref for DataDefinition {

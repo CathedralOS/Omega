@@ -1,8 +1,8 @@
 use crate::name::DiagnosticName;
 use crate::signature::{SignatureContract, StateParameter};
 use crate::statement::{Statement, StatementNode};
-use omega_core::arena::HandleSpan;
-use omega_core::symbols::SymbolHandle;
+use psi_arena::HandleSpan;
+use psi_symbols::SymbolHandle;
 use std::ops::{Deref, DerefMut};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

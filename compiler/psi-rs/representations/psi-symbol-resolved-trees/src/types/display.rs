@@ -1,4 +1,4 @@
-use omega_core::arena::Arena;
+use psi_arena::Arena;
 
 use crate::types::{TypeConstraint, TypeReference};
 
