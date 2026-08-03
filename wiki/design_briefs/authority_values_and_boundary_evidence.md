@@ -191,18 +191,20 @@ identities do not infer. Terminal v10 revalidates and reconstructs these exact
 rewrite axioms. Checked returned calls now instantiate an already-authored
 partition theorem only when every source entry projection binds to an exact
 caller-entry claim transferred into that call. A result may pass through one
-staged local only when each projected call-result claim is established at that
-exact call, transferred unchanged at the exact return, and reaches one unique
-callable-result path. The derivation retains the source fingerprint, call site,
-input claim identities, staged-result rewrite claims, and the substituted equation,
+staged local and nested aggregate reconstruction only when each projected
+call-result claim is established at that exact call, transferred unchanged at
+the exact return, and reaches one unique callable-result path. Each retained
+rewrite row binds the claim to its exact source and target structural places.
+The derivation retains the source fingerprint, call site, input claim
+identities, result rewrite rows, and the substituted equation,
 while preserving rather than creating the theorem's `separate(...)` tree.
-General composition through aggregate/nested structural rewrites and sealed
-frontier rows remains implementation work. Terminal semantic v12 remains
-direct-wrapper-only: a checked row with staged-result rewrite claims fails
-closed at terminal production until reviewed terminal vocabulary can carry and
-revalidate that intermediate evidence. For direct rows v12 retains the exact
-source theorem, its fingerprint, dense input-claim references, the total place
-substitution, and the derived equation. The verifier binds every substituted
+General composition through aggregate arguments, multi-hop result rewrites,
+and sealed frontier rows remains implementation work. Terminal semantic v12
+remains direct-wrapper-only: a checked row with staged-result rewrite evidence
+fails closed at terminal production until reviewed terminal vocabulary can
+carry and revalidate that intermediate evidence. For direct rows v12 retains
+the exact source theorem, its fingerprint, dense input-claim references, the
+total place substitution, and the derived equation. The verifier binds every substituted
 entry projection to a listed identity-reshuffle claim, replays the substitution,
 and exposes only the replayed theorem as a semantic axiom.
 
@@ -275,10 +277,10 @@ semantic axioms. Terminal semantic v11 and proof format v9 add distinct stable
 sum-case segments, so active payload paths retain case-plus-field identity
 without exporting arena-local symbols. Checked facts additionally retain exact
 wrapper instantiations of authored partition equations with their source
-theorem, call, transfer-stable input claims, and any exact staged-local result
-rewrite claims. Composition through aggregate or nested rewrites, sealed
-introduction/custody-exit rows, and frontier discharge remains subsequent
-work. Terminal semantic v12 carries each direct instantiation as an
+theorem, call, transfer-stable input claims, and any exact staged/nested result
+rewrite rows. Composition through aggregate arguments or multi-hop rewrites,
+sealed introduction/custody-exit rows, and frontier discharge remains
+subsequent work. Terminal semantic v12 carries each direct instantiation as an
 exact source-to-derived place substitution and rejects theorem-shape, algebra,
 claim-binding, or substitution drift before reconstructing the result.
 The frozen Omega-to-Psi bootstrap adapter no longer translates these content

@@ -345,14 +345,17 @@ those rows remain absent until their actual checked proofs exist.
   source entry projection must substitute to a caller-parameter structural
   place whose transfer-stable claim identity reaches that exact call; the
   derived row retains the source theorem fingerprint, call site, all input
-  claim identities, any staged-result rewrite claims, and the substituted
-  equation in `05_claim_outcomes.json`. Composition copies the source `separate(...)`
+  claim identities, any staged/nested result rewrite rows, and the substituted
+  equation in `05_claim_outcomes.json`. Composition copies the source
+  `separate(...)`
   structure and cannot manufacture a partition. Eligible wrapper chains close
-  to a fixed point. A staged-local result composes only when every projected
-  call-result claim is established at that exact call, transferred unchanged
-  at the exact return, and published at one unique callable-result path.
-  Aggregate argument construction and nested result reshaping remain
-  fail-closed. These staged rows remain checked/debug evidence because
+  to a fixed point. A staged-local or nested aggregate result composes only
+  when every projected call-result claim is established at that exact call,
+  transferred unchanged at the exact return, and published at one unique
+  callable-result path. Each rewrite row binds that claim to its exact source
+  and target structural places. Aggregate argument construction and multi-hop
+  local result chains remain fail-closed. These non-direct rows remain
+  checked/debug evidence because
   terminal semantic v12 deliberately carries only direct composition as its
   exact source theorem, source fingerprint,
   dense input-claim references, total structural-place substitution, and
@@ -366,11 +369,11 @@ those rows remain absent until their actual checked proofs exist.
   conservation plans, exact identity reshuffles, and direct partition
   compositions into the existing v9-v12 terminal vocabulary, including dense
   claim identities and replayable place substitutions. The executable source
-  canary remains content-free and fail-closed. Next compose aggregate and
-  nested structural rewrites around authored-partition calls, connect a real
-  content-bearing source slice after its separately recorded design blocker is
-  resolved, insert sealed introduction and custody-exit rows, and discharge or
-  admit the exact frontier theorem.
+  canary remains content-free and fail-closed. Next compose aggregate argument
+  and multi-hop structural rewrites around authored-partition calls, connect a
+  real content-bearing source slice after its separately recorded design
+  blocker is resolved, insert sealed introduction and custody-exit rows, and
+  discharge or admit the exact frontier theorem.
 - **TERMINAL-CONTENT-CLAIMS — BLOCKED on language/IR design:** a real direct
   partition wrapper exposes a gap hidden by the synthetic terminal fixture.
   Checked composition correctly carries distinct entry claim identities but no
@@ -779,7 +782,11 @@ Remaining:
   invent a general permanent-custodian spelling without a concrete customer;
 - record write-only views as a focused core-type follow-up rather than hiding
   write-only foreign access in a plan;
-- add differential checks where a compatibility encoder remains; and
+- extend differential checks wherever a compatibility encoder remains. The
+  current vtable-slot, vtable-field, and service-table cohort now proves exact
+  byte equality between compatibility selection and an explicit evaluated
+  native plan on Microsoft x64, SysV AMD64, and AAPCS64; both result-bearing
+  widths are pinned too; and
 - delete compatibility fields after their final consumer migrates.
 
 Acceptance: changing a normalized plan changes lowering or rejects; changing
