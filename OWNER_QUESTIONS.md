@@ -115,3 +115,27 @@ how aliases bind hidden evidence terms, and which declaration selected
 `Reflexive`/`Symmetric`/`Transitive` conformances name. Do not migrate `%` from
 its executable-`bool` pilot or add a parser-only `Prop` spelling until this
 surface is settled end to end.
+
+## Q6 — How does terminal Psi bind partition input claims without asserting equality?
+
+A checked direct partition wrapper retains exact entry claim identities and a
+mechanically replayable partition substitution, but it correctly has no
+one-to-one identity reshuffle: aggregate conservation does not prove that any
+input equals one particular output. Terminal semantic v12 currently lets a
+partition composition name an input claim only through a
+`ContentIdentityReshuffle` row, which would assert that stronger and potentially
+false equality. Which versioned representation is canonical?
+
+- add an independent entry-claim binding row that records the dense claim ID,
+  projection, algebra, and entry structural place without naming an output; or
+- make each partition-composition row carry its complete input-claim bindings
+  directly, keeping those bindings scoped to the derived theorem rather than a
+  reusable module-level table?
+
+The choice fixes claim-ID canonicalization, duplicate/overlap validation,
+whether other future content axioms may reference entry claims independently,
+and the next semantic-version allocation alongside Q4's conditional-edge
+slice. The checked-to-terminal producer must remain fail-closed, and no
+content-bearing executable source canary may claim completion, until the
+verifier, codec, migration, proof bundle, and producer consume one reviewed
+shape end to end.
