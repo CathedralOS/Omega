@@ -878,6 +878,10 @@ migrate to mandatory plans. Scalar authored imports carry the same byte/width
 lock on Microsoft x64 and both AAPCS64 targets. The x86-64 compatibility host
 encoder has no SysV authored-import path, so that target instead proves it
 fails closed without a plan and succeeds with the explicit SysV plan.
+Linux statement, value-result, timespec-result, and timespec-argument syscall
+families likewise compare compatibility selection with an independently
+evaluated x86-64/AArch64 plan. Their emitted bytes and planned widths must
+match; result and argument relocation sites must remain identical as well.
 
 Remaining order:
 

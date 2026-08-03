@@ -789,7 +789,10 @@ Remaining:
   native plan on Microsoft x64, SysV AMD64, and AAPCS64; both result-bearing
   widths are pinned too. Authored scalar imports now carry the same byte/width
   lock on Microsoft x64 and both AAPCS64 targets, while SysV AMD64 explicitly
-  fails closed without its required plan; and
+  fails closed without its required plan. Linux statement, value-result,
+  timespec-result, and timespec-argument syscall families now prove byte and
+  width equality on x86-64/AArch64; result/argument relocation sites are
+  differential-locked too; and
 - delete compatibility fields after their final consumer migrates.
 
 Acceptance: changing a normalized plan changes lowering or rejects; changing
