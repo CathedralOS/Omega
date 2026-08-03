@@ -891,6 +891,10 @@ Remaining:
   target's native plan from their declared recursive boundary signature during
   binding construction; explicit `Calling<C>` plans still take precedence,
   and compatibility syscalls retain the target's full-word syscall signature.
+  Direct Win64 GetStdHandle, ReadFile/WriteFile, key-state, and time-out-pointer
+  encoders plus their relocation walks now validate those retained concrete
+  subcall plans; a semantic outer shape cannot replace the native adapter
+  signature.
   The matching AArch64 direct-import composites now validate
   that same retained native signature and reject placement drift in lockstep
   with layout; Windows composites retain their independently normalized

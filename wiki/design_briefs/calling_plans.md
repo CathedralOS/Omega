@@ -740,7 +740,11 @@ rows retain the actual GetStdHandle, ReadFile/WriteFile, QPC/QPF, or FILETIME
 subcall signature rather than pretending the adapter's outer semantic operands
 are the imported function. Contextual integer literals and compiler-derived
 byte counts adopt that retained parameter width during validation, so a DWORD
-plan is not replaced by an eight-byte compiler scratch classification.
+plan is not replaced by an eight-byte compiler scratch classification. The
+direct GetStdHandle, ReadFile/WriteFile, key-state, and time-out-pointer
+encoders and their x86-64 relocation walks validate those retained concrete
+plans before using their fixed adapter layouts; changing an outer semantic
+shape cannot silently replace the native subcall contract.
 Register-resident AArch64 C/import emission now also evaluates AAPCS64 from the
 selected operand shapes and passes the exact planned X/V argument and result
 registers to the ISA encoder. Scalar stack arguments and flat HFA arguments and
