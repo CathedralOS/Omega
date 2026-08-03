@@ -30,7 +30,7 @@ call/exit evidence that made each state operation admissible.
 
 | Noun | Ownership |
 | --- | --- |
-| Places | First strongly useful place layer via `omega_facts::Place` and checked-flow `CanonicalPlace`. |
+| Places | First strongly useful place layer via `psi_facts::Place` and checked-flow `CanonicalPlace`. |
 | Values | First checked value fact layer via `CheckedValueFacts`, keyed by typed expression handles and value origins. |
 | Facts | First-class fact contexts, origins, payloads, proof obligations, and contract facts. |
 | Loans | First-class borrow facts, accesses, loans, activations, weakenings, and overlap checks. |
@@ -105,7 +105,7 @@ Current ownership is:
   `borrow/last_uses/usage/expressions.rs` owns expression usage traversal, and
   `borrow/last_uses/usage/transitions.rs` owns transition guard/target usage
   traversal for last-use detection.
-  `omega-checked-trees/src/borrow.rs` owns the grouped `BorrowFacts` root and
+  `psi-checked-trees/src/borrow.rs` owns the grouped `BorrowFacts` root and
   constructor for writable-root, access, call, loan-owner-segment, loan, and
   state borrow arenas. Each published loan addresses its owner projection by a
   handle span into the shared owner-segment arena.
@@ -146,25 +146,25 @@ Current ownership is:
   combines them with target layouts, calling-plan identity, the selected
   runtime provider, and the WCSU-backed `StackPlan`. None of that concrete
   activation realization is stored in `CheckedTrees`.
-- `omega-checked-trees/src/flow.rs` owns the published checked-flow fact model
+- `psi-checked-trees/src/flow.rs` owns the published checked-flow fact model
   export surface. The model is split by semantic noun under
-  `omega-checked-trees/src/flow/`: `contexts.rs` owns semantic/borrow
+  `psi-checked-trees/src/flow/`: `contexts.rs` owns semantic/borrow
   constraint refs, `invalidations.rs` owns mutation/domain invalidation facts,
   `borrow_lifetimes.rs` owns activation/weakening facts, `ownership.rs` owns
   move/drop facts, `boundaries.rs` owns boundary-edge facts, `control.rs` owns
   state/statement/call/exit facts, and `roots.rs` owns grouped `FlowFacts`
   roots plus query helpers. Flow construction should join each noun root
   through its root constructor rather than hand-building the grouped fields.
-- `omega-checked-trees/src/facts/` owns checked semantic facts that are not
+- `psi-checked-trees/src/facts/` owns checked semantic facts that are not
   part of the temporal flow spine: `invariants.rs` owns invariant definition
   facts, and `domains.rs` owns domain dependency facts and dependency-path
   accessors. Both expose root constructors so invariant and domain production
   joins arena roots explicitly.
-- `omega-checked-trees/src/proof/` owns proof-facing checked facts:
+- `psi-checked-trees/src/proof/` owns proof-facing checked facts:
   `obligations.rs` owns explicit proof obligations, `contracts.rs` owns
   contract proof facts/call/exit indexes, and `roots.rs` owns the grouped
   `ProofFacts` arena root and constructor.
-- `omega-checked-trees/src/admissibility/` owns checked operation acceptance
+- `psi-checked-trees/src/admissibility/` owns checked operation acceptance
   views. These views do not re-run proof, borrow, or effect checks; they gather
   the already-accepted evidence behind state, statement, call, and exit query
   methods so later stages and reports have one obvious doorway. Each view also

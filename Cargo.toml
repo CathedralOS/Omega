@@ -19,6 +19,7 @@ members = [
     "compiler/psi-rs/representations/psi-typed-trees",
     "compiler/psi-rs/representations/psi-facts",
     "compiler/psi-rs/representations/psi-effects",
+    "compiler/psi-rs/representations/psi-checked-trees",
     "compiler/psi-rs/representations/psi-terminal",
     "compiler/psi-rs/pipeline/psi-source-files-to-tokens",
     "compiler/psi-rs/pipeline/psi-tokens-to-syntax-trees",

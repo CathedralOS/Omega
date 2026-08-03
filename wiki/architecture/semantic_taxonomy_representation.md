@@ -34,7 +34,7 @@ definitions and binding-site constraints. The record does not yet represent:
   qualification; or
 - canonical representation-qualification conformance.
 
-`omega-checked-trees::DomainFacts` is appropriately fact-shaped for predicate
+`psi-checked-trees::DomainFacts` is appropriately fact-shaped for predicate
 membership, while qualification casts and emitted semantic commitments consume
 the declaration's stable semantic identity and inspect predicate-body presence
 only when a proof obligation is required. Operator selection consumes the

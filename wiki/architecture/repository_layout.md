@@ -75,6 +75,7 @@ Omega/
 |   |   |   |-- [CRATE] psi-typed-trees/                # Typed source semantics without target realization state.
 |   |   |   |-- [CRATE] psi-facts/                      # Durable checked places, contexts, and semantic fact plans.
 |   |   |   |-- [CRATE] psi-effects/                    # Target-neutral operational, reach, invocation, and capability-flow facts.
+|   |   |   |-- [CRATE] psi-checked-trees/              # Checked proof, borrow, flow, reach, value, and admissibility evidence.
 |   |   |   `-- [CRATE] psi-terminal/                   # Self-contained terminal module and closed operation vocabulary.
 |   |   |-- pipeline/
 |   |   |   |-- [CRATE] psi-source-files-to-tokens/     # Psi-owned Omega source lexer.
@@ -101,7 +102,7 @@ Omega/
 |   |   |-- [CRATE] omega-typed-trees/                  # Transitional re-export of Psi-owned typed trees.
 |   |   |-- [CRATE] omega-facts/                        # Transitional re-export of Psi-owned checked fact vocabulary.
 |   |   |-- [CRATE] omega-effects/                      # Omega provider bindings/admission plus transitional Psi-effect exports.
-|   |   |-- [CRATE] omega-checked-trees/                # Transitional checked semantic tree; concrete provider selection is external.
+|   |   |-- [CRATE] omega-checked-trees/                # Transitional re-export of Psi-owned checked trees.
 |   |   |-- [CRATE] omega-state-graph/                  # Explicit machine/state graph for proof and scheduling.
 |   |   |-- [CRATE] omega-control-flow/                 # Control-flow/data-flow graph.
 |   |   |-- [CRATE] omega-abstract-operations/          # Target-independent abstract operations with virtual registers.
@@ -260,6 +261,9 @@ Omega/
 - `psi-facts` carries checked facts, invariants, and refinement data: what
   remains true. The old `omega-facts` name is a compatibility export while
   downstream Omega consumers migrate to terminal Psi.
+- `psi-checked-trees` owns the durable checked semantic representation and its
+  proof, borrow, flow, reach, value-origin, and admissibility evidence. The old
+  `omega-checked-trees` name is an implementation-free compatibility export.
 - `psi-effects` carries target-neutral operational ceilings, service reach,
   synchronous invocation summaries, and capability-flow facts. `omega-effects`
   retains provider declarations, target/provider bindings, approval, and
