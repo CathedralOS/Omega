@@ -11,8 +11,8 @@ use crate::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use crate::types::{
     DomainConstraint, FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
-use omega_core::arena::HandleSpan;
-use omega_core::symbols::SymbolHandle;
+use psi_arena::HandleSpan;
+use psi_symbols::SymbolHandle;
 use std::fmt;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -427,7 +427,7 @@ fn collect_declared_result_dispatch_terms(
 
 fn declared_domain_name(
     program: &TypedTrees,
-    semantic_id: omega_core::semantics::SemanticDomainId,
+    semantic_id: psi_language_semantics::SemanticDomainId,
     fallback: &str,
 ) -> String {
     semantic_id
@@ -872,11 +872,11 @@ mod tests {
     use crate::name::Identifier;
     use crate::typed_trees::{OpenIndexNormalization, OpenIndexOperationSelection};
     use crate::types::{DomainConstraint, TypeConstraintNode, TypeReferenceNode};
-    use omega_core::operator_spelling::OperatorSpelling;
-    use omega_core::semantics::{
+    use psi_language_core::operator_spelling::OperatorSpelling;
+    use psi_language_semantics::{
         DomainEstablishmentRoute, DomainPredicateBody, DomainSemanticRoles, SemanticDomainId,
     };
-    use omega_core::symbols::SymbolHandle;
+    use psi_symbols::SymbolHandle;
 
     fn declared(name: &str, semantic_id: SemanticDomainId) -> TypeConstraintNode {
         TypeConstraintNode::Domain(DomainConstraint {
@@ -911,9 +911,9 @@ mod tests {
 
     fn constrained(
         program: &mut TypedTrees,
-        base_type: omega_core::arena::Handle<TypeReferenceNode>,
+        base_type: psi_arena::Handle<TypeReferenceNode>,
         constraints: impl IntoIterator<Item = TypeConstraintNode>,
-    ) -> omega_core::arena::Handle<TypeReferenceNode> {
+    ) -> psi_arena::Handle<TypeReferenceNode> {
         let constraints = program.type_reference_table.insert_constraints(constraints);
         program
             .type_reference_table
@@ -928,7 +928,7 @@ mod tests {
         owner_symbol: SymbolHandle,
         binder_symbol: SymbolHandle,
         binder_name: &str,
-        return_type: omega_core::arena::Handle<TypeReferenceNode>,
+        return_type: psi_arena::Handle<TypeReferenceNode>,
     ) -> crate::machine::Machine {
         let mut machine = crate::machine::Machine {
             symbol: owner_symbol,
@@ -1121,7 +1121,7 @@ mod tests {
                 .open_index_normalizations
                 .push(OpenIndexNormalization {
                     expression,
-                    index_type: omega_core::arena::Handle::invalid(),
+                    index_type: psi_arena::Handle::invalid(),
                     operations,
                     normalizer_version: 1,
                 });
@@ -1217,7 +1217,7 @@ mod tests {
                     Vec::new(),
                 ),
                 TypeConstraintNode::ArithmeticDomain(
-                    omega_core::arithmetic::ArithmeticDomain::Saturating,
+                    psi_numerics::arithmetic::ArithmeticDomain::Saturating,
                 ),
                 declared_with_metadata(
                     "MarkerAgain",
@@ -1228,7 +1228,7 @@ mod tests {
                     Vec::new(),
                 ),
                 TypeConstraintNode::ArithmeticDomain(
-                    omega_core::arithmetic::ArithmeticDomain::Saturating,
+                    psi_numerics::arithmetic::ArithmeticDomain::Saturating,
                 ),
             ],
         );
@@ -1391,7 +1391,7 @@ mod tests {
             &mut program,
             i32_type,
             [TypeConstraintNode::ArithmeticDomain(
-                omega_core::arithmetic::ArithmeticDomain::Saturating,
+                psi_numerics::arithmetic::ArithmeticDomain::Saturating,
             )],
         );
         let unqualified = generic_machine(

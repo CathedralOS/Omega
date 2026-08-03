@@ -5,16 +5,16 @@
 //! the compile-time proof machinery: wire decode brings UNTRUSTED bytes
 //! where no compile-time proof exists, and the decoder must evaluate the
 //! same predicate the checker proves elsewhere (`holds_for`). The ENUM
-//! itself lives in `omega_core::byte_predicates` (dependency-free, so the
+//! itself lives in `psi_language_semantics::byte_predicates` (dependency-free, so the
 //! instruction kinds can carry predicate MASKS); this module owns the
 //! TREE-WALKING resolution from domain declarations.
 
 use crate::TypedTrees;
 use crate::expression::{ExpressionHandle, ExpressionNode};
 use crate::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
-use omega_core::symbols::SymbolHandle;
+use psi_symbols::SymbolHandle;
 
-pub use omega_core::byte_predicates::ByteSequencePredicate;
+pub use psi_language_semantics::byte_predicates::ByteSequencePredicate;
 
 /// If `domain_symbol`'s sole fact is a recognized comptime byte-predicate call
 /// applied to `self` (e.g. `valid_utf8(self);`), return that primitive. Domains

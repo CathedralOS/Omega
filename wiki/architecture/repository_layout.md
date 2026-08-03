@@ -56,10 +56,13 @@ Omega/
 |-- compiler/
 |   |-- psi-rs/                                         # Psi owns target-neutral semantics through terminal Psi.
 |   |   |-- foundation/
+|   |   |   |-- [CRATE] psi-access-plans/               # Normalized placed-view access semantics.
 |   |   |   |-- [CRATE] psi-arena/                      # Generic typed arena storage for Psi source representations.
 |   |   |   |-- [CRATE] psi-diagnostics/                # Source diagnostics and phase-snapshot contracts.
+|   |   |   |-- [CRATE] psi-extents/                    # Extent geometry, lineage, rights, and provider identity.
 |   |   |   |-- [CRATE] psi-language-core/              # Target-neutral source-language vocabulary.
 |   |   |   |-- [CRATE] psi-language-semantics/         # Resolved semantic identities, tables, and plans.
+|   |   |   |-- [CRATE] psi-layout-plans/                # Normalized layout geometry and materialization plans.
 |   |   |   |-- [CRATE] psi-numerics/                   # Exact numerics, float semantics, and literal payloads.
 |   |   |   |-- [CRATE] psi-source/                     # Loaded-source data and coordinates owned by the Psi frontend.
 |   |   |   |-- [CRATE] psi-source-loader/              # Root-file loading into Psi-owned source maps.
@@ -69,6 +72,7 @@ Omega/
 |   |   |   |-- [CRATE] psi-tokens/                     # Omega spelling-level token streams.
 |   |   |   |-- [CRATE] psi-syntax-trees/               # Parsed source shape before symbol resolution.
 |   |   |   |-- [CRATE] psi-symbol-resolved-trees/      # Source trees with resolved symbol identity.
+|   |   |   |-- [CRATE] psi-typed-trees/                # Typed source semantics without target realization state.
 |   |   |   `-- [CRATE] psi-terminal/                   # Self-contained terminal module and closed operation vocabulary.
 |   |   |-- pipeline/
 |   |   |   |-- [CRATE] psi-source-files-to-tokens/     # Psi-owned Omega source lexer.
@@ -91,7 +95,7 @@ Omega/
 |   |   |-- [CRATE] omega-tokens/                       # Transitional re-export of Psi-owned tokens.
 |   |   |-- [CRATE] omega-syntax-trees/                 # Transitional re-export of Psi-owned syntax trees.
 |   |   |-- [CRATE] omega-symbol-resolved-trees/        # SymbolResolvedTrees: syntax shape with declaration/reference symbols resolved.
-|   |   |-- [CRATE] omega-typed-trees/                  # Symbol-resolved trees with type/effect information attached.
+|   |   |-- [CRATE] omega-typed-trees/                  # Transitional re-export of Psi-owned typed trees.
 |   |   |-- [CRATE] omega-facts/                        # Checked semantic facts, invariants, and refinement data embedded in later IRs.
 |   |   |-- [CRATE] omega-effects/                      # Effect-set, capability, and provider data shapes embedded in later IRs.
 |   |   |-- [CRATE] omega-checked-trees/                # Typed trees plus checked semantic facts after validation/proof-facing checks.

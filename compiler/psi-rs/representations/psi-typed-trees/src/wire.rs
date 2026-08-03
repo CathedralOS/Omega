@@ -1,7 +1,7 @@
 use crate::name::Identifier;
 use crate::types::TypeReferenceHandle;
-use omega_core::arena::HandleSpan;
-use omega_core::symbols::SymbolHandle;
+use psi_arena::HandleSpan;
+use psi_symbols::SymbolHandle;
 
 /// One wire field's DERIVED placement -- the plan the tagged codec walks
 /// (mint arc rung 2a). The Rust-side mirror of the FieldPlan wire cases
@@ -196,7 +196,7 @@ pub fn type_reference_carries_range(
 pub fn scalar_representation_range(
     program: &crate::TypedTrees,
     handle: TypeReferenceHandle,
-) -> Option<omega_core::wire::WireScalarRange> {
+) -> Option<psi_language_semantics::wire::WireScalarRange> {
     fn collect(
         program: &crate::TypedTrees,
         handle: TypeReferenceHandle,
@@ -233,7 +233,7 @@ pub fn scalar_representation_range(
 
     let primitive = program.primitive_type_reference(handle)?;
     if primitive == crate::types::PrimitiveType::Bool {
-        return Some(omega_core::wire::WireScalarRange {
+        return Some(psi_language_semantics::wire::WireScalarRange {
             minimum: 0,
             maximum: 1,
             signed: false,
@@ -248,7 +248,7 @@ pub fn scalar_representation_range(
         _ => (i64::MIN, i64::MAX, false),
     };
     collect(program, handle, &mut minimum, &mut maximum, &mut found)?;
-    (found && minimum <= maximum).then_some(omega_core::wire::WireScalarRange {
+    (found && minimum <= maximum).then_some(psi_language_semantics::wire::WireScalarRange {
         minimum,
         maximum,
         signed: primitive.is_signed_integer(),
@@ -259,7 +259,7 @@ pub fn scalar_representation_range(
 pub fn scalar_decode_range(
     program: &crate::TypedTrees,
     handle: TypeReferenceHandle,
-) -> Option<omega_core::wire::WireScalarRange> {
+) -> Option<psi_language_semantics::wire::WireScalarRange> {
     scalar_representation_range(program, handle)
 }
 

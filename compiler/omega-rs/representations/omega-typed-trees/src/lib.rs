@@ -1,28 +1,5 @@
-pub mod boundary;
-pub mod byte_predicates;
-pub mod data;
-pub mod dependent_ranges;
-pub mod domain;
-pub mod expression;
-pub mod identity;
-pub mod invariant;
-pub mod machine;
-pub mod measure;
-pub mod name;
-pub mod operator;
-pub mod proof_only;
-pub mod signature;
-pub mod snapshot;
-pub mod state;
-pub mod statement;
-pub mod trait_definition;
-pub mod type_identity;
-pub mod typed_trees;
-pub mod types;
-pub mod wire;
+#![forbid(unsafe_code)]
 
-pub use snapshot::TypedTreesSnapshot;
-pub use typed_trees::{
-    PlanLaidBitField, PlanLaidBitFragment, PlanLaidLayout, TypedTreeRoots, TypedTreeTables,
-    TypedTrees,
-};
+//! Compatibility export for the Psi-owned typed source representation.
+
+pub use psi_typed_trees::*;

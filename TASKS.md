@@ -1020,6 +1020,9 @@ improvements do not change public identity.
   `psi-language-semantics` owns resolved semantic identities, service/domain
   tables, termination/supply plans, establishment routes, byte predicates,
   canonical const-value atoms, and normalized wire scalar ranges;
+  `psi-extents`, `psi-layout-plans`, and `psi-access-plans` own target-neutral
+  extent authority plus normalized author-selected layout and placed-access
+  semantics; their old Omega package names are compatibility exports;
   `psi-numerics` owns exact
   numerics, host-independent float semantics, arithmetic domains, and literal
   payloads; `psi-source-loader` owns root-file loading; and
@@ -1029,6 +1032,11 @@ improvements do not change public identity.
   `psi-symbol-resolved-trees` owns the source-shaped representation carrying
   resolved symbol identities, with the former Omega crate reduced to a
   compatibility re-export.
+  `psi-typed-trees` owns the target-neutral typed source representation, with
+  the former Omega crate reduced to a compatibility re-export. Typed boundary
+  identities retain semantic keys and canonical fingerprints only; concrete
+  register/stack/ABI calling plans remain in Omega orchestration for selected
+  native realization.
   `psi-source-files-to-tokens` owns Omega lexing and
   `psi-tokens-to-syntax-trees` owns unresolved parsing, both with no Omega
   dependency. `psi-syntax-trees-to-symbol-resolved-trees` owns name lookup,

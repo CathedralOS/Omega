@@ -534,7 +534,7 @@ pub enum ExpressionSnapshot {
         index: Box<ExpressionSnapshot>,
     },
     Integer {
-        /// Canonical literal spelling (see `omega_core::literals::IntegerLiteral`) --
+        /// Canonical literal spelling (see `psi_numerics::literals::IntegerLiteral`) --
         /// snapshots stay anonymous like the nodes they mirror (D14).
         text: String,
     },
@@ -665,8 +665,8 @@ fn data_definition_snapshot(program: &TypedTrees, data: &DataDefinition) -> Data
     DataDefinitionSnapshot {
         name: data.name.to_string(),
         supply: match data.supply_mode {
-            omega_core::semantics::DataSupplyMode::CheckedShape => "checked_shape",
-            omega_core::semantics::DataSupplyMode::BoundaryOpaque => "boundary_opaque",
+            psi_language_semantics::DataSupplyMode::CheckedShape => "checked_shape",
+            psi_language_semantics::DataSupplyMode::BoundaryOpaque => "boundary_opaque",
         }
         .to_owned(),
         lifetime_parameters: data
@@ -887,9 +887,9 @@ fn machine_snapshot(program: &TypedTrees, machine: &Machine) -> MachineSnapshot 
 }
 
 fn machine_supply_snapshot(
-    supply: omega_core::semantics::MachineSupplyMode,
+    supply: psi_language_semantics::MachineSupplyMode,
 ) -> MachineSupplySnapshot {
-    use omega_core::semantics::MachineSupplyMode;
+    use psi_language_semantics::MachineSupplyMode;
     match supply {
         MachineSupplyMode::CheckedBody => MachineSupplySnapshot::CheckedBody,
         MachineSupplyMode::Requirement => MachineSupplySnapshot::Requirement,
@@ -902,9 +902,9 @@ fn machine_supply_snapshot(
 }
 
 fn termination_interface_snapshot(
-    interface: &omega_core::semantics::TerminationInterface,
+    interface: &psi_language_semantics::TerminationInterface,
 ) -> TerminationInterfaceSnapshot {
-    use omega_core::semantics::{TerminationGuarantee, TerminationInterface};
+    use psi_language_semantics::{TerminationGuarantee, TerminationInterface};
     match interface {
         TerminationInterface::InternalDerived => TerminationInterfaceSnapshot::InternalDerived,
         TerminationInterface::Published(TerminationGuarantee::NoGuarantee) => {
@@ -1047,7 +1047,7 @@ fn state_signature_snapshot(
 
 fn service_reach_names(
     program: &TypedTrees,
-    row: omega_core::semantics::ServiceReachRowId,
+    row: psi_language_semantics::ServiceReachRowId,
 ) -> Vec<String> {
     program
         .service_reach_rows
@@ -1075,7 +1075,7 @@ fn signature_contract_snapshot(
 
 fn contract_fact_snapshots(
     program: &TypedTrees,
-    facts: omega_core::arena::HandleSpan<ProofFact>,
+    facts: psi_arena::HandleSpan<ProofFact>,
 ) -> Vec<ProofFactSnapshot> {
     program
         .proof_facts
@@ -1135,7 +1135,7 @@ fn statement_snapshot(program: &TypedTrees, statement: &StatementNode) -> Statem
                 .collect(),
             arguments: statement_expression_span_snapshot(program, call.arguments),
             acknowledgement_synthesized: call.operational_acknowledgement.origin
-                == omega_core::semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
+                == psi_language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
             acknowledges_suspend: call.operational_acknowledgement.acknowledges_suspend,
             acknowledges_block: call.operational_acknowledgement.acknowledges_block,
         },
@@ -1249,7 +1249,7 @@ fn expression_snapshot(program: &TypedTrees, expression: ExpressionHandle) -> Ex
                 .collect(),
             arguments: expression_span_snapshot(program, call.arguments),
             acknowledgement_synthesized: call.operational_acknowledgement.origin
-                == omega_core::semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
+                == psi_language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
             acknowledges_suspend: call.operational_acknowledgement.acknowledges_suspend,
             acknowledges_block: call.operational_acknowledgement.acknowledges_block,
         },
@@ -1319,7 +1319,7 @@ fn expression_snapshot(program: &TypedTrees, expression: ExpressionHandle) -> Ex
 
 fn expression_span_snapshot(
     program: &TypedTrees,
-    expressions: omega_core::arena::HandleSpan<ExpressionHandle>,
+    expressions: psi_arena::HandleSpan<ExpressionHandle>,
 ) -> Vec<ExpressionSnapshot> {
     program
         .expression_table
@@ -1331,7 +1331,7 @@ fn expression_span_snapshot(
 
 fn statement_expression_span_snapshot(
     program: &TypedTrees,
-    expressions: omega_core::arena::HandleSpan<ExpressionHandle>,
+    expressions: psi_arena::HandleSpan<ExpressionHandle>,
 ) -> Vec<ExpressionSnapshot> {
     program
         .statement_table
@@ -1358,7 +1358,7 @@ fn wire_schema_snapshot(
 
 fn wire_member_snapshots(
     program: &TypedTrees,
-    members: omega_core::arena::HandleSpan<crate::wire::WireMember>,
+    members: psi_arena::HandleSpan<crate::wire::WireMember>,
 ) -> Vec<WireMemberSnapshot> {
     program
         .wire_members(members)
@@ -1525,7 +1525,7 @@ fn type_constraint_snapshot(
 }
 
 fn semantic_roles_snapshot(
-    roles: omega_core::semantics::DomainSemanticRoles,
+    roles: psi_language_semantics::DomainSemanticRoles,
 ) -> DomainSemanticRolesSnapshot {
     DomainSemanticRolesSnapshot {
         denotation_dimension: roles.denotation_dimension.map(|semantic| semantic.0),
@@ -1534,7 +1534,7 @@ fn semantic_roles_snapshot(
 }
 
 fn establishment_route_snapshot(
-    route: omega_core::semantics::DomainEstablishmentRoute,
+    route: psi_language_semantics::DomainEstablishmentRoute,
 ) -> DomainEstablishmentRouteSnapshot {
     let requirement = route.requirement_symbol();
     DomainEstablishmentRouteSnapshot {

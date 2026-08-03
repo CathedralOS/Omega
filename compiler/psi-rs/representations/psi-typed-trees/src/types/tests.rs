@@ -4,7 +4,7 @@ use super::{
 };
 use crate::expression::{ExpressionNode, ExpressionTable};
 use crate::name::Identifier;
-use omega_core::symbols::SymbolHandle;
+use psi_symbols::SymbolHandle;
 
 #[test]
 fn type_reference_table_stores_nested_typed_references_as_handles() {
@@ -42,10 +42,10 @@ fn type_reference_table_stores_nested_typed_references_as_handles() {
 fn type_reference_table_stores_typed_constraints_as_expression_handles() {
     let mut expressions = ExpressionTable::new();
     let minimum = expressions.insert(ExpressionNode::Integer(
-        omega_core::literals::IntegerLiteral::from_value(0),
+        psi_numerics::literals::IntegerLiteral::from_value(0),
     ));
     let maximum = expressions.insert(ExpressionNode::Integer(
-        omega_core::literals::IntegerLiteral::from_value(10),
+        psi_numerics::literals::IntegerLiteral::from_value(10),
     ));
     let mut types = TypeReferenceTable::new();
     let base_type = types.insert(TypeReferenceNode::Named {
@@ -82,10 +82,10 @@ fn type_reference_table_stores_typed_constraints_as_expression_handles() {
 fn type_reference_table_copies_table_payloads_without_tree_roundtrip() {
     let mut source_expressions = ExpressionTable::new();
     let minimum = source_expressions.insert(ExpressionNode::Integer(
-        omega_core::literals::IntegerLiteral::from_value(1),
+        psi_numerics::literals::IntegerLiteral::from_value(1),
     ));
     let maximum = source_expressions.insert(ExpressionNode::Integer(
-        omega_core::literals::IntegerLiteral::from_value(8),
+        psi_numerics::literals::IntegerLiteral::from_value(8),
     ));
     let mut source_types = TypeReferenceTable::new();
     let u8_reference = source_types.insert(TypeReferenceNode::Named {
@@ -97,14 +97,14 @@ fn type_reference_table_copies_table_payloads_without_tree_roundtrip() {
         length: FixedArrayLength::Literal(8),
     });
     let domain_symbol = SymbolHandle::from_arena_index(12);
-    let semantic_id = omega_core::semantics::SemanticDomainId(9);
-    let predicate_body = omega_core::semantics::DomainPredicateBody::Present;
-    let semantic_roles = omega_core::semantics::DomainSemanticRoles {
+    let semantic_id = psi_language_semantics::SemanticDomainId(9);
+    let predicate_body = psi_language_semantics::DomainPredicateBody::Present;
+    let semantic_roles = psi_language_semantics::DomainSemanticRoles {
         denotation_dimension: Some(semantic_id),
         arithmetic_policy: None,
     };
     let establishment_routes = vec![
-        omega_core::semantics::DomainEstablishmentRoute::CheckedRequirement {
+        psi_language_semantics::DomainEstablishmentRoute::CheckedRequirement {
             trait_definition: SymbolHandle::from_arena_index(13),
             requirement: SymbolHandle::from_arena_index(14),
         },
@@ -168,9 +168,9 @@ fn type_reference_symbol_remap_reaches_nested_types_and_constraints() {
     let old = SymbolHandle::from_arena_index(41);
     let new = SymbolHandle::from_arena_index(42);
     let mut expressions = ExpressionTable::new();
-    let mut members = omega_core::arena::HandleSpan::empty();
+    let mut members = psi_arena::HandleSpan::empty();
     expressions.push_name_path_member(&mut members, Identifier::generated("n"));
-    let mut member_symbols = omega_core::arena::HandleSpan::empty();
+    let mut member_symbols = psi_arena::HandleSpan::empty();
     expressions.push_name_path_member_symbol(&mut member_symbols, old);
     let subject = expressions.insert(ExpressionNode::Name(crate::expression::TableNamePath {
         members,

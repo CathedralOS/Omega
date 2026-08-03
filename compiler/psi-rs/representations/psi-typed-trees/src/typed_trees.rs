@@ -2,9 +2,9 @@ use crate::{
     data, domain, expression, invariant, machine, measure, name, signature, snapshot,
     trait_definition, types, wire,
 };
-use omega_core::arena::{Arena, HandleSpan};
-use omega_core::diagnostics::PhaseSnapshot;
-use omega_core::symbols::SymbolTable;
+use psi_arena::{Arena, HandleSpan};
+use psi_diagnostics::PhaseSnapshot;
+use psi_symbols::SymbolTable;
 use std::ops::{Deref, DerefMut};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -14,11 +14,11 @@ pub struct TypedTrees {
     pub symbols: SymbolTable,
     /// EFX: normalized boundary-service declarations and rows, copied from
     /// symbol-resolved trees. All durable service consumers migrate here.
-    pub service_reaches: omega_core::semantics::ServiceReachTable,
-    pub service_reach_rows: omega_core::semantics::ServiceReachRowTable,
+    pub service_reaches: psi_language_semantics::ServiceReachTable,
+    pub service_reach_rows: psi_language_semantics::ServiceReachRowTable,
     /// STR4 checked plans, slice 1: the semantic-domain interner, copied
     /// verbatim from the resolved trees.
-    pub semantic_domains: omega_core::semantics::SemanticDomainTable,
+    pub semantic_domains: psi_language_semantics::SemanticDomainTable,
     /// Validated layout plans for PLAN-LAID VALUE TYPES (`gdt: CLayout<Gdt>`
     /// in type position; programmable-layouts L4). Populated by the compiler
     /// pipeline AFTER build-time plan evaluation + validation; the native
@@ -65,39 +65,33 @@ pub struct OpenIndexNormalization {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OpenIndexOperationSelection {
     pub expression: crate::expression::ExpressionHandle,
-    pub spelling: omega_core::operator_spelling::OperatorSpelling,
-    pub operator: omega_core::symbols::SymbolHandle,
+    pub spelling: psi_language_core::operator_spelling::OperatorSpelling,
+    pub operator: psi_symbols::SymbolHandle,
     pub operation_contract_identity: String,
-    pub provider: omega_core::symbols::SymbolHandle,
-    pub algebra_trait: omega_core::symbols::SymbolHandle,
+    pub provider: psi_symbols::SymbolHandle,
+    pub algebra_trait: psi_symbols::SymbolHandle,
     pub algebra_requirement: String,
     pub algebra_alias: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundaryCallingPlanIdentity {
-    pub boundary_trait: omega_core::symbols::SymbolHandle,
+    pub boundary_trait: psi_symbols::SymbolHandle,
     /// Concrete boundary trait argument tuple. These handles are internal
     /// lookup identity only and never enter the published contract hash.
     /// Empty for a non-generic boundary declaration.
     pub boundary_arguments: Vec<crate::types::TypeReferenceHandle>,
-    pub requirement_machine: omega_core::symbols::SymbolHandle,
+    pub requirement_machine: psi_symbols::SymbolHandle,
     pub fingerprint: u64,
-    /// Canonical implementation input retained for lowering. Provider
-    /// schemas publish only `fingerprint`; outbound bindings project the call
-    /// half, while future inbound stubs consume the same plan's state half.
-    /// Keeping the pair together also prevents a public fingerprint from
-    /// naming state obligations that the backend can no longer recover.
-    pub boundary_entry_plan: omega_calling_conventions::BoundaryEntryPlan,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlacedViewPlan {
     pub data_name: String,
     pub policy_name: String,
-    pub policy_symbol: omega_core::symbols::SymbolHandle,
+    pub policy_symbol: psi_symbols::SymbolHandle,
     pub schema_name: String,
-    pub placement: omega_access_plans::ValidatedPlacementPlan,
+    pub placement: psi_access_plans::ValidatedPlacementPlan,
     pub fields: Vec<PlacedFieldPlan>,
 }
 
@@ -106,7 +100,7 @@ pub struct PlacedFieldPlan {
     pub field_name: String,
     pub accessor_name: String,
     pub value_type: crate::types::TypeReferenceHandle,
-    pub access: omega_access_plans::FieldAccess,
+    pub access: psi_access_plans::FieldAccess,
 }
 
 fn named_type_name_through_shells(
@@ -131,15 +125,15 @@ fn named_type_name_through_shells(
 /// type, const-value, and machine-path identity rather than arena addresses.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MachineSpecialization {
-    pub template: omega_core::symbols::SymbolHandle,
+    pub template: psi_symbols::SymbolHandle,
     /// Concrete machine instance produced for this substitution. The first
     /// specialization may reuse `template`; later specializations clone it
     /// under a fresh symbol. Consumers must key executable/elaborated work by
     /// this symbol rather than guessing from specialization order.
-    pub instance: omega_core::symbols::SymbolHandle,
+    pub instance: psi_symbols::SymbolHandle,
     pub type_arguments: Vec<String>,
     pub const_arguments: Vec<String>,
-    pub machine_arguments: Vec<omega_core::symbols::SymbolHandle>,
+    pub machine_arguments: Vec<psi_symbols::SymbolHandle>,
     /// The normalized authored template identity captured before in-place
     /// substitution consumes its generic parameter declarations.
     pub template_contract_fingerprint: u64,
@@ -269,9 +263,9 @@ impl TypedTrees {
             roots,
             tables,
             symbols,
-            service_reaches: omega_core::semantics::ServiceReachTable::default(),
-            service_reach_rows: omega_core::semantics::ServiceReachRowTable::default(),
-            semantic_domains: omega_core::semantics::SemanticDomainTable::default(),
+            service_reaches: psi_language_semantics::ServiceReachTable::default(),
+            service_reach_rows: psi_language_semantics::ServiceReachRowTable::default(),
+            semantic_domains: psi_language_semantics::SemanticDomainTable::default(),
             plan_laid_layouts: Vec::new(),
             placed_view_plans: Vec::new(),
             wire_placements: Arena::new(),
@@ -287,7 +281,7 @@ impl TypedTrees {
     /// the placement arena; the plan holds their span.
     pub fn record_wire_schema_plan(
         &mut self,
-        schema: omega_core::symbols::SymbolHandle,
+        schema: psi_symbols::SymbolHandle,
         placements: impl IntoIterator<Item = wire::WirePlacement>,
         encode_obligations: impl IntoIterator<Item = wire::WireEncodeObligation>,
     ) {
@@ -304,7 +298,7 @@ impl TypedTrees {
     /// placements in tag order. `None` for schemas the plan pass skipped.
     pub fn wire_schema_plan(
         &self,
-        schema: omega_core::symbols::SymbolHandle,
+        schema: psi_symbols::SymbolHandle,
     ) -> Option<&[wire::WirePlacement]> {
         self.wire_schema_plans
             .iter()
@@ -315,7 +309,7 @@ impl TypedTrees {
     /// Dynamic encode obligations retained beside one schema's placements.
     pub fn wire_schema_encode_obligations(
         &self,
-        schema: omega_core::symbols::SymbolHandle,
+        schema: psi_symbols::SymbolHandle,
     ) -> Option<&[wire::WireEncodeObligation]> {
         self.wire_schema_plans
             .iter()
@@ -971,8 +965,8 @@ impl TypedTrees {
 
     pub fn boundary_calling_plan_fingerprint(
         &self,
-        boundary_trait: omega_core::symbols::SymbolHandle,
-        requirement_machine: omega_core::symbols::SymbolHandle,
+        boundary_trait: psi_symbols::SymbolHandle,
+        requirement_machine: psi_symbols::SymbolHandle,
     ) -> Option<u64> {
         self.boundary_calling_plan_fingerprint_for_arguments(
             boundary_trait,
@@ -983,9 +977,9 @@ impl TypedTrees {
 
     pub fn boundary_calling_plan_fingerprint_for_arguments(
         &self,
-        boundary_trait: omega_core::symbols::SymbolHandle,
+        boundary_trait: psi_symbols::SymbolHandle,
         boundary_arguments: &[crate::types::TypeReferenceHandle],
-        requirement_machine: omega_core::symbols::SymbolHandle,
+        requirement_machine: psi_symbols::SymbolHandle,
     ) -> Option<u64> {
         self.boundary_calling_plans
             .iter()
@@ -995,25 +989,6 @@ impl TypedTrees {
                     && identity.requirement_machine == requirement_machine
             })
             .map(|identity| identity.fingerprint)
-    }
-
-    /// Recover the exact canonical plan behind a published boundary identity.
-    /// This is compiler-internal lowering evidence: schema/contract surfaces
-    /// continue to expose only the fingerprint.
-    pub fn boundary_entry_plan_for_arguments(
-        &self,
-        boundary_trait: omega_core::symbols::SymbolHandle,
-        boundary_arguments: &[crate::types::TypeReferenceHandle],
-        requirement_machine: omega_core::symbols::SymbolHandle,
-    ) -> Option<&omega_calling_conventions::BoundaryEntryPlan> {
-        self.boundary_calling_plans
-            .iter()
-            .find(|identity| {
-                identity.boundary_trait == boundary_trait
-                    && identity.boundary_arguments == boundary_arguments
-                    && identity.requirement_machine == requirement_machine
-            })
-            .map(|identity| &identity.boundary_entry_plan)
     }
 
     pub fn push_trait_machine_signature(
@@ -1067,7 +1042,7 @@ impl TypedTrees {
     pub fn machine_parameter_signature_in(
         &self,
         machine: &machine::Machine,
-        symbol: omega_core::symbols::SymbolHandle,
+        symbol: psi_symbols::SymbolHandle,
     ) -> Option<&signature::StateSignature> {
         self.machine_type_parameters(machine)
             .iter()
@@ -1086,7 +1061,7 @@ impl TypedTrees {
     /// target, not the lexical generic scope.
     pub fn machine_parameter_signature(
         &self,
-        symbol: omega_core::symbols::SymbolHandle,
+        symbol: psi_symbols::SymbolHandle,
     ) -> Option<(&machine::Machine, &signature::StateSignature)> {
         self.machines().iter().find_map(|machine| {
             self.machine_parameter_signature_in(machine, symbol)
@@ -1134,8 +1109,8 @@ impl TypedTrees {
     /// computed structurally here.
     pub fn single_trait_impl_data_symbol(
         &self,
-        trait_symbol: omega_core::symbols::SymbolHandle,
-    ) -> Option<omega_core::symbols::SymbolHandle> {
+        trait_symbol: psi_symbols::SymbolHandle,
+    ) -> Option<psi_symbols::SymbolHandle> {
         let mut implementations = self.trait_impl_data_symbols(trait_symbol).into_iter();
         let single = implementations.next()?;
         implementations.next().is_none().then_some(single)
@@ -1148,8 +1123,8 @@ impl TypedTrees {
     /// the symbol is not such a trait or nothing satisfies it.
     pub fn trait_impl_data_symbols(
         &self,
-        trait_symbol: omega_core::symbols::SymbolHandle,
-    ) -> Vec<omega_core::symbols::SymbolHandle> {
+        trait_symbol: psi_symbols::SymbolHandle,
+    ) -> Vec<psi_symbols::SymbolHandle> {
         if !trait_symbol.is_valid() {
             return Vec::new();
         }
@@ -1408,7 +1383,7 @@ impl TypedTrees {
     pub fn arithmetic_domain_for_type_reference(
         &self,
         type_reference: types::TypeReferenceHandle,
-    ) -> omega_core::arithmetic::ArithmeticDomain {
+    ) -> psi_numerics::arithmetic::ArithmeticDomain {
         self.type_reference_table.arithmetic_domain(type_reference)
     }
 
@@ -1419,8 +1394,8 @@ impl TypedTrees {
     pub fn type_multiplicity(
         &self,
         type_reference: types::TypeReferenceHandle,
-    ) -> omega_core::semantics::Multiplicity {
-        use omega_core::semantics::Multiplicity;
+    ) -> psi_language_semantics::Multiplicity {
+        use psi_language_semantics::Multiplicity;
         use types::TypeReferenceNode;
 
         if !type_reference.is_valid() {
@@ -1466,7 +1441,7 @@ impl TypedTrees {
     pub fn type_reference_symbol(
         &self,
         type_reference: types::TypeReferenceHandle,
-    ) -> omega_core::symbols::SymbolHandle {
+    ) -> psi_symbols::SymbolHandle {
         self.type_reference_table.type_symbol(type_reference)
     }
 
@@ -1511,8 +1486,8 @@ mod tests {
         TypedTreeRoots, TypedTreeTables, TypedTrees, data, domain, invariant, machine,
         name::Identifier, operator, trait_definition,
     };
-    use omega_core::arena::HandleSpan;
-    use omega_core::symbols::SymbolTable;
+    use psi_arena::HandleSpan;
+    use psi_symbols::SymbolTable;
 
     #[test]
     fn typed_tree_roots_constructor_keeps_top_level_roots_explicit() {

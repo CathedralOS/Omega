@@ -321,6 +321,10 @@ fn frontend_implementation_is_psi_owned() {
             "pub use psi_symbol_resolved_trees::*;",
         ),
         (
+            "compiler/omega-rs/representations/omega-typed-trees/src/lib.rs",
+            "pub use psi_typed_trees::*;",
+        ),
+        (
             "compiler/omega-rs/pipeline/omega-source-files-to-tokens/src/lib.rs",
             "pub use psi_source_files_to_tokens::*;",
         ),
@@ -477,6 +481,18 @@ fn frontend_implementation_is_psi_owned() {
 
     for (relative, expected_export) in [
         (
+            "compiler/omega-rs/foundation/omega-access-plans/src/lib.rs",
+            "pub use psi_access_plans::*;",
+        ),
+        (
+            "compiler/omega-rs/foundation/omega-extents/src/lib.rs",
+            "pub use psi_extents::*;",
+        ),
+        (
+            "compiler/omega-rs/foundation/omega-layout-plans/src/lib.rs",
+            "pub use psi_layout_plans::*;",
+        ),
+        (
             "compiler/omega-rs/foundation/omega-core/src/const_value.rs",
             "pub use psi_language_semantics::const_value::*;",
         ),
@@ -490,7 +506,7 @@ fn frontend_implementation_is_psi_owned() {
             .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
         assert!(
             source.contains(expected_export),
-            "legacy semantic-vocabulary module must re-export Psi ownership: {relative}"
+            "legacy target-neutral foundation must re-export Psi ownership: {relative}"
         );
         assert!(
             !source.contains("pub struct ") && !source.contains("pub enum "),
@@ -561,6 +577,27 @@ fn omega_to_psi_compatibility_adapter_stays_narrow() {
             "compatibility adapter widened with target-neutral frontend concept {forbidden}; move that producer under Psi ownership"
         );
     }
+}
+
+#[test]
+fn typed_frontend_does_not_retain_concrete_calling_conventions() {
+    let root = workspace_root();
+    let manifest = root.join("compiler/psi-rs/representations/psi-typed-trees/Cargo.toml");
+    let manifest_source = std::fs::read_to_string(&manifest)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", manifest.display()));
+    assert!(
+        !manifest_source.contains("omega-calling-conventions"),
+        "typed frontend representation must not depend on concrete ABI/calling-convention plans"
+    );
+
+    let representation =
+        root.join("compiler/psi-rs/representations/psi-typed-trees/src/typed_trees.rs");
+    let representation_source = std::fs::read_to_string(&representation)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", representation.display()));
+    assert!(
+        !representation_source.contains("BoundaryEntryPlan"),
+        "typed frontend representation must retain semantic boundary identity, not Omega realization state"
+    );
 }
 
 #[test]

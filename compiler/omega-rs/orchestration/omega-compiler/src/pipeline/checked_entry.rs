@@ -64,7 +64,8 @@ pub fn compile_to_checked(
     // WIRE PLANS (mint arc rung 2a): mirror the full pipeline so tests see
     // the same derived plans the codec selection consumes.
     crate::pipeline::wire_plans::compute_wire_plans(&mut typed)?;
-    crate::pipeline::calling_policy_plans::compute_boundary_calling_plans(&mut typed)?;
+    let _boundary_calling_plan_realizations =
+        crate::pipeline::calling_policy_plans::compute_boundary_calling_plans(&mut typed)?;
     let build_config =
         crate::pipeline::build_config::compute_build_config(&typed, &build_file_machine_names)?;
     let target_provider_defaults = crate::pipeline::build_config::compute_target_provider_defaults(

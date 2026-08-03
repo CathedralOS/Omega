@@ -1,5 +1,5 @@
-use omega_core::arena::{Arena, Handle, HandleSpan};
-use omega_core::symbols::SymbolHandle;
+use psi_arena::{Arena, Handle, HandleSpan};
+use psi_symbols::SymbolHandle;
 use std::fmt;
 
 use crate::name::Identifier;
@@ -332,7 +332,7 @@ impl TypeReferenceTable {
     pub fn arithmetic_domain(
         &self,
         handle: TypeReferenceHandle,
-    ) -> omega_core::arithmetic::ArithmeticDomain {
+    ) -> psi_numerics::arithmetic::ArithmeticDomain {
         self.type_reference(handle).arithmetic_domain(self)
     }
 
@@ -729,7 +729,7 @@ impl TypeReferenceNode {
     pub fn arithmetic_domain(
         &self,
         table: &TypeReferenceTable,
-    ) -> omega_core::arithmetic::ArithmeticDomain {
+    ) -> psi_numerics::arithmetic::ArithmeticDomain {
         match self {
             TypeReferenceNode::Reference { referee, .. } => table.arithmetic_domain(*referee),
             TypeReferenceNode::Constrained {
@@ -743,7 +743,7 @@ impl TypeReferenceNode {
                     _ => None,
                 })
                 .unwrap_or_else(|| table.arithmetic_domain(*base_type)),
-            _ => omega_core::arithmetic::ArithmeticDomain::Exact,
+            _ => psi_numerics::arithmetic::ArithmeticDomain::Exact,
         }
     }
 
@@ -785,7 +785,7 @@ pub enum TypeConstraintNode {
         minimum: crate::expression::ExpressionHandle,
         maximum: crate::expression::ExpressionHandle,
     },
-    ArithmeticDomain(omega_core::arithmetic::ArithmeticDomain),
+    ArithmeticDomain(psi_numerics::arithmetic::ArithmeticDomain),
     /// A declared domain on a carrier (`[u8] in Utf8`); ch8.
     Domain(DomainConstraint),
 }
@@ -801,10 +801,10 @@ pub struct DomainConstraint {
     /// typed type-reference table and erase with the domain constraint.
     pub arguments: Vec<TypeReferenceHandle>,
     pub symbol: SymbolHandle,
-    pub semantic_id: omega_core::semantics::SemanticDomainId,
-    pub predicate_body: omega_core::semantics::DomainPredicateBody,
-    pub semantic_roles: omega_core::semantics::DomainSemanticRoles,
-    pub establishment_routes: Vec<omega_core::semantics::DomainEstablishmentRoute>,
+    pub semantic_id: psi_language_semantics::SemanticDomainId,
+    pub predicate_body: psi_language_semantics::DomainPredicateBody,
+    pub semantic_roles: psi_language_semantics::DomainSemanticRoles,
+    pub establishment_routes: Vec<psi_language_semantics::DomainEstablishmentRoute>,
 }
 
 impl DomainConstraint {

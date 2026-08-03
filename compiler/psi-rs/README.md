@@ -13,10 +13,14 @@ the old Omega pipeline.
 
 Current roots:
 
+- `foundation/psi-access-plans`: normalized placed-view access demand and
+  authorization semantics;
 - `foundation/psi-arena`: typed dense, paged, generational, hierarchy, and
   ordered-root arena storage used by Psi-owned source representations;
 - `foundation/psi-diagnostics`: target-neutral diagnostic values and phase
   snapshot contracts;
+- `foundation/psi-extents`: target-neutral extent geometry, lineage, rights,
+  and admitted-provider identities;
 - `foundation/psi-language-core`: target-neutral grammar semantics plus
   atomic-ordering, cast-form, operator-spelling, and source-assembly contract
   vocabulary used by source representations;
@@ -24,6 +28,8 @@ Current roots:
   identities, service/domain tables, termination and supply plans,
   establishment routes, byte-sequence predicates, canonical const-value atoms,
   and normalized wire scalar ranges;
+- `foundation/psi-layout-plans`: normalized author-selected layout geometry,
+  relocation identity, and materialization plans;
 - `foundation/psi-numerics`: exact integers/rationals, host-independent float
   semantics, arithmetic domains, and source-literal payloads;
 - `foundation/psi-source`: loaded-source records and maps, source identities,
@@ -39,6 +45,8 @@ Current roots:
   symbol resolution;
 - `representations/psi-symbol-resolved-trees`: source-shaped trees carrying
   resolved symbol identities;
+- `representations/psi-typed-trees`: target-neutral typed source trees and
+  canonical semantic boundary identities;
 - `representations/psi-terminal`: the in-memory terminal semantic module and
   its first integer-constant / jump / return operation vocabulary;
 - `pipeline/psi-source-files-to-tokens`: the Psi-owned Omega lexer;
