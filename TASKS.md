@@ -1010,13 +1010,14 @@ improvements do not change public identity.
   matching literal or a builtin parameter-plus-literal add/subtract/multiply
   in the settled Wrapping or Saturating domain. A second exact form lowers any
   nonempty sequence of ordinary primitive-integer machine parameters and an
-  exact direct return or one builtin parameter-plus-parameter/literal
+  exact recursively nested parameter/literal expression using builtin
   add/subtract/multiply in a settled arithmetic domain. It emits the module and
   proof bundle separately; real-source canaries cover all six versioned integer
   policy operations in constant-fed and runtime-fed forms plus a
   ninth-parameter stack return after `CheckedTrees` are dropped. Constant-fed
   wrapping add, the direct stack return, and a register-plus-stack runtime
-  wrapping add all reach emitted host machine code. Because the
+  wrapping add all reach emitted host machine code; a nested wrapping
+  add-then-multiply source expression does too. Because the
   legacy exit prover cannot establish ordinary `result == literal` contracts,
   this bootstrap canary preserves a closed typed `requires`/`ensures` fact and
   asserts the returned `i32` independently; do not generalize that workaround
@@ -1616,8 +1617,10 @@ ordinary code never receives a raw executable address.
   require target-width normalization that the settled layout vocabulary cannot
   express. Linux `read_dir` now retains the real three-argument `getdents64`
   plan, omits the Darwin-only cursor at selection, and decodes the Linux record
-  offsets in both target packages. Multi-fill directory iteration and errno
-  adapters remain implementation work.
+  offsets in both target packages. Direct syscall failures now flow as explicit
+  `-errno` results into target-package classification; Linux does not acquire a
+  hidden libc-style error slot. Multi-fill directory iteration remains
+  implementation work.
 - Keep unavailable hosts structurally tested; do not claim runtime verification
   without the host.
 - Build the Windows GUI callback canary through the settled callback-requirement

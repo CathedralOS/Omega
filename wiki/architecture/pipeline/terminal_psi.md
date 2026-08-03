@@ -66,8 +66,9 @@ The first Psi-owned terminal source producer is live as
 `psi-checked-trees-to-terminal`. It accepts two exact free-machine forms. A
 single-state direct-parameter machine may declare any nonempty sequence of
 ordinary primitive-integer parameters and return one exact named parameter or
-one builtin parameter-plus-parameter/literal add/subtract/multiply in the
-settled Wrapping or Saturating domains. A
+a recursively nested expression over parameters and landed literals using the
+six builtin add/subtract/multiply operations in the settled Wrapping or
+Saturating domains. A
 two-state machine may carry one typed integer constant through an unconditional
 jump and return either the matching literal or one builtin
 parameter-plus-literal add/subtract/multiply in the settled Wrapping or
@@ -79,7 +80,9 @@ runtime-parameter forms plus a nine-parameter direct return, discards
 `CheckedTrees`, then verifies and executes the produced semantic modules.
 Constant-fed wrapping add reaches emitted host machine code; the direct ninth
 `u8` return crosses the host incoming-stack ABI; and runtime wrapping add
-combines the first register argument with the ninth stack argument. The
+combines the first register argument with the ninth stack argument. A nested
+wrapping add-then-multiply source expression also crosses those ABI locations
+and reaches emitted host code. The
 artifacts therefore have no frontend lifetime dependency.
 This is the correct ownership direction, but the accepted expression grammar
 remains this deliberately narrow integer/control/contract slice. An
@@ -555,7 +558,8 @@ generic installation ladder. Migrating the Cathedral hard-root graph remains.
    host image whose execution matches interpretation. A nine-parameter source
    machine also returns its ninth `u8` through the selected host incoming-stack
    ABI, and a runtime wrapping-add source machine combines that stack argument
-   with the first register argument. The same exact-text image
+   with the first register argument. A recursive add-then-multiply source
+   expression reaches the same interpreted/native result. The same exact-text image
    boundary is structurally exercised for all four currently supported
    architecture/format pairs.
 4. Add the remaining arithmetic variants, calls, continuations, cleanup,
