@@ -1831,8 +1831,11 @@ move it to a convenience library.
   `&dyn Type::Conformance` targets now retain their carrier and stable child
   symbol through typed identity, derive the dispatch trait from that declared
   edge, resolve otherwise-ambiguous conformances, and reject unknown or
-  wrong-carrier selections. The two-word descriptor, requirement adapters,
-  and envelope inference remain.
+  wrong-carrier selections. Omega's runtime ABI now distinguishes the borrowed
+  `{ instance, selected-conformance table }` carrier from the byte-identical
+  slice descriptor, and layout/runtime-storage descriptors retain the exact
+  trait and authored named-selection metadata. Descriptor materialization,
+  private table emission, requirement adapters, and envelope inference remain.
   Local descriptors must not cross replaceable component boundaries. Add owned
   erased **runtime** values only after general storage ownership,
   size/alignment metadata, and cleanup contracts can support them; N6's
