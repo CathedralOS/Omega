@@ -35880,6 +35880,17 @@ fn named_integer_to_float_requirements_execute_in_both_engines() {
 
 #[test]
 fn named_float_to_integer_requirements_execute_in_both_engines() {
+    const DIFFERENTIAL_SUITE_ID: &str = "omega.float.hardware.macos_arm64.float-to-integer.v1";
+    const DIFFERENTIAL_COVERAGE: &[&str] = &[
+        "binary32/binary64 to every signed width toward zero",
+        "binary32/binary64 to every unsigned width toward zero",
+        "in-range Trapping result dispatch",
+        "signed upper-overflow saturation",
+        "unsigned negative-input saturation",
+        "NaN saturation to zero",
+    ];
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x297c_b8ce_8d1a_dc1c;
+
     let canary = pass_canary("float/runtime_named_float_to_integer_conversion_exit");
     let main_path = canary.join("main.omg");
     let checked = omega_compiler::compile_to_checked(&main_path, None)
@@ -35939,6 +35950,23 @@ fn named_float_to_integer_requirements_execute_in_both_engines() {
     .map(str::to_owned)
     .collect();
     assert_eq!(selected_intrinsics, expected_intrinsics);
+    let mut selected_plan_identities = selected
+        .iter()
+        .map(|(operator_use, _)| {
+            checked
+                .selected_provider_plans()
+                .plan_by_identity(operator_use.provider_plan_identity)
+                .expect("float-to-integer evidence must retain its selected plan")
+                .identity_fingerprint()
+        })
+        .collect::<Vec<_>>();
+    selected_plan_identities.sort_unstable();
+    selected_plan_identities.dedup();
+    assert_eq!(
+        selected_plan_identities.len(),
+        20,
+        "{DIFFERENTIAL_SUITE_ID} must bind one exact plan per source/destination/domain slot"
+    );
 
     for (operator_use, intrinsic) in selected {
         let psi_typed_trees::expression::ExpressionNode::Cast(cast) = checked
@@ -35985,6 +36013,48 @@ fn named_float_to_integer_requirements_execute_in_both_engines() {
         .expect("public float-to-integer canary should run");
     assert_eq!(output.status.code(), Some(70));
     let _ = fs::remove_dir_all(&build_dir);
+
+    for target in ["linux_x64", "linux_arm64"] {
+        let scratch = std::env::temp_dir().join(format!(
+            "omega-named-float-to-integer-{target}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&scratch);
+        let source_dir = scratch.join("src");
+        fs::create_dir_all(&source_dir).expect("float-to-integer cross-target source directory");
+        fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
+            .expect("copy float-to-integer canary");
+        fs::write(
+            source_dir.join("build.omg"),
+            format!("target {target} {{\n}}\n"),
+        )
+        .expect("write float-to-integer target manifest");
+        compile(CompileOptions {
+            root_path: source_dir.join("main.omg"),
+            build_dir: Some(scratch.join("out")),
+            target_name: Some(target.to_owned()),
+            write_output: true,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!("float-to-integer conversions should compile for {target}: {diagnostics:#?}")
+        });
+        let _ = fs::remove_dir_all(&scratch);
+    }
+
+    let result_identity = retained_float_differential_result_identity(
+        DIFFERENTIAL_SUITE_ID,
+        "macos_arm64",
+        DIFFERENTIAL_COVERAGE,
+        &selected_intrinsics,
+        &selected_plan_identities,
+        &outcome,
+        &output,
+        &["linux_x64", "linux_arm64"],
+    );
+    assert_eq!(
+        result_identity, EXPECTED_DIFFERENTIAL_RESULT_IDENTITY,
+        "{DIFFERENTIAL_SUITE_ID} result changed ({result_identity:#018x}); validate the exact plans, edge corpus, interpreter/native results, and cross-target builds before refreshing the retained identity"
+    );
 }
 
 #[test]
