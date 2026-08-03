@@ -8,6 +8,9 @@ use crate::pipeline::boundary_report::{
     write_boundary_report, write_boundary_report_with_capabilities,
 };
 use crate::pipeline::compile_options::CompileOptions;
+use crate::pipeline::compile_policy::{
+    ExecutableTcbBuildPolicy, ExecutableTcbInstallationAuthorization,
+};
 use crate::pipeline::compile_report::CompileReport;
 use crate::pipeline::output::write_output;
 use crate::pipeline::stages::{
@@ -23,6 +26,17 @@ use psi_diagnostics::Diagnostic;
 use std::sync::Arc;
 
 pub fn compile(options: CompileOptions) -> Result<CompileReport, Vec<Diagnostic>> {
+    compile_with_policy(options, ExecutableTcbBuildPolicy::default())
+}
+
+/// Compile with deployment-owned executable-TCB admissions and profile policy.
+///
+/// The policy is evaluated only after exact provider selection and before any
+/// emitted artifact is installed in the build directory.
+pub fn compile_with_policy(
+    options: CompileOptions,
+    executable_tcb_policy: ExecutableTcbBuildPolicy,
+) -> Result<CompileReport, Vec<Diagnostic>> {
     // Run the whole pipeline on a thread with a large explicit stack. The
     // recursive-descent parser and the recursive tree/layout walks descend once
     // per nesting level with heavy per-level frames (a full operator-precedence
@@ -38,7 +52,9 @@ pub fn compile(options: CompileOptions) -> Result<CompileReport, Vec<Diagnostic>
     std::thread::Builder::new()
         .name("omega-compile".to_owned())
         .stack_size(COMPILE_STACK_SIZE)
-        .spawn(move || Compiler::new(options).compile())
+        .spawn(move || {
+            Compiler::with_executable_tcb_policy(options, executable_tcb_policy).compile()
+        })
         .expect("failed to spawn compiler thread")
         .join()
         .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
@@ -279,11 +295,18 @@ fn selected_source_boundary_entry_plan(
 
 pub struct Compiler {
     options: CompileOptions,
+    executable_tcb_policy: ExecutableTcbBuildPolicy,
 }
 
 impl Compiler {
-    pub fn new(options: CompileOptions) -> Self {
-        Self { options }
+    pub fn with_executable_tcb_policy(
+        options: CompileOptions,
+        executable_tcb_policy: ExecutableTcbBuildPolicy,
+    ) -> Self {
+        Self {
+            options,
+            executable_tcb_policy,
+        }
     }
 
     pub fn compile(self) -> Result<CompileReport, Vec<Diagnostic>> {
@@ -463,6 +486,22 @@ impl Compiler {
                 &provider_plans,
                 &selected_provider_plans,
                 &build_config.grants,
+            )?
+            .with_opaque_executable_admissions(
+                self.executable_tcb_policy
+                    .opaque_executable_admissions
+                    .iter()
+                    .cloned(),
+            )
+            .map_err(|reason| {
+                vec![Diagnostic::error(format!(
+                    "executable TCB admission rejected: {reason}"
+                ))]
+            })?;
+        let executable_tcb_installation_authorization =
+            ExecutableTcbInstallationAuthorization::bind(
+                &selected_provider_plan_facts,
+                self.executable_tcb_policy.profile.as_ref(),
             )?;
         checked.selected_provider_plans = Arc::new(selected_provider_plan_facts);
         crate::pipeline::operator_adapter_dispatch::rewrite_selected_operator_adapter_calls(
@@ -537,6 +576,7 @@ impl Compiler {
         if self.options.write_output {
             let output_path = write_output(
                 &self.options,
+                &executable_tcb_installation_authorization,
                 emitted,
                 &backend.plan.encoded_machine.semantics.boundaries.footprints,
             )?;
