@@ -1,5 +1,6 @@
 use crate::name::Identifier;
 use psi_arena::{Arena, Handle, HandleSpan};
+use psi_source::SourceSpan;
 use psi_symbols::SymbolHandle;
 
 pub type StatementHandle = Handle<StatementNode>;
@@ -209,6 +210,7 @@ impl StatementTable {
                         target,
                         continuation,
                         guard,
+                        source_span: transition.source_span,
                     })
                 }
             };
@@ -500,6 +502,7 @@ pub struct TableTransition {
     pub target: TransitionTargetHandle,
     pub continuation: TransitionTargetHandle,
     pub guard: TransitionGuardNode,
+    pub source_span: SourceSpan,
 }
 
 impl Default for TableTransition {
@@ -508,6 +511,7 @@ impl Default for TableTransition {
             target: TransitionTargetHandle::invalid(),
             continuation: TransitionTargetHandle::invalid(),
             guard: TransitionGuardNode::Always,
+            source_span: SourceSpan::default(),
         }
     }
 }
@@ -581,6 +585,7 @@ mod tests {
                 target,
                 continuation: super::TransitionTargetHandle::invalid(),
                 guard: super::TransitionGuardNode::Always,
+                source_span: Default::default(),
             }),
         );
 
@@ -648,6 +653,7 @@ mod tests {
                 target,
                 continuation: super::TransitionTargetHandle::invalid(),
                 guard: super::TransitionGuardNode::When(guard),
+                source_span: Default::default(),
             }),
         );
         let mut expression_members = psi_arena::HandleSpan::empty();

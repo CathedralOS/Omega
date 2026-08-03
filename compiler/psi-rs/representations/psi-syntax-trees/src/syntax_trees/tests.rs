@@ -28,6 +28,7 @@ fn syntax_trees_collect_state_expression_and_type_payloads() {
             target,
             continuation: crate::statement::TransitionTargetHandle::invalid(),
             guard: TransitionGuardNode::When(guard),
+            source_span: Default::default(),
         }));
     let statement_handle = syntax_trees.items.append_statement_handle(statement);
     let statements = HandleSpan::from_parts(statement_handle, 1);

@@ -1,5 +1,6 @@
 use crate::identifier::Identifier;
 use psi_arena::{Arena, Handle, HandleSpan};
+use psi_source::SourceSpan;
 
 pub type StatementHandle = Handle<StatementNode>;
 pub type TransitionTargetHandle = Handle<TransitionTargetNode>;
@@ -178,6 +179,7 @@ pub struct TableTransition {
     pub target: TransitionTargetHandle,
     pub continuation: TransitionTargetHandle,
     pub guard: TransitionGuardNode,
+    pub source_span: SourceSpan,
 }
 
 impl Default for TableTransition {
@@ -186,6 +188,7 @@ impl Default for TableTransition {
             target: TransitionTargetHandle::invalid(),
             continuation: TransitionTargetHandle::invalid(),
             guard: TransitionGuardNode::Always,
+            source_span: SourceSpan::default(),
         }
     }
 }
@@ -248,6 +251,7 @@ mod tests {
             target,
             continuation: super::TransitionTargetHandle::invalid(),
             guard: TransitionGuardNode::When(guard),
+            source_span: Default::default(),
         }));
 
         let StatementNode::Transition(transition) = statements.statement(statement) else {

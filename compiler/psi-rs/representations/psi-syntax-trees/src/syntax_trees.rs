@@ -895,6 +895,7 @@ impl SyntaxTrees {
                         TransitionGuardNode::When(self.copy_expression_handle(other, expression))
                     }
                 },
+                source_span: transition.source_span,
             }),
         }
     }

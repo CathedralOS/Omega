@@ -630,6 +630,7 @@ fn rewrite_terminal_tail_self_calls(
                 target,
                 continuation: psi_syntax_trees::statement::TransitionTargetHandle::invalid(),
                 guard: TransitionGuardNode::Always,
+                source_span: Default::default(),
             }),
         );
     }

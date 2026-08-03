@@ -2171,9 +2171,12 @@ fn build_debug_map(
             DebugSubject::Block(block.id),
             checked.symbols.symbol_source_span(source_state.symbol),
         );
+        let transition_span = source_transition_span_for_state(checked, source_state)
+            .filter(|span| *span != psi_source::SourceSpan::default())
+            .filter(|span| checked.symbols.source_file(*span).is_some());
         push(
             DebugSubject::Edge(block.terminator.edge()),
-            checked.symbols.symbol_source_span(source_state.symbol),
+            transition_span.or_else(|| checked.symbols.symbol_source_span(source_state.symbol)),
         );
         let operation_spans = source_operation_spans_for_state(checked, source_state);
         for (operation_index, operation) in block.operations.iter().enumerate() {
@@ -2302,6 +2305,20 @@ fn build_debug_map(
     };
     validate_debug_map(module, &debug_map).map_err(LoweringError::InvalidDebugMap)?;
     Ok(debug_map)
+}
+
+fn source_transition_span_for_state(
+    checked: &CheckedTrees,
+    state: &psi_checked_trees::state::State,
+) -> Option<psi_source::SourceSpan> {
+    checked
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .find_map(|statement| match statement {
+            StatementNode::Transition(transition) => Some(transition.source_span),
+            _ => None,
+        })
 }
 
 fn source_operation_spans_for_state(

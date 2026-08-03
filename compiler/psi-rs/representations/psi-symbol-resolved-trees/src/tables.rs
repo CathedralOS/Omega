@@ -392,6 +392,7 @@ mod tests {
                     target: TransitionTarget::Terminal,
                     continuation: None,
                     guard: TransitionGuard::When(guard),
+                    source_span: Default::default(),
                 })]);
         let state = program.tables.declarations.machine_states.append(State {
             symbol: SymbolHandle::invalid(),
