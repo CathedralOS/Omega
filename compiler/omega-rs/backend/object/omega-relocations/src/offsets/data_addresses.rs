@@ -402,14 +402,6 @@ fn data_address_relocation_offset_with_plan(
         return selected_text_offset
             + omega_isa_x86_64::syscall_data_relocation_byte_offset(operands, operand_index);
     }
-    if architecture == Architecture::X86_64
-        && let Some(operation_key) = operation_key
-        && let Some(site) =
-            omega_isa_x86_64::host_call_data_relocation_site(operation_key, operands, operand_index)
-    {
-        return selected_text_offset + site.byte_offset;
-    }
-
     // AArch64 CONSTANT-RESULT layout `[imm64 (16, padded)] [adrp/add x16]
     // [store]`: the result operand[0]'s page pair sits at a fixed 16. No
     // other operand relocates (the immediate is inline; there is no call).

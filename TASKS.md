@@ -830,7 +830,10 @@ Remaining:
   explicit plan. The matching AArch64 direct-import composites now validate
   that same retained native signature and reject placement drift in lockstep
   with layout; Windows composites retain their independently normalized
-  GetStdHandle/ReadFile/WriteFile subcall plans; and
+  GetStdHandle/ReadFile/WriteFile subcall plans. The unused x86-64 relocation
+  wrappers that silently selected Microsoft x64 are retired, along with the
+  object walker's redundant second no-plan data-relocation lookup; remaining
+  callers now name a policy or supply the retained plan; and
 - delete compatibility fields after their final consumer migrates.
 
 Acceptance: changing a normalized plan changes lowering or rejects; changing

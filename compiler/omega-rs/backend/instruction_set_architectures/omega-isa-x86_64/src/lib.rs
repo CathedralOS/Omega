@@ -1406,19 +1406,6 @@ pub fn host_call_sequence_width<T: InstructionOperandLike>(
     }
 }
 
-pub fn host_call_data_relocation_site<T: InstructionOperandLike>(
-    operation_key: HostOperationKey,
-    operands: &[T],
-    operand_index: usize,
-) -> Option<X86_64RelocationSite> {
-    host_call_data_relocation_site_for_policy(
-        CallingPolicy::MicrosoftX64,
-        operation_key,
-        operands,
-        operand_index,
-    )
-}
-
 pub fn host_call_data_relocation_site_for_policy<T: InstructionOperandLike>(
     policy: CallingPolicy,
     operation_key: HostOperationKey,
@@ -2020,17 +2007,6 @@ mod syscall_plan_register_tests {
         assert_eq!(&bytes[bytes.len() - 4..], &24_i32.to_le_bytes());
         assert!(bytes.windows(2).any(|window| window == [0x0f, 0x05]));
     }
-}
-
-pub fn host_call_external_relocation_site<T: InstructionOperandLike>(
-    operation_key: HostOperationKey,
-    operands: &[T],
-) -> Option<X86_64RelocationSite> {
-    host_call_external_relocation_site_for_policy(
-        CallingPolicy::MicrosoftX64,
-        operation_key,
-        operands,
-    )
 }
 
 pub fn host_call_external_relocation_site_for_policy<T: InstructionOperandLike>(
