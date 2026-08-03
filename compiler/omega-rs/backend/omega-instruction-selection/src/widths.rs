@@ -285,7 +285,7 @@ fn aarch64_call_operands_width<T: InstructionOperandLike>(
     }
 }
 
-pub fn syscall_sequence_width<T: InstructionOperandLike>(
+pub fn syscall_sequence_width_no_plan<T: InstructionOperandLike>(
     architecture: Architecture,
     operands: &[T],
     syscall_number: u32,
@@ -315,12 +315,12 @@ pub fn syscall_sequence_width_with_plan<T: InstructionOperandLike>(
     .unwrap_or(0)
 }
 
-pub fn value_syscall_sequence_width<T: InstructionOperandLike>(
+pub fn value_syscall_sequence_width_no_plan<T: InstructionOperandLike>(
     architecture: Architecture,
     operands: &[T],
     syscall_number: u32,
 ) -> usize {
-    crate::encode_value_syscall_sequence(architecture, operands, syscall_number)
+    crate::encode_value_syscall_sequence_no_plan(architecture, operands, syscall_number)
         .map(|bytes| bytes.len())
         .unwrap_or(0)
 }
@@ -341,12 +341,12 @@ pub fn value_syscall_sequence_width_with_plan<T: InstructionOperandLike>(
     .unwrap_or(0)
 }
 
-pub fn linux_timespec_syscall_sequence_width<T: InstructionOperandLike>(
+pub fn linux_timespec_syscall_sequence_width_no_plan<T: InstructionOperandLike>(
     architecture: Architecture,
     operands: &[T],
     syscall_number: u32,
 ) -> usize {
-    crate::encode_linux_timespec_syscall(architecture, operands, syscall_number)
+    crate::encode_linux_timespec_syscall_no_plan(architecture, operands, syscall_number)
         .map(|bytes| bytes.len())
         .unwrap_or(0)
 }
@@ -367,12 +367,12 @@ pub fn linux_timespec_syscall_sequence_width_with_plan<T: InstructionOperandLike
     .unwrap_or(0)
 }
 
-pub fn linux_timespec_argument_syscall_sequence_width<T: InstructionOperandLike>(
+pub fn linux_timespec_argument_syscall_sequence_width_no_plan<T: InstructionOperandLike>(
     architecture: Architecture,
     operands: &[T],
     syscall_number: u32,
 ) -> usize {
-    crate::encode_linux_timespec_argument_syscall(architecture, operands, syscall_number)
+    crate::encode_linux_timespec_argument_syscall_no_plan(architecture, operands, syscall_number)
         .map(|bytes| bytes.len())
         .unwrap_or(0)
 }
