@@ -897,7 +897,11 @@ through machine emission, layout, and x86-64 relocation accounting instead of
 reconstructing placement at those consumers. Direct scalar Windows x64 and
 macOS arm64 calls have the same byte/width differential lock as authored
 imports, and the Windows x64 comparison includes the call, argument, and result
-relocation sites. Composite adapter-owned native calls continue to consume
+relocation sites. The lock now also covers void imports, the errno-style
+pointer-result dereference tail, Windows key-state postprocessing, and AAPCS64
+scalar-float arguments/results. The obsolete semantic-operation classifier for
+Windows clock out-pointers is retired; the composite time encoder's concrete
+subcall plan is the sole owner of that shape. Composite adapter-owned native calls continue to consume
 their separately normalized concrete subcall signatures; an outer source
 boundary plan is not a replacement for the adapter's internal ABI call. The
 Darwin anonymous-variadic `open_create` seam remains explicitly outside this

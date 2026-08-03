@@ -357,11 +357,15 @@ those rows remain absent until their actual checked proofs exist.
   active-case literal arguments now distribute each callee entry projection to
   one uniquely selected caller-parameter leaf whose claim reaches the exact
   call. Sum-payload paths retain their resolved case-plus-field identity, and a
-  mismatched active-case literal fails closed. States with multiple candidate
-  partition calls remain fail-closed. These
+  mismatched active-case literal fails closed. Multiple staged partition calls
+  now retain one independent composition row per exact call when each
+  call-established result claim reaches one unique returned-aggregate path.
+  Fixed-point reuse retains the source theorem's wrapper-derivation depth so a
+  derived theorem cannot masquerade as authored evidence. These
   non-direct rows remain
   checked/debug evidence because
-  terminal semantic v12 deliberately carries only direct composition as its
+  terminal semantic v12 rejects staged result rewrites and nonzero source
+  derivation depth, deliberately carrying only direct depth-zero composition as its
   exact source theorem, source fingerprint,
   dense input-claim references, total structural-place substitution, and
   derived equation. The verifier requires the source to contain separation,
@@ -374,9 +378,8 @@ those rows remain absent until their actual checked proofs exist.
   conservation plans, exact identity reshuffles, and direct partition
   compositions into the existing v9-v12 terminal vocabulary, including dense
   claim identities and replayable place substitutions. The executable source
-  canary remains content-free and fail-closed. Next compose multiple-call
-  structural rewrites around authored-partition calls,
-  connect a real content-bearing source slice after its separately recorded design
+  canary remains content-free and fail-closed. Next connect a real
+  content-bearing source slice after its separately recorded design
   blocker is resolved, insert sealed introduction and custody-exit rows, and
   discharge or admit the exact frontier theorem.
 - **TERMINAL-CONTENT-CLAIMS — BLOCKED on language/IR design:** a real direct
@@ -799,7 +802,11 @@ Remaining:
   differential-locked too. Ordinary non-variadic scalar built-in imports now
   consume the binding-retained plan in emission, layout, and relocation
   accounting; their Windows x64/macOS arm64 compatibility bytes and widths,
-  plus Windows x64 relocation sites, are differential-locked. Composite Linux
+  plus Windows x64 relocation sites, are differential-locked. Void imports,
+  pointer-result dereference imports, Windows key-state postprocessing, and
+  AAPCS64 scalar-float returns now carry matching explicit-plan byte/width
+  locks. The dead clock out-pointer compatibility classifier is retired;
+  composite encoders own their concrete subcall shapes. Composite Linux
   runtime byte-read, byte-write, and all three line-read target shapes now
   consume the binding-retained three-argument/result syscall plan in emission
   and layout, with x86-64/AArch64 compatibility bytes and widths locked to the
