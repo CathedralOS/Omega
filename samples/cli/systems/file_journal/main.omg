@@ -107,6 +107,6 @@ machine Main::main(&mut self) {
 
     state done(&mut self) {
         // Exit with the number of verified steps: 7 on full success.
-        self.console.exit_process(self.passed);
+        self.console.exit_process(self.passed as i32);
     }
 }
