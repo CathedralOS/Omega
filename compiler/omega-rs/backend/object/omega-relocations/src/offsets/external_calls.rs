@@ -72,11 +72,13 @@ pub(crate) fn external_call_relocation_offset_with_plan<T: InstructionOperandLik
                     plan,
                 )
             }
-            None => omega_instruction_selection::normalized_aarch64_host_argument_placements(
-                operation_key,
-                operands,
-                authored_import,
-            ),
+            None => {
+                omega_instruction_selection::normalized_aarch64_host_argument_placements_no_plan(
+                    operation_key,
+                    operands,
+                    authored_import,
+                )
+            }
         }
         .unwrap_or_default();
         return selected_text_offset
@@ -106,11 +108,13 @@ pub(crate) fn external_call_relocation_offset_with_plan<T: InstructionOperandLik
                     plan,
                 )
             }
-            None => omega_instruction_selection::normalized_aarch64_host_argument_placements(
-                operation_key,
-                operands,
-                false,
-            ),
+            None => {
+                omega_instruction_selection::normalized_aarch64_host_argument_placements_no_plan(
+                    operation_key,
+                    operands,
+                    false,
+                )
+            }
         }
         .map(|placements| {
             omega_instruction_selection::aarch64_host_call_stack_prefix_width_for_placements(

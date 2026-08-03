@@ -200,11 +200,13 @@ pub fn host_call_sequence_width_no_plan<T: InstructionOperandLike>(
                     operands.iter().map(aarch64_call_operand),
                 )
             };
-            let Ok(argument_placements) = crate::normalized_aarch64_host_argument_placements(
-                operation_key,
-                operands,
-                authored_import,
-            ) else {
+            let Ok(argument_placements) =
+                crate::normalized_aarch64_host_argument_placements_no_plan(
+                    operation_key,
+                    operands,
+                    authored_import,
+                )
+            else {
                 return 0;
             };
             let planned_stack =

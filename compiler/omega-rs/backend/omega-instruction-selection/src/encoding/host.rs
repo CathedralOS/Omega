@@ -609,7 +609,7 @@ enum Aarch64ImportResult {
     Authored,
 }
 
-pub fn normalized_aarch64_host_argument_placements<T: InstructionOperandLike>(
+pub fn normalized_aarch64_host_argument_placements_no_plan<T: InstructionOperandLike>(
     operation_key: HostOperationKey,
     operands: &[T],
     authored_import: bool,
