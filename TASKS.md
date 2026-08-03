@@ -840,7 +840,9 @@ Remaining:
   layer. The x86-64 external/data relocation walker consumes the same explicit
   mode, keeping encoded bytes and relocation accounting on one authority
   route; a failed authoritative site lookup no longer retries through the
-  no-plan oracle.
+  no-plan oracle. Win64 selected-plan validation now checks exact argument
+  arity before contextual shape comparison, so zip truncation cannot let a
+  zero-parameter plan validate or relocate a one-argument call.
   The crate-local object call/data offset helpers enforce the same
   required-plan/named-no-plan split.
   AArch64 vtable/service-table plan normalization and field-call data
