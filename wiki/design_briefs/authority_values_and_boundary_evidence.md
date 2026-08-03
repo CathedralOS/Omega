@@ -200,14 +200,19 @@ distribute a callee entry projection to one uniquely selected caller argument
 leaf; that leaf must still canonicalize to a transferred caller-entry claim at
 the exact call. Sum-payload normalization retains the resolved case segment
 before the payload field, and a mismatched active-case literal fails closed.
+Several staged authored-partition calls may independently contribute to one
+returned aggregate; the checker retains one composition row per exact call and
+requires each projected call-result claim to reach one unique result path.
+Fixed-point reuse records the source theorem's wrapper-derivation depth so a
+later boundary cannot mistake a derived theorem for an authored one.
 The derivation retains the source fingerprint, call site, input claim
 identities, result rewrite rows, and the substituted equation,
 while preserving rather than creating the theorem's `separate(...)` tree.
-Composition through multiple authored calls and sealed frontier rows remains
-implementation work. Terminal semantic v12
+Sealed frontier rows remain implementation work. Terminal semantic v12
 remains direct-wrapper-only: a checked row with staged-result rewrite evidence
-fails closed at terminal production until reviewed terminal vocabulary can
-carry and revalidate that intermediate evidence. For direct rows v12 retains
+or a nonzero source-derivation depth fails closed at terminal production until
+reviewed terminal vocabulary can carry and revalidate that intermediate or
+transitive evidence. For direct rows v12 retains
 the exact source theorem, its fingerprint, dense input-claim references, the
 total place substitution, and the derived equation. The verifier binds every substituted
 entry projection to a listed identity-reshuffle claim, replays the substitution,
@@ -286,9 +291,11 @@ theorem, call, transfer-stable input claims, and any exact staged/nested result
 rewrite rows. Exact record, fixed-array, and active-case literal arguments
 distribute structural entry paths to uniquely selected transferred
 caller-parameter leaves; sum payloads retain their case-plus-field identity and
-mismatched active cases reject. Composition through multiple calls, sealed
-introduction/custody-exit rows, and frontier discharge remains subsequent work.
-Terminal semantic v12 carries each direct instantiation as an
+mismatched active cases reject. Multiple staged calls retain independent rows
+when their call-established claims reach unique returned-aggregate paths, and
+fixed-point reuse retains source-derivation depth. Sealed
+introduction/custody-exit rows and frontier discharge remain subsequent work.
+Terminal semantic v12 carries each depth-zero direct instantiation as an
 exact source-to-derived place substitution and rejects theorem-shape, algebra,
 claim-binding, or substitution drift before reconstructing the result.
 The frozen Omega-to-Psi bootstrap adapter no longer translates these content

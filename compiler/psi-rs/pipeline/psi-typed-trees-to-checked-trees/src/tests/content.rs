@@ -479,7 +479,6 @@ fn checked_facts_compose_authored_partitions_through_a_direct_wrapper() {
         {
             CountedQuantity { magnitude: region.length }
         }
-
         data Pair {
             left: Region in Owned;
             right: Region in Owned;
@@ -682,6 +681,15 @@ fn checked_facts_compose_partitions_through_exact_staged_result_rewrites() {
             let right: Pair = self.splitter.partition(second.left, second.right);
             Double { first: left, second: right }
         }
+        machine Main::forward_double(&mut self, first: Pair, second: Pair) -> Double
+        requires
+            first.left in Region::Owned;
+            first.right in Region::Owned;
+            second.left in Region::Owned;
+            second.right in Region::Owned
+        {
+            self.two_calls(first, second)
+        }
         machine Main::main(&mut self) {}
     "#;
 
@@ -691,7 +699,7 @@ fn checked_facts_compose_partitions_through_exact_staged_result_rewrites() {
         .qualifications
         .content
         .partition_compositions;
-    assert_eq!(compositions.len(), 4, "compositions: {compositions:#?}");
+    assert_eq!(compositions.len(), 8, "compositions: {compositions:#?}");
     let state_symbol = |name: &str| {
         checked_program
             .machines()
@@ -772,10 +780,36 @@ fn checked_facts_compose_partitions_through_exact_staged_result_rewrites() {
             .iter()
             .all(|substitution| substitution.target.segments.is_empty())
     );
+    let mut two_calls = compositions
+        .iter()
+        .filter(|composition| composition.state_symbol == state_symbol("two_calls"))
+        .collect::<Vec<_>>();
+    two_calls.sort_by_key(|composition| composition.statement_index);
+    assert_eq!(two_calls.len(), 2);
+    for (index, composition) in two_calls.into_iter().enumerate() {
+        assert_eq!(composition.statement_index, index);
+        assert_eq!(composition.call_ordinal, 0);
+        assert_eq!(composition.input_claim_identities.len(), 2);
+        assert_eq!(composition.result_rewrites.len(), 2);
+        let outer = if index == 0 { "first" } else { "second" };
+        assert!(composition.result_rewrites.iter().all(|rewrite| matches!(
+            rewrite.target.segments.as_slice(),
+            [ContentPlaceSegment::Field(field), ContentPlaceSegment::Field(_)]
+                if field.name == outer
+        )));
+    }
+    let forward_double = compositions
+        .iter()
+        .filter(|composition| composition.state_symbol == state_symbol("forward_double"))
+        .collect::<Vec<_>>();
+    assert_eq!(forward_double.len(), 2);
     assert!(
-        compositions
-            .iter()
-            .all(|composition| composition.state_symbol != state_symbol("two_calls"))
+        forward_double.iter().all(|composition| {
+            composition.source_callable == state_symbol("two_calls")
+                && composition.source_derivation_depth == 1
+                && composition.result_rewrites.len() == 2
+        }),
+        "forwarded rows: {forward_double:#?}"
     );
 }
 

@@ -589,6 +589,8 @@ pub fn claim_outcome_manifest_json(program: &CheckedTrees) -> String {
         push_json_string(&mut json, &symbol_label(program, row.source_callable));
         json.push_str(",\n      \"source_fingerprint\": ");
         push_json_string(&mut json, &format!("0x{:016x}", row.source_fingerprint));
+        json.push_str(",\n      \"source_derivation_depth\": ");
+        json.push_str(&row.source_derivation_depth.to_string());
         json.push_str(",\n      \"source_equation\": {\"left\": ");
         push_content_conservation_term_json(&mut json, program, row.source_plan.equation.left());
         json.push_str(", \"right\": ");
@@ -2847,6 +2849,7 @@ mod tests {
                 state_symbol: SymbolHandle::invalid(),
                 source_callable: SymbolHandle::invalid(),
                 source_fingerprint: plan.fingerprint,
+                source_derivation_depth: 0,
                 source_plan: plan.clone(),
                 statement_index: 4,
                 call_ordinal: 2,
@@ -2877,6 +2880,7 @@ mod tests {
         assert!(json.contains("\"content_projections\""));
         assert!(json.contains("\"content_identity_reshuffles\": [\n    {"));
         assert!(json.contains("\"content_partition_compositions\": [\n    {"));
+        assert!(json.contains("\"source_derivation_depth\": 0"));
         assert!(json.contains("\"source_equation\": {\"left\":"));
         assert!(json.contains("\"substitutions\": [{\"source\": {\"version\": \"entry\""));
         assert!(json.contains("\"call\": {\"statement_index\": 4, \"call_ordinal\": 2}"));
