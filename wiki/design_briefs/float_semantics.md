@@ -354,7 +354,11 @@ evidence for the remaining hardware realizations. Nearest-even FMA separately
 retains `omega.float.hardware.macos_arm64.nearest-fma.v1` /
 `0xa1b8c9cb16855a61`, binding its two exact plan identities to binary32/binary64
 cancellation cases, one fused rounding, interpreter/native outputs, and Linux
-AArch64 cross-build success. Directed FMA separately
+AArch64 cross-build success. Multiply-then-add separately retains
+`omega.float.hardware.macos_arm64.multiply-then-add.v1` /
+`0x8b5fa3afbbf00653`, binding its two exact plan identities to binary32/binary64
+cancellation cases, two distinct roundings, binary32 finite-overflow saturation,
+interpreter/native outputs, and both Linux cross-builds. Directed FMA separately
 retains `omega.float.hardware.macos_arm64.directed-fma.v1` /
 `0x75be2c4963f3f15a`, binding its six exact plan identities to binary32/binary64
 half-ULP cases, all three requested directions, one fused rounding,
