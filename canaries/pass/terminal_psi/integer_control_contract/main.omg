@@ -108,6 +108,24 @@ ensures 132u8 == 132u8
     (ninth + first) * second
 }
 
+machine terminal_runtime_jump_wrapping(
+    first: u8 in Wrapping,
+    second: u8,
+    third: u8,
+    fourth: u8,
+    fifth: u8,
+    sixth: u8,
+    seventh: u8,
+    eighth: u8,
+    ninth: u8 in Wrapping
+) -> u8 in Wrapping
+requires 135u8 == 135u8
+ensures 135u8 == 135u8
+{
+    transition { _ -> finish(ninth + first) }
+    state finish(value: u8 in Wrapping) -> u8 in Wrapping { value * 3u8 }
+}
+
 machine terminal_runtime_saturating_add(value: u8 in Saturating) -> u8 in Saturating
 requires 255u8 == 255u8
 ensures 255u8 == 255u8
