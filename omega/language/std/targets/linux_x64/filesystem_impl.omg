@@ -51,24 +51,22 @@ linux_x64 machine Filesystem::open_with(&mut self, path: &[u8] in Path, options:
     state err(&mut self) -> OpenResult { let kind: ErrorKind = self.last_error(); OpenResult::Error { kind: kind } }
 }
 //
-// BEHAVIOR-IDENTICAL copy of the darwin walk: the linux dir-walk has never
-// been exercised end to end. getdents64 shares d_reclen@16 with darwin's
-// records but differs at the type/name offsets (d_type@18, name@19 vs
-// darwin's d_namlen@18/d_type@20/name@21) -- when linux dir canaries arrive,
-// diverge THIS file; that per-target divergence is exactly what the
-// impl-file shape exists for.
+// Linux getdents64 records use d_reclen@16, d_type@18, and a NUL-terminated
+// name beginning at byte 19. The syscall advances the directory fd itself;
+// the portable seam's Darwin cursor pointer is intentionally ignored by the
+// Linux calling plan.
 
 // List a directory and return its entry COUNT (Rust `fs::read_dir(path)?.count()`,
-// excluding "." and ".."). Opens the directory, fills ONE buffer of packed darwin
-// `dirent` records via the raw `read_dir` op, then walks them with a
+// excluding "." and ".."). Opens the directory, fills ONE buffer of packed Linux
+// `getdents64` records via the raw `read_dir` op, then walks them with a
 // runtime-indexed cursor over the little-endian `d_reclen` at record offset +16
-// (the same record layout as `___getdirentries64`, identical on both engines),
+// (the shared d_reclen position in the target-specific record),
 // advancing until the filled byte count. The `d_off < 480` dominating guard keeps
 // each header read provably in bounds of the 512-byte buffer.
 //
 // JUDGEMENT CALL (recorded in TASKS_FS.md as D-readdir): counts the entries of a
 // SINGLE `read_dir` fill -- a 512-byte buffer holds a typical directory; a
-// directory with more entries than fit is undercounted (a single `getdirentries`,
+// directory with more entries than fit is undercounted (a single `getdents64`,
 // not a drain-to-empty loop). "." and ".." are the first two records of every real
 // directory, so the child count is `records - 2`. A first, self-contained rung of
 // the `read_dir` iteration surface (name extraction / a `DirEntry` cursor and the
@@ -120,7 +118,7 @@ linux_x64 machine Filesystem::read_dir_count(&mut self, path: &[u8] in Path) -> 
 
 // Summarize a directory's composition in ONE walk (`DirStats { entries, subdirs,
 // files }`) -- the type-aware companion to `read_dir_count`. Same single-fill
-// dirent walk, additionally reading each record's `d_type` byte at offset +20
+// dirent walk, additionally reading each record's `d_type` byte at offset +18
 // (within the `off < 480` bound, so the read is provably in the 512-byte buffer)
 // and tallying DT_DIR (4) vs DT_REG (8). "." and ".." are DT_DIR, so the child
 // counts subtract 2 from both `entries` and `subdirs`. Same single-fill /
@@ -153,7 +151,7 @@ linux_x64 machine Filesystem::read_dir_stats(&mut self, path: &[u8] in Path) -> 
         self.rd_lou = widen_u8_to_u64(self.rd_lo) as u64 in Wrapping;
         self.rd_hiu = widen_u8_to_u64(self.rd_hi) as u64 in Wrapping;
         self.rd_reclen = (self.rd_hiu << 8) | self.rd_lou;
-        self.rd_idx = self.rd_off + 20;
+        self.rd_idx = self.rd_off + 18;
         self.rd_dtype = self.dir_buf[self.rd_idx];
         self.rd_count = self.rd_count + 1;
         self.rd_off = self.rd_off + self.rd_reclen;
@@ -199,12 +197,12 @@ linux_x64 machine Filesystem::read_dir_stats(&mut self, path: &[u8] in Path) -> 
 // indexed): `read_dir_nth(path, 0)` is the first child, `1` the second, … . The
 // caller loops n = 0, 1, 2, … until `End`. Walks the single-fill dirent buffer to
 // record index `n + 2` (skipping "." and ".."), then EXTRACTS the name by copying
-// `dir_buf[off+21+j]` into the entry's `[u8; 256]` name field with a field-cursor
+// `dir_buf[off+19+j]` into the entry's `[u8; 256]` name field with a field-cursor
 // loop (the `ridx < 512` guard keeps each read in the buffer; `j < 255` keeps each
 // write in the name field), and reads the `d_type` for `is_dir`/`is_file`.
 //
 // JUDGEMENT CALL (D-readdir extends): single `read_dir` fill (a directory larger
-// than the 512-byte buffer is iterable only up to what one `getdirentries` returns);
+// than the 512-byte buffer is iterable only up to what one `getdents64` returns);
 // a name longer than 255 bytes is truncated (`name_len` is the copied length). "."
 // and ".." are the first two records of every real directory, so child n is record
 // n + 2. This is the name-bearing rung `remove_dir_all` (recurse subdirs / unlink
@@ -243,29 +241,22 @@ linux_x64 machine Filesystem::read_dir_nth(&mut self, path: &[u8] in Path, n: u6
     }
     state rdn_extract(&mut self) -> DirEntryResult {
         self.rd_idx = self.rd_off + 18;
-        self.rd_lo = self.dir_buf[self.rd_idx];
-        self.rd_idx = self.rd_off + 19;
-        self.rd_hi = self.dir_buf[self.rd_idx];
-        self.rd_lou = widen_u8_to_u64(self.rd_lo) as u64 in Wrapping;
-        self.rd_hiu = widen_u8_to_u64(self.rd_hi) as u64 in Wrapping;
-        self.rd_namlen = (self.rd_hiu << 8) | self.rd_lou;
-        self.rd_idx = self.rd_off + 20;
         self.rd_dtype = self.dir_buf[self.rd_idx];
         self.rd_j = 0;
         transition { _ -> rdn_copy() }
     }
     state rdn_copy(&mut self) -> DirEntryResult {
-        transition self.rd_j < self.rd_namlen { true -> rdn_cap() _ -> rdn_build() }
-    }
-    state rdn_cap(&mut self) -> DirEntryResult {
         transition self.rd_j < 255 { true -> rdn_cbyte() _ -> rdn_build() }
     }
     state rdn_cbyte(&mut self) -> DirEntryResult {
-        self.rd_ridx = self.rd_off + 21 + self.rd_j;
-        transition self.rd_ridx < 512 { true -> rdn_cdo() _ -> rdn_build() }
+        self.rd_ridx = self.rd_off + 19 + self.rd_j;
+        transition self.rd_ridx < 512 && self.rd_ridx < self.rd_total { true -> rdn_cdo() _ -> rdn_build() }
     }
     state rdn_cdo(&mut self) -> DirEntryResult {
         self.rd_nb = self.dir_buf[self.rd_ridx];
+        transition self.rd_nb == 0 { true -> rdn_build() _ -> rdn_store() }
+    }
+    state rdn_store(&mut self) -> DirEntryResult {
         self.entry_name[self.rd_j] = self.rd_nb;
         self.rd_j = self.rd_j + 1;
         transition { _ -> rdn_copy() }
@@ -321,13 +312,10 @@ linux_x64 machine Filesystem::read_dir_entry_fd(&mut self, dfd: i32, n: u64) -> 
     self.rd_off = 0;
     self.rd_recno = 0;
     self.rd_target = (n as u64 in Wrapping) + 2;
-    // REWIND the directory fd before reading (2026-07-09j): the native
-    // getdirentries cursor is the FD OFFSET -- zeroing the basep out-param
-    // does not rewind it, so a second "first entry" read on the same fd
-    // returned End natively while the hermetic interpreter (which reads at
-    // the passed position) returned the entry. The drain's per-iteration
-    // first-entry re-reads depend on this. lseek(dfd, 0, SEEK_SET) is a
-    // no-op for the interpreter's model and rewinds the native cursor.
+    // REWIND the directory fd before reading: Linux getdents64 advances the fd
+    // offset and has no cursor out-parameter. The drain's per-iteration
+    // first-entry re-reads depend on this. lseek(dfd, 0, SEEK_SET) is a no-op
+    // for the interpreter's model and rewinds the native cursor.
     self.rd_seek_rc = self.host.seek(dfd, 0, 0);
     let total: i64 = self.host.read_dir(dfd, &mut self.dir_buf, 512, &mut self.rd_position);
     self.rd_total = narrow_i64_to_u64_wrapping(total) as u64 in Wrapping;
@@ -352,19 +340,12 @@ linux_x64 machine Filesystem::read_dir_entry_fd(&mut self, dfd: i32, n: u64) -> 
     }
     state rdef_extract(&mut self) -> DirEntryResult {
         self.rd_idx = self.rd_off + 18;
-        self.rd_lo = self.dir_buf[self.rd_idx];
-        self.rd_idx = self.rd_off + 19;
-        self.rd_hi = self.dir_buf[self.rd_idx];
-        self.rd_lou = widen_u8_to_u64(self.rd_lo) as u64 in Wrapping;
-        self.rd_hiu = widen_u8_to_u64(self.rd_hi) as u64 in Wrapping;
-        self.rd_namlen = (self.rd_hiu << 8) | self.rd_lou;
-        self.rd_idx = self.rd_off + 20;
         self.rd_dtype = self.dir_buf[self.rd_idx];
         self.rd_j = 0;
         transition { _ -> rdef_copy() }
     }
     state rdef_copy(&mut self) -> DirEntryResult {
-        transition self.rd_j < self.rd_namlen { true -> rdef_cap() _ -> rdef_nul() }
+        transition self.rd_j < 255 { true -> rdef_cbyte() _ -> rdef_nul() }
     }
     // NUL-terminate the copied name (2026-07-09k): `entry_name` is a REUSED
     // machine buffer, so a shorter name over a longer one left the previous
@@ -379,15 +360,15 @@ linux_x64 machine Filesystem::read_dir_entry_fd(&mut self, dfd: i32, n: u64) -> 
         self.entry_name[self.rd_j] = 0;
         transition { _ -> rdef_build() }
     }
-    state rdef_cap(&mut self) -> DirEntryResult {
-        transition self.rd_j < 255 { true -> rdef_cbyte() _ -> rdef_nul() }
-    }
     state rdef_cbyte(&mut self) -> DirEntryResult {
-        self.rd_ridx = self.rd_off + 21 + self.rd_j;
-        transition self.rd_ridx < 512 { true -> rdef_cdo() _ -> rdef_nul() }
+        self.rd_ridx = self.rd_off + 19 + self.rd_j;
+        transition self.rd_ridx < 512 && self.rd_ridx < self.rd_total { true -> rdef_cdo() _ -> rdef_nul() }
     }
     state rdef_cdo(&mut self) -> DirEntryResult {
         self.rd_nb = self.dir_buf[self.rd_ridx];
+        transition self.rd_nb == 0 { true -> rdef_nul() _ -> rdef_store() }
+    }
+    state rdef_store(&mut self) -> DirEntryResult {
         self.entry_name[self.rd_j] = self.rd_nb;
         self.rd_j = self.rd_j + 1;
         transition { _ -> rdef_copy() }

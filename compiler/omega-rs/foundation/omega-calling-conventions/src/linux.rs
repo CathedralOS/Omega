@@ -23,6 +23,7 @@ struct LinuxSyscallNumbers {
     symlinkat: u32,
     linkat: u32,
     renameat: u32,
+    getdents64: u32,
     fchmodat: u32,
     readlinkat: u32,
     fchown: u32,
@@ -238,6 +239,15 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         ),
         linux_value_syscall(
             "Filesystem",
+            "getdirentries64",
+            "getdents64",
+            syscall_numbers.getdents64,
+            3,
+            &policy,
+            plan.target.architecture,
+        ),
+        linux_value_syscall(
+            "Filesystem",
             "ftruncate",
             "ftruncate",
             syscall_numbers.ftruncate,
@@ -438,6 +448,13 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
     insert_platform_lowering(
         plan,
         "FilesystemHost",
+        "read_dir",
+        [host_operation("Filesystem", "getdirentries64")],
+        PlatformCallData::OmitTrailingArgument,
+    );
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
         "open",
         [host_operation("Filesystem", "open")],
         PlatformCallData::ConstantArgument { value: -100 },
@@ -534,6 +551,7 @@ fn linux_syscall_numbers(architecture: Architecture) -> LinuxSyscallNumbers {
             symlinkat: 36,
             linkat: 37,
             renameat: 38,
+            getdents64: 61,
             fchmodat: 53,
             readlinkat: 78,
             fchown: 55,
@@ -560,6 +578,7 @@ fn linux_syscall_numbers(architecture: Architecture) -> LinuxSyscallNumbers {
             symlinkat: 266,
             linkat: 265,
             renameat: 264,
+            getdents64: 217,
             fchmodat: 268,
             readlinkat: 267,
             fchown: 93,

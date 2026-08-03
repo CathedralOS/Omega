@@ -1,6 +1,7 @@
 // Linux raw-filesystem syscall slice. Both targets lower the semantic
-// open/open_create operations through openat(AT_FDCWD, ...), then preserve
-// value-returning read/write/close results through the normalized syscall plan.
+// open/open_create operations through openat(AT_FDCWD, ...), preserve
+// value-returning read/write/close results, and adapt the portable four-argument
+// read_dir seam to Linux getdents64(fd, buffer, count).
 // Expected native exit: 70.
 use omega::language::std::filesystem_host;
 use omega::language::std::console;
@@ -11,8 +12,9 @@ data Main {
     fd: i32;
     rc: i32;
     count: i64;
+    position: i64;
     capacity: u64;
-    buffer: [u8; 64];
+    buffer: [u8; 512];
     metadata: [u8; 144];
 }
 
@@ -42,9 +44,19 @@ machine Main::main(&mut self) {
         self.count = self.fs.read(self.fd, &mut self.buffer, self.capacity);
         self.rc = self.fs.close(self.fd);
         transition self.count > 0 && self.rc == 0 {
-            true -> good()
+            true -> open_directory()
             false -> fail_read()
         }
+    }
+    state open_directory(&mut self) {
+        self.fd = self.fs.open("/tmp", 0);
+        self.position = 0;
+        transition self.fd >= 0 { true -> read_directory() _ -> fail_read_dir() }
+    }
+    state read_directory(&mut self) {
+        self.count = self.fs.read_dir(self.fd, &mut self.buffer, 512, &mut self.position);
+        self.rc = self.fs.close(self.fd);
+        transition self.count >= 0 && self.rc == 0 { true -> good() _ -> fail_read_dir() }
     }
     state good(&mut self) { self.console.exit_process(70); }
     state fail_open_create(&mut self) { self.console.exit_process(1); }
@@ -52,4 +64,5 @@ machine Main::main(&mut self) {
     state fail_open(&mut self) { self.console.exit_process(3); }
     state fail_read(&mut self) { self.console.exit_process(4); }
     state fail_stat(&mut self) { self.console.exit_process(5); }
+    state fail_read_dir(&mut self) { self.console.exit_process(6); }
 }

@@ -1036,6 +1036,11 @@ pub enum PlatformCallData {
         second_dirfd: i64,
         trailing_flags: Option<i64>,
     },
+    /// The target operation omits the portable seam's final compatibility
+    /// argument. Linux `getdents64(fd, buffer, count)` advances the directory
+    /// descriptor itself, so it does not consume Darwin's explicit cursor
+    /// pointer from `FilesystemHost::read_dir`.
+    OmitTrailingArgument,
     /// Linux `clock_gettime(clock_id, &timespec)`: selection carries the
     /// semantic result place plus this injected clock id; target emission
     /// owns the 16-byte temporary and combines its two signed 64-bit fields
@@ -1678,6 +1683,7 @@ mod binding_plan_tests {
             expected_renameat,
             expected_linkat,
             expected_symlinkat,
+            expected_getdents64,
             expected_policy,
         ) in [
             (
@@ -1692,6 +1698,7 @@ mod binding_plan_tests {
                 264,
                 265,
                 266,
+                217,
                 CallingPolicy::LinuxSyscallX86_64,
             ),
             (
@@ -1706,6 +1713,7 @@ mod binding_plan_tests {
                 38,
                 37,
                 36,
+                61,
                 CallingPolicy::LinuxSyscallAarch64,
             ),
         ] {
@@ -1729,6 +1737,7 @@ mod binding_plan_tests {
                 (HostOperation::Rename, "renameat", expected_renameat, 4),
                 (HostOperation::Link, "linkat", expected_linkat, 5),
                 (HostOperation::Symlink, "symlinkat", expected_symlinkat, 3),
+                (HostOperation::ReadDir, "getdents64", expected_getdents64, 3),
             ] {
                 let (_, binding) = plan
                     .bindings
@@ -1779,6 +1788,14 @@ mod binding_plan_tests {
                 .map(|(_, row)| row)
                 .expect("Linux unlinkat lowering");
             assert_eq!(unlink_at.data, PlatformCallData::None);
+
+            let read_dir = plan
+                .platform_call_lowerings
+                .iter()
+                .find(|(_, row)| row.state.as_ref() == "read_dir")
+                .map(|(_, row)| row)
+                .expect("Linux getdents64 lowering");
+            assert_eq!(read_dir.data, PlatformCallData::OmitTrailingArgument);
 
             for (method, trailing) in [
                 ("remove", 0),

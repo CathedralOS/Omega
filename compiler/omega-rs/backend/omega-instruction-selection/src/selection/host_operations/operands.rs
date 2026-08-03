@@ -1122,15 +1122,27 @@ pub(super) fn select_host_operation_operands(
                 scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 3);
             let position =
                 address_argument_operand_at(input, host_call, dispatch_index, alias_context, 4);
-            match (result, fd, buffer, count, position) {
-                (Some(result), Some(fd), Some(buffer), Some(count), Some(position)) => operands
-                    .insert_many([
+            match (result, fd, buffer, count) {
+                (Some(result), Some(fd), Some(buffer), Some(count))
+                    if matches!(host_call.data, PlatformCallData::OmitTrailingArgument) =>
+                {
+                    operands.insert_many([
+                        operand(result),
+                        operand(fd),
+                        operand(buffer),
+                        operand(count),
+                    ])
+                }
+                (Some(result), Some(fd), Some(buffer), Some(count)) => match position {
+                    Some(position) => operands.insert_many([
                         operand(result),
                         operand(fd),
                         operand(buffer),
                         operand(count),
                         operand(position),
                     ]),
+                    None => HandleSpan::empty(),
+                },
                 _ => HandleSpan::empty(),
             }
         }
