@@ -1276,6 +1276,9 @@ fn runtime_value_operand_uses_control_state(
                 | StateGuardOperator::MultiplyTowardZero
                 | StateGuardOperator::MultiplyTowardPositive
                 | StateGuardOperator::MultiplyTowardNegative
+                | StateGuardOperator::DivideTowardZero
+                | StateGuardOperator::DivideTowardPositive
+                | StateGuardOperator::DivideTowardNegative
         ) || runtime_value_operand_uses_control_state(runtime_value_operands, left)
             || runtime_value_operand_uses_control_state(runtime_value_operands, right)
     } else if let Some((source, ..)) = runtime_value_operands.convert(operand) {
@@ -5491,6 +5494,9 @@ fn float_policy_guard_bytes(
             | StateGuardOperator::MultiplyThenAdd
             | StateGuardOperator::FusedMultiplyAdd
             | StateGuardOperator::Divide
+            | StateGuardOperator::DivideTowardZero
+            | StateGuardOperator::DivideTowardPositive
+            | StateGuardOperator::DivideTowardNegative
             | StateGuardOperator::Min
             | StateGuardOperator::Max
             | StateGuardOperator::Sqrt
@@ -6515,13 +6521,16 @@ fn append_runtime_float_binary_operation(
         // FPCR.RMode bits 22..23: +inf=01, -inf=10, zero=11.
         StateGuardOperator::AddTowardPositive
         | StateGuardOperator::SubtractTowardPositive
-        | StateGuardOperator::MultiplyTowardPositive => Some(0x0040_0000),
+        | StateGuardOperator::MultiplyTowardPositive
+        | StateGuardOperator::DivideTowardPositive => Some(0x0040_0000),
         StateGuardOperator::AddTowardNegative
         | StateGuardOperator::SubtractTowardNegative
-        | StateGuardOperator::MultiplyTowardNegative => Some(0x0080_0000),
+        | StateGuardOperator::MultiplyTowardNegative
+        | StateGuardOperator::DivideTowardNegative => Some(0x0080_0000),
         StateGuardOperator::AddTowardZero
         | StateGuardOperator::SubtractTowardZero
-        | StateGuardOperator::MultiplyTowardZero => Some(0x00c0_0000),
+        | StateGuardOperator::MultiplyTowardZero
+        | StateGuardOperator::DivideTowardZero => Some(0x00c0_0000),
         _ => None,
     };
     if let Some(fpcr) = directed_rounding {
@@ -6563,8 +6572,14 @@ fn append_runtime_float_binary_operation(
             }
             guard(bytes)?;
         }
-        StateGuardOperator::Divide => {
+        StateGuardOperator::Divide
+        | StateGuardOperator::DivideTowardZero
+        | StateGuardOperator::DivideTowardPositive
+        | StateGuardOperator::DivideTowardNegative => {
             bytes.extend(encode_float_divide(byte_size, 0, 0, 1)?);
+            if directed_rounding.is_some() {
+                bytes.extend(encode_write_fpcr(13));
+            }
             guard(bytes)?;
         }
         // FMAX/FMIN(NM) do NOT match the pinned SSE semantics (`a > b ? a : b`;
@@ -8227,6 +8242,17 @@ mod tests {
                 0x00c0_0000_u64,
                 false,
             ),
+            (
+                StateGuardOperator::DivideTowardPositive,
+                0x0040_0000_u64,
+                false,
+            ),
+            (
+                StateGuardOperator::DivideTowardNegative,
+                0x0080_0000_u64,
+                false,
+            ),
+            (StateGuardOperator::DivideTowardZero, 0x00c0_0000_u64, false),
         ] {
             for byte_size in [4usize, 8] {
                 let mut bytes = Vec::new();
@@ -8272,6 +8298,13 @@ mod tests {
                             | StateGuardOperator::MultiplyTowardNegative
                     ) {
                         encode_float_multiply(byte_size, 0, 0, 1).unwrap()
+                    } else if matches!(
+                        operator,
+                        StateGuardOperator::DivideTowardZero
+                            | StateGuardOperator::DivideTowardPositive
+                            | StateGuardOperator::DivideTowardNegative
+                    ) {
+                        encode_float_divide(byte_size, 0, 0, 1).unwrap()
                     } else {
                         encode_float_add(byte_size, 0, 0, 1).unwrap()
                     })

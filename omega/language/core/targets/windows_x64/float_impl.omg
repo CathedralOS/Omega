@@ -566,3 +566,45 @@ windows_x64 machine FloatNativeProvider::multiply_toward_negative64(
 ) -> f64
     satisfies F64::multiply_toward_negative
     via Binding::CompilerIntrinsic("F64::multiply_toward_negative.f64");
+
+windows_x64 machine FloatNativeProvider::divide_toward_zero32(
+    left: f32,
+    right: f32
+) -> f32
+    satisfies F32::divide_toward_zero
+    via Binding::CompilerIntrinsic("F32::divide_toward_zero.f32");
+
+windows_x64 machine FloatNativeProvider::divide_toward_zero64(
+    left: f64,
+    right: f64
+) -> f64
+    satisfies F64::divide_toward_zero
+    via Binding::CompilerIntrinsic("F64::divide_toward_zero.f64");
+
+windows_x64 machine FloatNativeProvider::divide_toward_positive32(
+    left: f32,
+    right: f32
+) -> f32
+    satisfies F32::divide_toward_positive
+    via Binding::CompilerIntrinsic("F32::divide_toward_positive.f32");
+
+windows_x64 machine FloatNativeProvider::divide_toward_positive64(
+    left: f64,
+    right: f64
+) -> f64
+    satisfies F64::divide_toward_positive
+    via Binding::CompilerIntrinsic("F64::divide_toward_positive.f64");
+
+windows_x64 machine FloatNativeProvider::divide_toward_negative32(
+    left: f32,
+    right: f32
+) -> f32
+    satisfies F32::divide_toward_negative
+    via Binding::CompilerIntrinsic("F32::divide_toward_negative.f32");
+
+windows_x64 machine FloatNativeProvider::divide_toward_negative64(
+    left: f64,
+    right: f64
+) -> f64
+    satisfies F64::divide_toward_negative
+    via Binding::CompilerIntrinsic("F64::divide_toward_negative.f64");

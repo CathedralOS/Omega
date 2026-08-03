@@ -1550,13 +1550,13 @@ and allocation handles expose no compiler-owned stack/control storage.
   `_fesetround(FE_UPWARD)` and proves the following half-ULP addition still
   ties nearest-even. A later admitted preservation proof may remove a redundant
   envelope without changing call layout. The first directed-rounding provider
-  cohorts now select exact F32/F64 add/subtract/multiply-toward-zero/positive/negative
+  cohorts now select exact F32/F64 add/subtract/multiply/divide-toward-zero/positive/negative
   slots on all four native targets. Each baseline ISA realization saves its complete
   MXCSR/FPCR, installs the requested direction for one scalar operation, and restores
   the prior state before result-policy adaptation; midpoint dual-engine
   canaries also prove subsequent ordinary arithmetic remains nearest-even.
   Remaining rung-3 work includes x86-64 FMA realization, the directed
-  divide/square-root/FMA cohorts, checked software fallbacks,
+  square-root/FMA cohorts, checked software fallbacks,
   and rung-4 differential evidence.
   The first checked-software provider slice is now live independently of a
   float algorithm: an ordinary body may satisfy one exact named boundary

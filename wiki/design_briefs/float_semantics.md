@@ -321,13 +321,13 @@ classification; a hostile AArch64 canary calls `_fesetround(FE_UPWARD)` and
 proves the following half-ULP checked addition still ties nearest-even. An
 explicit preservation-proof optimization may later remove redundant envelopes.
 The first directed-rounding provider cohorts select exact F32/F64
-add/subtract/multiply-toward-zero/positive/negative slots on all four native targets.
+add/subtract/multiply/divide-toward-zero/positive/negative slots on all four native targets.
 Baseline x86-64 and AArch64 realize each one-step operation with a compiler-balanced
 MXCSR/FPCR save, requested-direction install, scalar operation, and exact restore
 before result-policy adaptation. Midpoint native and
 interpreter edges distinguish the three meanings and prove following ordinary
 arithmetic remains nearest-even. x86-64 FMA, the remaining directed
-divide/square-root/FMA cohorts, checked software fallbacks,
+square-root/FMA cohorts, checked software fallbacks,
 and admitted-hardware differential evidence remain.
 
 ## 2. Domains: the value/policy split

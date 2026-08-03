@@ -34,6 +34,7 @@ enum DirectedFloatBinaryOperation {
     Add,
     Subtract,
     Multiply,
+    Divide,
 }
 
 pub(crate) fn rewrite_selected_float_intrinsic_calls(
@@ -308,6 +309,36 @@ pub(crate) fn rewrite_selected_float_intrinsic_calls(
                         FloatFormat::F64,
                         RoundingDirection::TowardNegative,
                     ) => BuiltinFunction::FloatMultiplyTowardNegativeF64,
+                    (
+                        DirectedFloatBinaryOperation::Divide,
+                        FloatFormat::F32,
+                        RoundingDirection::TowardZero,
+                    ) => BuiltinFunction::FloatDivideTowardZeroF32,
+                    (
+                        DirectedFloatBinaryOperation::Divide,
+                        FloatFormat::F64,
+                        RoundingDirection::TowardZero,
+                    ) => BuiltinFunction::FloatDivideTowardZeroF64,
+                    (
+                        DirectedFloatBinaryOperation::Divide,
+                        FloatFormat::F32,
+                        RoundingDirection::TowardPositive,
+                    ) => BuiltinFunction::FloatDivideTowardPositiveF32,
+                    (
+                        DirectedFloatBinaryOperation::Divide,
+                        FloatFormat::F64,
+                        RoundingDirection::TowardPositive,
+                    ) => BuiltinFunction::FloatDivideTowardPositiveF64,
+                    (
+                        DirectedFloatBinaryOperation::Divide,
+                        FloatFormat::F32,
+                        RoundingDirection::TowardNegative,
+                    ) => BuiltinFunction::FloatDivideTowardNegativeF32,
+                    (
+                        DirectedFloatBinaryOperation::Divide,
+                        FloatFormat::F64,
+                        RoundingDirection::TowardNegative,
+                    ) => BuiltinFunction::FloatDivideTowardNegativeF64,
                     (_, _, RoundingDirection::NearestTiesToEven) => {
                         diagnostics.push(Diagnostic::error(
                             "directed float realization cannot select nearest-even",
@@ -482,6 +513,36 @@ fn named_float_realization(intrinsic: &str) -> Option<NamedFloatRealization> {
         )),
         "F64::multiply_toward_negative.f64" => Some(NamedFloatRealization::DirectedBinary(
             DirectedFloatBinaryOperation::Multiply,
+            FloatFormat::F64,
+            RoundingDirection::TowardNegative,
+        )),
+        "F32::divide_toward_zero.f32" => Some(NamedFloatRealization::DirectedBinary(
+            DirectedFloatBinaryOperation::Divide,
+            FloatFormat::F32,
+            RoundingDirection::TowardZero,
+        )),
+        "F64::divide_toward_zero.f64" => Some(NamedFloatRealization::DirectedBinary(
+            DirectedFloatBinaryOperation::Divide,
+            FloatFormat::F64,
+            RoundingDirection::TowardZero,
+        )),
+        "F32::divide_toward_positive.f32" => Some(NamedFloatRealization::DirectedBinary(
+            DirectedFloatBinaryOperation::Divide,
+            FloatFormat::F32,
+            RoundingDirection::TowardPositive,
+        )),
+        "F64::divide_toward_positive.f64" => Some(NamedFloatRealization::DirectedBinary(
+            DirectedFloatBinaryOperation::Divide,
+            FloatFormat::F64,
+            RoundingDirection::TowardPositive,
+        )),
+        "F32::divide_toward_negative.f32" => Some(NamedFloatRealization::DirectedBinary(
+            DirectedFloatBinaryOperation::Divide,
+            FloatFormat::F32,
+            RoundingDirection::TowardNegative,
+        )),
+        "F64::divide_toward_negative.f64" => Some(NamedFloatRealization::DirectedBinary(
+            DirectedFloatBinaryOperation::Divide,
             FloatFormat::F64,
             RoundingDirection::TowardNegative,
         )),
@@ -684,6 +745,14 @@ mod tests {
                 DirectedFloatBinaryOperation::Multiply,
                 FloatFormat::F64,
                 RoundingDirection::TowardZero,
+            ))
+        );
+        assert_eq!(
+            named_float_realization("F32::divide_toward_negative.f32"),
+            Some(NamedFloatRealization::DirectedBinary(
+                DirectedFloatBinaryOperation::Divide,
+                FloatFormat::F32,
+                RoundingDirection::TowardNegative,
             ))
         );
     }

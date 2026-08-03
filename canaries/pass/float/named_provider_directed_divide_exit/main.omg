@@ -1,0 +1,68 @@
+// One divided by three lies strictly between adjacent binary values. Directed
+// modes select the neighboring results while ordinary division remains
+// nearest-even after each local floating-control-state envelope.
+
+use omega::language::core::float_operations;
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    one32: f32;
+    three32: f32;
+    lower32: f32;
+    upper32: f32;
+    negative_upper32: f32;
+    positive32: f32;
+    zero32: f32;
+    negative32: f32;
+    ordinary32: f32;
+    one64: f64;
+    three64: f64;
+    lower64: f64;
+    upper64: f64;
+    negative_upper64: f64;
+    positive64: f64;
+    zero64: f64;
+    negative64: f64;
+    ordinary64: f64;
+}
+
+machine Main::main(&mut self) {
+    self.one32 = 1.0f32;
+    self.three32 = 3.0f32;
+    self.lower32 = 0.333333313465118408203125f32;
+    self.upper32 = 0.3333333432674407958984375f32;
+    self.negative_upper32 = 0.0f32 - self.upper32;
+    self.positive32 = F32::divide_toward_positive(self.one32, self.three32);
+    self.zero32 = F32::divide_toward_zero(self.one32, self.three32);
+    self.negative32 = F32::divide_toward_negative(
+        0.0f32 - self.one32,
+        self.three32
+    );
+    self.ordinary32 = self.one32 / self.three32;
+
+    self.one64 = 1.0;
+    self.three64 = 3.0;
+    self.lower64 = 0.333333333333333314829616256247390992939472198486328125;
+    self.upper64 = 0.33333333333333337034076748750521801471710205078125;
+    self.negative_upper64 = 0.0 - self.upper64;
+    self.positive64 = F64::divide_toward_positive(self.one64, self.three64);
+    self.zero64 = F64::divide_toward_zero(self.one64, self.three64);
+    self.negative64 = F64::divide_toward_negative(0.0 - self.one64, self.three64);
+    self.ordinary64 = self.one64 / self.three64;
+
+    transition self.positive32 == self.upper32
+        && self.zero32 == self.lower32
+        && self.negative32 == self.negative_upper32
+        && self.ordinary32 == self.upper32
+        && self.positive64 == self.upper64
+        && self.zero64 == self.lower64
+        && self.negative64 == self.negative_upper64
+        && self.ordinary64 == self.lower64 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(77); }
+}
