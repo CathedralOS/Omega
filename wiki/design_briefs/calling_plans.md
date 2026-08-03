@@ -820,10 +820,13 @@ their trusted-name twins also lower through `unlinkat`; plan data injects both
 `AT_REMOVEDIR = 512`). Two-path plan data likewise places the portable path
 pair into `renameat`, `linkat`, or `symlinkat`, injecting both directory
 descriptors and `linkat`'s trailing flags where the selected syscall requires
-them. Path-based metadata must first replace the known Darwin-shaped Linux
-`StatLayout` placeholder with the real target ABI. Metadata, directory-record,
-and failure-code adaptation remain explicit engineering work rather than a
-reason to add hidden libc state to the syscall path.
+them. Path and descriptor metadata are design-blocked on
+`OWNER_QUESTIONS.md` Q3: the real Linux ABIs vary integer field widths, while
+the current layout vocabulary only relocates representation-identical fields.
+The known Darwin-shaped Linux `StatLayout` placeholder must not be treated as
+native coverage. Directory-record and failure-code adaptation remain explicit
+engineering work rather than a reason to add hidden libc state to the syscall
+path.
 
 The compiler's retained source-policy identity carries the complete canonical
 `BoundaryEntryPlan` through checked lowering. Public provider schemas still

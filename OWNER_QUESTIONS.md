@@ -46,3 +46,26 @@ where admitted leaf claims enter transitive composition. The current exact
 relocation envelope, checked-assembly validators, import-thunk validators, and
 complete executable-region inventory are sound precursors, but none may claim
 complete final-footprint validation until this boundary is settled.
+
+## Q3 — Where are width-varying foreign record fields normalized?
+
+The portable filesystem metadata surface needs one semantic record, but the
+native `struct stat` fields are not representation-identical. Linux x86-64
+uses 64-bit `st_nlink` and `st_blksize`, while the AArch64 asm-generic ABI uses
+32-bit fields; Darwin differs again. The current `FieldPlan::At` only relocates
+one representation-identical field, and `Bits` requires complete source-bit
+tiling, so neither can honestly project and extend these target-sized integers.
+Which boundary is canonical?
+
+- extend the closed layout-plan vocabulary with a checked integer placement
+  that names stored width and signed/zero extension into the semantic carrier,
+  including explicit rules for whether and how mutable views may write it; or
+- keep layout plans representation-preserving and require target-owned checked
+  adapter machines to decode raw foreign bytes into one canonical semantic
+  metadata record before portable code observes it?
+
+The choice determines whether width conversion is layout semantics or ordinary
+target-policy computation, whether direct foreign-record views remain the
+filesystem mechanism, and what read/write guarantees a future width-adapting
+placement would carry. Correct Linux `StatLayout`, path metadata, and decoded
+descriptor metadata must not claim completion until this is settled.
