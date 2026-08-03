@@ -44,7 +44,7 @@ fn suspension_carry_canaries_pin_statement_bound_liveness() {
         ),
         (
             "concurrency/suspend_later_operand_rejected",
-            "may suspend while `message` remains live",
+            "nested inside a partially evaluated expression",
         ),
     ] {
         let fail = fail_canary(name);
