@@ -843,7 +843,10 @@ Remaining:
   sites are differential-locked too. Their `with_plan` encoder/width APIs now
   require `&CallPlan`; value, timespec-result, and timespec-argument relocation
   helpers now expose the same mandatory-plan/named-no-plan split. Separately
-  named no-plan functions retain only the differential oracle. Ordinary
+  named no-plan functions retain only the differential oracle. Shared syscall
+  normalization, encoding, relocation, and runtime-text consumers now carry an
+  explicit authoritative-plan versus compatibility-oracle mode rather than an
+  optional plan. Ordinary
   non-variadic scalar built-in imports now consume the binding-retained plan in
   emission, layout, and relocation accounting; their Windows x64/macOS arm64
   compatibility bytes and widths,
