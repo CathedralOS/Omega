@@ -188,8 +188,14 @@ claim-outcome proof/debug artifact. Multiple independent claims remain multiple
 rewrite rows; inference does not use whole-claim distinctness as evidence that
 their projected content is disjoint. Fresh claims and mismatched projection
 identities do not infer. Terminal v10 revalidates and reconstructs these exact
-rewrite axioms; partition-theorem composition and sealed frontier rows remain
-implementation work.
+rewrite axioms. Checked direct returned calls now instantiate an already-authored
+partition theorem only when every source entry projection binds to an exact
+caller-entry claim transferred into that call. The derivation retains the source
+fingerprint, call site, input claim identities, and substituted equation, while
+preserving rather than creating the theorem's `separate(...)` tree. General
+composition through surrounding structural rewrites, terminal-Psi
+partition-composition vocabulary, and sealed frontier rows remain implementation
+work.
 
 ### Content-bearing claims
 
@@ -259,8 +265,11 @@ canonical machine-local rows; the verifier checks one-to-one, non-overlapping
 parameter-entry/result-current paths and reconstructs their exact equalities as
 semantic axioms. Terminal semantic v11 and proof format v9 add distinct stable
 sum-case segments, so active payload paths retain case-plus-field identity
-without exporting arena-local symbols. Sealed introduction/custody-exit rows, authored-partition
-composition, and frontier discharge remain subsequent work.
+without exporting arena-local symbols. Checked facts additionally retain exact
+direct-wrapper instantiations of authored partition equations with their source
+theorem, call, and transfer-stable input claims. Composition through non-direct
+rewrites, terminal partition-composition evidence, sealed introduction/custody-
+exit rows, and frontier discharge remain subsequent work.
 
 An address interval-set member uses embedded arithmetic rather than wrapping
 runtime `addr` arithmetic. Its half-open end may equal the address-space bound

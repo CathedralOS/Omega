@@ -7,7 +7,10 @@
 //! the retained compiler-owned algebra identity, never carrier or operation
 //! names.
 
-use omega_checked_trees::{CheckFacts, ContentIdentityReshuffleFact, FlowClaimOutcomeSource};
+use omega_checked_trees::{
+    CheckFacts, ContentIdentityReshuffleFact, ContentPartitionCompositionFact,
+    FlowClaimOutcomeSource,
+};
 use omega_core::content::{
     ContentCaseSegment, ContentConservationEquation, ContentConservationOwnerKind,
     ContentConservationPlan, ContentConservationTerm, ContentFieldSegment, ContentPlaceRoot,
@@ -24,6 +27,7 @@ use omega_typed_trees::TypedTrees;
 use omega_typed_trees::domain::ProofFact;
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use omega_typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
+use omega_typed_trees::statement::{StatementNode, TransitionTargetNode};
 use omega_typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 /// Derive the content equality attached to every exact input-relative claim
@@ -182,6 +186,530 @@ pub(crate) fn infer_identity_preserving_reshuffles(program: &TypedTrees, facts: 
     });
     reshuffles.dedup();
     facts.qualifications.content.identity_reshuffles = reshuffles;
+}
+
+#[derive(Debug, Clone)]
+struct DirectReturnedInvocation {
+    statement_index: usize,
+    target_symbol: SymbolHandle,
+    receiver: Option<ExpressionHandle>,
+    arguments: Vec<ExpressionHandle>,
+    form: DirectReturnedInvocationForm,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum DirectReturnedInvocationForm {
+    Expression(ExpressionHandle),
+    NamedTransition,
+}
+
+#[derive(Debug, Default)]
+struct PartitionCompositionEvidence {
+    call_ordinal: Option<usize>,
+    input_claim_identities: Vec<PermissionClaimIdentity>,
+    observed_entry_projection: bool,
+}
+
+/// Instantiate an already-authored partition theorem through an exact direct
+/// wrapper. This pass can substitute caller-entry paths and the wrapper result;
+/// it cannot construct a `separate(...)` node. Every entry projection must bind
+/// to one caller parameter claim whose transfer-stable identity reaches the
+/// exact returned call site.
+///
+/// Derived rows are made available to later rounds so direct wrapper chains
+/// close to a fixed point. Structural argument/result rewrites beyond exact
+/// direct places remain the responsibility of the later general frontier
+/// composition pass.
+pub(crate) fn compose_direct_partition_wrappers(program: &TypedTrees, facts: &mut CheckFacts) {
+    let mut available = facts.qualifications.content.conservation_plans.clone();
+    let state_count = program
+        .machines()
+        .iter()
+        .map(|machine| program.machine_states(machine).len())
+        .sum::<usize>();
+    let mut compositions = Vec::new();
+
+    for _ in 0..state_count.max(1) {
+        let sources = available.clone();
+        let mut round = Vec::new();
+
+        for machine in program.machines() {
+            for state in program.machine_states(machine) {
+                let Some(invocation) = direct_returned_invocation(program, state) else {
+                    continue;
+                };
+                for source in sources.iter().filter(|source| {
+                    source.callable == invocation.target_symbol
+                        && equation_contains_partition(&source.equation)
+                }) {
+                    if available
+                        .iter()
+                        .chain(
+                            round
+                                .iter()
+                                .map(|fact: &ContentPartitionCompositionFact| &fact.plan),
+                        )
+                        .any(|existing| {
+                            existing.callable == state.symbol && existing.algebra == source.algebra
+                        })
+                    {
+                        continue;
+                    }
+                    let Some(composition) = instantiate_partition_wrapper(
+                        program,
+                        facts,
+                        machine.symbol,
+                        state,
+                        &invocation,
+                        source,
+                    ) else {
+                        continue;
+                    };
+                    round.push(composition);
+                }
+            }
+        }
+
+        round.sort_by_key(|fact| {
+            (
+                fact.machine_symbol.arena_index(),
+                fact.state_symbol.arena_index(),
+                fact.source_callable.arena_index(),
+                fact.source_fingerprint,
+                content_conservation_plan_bytes(&fact.plan),
+            )
+        });
+        round.dedup();
+        if round.is_empty() {
+            break;
+        }
+        available.extend(round.iter().map(|fact| fact.plan.clone()));
+        compositions.extend(round);
+    }
+
+    compositions.sort_by_key(|fact| {
+        (
+            fact.machine_symbol.arena_index(),
+            fact.state_symbol.arena_index(),
+            content_conservation_plan_bytes(&fact.plan),
+        )
+    });
+    compositions.dedup();
+    facts.qualifications.content.partition_compositions = compositions;
+}
+
+fn direct_returned_invocation(
+    program: &TypedTrees,
+    state: &omega_typed_trees::state::State,
+) -> Option<DirectReturnedInvocation> {
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let mut invocations = Vec::new();
+
+    for (statement_index, statement) in statements.iter().enumerate() {
+        match statement {
+            StatementNode::Expression(expression) if statement_index + 1 == statements.len() => {
+                if let Some(invocation) =
+                    direct_expression_invocation(program, statement_index, *expression)
+                {
+                    invocations.push(invocation);
+                }
+            }
+            StatementNode::Transition(transition) => {
+                for target in [transition.target, transition.continuation]
+                    .into_iter()
+                    .filter(|target| target.is_valid())
+                {
+                    match program.statement_table.transition_target(target) {
+                        TransitionTargetNode::Named { path, arguments } => {
+                            invocations.push(DirectReturnedInvocation {
+                                statement_index,
+                                target_symbol: path.symbol,
+                                receiver: None,
+                                arguments: program
+                                    .statement_table
+                                    .expression_handles(*arguments)
+                                    .to_vec(),
+                                form: DirectReturnedInvocationForm::NamedTransition,
+                            });
+                        }
+                        TransitionTargetNode::Value(expression) => {
+                            if let Some(invocation) =
+                                direct_expression_invocation(program, statement_index, *expression)
+                            {
+                                invocations.push(invocation);
+                            }
+                        }
+                        TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let [invocation] = invocations.as_slice() else {
+        return None;
+    };
+    invocation
+        .target_symbol
+        .is_valid()
+        .then(|| invocation.clone())
+}
+
+fn direct_expression_invocation(
+    program: &TypedTrees,
+    statement_index: usize,
+    expression: ExpressionHandle,
+) -> Option<DirectReturnedInvocation> {
+    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    Some(DirectReturnedInvocation {
+        statement_index,
+        target_symbol: call.target_symbol,
+        receiver: call.receiver.is_valid().then_some(call.receiver),
+        arguments: program
+            .expression_table
+            .expression_handles(call.arguments)
+            .to_vec(),
+        form: DirectReturnedInvocationForm::Expression(expression),
+    })
+}
+
+fn equation_contains_partition(equation: &ContentConservationEquation) -> bool {
+    term_contains_partition(equation.left()) || term_contains_partition(equation.right())
+}
+
+fn term_contains_partition(term: &ContentConservationTerm) -> bool {
+    match term {
+        ContentConservationTerm::Projection { .. } => false,
+        ContentConservationTerm::Separate(_) => true,
+    }
+}
+
+fn instantiate_partition_wrapper(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine_symbol: SymbolHandle,
+    state: &omega_typed_trees::state::State,
+    invocation: &DirectReturnedInvocation,
+    source: &ContentConservationPlan,
+) -> Option<ContentPartitionCompositionFact> {
+    let target_parameters = crate::call_target_parameters(program, invocation.target_symbol)?;
+    let call_ordinal =
+        direct_invocation_call_ordinal(program, facts, machine_symbol, state.symbol, invocation)?;
+    let mut evidence = PartitionCompositionEvidence {
+        call_ordinal: Some(call_ordinal),
+        ..PartitionCompositionEvidence::default()
+    };
+    let left = instantiate_partition_term(
+        program,
+        facts,
+        state,
+        invocation,
+        target_parameters,
+        source.equation.left(),
+        &mut evidence,
+    )?;
+    let right = instantiate_partition_term(
+        program,
+        facts,
+        state,
+        invocation,
+        target_parameters,
+        source.equation.right(),
+        &mut evidence,
+    )?;
+    if !evidence.observed_entry_projection {
+        return None;
+    }
+    evidence
+        .input_claim_identities
+        .sort_by_key(|identity| format!("{identity:?}"));
+    evidence.input_claim_identities.dedup();
+    let equation = ContentConservationEquation::new(left, right);
+    let fingerprint = conservation_fingerprint(&source.algebra, &equation);
+    let plan = ContentConservationPlan {
+        owner_kind: ContentConservationOwnerKind::Machine,
+        owner: machine_symbol,
+        callable: state.symbol,
+        algebra: source.algebra.clone(),
+        equation,
+        fingerprint,
+    };
+    Some(ContentPartitionCompositionFact {
+        machine_symbol,
+        state_symbol: state.symbol,
+        source_callable: source.callable,
+        source_fingerprint: source.fingerprint,
+        statement_index: invocation.statement_index,
+        call_ordinal,
+        input_claim_identities: evidence.input_claim_identities,
+        plan,
+    })
+}
+
+fn direct_invocation_call_ordinal(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    invocation: &DirectReturnedInvocation,
+) -> Option<usize> {
+    let state_flow = facts.flow.control.states.iter().find_map(|(_, state)| {
+        (state.machine_symbol == machine_symbol && state.state_symbol == state_symbol)
+            .then_some(state)
+    })?;
+    let ordinals = facts
+        .flow
+        .control
+        .calls
+        .span_or_empty(state_flow.calls)
+        .iter()
+        .filter(|call| {
+            call.statement_index == invocation.statement_index
+                && call.target_symbol == invocation.target_symbol
+        })
+        .filter_map(|call| {
+            let call_site = crate::find_call_site(
+                program,
+                machine_symbol,
+                state_symbol,
+                call.statement_index,
+                call.call_ordinal,
+            )?;
+            let exact = match (&invocation.form, call_site) {
+                (
+                    DirectReturnedInvocationForm::Expression(expected),
+                    crate::CallSite::Expression { expression, .. },
+                ) => *expected == expression,
+                (
+                    DirectReturnedInvocationForm::NamedTransition,
+                    crate::CallSite::TransitionNamed(arguments),
+                ) => {
+                    program.statement_table.expression_handles(arguments)
+                        == invocation.arguments.as_slice()
+                }
+                _ => false,
+            };
+            exact.then_some(call.call_ordinal)
+        })
+        .fold(Vec::new(), |mut ordinals, ordinal| {
+            if !ordinals.contains(&ordinal) {
+                ordinals.push(ordinal);
+            }
+            ordinals
+        });
+    let [ordinal] = ordinals.as_slice() else {
+        return None;
+    };
+    Some(*ordinal)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn instantiate_partition_term(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    caller_state: &omega_typed_trees::state::State,
+    invocation: &DirectReturnedInvocation,
+    target_parameters: &[StateParameter],
+    term: &ContentConservationTerm,
+    evidence: &mut PartitionCompositionEvidence,
+) -> Option<ContentConservationTerm> {
+    match term {
+        ContentConservationTerm::Projection {
+            domain,
+            semantic_domain,
+            projection_machine,
+            projection_fingerprint,
+            subject,
+        } => Some(ContentConservationTerm::Projection {
+            domain: *domain,
+            semantic_domain: *semantic_domain,
+            projection_machine: *projection_machine,
+            projection_fingerprint: *projection_fingerprint,
+            subject: instantiate_partition_subject(
+                program,
+                facts,
+                caller_state,
+                invocation,
+                target_parameters,
+                subject,
+                evidence,
+            )?,
+        }),
+        ContentConservationTerm::Separate(children) => Some(ContentConservationTerm::separate(
+            children
+                .iter()
+                .map(|child| {
+                    instantiate_partition_term(
+                        program,
+                        facts,
+                        caller_state,
+                        invocation,
+                        target_parameters,
+                        child,
+                        evidence,
+                    )
+                })
+                .collect::<Option<Vec<_>>>()?,
+        )),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn instantiate_partition_subject(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    caller_state: &omega_typed_trees::state::State,
+    invocation: &DirectReturnedInvocation,
+    target_parameters: &[StateParameter],
+    subject: &ContentStructuralPlace,
+    evidence: &mut PartitionCompositionEvidence,
+) -> Option<ContentStructuralPlace> {
+    match (&subject.root, subject.version) {
+        (ContentPlaceRoot::Result, ContentPlaceVersion::Current) => Some(subject.clone()),
+        (
+            ContentPlaceRoot::Parameter {
+                position, symbol, ..
+            },
+            ContentPlaceVersion::Entry,
+        ) => {
+            evidence.observed_entry_projection = true;
+            let parameter = target_parameters
+                .get(usize::try_from(*position).ok()?)
+                .filter(|parameter| !symbol.is_valid() || parameter.symbol == *symbol)
+                .or_else(|| {
+                    symbol
+                        .is_valid()
+                        .then(|| {
+                            target_parameters
+                                .iter()
+                                .find(|parameter| parameter.symbol == *symbol)
+                        })
+                        .flatten()
+                })?;
+            let argument = argument_for_target_parameter(
+                target_parameters,
+                &invocation.arguments,
+                invocation.receiver,
+                parameter.symbol,
+            )?;
+            let mut actual = crate::flow::canonical_place_from_expression_in_state(
+                program,
+                caller_state.symbol,
+                invocation.statement_index,
+                argument,
+            )?;
+            actual
+                .segments
+                .extend(content_segments_to_fact_path(&subject.segments)?);
+            let omega_facts::PlaceRoot::Symbol(actual_root) = actual.root else {
+                return None;
+            };
+            let (caller_position, caller_parameter) = program
+                .state_parameters(caller_state)
+                .iter()
+                .enumerate()
+                .find(|(_, parameter)| parameter.symbol == actual_root)?;
+            let claim_identity = unique_entry_claim_identity(
+                facts,
+                caller_state.symbol,
+                actual_root,
+                &actual.segments,
+            )?;
+            let call_ordinal = evidence.call_ordinal?;
+            let transferred_to_invocation =
+                facts.flow.ownership.permissions.iter().any(|(_, event)| {
+                    let source_matches = matches!(
+                        event.source,
+                        PermissionEventSource::Call {
+                            statement_index,
+                            call_ordinal: event_call_ordinal,
+                            target_symbol,
+                            ..
+                        } if statement_index == invocation.statement_index
+                            && event_call_ordinal == call_ordinal
+                            && target_symbol == invocation.target_symbol
+                    ) || event.source
+                        == PermissionEventSource::Statement {
+                            statement_index: invocation.statement_index,
+                        };
+                    event.state_symbol == caller_state.symbol
+                        && source_matches
+                        && event.kind == PermissionEventKind::Transfer
+                        && event.access == PermissionAccess::Owned
+                        && event.obligation_live
+                        && event.claim_identity == claim_identity
+                        && event.root == actual.root
+                        && facts.flow.ownership.segments.span_or_empty(event.segments)
+                            == actual.segments
+                });
+            if !transferred_to_invocation {
+                return None;
+            }
+            evidence.input_claim_identities.push(claim_identity);
+            Some(ContentStructuralPlace {
+                version: ContentPlaceVersion::Entry,
+                root: ContentPlaceRoot::Parameter {
+                    position: u32::try_from(caller_position).ok()?,
+                    symbol: caller_parameter.symbol,
+                    name: caller_parameter.name.as_str().to_owned(),
+                    is_self: caller_parameter.is_self,
+                },
+                segments: content_path(program, &actual.segments)?,
+            })
+        }
+        _ => None,
+    }
+}
+
+fn argument_for_target_parameter(
+    parameters: &[StateParameter],
+    arguments: &[ExpressionHandle],
+    receiver: Option<ExpressionHandle>,
+    parameter_symbol: SymbolHandle,
+) -> Option<ExpressionHandle> {
+    let includes_explicit_self =
+        parameters.iter().any(|parameter| parameter.is_self) && arguments.len() == parameters.len();
+    let mut argument_index = 0usize;
+    for parameter in parameters {
+        let argument = if parameter.is_self && !includes_explicit_self {
+            receiver
+        } else {
+            let argument = arguments.get(argument_index).copied();
+            argument_index = argument_index.saturating_add(1);
+            argument
+        };
+        if parameter.symbol == parameter_symbol {
+            return argument;
+        }
+    }
+    None
+}
+
+fn content_segments_to_fact_path(
+    segments: &[ContentPlaceSegment],
+) -> Option<Vec<omega_facts::PlaceSegment>> {
+    segments
+        .iter()
+        .map(|segment| match segment {
+            ContentPlaceSegment::Case(case) if case.symbol.is_valid() => {
+                Some(omega_facts::PlaceSegment::Case {
+                    variant: case.symbol,
+                })
+            }
+            ContentPlaceSegment::Field(field) if field.symbol.is_valid() => {
+                Some(omega_facts::PlaceSegment::Field {
+                    symbol: field.symbol,
+                })
+            }
+            ContentPlaceSegment::FixedIndex(index) => Some(omega_facts::PlaceSegment::FixedIndex {
+                index: usize::try_from(*index).ok()?,
+            }),
+            ContentPlaceSegment::Case(_) | ContentPlaceSegment::Field(_) => None,
+        })
+        .collect()
 }
 
 fn projection_term(

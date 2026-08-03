@@ -464,6 +464,177 @@ fn checked_facts_infer_exact_content_reshuffles_through_transparent_paths() {
 }
 
 #[test]
+fn checked_facts_compose_authored_partitions_through_a_direct_wrapper() {
+    let source = r#"
+        data ByteUnit {}
+        data CountedQuantity<Unit> { magnitude: u64; }
+        trait Content<A> {
+            machine project(subject: &Self) -> A;
+        }
+
+        data Region [linear] { length: u64; }
+        domain Region::Owned;
+        machine Owned::content(region: &Region) -> CountedQuantity<ByteUnit>
+        satisfies Content<CountedQuantity<ByteUnit>>::project
+        {
+            CountedQuantity { magnitude: region.length }
+        }
+
+        data Pair {
+            left: Region in Owned;
+            right: Region in Owned;
+        }
+
+        boundary trait Splitter {
+            machine partition(
+                left: Region in Owned,
+                right: Region in Owned
+            ) -> Pair
+            ensures
+                separate(
+                    Owned::content(entry(&left)),
+                    Owned::content(entry(&right)),
+                )
+                == separate(
+                    Owned::content(&result.left),
+                    Owned::content(&result.right),
+                );
+        }
+        data Main { splitter: Splitter; }
+        machine Main::forward(&mut self, pair: Pair) -> Pair
+        requires
+            pair.left in Region::Owned;
+            pair.right in Region::Owned
+        {
+            self.splitter.partition(pair.left, pair.right)
+        }
+        machine Main::main(&mut self) {}
+    "#;
+
+    let checked = checked(source);
+    let state_symbol = |name: &str| {
+        checked
+            .machines()
+            .iter()
+            .flat_map(|machine| checked.machine_states(machine))
+            .find(|state| state.name.as_str() == name)
+            .expect("named state")
+            .symbol
+    };
+    let partition = checked
+        .traits()
+        .iter()
+        .flat_map(|trait_definition| checked.trait_machine_signatures(trait_definition))
+        .find(|signature| signature.name.as_str() == "partition")
+        .expect("partition requirement")
+        .symbol;
+    let forward = state_symbol("forward");
+
+    assert_eq!(
+        checked
+            .facts
+            .qualifications
+            .content
+            .conservation_plans
+            .len(),
+        1,
+        "only the primitive authors a source theorem"
+    );
+    let compositions = &checked.facts.qualifications.content.partition_compositions;
+    assert_eq!(
+        compositions.len(),
+        1,
+        "the authored theorem should instantiate through the direct wrapper: {compositions:#?}\nauthored: {:#?}\npermissions: {:#?}",
+        checked.facts.qualifications.content.conservation_plans,
+        checked.facts.flow.ownership.permissions,
+    );
+    let forward_row = compositions
+        .iter()
+        .find(|row| row.state_symbol == forward)
+        .expect("direct wrapper composition");
+    assert_eq!(forward_row.source_callable, partition);
+    assert_eq!(forward_row.call_ordinal, 0);
+    assert_eq!(forward_row.input_claim_identities.len(), 2);
+    assert!(
+        forward_row.input_claim_identities.iter().all(|identity| {
+            *identity != omega_core::semantics::PermissionClaimIdentity::Unknown
+        })
+    );
+
+    for row in compositions {
+        assert!(matches!(
+            row.plan.equation.left(),
+            ContentConservationTerm::Separate(children) if children.len() == 2
+        ));
+        assert!(matches!(
+            row.plan.equation.right(),
+            ContentConservationTerm::Separate(children) if children.len() == 2
+        ));
+    }
+}
+
+#[test]
+fn checked_facts_do_not_compose_partitions_through_unproved_staged_result_rewrites() {
+    let source = r#"
+        data ByteUnit {}
+        data CountedQuantity<Unit> { magnitude: u64; }
+        trait Content<A> {
+            machine project(subject: &Self) -> A;
+        }
+
+        data Region [linear] { length: u64; }
+        domain Region::Owned;
+        machine Owned::content(region: &Region) -> CountedQuantity<ByteUnit>
+        satisfies Content<CountedQuantity<ByteUnit>>::project
+        {
+            CountedQuantity { magnitude: region.length }
+        }
+
+        data Pair {
+            left: Region in Owned;
+            right: Region in Owned;
+        }
+
+        boundary trait Splitter {
+            machine partition(
+                left: Region in Owned,
+                right: Region in Owned
+            ) -> Pair
+            ensures
+                separate(
+                    Owned::content(entry(&left)),
+                    Owned::content(entry(&right)),
+                )
+                == separate(
+                    Owned::content(&result.left),
+                    Owned::content(&result.right),
+                );
+        }
+        data Main { splitter: Splitter; }
+        machine Main::repack(&mut self, pair: Pair) -> Pair
+        requires
+            pair.left in Region::Owned;
+            pair.right in Region::Owned
+        {
+            let result: Pair = self.splitter.partition(pair.left, pair.right);
+            result
+        }
+        machine Main::main(&mut self) {}
+    "#;
+
+    let checked = checked(source);
+    assert!(
+        checked
+            .facts
+            .qualifications
+            .content
+            .partition_compositions
+            .is_empty(),
+        "a staged result requires explicit structural rewrite composition"
+    );
+}
+
+#[test]
 fn checked_facts_infer_exact_content_reshuffles_through_sum_case_paths() {
     let source = r#"
         data ByteUnit {}

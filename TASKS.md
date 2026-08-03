@@ -428,10 +428,21 @@ those rows remain absent until their actual checked proofs exist.
   certificate use. Terminal semantic v11 adds a distinct stable sum-case path
   segment; the checker, adapter, verifier, semantic codec, and proof format v9
   retain case-plus-field identity without arena-local symbols or collision with
-  equal field spellings in other cases.
+  equal field spellings in other cases. Checked lowering now also instantiates
+  an authored partition equation through an exact direct returned call. Every
+  source entry projection must substitute to a caller-parameter structural
+  place whose transfer-stable claim identity reaches that exact call; the
+  derived row retains the source theorem fingerprint, call site, all input
+  claim identities, and the substituted equation in
+  `05_claim_outcomes.json`. Composition copies the source `separate(...)`
+  structure and cannot manufacture a partition. Eligible direct wrapper chains
+  close to a fixed point; staged locals, aggregate argument construction,
+  nested result reshaping, and terminal-Psi partition-composition vocabulary
+  remain fail-closed.
   Archived v1-v10 bytes retain their identities. Remaining work is to compose
-  these rewrites with authored partition equations, insert sealed introduction
-  and custody-exit rows, and discharge or admit the exact frontier theorem.
+  identity rewrites around those non-direct authored-partition calls, insert
+  sealed introduction and custody-exit rows, and discharge or admit the exact
+  frontier theorem.
   Contracts call the exact
   owner-unique `Content<A>::project` conformance machine; do not add
   `content(...)`, general `old(...)`, or `retired_via(...)`. Normalize one

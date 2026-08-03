@@ -808,6 +808,7 @@ fn build_qualification_facts(program: &TypedTrees) -> omega_checked_trees::Quali
                 .map(|source| source.plan)
                 .collect(),
             identity_reshuffles: Vec::new(),
+            partition_compositions: Vec::new(),
         },
     }
 }
