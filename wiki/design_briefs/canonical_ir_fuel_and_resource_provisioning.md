@@ -139,8 +139,10 @@ vocabulary also has an exact entry-to-return certificate keyed by semantic
 identity, entry, return edge, and fuel schedule; consumers recompute every field
 without trusting the producer. The same checker now derives exact selected
 block-to-edge segment certificates, including the endpoint charge, so adjacent
-segments neither omit nor double-charge a jump. Semantic safe-point selection,
-build-time migration, branch/loop certificates, and native metering remain.
+segments neither omit nor double-charge a jump. The current-vocabulary semantic
+safe-point selector now returns the complete ordered partition at every
+explicit jump/return edge; validation rejects omitted or reordered segments.
+Build-time migration, branch/loop certificates, and native metering remain.
 
 ## Context
 

@@ -513,9 +513,11 @@ identity. The source canary's exact four-unit certificate equals measured
 execution after source and producer state are discarded. Exact machine-local
 block-to-edge segment certificates now reuse the same canonical identity and
 schedule, include their selected jump or return edge, and reject an endpoint
-that is not reached before return. Semantic safe-point selection, branch/loop
-outcomes, relevant-precondition subsets, and Cathedral hard-root migration
-remain later slices.
+that is not reached before return. For the current total, unconditional
+vocabulary, every explicit jump/return edge is a semantic safe point; the
+checker derives and validates the complete ordered path partition so no segment
+can be omitted or reordered. Branch/loop outcomes, relevant-precondition
+subsets, and Cathedral hard-root migration remain later slices.
 
 Omega external-root composition now accepts those sealed entry and segment
 certificates as a distinct local-evidence form beside admitted opaque-provider

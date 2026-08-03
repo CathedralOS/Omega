@@ -9,7 +9,8 @@ use psi_terminal::{
 };
 use psi_terminal_codec::{CodecError, decode_module, encode_module, terminal_psi_identity};
 use psi_terminal_fixed_fuel::{
-    FixedFuelError, derive_fixed_entry_fuel, derive_fixed_segment_fuel, validate_fixed_entry_fuel,
+    FixedFuelError, derive_fixed_entry_fuel, derive_fixed_safe_point_segments,
+    derive_fixed_segment_fuel, validate_fixed_entry_fuel, validate_fixed_safe_point_segments,
     validate_fixed_segment_fuel,
 };
 use psi_terminal_verifier::{ObligationEvidence, ProofBundle, verify_module};
@@ -115,6 +116,35 @@ fn a_segment_cannot_cross_the_reached_return_to_find_an_unrelated_edge() {
             requested: edge_id(1),
             reached_return: edge_id(2),
         })
+    );
+}
+
+#[test]
+fn safe_point_selection_covers_the_complete_ordered_path() {
+    let (module, proof) = fixture();
+    let verified = verify_module(&module, &proof, &AdmissionProfile::default()).unwrap();
+
+    let segments = derive_fixed_safe_point_segments(&verified, machine_id(1)).unwrap();
+    assert_eq!(segments.len(), 2);
+    assert_eq!(segments[0].start_block(), block_id(1));
+    assert_eq!(segments[0].end_edge(), edge_id(1));
+    assert_eq!(segments[0].ceiling_units(), 2);
+    assert_eq!(segments[1].start_block(), block_id(2));
+    assert_eq!(segments[1].end_edge(), edge_id(2));
+    assert_eq!(segments[1].ceiling_units(), 1);
+    validate_fixed_safe_point_segments(&verified, machine_id(1), &segments).unwrap();
+
+    assert_eq!(
+        validate_fixed_safe_point_segments(&verified, machine_id(1), &segments[..1]),
+        Err(FixedFuelError::CertificateMismatch),
+        "a producer cannot omit the return segment"
+    );
+    let mut reordered = segments;
+    reordered.reverse();
+    assert_eq!(
+        validate_fixed_safe_point_segments(&verified, machine_id(1), &reordered),
+        Err(FixedFuelError::CertificateMismatch),
+        "a producer cannot reorder semantic safe-point segments"
     );
 }
 
