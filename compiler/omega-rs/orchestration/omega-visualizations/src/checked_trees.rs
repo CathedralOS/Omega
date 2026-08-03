@@ -516,7 +516,7 @@ pub fn claim_outcome_manifest_json(program: &CheckedTrees) -> String {
     identity_reshuffles.sort_by_key(|row| {
         (
             state_label_from_symbol(program, row.state_symbol),
-            omega_core::content::content_conservation_plan_bytes(&row.plan),
+            psi_language_semantics::content::content_conservation_plan_bytes(&row.plan),
         )
     });
     json.push_str("\n  ],\n  \"content_identity_reshuffles\": [");
@@ -570,7 +570,7 @@ pub fn claim_outcome_manifest_json(program: &CheckedTrees) -> String {
     partition_compositions.sort_by_key(|row| {
         (
             state_label_from_symbol(program, row.state_symbol),
-            omega_core::content::content_conservation_plan_bytes(&row.plan),
+            psi_language_semantics::content::content_conservation_plan_bytes(&row.plan),
         )
     });
     json.push_str("\n  ],\n  \"content_partition_compositions\": [");
@@ -643,8 +643,8 @@ pub fn claim_outcome_manifest_json(program: &CheckedTrees) -> String {
         push_json_string(
             &mut json,
             match plan.owner_kind {
-                omega_core::content::ContentConservationOwnerKind::Machine => "machine",
-                omega_core::content::ContentConservationOwnerKind::TraitRequirement => {
+                psi_language_semantics::content::ContentConservationOwnerKind::Machine => "machine",
+                psi_language_semantics::content::ContentConservationOwnerKind::TraitRequirement => {
                     "trait_requirement"
                 }
             },
@@ -669,9 +669,9 @@ pub fn claim_outcome_manifest_json(program: &CheckedTrees) -> String {
 
 fn push_content_algebra_json(
     json: &mut String,
-    algebra: &omega_core::content::ContentAlgebraIdentity,
+    algebra: &psi_language_semantics::content::ContentAlgebraIdentity,
 ) {
-    use omega_core::content::ContentAlgebraIdentity;
+    use psi_language_semantics::content::ContentAlgebraIdentity;
 
     match algebra {
         ContentAlgebraIdentity::IntervalSet { coordinate_space } => {
@@ -689,9 +689,9 @@ fn push_content_algebra_json(
 
 fn push_content_projection_json(
     json: &mut String,
-    projection: &omega_core::content::ContentProjectionExpression,
+    projection: &psi_language_semantics::content::ContentProjectionExpression,
 ) {
-    use omega_core::content::ContentProjectionExpression;
+    use psi_language_semantics::content::ContentProjectionExpression;
 
     match projection {
         ContentProjectionExpression::IntervalSet { members } => {
@@ -718,9 +718,9 @@ fn push_content_projection_json(
 
 fn push_content_scalar_json(
     json: &mut String,
-    scalar: &omega_core::content::ContentScalarExpression,
+    scalar: &psi_language_semantics::content::ContentScalarExpression,
 ) {
-    use omega_core::content::{ContentArithmeticOperator, ContentScalarExpression};
+    use psi_language_semantics::content::{ContentArithmeticOperator, ContentScalarExpression};
 
     match scalar {
         ContentScalarExpression::SubjectField(path) => {
@@ -768,7 +768,7 @@ fn push_content_scalar_json(
 
 fn push_content_field_path_json(
     json: &mut String,
-    path: &[omega_core::content::ContentFieldSegment],
+    path: &[psi_language_semantics::content::ContentFieldSegment],
 ) {
     json.push('[');
     for (index, segment) in path.iter().enumerate() {
@@ -783,9 +783,9 @@ fn push_content_field_path_json(
 fn push_content_conservation_term_json(
     json: &mut String,
     program: &CheckedTrees,
-    term: &omega_core::content::ContentConservationTerm,
+    term: &psi_language_semantics::content::ContentConservationTerm,
 ) {
-    use omega_core::content::ContentConservationTerm;
+    use psi_language_semantics::content::ContentConservationTerm;
 
     match term {
         ContentConservationTerm::Projection {
@@ -825,9 +825,11 @@ fn push_content_conservation_term_json(
 
 fn push_content_structural_place_json(
     json: &mut String,
-    subject: &omega_core::content::ContentStructuralPlace,
+    subject: &psi_language_semantics::content::ContentStructuralPlace,
 ) {
-    use omega_core::content::{ContentPlaceRoot, ContentPlaceSegment, ContentPlaceVersion};
+    use psi_language_semantics::content::{
+        ContentPlaceRoot, ContentPlaceSegment, ContentPlaceVersion,
+    };
 
     json.push_str("{\"version\": ");
     push_json_string(
@@ -2618,13 +2620,6 @@ mod tests {
         carry_manifest_json, claim_outcome_manifest_json, machine_contract_manifest_json,
         push_termination_interface_json, qualification_evidence_manifest_json,
     };
-    use omega_core::content::{
-        ContentAlgebraIdentity, ContentArithmeticOperator, ContentConservationEquation,
-        ContentConservationOwnerKind, ContentConservationPlan, ContentConservationTerm,
-        ContentFieldSegment, ContentPlaceRoot, ContentPlaceVersion, ContentProjectionExpression,
-        ContentProjectionPlan, ContentScalarExpression, ContentStructuralPlace,
-        conservation_fingerprint,
-    };
     use omega_core::semantics::{
         BlockingInterface, BlockingPlan, CarryAddress, CarryCpu, CarryHostThread, CarryPolicy,
         CarrySuspension, MachineSupplyMode, MachineTerminationPlan, QualificationEvidenceOrigin,
@@ -2640,6 +2635,13 @@ mod tests {
     };
     use psi_facts::{
         Fact, FactOrigin, FactPayload, FactPlace, ProgramPoint, QualificationEvidence,
+    };
+    use psi_language_semantics::content::{
+        ContentAlgebraIdentity, ContentArithmeticOperator, ContentConservationEquation,
+        ContentConservationOwnerKind, ContentConservationPlan, ContentConservationTerm,
+        ContentFieldSegment, ContentPlaceRoot, ContentPlaceVersion, ContentProjectionExpression,
+        ContentProjectionPlan, ContentScalarExpression, ContentStructuralPlace,
+        conservation_fingerprint,
     };
     use psi_typed_trees::machine::Machine;
     use psi_typed_trees::name::Identifier;

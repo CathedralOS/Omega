@@ -13,7 +13,7 @@ omega-calling-conventions = { path = "../omega-calling-conventions" }
 omega-core = { path = "../omega-core" }
 omega-executable-installation = { path = "../omega-executable-installation" }
 psi-layout-plans = { path = "../../../psi-rs/foundation/psi-layout-plans" }
-psi-terminal-fuel = { path = "../../../psi-rs/semantics/psi-terminal-fuel" }
+psi-core = { path = "../../../psi-rs/foundation/psi-core" }
 
 [dev-dependencies]
 psi-extents = { path = "../../../psi-rs/foundation/psi-extents" }

@@ -1,5 +1,26 @@
 use std::fmt;
+use std::num::NonZeroU32;
 use std::num::NonZeroU64;
+
+/// Identity of a logical-cost schedule, independently versioned from terminal
+/// Psi semantics. The schedule implementation lives above this dependency-
+/// light identity so installation/resource records can name its units without
+/// depending on a semantic evaluator.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct FuelScheduleIdentity(NonZeroU32);
+
+impl FuelScheduleIdentity {
+    pub const fn new(schedule_version: u32) -> Option<Self> {
+        match NonZeroU32::new(schedule_version) {
+            Some(version) => Some(Self(version)),
+            None => None,
+        }
+    }
+
+    pub const fn schedule_version(self) -> u32 {
+        self.0.get()
+    }
+}
 
 /// Common behavior for nonzero semantic identities carried by terminal Psi.
 pub trait PsiSemanticId: Copy + Eq + Ord + std::hash::Hash {
@@ -98,5 +119,16 @@ mod tests {
         assert!(ValueId::new(0).is_none());
         assert_eq!(ValueId::new(7).expect("nonzero identity").get(), 7);
         assert!(ClaimId::new(0).is_none());
+    }
+
+    #[test]
+    fn fuel_schedule_identity_is_nonzero_and_separate_from_semantic_ids() {
+        assert_eq!(FuelScheduleIdentity::new(0), None);
+        assert_eq!(
+            FuelScheduleIdentity::new(3)
+                .expect("nonzero fuel schedule")
+                .schedule_version(),
+            3
+        );
     }
 }

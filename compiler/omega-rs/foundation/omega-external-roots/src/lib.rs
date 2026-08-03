@@ -16,8 +16,8 @@ use omega_calling_conventions::{
 };
 pub use omega_executable_installation::{ArtifactId, InstalledCodeId};
 use omega_executable_installation::{InstalledCode, InstalledCodeContext};
+pub use psi_core::FuelScheduleIdentity;
 use psi_layout_plans::EntryStubId;
-pub use psi_terminal_fuel::FuelScheduleIdentity;
 
 macro_rules! normalized_id {
     ($name:ident, $label:literal) => {

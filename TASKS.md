@@ -938,6 +938,10 @@ improvements do not change public identity.
   numerics, host-independent float semantics, arithmetic domains, and literal
   payloads; `psi-source-loader` owns root-file loading; and
   `psi-symbols` owns target-neutral symbol identities and hierarchy storage.
+  The unused `omega-core` source/span, exact-bignum, const-value, content, and
+  built-in-value-domain aliases are retired; their remaining Omega consumers
+  depend on the Psi owners directly. High-fanout `omega-core` aliases remain an
+  incremental ownership migration rather than a second semantic owner.
   `psi-syntax-trees` owns the parsed source representation; the unused former
   Omega compatibility package is retired.
   `psi-symbol-resolved-trees` owns the source-shaped representation carrying
@@ -1194,8 +1198,8 @@ improvements do not change public identity.
   The current TypedTrees evaluator now publishes an explicitly versioned deterministic
   step-usage record for interpreted and
   build-time outcomes; it is telemetry precursor evidence, not terminal-Psi
-  fuel. The first terminal-Psi fuel slice is now live: a Psi-owned nonzero
-  schedule identity independently versions a v1 one-unit-per-operation/edge
+  fuel. The first terminal-Psi fuel slice is now live: a `psi-core`-owned
+  nonzero schedule identity independently versions a v1 one-unit-per-operation/edge
   table, the verified interpreter returns checked deterministic totals and
   stable operation/edge attribution, and an optional sponsor allowance fails
   atomically before an unpaid semantic site. The serialized source canary costs

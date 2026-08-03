@@ -35,9 +35,9 @@
 //! skipped so their param-arg spellings are not mistaken for concrete instances.
 
 use omega_core::arena::{Handle, HandleSpan};
-use omega_core::const_value::CanonicalConstValue;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::literals::{IntegerLiteral, IntegerRadix};
+use psi_language_semantics::const_value::CanonicalConstValue;
 use psi_syntax_trees::SyntaxTrees;
 use psi_syntax_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use psi_syntax_trees::identifier::Identifier;

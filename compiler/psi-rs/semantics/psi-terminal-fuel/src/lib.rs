@@ -8,28 +8,11 @@
 //! behalf of the execution sponsor.
 
 use std::collections::BTreeMap;
-use std::num::NonZeroU32;
 
 use psi_core::{EdgeId, OperationId};
 use psi_terminal::{Operation, OperationKind, Terminator};
 
-/// Identity of a logical-cost schedule, independently versioned from terminal
-/// Psi semantics.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct FuelScheduleIdentity(NonZeroU32);
-
-impl FuelScheduleIdentity {
-    pub const fn new(schedule_version: u32) -> Option<Self> {
-        match NonZeroU32::new(schedule_version) {
-            Some(version) => Some(Self(version)),
-            None => None,
-        }
-    }
-
-    pub const fn schedule_version(self) -> u32 {
-        self.0.get()
-    }
-}
+pub use psi_core::FuelScheduleIdentity;
 
 /// Version 1 charges one unit for each executed semantic operation and one unit
 /// for each taken terminal edge. Adding a vocabulary variant forces an explicit
@@ -41,7 +24,10 @@ pub struct TerminalFuelSchedule {
 
 impl TerminalFuelSchedule {
     pub const V1: Self = Self {
-        identity: FuelScheduleIdentity(NonZeroU32::MIN),
+        identity: match FuelScheduleIdentity::new(1) {
+            Some(identity) => identity,
+            None => unreachable!(),
+        },
     };
 
     pub const CURRENT: Self = Self::V1;

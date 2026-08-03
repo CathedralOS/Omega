@@ -341,6 +341,7 @@ dependencies = [
  "psi-checked-trees",
  "psi-effects",
  "psi-facts",
+ "psi-language-semantics",
  "psi-layout-plans",
  "psi-source",
  "psi-source-files-to-tokens",
@@ -401,8 +402,6 @@ dependencies = [
  "psi-language-core",
  "psi-language-semantics",
  "psi-numerics",
- "psi-source",
- "psi-source-loader",
  "psi-symbols",
 ]
 
@@ -479,9 +478,9 @@ dependencies = [
  "omega-core",
  "omega-executable-installation",
  "omega-target",
+ "psi-core",
  "psi-extents",
  "psi-layout-plans",
- "psi-terminal-fuel",
 ]
 
 [[package]]
@@ -586,6 +585,7 @@ dependencies = [
  "psi-checked-trees",
  "psi-checked-trees-to-terminal",
  "psi-core",
+ "psi-numerics",
  "psi-proof-kernel",
  "psi-terminal",
  "psi-terminal-codec",
@@ -1057,6 +1057,7 @@ dependencies = [
  "psi-checked-trees",
  "psi-effects",
  "psi-facts",
+ "psi-language-semantics",
  "psi-symbol-resolved-trees",
  "psi-syntax-trees",
  "psi-typed-trees",
