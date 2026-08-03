@@ -1445,8 +1445,16 @@ improvements do not change public identity.
   code borrow with no retirement operation. A direct reclaimable root instead
   owns the installed external-root handle until an exact provider unregister
   receipt and the existing independent unreachability/quiescence receipt both
-  succeed; either failed gate returns all linear inputs. The concrete era entry
-  ledger remains.
+  succeed; either failed gate returns all linear inputs. The profile-gated era
+  ledger now binds one exact binding/entry contract and admitted entry plan,
+  atomically publishes a new current era while closing the previous era to new
+  entry, retains already-entered old invocations, rejects invocation/publication
+  replay, and enforces the live-era limit. Only zero active entries, zero
+  residual cohort holds, complete dispositions, and a fresh release receipt
+  make a noncurrent era quiescent and remove its TCB manifest. This scoped
+  REPLACE-OPAQUE acceptance slice is complete; runtime-specific entry algorithms
+  and broader component artifact/migration encoding remain under the separate
+  compilation work.
 - **BLOCKEXEC:** provide an ordinary package-level blocking executor for
   codec-style native calls using activations, bounded queues, moved custody,
   linear completion claims, suspension, and provider selection. It is not a
