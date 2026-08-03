@@ -204,7 +204,6 @@ enum ReturnedPartitionInvocationForm {
     StagedLocal {
         call_expression: ExpressionHandle,
         local_symbol: SymbolHandle,
-        return_statement_index: usize,
     },
 }
 
@@ -219,14 +218,16 @@ struct PartitionCompositionEvidence {
 
 /// Instantiate an already-authored partition theorem through an exact wrapper.
 /// This pass can substitute caller-entry paths and either a directly returned
-/// result or a result staged through exact local and aggregate identity rewrites;
+/// result or a result staged through exact local-chain and aggregate identity
+/// rewrites;
 /// it cannot construct a `separate(...)` node. Every entry projection must bind
 /// to one caller parameter claim whose transfer-stable identity reaches the
 /// exact returned call site.
 ///
 /// Derived rows are made available to later rounds so wrapper chains close to
 /// a fixed point. Every staged source-result projection must retain one exact
-/// claim identity into a unique callable-result path.
+/// call-established claim identity into a unique callable-result path. States
+/// with multiple candidate authored-partition calls remain fail-closed.
 pub(crate) fn compose_partition_wrappers(program: &TypedTrees, facts: &mut CheckFacts) {
     let mut available = facts.qualifications.content.conservation_plans.clone();
     let state_count = program
@@ -310,19 +311,27 @@ fn returned_partition_invocation(
     state: &psi_typed_trees::state::State,
 ) -> Option<ReturnedPartitionInvocation> {
     let statements = program.statement_table.statements(state.statement_nodes);
-    if let [
-        StatementNode::LocalData(local),
-        StatementNode::Expression(_),
-    ] = statements
-        && local.initial_value.is_valid()
-    {
-        let mut invocation = direct_expression_invocation(program, 0, local.initial_value)?;
-        invocation.form = ReturnedPartitionInvocationForm::StagedLocal {
-            call_expression: local.initial_value,
-            local_symbol: local.symbol,
-            return_statement_index: 1,
-        };
-        return Some(invocation);
+    let staged = statements
+        .iter()
+        .enumerate()
+        .filter_map(|(statement_index, statement)| {
+            let StatementNode::LocalData(local) = statement else {
+                return None;
+            };
+            let mut invocation =
+                direct_expression_invocation(program, statement_index, local.initial_value)?;
+            invocation.form = ReturnedPartitionInvocationForm::StagedLocal {
+                call_expression: local.initial_value,
+                local_symbol: local.symbol,
+            };
+            Some(invocation)
+        })
+        .collect::<Vec<_>>();
+    if let [invocation] = staged.as_slice() {
+        return invocation
+            .target_symbol
+            .is_valid()
+            .then(|| invocation.clone());
     }
     let mut invocations = Vec::new();
 
@@ -748,12 +757,7 @@ fn instantiate_partition_result_subject(
     subject: &ContentStructuralPlace,
     evidence: &mut PartitionCompositionEvidence,
 ) -> Option<ContentStructuralPlace> {
-    let ReturnedPartitionInvocationForm::StagedLocal {
-        local_symbol,
-        return_statement_index,
-        ..
-    } = invocation.form
-    else {
+    let ReturnedPartitionInvocationForm::StagedLocal { local_symbol, .. } = invocation.form else {
         return Some(subject.clone());
     };
     let local_segments = content_segments_to_fact_path(&subject.segments)?;
@@ -797,22 +801,6 @@ fn instantiate_partition_result_subject(
     let [claim_identity] = identities.as_slice() else {
         return None;
     };
-    let reaches_return = facts.flow.ownership.permissions.iter().any(|(_, event)| {
-        event.state_symbol == caller_state.symbol
-            && event.source
-                == PermissionEventSource::Statement {
-                    statement_index: return_statement_index,
-                }
-            && event.kind == PermissionEventKind::Transfer
-            && event.access == PermissionAccess::Owned
-            && event.obligation_live
-            && event.claim_identity == *claim_identity
-            && event.root == psi_facts::PlaceRoot::Symbol(local_symbol)
-            && facts.flow.ownership.segments.span_or_empty(event.segments) == local_segments
-    });
-    if !reaches_return {
-        return None;
-    }
     let output_paths = facts
         .flow
         .ownership

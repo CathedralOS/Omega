@@ -605,6 +605,7 @@ fn checked_facts_compose_partitions_through_exact_staged_result_rewrites() {
             right: Region in Owned;
         }
         data Envelope { pair: Pair; }
+        data Double { first: Pair; second: Pair; }
 
         boundary trait Splitter {
             machine partition(
@@ -647,6 +648,17 @@ fn checked_facts_compose_partitions_through_exact_staged_result_rewrites() {
             let forwarded: Pair = result;
             forwarded
         }
+        machine Main::two_calls(&mut self, first: Pair, second: Pair) -> Double
+        requires
+            first.left in Region::Owned;
+            first.right in Region::Owned;
+            second.left in Region::Owned;
+            second.right in Region::Owned
+        {
+            let left: Pair = self.splitter.partition(first.left, first.right);
+            let right: Pair = self.splitter.partition(second.left, second.right);
+            Double { first: left, second: right }
+        }
         machine Main::main(&mut self) {}
     "#;
 
@@ -656,7 +668,7 @@ fn checked_facts_compose_partitions_through_exact_staged_result_rewrites() {
         .qualifications
         .content
         .partition_compositions;
-    assert_eq!(compositions.len(), 2, "compositions: {compositions:#?}");
+    assert_eq!(compositions.len(), 3, "compositions: {compositions:#?}");
     let state_symbol = |name: &str| {
         checked_program
             .machines()
@@ -709,10 +721,19 @@ fn checked_facts_compose_partitions_through_exact_staged_result_rewrites() {
                 if outer.name == "pair"
         )
     }));
+    let two_hop = compositions
+        .iter()
+        .find(|composition| composition.state_symbol == state_symbol("two_hop"))
+        .expect("multi-hop local composition");
+    assert_eq!(two_hop.result_rewrites.len(), 2);
+    assert!(two_hop.result_rewrites.iter().all(|rewrite| {
+        rewrite.claim_identity != psi_language_semantics::PermissionClaimIdentity::Unknown
+            && rewrite.source == rewrite.target
+    }));
     assert!(
         compositions
             .iter()
-            .all(|composition| composition.state_symbol != state_symbol("two_hop"))
+            .all(|composition| composition.state_symbol != state_symbol("two_calls"))
     );
 }
 
