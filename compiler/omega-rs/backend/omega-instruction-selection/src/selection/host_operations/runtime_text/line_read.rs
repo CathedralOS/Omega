@@ -9,8 +9,8 @@ use crate::selection::storage_places::{
 };
 use omega_abstract_operations::{RuntimeTextReadTarget, SelectedInstructionKind};
 use omega_calling_conventions::PlatformCallData;
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_platform_interface::HostCall;
+use psi_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(in crate::selection) struct RuntimeStringDescriptorPlace {
@@ -287,7 +287,7 @@ fn resolve_host_call_alias_expression_handle(
             (
                 resolved_source_key,
                 expressions.insert(ExpressionNode::Indexed(
-                    omega_checked_trees::expression::TableIndexedExpression {
+                    psi_checked_trees::expression::TableIndexedExpression {
                         collection: resolved_collection,
                         index: resolved_index,
                     },
@@ -305,7 +305,7 @@ fn resolve_host_call_alias_expression_handle(
             (
                 resolved_source_key,
                 expressions.insert(ExpressionNode::Member(
-                    omega_checked_trees::expression::TableMemberExpression {
+                    psi_checked_trees::expression::TableMemberExpression {
                         receiver: resolved_receiver,
                         member_symbol: member.member_symbol,
                         member: member.member,
@@ -351,7 +351,7 @@ fn resolve_host_call_alias_expression_handle(
 
 fn alias_matches_table_path(
     alias: &omega_state_calls::AliasBinding,
-    path: &omega_checked_trees::expression::TableNamePath,
+    path: &psi_checked_trees::expression::TableNamePath,
 ) -> bool {
     alias.parameter_symbol.is_valid()
         && path.head_symbol.is_valid()

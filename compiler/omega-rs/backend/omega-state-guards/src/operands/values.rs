@@ -1,10 +1,10 @@
-use omega_checked_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable,
-};
 use omega_core::float_semantics::{
     FloatFormat as SemanticFloatFormat, FloatMeaning, FloatSemantics,
 };
 use omega_layout::{DataShape, LayoutPlan};
+use psi_checked_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable,
+};
 
 /// Whether a guard operand is a CONSTANT float expression (a float literal
 /// or foldable float arithmetic) -- the conjunction clause builder marks

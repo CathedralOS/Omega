@@ -1,4 +1,4 @@
-use omega_checked_trees::name::Identifier;
+use psi_checked_trees::name::Identifier;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct BackendStringStorage {

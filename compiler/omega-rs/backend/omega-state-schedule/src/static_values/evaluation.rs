@@ -1,9 +1,9 @@
 use super::StaticValue;
 use super::aliases::{PlaceKey, canonical_place_key};
-use omega_checked_trees::expression::{
+use omega_control_flow::TransitionFlow;
+use psi_checked_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable,
 };
-use omega_control_flow::TransitionFlow;
 
 pub(crate) fn resolve_static_value(
     table: &ExpressionTable,

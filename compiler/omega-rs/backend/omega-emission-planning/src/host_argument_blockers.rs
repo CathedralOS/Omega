@@ -103,16 +103,16 @@ fn collect_computed_scalar_argument_blockers(
                 continue;
             };
             let is_computed_scalar = match input.host_calls.expressions.expression(expression) {
-                omega_checked_trees::expression::ExpressionNode::Binary(_)
-                | omega_checked_trees::expression::ExpressionNode::Cast(_) => true,
-                omega_checked_trees::expression::ExpressionNode::Indexed(indexed) => !matches!(
+                psi_checked_trees::expression::ExpressionNode::Binary(_)
+                | psi_checked_trees::expression::ExpressionNode::Cast(_) => true,
+                psi_checked_trees::expression::ExpressionNode::Indexed(indexed) => !matches!(
                     input.host_calls.expressions.expression(indexed.index),
-                    omega_checked_trees::expression::ExpressionNode::Range(_)
+                    psi_checked_trees::expression::ExpressionNode::Range(_)
                 ),
                 // Selection admits only the scalar builtin symbols. An
                 // authored nested call reaches this blocker too and stays
                 // fail-closed until explicit call sequencing exists.
-                omega_checked_trees::expression::ExpressionNode::Call(_) => true,
+                psi_checked_trees::expression::ExpressionNode::Call(_) => true,
                 _ => false,
             };
             if !is_computed_scalar {
@@ -152,7 +152,7 @@ fn collect_computed_scalar_argument_blockers(
             }
             if matches!(
                 input.host_calls.expressions.expression(expression),
-                omega_checked_trees::expression::ExpressionNode::Call(_)
+                psi_checked_trees::expression::ExpressionNode::Call(_)
             ) && host_call_argument_has_selected_call_result_operand(
                 input, host_call, expression,
             ) {
@@ -176,9 +176,9 @@ fn collect_computed_scalar_argument_blockers(
 fn host_call_argument_has_selected_call_result_operand(
     input: &EmissionPlanningInput<'_>,
     host_call: &HostCall,
-    expression: omega_checked_trees::expression::ExpressionHandle,
+    expression: psi_checked_trees::expression::ExpressionHandle,
 ) -> bool {
-    let omega_checked_trees::expression::ExpressionNode::Call(call) =
+    let psi_checked_trees::expression::ExpressionNode::Call(call) =
         input.host_calls.expressions.expression(expression)
     else {
         return false;

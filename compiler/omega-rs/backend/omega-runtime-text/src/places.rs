@@ -1,4 +1,4 @@
-use omega_checked_trees::expression::{
+use psi_checked_trees::expression::{
     Expression, ExpressionHandle, ExpressionNode, ExpressionTable, NamePath, TableNamePath,
 };
 

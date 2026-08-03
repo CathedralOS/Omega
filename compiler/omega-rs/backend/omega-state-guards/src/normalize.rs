@@ -1,4 +1,4 @@
-use omega_checked_trees::expression::{
+use psi_checked_trees::expression::{
     BinaryExpression, BinaryOperator, Expression, ExpressionHandle, ExpressionNode,
     ExpressionTable, TableBinaryExpression,
 };

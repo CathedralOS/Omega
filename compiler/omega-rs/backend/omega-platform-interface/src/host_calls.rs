@@ -1,8 +1,8 @@
 use omega_calling_conventions::HostAbiPlan;
-use omega_checked_trees::CheckedTrees;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_target::NativeTarget;
+use psi_checked_trees::CheckedTrees;
 use std::sync::Arc;
 
 mod collection;
@@ -11,8 +11,8 @@ mod static_values;
 
 use crate::{HostCall, HostCallArgument, HostCallArgumentKind, HostCallPlan, LoweredHostOperation};
 use collection::collect_machine_host_calls;
-use omega_checked_trees::machine::Machine;
-use omega_checked_trees::statement::StatementNode;
+use psi_checked_trees::machine::Machine;
+use psi_checked_trees::statement::StatementNode;
 
 pub fn build_host_call_plan(
     program: &CheckedTrees,
@@ -175,7 +175,7 @@ fn copy_lowered_host_operations(
 
 fn copy_host_call_arguments(
     target: &mut HostCallPlan,
-    source_expressions: &omega_checked_trees::expression::ExpressionTable,
+    source_expressions: &psi_checked_trees::expression::ExpressionTable,
     source_arguments: &omega_core::arena::Arena<HostCallArgument>,
     span: omega_core::arena::HandleSpan<HostCallArgument>,
 ) -> omega_core::arena::HandleSpan<HostCallArgument> {

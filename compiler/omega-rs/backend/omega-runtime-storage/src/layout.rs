@@ -1,11 +1,11 @@
 use super::RuntimeStorageContext;
-use omega_checked_trees::types::{
-    FixedArrayLength, PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
-    TypeReferenceTable,
-};
 use omega_core::arena::HandleSpan;
 use omega_core::symbols::{BuiltinType, SymbolHandle};
 use omega_layout::TypeLayout;
+use psi_checked_trees::types::{
+    FixedArrayLength, PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+    TypeReferenceTable,
+};
 
 /// Rung C2's record view: a reference-typed local whose initializer is a
 /// judged RECAST over a byte region reserves the REFEREE RECORD's width. For
@@ -98,7 +98,7 @@ pub(super) fn bounded_byte_buffer_shape(
         matches!(
             constraint,
             TypeConstraintNode::Domain(name)
-                if !omega_checked_trees::wire::is_layout_domain_name(name.as_str())
+                if !psi_checked_trees::wire::is_layout_domain_name(name.as_str())
                     && omega_core::semantics::CarryPermission::from_name(name.as_str()).is_none()
         )
     });

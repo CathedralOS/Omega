@@ -1,7 +1,7 @@
 use crate::TypeLayout;
-use omega_checked_trees::types::PrimitiveType;
 use omega_runtime_abi::build_runtime_abi_plan;
 use omega_target::NativeTarget;
+use psi_checked_trees::types::PrimitiveType;
 
 /// Canonical fat-descriptor layout (`{ptr, len}`) for slices and text windows.
 ///

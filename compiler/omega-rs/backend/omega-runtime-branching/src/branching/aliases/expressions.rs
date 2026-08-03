@@ -1,11 +1,11 @@
 use crate::branching::aliases::{
     BranchParameterBinding, BranchParameterBindings, RuntimeBranchAlias, RuntimeBranchAliasBuffer,
 };
-use omega_checked_trees::expression::{
+use omega_control_flow::StateKey;
+use psi_checked_trees::expression::{
     ExpressionHandle, ExpressionNode, ExpressionTable, TableBinaryExpression,
     TableIndexedExpression, TableMemberExpression, TableNamePath,
 };
-use omega_control_flow::StateKey;
 
 pub(crate) fn resolve_branch_expression_handle(
     expression: ExpressionHandle,
@@ -82,7 +82,7 @@ pub(crate) fn resolve_branch_expression_handle(
             let value =
                 resolve_branch_expression_handle(cast.value, branch_bindings, expression_table);
             expression_table.insert(ExpressionNode::Cast(
-                omega_checked_trees::expression::TableCastExpression {
+                psi_checked_trees::expression::TableCastExpression {
                     value,
                     target_type: cast.target_type,
                     target_label: cast.target_label,
@@ -109,7 +109,7 @@ pub(crate) fn resolve_branch_expression_handle(
                 expression_table.set_expression_handle_at_offset(arguments, offset, resolved);
             }
             expression_table.insert(ExpressionNode::Call(
-                omega_checked_trees::expression::TableCallExpression {
+                psi_checked_trees::expression::TableCallExpression {
                     receiver,
                     target_symbol: call.target_symbol,
                     target: call.target,
@@ -157,7 +157,7 @@ pub(super) fn resolve_runtime_branch_alias_expression_handle(
                 expression_table,
             );
             expression_table.insert(ExpressionNode::Cast(
-                omega_checked_trees::expression::TableCastExpression {
+                psi_checked_trees::expression::TableCastExpression {
                     value,
                     target_type: cast.target_type,
                     target_label: cast.target_label,
@@ -193,7 +193,7 @@ pub(super) fn resolve_runtime_branch_alias_expression_handle(
                 expression_table.set_expression_handle_at_offset(arguments, offset, resolved);
             }
             expression_table.insert(ExpressionNode::Call(
-                omega_checked_trees::expression::TableCallExpression {
+                psi_checked_trees::expression::TableCallExpression {
                     receiver,
                     target_symbol: call.target_symbol,
                     target: call.target,

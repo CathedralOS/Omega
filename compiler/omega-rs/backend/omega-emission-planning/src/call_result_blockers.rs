@@ -187,7 +187,7 @@ fn caller_statement_assigns_member(
         .any(|operation| match operation.expressions {
             omega_control_flow::OperationExpressionRefs::Assignment { target, .. } => matches!(
                 input.control_flow.expressions.expression(target),
-                omega_checked_trees::expression::ExpressionNode::Member(_)
+                psi_checked_trees::expression::ExpressionNode::Member(_)
             ),
             _ => false,
         })

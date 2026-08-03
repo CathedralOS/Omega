@@ -28,12 +28,12 @@ use crate::selection::instruction_sink::SelectedInstructionSink;
 use omega_abstract_operations::{
     RuntimeStorageRegion, SelectedInstruction, SelectedInstructionKind,
 };
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
-use omega_checked_trees::statement::StatementNode;
-use omega_checked_trees::types::TypeReferenceHandle;
-use omega_checked_trees::wire::{WireMember, WirePlacement, WireScalarEncoding, wire_varint_bytes};
 use omega_control_flow::StateKey;
 use omega_core::symbols::SymbolHandle;
+use psi_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
+use psi_checked_trees::statement::StatementNode;
+use psi_checked_trees::types::TypeReferenceHandle;
+use psi_checked_trees::wire::{WireMember, WirePlacement, WireScalarEncoding, wire_varint_bytes};
 
 use super::storage_places::{RuntimeStoragePlace, resolve_runtime_storage_place_in_table};
 
@@ -69,7 +69,7 @@ enum WireReadContent {
     /// exact-end close rejects payloads whose length disagrees with the
     /// elements -- including MORE elements than the carrier capacity.
     Repeated {
-        carrier: omega_checked_trees::wire::WireRepeatedCarrier,
+        carrier: psi_checked_trees::wire::WireRepeatedCarrier,
         element: WireScalarEncoding,
         base: RuntimeStoragePlace,
         count: Option<RuntimeStoragePlace>,
@@ -467,7 +467,7 @@ pub(super) fn select_wire_decode_call(
                 for index in 0..*max_count {
                     let target_offset = base.byte_offset + index * element.byte_size;
                     match carrier {
-                        omega_checked_trees::wire::WireRepeatedCarrier::FixedArray => {
+                        psi_checked_trees::wire::WireRepeatedCarrier::FixedArray => {
                             push(SelectedInstructionKind::ReadWireScalarVarint {
                                 buffer_region: buffer_place.region,
                                 buffer_offset: buffer_place.byte_offset,
@@ -483,7 +483,7 @@ pub(super) fn select_wire_decode_call(
                                 range: *range,
                             });
                         }
-                        omega_checked_trees::wire::WireRepeatedCarrier::FixedVec => {
+                        psi_checked_trees::wire::WireRepeatedCarrier::FixedVec => {
                             let count = count
                                 .as_ref()
                                 .expect("FixedVec repeated field carries its length place");
@@ -537,7 +537,7 @@ fn collect_field_reads(
     expressions: &mut ExpressionTable,
     receiver: ExpressionHandle,
     receiver_type: TypeReferenceHandle,
-    schema: &omega_checked_trees::wire::WireSchema,
+    schema: &psi_checked_trees::wire::WireSchema,
     allow_nested: bool,
 ) -> Option<Vec<WireFieldRead>> {
     let mut fields = Vec::new();
@@ -546,14 +546,14 @@ fn collect_field_reads(
             continue;
         };
         let member_handle = expressions.insert(ExpressionNode::Member(
-            omega_checked_trees::expression::TableMemberExpression {
+            psi_checked_trees::expression::TableMemberExpression {
                 receiver,
                 member_symbol: SymbolHandle::invalid(),
                 member: field.name.clone(),
                 case_variant: None,
             },
         ));
-        let member_type = omega_checked_trees::wire::data_field_type(
+        let member_type = psi_checked_trees::wire::data_field_type(
             input.program,
             receiver_type,
             field.name.as_str(),
@@ -566,10 +566,10 @@ fn collect_field_reads(
                 return None;
             }
             let (base_handle, count_handle) = match repeated.carrier {
-                omega_checked_trees::wire::WireRepeatedCarrier::FixedArray => (member_handle, None),
-                omega_checked_trees::wire::WireRepeatedCarrier::FixedVec => {
+                psi_checked_trees::wire::WireRepeatedCarrier::FixedArray => (member_handle, None),
+                psi_checked_trees::wire::WireRepeatedCarrier::FixedVec => {
                     let items = expressions.insert(ExpressionNode::Member(
-                        omega_checked_trees::expression::TableMemberExpression {
+                        psi_checked_trees::expression::TableMemberExpression {
                             receiver: member_handle,
                             member_symbol: SymbolHandle::invalid(),
                             member: "items".into(),
@@ -577,7 +577,7 @@ fn collect_field_reads(
                         },
                     ));
                     let length = expressions.insert(ExpressionNode::Member(
-                        omega_checked_trees::expression::TableMemberExpression {
+                        psi_checked_trees::expression::TableMemberExpression {
                             receiver: member_handle,
                             member_symbol: SymbolHandle::invalid(),
                             member: "length".into(),
@@ -618,13 +618,13 @@ fn collect_field_reads(
                     base,
                     count,
                     max_count: repeated.max_count,
-                    range: omega_checked_trees::wire::repeated_element_type(
+                    range: psi_checked_trees::wire::repeated_element_type(
                         input.program,
                         member_type,
                         repeated.carrier,
                     )
                     .and_then(|element| {
-                        omega_checked_trees::wire::scalar_decode_range(input.program, element)
+                        psi_checked_trees::wire::scalar_decode_range(input.program, element)
                     }),
                 },
             });
@@ -675,7 +675,7 @@ fn collect_field_reads(
             // emission planner reports the unlowered decode loudly.
             let mut predicate_mask = 0u8;
             for (_, predicate) in
-                omega_checked_trees::byte_predicates::type_reference_domain_predicates(
+                psi_checked_trees::byte_predicates::type_reference_domain_predicates(
                     input.program,
                     field.type_reference,
                 )
@@ -712,7 +712,7 @@ fn collect_field_reads(
             content: WireReadContent::Scalar {
                 encoding,
                 place,
-                range: omega_checked_trees::wire::scalar_decode_range(input.program, member_type),
+                range: psi_checked_trees::wire::scalar_decode_range(input.program, member_type),
             },
         });
     }
@@ -726,8 +726,8 @@ fn collect_field_reads(
 /// when storage planning has flattened that field into a frame slot.
 fn declared_expression_type(
     input: &InstructionSelectionInput<'_>,
-    machine: &omega_checked_trees::machine::Machine,
-    state: &omega_checked_trees::state::State,
+    machine: &psi_checked_trees::machine::Machine,
+    state: &psi_checked_trees::state::State,
     expressions: &ExpressionTable,
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
@@ -738,7 +738,7 @@ fn declared_expression_type(
         ExpressionNode::Member(member) => {
             let receiver =
                 declared_expression_type(input, machine, state, expressions, member.receiver)?;
-            omega_checked_trees::wire::data_field_type(
+            psi_checked_trees::wire::data_field_type(
                 input.program,
                 receiver,
                 member.member.as_str(),
@@ -788,7 +788,7 @@ fn declared_expression_type(
                         .map(|owned| owned.type_reference)
                 })?;
             for member in members.iter().skip(1) {
-                current = omega_checked_trees::wire::data_field_type(
+                current = psi_checked_trees::wire::data_field_type(
                     input.program,
                     current,
                     member.as_str(),

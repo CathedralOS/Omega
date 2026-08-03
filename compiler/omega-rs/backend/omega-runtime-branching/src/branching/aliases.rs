@@ -1,7 +1,7 @@
 use crate::RuntimeBranchingContext;
-use omega_checked_trees::expression::{ExpressionNode, ExpressionTable};
-use omega_checked_trees::statement::StatementNode;
 use omega_state_calls::{StateCall, StateCallArgumentKind};
+use psi_checked_trees::expression::{ExpressionNode, ExpressionTable};
+use psi_checked_trees::statement::StatementNode;
 
 mod expressions;
 mod model;
@@ -13,14 +13,14 @@ pub(super) use model::{
 };
 
 pub(super) fn resolve_branch_guard_handle(
-    guard: omega_checked_trees::expression::ExpressionHandle,
+    guard: psi_checked_trees::expression::ExpressionHandle,
     branch_bindings: &BranchParameterBindings,
     expression_table: &mut ExpressionTable,
-) -> omega_checked_trees::expression::ExpressionHandle {
+) -> psi_checked_trees::expression::ExpressionHandle {
     if guard.is_valid() {
         resolve_branch_expression_handle(guard, branch_bindings, expression_table)
     } else {
-        omega_checked_trees::expression::ExpressionHandle::invalid()
+        psi_checked_trees::expression::ExpressionHandle::invalid()
     }
 }
 
@@ -73,9 +73,9 @@ fn resolve_elided_source_local_expression_handle(
     context: &RuntimeBranchingContext<'_>,
     source_key: omega_control_flow::StateKey,
     statement_bound: usize,
-    expression: omega_checked_trees::expression::ExpressionHandle,
+    expression: psi_checked_trees::expression::ExpressionHandle,
     expressions: &mut ExpressionTable,
-) -> omega_checked_trees::expression::ExpressionHandle {
+) -> psi_checked_trees::expression::ExpressionHandle {
     match expressions.expression(expression).clone() {
         ExpressionNode::Binary(binary) => {
             let left = resolve_elided_source_local_expression_handle(
@@ -93,7 +93,7 @@ fn resolve_elided_source_local_expression_handle(
                 expressions,
             );
             expressions.insert(ExpressionNode::Binary(
-                omega_checked_trees::expression::TableBinaryExpression {
+                psi_checked_trees::expression::TableBinaryExpression {
                     left,
                     operator: binary.operator,
                     right,
@@ -109,7 +109,7 @@ fn resolve_elided_source_local_expression_handle(
                 expressions,
             );
             expressions.insert(ExpressionNode::Cast(
-                omega_checked_trees::expression::TableCastExpression {
+                psi_checked_trees::expression::TableCastExpression {
                     value,
                     target_type: cast.target_type,
                     target_label: cast.target_label,
@@ -152,7 +152,7 @@ fn resolve_elided_source_local_expression_handle(
                 expressions,
             );
             expressions.insert(ExpressionNode::Indexed(
-                omega_checked_trees::expression::TableIndexedExpression { collection, index },
+                psi_checked_trees::expression::TableIndexedExpression { collection, index },
             ))
         }
         ExpressionNode::Member(member) => {
@@ -164,7 +164,7 @@ fn resolve_elided_source_local_expression_handle(
                 expressions,
             );
             expressions.insert(ExpressionNode::Member(
-                omega_checked_trees::expression::TableMemberExpression {
+                psi_checked_trees::expression::TableMemberExpression {
                     receiver,
                     member_symbol: member.member_symbol,
                     member: member.member,

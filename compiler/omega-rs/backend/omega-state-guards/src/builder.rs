@@ -4,12 +4,6 @@ use crate::{
     StateGuard, StateGuardKind, StateGuardLowering, StateGuardOperandKind,
     StateGuardOperandStorage, StateGuardOperator, StateGuardPlan,
 };
-use omega_checked_trees::CheckedTrees;
-use omega_checked_trees::expression::{
-    BinaryExpression, BinaryOperator, Expression, ExpressionHandle, ExpressionNode,
-    ExpressionTable, TableBinaryExpression,
-};
-use omega_checked_trees::machine::Machine;
 use omega_control_flow::{ControlFlowPlan, StateKey};
 use omega_core::arena::Arena;
 use omega_core::symbols::SymbolHandle;
@@ -17,6 +11,12 @@ use omega_layout::LayoutPlan;
 use omega_runtime_storage::RuntimeStoragePlan;
 use omega_state_dispatch::{DispatchEdge, StateDispatchPlan};
 use omega_state_values::simplify_expression;
+use psi_checked_trees::CheckedTrees;
+use psi_checked_trees::expression::{
+    BinaryExpression, BinaryOperator, Expression, ExpressionHandle, ExpressionNode,
+    ExpressionTable, TableBinaryExpression,
+};
+use psi_checked_trees::machine::Machine;
 
 pub fn build_state_guard_plan(
     program: &CheckedTrees,
@@ -463,19 +463,19 @@ fn machine_field_fixed_array_len(
         .data_members(data_definition)
         .iter()
         .find_map(|member| {
-            let omega_checked_trees::data::DataMember::Field(field) = member else {
+            let psi_checked_trees::data::DataMember::Field(field) = member else {
                 return None;
             };
             if field.name.as_str() != field_name {
                 return None;
             }
-            let omega_checked_trees::types::TypeReferenceNode::FixedArray { length, .. } = program
+            let psi_checked_trees::types::TypeReferenceNode::FixedArray { length, .. } = program
                 .type_reference_table
                 .type_reference(field.type_reference)
             else {
                 return None;
             };
-            let omega_checked_trees::types::FixedArrayLength::Literal(length) = length else {
+            let psi_checked_trees::types::FixedArrayLength::Literal(length) = length else {
                 return None;
             };
             i64::try_from(*length).ok()

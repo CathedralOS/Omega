@@ -96,7 +96,6 @@ Omega/
 |   |
 |   |-- representations/
 |   |   |-- [CRATE] omega-effects/                      # Omega provider bindings/admission plus transitional Psi-effect exports.
-|   |   |-- [CRATE] omega-checked-trees/                # Transitional re-export of Psi-owned checked trees.
 |   |   |-- [CRATE] omega-state-graph/                  # Explicit machine/state graph for proof and scheduling.
 |   |   |-- [CRATE] omega-control-flow/                 # Control-flow/data-flow graph.
 |   |   |-- [CRATE] omega-abstract-operations/          # Target-independent abstract operations with virtual registers.
@@ -254,9 +253,8 @@ Omega/
 - `psi-checked-trees` owns the durable checked semantic representation and its
   proof, borrow, flow, reach, value-origin, and admissibility evidence. Legacy
   state/control representations and transforms, artifact/backend orchestration,
-  and the interpreter consume the Psi owner directly. The old
-  `omega-checked-trees` name remains an implementation-free compatibility
-  export only for unmigrated backend leaf consumers.
+  the interpreter, and backend leaf consumers depend on the Psi owner directly.
+  The unused former `omega-checked-trees` compatibility package is retired.
 - `psi-effects` carries target-neutral operational ceilings, service reach,
   synchronous invocation summaries, and capability-flow facts. `omega-effects`
   retains provider declarations, target/provider bindings, approval, and

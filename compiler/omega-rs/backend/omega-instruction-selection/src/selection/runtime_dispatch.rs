@@ -3,14 +3,14 @@ use crate::{
     derive_boundary_entry_slice_descriptor_footprint, derive_boundary_entry_storage,
     derive_boundary_exit,
 };
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
-use omega_checked_trees::statement::StatementNode;
-use omega_checked_trees::types::PrimitiveType;
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, PagedSlice};
 use omega_runtime_bodies::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
 use omega_state_calls::StateCallRole;
 use omega_state_values::{StateValueRole, simplify_state_expression_for_role};
+use psi_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
+use psi_checked_trees::statement::StatementNode;
+use psi_checked_trees::types::PrimitiveType;
 
 mod argument_materialization;
 mod branches;
@@ -474,12 +474,12 @@ pub(in crate::selection) fn computed_host_argument_byte_size(
         ExpressionNode::Binary(binary)
             if matches!(
                 binary.operator,
-                omega_checked_trees::expression::BinaryOperator::Equal
-                    | omega_checked_trees::expression::BinaryOperator::NotEqual
-                    | omega_checked_trees::expression::BinaryOperator::Less
-                    | omega_checked_trees::expression::BinaryOperator::LessOrEqual
-                    | omega_checked_trees::expression::BinaryOperator::Greater
-                    | omega_checked_trees::expression::BinaryOperator::GreaterOrEqual
+                psi_checked_trees::expression::BinaryOperator::Equal
+                    | psi_checked_trees::expression::BinaryOperator::NotEqual
+                    | psi_checked_trees::expression::BinaryOperator::Less
+                    | psi_checked_trees::expression::BinaryOperator::LessOrEqual
+                    | psi_checked_trees::expression::BinaryOperator::Greater
+                    | psi_checked_trees::expression::BinaryOperator::GreaterOrEqual
             ) =>
         {
             Some(1)
@@ -541,12 +541,12 @@ pub(in crate::selection) fn computed_host_argument_is_float(
         ExpressionNode::Binary(binary)
             if matches!(
                 binary.operator,
-                omega_checked_trees::expression::BinaryOperator::Equal
-                    | omega_checked_trees::expression::BinaryOperator::NotEqual
-                    | omega_checked_trees::expression::BinaryOperator::Less
-                    | omega_checked_trees::expression::BinaryOperator::LessOrEqual
-                    | omega_checked_trees::expression::BinaryOperator::Greater
-                    | omega_checked_trees::expression::BinaryOperator::GreaterOrEqual
+                psi_checked_trees::expression::BinaryOperator::Equal
+                    | psi_checked_trees::expression::BinaryOperator::NotEqual
+                    | psi_checked_trees::expression::BinaryOperator::Less
+                    | psi_checked_trees::expression::BinaryOperator::LessOrEqual
+                    | psi_checked_trees::expression::BinaryOperator::Greater
+                    | psi_checked_trees::expression::BinaryOperator::GreaterOrEqual
             ) =>
         {
             false
@@ -587,7 +587,7 @@ pub(in crate::selection) fn computed_host_argument_is_float(
 fn computed_host_builtin_operands(
     input: &InstructionSelectionInput<'_>,
     expressions: &ExpressionTable,
-    call: &omega_checked_trees::expression::TableCallExpression,
+    call: &psi_checked_trees::expression::TableCallExpression,
 ) -> Option<(ExpressionHandle, ExpressionHandle)> {
     if call.receiver.is_valid() {
         return None;
@@ -3083,10 +3083,10 @@ fn select_runtime_dispatch_local_initializer_write(
         // `&mut x as &mut T` parses as Mutable(Cast(..)); shared recasts are
         // bare Cast nodes. Normalize only for recast recognition so ordinary
         // mutable borrows retain their existing initializer lowering.
-        omega_checked_trees::expression::ExpressionNode::Mutable(inner)
+        psi_checked_trees::expression::ExpressionNode::Mutable(inner)
             if matches!(
                 expressions.expression(*inner),
-                omega_checked_trees::expression::ExpressionNode::Cast(cast)
+                psi_checked_trees::expression::ExpressionNode::Cast(cast)
                     if cast.form.is_recast()
             ) =>
         {
@@ -3094,7 +3094,7 @@ fn select_runtime_dispatch_local_initializer_write(
         }
         _ => resolved_initializer,
     };
-    if let omega_checked_trees::expression::ExpressionNode::Cast(cast) =
+    if let psi_checked_trees::expression::ExpressionNode::Cast(cast) =
         expressions.expression(recast_initializer)
         && cast.form.is_recast()
     {
@@ -3445,12 +3445,12 @@ fn strip_recast_initializer(
     initializer: ExpressionHandle,
 ) -> ExpressionHandle {
     match expressions.expression(initializer) {
-        omega_checked_trees::expression::ExpressionNode::Cast(cast) if cast.form.is_recast() => {
+        psi_checked_trees::expression::ExpressionNode::Cast(cast) if cast.form.is_recast() => {
             cast.value
         }
-        omega_checked_trees::expression::ExpressionNode::Mutable(inner) => {
+        psi_checked_trees::expression::ExpressionNode::Mutable(inner) => {
             match expressions.expression(*inner) {
-                omega_checked_trees::expression::ExpressionNode::Cast(cast)
+                psi_checked_trees::expression::ExpressionNode::Cast(cast)
                     if cast.form.is_recast() =>
                 {
                     cast.value
@@ -3464,7 +3464,7 @@ fn strip_recast_initializer(
 
 pub(in crate::selection) fn recast_target_byte_size(
     input: &InstructionSelectionInput<'_>,
-    target: omega_checked_trees::types::TypeReferenceHandle,
+    target: psi_checked_trees::types::TypeReferenceHandle,
 ) -> Option<usize> {
     omega_layout::layout_type_reference(input.program, input.target, target)
         .ok()
@@ -3473,10 +3473,10 @@ pub(in crate::selection) fn recast_target_byte_size(
 
 pub(in crate::selection) fn recast_slice_element_count(
     input: &InstructionSelectionInput<'_>,
-    target: omega_checked_trees::types::TypeReferenceHandle,
+    target: psi_checked_trees::types::TypeReferenceHandle,
     source_byte_count: usize,
 ) -> Option<usize> {
-    let omega_checked_trees::types::TypeReferenceNode::Slice { element_type } =
+    let psi_checked_trees::types::TypeReferenceNode::Slice { element_type } =
         input.program.type_reference_table.type_reference(target)
     else {
         return None;

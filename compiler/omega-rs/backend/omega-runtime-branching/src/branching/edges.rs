@@ -1,10 +1,10 @@
 use crate::RuntimeBranchingContext;
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
 use omega_control_flow::{MachineFlow, PlannedTransitionTarget, StateKey};
 use omega_core::arena::{Arena, HandleSpan};
 use omega_state_calls::StateCallRole;
 use omega_state_graph::RuntimeTransitionTarget;
 use omega_state_guards::classify_transition_guard_expression;
+use psi_checked_trees::expression::{ExpressionHandle, ExpressionTable};
 
 use super::lookups::state_statement_has_host_call;
 use super::{RuntimeBranchTargetLowering, RuntimeBranchingCallEdge};
@@ -211,7 +211,7 @@ fn resolve_attached_machine_state_key(
 
 fn resolve_attached_data_state_key(
     context: &RuntimeBranchingContext,
-    attached_data: &omega_checked_trees::name::Identifier,
+    attached_data: &psi_checked_trees::name::Identifier,
     target_symbol: omega_core::symbols::SymbolHandle,
 ) -> Option<StateKey> {
     if !target_symbol.is_valid() {

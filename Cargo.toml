@@ -46,7 +46,6 @@ members = [
     "compiler/omega-rs/representations/omega-effects",
     "compiler/omega-rs/pipeline/omega-checked-trees-to-state-graph",
     "compiler/omega-rs/pipeline/omega-state-graph-to-control-flow",
-    "compiler/omega-rs/representations/omega-checked-trees",
     "compiler/omega-rs/representations/omega-state-graph",
     "compiler/omega-rs/representations/omega-control-flow",
     "compiler/omega-rs/representations/omega-abstract-operations",

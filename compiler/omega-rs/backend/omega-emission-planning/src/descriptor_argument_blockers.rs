@@ -21,10 +21,10 @@
 
 use crate::EmissionPlanningInput;
 use crate::semantic_scope::{proof_scope_suffix, state_name};
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_target_operations::{RuntimeStorageRegion, SelectedInstructionKind};
+use psi_checked_trees::expression::{ExpressionHandle, ExpressionNode};
 
 use super::{EmissionBlocker, blocker};
 
@@ -163,7 +163,7 @@ fn state_key_matches(actual: StateKey, expected: StateKey) -> bool {
 /// open bound (invalid handle) is static -- the fold paths resolve it to 0 /
 /// the collection's fixed length -- so it counts as literal.
 fn range_bounds_are_literal(
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
     start: ExpressionHandle,
     end: ExpressionHandle,
 ) -> bool {

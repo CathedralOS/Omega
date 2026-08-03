@@ -1,7 +1,7 @@
-use omega_checked_trees::expression::{
+use omega_layout::{DataShape, LayoutPlan};
+use psi_checked_trees::expression::{
     Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
 };
-use omega_layout::{DataShape, LayoutPlan};
 
 pub(in crate::selection) fn enum_variant_value(
     layouts: &LayoutPlan,
@@ -155,7 +155,7 @@ pub(in crate::selection) fn enum_variant_value_in_table(
 pub(in crate::selection) fn clamp_runtime_case_comparison_operands_in_table(
     layouts: &LayoutPlan,
     expressions: &ExpressionTable,
-    operator: omega_checked_trees::expression::BinaryOperator,
+    operator: psi_checked_trees::expression::BinaryOperator,
     left_expression: ExpressionHandle,
     right_expression: ExpressionHandle,
     left: omega_abstract_operations::RuntimeValueOperandHandle,
@@ -166,8 +166,8 @@ pub(in crate::selection) fn clamp_runtime_case_comparison_operands_in_table(
 ) {
     if !matches!(
         operator,
-        omega_checked_trees::expression::BinaryOperator::Equal
-            | omega_checked_trees::expression::BinaryOperator::NotEqual
+        psi_checked_trees::expression::BinaryOperator::Equal
+            | psi_checked_trees::expression::BinaryOperator::NotEqual
     ) {
         return;
     }
@@ -183,7 +183,7 @@ pub(in crate::selection) fn clamp_runtime_case_comparison_operands_in_table(
 /// resolvers that walk owned `Expression` trees.
 pub(in crate::selection) fn clamp_runtime_case_comparison_operands(
     layouts: &LayoutPlan,
-    operator: omega_checked_trees::expression::BinaryOperator,
+    operator: psi_checked_trees::expression::BinaryOperator,
     left_expression: &Expression,
     right_expression: &Expression,
     left: omega_abstract_operations::RuntimeValueOperandHandle,
@@ -194,8 +194,8 @@ pub(in crate::selection) fn clamp_runtime_case_comparison_operands(
 ) {
     if !matches!(
         operator,
-        omega_checked_trees::expression::BinaryOperator::Equal
-            | omega_checked_trees::expression::BinaryOperator::NotEqual
+        psi_checked_trees::expression::BinaryOperator::Equal
+            | psi_checked_trees::expression::BinaryOperator::NotEqual
     ) {
         return;
     }

@@ -1,18 +1,18 @@
-use omega_checked_trees::CheckedTrees;
-use omega_checked_trees::expression::{
+use omega_core::arena::Arena;
+use omega_core::symbols::SymbolHandle;
+use psi_checked_trees::CheckedTrees;
+use psi_checked_trees::expression::{
     BinaryExpression, CallExpression, Expression, ExpressionHandle, ExpressionNode,
     ExpressionTable, IndexedExpression, MemberExpression, NamePath,
 };
-use omega_checked_trees::state::State;
-use omega_checked_trees::statement::StatementNode;
-use omega_core::arena::Arena;
-use omega_core::symbols::SymbolHandle;
+use psi_checked_trees::state::State;
+use psi_checked_trees::statement::StatementNode;
 use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub(super) struct Binding {
     pub(super) symbol: SymbolHandle,
-    pub(super) name: omega_checked_trees::name::Identifier,
+    pub(super) name: psi_checked_trees::name::Identifier,
     pub(super) value: Expression,
 }
 
@@ -20,7 +20,7 @@ impl Default for Binding {
     fn default() -> Self {
         Self {
             symbol: SymbolHandle::invalid(),
-            name: omega_checked_trees::name::Identifier::generated_static(""),
+            name: psi_checked_trees::name::Identifier::generated_static(""),
             value: Expression::Integer(omega_core::literals::IntegerLiteral::zero()),
         }
     }
@@ -73,7 +73,7 @@ pub(super) fn simple_local_bindings(
     program: &CheckedTrees,
     // Retained for signature stability; the ref-param deref materialization it
     // used to gate now fires in every machine (bug 2026-07-12).
-    _machine: &omega_checked_trees::machine::Machine,
+    _machine: &psi_checked_trees::machine::Machine,
     state: &State,
     statement_index: usize,
 ) -> Arena<Binding> {
@@ -208,9 +208,9 @@ fn initializer_is_reference_param_member(
 /// `&Named` (shared, non-slice) -- the pointer-slot param shape.
 fn parameter_is_shared_named_reference(
     program: &CheckedTrees,
-    type_reference: omega_checked_trees::types::TypeReferenceHandle,
+    type_reference: psi_checked_trees::types::TypeReferenceHandle,
 ) -> bool {
-    let omega_checked_trees::types::TypeReferenceNode::Reference {
+    let psi_checked_trees::types::TypeReferenceNode::Reference {
         is_mutable: false,
         referee,
         ..
@@ -220,7 +220,7 @@ fn parameter_is_shared_named_reference(
     };
     matches!(
         program.type_reference_table.type_reference(*referee),
-        omega_checked_trees::types::TypeReferenceNode::Named { .. }
+        psi_checked_trees::types::TypeReferenceNode::Named { .. }
     )
 }
 
@@ -261,7 +261,7 @@ pub fn initializer_field_reassigned_between(
 fn collect_member_field_names(
     expressions: &ExpressionTable,
     expression: ExpressionHandle,
-    out: &mut Vec<omega_checked_trees::name::Identifier>,
+    out: &mut Vec<psi_checked_trees::name::Identifier>,
 ) {
     match expressions.expression(expression) {
         ExpressionNode::Member(member) => {
@@ -297,7 +297,7 @@ fn collect_member_field_names(
 fn assignment_member_field_name(
     expressions: &ExpressionTable,
     target: ExpressionHandle,
-) -> Option<omega_checked_trees::name::Identifier> {
+) -> Option<psi_checked_trees::name::Identifier> {
     match expressions.expression(target) {
         ExpressionNode::Member(member) => Some(member.member.clone()),
         ExpressionNode::Mutable(inner) => assignment_member_field_name(expressions, *inner),
@@ -345,7 +345,7 @@ fn simple_local_binding_value_from_table(
             })))
         }
         ExpressionNode::Range(range) => Some(Expression::Range(Box::new(
-            omega_checked_trees::expression::RangeExpression {
+            psi_checked_trees::expression::RangeExpression {
                 start: range
                     .start
                     .is_valid()
@@ -378,7 +378,7 @@ fn simple_local_binding_value_from_table(
             .map(|value| Expression::Mutable(Box::new(value))),
         ExpressionNode::Unary(unary) => simple_local_binding_value_from_table(table, unary.operand)
             .map(|operand| {
-                Expression::Unary(Box::new(omega_checked_trees::expression::UnaryExpression {
+                Expression::Unary(Box::new(psi_checked_trees::expression::UnaryExpression {
                     operator: unary.operator,
                     operand,
                 }))
@@ -417,7 +417,7 @@ fn simple_local_binding_value_from_table(
 
 pub(super) fn append_name_suffix(
     base: &Expression,
-    suffix: &[omega_checked_trees::name::Identifier],
+    suffix: &[psi_checked_trees::name::Identifier],
 ) -> Expression {
     let mut expression = base.clone();
 

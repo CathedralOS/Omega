@@ -511,7 +511,7 @@ fn spliced_live_machines(input: &EmissionPlanningInput<'_>) -> Vec<SymbolHandle>
 #[derive(Default)]
 struct MachineAnchor {
     base: Option<usize>,
-    params: Vec<(omega_checked_trees::name::Identifier, Option<usize>)>,
+    params: Vec<(psi_checked_trees::name::Identifier, Option<usize>)>,
 }
 
 /// Per-machine COMPOSED storage base + param environment, mirroring the
@@ -615,7 +615,7 @@ fn param_bindings(
     input: &EmissionPlanningInput<'_>,
     call: &omega_state_calls::StateCall,
     source: &MachineAnchor,
-) -> Vec<(omega_checked_trees::name::Identifier, Option<usize>)> {
+) -> Vec<(psi_checked_trees::name::Identifier, Option<usize>)> {
     let mut bindings = Vec::new();
     let Some(arguments) = input.state_calls.arguments.span(call.arguments) else {
         return bindings;
@@ -625,7 +625,7 @@ fn param_bindings(
         if argument.kind != omega_state_calls::StateCallArgumentKind::MutableAlias {
             continue;
         }
-        let mut segments: Vec<&omega_checked_trees::name::Identifier> = Vec::new();
+        let mut segments: Vec<&psi_checked_trees::name::Identifier> = Vec::new();
         if !collect_expression_path_segments(
             &input.state_calls.expressions,
             argument.expression,
@@ -659,7 +659,7 @@ fn param_bindings(
             [] => None,
             path => source.base.and_then(|base| {
                 source_layout.and_then(|layout| {
-                    let owned: Vec<omega_checked_trees::name::Identifier> =
+                    let owned: Vec<psi_checked_trees::name::Identifier> =
                         path.iter().map(|segment| (*segment).clone()).collect();
                     omega_layout::field_path_offset(input.layouts, layout.fields, &owned)
                         .map(|offset| base + offset)
@@ -675,11 +675,11 @@ fn param_bindings(
 /// (receiver_base.rs -- KEEP IN LOCKSTEP): a `&mut` argument's spelled name
 /// path, or `false` for unresolvable shapes.
 fn collect_expression_path_segments<'table>(
-    table: &'table omega_checked_trees::expression::ExpressionTable,
-    expression: omega_checked_trees::expression::ExpressionHandle,
-    segments: &mut Vec<&'table omega_checked_trees::name::Identifier>,
+    table: &'table psi_checked_trees::expression::ExpressionTable,
+    expression: psi_checked_trees::expression::ExpressionHandle,
+    segments: &mut Vec<&'table psi_checked_trees::name::Identifier>,
 ) -> bool {
-    use omega_checked_trees::expression::ExpressionNode;
+    use psi_checked_trees::expression::ExpressionNode;
     match table.expression(expression) {
         ExpressionNode::Mutable(inner) => collect_expression_path_segments(table, *inner, segments),
         ExpressionNode::Name(path) => {
@@ -706,7 +706,7 @@ fn hop_receiver_base(
     input: &EmissionPlanningInput<'_>,
     call: &omega_state_calls::StateCall,
     base: usize,
-    params: &[(omega_checked_trees::name::Identifier, Option<usize>)],
+    params: &[(psi_checked_trees::name::Identifier, Option<usize>)],
 ) -> Option<usize> {
     let receiver_name = call.receiver_name.as_str();
     let source_layout = machine_layout_by_symbol(input.layouts, call.source_key.machine)?;
@@ -755,14 +755,14 @@ fn hop_receiver_base(
 fn receiver_path_offset(
     layouts: &LayoutPlan,
     source_layout: &MachineLayout,
-    field_segments: &[omega_checked_trees::name::Identifier],
+    field_segments: &[psi_checked_trees::name::Identifier],
 ) -> Option<usize> {
     // The SHARED walk (omega_layout::field_path_offset): per-instance
     // dispatch resolution and this fence agree by construction.
     omega_layout::field_path_offset(layouts, source_layout.fields, field_segments)
 }
 
-fn spelled_path(segments: &[omega_checked_trees::name::Identifier]) -> String {
+fn spelled_path(segments: &[psi_checked_trees::name::Identifier]) -> String {
     segments
         .iter()
         .map(|segment| segment.as_str())

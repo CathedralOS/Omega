@@ -18,12 +18,12 @@ use crate::selection::storage_places::{
 use omega_abstract_operations::{
     RuntimeStorageRegion, RuntimeValueOperand, SelectedInstructionKind, StateGuardOperator,
 };
-use omega_checked_trees::expression::{
-    ExpressionHandle, ExpressionNode, ExpressionTable, TableNamePath,
-};
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_layout::ENUM_TAG_BYTES;
+use psi_checked_trees::expression::{
+    ExpressionHandle, ExpressionNode, ExpressionTable, TableNamePath,
+};
 
 use super::super::static_values::{
     RuntimeStaticValues, resolve_runtime_static_integer_value_in_table,

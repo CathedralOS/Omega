@@ -1,6 +1,4 @@
 use crate::InstructionSelectionInput;
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
-use omega_checked_trees::statement::StatementNode;
 use omega_control_flow::{OperationKind, StateKey, StateParameterFlow};
 use omega_core::arena::Arena;
 use omega_runtime_bodies::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
@@ -9,6 +7,8 @@ use omega_runtime_branching::{
     RuntimeStraightLineBranchBindingKind, RuntimeStraightLineBranchExpansion,
     RuntimeStraightLineBranchOperation, RuntimeStraightLineBranchOperationKind,
 };
+use psi_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
+use psi_checked_trees::statement::StatementNode;
 
 use super::super::super::bindings::{
     RuntimeAliasBinding, RuntimeAliasBuffer, RuntimeAliasResolutionContext,
@@ -528,7 +528,7 @@ fn select_runtime_straight_line_branch_terminal_value_write(
     // frontend error).
     if matches!(
         scratch.expressions.expression(resolved_value),
-        omega_checked_trees::expression::ExpressionNode::Call(_)
+        psi_checked_trees::expression::ExpressionNode::Call(_)
     ) {
         selected_instructions.push(SelectedInstruction {
             kind: SelectedInstructionKind::EvaluateDispatchGuard {
@@ -902,7 +902,7 @@ fn fold_straight_line_prior_local_names(
                 return expression;
             }
             expressions.insert(ExpressionNode::Binary(
-                omega_checked_trees::expression::TableBinaryExpression {
+                psi_checked_trees::expression::TableBinaryExpression {
                     left,
                     operator: binary.operator,
                     right,
@@ -923,7 +923,7 @@ fn fold_straight_line_prior_local_names(
                 return expression;
             }
             expressions.insert(ExpressionNode::Unary(
-                omega_checked_trees::expression::TableUnaryExpression {
+                psi_checked_trees::expression::TableUnaryExpression {
                     operator: unary.operator,
                     operand,
                 },
@@ -943,7 +943,7 @@ fn fold_straight_line_prior_local_names(
                 return expression;
             }
             expressions.insert(ExpressionNode::Cast(
-                omega_checked_trees::expression::TableCastExpression {
+                psi_checked_trees::expression::TableCastExpression {
                     value,
                     target_type: cast.target_type,
                     target_label: cast.target_label,
@@ -2068,7 +2068,7 @@ fn resolve_leaf_call_expression_handle(
                 straight_line_bindings,
             );
             table.insert(ExpressionNode::Binary(
-                omega_checked_trees::expression::TableBinaryExpression {
+                psi_checked_trees::expression::TableBinaryExpression {
                     left,
                     operator: binary.operator,
                     right,
@@ -2086,7 +2086,7 @@ fn resolve_leaf_call_expression_handle(
                 straight_line_bindings,
             );
             table.insert(ExpressionNode::Cast(
-                omega_checked_trees::expression::TableCastExpression {
+                psi_checked_trees::expression::TableCastExpression {
                     value,
                     target_type: cast.target_type,
                     target_label: cast.target_label,
@@ -2126,7 +2126,7 @@ fn resolve_leaf_call_expression_handle(
                 table.set_expression_handle_at_offset(copied_arguments, offset, resolved);
             }
             table.insert(ExpressionNode::Call(
-                omega_checked_trees::expression::TableCallExpression {
+                psi_checked_trees::expression::TableCallExpression {
                     receiver: receiver.unwrap_or_else(ExpressionHandle::invalid),
                     target_symbol: call.target_symbol,
                     target: call.target,
@@ -2156,7 +2156,7 @@ fn resolve_leaf_call_expression_handle(
                 straight_line_bindings,
             );
             table.insert(ExpressionNode::Indexed(
-                omega_checked_trees::expression::TableIndexedExpression { collection, index },
+                psi_checked_trees::expression::TableIndexedExpression { collection, index },
             ))
         }
         ExpressionNode::Member(member) => {
@@ -2170,7 +2170,7 @@ fn resolve_leaf_call_expression_handle(
                 straight_line_bindings,
             );
             table.insert(ExpressionNode::Member(
-                omega_checked_trees::expression::TableMemberExpression {
+                psi_checked_trees::expression::TableMemberExpression {
                     receiver,
                     member_symbol: member.member_symbol,
                     member: member.member,
@@ -2225,14 +2225,14 @@ fn resolve_leaf_call_expression_handle(
                 table.set_struct_field_at_offset(
                     copied_fields,
                     offset,
-                    omega_checked_trees::expression::TableStructLiteralField {
+                    psi_checked_trees::expression::TableStructLiteralField {
                         name: field.name,
                         value,
                     },
                 );
             }
             table.insert(ExpressionNode::StructLiteral(
-                omega_checked_trees::expression::TableStructLiteral {
+                psi_checked_trees::expression::TableStructLiteral {
                     type_name: struct_literal.type_name,
                     case_name: struct_literal.case_name,
                     fields: copied_fields,
@@ -2247,7 +2247,7 @@ fn resolve_leaf_call_name_handle(
     input: &InstructionSelectionInput<'_>,
     table: &mut ExpressionTable,
     target_key: StateKey,
-    path: &omega_checked_trees::expression::TableNamePath,
+    path: &psi_checked_trees::expression::TableNamePath,
     leaf_parameters: &[StateParameterFlow],
     arguments: &[StateCallArgument],
     straight_line_bindings: &[RuntimeStraightLineBranchBinding],
@@ -2297,7 +2297,7 @@ fn leaf_local_initializer_handle(
     input: &InstructionSelectionInput<'_>,
     table: &mut ExpressionTable,
     target_key: StateKey,
-    path: &omega_checked_trees::expression::TableNamePath,
+    path: &psi_checked_trees::expression::TableNamePath,
 ) -> Option<ExpressionHandle> {
     let machine = input
         .program
@@ -2314,7 +2314,7 @@ fn leaf_local_initializer_handle(
         .statement_table
         .statements(state.statement_nodes);
     statements.iter().find_map(|statement| {
-        let omega_checked_trees::statement::StatementNode::LocalData(local_data) = statement else {
+        let psi_checked_trees::statement::StatementNode::LocalData(local_data) = statement else {
             return None;
         };
         let matches_symbol = path.head_symbol.is_valid() && local_data.symbol == path.head_symbol;

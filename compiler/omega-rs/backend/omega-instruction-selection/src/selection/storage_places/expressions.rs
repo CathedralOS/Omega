@@ -1,9 +1,9 @@
-use omega_checked_trees::expression::{
+use omega_core::symbols::SymbolHandle;
+use psi_checked_trees::expression::{
     Expression, ExpressionHandle, ExpressionNode, ExpressionTable, IndexedExpression,
     MemberExpression, NamePath, TableCallExpression,
 };
-use omega_checked_trees::name::Identifier;
-use omega_core::symbols::SymbolHandle;
+use psi_checked_trees::name::Identifier;
 
 pub(in crate::selection) fn normalized_storage_expression(
     expression: &Expression,
@@ -301,7 +301,7 @@ fn slice_view_collection_expression<'expr>(expression: &'expr Expression) -> &'e
 }
 
 fn slice_view_call_receiver_expression(
-    call: &omega_checked_trees::expression::CallExpression,
+    call: &psi_checked_trees::expression::CallExpression,
 ) -> Option<&Expression> {
     if !call.arguments.is_empty()
         || !matches!(

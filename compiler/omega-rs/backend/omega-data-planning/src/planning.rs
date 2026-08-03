@@ -7,14 +7,14 @@ use crate::static_strings::{
     local_initializer_expression,
 };
 use omega_calling_conventions::PlatformCallData;
-use omega_checked_trees::CheckedTrees;
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_platform_interface::{HostCallArgumentKind, HostCallPlan};
 use omega_runtime_branching::RuntimeBranchingCallPlan;
 use omega_runtime_text::RuntimeTextPlan;
 use omega_state_storage::StateStoragePlan;
 use omega_state_values::StateValuePlan;
 use omega_target_operations::TargetDataPlan;
+use psi_checked_trees::CheckedTrees;
+use psi_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 
 pub fn build_target_data_plan(
     program: &CheckedTrees,

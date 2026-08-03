@@ -5,12 +5,12 @@ use crate::{
     RuntimeTextBuffer, RuntimeTextBuilder, RuntimeTextBuilderSegment,
     RuntimeTextBuilderSegmentKind, RuntimeTextPlan, RuntimeTextWrite, RuntimeTextWriteKind,
 };
-use omega_checked_trees::expression::{
-    BinaryOperator, Expression, ExpressionHandle, ExpressionNode, ExpressionTable, NamePath,
-};
 use omega_core::arena::{Arena, ArenaSpanInserter, HandleSpan};
 use omega_platform_interface::HostCallPlan;
 use omega_state_storage::StateStoragePlan;
+use psi_checked_trees::expression::{
+    BinaryOperator, Expression, ExpressionHandle, ExpressionNode, ExpressionTable, NamePath,
+};
 
 const DEFAULT_RUNTIME_TEXT_OUTPUT_BUFFER_CAPACITY: usize = 256;
 

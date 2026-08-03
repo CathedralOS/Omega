@@ -20,12 +20,12 @@ use crate::selection::lookups::state_parameters;
 use omega_abstract_operations::{
     RuntimeValueOperand, SelectedInstruction, SelectedInstructionKind, StateGuardOperator,
 };
-use omega_checked_trees::expression::{
-    Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
-};
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 use omega_state_calls::{StateCallLowering, StateCallRole};
+use psi_checked_trees::expression::{
+    Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
+};
 
 use super::super::super::bindings::{
     RuntimeAliasBinding, RuntimeAliasBuffer, append_place_suffix,
@@ -78,10 +78,10 @@ pub(in crate::selection) use frame_slots::{
 };
 pub(super) use normalization::simplify_runtime_expression_with_state_locals;
 use normalization::{normalize_runtime_mutation_expression, resolve_runtime_mutation_target};
-use omega_checked_trees::types::PrimitiveType;
 use operators::{
     builtin_runtime_call_operator, runtime_binary_operator, supports_scalar_integer_write,
 };
+use psi_checked_trees::types::PrimitiveType;
 pub(super) use static_writes::select_runtime_static_mutation_write_in_table;
 pub(in crate::selection::runtime_dispatch) use value_operands::resolve_runtime_text_equals_operand_in_table;
 use value_operands::resolve_runtime_value_operand;
@@ -150,15 +150,15 @@ fn append_table_expression_path<'a>(
             return;
         }
         match expressions.expression(expression) {
-            omega_checked_trees::expression::ExpressionNode::Mutable(inner) => {
+            psi_checked_trees::expression::ExpressionNode::Mutable(inner) => {
                 append(expressions, *inner, path);
             }
-            omega_checked_trees::expression::ExpressionNode::Name(name_path) => {
+            psi_checked_trees::expression::ExpressionNode::Name(name_path) => {
                 if let Some(name) = expressions.name_path_members(name_path.members).last() {
                     path.push(name.as_str());
                 }
             }
-            omega_checked_trees::expression::ExpressionNode::Member(member) => {
+            psi_checked_trees::expression::ExpressionNode::Member(member) => {
                 append(expressions, member.receiver, path);
                 path.push(member.member.as_str());
             }
@@ -235,12 +235,12 @@ fn resolve_matching_runtime_call_result_source_place(
 fn runtime_tree_call_occurrence_rank(
     input: &InstructionSelectionInput<'_>,
     root: &Expression,
-    target_call: &omega_checked_trees::expression::CallExpression,
+    target_call: &psi_checked_trees::expression::CallExpression,
 ) -> Option<usize> {
     fn visit(
         input: &InstructionSelectionInput<'_>,
         expression: &Expression,
-        target_call: &omega_checked_trees::expression::CallExpression,
+        target_call: &psi_checked_trees::expression::CallExpression,
         target_receiver_path: &[&str],
         rank: &mut usize,
     ) -> bool {
@@ -362,7 +362,7 @@ fn resolve_runtime_tree_call_result_source_place(
     dispatch_index: u32,
     source_key: StateKey,
     statement_index: usize,
-    call: &omega_checked_trees::expression::CallExpression,
+    call: &psi_checked_trees::expression::CallExpression,
 ) -> Option<super::super::super::storage_places::RuntimeStoragePlace> {
     resolve_runtime_tree_call_result_source_place_in_expression(
         input,
@@ -380,7 +380,7 @@ fn resolve_runtime_tree_call_result_source_place_in_expression(
     source_key: StateKey,
     statement_index: usize,
     root: Option<&Expression>,
-    call: &omega_checked_trees::expression::CallExpression,
+    call: &psi_checked_trees::expression::CallExpression,
 ) -> Option<super::super::super::storage_places::RuntimeStoragePlace> {
     let mut receiver_path = Vec::new();
     if let Some(receiver) = call.receiver.as_deref() {
@@ -669,7 +669,7 @@ fn resolve_runtime_table_call_result_source_place(
     expressions: &ExpressionTable,
     root: ExpressionHandle,
     call_expression: ExpressionHandle,
-    call: &omega_checked_trees::expression::TableCallExpression,
+    call: &psi_checked_trees::expression::TableCallExpression,
     minimum_call_ordinal: Option<usize>,
 ) -> Option<super::super::super::storage_places::RuntimeStoragePlace> {
     let receiver_path = append_table_expression_path(expressions, call.receiver);
@@ -700,7 +700,7 @@ fn resolve_runtime_call_expression_result_source_place(
     dispatch_index: u32,
     source_key: StateKey,
     statement_index: usize,
-    call: &omega_checked_trees::expression::CallExpression,
+    call: &psi_checked_trees::expression::CallExpression,
     byte_count: usize,
 ) -> Option<super::super::super::storage_places::RuntimeStoragePlace> {
     resolve_runtime_tree_call_result_source_place(
@@ -752,7 +752,7 @@ fn inline_branching_call_result_for_expression<'a>(
     input: &'a InstructionSelectionInput<'_>,
     source_key: StateKey,
     statement_index: usize,
-    call: &omega_checked_trees::expression::CallExpression,
+    call: &psi_checked_trees::expression::CallExpression,
 ) -> Option<&'a omega_state_calls::StateCall> {
     let mut receiver_path = Vec::new();
     if let Some(receiver) = call.receiver.as_deref() {
@@ -823,7 +823,7 @@ fn materialize_static_inline_branching_call_argument_result(
     dispatch_index: u32,
     source_key: StateKey,
     statement_index: usize,
-    call: &omega_checked_trees::expression::CallExpression,
+    call: &psi_checked_trees::expression::CallExpression,
     static_values: &RuntimeStaticValues,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
@@ -949,7 +949,7 @@ fn materialize_static_inline_branching_state_call_argument_result(
 
 fn resolve_static_inline_branching_call_expression_value(
     input: &InstructionSelectionInput<'_>,
-    call: &omega_checked_trees::expression::CallExpression,
+    call: &psi_checked_trees::expression::CallExpression,
 ) -> Option<Expression> {
     resolve_static_inline_branching_call_expression_value_with_branch(input, call)
         .map(|(expression, _)| expression)
@@ -965,7 +965,7 @@ fn resolve_static_inline_branching_call_expression_value(
 /// Mutation fallback clobbered the first call's delivered result, TASKS.md).
 fn resolve_static_inline_branching_call_expression_value_with_branch(
     input: &InstructionSelectionInput<'_>,
-    call: &omega_checked_trees::expression::CallExpression,
+    call: &psi_checked_trees::expression::CallExpression,
 ) -> Option<(Expression, StateKey)> {
     // Candidate leaf expansions are matched by the call's TARGET STATE NAME, which
     // collides when two data types implement a same-named method (`Circle::code` /
@@ -1027,7 +1027,7 @@ fn resolve_static_inline_branching_call_expression_value_with_branch(
 fn leaf_expansion_bindings_match_call_arguments(
     input: &InstructionSelectionInput<'_>,
     expansion: &omega_runtime_branching::RuntimeLeafBranchExpansion,
-    call: &omega_checked_trees::expression::CallExpression,
+    call: &psi_checked_trees::expression::CallExpression,
 ) -> bool {
     let parameters = state_parameters(input, expansion.branch_key);
     let parameters = if parameters.len() == call.arguments.len().saturating_add(1)
@@ -1368,7 +1368,7 @@ pub(super) fn select_runtime_state_call_result_write(
 /// non-`Add` expression is a single segment.
 fn flatten_string_concat_segments(value: &Expression) -> Vec<&Expression> {
     if let Expression::Binary(binary) = value
-        && binary.operator == omega_checked_trees::expression::BinaryOperator::Add
+        && binary.operator == psi_checked_trees::expression::BinaryOperator::Add
     {
         let mut segments = flatten_string_concat_segments(&binary.left);
         segments.push(&binary.right);
@@ -1581,7 +1581,7 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
     // The length-fits guard already proved the result fits the target's N. (Handles
     // the 2-segment `runtime_text_builder` shape as the n=2 special case.)
     if let Expression::Binary(binary) = value
-        && binary.operator == omega_checked_trees::expression::BinaryOperator::Add
+        && binary.operator == psi_checked_trees::expression::BinaryOperator::Add
         && resolve_runtime_storage_place_is_bounded_byte_buffer(
             input,
             dispatch_index,
@@ -2593,7 +2593,7 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
 /// folded. Anything else (names, calls, indexes) -> None, and the caller
 /// falls through to the existing paths.
 fn fold_substituted_constant_integer(value: &Expression) -> Option<i64> {
-    use omega_checked_trees::expression::BinaryOperator;
+    use psi_checked_trees::expression::BinaryOperator;
     match value {
         Expression::Integer(literal) => literal.value_i64(),
         Expression::Mutable(inner) => fold_substituted_constant_integer(inner),
@@ -3185,7 +3185,7 @@ fn fold_static_string_tree_value(value: &Expression) -> Option<String> {
     match value {
         Expression::String(value) => Some(value.to_string()),
         Expression::Binary(binary)
-            if binary.operator == omega_checked_trees::expression::BinaryOperator::Add =>
+            if binary.operator == psi_checked_trees::expression::BinaryOperator::Add =>
         {
             let mut folded = fold_static_string_tree_value(&binary.left)?;
             folded.push_str(&fold_static_string_tree_value(&binary.right)?);

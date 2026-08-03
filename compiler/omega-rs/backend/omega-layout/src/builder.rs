@@ -4,17 +4,17 @@ use crate::{
     BitFieldFragment, BitFieldLayout, DataLayout, DataShape, FieldLayout, LayoutPlan,
     MachineLayout, TypeLayout, TypeLayoutDescriptor, VariantLayout,
 };
-use omega_checked_trees::CheckedTrees;
-use omega_checked_trees::data::{DataDefinition, DataMember, DataShapeKind};
-use omega_checked_trees::machine::Machine;
-use omega_checked_trees::trait_definition::TraitDefinition;
-use omega_checked_trees::types::{
-    FixedArrayLength, PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
-};
 use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::{BuiltinType, SymbolHandle};
 use omega_target::NativeTarget;
+use psi_checked_trees::CheckedTrees;
+use psi_checked_trees::data::{DataDefinition, DataMember, DataShapeKind};
+use psi_checked_trees::machine::Machine;
+use psi_checked_trees::trait_definition::TraitDefinition;
+use psi_checked_trees::types::{
+    FixedArrayLength, PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+};
 
 pub fn build_layout_plan(
     program: &CheckedTrees,
@@ -27,7 +27,7 @@ pub fn build_layout_plan(
     // templates are skipped. Validation has already fenced every runtime
     // consumption; anything that still demands a layout for one of these
     // downstream is a pipeline bug, caught by the visit-stack backstop.
-    let proof_only = omega_checked_trees::proof_only::classify(&program.typed);
+    let proof_only = psi_checked_trees::proof_only::classify(&program.typed);
 
     for data_definition in program.data_definitions() {
         if !data_definition.type_parameters.is_empty() {
@@ -670,7 +670,7 @@ impl<'program> LayoutBuilder<'program> {
                     .iter()
                     .any(|constraint| match constraint {
                         TypeConstraintNode::Domain(name) => {
-                            !omega_checked_trees::wire::is_layout_domain_name(name.as_str())
+                            !psi_checked_trees::wire::is_layout_domain_name(name.as_str())
                                 && omega_core::semantics::CarryPermission::from_name(name.as_str())
                                     .is_none()
                         }
@@ -1028,7 +1028,7 @@ impl<'program> LayoutBuilder<'program> {
                 // family stays a PLAIN array (see the TypeLayout arm above).
                 let has_named_domain = constraint_list.iter().any(|constraint| match constraint {
                     TypeConstraintNode::Domain(name) => {
-                        !omega_checked_trees::wire::is_layout_domain_name(name.as_str())
+                        !psi_checked_trees::wire::is_layout_domain_name(name.as_str())
                             && omega_core::semantics::CarryPermission::from_name(name.as_str())
                                 .is_none()
                     }

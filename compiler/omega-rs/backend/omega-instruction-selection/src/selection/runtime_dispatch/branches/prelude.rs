@@ -7,8 +7,6 @@ use crate::selection::host_operations::select_host_call;
 use crate::selection::instruction_sink::SelectedInstructionSink;
 use crate::selection::state_bodies::{StateBodyVisitStack, select_state_body_instructions};
 use omega_abstract_operations::{InstructionOperand, RuntimeValueOperand};
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
-use omega_checked_trees::statement::StatementNode;
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 use omega_runtime_bodies::RuntimeDispatchBodyOperation;
@@ -16,6 +14,8 @@ use omega_runtime_branching::{
     RuntimeBranchPreludeBinding, RuntimeBranchPreludeExpansion, RuntimeBranchPreludeOperationKind,
     RuntimeStraightLineBranchOperation, RuntimeStraightLineBranchOperationKind,
 };
+use psi_checked_trees::expression::{ExpressionHandle, ExpressionTable};
+use psi_checked_trees::statement::StatementNode;
 
 use super::super::super::lookups::{host_call_for_statement, state_call_for_statement};
 use super::super::text_writes::runtime_text_builder_write_in_table_emit;

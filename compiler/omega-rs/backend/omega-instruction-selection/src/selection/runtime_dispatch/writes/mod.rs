@@ -27,16 +27,16 @@ use omega_abstract_operations::{
     Place, PlaceStep, RuntimeStorageRegion, RuntimeValueOperand, SelectedInstruction,
     SelectedInstructionKind,
 };
-use omega_checked_trees::expression::{
-    ExpressionHandle, ExpressionNode, ExpressionTable, TableIndexedExpression,
-    TableMemberExpression,
-};
-use omega_checked_trees::name::Identifier;
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 use omega_core::symbols::SymbolHandle;
 use omega_layout::{DataShape, ENUM_TAG_BYTES};
 use omega_runtime_bodies::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
+use psi_checked_trees::expression::{
+    ExpressionHandle, ExpressionNode, ExpressionTable, TableIndexedExpression,
+    TableMemberExpression,
+};
+use psi_checked_trees::name::Identifier;
 pub(crate) use static_values::RuntimeStaticValues;
 use static_values::invalidate_runtime_static_value_in_table;
 
@@ -1289,7 +1289,7 @@ fn unnamed_common_field_zero_writes(
     expressions: &mut ExpressionTable,
     type_name: &Identifier,
     literal_fields: omega_core::arena::HandleSpan<
-        omega_checked_trees::expression::TableStructLiteralField,
+        psi_checked_trees::expression::TableStructLiteralField,
     >,
 ) -> Vec<(Identifier, ExpressionHandle)> {
     let Some(data_layout) = input
@@ -1324,7 +1324,7 @@ fn unnamed_common_field_zero_writes(
         // shaped (bool included).
         let zero_value = match field.type_name.as_ref() {
             "f32" | "f64" => expressions.insert(ExpressionNode::Float(
-                omega_checked_trees::expression::FloatLiteral::new(0.0),
+                psi_checked_trees::expression::FloatLiteral::new(0.0),
             )),
             _ => expressions.insert(ExpressionNode::Integer(
                 omega_core::literals::IntegerLiteral::zero(),

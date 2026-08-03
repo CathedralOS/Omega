@@ -1,9 +1,4 @@
 use crate::InstructionSelectionInput;
-use omega_checked_trees::expression::{
-    Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
-};
-use omega_checked_trees::name::Identifier;
-use omega_checked_trees::statement::StatementNode;
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 use omega_runtime_bodies::RuntimeDispatchBodyOperation;
@@ -12,6 +7,11 @@ use omega_runtime_branching::{
     RuntimeLeafBranchBinding, RuntimeLeafBranchExpansion, RuntimeLeafBranchOperationKind,
 };
 use omega_state_calls::StateCallRole;
+use psi_checked_trees::expression::{
+    Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
+};
+use psi_checked_trees::name::Identifier;
+use psi_checked_trees::statement::StatementNode;
 
 use super::super::super::bindings::resolve_leaf_binding_expression_handle;
 use super::super::super::lookups::state_mutation_for_statement;
@@ -286,7 +286,7 @@ fn select_runtime_leaf_branch_expansion(
         .span(expansion.bindings)
         .unwrap_or(&[]);
     let mut summary_expressions =
-        omega_checked_trees::expression::ExpressionTable::with_expression_capacity(8);
+        psi_checked_trees::expression::ExpressionTable::with_expression_capacity(8);
     let summary_guard = if expansion.resolved_guard.is_valid() {
         let copied = summary_expressions.copy_from(
             &input.runtime_branching_calls.expressions,
@@ -1076,7 +1076,7 @@ fn resolve_leaf_caller_local_initializer_names(
                 return expression;
             }
             expressions.insert(ExpressionNode::Binary(
-                omega_checked_trees::expression::TableBinaryExpression {
+                psi_checked_trees::expression::TableBinaryExpression {
                     left,
                     operator: binary.operator,
                     right,
@@ -1096,7 +1096,7 @@ fn resolve_leaf_caller_local_initializer_names(
                 return expression;
             }
             expressions.insert(ExpressionNode::Cast(
-                omega_checked_trees::expression::TableCastExpression {
+                psi_checked_trees::expression::TableCastExpression {
                     value,
                     target_type: cast.target_type,
                     target_label: cast.target_label,
@@ -1143,7 +1143,7 @@ fn resolve_leaf_caller_local_initializer_names(
                 return expression;
             }
             expressions.insert(ExpressionNode::Call(
-                omega_checked_trees::expression::TableCallExpression {
+                psi_checked_trees::expression::TableCallExpression {
                     receiver,
                     target_symbol: call.target_symbol,
                     target: call.target.clone(),
@@ -1184,7 +1184,7 @@ fn resolve_leaf_caller_local_initializer_names(
                 }
             }
             expressions.insert(ExpressionNode::Member(
-                omega_checked_trees::expression::TableMemberExpression {
+                psi_checked_trees::expression::TableMemberExpression {
                     receiver,
                     member_symbol: member.member_symbol,
                     member: member.member.clone(),
@@ -1231,7 +1231,7 @@ fn resolve_leaf_caller_local_initializer_names(
                 expressions.set_struct_field_at_offset(
                     copied_fields,
                     offset,
-                    omega_checked_trees::expression::TableStructLiteralField {
+                    psi_checked_trees::expression::TableStructLiteralField {
                         name: field.name,
                         value: resolved,
                     },
@@ -1241,7 +1241,7 @@ fn resolve_leaf_caller_local_initializer_names(
                 return expression;
             }
             expressions.insert(ExpressionNode::StructLiteral(
-                omega_checked_trees::expression::TableStructLiteral {
+                psi_checked_trees::expression::TableStructLiteral {
                     type_name: struct_literal.type_name,
                     case_name: struct_literal.case_name,
                     fields: copied_fields,
@@ -1544,7 +1544,7 @@ fn local_initializer_handle(
     table: &mut ExpressionTable,
     source_key: StateKey,
     statement_index: usize,
-) -> Option<omega_checked_trees::expression::ExpressionHandle> {
+) -> Option<psi_checked_trees::expression::ExpressionHandle> {
     table.clear();
     let machine = input
         .program
@@ -1791,8 +1791,8 @@ fn runtime_leaf_machine_integer_write_in_table(
     input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeLeafBranchExpansion,
     expressions: &ExpressionTable,
-    target: omega_checked_trees::expression::ExpressionHandle,
-    value_expression: omega_checked_trees::expression::ExpressionHandle,
+    target: psi_checked_trees::expression::ExpressionHandle,
+    value_expression: psi_checked_trees::expression::ExpressionHandle,
 ) -> Option<(usize, usize, i64)> {
     let (byte_offset, byte_size) = resolve_machine_owned_place_in_table(
         &input.layouts,

@@ -1,11 +1,11 @@
 use super::context::RuntimeDispatchLoopContext;
 use super::guards::{dispatch_guard_comparison, dispatch_guard_expression};
 use super::model::{RuntimeDispatchLoopAction, RuntimeDispatchLoopEdge};
-use omega_checked_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use omega_control_flow::StateKey;
 use omega_state_dispatch::DispatchState;
 use omega_state_graph::RuntimeTransitionTarget;
 use omega_state_guards::{StateGuardLowering, StateGuardOperator};
+use psi_checked_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(super) struct CollectedRuntimeDispatchLoopCase {
@@ -97,7 +97,7 @@ pub(super) fn runtime_dispatch_loop_edges<'context>(
 }
 
 fn guard_disjuncts(
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
     expression: ExpressionHandle,
 ) -> Vec<ExpressionHandle> {
     if !expression.is_valid() {

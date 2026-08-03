@@ -1,9 +1,9 @@
 use crate::InstructionSelectionInput;
-use omega_checked_trees::expression::ExpressionTable;
-use omega_checked_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use omega_control_flow::{OperationKind, PlannedTransitionTarget, StateKey};
 use omega_core::arena::{Arena, HandleSpan};
 use omega_state_schedule::{ScheduledState, ScheduledStateCollector};
+use psi_checked_trees::expression::ExpressionTable;
+use psi_checked_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 
 use super::bindings::{
     RuntimeAliasBinding, RuntimeAliasBuffer, RuntimeAliasResolutionContext,
@@ -713,7 +713,7 @@ fn select_assignment_value_call_terminal_fallback_write(
     source_key: StateKey,
     statement_index: usize,
     target_source_key: StateKey,
-    resolved_target: omega_checked_trees::expression::ExpressionHandle,
+    resolved_target: psi_checked_trees::expression::ExpressionHandle,
     expressions: &mut ExpressionTable,
     static_values: &mut super::runtime_dispatch::RuntimeStaticValues,
     mutable_expressions: &mut ExpressionTable,
@@ -978,7 +978,7 @@ fn local_initializer_handle(
     table: &mut ExpressionTable,
     source_key: StateKey,
     statement_index: usize,
-) -> Option<omega_checked_trees::expression::ExpressionHandle> {
+) -> Option<psi_checked_trees::expression::ExpressionHandle> {
     let machine = input
         .program
         .machines()
@@ -1006,7 +1006,7 @@ fn local_initializer_handle(
 fn terminal_state_value_expression(
     input: &InstructionSelectionInput<'_>,
     target_key: StateKey,
-) -> Option<omega_checked_trees::expression::ExpressionHandle> {
+) -> Option<psi_checked_trees::expression::ExpressionHandle> {
     let machine = input
         .program
         .machines()
@@ -1052,7 +1052,7 @@ fn follow_transition_target(
     aliases: &RuntimeAliasBuffer,
     alias_expressions: &ExpressionTable,
     target: &PlannedTransitionTarget,
-    target_arguments: HandleSpan<omega_checked_trees::expression::ExpressionHandle>,
+    target_arguments: HandleSpan<psi_checked_trees::expression::ExpressionHandle>,
     operands: &mut Arena<InstructionOperand>,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
@@ -1101,7 +1101,7 @@ fn bind_transition_target_aliases(
     input: &InstructionSelectionInput<'_>,
     current_key: StateKey,
     target_key: StateKey,
-    target_arguments: HandleSpan<omega_checked_trees::expression::ExpressionHandle>,
+    target_arguments: HandleSpan<psi_checked_trees::expression::ExpressionHandle>,
     aliases: &RuntimeAliasBuffer,
     alias_expressions: &ExpressionTable,
 ) -> (RuntimeAliasBuffer, ExpressionTable) {

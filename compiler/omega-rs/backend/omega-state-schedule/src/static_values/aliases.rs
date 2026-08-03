@@ -1,5 +1,5 @@
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 pub(crate) use omega_platform_interface::PlaceKey;
+use psi_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 
 pub(crate) fn argument_binding_place_key(
     table: &ExpressionTable,

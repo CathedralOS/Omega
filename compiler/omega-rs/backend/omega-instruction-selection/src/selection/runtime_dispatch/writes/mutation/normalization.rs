@@ -3,9 +3,9 @@ use crate::selection::bindings::{
     RuntimeAliasBinding, RuntimeResolvedExpression, resolve_runtime_alias_binding,
 };
 use crate::selection::storage_places::resolve_runtime_pointee_slot_offset;
-use omega_checked_trees::expression::{Expression, ExpressionTable};
 use omega_control_flow::StateKey;
 use omega_state_values::simplify_state_expression;
+use psi_checked_trees::expression::{Expression, ExpressionTable};
 
 pub(in crate::selection::runtime_dispatch::writes) fn simplify_runtime_expression_with_state_locals(
     input: &InstructionSelectionInput<'_>,

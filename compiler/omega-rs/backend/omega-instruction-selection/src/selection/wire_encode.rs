@@ -31,11 +31,11 @@ use crate::selection::instruction_sink::SelectedInstructionSink;
 use omega_abstract_operations::{
     RuntimeStorageRegion, SelectedInstruction, SelectedInstructionKind,
 };
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
-use omega_checked_trees::statement::StatementNode;
-use omega_checked_trees::wire::{WireFieldEncoding, WireMember, WirePlacement, wire_varint_bytes};
 use omega_control_flow::StateKey;
 use omega_core::symbols::SymbolHandle;
+use psi_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
+use psi_checked_trees::statement::StatementNode;
+use psi_checked_trees::wire::{WireFieldEncoding, WireMember, WirePlacement, wire_varint_bytes};
 
 use super::storage_places::{RuntimeStoragePlace, resolve_runtime_storage_place_in_table};
 
@@ -65,8 +65,8 @@ enum WireFieldContent {
     /// wire scratch before replay. Fixed arrays append every element;
     /// FixedVec guards each unrolled index against its intrinsic length.
     Repeated {
-        carrier: omega_checked_trees::wire::WireRepeatedCarrier,
-        element: omega_checked_trees::wire::WireScalarEncoding,
+        carrier: psi_checked_trees::wire::WireRepeatedCarrier,
+        element: psi_checked_trees::wire::WireScalarEncoding,
         base: RuntimeStoragePlace,
         count: Option<RuntimeStoragePlace>,
         max_count: usize,
@@ -75,7 +75,7 @@ enum WireFieldContent {
     /// `{ptr, element_count}` descriptor; one dynamic operation retains and
     /// realizes the plan's two-pass work/capacity obligation.
     ScalarSlice {
-        element: omega_checked_trees::wire::WireScalarEncoding,
+        element: psi_checked_trees::wire::WireScalarEncoding,
         descriptor: RuntimeStoragePlace,
     },
 }
@@ -322,7 +322,7 @@ pub(super) fn select_wire_encode_call(
                 for index in 0..*max_count {
                     let source_offset = base.byte_offset + index * element.byte_size;
                     match carrier {
-                        omega_checked_trees::wire::WireRepeatedCarrier::FixedArray => {
+                        psi_checked_trees::wire::WireRepeatedCarrier::FixedArray => {
                             push(SelectedInstructionKind::AppendWireScalarVarint {
                                 source_region: base.region,
                                 source_offset,
@@ -334,7 +334,7 @@ pub(super) fn select_wire_encode_call(
                                 written_offset: cursor_offset,
                             });
                         }
-                        omega_checked_trees::wire::WireRepeatedCarrier::FixedVec => {
+                        psi_checked_trees::wire::WireRepeatedCarrier::FixedVec => {
                             let count = count
                                 .as_ref()
                                 .expect("FixedVec repeated field carries its length place");
@@ -515,7 +515,7 @@ fn collect_field_appends(
     source_key: StateKey,
     expressions: &mut ExpressionTable,
     receiver: ExpressionHandle,
-    schema: &omega_checked_trees::wire::WireSchema,
+    schema: &psi_checked_trees::wire::WireSchema,
     allow_nested: bool,
     text_descriptor_size: usize,
 ) -> Option<Vec<WireFieldAppend>> {
@@ -525,7 +525,7 @@ fn collect_field_appends(
             continue;
         };
         let member_handle = expressions.insert(ExpressionNode::Member(
-            omega_checked_trees::expression::TableMemberExpression {
+            psi_checked_trees::expression::TableMemberExpression {
                 receiver,
                 member_symbol: SymbolHandle::invalid(),
                 member: field.name.clone(),
@@ -540,10 +540,10 @@ fn collect_field_appends(
                 return None;
             }
             let (base_handle, count_handle) = match repeated.carrier {
-                omega_checked_trees::wire::WireRepeatedCarrier::FixedArray => (member_handle, None),
-                omega_checked_trees::wire::WireRepeatedCarrier::FixedVec => {
+                psi_checked_trees::wire::WireRepeatedCarrier::FixedArray => (member_handle, None),
+                psi_checked_trees::wire::WireRepeatedCarrier::FixedVec => {
                     let items = expressions.insert(ExpressionNode::Member(
-                        omega_checked_trees::expression::TableMemberExpression {
+                        psi_checked_trees::expression::TableMemberExpression {
                             receiver: member_handle,
                             member_symbol: SymbolHandle::invalid(),
                             member: "items".into(),
@@ -551,7 +551,7 @@ fn collect_field_appends(
                         },
                     ));
                     let length = expressions.insert(ExpressionNode::Member(
-                        omega_checked_trees::expression::TableMemberExpression {
+                        psi_checked_trees::expression::TableMemberExpression {
                             receiver: member_handle,
                             member_symbol: SymbolHandle::invalid(),
                             member: "length".into(),
