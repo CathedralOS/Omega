@@ -472,6 +472,83 @@ fn checked_source_runtime_integer_policy_operations_survive_frontend_drop() {
     }
 }
 
+#[test]
+fn checked_source_conditional_survives_frontend_drop() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("terminal-Psi conditional source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_runtime_conditional")
+        .expect("ordered source conditional should lower");
+    drop(checked);
+
+    let semantic_bytes = encode_module(&lowered.semantic_module)
+        .expect("source conditional should encode canonically");
+    let proof_bytes = encode_proof_bundle(&lowered.proof_bundle)
+        .expect("source conditional proof should encode canonically");
+    drop(lowered);
+    let semantic_module = decode_module(&semantic_bytes).expect("decode source conditional");
+    let proof_bundle = decode_proof_bundle(&proof_bytes).expect("decode source conditional proof");
+    let verified = verify_module(
+        &semantic_module,
+        &proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("source conditional should verify after frontend drop");
+    assert_eq!(semantic_module.semantic_version.get(), 13);
+    assert!(matches!(
+        derive_fixed_entry_fuel(&verified, semantic_module.entry),
+        Err(psi_terminal_fixed_fuel::FixedFuelError::BranchingNotYetSupported(_))
+    ));
+
+    let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    for (condition, expected, selected, unselected) in [
+        (
+            true,
+            17_u128,
+            EdgeId::new(1).unwrap(),
+            EdgeId::new(2).unwrap(),
+        ),
+        (false, 29, EdgeId::new(2).unwrap(), EdgeId::new(1).unwrap()),
+    ] {
+        let measured = interpret_terminal_measured(
+            &verified,
+            &[
+                TerminalScalarValue::Boolean(condition),
+                TerminalScalarValue::Integer {
+                    scalar_type: u8_type,
+                    value: IntegerValue::Unsigned(17),
+                },
+                TerminalScalarValue::Integer {
+                    scalar_type: u8_type,
+                    value: IntegerValue::Unsigned(29),
+                },
+            ],
+        )
+        .expect("selected source conditional arm should execute");
+        assert_eq!(measured.usage().total_units(), 2);
+        assert!(
+            measured
+                .usage()
+                .at(FuelChargeSite::Edge(selected))
+                .is_some()
+        );
+        assert_eq!(measured.usage().at(FuelChargeSite::Edge(unselected)), None);
+        assert_eq!(
+            measured.value(),
+            TerminalScalarValue::Integer {
+                scalar_type: u8_type,
+                value: IntegerValue::Unsigned(expected),
+            }
+        );
+    }
+
+    let abstract_operations = lower_verified_module(&verified)
+        .expect("source conditional should cross the Omega abstract boundary");
+    assert!(matches!(
+        abstract_operations.functions[0].operations[0],
+        TerminalAbstractOperation::Conditional { .. }
+    ));
+}
+
 #[cfg(unix)]
 #[test]
 fn source_closed_integer_chain_matches_emitted_host_machine_code() {

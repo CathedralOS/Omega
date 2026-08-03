@@ -59,8 +59,9 @@ value use; proof reconstruction retains only facts common to every return
 path. The canonical codec round-trips both ordered successors, the interpreter
 executes and charges only the selected edge, and Omega's source-independent
 abstract plan retains canonical block entries and both successor records.
-Checked-source conditional production, restricted branch-bound certificates,
-and target/native block lowering remain implementation work.
+The checked-source producer lowers one exact direct-binding conditional form.
+Restricted branch-bound certificates and target/native block lowering remain
+implementation work.
 
 The checked-frontend migration also keeps the ownership firewall explicit:
 `psi-checked-trees` now owns the target-neutral checked representation and
@@ -79,7 +80,7 @@ Omega concerns, and Omega orchestration runs that admission explicitly after
 the Psi check.
 
 The first Psi-owned terminal source producer is live as
-`psi-checked-trees-to-terminal`. It accepts three exact free-machine forms. A
+`psi-checked-trees-to-terminal`. It accepts four exact free-machine forms. A
 Boolean machine may return a literal or one exact named parameter from any
 sequence of ordinary Boolean parameters, either directly or through a
 nonempty linear sequence of unconditional state bindings. Every non-entry
@@ -100,7 +101,12 @@ must exactly match its target parameter type; later expressions may use any
 same-typed bound parameter and landed literals. When the whole chain is compile-known,
 the producer independently recomputes its result and rejects an unrelated
 reflexive contract. Both integer paths use the settled Wrapping or Saturating
-domains. All three forms require a matching closed
+domains. The conditional integer form has one entry plus two branch states. Its
+first arm is the positive pattern of one Boolean entry parameter or literal,
+its second arm is the unconditional fallback, and each successor binds one
+already-defined integer entry parameter to a one-parameter branch state that
+returns it directly. This preserves source ordering without speculatively
+computing branch-local work. All four forms require a matching closed
 `requires`/`ensures` pair. The producer rejects all other checked-tree shapes,
 including selected domain-owned operator meanings. The source canary lowers
 all six versioned integer-policy operations in both constant-fed and
@@ -109,6 +115,9 @@ three-state Boolean chain carrying its ninth parameter, a closed three-state
 integer chain, a direct zero-parameter integer literal, plus a nine-parameter
 integer direct return, discards
 `CheckedTrees`, then verifies and executes the produced semantic modules.
+The source conditional likewise survives frontend disposal, selects both arms,
+charges only the taken edge, and crosses Omega's abstract boundary with both
+successors intact; fixed-work and target lowering continue to refuse it.
 Constant-fed wrapping add and the Boolean literal reach emitted host machine
 code; direct ninth `bool` and `u8` returns cross the host incoming-stack ABI;
 and runtime wrapping add
@@ -226,8 +235,8 @@ and obligation subjects point to the exact authored `ensures` fact site rather
 than the enclosing machine declaration. The real-source
 canary encodes and manifests the debug section,
 drops checked trees, and decodes it against the reconstructed semantic module.
-Checked-source conditional production, target/native conditional lowering, the
-remaining arithmetic-policy variants, general register assignment, general
+Target/native conditional lowering, the remaining arithmetic-policy variants,
+general register assignment, general
 safe-point/branch fixed-work checking, build-time fuel migration, and native
 fuel metering remain next.
 The v5 wrapping-subtract canary independently round-trips, verifies,

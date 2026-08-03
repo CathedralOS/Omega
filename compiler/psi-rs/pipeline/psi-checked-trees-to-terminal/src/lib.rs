@@ -39,8 +39,8 @@ use psi_proof_kernel::{EvidenceRoute, PrimitiveJudgment};
 use psi_terminal::{
     Block, ClaimContentProjection, ContentIdentityReshuffle, ContentPartitionComposition,
     ContentPlaceSubstitution, ContractClause, MachineContract, Operation, OperationKind,
-    SemanticVersion, StructuralPlaceDeclaration, TerminalMachine, TerminalModule, Terminator,
-    ValueDeclaration,
+    SemanticVersion, StructuralPlaceDeclaration, SuccessorEdge, TerminalMachine, TerminalModule,
+    Terminator, ValueDeclaration,
 };
 use psi_terminal_codec::{
     DebugFileId, DebugSite, DebugSourceFile, DebugSourceOrigin, DebugSourceSpan, DebugSubject,
@@ -819,10 +819,166 @@ fn lower_selected_machine(
     {
         return lower_boolean_state_chain(checked, machine, states);
     }
+    if states.len() == 3 && entry_has_ordered_boolean_conditional(checked, &states[0]) {
+        return lower_integer_conditional_machine(checked, machine, states);
+    }
     if states.len() >= 2 {
         return lower_integer_state_chain(checked, machine, states);
     }
     unsupported("machine must contain at least one state")
+}
+
+fn entry_has_ordered_boolean_conditional(
+    checked: &CheckedTrees,
+    entry: &psi_checked_trees::state::State,
+) -> bool {
+    matches!(
+        checked.statement_table.statements(entry.statement_nodes),
+        [
+            StatementNode::Transition(first),
+            StatementNode::Transition(second)
+        ] if matches!(first.guard, TransitionGuardNode::When(_))
+            && second.guard == TransitionGuardNode::Always
+    )
+}
+
+fn lower_integer_conditional_machine(
+    checked: &CheckedTrees,
+    machine: &psi_checked_trees::machine::Machine,
+    states: &[psi_checked_trees::state::State],
+) -> Result<LoweredTerminalPsi, LoweringError> {
+    let [entry, when_true_state, when_false_state] = states else {
+        unreachable!("conditional source shape requires exactly three states")
+    };
+    if states
+        .iter()
+        .any(|state| !checked.state_contracts(state).is_empty())
+    {
+        return unsupported("conditional state contracts are not supported");
+    }
+    let entry_parameters = checked.state_parameters(entry);
+    if entry_parameters
+        .iter()
+        .any(|parameter| parameter.is_self || parameter.is_const || parameter.is_mutable)
+    {
+        return unsupported("qualified conditional machine parameters are not supported");
+    }
+    let parameter_types = entry_parameters
+        .iter()
+        .map(|parameter| {
+            terminal_scalar_type(
+                checked
+                    .primitive_type_reference(parameter.type_reference)
+                    .ok_or(LoweringError::Unsupported(
+                        "conditional parameters must be primitive Boolean or integer values",
+                    ))?,
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let result_type =
+        integer_scalar_type(checked.primitive_type_reference(entry.return_type).ok_or(
+            LoweringError::Unsupported("conditional result must be a primitive integer"),
+        )?)?;
+
+    let statements = checked.statement_table.statements(entry.statement_nodes);
+    let [
+        StatementNode::Transition(when_true),
+        StatementNode::Transition(when_false),
+    ] = statements
+    else {
+        unreachable!("conditional source shape was selected above")
+    };
+    let TransitionGuardNode::When(condition) = when_true.guard else {
+        unreachable!("conditional source shape requires a guarded first arm")
+    };
+    if when_true.continuation.is_valid() || when_false.continuation.is_valid() {
+        return unsupported("conditional transitions cannot carry continuations");
+    }
+    let condition = lower_positive_boolean_guard(checked, condition, entry_parameters)?;
+    if let LoweredBooleanReturnExpression::Parameter { position } = condition
+        && parameter_types[position] != ScalarType::Boolean
+    {
+        return unsupported("conditional guard parameter must be Boolean");
+    }
+
+    let branch_argument = |transition: &psi_checked_trees::statement::TableTransition,
+                           expected_state: &psi_checked_trees::state::State|
+     -> Result<usize, LoweringError> {
+        let TransitionTargetNode::Named { path, arguments } =
+            checked.statement_table.transition_target(transition.target)
+        else {
+            return unsupported("conditional successors must target named states");
+        };
+        if path.symbol != expected_state.symbol {
+            return unsupported("conditional successors must follow declared true/false order");
+        }
+        let [argument] = checked.statement_table.expression_handles(*arguments) else {
+            return unsupported("each conditional successor must bind exactly one value");
+        };
+        let ExpressionNode::Name(path) = checked.expression_table.expression(*argument) else {
+            return unsupported(
+                "conditional successor bindings currently require an already-defined parameter",
+            );
+        };
+        let position = direct_parameter_position(checked, path, entry_parameters)?;
+        if parameter_types[position] != result_type {
+            return unsupported("conditional successor argument must match the result type");
+        }
+        Ok(position)
+    };
+    let when_true_argument = branch_argument(when_true, when_true_state)?;
+    let when_false_argument = branch_argument(when_false, when_false_state)?;
+
+    for state in [when_true_state, when_false_state] {
+        if integer_scalar_type(checked.primitive_type_reference(state.return_type).ok_or(
+            LoweringError::Unsupported("conditional branch result must be a primitive integer"),
+        )?)? != result_type
+        {
+            return unsupported("conditional branch result types must match exactly");
+        }
+        let [parameter] = checked.state_parameters(state) else {
+            return unsupported("each conditional branch state must bind exactly one parameter");
+        };
+        if parameter.is_self || parameter.is_const || parameter.is_mutable {
+            return unsupported("qualified conditional branch parameters are not supported");
+        }
+        if integer_scalar_type(
+            checked
+                .primitive_type_reference(parameter.type_reference)
+                .ok_or(LoweringError::Unsupported(
+                    "conditional branch parameter must be a primitive integer",
+                ))?,
+        )? != result_type
+        {
+            return unsupported("conditional branch parameter must match the result type");
+        }
+        let [StatementNode::Expression(return_expression)] =
+            checked.statement_table.statements(state.statement_nodes)
+        else {
+            return unsupported("conditional branch state must directly return its parameter");
+        };
+        let ExpressionNode::Name(path) = checked.expression_table.expression(*return_expression)
+        else {
+            return unsupported("conditional branch state must directly return its parameter");
+        };
+        if direct_parameter_position(checked, path, std::slice::from_ref(parameter))? != 0 {
+            unreachable!("one branch parameter can only have position zero")
+        }
+    }
+
+    let contract_value = validate_contract(checked, machine, result_type, None)?;
+    let (identity_reshuffles, partition_compositions) =
+        lower_content_evidence(checked, machine, entry)?;
+    Ok(build_integer_conditional_module(
+        &parameter_types,
+        condition,
+        when_true_argument,
+        when_false_argument,
+        result_type,
+        contract_value,
+        identity_reshuffles,
+        partition_compositions,
+    ))
 }
 
 fn lower_integer_state_chain(
@@ -1138,6 +1294,31 @@ fn lower_boolean_expression(
             position: direct_parameter_position(checked, path, parameters)?,
         }),
         _ => unsupported("Boolean terminal expressions require a literal or declared parameter"),
+    }
+}
+
+fn lower_positive_boolean_guard(
+    checked: &CheckedTrees,
+    expression: psi_checked_trees::expression::ExpressionHandle,
+    parameters: &[psi_checked_trees::signature::StateParameter],
+) -> Result<LoweredBooleanReturnExpression, LoweringError> {
+    let ExpressionNode::Binary(binary) = checked.expression_table.expression(expression) else {
+        return lower_boolean_expression(checked, expression, parameters);
+    };
+    if binary.operator != BinaryOperator::Equal {
+        return unsupported("conditional guards require a positive Boolean pattern");
+    }
+    match (
+        checked.expression_table.expression(binary.left),
+        checked.expression_table.expression(binary.right),
+    ) {
+        (ExpressionNode::Boolean(true), _) => {
+            lower_boolean_expression(checked, binary.right, parameters)
+        }
+        (_, ExpressionNode::Boolean(true)) => {
+            lower_boolean_expression(checked, binary.left, parameters)
+        }
+        _ => unsupported("conditional guards require a positive Boolean pattern"),
     }
 }
 
@@ -1550,6 +1731,13 @@ fn integer_scalar_type(primitive: PrimitiveType) -> Result<ScalarType, LoweringE
         .map_err(|_| LoweringError::InvalidPsiIntegerType)
 }
 
+fn terminal_scalar_type(primitive: PrimitiveType) -> Result<ScalarType, LoweringError> {
+    match primitive {
+        PrimitiveType::Bool => Ok(ScalarType::Boolean),
+        primitive => integer_scalar_type(primitive),
+    }
+}
+
 fn integer_value(
     literal: &psi_numerics::literals::IntegerLiteral,
     scalar_type: ScalarType,
@@ -1583,6 +1771,150 @@ fn integer_value(
         return Err(LoweringError::IntegerLiteralOutsidePsiType);
     }
     Ok(value)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_integer_conditional_module(
+    parameter_types: &[ScalarType],
+    condition: LoweredBooleanReturnExpression,
+    when_true_argument: usize,
+    when_false_argument: usize,
+    result_type: ScalarType,
+    contract_value: IntegerValue,
+    identity_reshuffles: LoweredContentIdentityReshuffles,
+    partition_compositions: LoweredContentPartitionCompositions,
+) -> LoweredTerminalPsi {
+    let parameters = parameter_types
+        .iter()
+        .enumerate()
+        .map(|(index, scalar_type)| ValueDeclaration {
+            id: value_id(
+                u64::try_from(index)
+                    .expect("parameter index fits a semantic identity")
+                    .checked_add(1)
+                    .expect("parameter identity is nonzero"),
+            ),
+            scalar_type: *scalar_type,
+        })
+        .collect::<Vec<_>>();
+    let mut next_value_identity = u64::try_from(parameters.len())
+        .expect("parameter count fits a semantic identity")
+        .checked_add(1)
+        .expect("generated identities follow parameter identities");
+    let mut entry_operations = Vec::new();
+    let condition = emit_boolean_expression(
+        &condition,
+        &parameters,
+        &mut next_value_identity,
+        &mut entry_operations,
+    );
+    let true_parameter = ValueDeclaration {
+        id: value_id(next_value_identity),
+        scalar_type: result_type,
+    };
+    next_value_identity = next_value_identity
+        .checked_add(1)
+        .expect("false branch parameter follows true branch parameter");
+    let false_parameter = ValueDeclaration {
+        id: value_id(next_value_identity),
+        scalar_type: result_type,
+    };
+    next_value_identity = next_value_identity
+        .checked_add(1)
+        .expect("result follows branch parameters");
+    let result = ValueDeclaration {
+        id: value_id(next_value_identity),
+        scalar_type: result_type,
+    };
+
+    let ScalarType::Integer(integer_type) = result_type else {
+        unreachable!("conditional source slice has an integer result")
+    };
+    let literal = ScalarTerm::integer(integer_type, contract_value)
+        .expect("validated source contract fits the result type");
+    let goal = Proposition::Equal(literal.clone(), literal);
+    let obligation = obligation_id(1);
+    let mut structural_places = identity_reshuffles
+        .structural_places
+        .into_iter()
+        .map(|place| (place.id, place.kind))
+        .collect::<BTreeMap<_, _>>();
+    for place in partition_compositions.structural_places {
+        merge_content_place_declaration(&mut structural_places, place)
+            .expect("checked lowering rejects conflicting structural places");
+    }
+
+    LoweredTerminalPsi {
+        semantic_module: TerminalModule {
+            semantic_version: SemanticVersion::CURRENT,
+            entry: machine_id(1),
+            machines: vec![TerminalMachine {
+                id: machine_id(1),
+                parameters: parameters.clone(),
+                result,
+                structural_places: structural_places
+                    .into_iter()
+                    .map(|(id, kind)| StructuralPlaceDeclaration { id, kind })
+                    .collect(),
+                content_identity_reshuffles: identity_reshuffles.reshuffles,
+                content_partition_compositions: partition_compositions.compositions,
+                entry: block_id(1),
+                blocks: vec![
+                    Block {
+                        id: block_id(1),
+                        parameters: Vec::new(),
+                        operations: entry_operations,
+                        terminator: Terminator::Conditional {
+                            condition,
+                            when_true: SuccessorEdge {
+                                edge: edge_id(1),
+                                target: block_id(2),
+                                arguments: vec![parameters[when_true_argument].id],
+                            },
+                            when_false: SuccessorEdge {
+                                edge: edge_id(2),
+                                target: block_id(3),
+                                arguments: vec![parameters[when_false_argument].id],
+                            },
+                        },
+                    },
+                    Block {
+                        id: block_id(2),
+                        parameters: vec![true_parameter],
+                        operations: Vec::new(),
+                        terminator: Terminator::Return {
+                            edge: edge_id(3),
+                            value: true_parameter.id,
+                        },
+                    },
+                    Block {
+                        id: block_id(3),
+                        parameters: vec![false_parameter],
+                        operations: Vec::new(),
+                        terminator: Terminator::Return {
+                            edge: edge_id(4),
+                            value: false_parameter.id,
+                        },
+                    },
+                ],
+                contract: MachineContract {
+                    id: contract_id(1),
+                    requires: vec![goal.clone()],
+                    ensures: vec![ContractClause {
+                        obligation,
+                        proposition: goal,
+                    }],
+                },
+            }],
+        },
+        proof_bundle: ProofBundle {
+            evidence: vec![ObligationEvidence {
+                obligation,
+                route: EvidenceRoute::KernelDerived(PrimitiveJudgment::ClosedIntegerRelation),
+            }],
+        },
+        debug_map: None,
+    }
 }
 
 fn build_boolean_module(
@@ -2245,13 +2577,18 @@ fn build_debug_map(
             DebugSubject::Block(block.id),
             checked.symbols.symbol_source_span(source_state.symbol),
         );
-        let transition_span = source_transition_span_for_state(checked, source_state)
-            .filter(|span| *span != psi_source::SourceSpan::default())
-            .filter(|span| checked.symbols.source_file(*span).is_some());
-        push(
-            DebugSubject::Edge(block.terminator.edge()),
-            transition_span.or_else(|| checked.symbols.symbol_source_span(source_state.symbol)),
-        );
+        let transition_spans = source_transition_spans_for_state(checked, source_state);
+        for (edge_index, edge) in block.terminator.edges().enumerate() {
+            let transition_span = transition_spans
+                .get(edge_index)
+                .copied()
+                .filter(|span| *span != psi_source::SourceSpan::default())
+                .filter(|span| checked.symbols.source_file(*span).is_some());
+            push(
+                DebugSubject::Edge(edge),
+                transition_span.or_else(|| checked.symbols.symbol_source_span(source_state.symbol)),
+            );
+        }
         let operation_spans = source_operation_spans_for_state(checked, source_state);
         for (operation_index, operation) in block.operations.iter().enumerate() {
             let source_span = operation_spans
@@ -2396,18 +2733,19 @@ fn source_ensures_span_for_machine(
     Some(checked.expression_table.source_span(*expression))
 }
 
-fn source_transition_span_for_state(
+fn source_transition_spans_for_state(
     checked: &CheckedTrees,
     state: &psi_checked_trees::state::State,
-) -> Option<psi_source::SourceSpan> {
+) -> Vec<psi_source::SourceSpan> {
     checked
         .statement_table
         .statements(state.statement_nodes)
         .iter()
-        .find_map(|statement| match statement {
+        .filter_map(|statement| match statement {
             StatementNode::Transition(transition) => Some(transition.source_span),
             _ => None,
         })
+        .collect()
 }
 
 fn source_operation_spans_for_state(
@@ -2421,6 +2759,9 @@ fn source_operation_spans_for_state(
                 collect_source_operation_spans(checked, *expression, &mut spans);
             }
             StatementNode::Transition(transition) => {
+                if let TransitionGuardNode::When(guard) = transition.guard {
+                    collect_source_operation_spans(checked, guard, &mut spans);
+                }
                 if let TransitionTargetNode::Named { arguments, .. } =
                     checked.statement_table.transition_target(transition.target)
                 {
