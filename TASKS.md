@@ -781,7 +781,10 @@ Remaining:
   call-scoped borrows from reference-shaped ABI parameters; require storage
   used after return to move into an ordinary linear protocol claim; infer the
   consumed-input-to-produced-claim mapping through resource conservation; and
-  preserve exact provider-era dependencies as compiler-owned claim metadata;
+  preserve exact provider-era dependencies as compiler-owned claim metadata.
+  The fixed-array pointer-form import canary now mutates its owner immediately
+  after the synchronous leaf returns, pinning the reference-shaped ABI loan as
+  call-scoped rather than retained;
 - add the provider-view dual for foreign-owned storage, using ordinary borrows
   where all invalidators require exclusive access and explicit claims where
   runtime protocol events end validity;
