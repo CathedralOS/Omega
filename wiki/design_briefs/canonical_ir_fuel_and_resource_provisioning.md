@@ -143,6 +143,11 @@ segments neither omit nor double-charge a jump. The current-vocabulary semantic
 safe-point selector now returns the complete ordered partition at every
 explicit jump/return edge; validation rejects omitted or reordered segments.
 Build-time migration, branch/loop certificates, and native metering remain.
+Attributed response reporting additionally waits on executable terminal
+wait/foreign-edge variants carrying their response-contract status. The current
+total operation plus unconditional jump/return vocabulary can close a bounded
+report, but it cannot recompute `NoFiniteGuarantee(edge)` from semantics; a
+producer-authored edge attribution would not satisfy the verification model.
 
 ## Context
 
