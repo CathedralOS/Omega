@@ -1,10 +1,10 @@
 use omega_core::diagnostics::Diagnostic;
-use omega_layout_plans::{
-    ByteOrder, MaterializationAction, RelocationTarget, SymbolicMaterializationPlan,
-};
 use omega_object_file::{
     ObjectSymbolHandle, RelocationKind, RelocationOrigin, RelocationPlan, RelocationRecord,
     SectionKind,
+};
+use psi_layout_plans::{
+    ByteOrder, MaterializationAction, RelocationTarget, SymbolicMaterializationPlan,
 };
 
 /// Appends only the loader-native relocation actions from a symbolic
@@ -93,12 +93,12 @@ pub fn append_native_materialization_relocations(
 mod tests {
     use super::append_native_materialization_relocations;
     use omega_core::arena::Handle;
-    use omega_layout_plans::{
+    use omega_object_file::{RelocationKind, RelocationOrigin, RelocationPlan, SectionKind};
+    use omega_target::NativeTarget;
+    use psi_layout_plans::{
         ByteOrder, EntryStubId, MaterializationAction, PlacementConstraints, PlacementPhase,
         RelocationTarget, SymbolicMaterializationPlan,
     };
-    use omega_object_file::{RelocationKind, RelocationOrigin, RelocationPlan, SectionKind};
-    use omega_target::NativeTarget;
 
     #[test]
     fn native_pointer_action_becomes_a_data_relocation_with_materialization_origin() {

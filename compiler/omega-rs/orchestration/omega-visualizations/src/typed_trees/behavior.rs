@@ -1,10 +1,10 @@
 use omega_core::semantics::{OperationalMaySummary, ServiceReachRowTable, ServiceReachSummary};
 use omega_core::symbols::SymbolHandle;
-use omega_effects::{
+use psi_effects::{
     CallOperational, MachineOperational, OperationalPlan, ServiceReachInferencePlan,
     StateOperational,
 };
-use omega_typed_trees::TypedTrees;
+use psi_typed_trees::TypedTrees;
 
 /// The typed-tree report's normalized behavior view. Service identities and
 /// operational possibilities stay independent; the legacy flat effect set is
@@ -16,8 +16,8 @@ pub(super) struct TypedBehaviorPlan {
 
 impl TypedBehaviorPlan {
     pub(super) fn infer(program: &TypedTrees) -> Self {
-        let operations = omega_effects::infer_operational_may(program);
-        let service_reaches = omega_effects::infer_service_reaches(program, &operations);
+        let operations = psi_effects::infer_operational_may(program);
+        let service_reaches = psi_effects::infer_service_reaches(program, &operations);
         Self {
             operations,
             service_reaches,

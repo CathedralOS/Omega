@@ -685,6 +685,24 @@ fn omega_driver_invokes_the_psi_frontend_directly() {
 }
 
 #[test]
+fn psi_owned_plan_adapters_have_no_workspace_consumers() {
+    let graph = load_graph();
+
+    for adapter in ["omega-access-plans", "omega-extents", "omega-layout-plans"] {
+        let consumers = graph
+            .iter()
+            .filter(|(_, krate)| krate.deps.iter().any(|dependency| dependency == adapter))
+            .map(|(name, _)| name.as_str())
+            .collect::<Vec<_>>();
+        assert!(
+            consumers.is_empty(),
+            "Psi-owned plan compatibility package {adapter} must not remain in the workspace dependency graph; consumers: {}",
+            consumers.join(", ")
+        );
+    }
+}
+
+#[test]
 fn omega_provider_selection_consumes_psi_frontend_directly() {
     let graph = load_graph();
     let effects = graph
@@ -710,6 +728,55 @@ fn omega_provider_selection_consumes_psi_frontend_directly() {
             "Omega provider selection must consume Psi-owned input {psi_input} directly"
         );
     }
+}
+
+#[test]
+fn omega_visualizations_consume_psi_semantics_directly() {
+    let graph = load_graph();
+    let visualizations = graph
+        .get("omega-visualizations")
+        .expect("omega-visualizations must remain in the governed workspace graph");
+
+    for stale_adapter in [
+        "omega-checked-trees",
+        "omega-facts",
+        "omega-symbol-resolved-trees",
+        "omega-syntax-trees",
+        "omega-typed-trees",
+    ] {
+        assert!(
+            !visualizations
+                .deps
+                .iter()
+                .any(|dependency| dependency == stale_adapter),
+            "Omega visualization must consume Psi directly instead of semantic compatibility package {stale_adapter}"
+        );
+    }
+
+    for psi_input in [
+        "psi-checked-trees",
+        "psi-effects",
+        "psi-facts",
+        "psi-symbol-resolved-trees",
+        "psi-syntax-trees",
+        "psi-typed-trees",
+    ] {
+        assert!(
+            visualizations
+                .deps
+                .iter()
+                .any(|dependency| dependency == psi_input),
+            "Omega visualization must consume Psi-owned semantic input {psi_input} directly"
+        );
+    }
+
+    assert!(
+        visualizations
+            .deps
+            .iter()
+            .any(|dependency| dependency == "omega-effects"),
+        "Omega visualization must retain the Omega-owned selected-provider-plan input"
+    );
 }
 
 #[test]

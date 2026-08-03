@@ -2,12 +2,12 @@ use omega_core::diagnostics::Diagnostic;
 use omega_executable_installation::{
     ArtifactRelocationKind, DecodedArtifactRelocation, ValidatedArtifactContainer,
 };
-use omega_layout_plans::RelocationTarget;
 use omega_object_file::{
     ObjectSymbolHandle, RelocationKind, RelocationOrigin, RelocationPlan, RelocationRecord,
     SectionKind,
 };
 use omega_target::Architecture;
+use psi_layout_plans::RelocationTarget;
 
 /// Translate a semantically validated Omega artifact relocation set into the
 /// existing target-object relocation plan. Symbol resolution stays behind a
@@ -130,8 +130,8 @@ mod tests {
         normalized_decoded_content_identity, normalized_proof_payload_identity,
         validate_decoded_container,
     };
-    use omega_layout_plans::{EntryStubId, PlacementConstraints, PlacementPhase};
     use omega_target::NativeTarget;
+    use psi_layout_plans::{EntryStubId, PlacementConstraints, PlacementPhase};
 
     fn id<T>(
         identity: u64,

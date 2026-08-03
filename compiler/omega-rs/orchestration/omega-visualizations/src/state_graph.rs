@@ -7,7 +7,7 @@ use omega_state_graph::{
     StateBorrowEventSource, StateBorrowLoan, StateBorrowWeakening, StateBorrowWeakeningReason,
     StateGraph, StateKey, StateNode, TransitionEdge,
 };
-use omega_typed_trees::expression::ExpressionHandle;
+use psi_typed_trees::expression::ExpressionHandle;
 
 pub fn state_graph_html(graph: &StateGraph) -> String {
     let mut diagram = PhaseDiagramBuilder::new("state_graph");
@@ -369,7 +369,7 @@ fn borrow_place_label(
     machine: &MachineGraph,
     state: &StateNode,
     root_symbol: SymbolHandle,
-    segments: omega_core::arena::HandleSpan<omega_facts::PlaceSegment>,
+    segments: omega_core::arena::HandleSpan<psi_facts::PlaceSegment>,
 ) -> String {
     let mut label = symbol_name_for_state(graph, machine, state, root_symbol);
     for segment in graph
@@ -379,20 +379,20 @@ fn borrow_place_label(
         .span_or_empty(segments)
     {
         match segment {
-            omega_facts::PlaceSegment::Field { symbol } => {
+            psi_facts::PlaceSegment::Field { symbol } => {
                 label.push('.');
                 label.push_str(&symbol_name_for_state(graph, machine, state, *symbol));
             }
-            omega_facts::PlaceSegment::Case { variant } => {
+            psi_facts::PlaceSegment::Case { variant } => {
                 label.push_str("::");
                 label.push_str(&symbol_name_for_state(graph, machine, state, *variant));
             }
-            omega_facts::PlaceSegment::FixedIndex { index } => {
+            psi_facts::PlaceSegment::FixedIndex { index } => {
                 label.push('[');
                 label.push_str(&index.to_string());
                 label.push(']');
             }
-            omega_facts::PlaceSegment::Index { expression } => {
+            psi_facts::PlaceSegment::Index { expression } => {
                 label.push('[');
                 label.push_str(&expression_label(graph, *expression));
                 label.push(']');

@@ -591,9 +591,9 @@ fn fingerprint_placement(fingerprint: &mut u64, placement: PlacementConstraints)
     fingerprint_bytes(
         fingerprint,
         &[match placement.phase() {
-            omega_layout_plans::PlacementPhase::Build => 1,
-            omega_layout_plans::PlacementPhase::Load => 2,
-            omega_layout_plans::PlacementPhase::PostHandoff => 3,
+            psi_layout_plans::PlacementPhase::Build => 1,
+            psi_layout_plans::PlacementPhase::Load => 2,
+            psi_layout_plans::PlacementPhase::PostHandoff => 3,
         }],
     );
     if let Some(regime) = placement.machine_regime() {
@@ -720,7 +720,7 @@ mod tests {
             declared_footprint: footprint,
             placement_plan: placement,
             placement_constraints: PlacementConstraints::unconstrained(
-                omega_layout_plans::PlacementPhase::Load,
+                psi_layout_plans::PlacementPhase::Load,
             ),
             entry_set,
             entries: vec![ArtifactEntry::from_canonical_decode(entry, 16)],
@@ -798,7 +798,7 @@ mod tests {
         );
         assert_eq!(
             container.artifact().placement_constraints(),
-            PlacementConstraints::unconstrained(omega_layout_plans::PlacementPhase::Load)
+            PlacementConstraints::unconstrained(psi_layout_plans::PlacementPhase::Load)
         );
     }
 
