@@ -1161,6 +1161,54 @@ pub fn decode_scalar_layout(
             fragment.source_lsb,
             fragment.width,
         )?;
+        if let LayoutPlacementReport::IntegerAt {
+            stored_width,
+            interpretation,
+            ..
+        } = entry.placement
+        {
+            let stored_width = u16::try_from(stored_width).map_err(|_| {
+                MaterializationDiagnostic(format!(
+                    "scalar field `{}` has an invalid stored-integer width",
+                    entry.field
+                ))
+            })?;
+            if stored_width == 0
+                || stored_width > 64
+                || !stored_width.is_multiple_of(8)
+                || *width_bits < stored_width
+            {
+                return Err(MaterializationDiagnostic(format!(
+                    "scalar field `{}` cannot decode {stored_width}-bit stored-integer storage into its {}-bit semantic carrier",
+                    entry.field, *width_bits
+                )));
+            }
+            if *covered != 0 {
+                return Err(MaterializationDiagnostic(format!(
+                    "scalar field `{}` has more than one stored-integer decode entry",
+                    entry.field
+                )));
+            }
+            let container_bytes = usize::from(fragment.container_width_bits / 8);
+            let start = usize::try_from(fragment.container_byte_offset).map_err(|_| {
+                MaterializationDiagnostic(
+                    "stored-integer offset cannot be represented on this host".into(),
+                )
+            })?;
+            let end = start.checked_add(container_bytes).ok_or_else(|| {
+                MaterializationDiagnostic("stored-integer byte range overflows".into())
+            })?;
+            let stored = read_container(&source[start..end], byte_order) & low_mask(stored_width);
+            *value = match interpretation {
+                IntegerInterpretation::Unsigned => stored,
+                IntegerInterpretation::Signed if stored & (1_u64 << (stored_width - 1)) != 0 => {
+                    stored | (low_mask(*width_bits) & !low_mask(stored_width))
+                }
+                IntegerInterpretation::Signed => stored,
+            };
+            *covered = low_mask(*width_bits);
+            continue;
+        }
         let source_mask = low_mask(fragment.width) << fragment.source_lsb;
         if *covered & source_mask != 0 {
             return Err(MaterializationDiagnostic(format!(
@@ -1260,10 +1308,24 @@ pub fn derive_symbolic_materialization(
         for entry in entries {
             let write = write_from_entry(entry, symbolic)?;
             let action = match resolved {
-                Some(source_value) => MaterializationAction::ResolvedWrite {
-                    write,
-                    source_value,
-                },
+                Some(source_value) => {
+                    validate_stored_integer_bits(
+                        entry,
+                        symbolic.width_bits,
+                        source_value,
+                        "symbolic",
+                    )?;
+                    MaterializationAction::ResolvedWrite {
+                        write,
+                        source_value,
+                    }
+                }
+                None if matches!(entry.placement, LayoutPlacementReport::IntegerAt { .. }) => {
+                    return Err(MaterializationDiagnostic(format!(
+                        "symbolic field `{}` uses stored-integer placement without a concrete fit proof",
+                        symbolic.field
+                    )));
+                }
                 None if context.consumption == ConsumptionInstant::AfterOmegaHandoff => {
                     MaterializationAction::RuntimeWriter(write)
                 }
@@ -1322,12 +1384,11 @@ fn write_from_entry(
             0,
             u64::from(symbolic.width_bits),
         ),
-        LayoutPlacementReport::IntegerAt { .. } => {
-            return Err(MaterializationDiagnostic(format!(
-                "symbolic field `{}` uses stored-integer placement without a concrete fit proof",
-                symbolic.field
-            )));
-        }
+        LayoutPlacementReport::IntegerAt {
+            offset,
+            stored_width,
+            ..
+        } => (offset, stored_width, 0, 0, stored_width),
         LayoutPlacementReport::Bits {
             container,
             container_width,
@@ -1389,6 +1450,7 @@ fn apply_scalar_entry(
     entry: &LayoutFieldEntryReport,
     value: &ScalarFieldValue,
 ) -> Result<(), MaterializationDiagnostic> {
+    validate_stored_integer_value(entry, value)?;
     let fragment = scalar_fragment(entry, value.width_bits)?;
     validate_fragment(
         bytes.len(),
@@ -1433,12 +1495,11 @@ fn scalar_fragment(
             0,
             u64::from(source_width_bits),
         ),
-        LayoutPlacementReport::IntegerAt { .. } => {
-            return Err(MaterializationDiagnostic(format!(
-                "scalar field `{}` uses stored-integer placement without a concrete fit proof",
-                entry.field
-            )));
-        }
+        LayoutPlacementReport::IntegerAt {
+            offset,
+            stored_width,
+            ..
+        } => (offset, stored_width, 0, 0, stored_width),
         LayoutPlacementReport::Bits {
             container,
             container_width,
@@ -1491,6 +1552,76 @@ fn scalar_fragment(
             ))
         })?,
     })
+}
+
+fn validate_stored_integer_value(
+    entry: &LayoutFieldEntryReport,
+    value: &ScalarFieldValue,
+) -> Result<(), MaterializationDiagnostic> {
+    validate_stored_integer_bits(entry, value.width_bits, value.value, "scalar")
+}
+
+fn validate_stored_integer_bits(
+    entry: &LayoutFieldEntryReport,
+    source_width_bits: u16,
+    source_value: u64,
+    value_kind: &str,
+) -> Result<(), MaterializationDiagnostic> {
+    let LayoutPlacementReport::IntegerAt {
+        stored_width,
+        interpretation,
+        ..
+    } = entry.placement
+    else {
+        return Ok(());
+    };
+    let stored_width = u16::try_from(stored_width).map_err(|_| {
+        MaterializationDiagnostic(format!(
+            "{value_kind} field `{}` has an invalid stored-integer width",
+            entry.field,
+        ))
+    })?;
+    if stored_width == 0 || stored_width > 64 || !stored_width.is_multiple_of(8) {
+        return Err(MaterializationDiagnostic(format!(
+            "{value_kind} field `{}` has an invalid {stored_width}-bit stored-integer width",
+            entry.field
+        )));
+    }
+    if source_width_bits < stored_width {
+        return Err(MaterializationDiagnostic(format!(
+            "{value_kind} field `{}` has a {source_width_bits}-bit value narrower than its {stored_width}-bit storage",
+            entry.field,
+        )));
+    }
+
+    let fits = match interpretation {
+        IntegerInterpretation::Signed => {
+            let semantic = signed_bits(source_value, source_width_bits);
+            let magnitude = 1_i128 << (stored_width - 1);
+            semantic >= -magnitude && semantic < magnitude
+        }
+        IntegerInterpretation::Unsigned => source_value <= low_mask(stored_width),
+    };
+    if !fits {
+        return Err(MaterializationDiagnostic(format!(
+            "{value_kind} field `{}` value {source_value:#x} does not fit its {stored_width}-bit {} storage",
+            entry.field,
+            match interpretation {
+                IntegerInterpretation::Signed => "signed",
+                IntegerInterpretation::Unsigned => "unsigned",
+            }
+        )));
+    }
+    Ok(())
+}
+
+fn signed_bits(value: u64, width: u16) -> i128 {
+    let value = value & low_mask(width);
+    if value & (1_u64 << (width - 1)) == 0 {
+        i128::from(value)
+    } else {
+        i128::from(value) - (1_i128 << width)
+    }
 }
 
 fn apply_write(
@@ -1877,6 +2008,111 @@ mod tests {
     }
 
     #[test]
+    fn ordinary_scalar_materializer_round_trips_stored_integers() {
+        let layout = LayoutPlanReport {
+            schema_identity: 1,
+            entries: vec![
+                LayoutFieldEntryReport {
+                    field: "signed".into(),
+                    member_identity: None,
+                    placement: LayoutPlacementReport::IntegerAt {
+                        offset: 0,
+                        stored_width: 8,
+                        interpretation: IntegerInterpretation::Signed,
+                    },
+                },
+                LayoutFieldEntryReport {
+                    field: "unsigned".into(),
+                    member_identity: None,
+                    placement: LayoutPlacementReport::IntegerAt {
+                        offset: 1,
+                        stored_width: 16,
+                        interpretation: IntegerInterpretation::Unsigned,
+                    },
+                },
+            ],
+            offsets: None,
+            size: Some(3),
+            align: 1,
+        };
+        let values = [
+            ScalarFieldValue::new("signed", 64, (-9_i64) as u64).expect("signed"),
+            ScalarFieldValue::new("unsigned", 64, 0x1234).expect("unsigned"),
+        ];
+
+        let mut little_endian = [0xa5_u8; 3];
+        materialize_scalar_layout_into(
+            &layout,
+            &values,
+            ByteOrder::LittleEndian,
+            &mut little_endian,
+        )
+        .expect("proved-fit stored integers should materialize");
+        assert_eq!(little_endian, [0xf7, 0x34, 0x12]);
+
+        let decoded = decode_scalar_layout(
+            &layout,
+            &[
+                ScalarFieldSchema::new("signed", 64).expect("signed schema"),
+                ScalarFieldSchema::new("unsigned", 64).expect("unsigned schema"),
+            ],
+            ByteOrder::LittleEndian,
+            &little_endian,
+        )
+        .expect("stored integers should decode into their semantic carriers");
+        let decoded = decoded
+            .iter()
+            .map(|field| (field.field.as_str(), field.value))
+            .collect::<std::collections::BTreeMap<_, _>>();
+        assert_eq!(decoded["signed"], (-9_i64) as u64);
+        assert_eq!(decoded["unsigned"], 0x1234);
+
+        let mut big_endian = [0xa5_u8; 3];
+        materialize_scalar_layout_into(&layout, &values, ByteOrder::BigEndian, &mut big_endian)
+            .expect("stored integers should honor the selected byte order");
+        assert_eq!(big_endian, [0xf7, 0x12, 0x34]);
+    }
+
+    #[test]
+    fn ordinary_scalar_stored_integer_write_is_fit_checked_and_atomic() {
+        let layout = LayoutPlanReport {
+            schema_identity: 1,
+            entries: vec![LayoutFieldEntryReport {
+                field: "value".into(),
+                member_identity: None,
+                placement: LayoutPlacementReport::IntegerAt {
+                    offset: 0,
+                    stored_width: 8,
+                    interpretation: IntegerInterpretation::Signed,
+                },
+            }],
+            offsets: None,
+            size: Some(1),
+            align: 1,
+        };
+        let mut bytes = [0xa5_u8];
+        let error = materialize_scalar_layout_into(
+            &layout,
+            &[ScalarFieldValue::new("value", 64, 128).expect("wide value")],
+            ByteOrder::LittleEndian,
+            &mut bytes,
+        )
+        .expect_err("a value outside signed byte storage must reject");
+        assert!(error.0.contains("does not fit"), "{}", error.0);
+        assert_eq!(bytes, [0xa5], "rejection must not partially materialize");
+
+        let error = materialize_scalar_layout_into(
+            &layout,
+            &[ScalarFieldValue::new("value", 4, 7).expect("narrow value")],
+            ByteOrder::LittleEndian,
+            &mut bytes,
+        )
+        .expect_err("a semantic carrier narrower than storage must reject");
+        assert!(error.0.contains("narrower"), "{}", error.0);
+        assert_eq!(bytes, [0xa5]);
+    }
+
+    #[test]
     fn scalar_materialization_is_complete_and_atomic() {
         let layout = LayoutPlanReport {
             schema_identity: 1,
@@ -2216,6 +2452,70 @@ mod tests {
 
         assert_eq!(&bytes[0..4], &[0x88, 0x77, 0x66, 0x55]);
         assert_eq!(&bytes[8..12], &[0x44, 0x33, 0x22, 0x11]);
+    }
+
+    #[test]
+    fn symbolic_stored_integer_requires_a_resolved_fitting_value() {
+        let layout = LayoutPlanReport {
+            schema_identity: 1,
+            entries: vec![LayoutFieldEntryReport {
+                field: "address".into(),
+                member_identity: None,
+                placement: LayoutPlacementReport::IntegerAt {
+                    offset: 0,
+                    stored_width: 32,
+                    interpretation: IntegerInterpretation::Unsigned,
+                },
+            }],
+            offsets: None,
+            size: Some(4),
+            align: 4,
+        };
+        let symbolic = SymbolicFieldValue::new("address", 64, entry()).expect("symbolic field");
+        let context = MaterializationContext {
+            consumption: ConsumptionInstant::BeforeOmegaEntry,
+            byte_order: ByteOrder::LittleEndian,
+            native_pointer_relocation_bits: Some(64),
+            placement: PlacementConstraints::unconstrained(PlacementPhase::Load),
+        };
+        let plan = derive_symbolic_materialization(
+            &layout,
+            std::slice::from_ref(&symbolic),
+            context,
+            |_| Some(0x1234_5678),
+        )
+        .expect("a resolved fitting symbolic value supplies a concrete fit proof");
+        let mut bytes = [0xa5_u8; 4];
+        plan.materialize_resolved_into(&mut bytes)
+            .expect("the resolved value should use the exact stored width");
+        assert_eq!(bytes, [0x78, 0x56, 0x34, 0x12]);
+
+        let error = derive_symbolic_materialization(
+            &layout,
+            std::slice::from_ref(&symbolic),
+            context,
+            |_| Some(1_u64 << 32),
+        )
+        .expect_err("an out-of-range symbolic value must reject");
+        assert!(error.0.contains("does not fit"), "{}", error.0);
+
+        let error = derive_symbolic_materialization(
+            &layout,
+            &[symbolic],
+            MaterializationContext {
+                consumption: ConsumptionInstant::AfterOmegaHandoff,
+                byte_order: ByteOrder::LittleEndian,
+                native_pointer_relocation_bits: None,
+                placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
+            },
+            |_| None,
+        )
+        .expect_err("an unresolved runtime address has no concrete fit proof");
+        assert!(
+            error.0.contains("without a concrete fit proof"),
+            "{}",
+            error.0
+        );
     }
 
     #[test]

@@ -447,9 +447,13 @@ Psi-proved fitting value authorizes the assignment; unconstrained writes reject.
 Typed aggregate aliases still require identical representations. By-value
 boundary classification derives each stored-integer leaf's physical width and
 alignment from the validated encoding metadata, while semantic projection
-retains responsibility for sign or zero extension after landing. Ordinary
-scalar resolution still rejects rather than treating `IntegerAt` as `At` or
-truncating through the scalar materializer.
+retains responsibility for sign or zero extension after landing. The
+target-neutral ordinary scalar materializer now accepts a concrete value only
+after checking signed or unsigned fit, writes the exact stored width in either
+byte order, and decodes with the retained extension rule. Rejection leaves the
+destination unchanged. A compiler/provider-resolved symbolic value uses the
+same fit check; unresolved symbolic `IntegerAt` materialization remains
+fail-closed.
 The admitted `compact_binary` realization now derives bounded repeated framing
 from carrier semantics: `[T; N]` contributes exactly `N` elements and
 `FixedVec<T, N>` contributes its intrinsic live length up to `N`; the retired

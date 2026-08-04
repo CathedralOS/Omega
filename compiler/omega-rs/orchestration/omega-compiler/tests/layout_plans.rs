@@ -518,6 +518,31 @@ machine Main::main(&mut self) { }
             .expect("unsigned stored integer metadata")
             .write_is_total
     );
+
+    let values = [
+        ScalarFieldValue::new("seconds", 64, (-9_i64) as u64).expect("signed value"),
+        ScalarFieldValue::new("inode", 64, 0xfedc_ba98).expect("unsigned value"),
+    ];
+    let mut bytes = [0xa5_u8; 8];
+    materialize_scalar_layout_into(&report, &values, ByteOrder::LittleEndian, &mut bytes)
+        .expect("concrete fitting values should use the validated IntegerAt encoding");
+    assert_eq!(bytes, [0xf7, 0xff, 0xff, 0xff, 0x98, 0xba, 0xdc, 0xfe]);
+    let decoded = decode_scalar_layout(
+        &report,
+        &[
+            ScalarFieldSchema::new("seconds", 64).expect("signed schema"),
+            ScalarFieldSchema::new("inode", 64).expect("unsigned schema"),
+        ],
+        ByteOrder::LittleEndian,
+        &bytes,
+    )
+    .expect("the validated IntegerAt encoding should decode into semantic carriers");
+    let decoded = decoded
+        .iter()
+        .map(|field| (field.field.as_str(), field.value))
+        .collect::<std::collections::BTreeMap<_, _>>();
+    assert_eq!(decoded["seconds"], (-9_i64) as u64);
+    assert_eq!(decoded["inode"], 0xfedc_ba98);
 }
 
 #[test]

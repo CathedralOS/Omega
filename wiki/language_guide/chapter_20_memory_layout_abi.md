@@ -659,6 +659,13 @@ semantic carrier. The field remains a physical aggregate leaf during transfer;
 ordinary field projection performs the retained sign or zero extension after
 the value lands.
 
+The target-neutral scalar materializer applies the same rule to concrete named
+values. It checks fit before changing the destination, emits exactly the stored
+bytes in the selected byte order, and its inverse decoder extends back into the
+declared semantic width. A compiler/provider-resolved symbolic value passes the
+same fit check. An unresolved symbolic value is not a concrete fit proof and
+therefore cannot use `IntegerAt` materialization.
+
 Encodability alone does not authorize a transfer: sub-unit mutation must also
 have a legal implementation. Stable exclusive storage may use one bounded
 read-patch-write sequence. External storage requires a whole-container or
