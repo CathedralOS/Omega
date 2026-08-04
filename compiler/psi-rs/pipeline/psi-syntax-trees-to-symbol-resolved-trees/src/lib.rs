@@ -15,6 +15,7 @@ mod machine;
 mod measure;
 mod name;
 mod operator;
+mod proposition;
 mod service_reaches;
 mod state;
 mod statement;

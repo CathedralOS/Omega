@@ -1635,7 +1635,14 @@ and allocation handles expose no compiler-owned stack/control storage.
      dedicated syntax nodes, deep-copy/source-identity/snapshot retention, and
      reject runtime return or executable/ambiguous body shapes. The syntax to
      resolved boundary deliberately fails closed until its dedicated
-     proposition symbol and proof-static binder telescope land;
+     proposition symbol and proof-static binder telescope land. Resolved slice
+     landed 2026-08-03: proposition declarations now receive a distinct root
+     `Proposition` symbol, value parameters and type/const binders retain
+     lexical symbols, and machine-index binders receive a deliberately
+     non-callable `PropositionMachineParameter` identity. Witness types and
+     direct transparent proposition expansions resolve in that telescope;
+     typed lowering fails closed until proposition application and normalized
+     proof identity land;
   2. add the proof stratum to selected-conformance projection and permit
      by-value `dyn` only when the complete normalized value has no runtime
      carrier;

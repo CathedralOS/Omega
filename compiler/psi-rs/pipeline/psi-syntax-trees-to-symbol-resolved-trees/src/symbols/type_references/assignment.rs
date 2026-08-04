@@ -102,6 +102,61 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
         );
     });
 
+    let proposition_binders = &mut program.tables.declarations.proposition_binders;
+    let state_parameters = &mut program.tables.declarations.state_parameters;
+    program.roots.propositions.for_each_mut(|proposition| {
+        // The shared type-reference walker needs only lexical name/symbol
+        // pairs. Build an ephemeral view; the durable proposition telescope
+        // remains its own proof-static representation and never becomes an
+        // executable machine generic.
+        let local_binders = proposition_binders
+            .span_or_empty(proposition.binders)
+            .iter()
+            .map(|binder| psi_symbol_resolved_trees::data::TypeParameter {
+                symbol: binder.symbol,
+                name: binder.name.clone(),
+                kind: psi_symbol_resolved_trees::data::TypeParameterKind::Type,
+                bounds: binder.bounds,
+            })
+            .collect::<Vec<_>>();
+
+        for binder in proposition_binders.span_mut_or_empty(proposition.binders) {
+            let psi_symbol_resolved_trees::proposition::PropositionBinderKind::Const {
+                type_reference,
+            } = &mut binder.kind
+            else {
+                continue;
+            };
+            assign_type_reference_symbol_with_locals_and_constraints(
+                symbols,
+                child_type_references,
+                type_constraints,
+                &local_binders,
+                type_reference,
+            );
+        }
+        for parameter in state_parameters.span_mut_or_empty(proposition.parameters) {
+            assign_type_reference_symbol_with_locals_and_constraints(
+                symbols,
+                child_type_references,
+                type_constraints,
+                &local_binders,
+                &mut parameter.type_reference,
+            );
+        }
+        if let psi_symbol_resolved_trees::proposition::PropositionBody::Witness { evidence } =
+            &mut proposition.body
+        {
+            assign_type_reference_symbol_with_locals_and_constraints(
+                symbols,
+                child_type_references,
+                type_constraints,
+                &local_binders,
+                evidence,
+            );
+        }
+    });
+
     program.roots.conformances.for_each_mut(|conformance| {
         assign_type_reference_argument_symbols_with_constraints(
             symbols,

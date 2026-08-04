@@ -2,12 +2,14 @@ mod builtin;
 mod data;
 mod machines;
 mod operators;
+mod propositions;
 mod traits;
 
 pub(super) use builtin::insert_builtin_type_symbol_children;
 pub(super) use data::insert_data_symbol_children;
 pub(super) use machines::insert_machine_symbol_children;
 pub(super) use operators::{insert_domain_symbol_children, insert_operator_symbol_children};
+pub(super) use propositions::insert_proposition_symbol_children;
 pub(super) use traits::insert_trait_symbol_children;
 
 use psi_symbol_resolved_trees::SymbolResolvedTrees;

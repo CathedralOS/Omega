@@ -148,6 +148,51 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
         }
     }
 
+    for proposition in &program.propositions {
+        count_declaration_name(&proposition.name, &mut counts);
+        for binder in program
+            .tables
+            .declarations
+            .proposition_binders
+            .span_or_empty(proposition.binders)
+        {
+            count_declaration_name(&binder.name, &mut counts);
+            if let crate::proposition::PropositionBinderKind::Const { type_reference } =
+                &binder.kind
+            {
+                count_type_reference(
+                    type_reference,
+                    child_type_references,
+                    expression_table,
+                    &mut counts,
+                );
+            }
+        }
+        for parameter in program.state_parameters(proposition.parameters) {
+            count_declaration_name(&parameter.name, &mut counts);
+            count_type_reference(
+                &parameter.type_reference,
+                child_type_references,
+                expression_table,
+                &mut counts,
+            );
+        }
+        match &proposition.body {
+            crate::proposition::PropositionBody::Primitive => {}
+            crate::proposition::PropositionBody::Witness { evidence } => {
+                count_type_reference(
+                    evidence,
+                    child_type_references,
+                    expression_table,
+                    &mut counts,
+                );
+            }
+            crate::proposition::PropositionBody::Transparent { proposition } => {
+                count_expression_handle(expression_table, *proposition, &mut counts);
+            }
+        }
+    }
+
     for machine in &program.machines {
         count_declaration_name(&machine.name, &mut counts);
         for parameter in program.machine_type_parameters(machine) {

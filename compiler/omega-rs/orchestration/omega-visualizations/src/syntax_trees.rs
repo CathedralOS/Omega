@@ -371,6 +371,7 @@ fn item_kind(item: &Item) -> &'static str {
         Item::Module(_) => "module",
         Item::Operator(_) => "operator",
         Item::Package(_) => "package",
+        Item::Proposition(_) => "proposition",
         Item::WireData(_) => "wire_data",
         Item::Trait(_) => "trait",
         _ => "state",
@@ -499,6 +500,20 @@ fn item_label(syntax: &SyntaxTrees, item: &Item) -> String {
                 .collect::<Vec<_>>()
                 .join(".");
             format!("package {path}\nsegments: {}", value.path.len())
+        }
+        Item::Proposition(value) => {
+            let body = match value.body {
+                psi_syntax_trees::item::PropositionBody::Primitive => "primitive",
+                psi_syntax_trees::item::PropositionBody::Witness { .. } => "witness",
+                psi_syntax_trees::item::PropositionBody::Transparent { .. } => "transparent",
+            };
+            format!(
+                "proposition {}\nbinders: {}\nparameters: {}\nbody: {}",
+                value.name.as_str(),
+                value.type_parameters.len(),
+                value.parameters.len(),
+                body
+            )
         }
         Item::Trait(value) => {
             let prefix = if value.is_boundary {

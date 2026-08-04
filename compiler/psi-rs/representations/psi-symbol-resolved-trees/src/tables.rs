@@ -46,6 +46,7 @@ impl SymbolResolvedTreeTables {
             machine_states,
             trait_machine_signatures,
             operator_definitions,
+            proposition_binders,
             state_parameters,
             statement_path_members,
             state_statements,
@@ -74,6 +75,37 @@ impl SymbolResolvedTreeTables {
                 tables.insert_operator(
                     operator,
                     state_parameters,
+                    child_type_references,
+                    type_constraints,
+                    source_expressions,
+                );
+            }
+        }
+
+        for proposition in &roots.propositions {
+            for binder in proposition_binders.span_or_empty(proposition.binders) {
+                if let crate::proposition::PropositionBinderKind::Const { type_reference } =
+                    &binder.kind
+                {
+                    tables.insert_type_reference(
+                        type_reference,
+                        child_type_references,
+                        type_constraints,
+                        source_expressions,
+                    );
+                }
+            }
+            for parameter in state_parameters.span_or_empty(proposition.parameters) {
+                tables.insert_type_reference(
+                    &parameter.type_reference,
+                    child_type_references,
+                    type_constraints,
+                    source_expressions,
+                );
+            }
+            if let crate::proposition::PropositionBody::Witness { evidence } = &proposition.body {
+                tables.insert_type_reference(
+                    evidence,
                     child_type_references,
                     type_constraints,
                     source_expressions,

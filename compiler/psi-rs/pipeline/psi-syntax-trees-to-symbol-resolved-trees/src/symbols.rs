@@ -13,6 +13,7 @@ mod domain_facts;
 mod expression_paths;
 mod expressions;
 mod lookup;
+mod propositions;
 mod scope;
 mod scoped_paths;
 mod statements;
@@ -29,6 +30,7 @@ pub(crate) fn assign_symbols(program: &mut SymbolResolvedTrees, sources: Option<
     let symbols = build_symbol_table(program, sources);
     assign_top_level_symbols(program, &symbols);
     assign_type_reference_symbols(program, &symbols);
+    propositions::assign_proposition_expression_symbols(program, &symbols);
     assign_contract_reference_symbols(program, &symbols);
     assign_domain_fact_symbols(program, &symbols);
     assign_statement_reference_symbols(program, &symbols);
