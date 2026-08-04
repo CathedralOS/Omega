@@ -2124,9 +2124,12 @@ ordinary code never receives a raw executable address.
   validation, interpreter projection and write-back, native pointee lowering,
   and relocation. Each assignment still requires total-write evidence or a
   Psi-proved fitting value; an unconstrained recast write rejects. Typed
-  aggregate aliases still require identical representations. Ordinary scalar
-  resolution and by-value boundary classification stay fail-closed until those
-  consumers use the dedicated encoding metadata.
+  aggregate aliases still require identical representations. By-value boundary
+  classification now derives every stored-integer leaf's physical width and
+  alignment from the validated encoding metadata; a native and cross-target
+  canary preserves that physical representation through a by-value state pass.
+  Ordinary scalar resolution stays fail-closed until that consumer uses the
+  dedicated encoding metadata.
   Linux `read_dir` now retains the real three-argument `getdents64`
   plan, omits the Darwin-only cursor at selection, and decodes the Linux record
   offsets in both target packages. Direct syscall failures now flow as explicit

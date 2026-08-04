@@ -756,13 +756,6 @@ fn plain_data_value_shape(
             layout.offsets.len()
         ));
     }
-    if let Some(layout) = planned_layout
-        && !layout.integer_fields.is_empty()
-    {
-        return Err(format!(
-            "plan-laid data `{name}` contains stored-width integer fields whose by-value boundary classification awaits direct extension lowering; pass it by reference"
-        ));
-    }
     visiting.push(symbol);
     let mut size = 0usize;
     let mut alignment = 1usize;
@@ -776,14 +769,43 @@ fn plain_data_value_shape(
                 "case data `{name}` is not yet classifiable as a boundary value; pass it by reference"
             ));
         };
-        let (shape, field_root) = value_shape_from_type(
-            typed,
-            field.type_reference,
-            bindings,
-            visiting,
-            shapes,
-            fields,
-        )?;
+        let (shape, field_root) = if let Some(stored_integer) = planned_layout.and_then(|layout| {
+            layout
+                .integer_fields
+                .iter()
+                .find(|integer| integer.field_index == field_index)
+        }) {
+            let stored_byte_size = stored_integer.stored_width_bits / 8;
+            if stored_integer.stored_width_bits == 0
+                || stored_integer.stored_width_bits % 8 != 0
+                || stored_byte_size > 8
+            {
+                visiting.pop();
+                return Err(format!(
+                    "plan-laid data `{name}` field `{}` has invalid stored-integer width {}",
+                    field.name, stored_integer.stored_width_bits
+                ));
+            }
+            let shape = ValueShape::integer(stored_byte_size, stored_byte_size);
+            let root = push_boundary_shape(
+                shapes,
+                BoundaryValueShape {
+                    class: BoundaryValueClass::Integer,
+                    byte_size: shape.byte_size,
+                    alignment: shape.alignment,
+                },
+            )?;
+            (shape, root)
+        } else {
+            value_shape_from_type(
+                typed,
+                field.type_reference,
+                bindings,
+                visiting,
+                shapes,
+                fields,
+            )?
+        };
         let field_alignment = usize::from(shape.alignment);
         let field_offset = planned_layout.map_or_else(
             || align_up(size, field_alignment),
@@ -1845,6 +1867,68 @@ mod tests {
         assert!(
             error.contains("requires HomogeneousFloatAggregate"),
             "{error}"
+        );
+    }
+
+    #[test]
+    fn stored_integer_boundary_shape_uses_validated_physical_width() {
+        let main = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(
+            "../../../../canaries/pass/layouts/runtime_plan_laid_integer_at_proved_write_exit/main.omg",
+        );
+        let checked = crate::compile_to_checked(&main, None)
+            .expect("stored-integer canary should compile to checked trees");
+        let layout = checked
+            .typed
+            .plan_laid_layouts
+            .iter()
+            .find(|layout| !layout.integer_fields.is_empty())
+            .expect("canary should retain one stored-integer layout");
+        let definition = checked
+            .typed
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.name.as_str() == layout.data_name)
+            .expect("stored-integer layout should name its synthesized data");
+
+        let mut visiting = Vec::new();
+        let mut shapes = Vec::new();
+        let mut fields = Vec::new();
+        let (abi, root) = plain_data_value_shape(
+            &checked.typed,
+            definition.symbol,
+            definition.name.as_str(),
+            &[],
+            &mut visiting,
+            &mut shapes,
+            &mut fields,
+        )
+        .expect("validated stored integers should be classifiable by value");
+
+        assert_eq!(abi, ValueShape::integer(1, 1));
+        let BoundaryValueClass::Record {
+            first_field,
+            field_count,
+        } = shapes[usize::from(root)].class
+        else {
+            panic!("plan-laid data should remain a record boundary shape")
+        };
+        assert_eq!(field_count, 1);
+        let field = fields[usize::from(first_field)];
+        let stored = shapes[usize::from(field.shape)];
+        assert!(matches!(stored.class, BoundaryValueClass::Integer));
+        assert_eq!(stored.byte_size, 1);
+        assert_eq!(stored.alignment, 1);
+
+        let signature = MaterializedBoundarySignature {
+            shapes,
+            fields,
+            parameters: vec![root],
+            result: None,
+        };
+        assert_eq!(
+            classified_boundary_shape(&signature, root, CallingPolicy::SystemVAMD64)
+                .expect("physical stored-integer aggregate should classify for SysV"),
+            ValueShape::integer(1, 1)
         );
     }
 }

@@ -992,3 +992,131 @@ machine Main::main(&mut self) { }
     );
     assert!(!rendered.contains("recursive shape mismatch"), "{rendered}");
 }
+
+#[test]
+fn source_policy_receives_stored_integer_physical_shape() {
+    let source = r#"
+use omega::language::std::calling;
+
+data IntegerInterpretation { case Signed; case Unsigned; }
+data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
+data SchemaField { key: u64; size: u64; align: u64; number: i64; kind: FieldKind; }
+data Schema { fields: [SchemaField; 32]; field_count: u64; }
+data FieldPlan {
+    case At(offset: u64);
+    case IntegerAt(offset: u64, stored_width: u64, interpretation: IntegerInterpretation);
+}
+data FieldEntry { key: u64; placement: FieldPlan; }
+data Plan {
+    entries: [FieldEntry; 64];
+    entry_count: u64;
+    size_fixed: u64;
+    size_is_dynamic: bool;
+    align: u64;
+}
+
+data SignedByte { entries: [FieldEntry; 64]; }
+machine SignedByte::plan(&mut self, schema: Schema) -> Plan {
+    self.entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::IntegerAt {
+            offset: 0,
+            stored_width: 8,
+            interpretation: IntegerInterpretation::Signed,
+        },
+    };
+    Plan {
+        entries: self.entries,
+        entry_count: 1,
+        size_fixed: 1,
+        size_is_dynamic: false,
+        align: 1,
+    }
+}
+
+data PortableByte { value: i64; }
+
+data StoredWidthPolicy { }
+StoredWidthPolicy satisfies CallingPolicy;
+machine StoredWidthPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult
+    satisfies CallingPolicy::plan
+{
+    transition signature.parameter_count == 1 {
+        true -> record(signature, signature.parameters[0])
+        _ -> wrong()
+    }
+
+    state record(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
+        transition signature.shapes[root].class {
+            ValueClass::Record { first_field, field_count } -> field(signature, root, first_field, field_count)
+            _ -> wrong()
+        }
+    }
+
+    state field(signature: BoundarySignature, root: u64, first: u64, count: u64) -> BoundaryPlanResult {
+        transition count == 1
+            && signature.shapes[root].byte_size == 1
+            && signature.shapes[root].alignment == 1
+            && signature.fields[first].byte_offset == 0 {
+            true -> scalar(signature, signature.fields[first].shape)
+            _ -> wrong()
+        }
+    }
+
+    state scalar(signature: BoundarySignature, field: u64) -> BoundaryPlanResult {
+        transition signature.shapes[field].class {
+            ValueClass::Integer -> scalar_width(signature, field)
+            _ -> wrong()
+        }
+    }
+
+    state scalar_width(signature: BoundarySignature, field: u64) -> BoundaryPlanResult {
+        transition signature.shapes[field].byte_size == 1
+            && signature.shapes[field].alignment == 1 {
+            true -> observed()
+            _ -> wrong()
+        }
+    }
+
+    state observed() -> BoundaryPlanResult {
+        BoundaryPlanResult::Rejected {
+            reason: CallingPolicyRejection {
+                reason: "stored-integer physical shape observed",
+            },
+        }
+    }
+
+    state wrong() -> BoundaryPlanResult {
+        BoundaryPlanResult::Rejected {
+            reason: CallingPolicyRejection {
+                reason: "stored-integer shape mismatch",
+            },
+        }
+    }
+}
+
+boundary trait Probe: Calling<StoredWidthPolicy> {
+    machine inspect(value: SignedByte<PortableByte>);
+}
+
+data Main { }
+machine Main::main(&mut self) { }
+"#;
+    let main_path = write_program("stored-integer-shape", source);
+    let diagnostics = compile_to_checked(&main_path, None)
+        .expect_err("the observing policy deliberately rejects after checking the physical shape");
+    let rendered = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        rendered.contains("stored-integer physical shape observed"),
+        "policy did not observe the validated stored width:\n{rendered}"
+    );
+    assert!(
+        !rendered.contains("stored-integer shape mismatch"),
+        "{rendered}"
+    );
+    let _ = fs::remove_dir_all(main_path.parent().expect("temporary policy directory"));
+}

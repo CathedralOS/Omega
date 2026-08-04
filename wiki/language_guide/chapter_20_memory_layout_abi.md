@@ -653,6 +653,12 @@ only those physical bytes. This does not make differently represented typed
 records aliases of one another: mutable typed aggregate recasts still require
 identical representations.
 
+When such a plan-laid record crosses a boundary by value, ABI classification
+uses the stored integer's physical width and alignment rather than its wider
+semantic carrier. The field remains a physical aggregate leaf during transfer;
+ordinary field projection performs the retained sign or zero extension after
+the value lands.
+
 Encodability alone does not authorize a transfer: sub-unit mutation must also
 have a legal implementation. Stable exclusive storage may use one bounded
 read-patch-write sequence. External storage requires a whole-container or
