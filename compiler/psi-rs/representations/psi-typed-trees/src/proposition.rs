@@ -104,6 +104,30 @@ impl NormalizedPropositionFormula {
 }
 
 impl crate::TypedTrees {
+    pub fn render_proof_expression_with_symbols(
+        &self,
+        expression: ExpressionHandle,
+        substitutions: &[(SymbolHandle, String)],
+    ) -> String {
+        render_expression(self, expression, substitutions, &[])
+    }
+
+    pub fn render_proof_expression_with_parameters(
+        &self,
+        expression: ExpressionHandle,
+        substitutions: &[(SymbolHandle, String, String)],
+    ) -> String {
+        let symbol_substitutions = substitutions
+            .iter()
+            .map(|(symbol, _, replacement)| (*symbol, replacement.clone()))
+            .collect::<Vec<_>>();
+        let name_substitutions = substitutions
+            .iter()
+            .map(|(_, name, replacement)| (name.clone(), replacement.clone()))
+            .collect::<Vec<_>>();
+        render_expression(self, expression, &symbol_substitutions, &name_substitutions)
+    }
+
     pub fn normalize_proposition_application(
         &self,
         application: &PropositionApplication,
@@ -195,7 +219,7 @@ impl crate::TypedTrees {
                 let normalized = match proposition {
                     PropositionFormula::BooleanExpression(expression) => {
                         Some(NormalizedPropositionFormula::Boolean {
-                            label: render_expression(self, *expression, &substitutions),
+                            label: render_expression(self, *expression, &substitutions, &[]),
                         })
                     }
                     PropositionFormula::Application(expansion) => {
@@ -214,7 +238,7 @@ impl crate::TypedTrees {
                             .expression_table
                             .expression_handles(expansion.arguments)
                             .iter()
-                            .map(|argument| render_expression(self, *argument, &substitutions))
+                            .map(|argument| render_expression(self, *argument, &substitutions, &[]))
                             .collect::<Vec<_>>();
                         self.normalize_proposition_application_inner(
                             expansion,
@@ -253,9 +277,11 @@ fn render_expression(
     program: &crate::TypedTrees,
     expression: ExpressionHandle,
     substitutions: &[(SymbolHandle, String)],
+    name_substitutions: &[(String, String)],
 ) -> String {
     use crate::expression::ExpressionNode;
-    let render = |expression| render_expression(program, expression, substitutions);
+    let render =
+        |expression| render_expression(program, expression, substitutions, name_substitutions);
     match program.expression_table.expression(expression) {
         ExpressionNode::Atomic(atomic) => {
             format!("atomic[{:?}]({})", atomic.ordering, render(atomic.value))
@@ -315,10 +341,15 @@ fn render_expression(
             {
                 return replacement.clone();
             }
-            crate::expression::display_name_path(
-                program.expression_table.name_path_members(path.members),
-                "::",
-            )
+            let members = program.expression_table.name_path_members(path.members);
+            if let Some(first) = members.first()
+                && let Some((_, replacement)) = name_substitutions
+                    .iter()
+                    .find(|(name, _)| name == first.as_str())
+            {
+                return replacement.clone();
+            }
+            crate::expression::display_name_path(members, "::")
         }
         ExpressionNode::Range(range) => match (range.start.is_valid(), range.end.is_valid()) {
             (true, true) => format!("{}..{}", render(range.start), render(range.end)),
