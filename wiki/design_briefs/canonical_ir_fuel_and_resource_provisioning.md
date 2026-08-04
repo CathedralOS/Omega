@@ -157,7 +157,10 @@ control through target selection and register assignment, then emit every
 integer-returning leaf on x86-64 and AArch64. AArch64 tests branch on the
 assigned Boolean register, or an exact byte loaded from the incoming stack,
 without clobbering an unrelated integer input in `x0`. Entry jump prefixes,
-loops, and the remaining general target block program are still fail-closed.
+including computed scalar bindings, now enter that same recursive lowering and
+retain their fuel edges and canonical provenance. Boolean-result conditional
+control, cyclic semantics, reusable native block layout, and the remaining
+general target block program are still fail-closed.
 `psi-terminal-fuel` defines schedule v1 as one unit per executed terminal
 operation and one unit per taken terminal edge. The verified interpreter returns
 exact schedule-keyed usage attributed to stable operation/edge identities; a

@@ -1207,7 +1207,11 @@ improvements do not change public identity.
   target and assigned control, with each integer-returning leaf independently
   framed and emitted on x86-64 and AArch64. Conditional tests preserve all ABI
   inputs before leaf evaluation, including an AArch64 condition outside `x0`.
-  Entry jump prefixes, loops, and general block programs still fail closed.
+  The same acyclic block walker now starts at the actual entry, so any computed
+  unconditional prefix before the first runtime branch retains its bindings,
+  fuel edge, and canonical provenance through native emission. Boolean-result
+  conditional control, cyclic semantics, reusable native block layout, and
+  broader general block programs still fail closed.
   Because the
   legacy exit prover cannot establish ordinary `result == literal` contracts,
   this bootstrap canary preserves a closed typed `requires`/`ensures` fact and
