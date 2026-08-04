@@ -4,8 +4,9 @@ use psi_diagnostics::Diagnostic;
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::data::{DataMember, TypeParameter, TypeParameterKind};
+use psi_typed_trees::domain::ProofFact;
 use psi_typed_trees::machine::Machine;
-use psi_typed_trees::signature::{StateParameter, StateSignature};
+use psi_typed_trees::signature::{SignatureContractKind, StateParameter, StateSignature};
 use psi_typed_trees::state::State;
 use psi_typed_trees::trait_definition::TraitDefinition;
 use psi_typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
@@ -1466,18 +1467,37 @@ pub(super) fn validate_machine_state_satisfies_trait_signature_with_arguments(
     let trait_type_parameters = program.trait_type_parameters(trait_definition);
     let requirement_type_parameters = program.state_signature_type_parameters(requirement);
     let actual_type_parameters = program.machine_type_parameters(machine);
-    if requirement_type_parameters.len() != actual_type_parameters.len() {
+    let indexed_law_telescope_groups = indexed_law_callable_telescope_groups(
+        program,
+        trait_definition,
+        requirement,
+        explicit_type_arguments,
+    );
+    let expected_callable_parameter_count = requirement_type_parameters.len()
+        + indexed_law_telescope_groups
+            .iter()
+            .map(|group| group.len())
+            .sum::<usize>();
+    if expected_callable_parameter_count != actual_type_parameters.len() {
         diagnostics.push(Diagnostic::error(format!(
             "machine `{}` does not satisfy trait `{}` machine `{}`: expected {} callable generic parameter(s), got {}",
             machine.name,
             trait_definition.name,
             requirement.name,
-            requirement_type_parameters.len(),
+            expected_callable_parameter_count,
             actual_type_parameters.len(),
         )));
         return;
     }
-    if let Some((index, (required, actual))) = requirement_type_parameters
+    let effective_requirement_type_parameters = requirement_type_parameters
+        .iter()
+        .chain(
+            indexed_law_telescope_groups
+                .iter()
+                .flat_map(|group| group.iter()),
+        )
+        .collect::<Vec<_>>();
+    if let Some((index, (required, actual))) = effective_requirement_type_parameters
         .iter()
         .zip(actual_type_parameters)
         .enumerate()
@@ -1522,10 +1542,31 @@ pub(super) fn validate_machine_state_satisfies_trait_signature_with_arguments(
             machine.name, trait_definition.name, requirement.name
         ),
         requirement_type_parameters,
-        actual_type_parameters,
+        &actual_type_parameters[..requirement_type_parameters.len()],
         &generic_type_parameters,
         diagnostics,
     );
+    let mut actual_offset = requirement_type_parameters.len();
+    for (representative, carrier_telescope) in indexed_law_telescope_groups.iter().enumerate() {
+        let actual_end = actual_offset + carrier_telescope.len();
+        let actual_group = &actual_type_parameters[actual_offset..actual_end];
+        let carrier_generic_parameters = carrier_telescope.iter().collect::<Vec<_>>();
+        crate::machine_parameters::validate_trait_callable_parameter_refinement(
+            program,
+            &format!(
+                "provider machine `{}` indexed representative {} for proposition-law requirement `{}::{}`",
+                machine.name,
+                representative + 1,
+                trait_definition.name,
+                requirement.name
+            ),
+            carrier_telescope,
+            actual_group,
+            &carrier_generic_parameters,
+            diagnostics,
+        );
+        actual_offset = actual_end;
+    }
     let mut type_bindings = trait_type_parameters
         .iter()
         .zip(explicit_type_arguments.iter().copied())
@@ -1916,7 +1957,10 @@ fn binding_matches_actual(
     actual: TypeReferenceHandle,
 ) -> bool {
     match &binding.target {
-        TraitTypeBindingTarget::Type(expected) => type_references_match(program, actual, *expected),
+        TraitTypeBindingTarget::Type(expected) => {
+            type_references_match(program, actual, *expected)
+                || type_reference_is_instance_of_family(program, actual, *expected)
+        }
         TraitTypeBindingTarget::Parameter { symbol, name } => matches!(
             program.type_reference_table.type_reference(actual),
             TypeReferenceNode::Named {
@@ -1926,6 +1970,82 @@ fn binding_matches_actual(
                 || actual_name.as_str() == name
         ),
     }
+}
+
+fn type_reference_is_instance_of_family(
+    program: &TypedTrees,
+    actual: TypeReferenceHandle,
+    family: TypeReferenceHandle,
+) -> bool {
+    let TypeReferenceNode::Named {
+        symbol: family_symbol,
+        ..
+    } = program.type_reference_table.type_reference(family)
+    else {
+        return false;
+    };
+    let Some(family_definition) = program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.symbol == *family_symbol)
+    else {
+        return false;
+    };
+    if program.data_type_parameters(family_definition).is_empty() {
+        return false;
+    }
+    matches!(
+        program.type_reference_table.type_reference(actual),
+        TypeReferenceNode::Generic { base_symbol, .. } if base_symbol == family_symbol
+    )
+}
+
+fn indexed_law_callable_telescope_groups<'program>(
+    program: &'program TypedTrees,
+    trait_definition: &TraitDefinition,
+    requirement: &StateSignature,
+    explicit_type_arguments: &[TypeReferenceHandle],
+) -> Vec<&'program [TypeParameter]> {
+    let has_proposition_law = program
+        .state_signature_contracts(requirement)
+        .iter()
+        .filter(|contract| contract.kind == SignatureContractKind::Ensures)
+        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
+        .any(|fact| matches!(fact, ProofFact::Proposition(_)));
+    if !has_proposition_law {
+        return Vec::new();
+    }
+    let trait_parameters = program.trait_type_parameters(trait_definition);
+    program
+        .state_signature_parameters(requirement)
+        .iter()
+        .filter_map(|representative| {
+            let carrier_parameter = required_trait_type_parameter(
+                program,
+                representative.type_reference,
+                trait_parameters,
+            )?;
+            let carrier_index = trait_parameters
+                .iter()
+                .position(|parameter| parameter.symbol == carrier_parameter.symbol)?;
+            let carrier_argument = *explicit_type_arguments.get(carrier_index)?;
+            let TypeReferenceNode::Named {
+                symbol: carrier_symbol,
+                ..
+            } = program
+                .type_reference_table
+                .type_reference(carrier_argument)
+            else {
+                return None;
+            };
+            let carrier = program
+                .data_definitions()
+                .iter()
+                .find(|definition| definition.symbol == *carrier_symbol)?;
+            let telescope = program.data_type_parameters(carrier);
+            (!telescope.is_empty()).then_some(telescope)
+        })
+        .collect()
 }
 
 fn required_is_self_type(program: &TypedTrees, required: TypeReferenceHandle) -> bool {

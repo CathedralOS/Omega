@@ -447,6 +447,180 @@ fn proposition_law_conformance_rejects_a_different_ensures() {
 }
 
 #[test]
+fn indexed_proposition_law_synthesizes_representative_binders() {
+    let typed = typed_program_from_source(
+        r#"
+        data Index {}
+
+        data Stream<machine Sequence>
+        where machine Sequence(index: Index) -> Index;
+        {
+            case Empty;
+            case More(tail: Stream<Sequence>);
+        }
+
+        proposition stream_related<machine Left, machine Right>(
+            left: Stream<Left>,
+            right: Stream<Right>
+        );
+
+        trait Reflexive<C, proposition Relation>
+        where proposition Relation(left: C, right: C);
+        {
+            machine reflexive(value: C) ensures Relation(value, value);
+        }
+
+        machine reflexive<machine Sequence>(value: Stream<Sequence>)
+        where machine Sequence(index: Index) -> Index;
+        satisfies Reflexive<Stream, stream_related>::reflexive
+        requires stream_related<Sequence, Sequence>(value, value)
+        ensures stream_related<Sequence, Sequence>(value, value)
+        {
+        }
+        "#,
+    );
+
+    validate_program(&typed).expect(
+        "the indexed reflexive law should synthesize the representative's carrier telescope",
+    );
+}
+
+#[test]
+fn indexed_binary_law_uses_fresh_binders_for_each_representative() {
+    let typed = typed_program_from_source(
+        r#"
+        data Index {}
+
+        data Stream<machine Sequence>
+        where machine Sequence(index: Index) -> Index;
+        {
+            case Empty;
+            case More(tail: Stream<Sequence>);
+        }
+
+        proposition stream_related<machine Left, machine Right>(
+            left: Stream<Left>,
+            right: Stream<Right>
+        );
+
+        trait Paired<C, proposition Relation>
+        where proposition Relation(left: C, right: C);
+        {
+            machine paired(left: C, right: C) ensures Relation(left, right);
+        }
+
+        machine paired<machine Left, machine Right>(
+            left: Stream<Left>,
+            right: Stream<Right>
+        )
+        where machine Left(index: Index) -> Index;
+        where machine Right(index: Index) -> Index;
+        satisfies Paired<Stream, stream_related>::paired
+        requires stream_related<Left, Right>(left, right)
+        ensures stream_related<Left, Right>(left, right)
+        {
+        }
+        "#,
+    );
+
+    validate_program(&typed)
+        .expect("a binary law should retain independent representative index packs");
+}
+
+#[test]
+fn indexed_binary_law_rejects_swapped_representative_binders() {
+    let typed = typed_program_from_source(
+        r#"
+        data Index {}
+
+        data Stream<machine Sequence>
+        where machine Sequence(index: Index) -> Index;
+        {
+            case Empty;
+            case More(tail: Stream<Sequence>);
+        }
+
+        proposition stream_related<machine Left, machine Right>(
+            left: Stream<Left>,
+            right: Stream<Right>
+        );
+
+        trait Paired<C, proposition Relation>
+        where proposition Relation(left: C, right: C);
+        {
+            machine paired(left: C, right: C) ensures Relation(left, right);
+        }
+
+        machine paired<machine Left, machine Right>(
+            left: Stream<Left>,
+            right: Stream<Right>
+        )
+        where machine Left(index: Index) -> Index;
+        where machine Right(index: Index) -> Index;
+        satisfies Paired<Stream, stream_related>::paired
+        requires stream_related<Right, Left>(left, right)
+        ensures stream_related<Right, Left>(left, right)
+        {
+        }
+        "#,
+    );
+
+    let diagnostics = validate_program(&typed)
+        .expect_err("swapping independent carrier binders must not prove the indexed law");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("proves no ensures matching proposition law")
+    }));
+}
+
+#[test]
+fn indexed_binary_law_rejects_a_reused_representative_telescope() {
+    let typed = typed_program_from_source(
+        r#"
+        data Index {}
+
+        data Stream<machine Sequence>
+        where machine Sequence(index: Index) -> Index;
+        {
+            case Empty;
+            case More(tail: Stream<Sequence>);
+        }
+
+        proposition stream_related<machine Left, machine Right>(
+            left: Stream<Left>,
+            right: Stream<Right>
+        );
+
+        trait Paired<C, proposition Relation>
+        where proposition Relation(left: C, right: C);
+        {
+            machine paired(left: C, right: C) ensures Relation(left, right);
+        }
+
+        machine paired<machine Shared>(
+            left: Stream<Shared>,
+            right: Stream<Shared>
+        )
+        where machine Shared(index: Index) -> Index;
+        satisfies Paired<Stream, stream_related>::paired
+        requires stream_related<Shared, Shared>(left, right)
+        ensures stream_related<Shared, Shared>(left, right)
+        {
+        }
+        "#,
+    );
+
+    let diagnostics = validate_program(&typed)
+        .expect_err("each representative must receive a fresh carrier telescope");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("expected 2 callable generic parameter(s), got 1")
+    }));
+}
+
+#[test]
 fn local_dynamic_value_rejects_boundary_trait() {
     let typed = typed_program_from_source(
         r#"
