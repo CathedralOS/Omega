@@ -537,6 +537,55 @@ pub fn derive_boundary_exit_indirect_result_copy_footprint<'instruction>(
     Ok(evidence)
 }
 
+/// Derive the target scratch footprint for the currently admitted ordinary
+/// compiler-body place-copy subset. Only direct-storage to pointee copies are
+/// included; every other `CopyPlaces` shape remains outside this partial
+/// evidence until its encoder publishes the corresponding clobber contract.
+pub fn derive_boundary_compiler_body_place_copy_footprint<'instruction>(
+    boundary: &ValidatedBoundaryEntryPlan,
+    instructions: impl IntoIterator<Item = &'instruction SelectedInstructionKind>,
+) -> Result<StateFootprintEvidence, PlanDiagnostic> {
+    let architecture = boundary.plan().call.policy.architecture();
+    let mut registers = Vec::new();
+    for instruction in instructions {
+        let SelectedInstructionKind::CopyPlaces {
+            source,
+            target,
+            byte_count,
+            role: omega_abstract_operations::CopyPlacesRole::Ordinary,
+        } = instruction
+        else {
+            continue;
+        };
+        let crate::CopyPlacesShape::ToPointee {
+            source_offset,
+            pointer_byte_offset,
+            field_byte_offset,
+        } = crate::classify_copy_places_shape(source, target)
+        else {
+            continue;
+        };
+        let clobbers = match architecture {
+            omega_target::Architecture::X86_64 => {
+                omega_isa_x86_64::copy_places_to_pointee_clobbers(*byte_count)
+            }
+            omega_target::Architecture::Aarch64 => {
+                omega_isa_aarch64::runtime_storage_copy_to_runtime_pointee_clobbers(
+                    source_offset,
+                    pointer_byte_offset,
+                    field_byte_offset,
+                    *byte_count,
+                )
+            }
+        };
+        registers.extend_from_slice(clobbers.as_slice());
+    }
+    let evidence =
+        StateFootprintEvidence::new(RegisterSet::new(registers), MachineStateSet::empty());
+    validate_state_footprint(boundary, &evidence)?;
+    Ok(evidence)
+}
+
 /// Derive result placement and exit control for a compiler-owned entry stub.
 /// This consumes the complete plan so result lowering cannot accidentally
 /// accept placements from a carrier whose state obligations are invalid.
@@ -1743,6 +1792,37 @@ mod tests {
 
         assert!(evidence.registers().as_slice().is_empty());
         assert!(evidence.machine_state().is_empty());
+    }
+
+    #[test]
+    fn compiler_body_pointee_copy_footprint_requires_ordinary_role() {
+        let boundary = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::SystemVAMD64,
+            &CallSignature {
+                parameters: Vec::new(),
+                result: Some(ValueShape::integer(24, 8)),
+            },
+        )
+        .expect("SysV boundary");
+        let mut ordinary = indirect_result_copy_instruction(64, 32, 24);
+        let SelectedInstructionKind::CopyPlaces { role, .. } = &mut ordinary else {
+            unreachable!("helper returns a place copy")
+        };
+        *role = omega_abstract_operations::CopyPlacesRole::Ordinary;
+        let exit = indirect_result_copy_instruction(64, 32, 24);
+
+        let evidence =
+            derive_boundary_compiler_body_place_copy_footprint(&boundary, [&ordinary, &exit])
+                .expect("ordinary pointee-copy evidence");
+
+        assert_eq!(
+            evidence.registers().as_slice(),
+            &[
+                MachineRegister::X86Rax,
+                MachineRegister::X86R14,
+                MachineRegister::X86R15,
+            ]
+        );
     }
 
     #[test]

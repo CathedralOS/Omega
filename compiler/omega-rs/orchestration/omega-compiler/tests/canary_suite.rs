@@ -1127,7 +1127,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         executable_regions.contains(
             "\"certificate_schema\": \"omega.final-footprint-certificate\""
         )
-            && executable_regions.contains("\"certificate_format_version\": 13")
+            && executable_regions.contains("\"certificate_format_version\": 14")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
             && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")
@@ -1337,6 +1337,59 @@ fn place_guard_footprints_reach_x86_and_aarch64_artifacts() {
                 && footprints.contains(expected_registers)
                 && footprints.contains("\"enumeration_complete\": false"),
             "{target} artifact must retain exact place-guard evidence without claiming completeness"
+        );
+        let _ = fs::remove_dir_all(&scratch);
+    }
+}
+
+#[test]
+fn compiler_body_pointee_copy_footprints_reach_x86_and_aarch64_artifacts() {
+    let canary = pass_canary("calls/runtime_value_call_through_alias_in_dispatch_exit");
+    for (target, expected_registers) in [
+        ("linux_x64", "[\"X86Rax\", \"X86R14\", \"X86R15\"]"),
+        (
+            "linux_arm64",
+            "[\"Aarch64X(16)\", \"Aarch64X(17)\", \"Aarch64X(20)\"]",
+        ),
+    ] {
+        let scratch = std::env::temp_dir().join(format!(
+            "omega-compiler-body-place-copy-footprint-{target}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&scratch);
+        let source = scratch.join("src");
+        let output = scratch.join("out");
+        fs::create_dir_all(&source).expect("create compiler-body place-copy source directory");
+        fs::copy(canary.join("main.omg"), source.join("main.omg"))
+            .expect("copy compiler-body place-copy canary");
+        fs::write(
+            source.join("build.omg"),
+            format!("target {target} {{\n}}\n"),
+        )
+        .expect("write compiler-body place-copy target");
+
+        compile(CompileOptions {
+            root_path: source.join("main.omg"),
+            build_dir: Some(output.clone()),
+            target_name: Some(target.into()),
+            write_output: true,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!("compiler-body place copy should compile for {target}: {diagnostics:?}")
+        });
+        let abstract_operations = fs::read_to_string(output.join("08_abstract_operations.html"))
+            .expect("compiler-body place-copy abstract operations should be written");
+        let footprints = fs::read_to_string(output.join("08_boundary_footprints.json"))
+            .expect("compiler-body place-copy footprint evidence should be written");
+        assert!(
+            abstract_operations.contains("CopyPlaces"),
+            "{target} canary must exercise a CopyPlaces operation"
+        );
+        assert!(
+            footprints.contains("\"origin\": \"compiler_body_place_copy\"")
+                && footprints.contains(expected_registers)
+                && footprints.contains("\"enumeration_complete\": false"),
+            "{target} artifact must retain the ordinary pointee-copy footprint without claiming completeness"
         );
         let _ = fs::remove_dir_all(&scratch);
     }

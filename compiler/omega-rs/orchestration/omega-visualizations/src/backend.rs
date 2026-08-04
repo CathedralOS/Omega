@@ -105,6 +105,9 @@ pub fn boundary_footprint_fragments_json(plan: &EncodedMachinePlan) -> String {
                 omega_abstract_operations::BoundaryFootprintFragmentOrigin::ExitIndirectResultCopy => {
                     "exit_indirect_result_copy"
                 }
+                omega_abstract_operations::BoundaryFootprintFragmentOrigin::CompilerBodyPlaceCopy => {
+                    "compiler_body_place_copy"
+                }
                 omega_abstract_operations::BoundaryFootprintFragmentOrigin::CallReturnMechanics => {
                     "call_return_mechanics"
                 }

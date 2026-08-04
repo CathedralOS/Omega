@@ -97,6 +97,11 @@ pub enum CompilerInstructionValidationKind {
         target: omega_target_operations::Place,
         byte_count: usize,
     },
+    CompilerBodyPlaceCopy {
+        source: omega_target_operations::Place,
+        target: omega_target_operations::Place,
+        byte_count: usize,
+    },
     DispatchStateWrite {
         dispatch_index: u32,
         case_leave_byte_distance: isize,
