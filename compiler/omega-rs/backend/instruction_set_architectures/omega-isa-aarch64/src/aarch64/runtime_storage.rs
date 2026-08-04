@@ -2955,6 +2955,20 @@ pub fn encode_runtime_machine_indexed_integer_write(
     Ok(bytes)
 }
 
+/// Exact scratch footprint of an immediate integer write into an inline
+/// machine array. x16 owns the element address, x20 the machine/frame index
+/// base, x17 the index/value, x26 the scaled index, and offset/scale helpers
+/// write x19.
+pub fn runtime_machine_indexed_integer_write_clobbers() -> RegisterSet {
+    RegisterSet::new([
+        MachineRegister::Aarch64X(16),
+        MachineRegister::Aarch64X(17),
+        MachineRegister::Aarch64X(19),
+        MachineRegister::Aarch64X(20),
+        MachineRegister::Aarch64X(26),
+    ])
+}
+
 pub fn encode_runtime_frame_indexed_binary_write(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     descriptor_offset: usize,
@@ -7538,6 +7552,20 @@ mod tests {
     fn frame_base_indexed_integer_write_clobbers_cover_inline_address_recipe() {
         assert_eq!(
             runtime_frame_base_indexed_integer_write_clobbers().as_slice(),
+            &[
+                MachineRegister::Aarch64X(16),
+                MachineRegister::Aarch64X(17),
+                MachineRegister::Aarch64X(19),
+                MachineRegister::Aarch64X(20),
+                MachineRegister::Aarch64X(26),
+            ]
+        );
+    }
+
+    #[test]
+    fn machine_indexed_integer_write_clobbers_cover_inline_address_recipe() {
+        assert_eq!(
+            runtime_machine_indexed_integer_write_clobbers().as_slice(),
             &[
                 MachineRegister::Aarch64X(16),
                 MachineRegister::Aarch64X(17),

@@ -335,6 +335,14 @@ enum CompilerBodyPlaceIntegerWriteShape {
         element_byte_size: usize,
         field_byte_offset: usize,
     },
+    MachineIndexed {
+        base_byte_offset: usize,
+        index_region: omega_target_operations::RuntimeStorageRegion,
+        index_offset: usize,
+        index_byte_size: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+    },
 }
 
 fn validate_compiler_function_instruction_boundaries(
@@ -1271,6 +1279,23 @@ fn validate_compiler_function_instruction_boundaries(
                                     byte_size,
                                     value,
                                 )?,
+                                CompilerBodyPlaceIntegerWriteShape::MachineIndexed {
+                                    base_byte_offset,
+                                    index_region,
+                                    index_offset,
+                                    index_byte_size,
+                                    element_byte_size,
+                                    field_byte_offset,
+                                } => omega_isa_aarch64::encode_runtime_machine_indexed_integer_write(
+                                    base_byte_offset,
+                                    index_region,
+                                    index_offset,
+                                    index_byte_size,
+                                    element_byte_size,
+                                    field_byte_offset,
+                                    byte_size,
+                                    value,
+                                )?,
                             },
                             },
                             22u8,
@@ -2053,6 +2078,9 @@ fn compiler_instruction_footprint(
                         ),
                         CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. } => {
                             omega_isa_aarch64::runtime_frame_base_indexed_integer_write_clobbers()
+                        }
+                        CompilerBodyPlaceIntegerWriteShape::MachineIndexed { .. } => {
+                            omega_isa_aarch64::runtime_machine_indexed_integer_write_clobbers()
                         }
                     },
                 },
@@ -2845,6 +2873,25 @@ fn compiler_body_place_integer_write_shape(
     if let Some(byte_offset) = target.const_offset() {
         return Ok(CompilerBodyPlaceIntegerWriteShape::Direct { byte_offset });
     }
+    if target.region == omega_target_operations::RuntimeStorageRegion::Machine
+        && let Ok((
+            base_byte_offset,
+            index_region,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+        )) = compiler_single_direct_indexed_place_offsets(target)
+    {
+        return Ok(CompilerBodyPlaceIntegerWriteShape::MachineIndexed {
+            base_byte_offset,
+            index_region,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+        });
+    }
     if target.region != omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
         return Err(Diagnostic::error(
             "final indexed or pointee integer-write root is not the runtime frame",
@@ -2903,7 +2950,7 @@ fn compiler_body_place_integer_write_shape(
             field_byte_offset: *field_byte_offset,
         }),
         _ => Err(Diagnostic::error(
-            "final compiler-body integer-write target is not a retained direct, frame-held pointee, frame-indexed, or inline frame-array shape",
+            "final compiler-body integer-write target is not a retained direct, frame-held pointee, frame-indexed, or inline array shape",
         )),
     }
 }
@@ -3773,6 +3820,20 @@ fn compiler_place_integer_write_address_sites(
             {
                 sites.push((
                     omega_isa_aarch64::FRAME_INDEXED_OPERAND_MACHINE_INDEX_BASE_OFFSET,
+                    index_region,
+                ));
+            }
+            if let CompilerBodyPlaceIntegerWriteShape::MachineIndexed {
+                base_byte_offset,
+                index_region,
+                ..
+            } = shape
+                && index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+            {
+                sites.push((
+                    omega_isa_aarch64::runtime_machine_indexed_integer_runtime_frame_address_offset(
+                        base_byte_offset,
+                    ),
                     index_region,
                 ));
             }
