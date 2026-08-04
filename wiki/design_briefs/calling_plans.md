@@ -1111,7 +1111,7 @@ relocation, and data relocation now consume that complete plan. Their former
 manual `+8`/`+12` stack accounting and trailing-mode operation classifier are
 retired; the operation key only selects the concrete adapter subcall.
 
-Final footprint certificate format v56 now retains an exact
+Final footprint certificate format v57 now retains an exact
 function-to-instruction partition in the encoded carrier. Checked image
 emission replays every contiguous function
 and instruction boundary over relocated final bytes, rejects gaps, overlaps,
@@ -1188,12 +1188,14 @@ Direct runtime-storage numeric conversion writes retain their complete cast
 policy and source-operand root, replay exact conversion/store bytes and nested
 relocations, and match a separate `CompilerBodyStorageConvertWrite` fragment.
 Composed-place conversion writes share that fragment and exact recipe for all
-x86 materializer targets and for AArch64 pointee and machine-indexed targets.
+x86 materializer targets and every classified AArch64 target: direct, pointee,
+frame-descriptor-indexed, inline-frame-indexed, and single- or double-runtime-
+indexed machine places.
 Final validation replays the exact target encoder
 and relocation set and matches the derived scratch union to the
 respective retained `CompilerBodyPlaceCopy` or
 `CompilerBodyPlaceIntegerWrite` fragment. Other otherwise-general binary
-targets, other AArch64 composed-place conversion shapes, remaining text-
+targets, unclassified AArch64 place shapes, remaining text-
 assembly writes, and calls remain unreplayed. Text-buffer materialization
 replays its direct x86 form and the direct, pointee, and frame-indexed AArch64
 forms, binding the exact buffer data object and target storage relocations to a

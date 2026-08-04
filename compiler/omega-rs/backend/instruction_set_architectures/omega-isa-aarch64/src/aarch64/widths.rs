@@ -911,6 +911,19 @@ pub fn runtime_frame_indexed_integer_write_width(
         + runtime_store_data_width(byte_size)
 }
 
+pub fn runtime_frame_indexed_operand_start_width(
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> usize {
+    runtime_frame_index_setup_width(element_byte_size, field_byte_offset)
+        + if index_region == omega_target_operations::RuntimeStorageRegion::Machine {
+            8
+        } else {
+            0
+        }
+}
+
 pub fn runtime_frame_base_indexed_integer_write_width(
     base_byte_offset: usize,
     index_offset: usize,
@@ -939,6 +952,22 @@ fn runtime_frame_base_index_setup_width_with_index_width(
         + load_data_offset_width(index_offset, index_byte_size)
         + scale_index_width(element_byte_size)
         + add_constant_width(field_byte_offset)
+}
+
+pub fn runtime_frame_base_indexed_operand_start_width(
+    base_byte_offset: usize,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> usize {
+    runtime_frame_base_index_setup_width_with_index_width(
+        base_byte_offset,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+    )
 }
 
 pub fn runtime_machine_indexed_integer_write_width(

@@ -1263,8 +1263,13 @@ pub fn derive_boundary_compiler_body_storage_convert_write_footprint<'instructio
                 if architecture == omega_target::Architecture::X86_64
                     || matches!(
                         crate::classify_write_place_shape(target),
-                        crate::WritePlaceShape::Pointee { .. }
+                        crate::WritePlaceShape::Direct { .. }
+                            | crate::WritePlaceShape::Pointee { .. }
+                            | crate::WritePlaceShape::FrameIndexed { .. }
+                            | crate::WritePlaceShape::FrameIndexedByRegion { .. }
+                            | crate::WritePlaceShape::FrameBaseIndexed { .. }
                             | crate::WritePlaceShape::MachineIndexed { .. }
+                            | crate::WritePlaceShape::MachineDoubleIndexed { .. }
                     ) =>
             {
                 *source

@@ -1075,7 +1075,9 @@ Direct runtime-storage numeric conversion writes retain their complete cast
 policy and source-operand root, replay exact conversion/store bytes and nested
 relocations, and match a separate `CompilerBodyStorageConvertWrite` fragment.
 Composed-place conversion writes share that fragment and exact recipe for all
-x86 materializer targets and for AArch64 pointee and machine-indexed targets.
+x86 materializer targets and every classified AArch64 target: direct, pointee,
+frame-descriptor-indexed, inline-frame-indexed, and single- or double-runtime-
+indexed machine places.
 Text-buffer materialization is inside the partial proof for its direct x86 form
 and its direct, pointee, and frame-indexed AArch64 forms. The retained row binds
 the exact buffer data-object identity and target place, replays the existing
@@ -1098,8 +1100,8 @@ Place-copy selection retains its separate `compiler_body_place_copy` evidence
 only for
 the `Ordinary` role; final validation regenerates the same place-copy bytes,
 checks the storage, pointer-slot, and index relocations, and requires the target
-scratch union to match. Other otherwise-general binary targets, AArch64
-composed-place conversion shapes, and calls remain
+scratch union to match. Other otherwise-general binary targets, unclassified
+AArch64 place shapes, and calls remain
 outside the partial proof. The pointee-pair selector resolves
 both reference operands before flat storage, so the source remains a
 dereference rather than being mistaken for pointer-slot contents.
@@ -1132,7 +1134,7 @@ relocation-envelope fingerprints plus their composed derivation identity. The
 boundary/placement binding includes that derivation identity, so a valid final
 inventory cannot be paired with evidence from a different encoded-to-final
 derivation. The single emitted artifact is now self-described as
-`omega.final-footprint-certificate` format v56, with a domain-separated
+`omega.final-footprint-certificate` format v57, with a domain-separated
 certificate fingerprint over its final placement binding, compiler-text
 derivation, and region inventory. It remains explicitly incomplete evidence,
 not an admission certificate, until the missing footprint classes close. The
