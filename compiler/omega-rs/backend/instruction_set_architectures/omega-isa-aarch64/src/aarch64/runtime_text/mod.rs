@@ -53,6 +53,10 @@ pub use append::{
     encode_runtime_text_stored_place_append_to_runtime_frame_indexed,
     encode_runtime_text_stored_place_append_to_runtime_pointee,
     encode_runtime_text_stored_suffix_append,
+    runtime_text_buffer_materialize_additional_machine_state,
+    runtime_text_buffer_materialize_register_writes,
+    runtime_text_buffer_materialize_to_runtime_frame_indexed_register_writes,
+    runtime_text_buffer_materialize_to_runtime_pointee_register_writes,
 };
 pub use byte_io::{
     encode_runtime_byte_read_import, encode_runtime_byte_read_syscall,

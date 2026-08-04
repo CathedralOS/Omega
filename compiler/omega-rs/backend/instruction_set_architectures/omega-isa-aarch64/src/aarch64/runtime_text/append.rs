@@ -1,3 +1,4 @@
+use omega_calling_conventions::{MachineRegister, MachineState, MachineStateSet, RegisterSet};
 use psi_diagnostics::Diagnostic;
 
 use super::super::primitives::{
@@ -280,6 +281,22 @@ pub fn encode_runtime_text_literal_append_to_runtime_frame_indexed(
     bytes.extend(encode_store_x_to_x(22, 16, 8)?);
     let _ = buffer_offset;
     Ok(bytes)
+}
+
+pub fn runtime_text_buffer_materialize_register_writes() -> RegisterSet {
+    RegisterSet::new([15, 16, 17, 19, 21, 22, 23, 26].map(MachineRegister::Aarch64X))
+}
+
+pub fn runtime_text_buffer_materialize_to_runtime_pointee_register_writes() -> RegisterSet {
+    runtime_text_buffer_materialize_register_writes()
+}
+
+pub fn runtime_text_buffer_materialize_to_runtime_frame_indexed_register_writes() -> RegisterSet {
+    RegisterSet::new([15, 16, 17, 19, 20, 21, 22, 23, 26].map(MachineRegister::Aarch64X))
+}
+
+pub fn runtime_text_buffer_materialize_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::new([MachineState::Flags])
 }
 
 pub fn encode_runtime_text_buffer_materialize(target_offset: usize) -> Result<Vec<u8>, Diagnostic> {

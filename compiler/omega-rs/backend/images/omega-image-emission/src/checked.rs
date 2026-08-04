@@ -188,6 +188,10 @@ enum CompilerInstructionRelocationRecipe {
         data_symbol: std::sync::Arc<str>,
         byte_length: usize,
     },
+    TextBufferMaterialize {
+        buffer_symbol: std::sync::Arc<str>,
+        target: omega_target_operations::Place,
+    },
     PlaceBinaryWrite {
         target: omega_target_operations::Place,
         left: omega_target_operations::RuntimeValueOperandHandle,
@@ -1599,6 +1603,67 @@ fn validate_compiler_function_instruction_boundaries(
                             },
                         )
                     }
+                    omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyTextBufferMaterialize {
+                        buffer_symbol,
+                        target,
+                    } => {
+                        let shape = compiler_body_place_integer_write_shape(&target)?;
+                        let bytes = match (architecture, shape) {
+                            (
+                                Architecture::X86_64,
+                                CompilerBodyPlaceIntegerWriteShape::Direct { byte_offset },
+                            ) => omega_isa_x86_64::encode_runtime_text_buffer_materialize(
+                                byte_offset,
+                            )?,
+                            (
+                                Architecture::Aarch64,
+                                CompilerBodyPlaceIntegerWriteShape::Direct { byte_offset },
+                            ) => omega_isa_aarch64::encode_runtime_text_buffer_materialize(
+                                byte_offset,
+                            )?,
+                            (
+                                Architecture::Aarch64,
+                                CompilerBodyPlaceIntegerWriteShape::Pointee {
+                                    pointer_byte_offset,
+                                    field_byte_offset,
+                                },
+                            ) => omega_isa_aarch64::encode_runtime_text_buffer_materialize_to_runtime_pointee(
+                                pointer_byte_offset,
+                                field_byte_offset,
+                            )?,
+                            (
+                                Architecture::Aarch64,
+                                CompilerBodyPlaceIntegerWriteShape::FrameIndexed {
+                                    descriptor_offset,
+                                    index_offset,
+                                    index_byte_size,
+                                    element_byte_size,
+                                    field_byte_offset,
+                                    ..
+                                },
+                            ) => omega_isa_aarch64::encode_runtime_text_buffer_materialize_to_runtime_frame_indexed(
+                                descriptor_offset,
+                                index_offset,
+                                index_byte_size,
+                                element_byte_size,
+                                field_byte_offset,
+                            )?,
+                            _ => {
+                                return Err(Diagnostic::error(
+                                    "final compiler-body text-buffer materialization retained an unsupported target",
+                                ));
+                            }
+                        };
+                        (
+                            None,
+                            bytes,
+                            28u8,
+                            CompilerInstructionRelocationRecipe::TextBufferMaterialize {
+                                buffer_symbol,
+                                target,
+                            },
+                        )
+                    }
                     omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyPlaceBinaryWrite {
                         target,
                         byte_size,
@@ -2258,6 +2323,27 @@ fn validate_compiler_function_instruction_boundaries(
                             target,
                             &data_symbol,
                             byte_length,
+                        )?;
+                        encoded_instruction_bytes == expected_bytes
+                            && compiler_instruction_non_relocation_bits_match(
+                                architecture,
+                                &expected_bytes,
+                                final_instruction_bytes,
+                                &address_sites,
+                            )
+                    }
+                    CompilerInstructionRelocationRecipe::TextBufferMaterialize {
+                        buffer_symbol,
+                        target,
+                    } => {
+                        let address_sites = validate_compiler_text_buffer_materialize_relocations(
+                            architecture,
+                            object,
+                            relocations,
+                            instruction.selected_instruction_index,
+                            instruction_byte_offset,
+                            target,
+                            &buffer_symbol,
                         )?;
                         encoded_instruction_bytes == expected_bytes
                             && compiler_instruction_non_relocation_bits_match(
@@ -3142,6 +3228,45 @@ fn compiler_instruction_footprint(
                 }
             }
         }
+        CompilerInstructionValidationKind::CompilerBodyTextBufferMaterialize { target, .. } => {
+            let shape = compiler_body_place_integer_write_shape(&target).ok()?;
+            let (registers, additional_state) = match (architecture, shape) {
+                (
+                    Architecture::X86_64,
+                    CompilerBodyPlaceIntegerWriteShape::Direct { .. },
+                ) => (
+                    omega_isa_x86_64::runtime_text_buffer_materialize_register_writes(),
+                    omega_isa_x86_64::runtime_text_buffer_materialize_additional_machine_state(),
+                ),
+                (
+                    Architecture::Aarch64,
+                    CompilerBodyPlaceIntegerWriteShape::Direct { .. },
+                ) => (
+                    omega_isa_aarch64::runtime_text_buffer_materialize_register_writes(),
+                    omega_isa_aarch64::runtime_text_buffer_materialize_additional_machine_state(),
+                ),
+                (
+                    Architecture::Aarch64,
+                    CompilerBodyPlaceIntegerWriteShape::Pointee { .. },
+                ) => (
+                    omega_isa_aarch64::runtime_text_buffer_materialize_to_runtime_pointee_register_writes(),
+                    omega_isa_aarch64::runtime_text_buffer_materialize_additional_machine_state(),
+                ),
+                (
+                    Architecture::Aarch64,
+                    CompilerBodyPlaceIntegerWriteShape::FrameIndexed { .. },
+                ) => (
+                    omega_isa_aarch64::runtime_text_buffer_materialize_to_runtime_frame_indexed_register_writes(),
+                    omega_isa_aarch64::runtime_text_buffer_materialize_additional_machine_state(),
+                ),
+                _ => return None,
+            };
+            (
+                BoundaryFootprintFragmentOrigin::CompilerBodyTextAssemblyWrite,
+                registers,
+                additional_state,
+            )
+        }
         CompilerInstructionValidationKind::CompilerBodyStorageConvertWrite { source, .. } => {
             match architecture {
                 Architecture::X86_64 => (
@@ -3233,6 +3358,7 @@ fn validate_compiler_body_specification_footprints(
                 | BoundaryFootprintFragmentOrigin::CompilerBodyStorageBitFieldWrite
                 | BoundaryFootprintFragmentOrigin::CompilerBodyPlaceBoundedBufferWrite
                 | BoundaryFootprintFragmentOrigin::CompilerBodyPlaceStringWrite
+                | BoundaryFootprintFragmentOrigin::CompilerBodyTextAssemblyWrite
                 | BoundaryFootprintFragmentOrigin::CompilerBodyPlaceBinaryWrite
                 | BoundaryFootprintFragmentOrigin::CompilerBodyStorageConvertWrite
         )
@@ -3295,6 +3421,10 @@ fn validate_compiler_body_specification_footprints(
         (
             16u8,
             BoundaryFootprintFragmentOrigin::CompilerBodyPlaceStringWrite,
+        ),
+        (
+            17u8,
+            BoundaryFootprintFragmentOrigin::CompilerBodyTextAssemblyWrite,
         ),
     ] {
         let evidence_rows = derived
@@ -5650,6 +5780,129 @@ fn validate_compiler_place_string_relocations(
     if !matches {
         return Err(Diagnostic::error(format!(
             "compiler string-write instruction #{selected_instruction_index} does not retain its exact data/target relocation set"
+        )));
+    }
+    Ok(sites.into_iter().map(|(site, _)| site).collect())
+}
+
+fn validate_compiler_text_buffer_materialize_relocations(
+    architecture: Architecture,
+    object: &omega_object_file::ObjectPlan,
+    relocations: &RelocationPlan,
+    selected_instruction_index: u32,
+    instruction_byte_offset: usize,
+    target: omega_target_operations::Place,
+    buffer_symbol: &str,
+) -> Result<Vec<usize>, Diagnostic> {
+    #[derive(Clone, Copy)]
+    enum ExpectedTarget {
+        Buffer,
+        Storage(omega_target_operations::RuntimeStorageRegion),
+    }
+
+    let sites = match (
+        architecture,
+        compiler_body_place_integer_write_shape(&target)?,
+    ) {
+        (Architecture::X86_64, CompilerBodyPlaceIntegerWriteShape::Direct { .. }) => vec![
+            (0usize, ExpectedTarget::Buffer),
+            (
+                omega_isa_x86_64::RUNTIME_TEXT_BUFFER_MATERIALIZE_TARGET_IMM_OFFSET,
+                ExpectedTarget::Storage(target.region),
+            ),
+        ],
+        (
+            Architecture::Aarch64,
+            CompilerBodyPlaceIntegerWriteShape::Direct { .. }
+            | CompilerBodyPlaceIntegerWriteShape::Pointee { .. },
+        ) => vec![
+            (0usize, ExpectedTarget::Buffer),
+            (8usize, ExpectedTarget::Storage(target.region)),
+        ],
+        (
+            Architecture::Aarch64,
+            CompilerBodyPlaceIntegerWriteShape::FrameIndexed {
+                element_byte_size,
+                field_byte_offset,
+                ..
+            },
+        ) => vec![
+            (0usize, ExpectedTarget::Storage(target.region)),
+            (
+                omega_isa_aarch64::runtime_text_indexed_buffer_materialize_buffer_address_offset(
+                    element_byte_size,
+                    field_byte_offset,
+                ),
+                ExpectedTarget::Buffer,
+            ),
+        ],
+        _ => {
+            return Err(Diagnostic::error(
+                "final text-buffer materialization relocation recipe retained an unsupported target",
+            ));
+        }
+    };
+
+    let mut actual = relocations
+        .records()
+        .filter_map(|(_, relocation)| {
+            (relocation.section == SectionKind::Text
+                && relocation.origin.selected_instruction_index()
+                    == Some(selected_instruction_index))
+            .then_some(relocation)
+        })
+        .collect::<Vec<_>>();
+    actual.sort_unstable_by_key(|relocation| relocation.offset);
+    let mut expected = Vec::new();
+    for (site, target) in &sites {
+        match architecture {
+            Architecture::X86_64 => expected.push((
+                instruction_byte_offset + site + 2,
+                RelocationKind::Absolute64,
+                8usize,
+                *target,
+            )),
+            Architecture::Aarch64 => {
+                expected.push((
+                    instruction_byte_offset + site,
+                    RelocationKind::Aarch64Page21,
+                    4usize,
+                    *target,
+                ));
+                expected.push((
+                    instruction_byte_offset + site + 4,
+                    RelocationKind::Aarch64PageOffset12,
+                    4usize,
+                    *target,
+                ));
+            }
+        }
+    }
+    expected.sort_unstable_by_key(|(offset, _, _, _)| *offset);
+    let matches = actual.len() == expected.len()
+        && actual
+            .iter()
+            .zip(&expected)
+            .all(|(relocation, (offset, kind, width, target))| {
+                let target_matches = match target {
+                    ExpectedTarget::Buffer => compiler_data_object_symbol_matches(
+                        object,
+                        relocation.symbol_handle,
+                        buffer_symbol,
+                    ),
+                    ExpectedTarget::Storage(region) => {
+                        compiler_storage_symbol_matches(object, relocation.symbol_handle, *region)
+                    }
+                };
+                relocation.offset == *offset
+                    && relocation.kind == *kind
+                    && relocation.byte_width == *width
+                    && relocation.addend == 0
+                    && target_matches
+            });
+    if !matches {
+        return Err(Diagnostic::error(format!(
+            "compiler text-buffer materialization instruction #{selected_instruction_index} does not retain its exact buffer/target relocation set"
         )));
     }
     Ok(sites.into_iter().map(|(site, _)| site).collect())

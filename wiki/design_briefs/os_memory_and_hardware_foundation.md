@@ -1076,6 +1076,12 @@ policy and source-operand root, replay exact conversion/store bytes and nested
 relocations, and match a separate `CompilerBodyStorageConvertWrite` fragment.
 Composed-place conversion writes share that fragment and exact recipe for all
 x86 materializer targets and for AArch64 pointee and machine-indexed targets.
+Text-buffer materialization is inside the partial proof for its direct x86 form
+and its direct, pointee, and frame-indexed AArch64 forms. The retained row binds
+the exact buffer data-object identity and target place, replays the existing
+target encoder and mixed data/storage relocation set, and matches a dedicated
+`CompilerBodyTextAssemblyWrite` footprint. Remaining text-assembly writes stay
+outside the partial proof.
 Place-copy selection retains its separate `compiler_body_place_copy` evidence
 only for
 the `Ordinary` role; final validation regenerates the same place-copy bytes,
