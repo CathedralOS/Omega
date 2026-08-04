@@ -1072,6 +1072,29 @@ pub fn derive_boundary_compiler_body_text_assembly_write_footprint<'instruction>
     let mut registers = Vec::new();
     let mut additional_state = MachineStateSet::empty();
     for instruction in instructions {
+        let segmented_literal = match instruction {
+            SelectedInstructionKind::WriteRuntimeTextLiteral { .. } => {
+                architecture == omega_target::Architecture::Aarch64
+            }
+            SelectedInstructionKind::WriteRuntimeTextLiteralSegment { .. } => true,
+            _ => false,
+        };
+        if segmented_literal {
+            let (writes, state) = match architecture {
+                omega_target::Architecture::X86_64 => (
+                    omega_isa_x86_64::runtime_text_literal_segment_write_register_writes(),
+                    omega_isa_x86_64::runtime_text_literal_segment_write_additional_machine_state(),
+                ),
+                omega_target::Architecture::Aarch64 => (
+                    omega_isa_aarch64::runtime_text_literal_segment_write_register_writes(),
+                    omega_isa_aarch64::runtime_text_literal_segment_write_additional_machine_state(
+                    ),
+                ),
+            };
+            registers.extend_from_slice(writes.as_slice());
+            additional_state = additional_state.union(state);
+            continue;
+        }
         let (target, write_kind) = match instruction {
             SelectedInstructionKind::MaterializeTextBufferToPlace { target, .. } => (target, 0u8),
             SelectedInstructionKind::AppendTextLiteralToPlace { target, .. } => (target, 1u8),

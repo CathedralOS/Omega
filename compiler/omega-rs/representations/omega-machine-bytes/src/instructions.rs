@@ -145,6 +145,11 @@ pub enum CompilerInstructionValidationKind {
         source_offset: usize,
         target: Place,
     },
+    CompilerBodyTextLiteralSegmentWrite {
+        buffer_symbol: Arc<str>,
+        byte_offset: usize,
+        literal: Arc<str>,
+    },
     CompilerBodyPlaceBinaryWrite {
         target: Place,
         byte_size: usize,

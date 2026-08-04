@@ -1202,7 +1202,10 @@ indexed literal text appends on both targets share that fragment and retain
 their exact literal, buffer, place, encoder, and relocation recipe. Stored-
 source appends share it for direct/pointee x86 targets and direct, pointee, or
 frame-indexed AArch64 targets, including the exact source storage and mixed
-buffer/source/target relocations. String-
+buffer/source/target relocations. Segmented literal-buffer writes share the
+text-assembly fragment as well,
+retaining their exact buffer symbol, byte offset, literal, encoder, and sole
+data-object relocation. String-
 descriptor writes replay all x86 targets
 and the direct, pointee, frame-indexed, and frame-indexed machine-storage
 AArch64 shapes, including exact rodata and storage/index relocations plus a

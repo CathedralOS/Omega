@@ -584,6 +584,28 @@ fn compiler_instruction_validation_kind(
                 },
             )
         }
+        SelectedInstructionKind::WriteRuntimeTextLiteral { buffer, literal }
+            if emission_context.target.architecture == omega_target::Architecture::Aarch64 =>
+        {
+            Some(
+                CompilerInstructionValidationKind::CompilerBodyTextLiteralSegmentWrite {
+                    buffer_symbol: Arc::clone(&emission_context.data.objects.get(*buffer).symbol),
+                    byte_offset: 0,
+                    literal: Arc::clone(literal),
+                },
+            )
+        }
+        SelectedInstructionKind::WriteRuntimeTextLiteralSegment {
+            buffer,
+            byte_offset,
+            literal,
+        } => Some(
+            CompilerInstructionValidationKind::CompilerBodyTextLiteralSegmentWrite {
+                buffer_symbol: Arc::clone(&emission_context.data.objects.get(*buffer).symbol),
+                byte_offset: *byte_offset,
+                literal: Arc::clone(literal),
+            },
+        ),
         SelectedInstructionKind::AppendTextLiteralToPlace {
             buffer,
             target,
