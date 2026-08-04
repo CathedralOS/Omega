@@ -91,15 +91,21 @@ pub(crate) fn runtime_machine_indexed_string_runtime_frame_address_offset(
     )
 }
 
-pub(crate) fn runtime_machine_indexed_string_data_address_offset(
+pub(crate) fn runtime_machine_indexed_string_data_address_offset_with_index_region(
     architecture: Architecture,
     base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> usize {
-    omega_instruction_selection::runtime_machine_indexed_string_data_address_offset(
+    omega_instruction_selection::runtime_machine_indexed_string_data_address_offset_with_index_region(
         architecture,
         base_byte_offset,
+        index_region,
+        index_offset,
+        index_byte_size,
         element_byte_size,
         field_byte_offset,
     )

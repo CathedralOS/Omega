@@ -1272,13 +1272,51 @@ pub fn runtime_machine_indexed_string_write_width(
     field_byte_offset: usize,
     byte_length: usize,
 ) -> usize {
-    28 + add_constant_width(base_byte_offset)
-        + scale_index_width(element_byte_size)
-        + add_constant_width(field_byte_offset)
-        + 8
+    runtime_machine_indexed_string_write_width_with_index_region(
+        base_byte_offset,
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+        0,
+        8,
+        element_byte_size,
+        field_byte_offset,
+        byte_length,
+    )
+}
+
+pub fn runtime_machine_indexed_string_write_width_with_index_region(
+    base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_length: usize,
+) -> usize {
+    runtime_machine_indexed_string_data_address_offset_with_index_region(
+        base_byte_offset,
+        index_region,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+    ) + 8
         + 4
         + unsigned_immediate_width(byte_length as u64)
         + 4
+}
+
+pub fn runtime_machine_indexed_string_data_address_offset_with_index_region(
+    base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> usize {
+    16 + machine_index_load_width(index_region, index_offset, index_byte_size)
+        + add_constant_width(base_byte_offset)
+        + scale_index_width(element_byte_size)
+        + add_constant_width(field_byte_offset)
 }
 
 pub fn runtime_machine_indexed_string_runtime_frame_address_offset(
@@ -1300,9 +1338,14 @@ pub fn runtime_machine_indexed_string_data_address_offset(
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> usize {
-    28 + add_constant_width(base_byte_offset)
-        + scale_index_width(element_byte_size)
-        + add_constant_width(field_byte_offset)
+    runtime_machine_indexed_string_data_address_offset_with_index_region(
+        base_byte_offset,
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+        0,
+        8,
+        element_byte_size,
+        field_byte_offset,
+    )
 }
 
 pub fn runtime_storage_copy_from_runtime_machine_indexed_runtime_frame_address_offset(

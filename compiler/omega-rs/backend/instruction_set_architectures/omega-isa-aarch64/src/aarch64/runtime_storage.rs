@@ -50,7 +50,8 @@ use super::widths::{
     runtime_frame_indexed_string_write_width_with_index_region, runtime_frame_string_write_width,
     runtime_machine_bounded_buffer_literal_append_width,
     runtime_machine_bounded_buffer_source_append_width, runtime_machine_bounded_buffer_write_width,
-    runtime_machine_indexed_integer_write_width, runtime_machine_indexed_string_write_width,
+    runtime_machine_indexed_integer_write_width,
+    runtime_machine_indexed_string_write_width_with_index_region,
     runtime_machine_integer_write_width, runtime_machine_string_write_width,
     runtime_pointee_address_to_runtime_frame_write_width, runtime_pointee_binary_write_width,
     runtime_pointee_bounded_buffer_write_width, runtime_pointee_integer_write_width,
@@ -2849,16 +2850,41 @@ pub fn encode_runtime_machine_indexed_string_write(
     field_byte_offset: usize,
     byte_length: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(runtime_machine_indexed_string_write_width(
+    encode_runtime_machine_indexed_string_write_with_index_region(
         base_byte_offset,
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+        index_offset,
+        index_byte_size,
         element_byte_size,
         field_byte_offset,
         byte_length,
-    ));
+    )
+}
+
+pub fn encode_runtime_machine_indexed_string_write_with_index_region(
+    base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_length: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(
+        runtime_machine_indexed_string_write_width_with_index_region(
+            base_byte_offset,
+            index_region,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+            byte_length,
+        ),
+    );
     append_runtime_machine_index_target_address(
         &mut bytes,
         base_byte_offset,
-        omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+        index_region,
         index_offset,
         index_byte_size,
         element_byte_size,
@@ -2869,6 +2895,18 @@ pub fn encode_runtime_machine_indexed_string_write(
     bytes.extend(encode_store_x_to_x(17, 16, 0)?);
     append_unsigned_immediate(&mut bytes, 17, byte_length as u64);
     bytes.extend(encode_store_x_to_x(17, 16, 8)?);
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_machine_indexed_string_write_width_with_index_region(
+            base_byte_offset,
+            index_region,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+            byte_length,
+        )
+    );
     Ok(bytes)
 }
 
@@ -8156,6 +8194,43 @@ mod tests {
             assert!(
                 super::super::widths::FRAME_INDEXED_OPERAND_MACHINE_INDEX_BASE_OFFSET < data_site
             );
+        }
+    }
+
+    #[test]
+    fn machine_indexed_string_write_with_machine_index_matches_width() {
+        for index_byte_size in [1usize, 2, 4, 8] {
+            let bytes = encode_runtime_machine_indexed_string_write_with_index_region(
+                24,
+                omega_target_operations::RuntimeStorageRegion::Machine,
+                8,
+                index_byte_size,
+                16,
+                0,
+                7,
+            )
+            .expect("machine-indexed string descriptor write with machine index");
+            assert_eq!(
+                bytes.len(),
+                runtime_machine_indexed_string_write_width_with_index_region(
+                    24,
+                    omega_target_operations::RuntimeStorageRegion::Machine,
+                    8,
+                    index_byte_size,
+                    16,
+                    0,
+                    7,
+                )
+            );
+            let data_site = super::super::widths::runtime_machine_indexed_string_data_address_offset_with_index_region(
+                24,
+                omega_target_operations::RuntimeStorageRegion::Machine,
+                8,
+                index_byte_size,
+                16,
+                0,
+            );
+            assert_eq!(bytes.len() - data_site, 20);
         }
     }
 
