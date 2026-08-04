@@ -1592,13 +1592,14 @@ fn validate_compiler_function_instruction_boundaries(
                                 )?,
                                 CompilerBodyPlaceIntegerWriteShape::FrameIndexed {
                                     descriptor_offset,
+                                    index_region,
                                     index_offset,
                                     index_byte_size,
                                     element_byte_size,
                                     field_byte_offset,
-                                    ..
-                                } => omega_isa_aarch64::encode_runtime_frame_indexed_string_write(
+                                } => omega_isa_aarch64::encode_runtime_frame_indexed_string_write_with_index_region(
                                     descriptor_offset,
+                                    index_region,
                                     index_offset,
                                     index_byte_size,
                                     element_byte_size,
@@ -6523,11 +6524,14 @@ fn collect_compiler_runtime_value_address_sites(
                     "final runtime-value text-literal operand retained an invalid place handle",
                 ));
             }
-            let region = match operands.get(*place) {
-                RuntimeValueOperand::Storage { region, .. } => *region,
-                _ => RuntimeStorageRegion::RuntimeFrame,
-            };
-            sites.push((operand_offset, region));
+            collect_compiler_runtime_value_address_sites(
+                architecture,
+                operands,
+                *place,
+                operand_offset,
+                visiting,
+                sites,
+            )?;
         }
         RuntimeValueOperand::Convert { source, .. } => {
             collect_compiler_runtime_value_address_sites(
@@ -6616,13 +6620,21 @@ fn validate_compiler_place_string_relocations(
                 sites.push((8, ExpectedTarget::Storage(target.region)));
             }
             CompilerBodyPlaceIntegerWriteShape::FrameIndexed {
+                index_region,
                 element_byte_size,
                 field_byte_offset,
                 ..
             } => {
                 sites.push((0, ExpectedTarget::Storage(target.region)));
+                if index_region == omega_target_operations::RuntimeStorageRegion::Machine {
+                    sites.push((
+                        omega_isa_aarch64::FRAME_INDEXED_OPERAND_MACHINE_INDEX_BASE_OFFSET,
+                        ExpectedTarget::Storage(index_region),
+                    ));
+                }
                 sites.push((
-                    omega_isa_aarch64::runtime_frame_indexed_string_data_address_offset(
+                    omega_isa_aarch64::runtime_frame_indexed_string_data_address_offset_with_index_region(
+                        index_region,
                         element_byte_size,
                         field_byte_offset,
                     ),
