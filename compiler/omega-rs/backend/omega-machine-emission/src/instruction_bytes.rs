@@ -457,6 +457,8 @@ fn compiler_instruction_validation_kind(
             omega_instruction_selection::classify_write_place_shape(target),
             omega_instruction_selection::WritePlaceShape::Direct { .. }
                 | omega_instruction_selection::WritePlaceShape::Pointee { .. }
+                | omega_instruction_selection::WritePlaceShape::FrameIndexed { .. }
+                | omega_instruction_selection::WritePlaceShape::FrameIndexedByRegion { .. }
         ) =>
         {
             Some(

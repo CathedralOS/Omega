@@ -170,6 +170,7 @@ enum CompilerInstructionRelocationRecipe {
         byte_count: usize,
     },
     PlaceValue(omega_target_operations::Place),
+    PlaceIntegerWrite(omega_target_operations::Place),
     RuntimeTextLiteral {
         buffer_symbol: std::sync::Arc<str>,
     },
@@ -317,6 +318,14 @@ enum CompilerBodyPlaceIntegerWriteShape {
     },
     Pointee {
         pointer_byte_offset: usize,
+        field_byte_offset: usize,
+    },
+    FrameIndexed {
+        descriptor_offset: usize,
+        index_region: omega_target_operations::RuntimeStorageRegion,
+        index_offset: usize,
+        index_byte_size: usize,
+        element_byte_size: usize,
         field_byte_offset: usize,
     },
 }
@@ -1223,13 +1232,27 @@ fn validate_compiler_function_instruction_boundaries(
                                     byte_size,
                                     value,
                                 )?,
+                                CompilerBodyPlaceIntegerWriteShape::FrameIndexed {
+                                    descriptor_offset,
+                                    index_region,
+                                    index_offset,
+                                    index_byte_size,
+                                    element_byte_size,
+                                    field_byte_offset,
+                                } => omega_isa_aarch64::encode_runtime_frame_indexed_integer_write_with_index_region(
+                                    descriptor_offset,
+                                    index_region,
+                                    index_offset,
+                                    index_byte_size,
+                                    element_byte_size,
+                                    field_byte_offset,
+                                    byte_size,
+                                    value,
+                                )?,
                             },
                             },
                             22u8,
-                            CompilerInstructionRelocationRecipe::StaticStorage {
-                                storage_region: target.region,
-                                address_site: 0,
-                            },
+                            CompilerInstructionRelocationRecipe::PlaceIntegerWrite(target),
                         )
                     }
                     omega_machine_bytes::CompilerInstructionValidationKind::DispatchStateWrite {
@@ -1352,6 +1375,31 @@ fn validate_compiler_function_instruction_boundaries(
                     }
                     CompilerInstructionRelocationRecipe::PlaceValue(place) => {
                         let address_sites = compiler_place_value_address_sites(
+                            architecture,
+                            place,
+                            kind_for_relocations,
+                        )?;
+                        validate_compiler_data_address_relocations(
+                            architecture,
+                            object,
+                            relocations,
+                            instruction.selected_instruction_index,
+                            instruction_byte_offset,
+                            &address_sites,
+                        )?;
+                        encoded_instruction_bytes == expected_bytes
+                            && compiler_instruction_non_relocation_bits_match(
+                                architecture,
+                                &expected_bytes,
+                                final_instruction_bytes,
+                                &address_sites
+                                    .iter()
+                                    .map(|(offset, _)| *offset)
+                                    .collect::<Vec<_>>(),
+                            )
+                    }
+                    CompilerInstructionRelocationRecipe::PlaceIntegerWrite(place) => {
+                        let address_sites = compiler_place_integer_write_address_sites(
                             architecture,
                             place,
                             kind_for_relocations,
@@ -1975,6 +2023,11 @@ fn compiler_instruction_footprint(
                         } => omega_isa_aarch64::runtime_pointee_integer_write_clobbers(
                             pointer_byte_offset,
                             field_byte_offset,
+                        ),
+                        CompilerBodyPlaceIntegerWriteShape::FrameIndexed {
+                            index_region, ..
+                        } => omega_isa_aarch64::runtime_frame_indexed_integer_write_clobbers(
+                            index_region,
                         ),
                     },
                 },
@@ -2769,8 +2822,26 @@ fn compiler_body_place_integer_write_shape(
     }
     if target.region != omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
         return Err(Diagnostic::error(
-            "final pointee integer-write pointer is not captured in the runtime frame",
+            "final indexed or pointee integer-write root is not the runtime frame",
         ));
+    }
+    if let Ok((
+        descriptor_offset,
+        index_region,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+    )) = compiler_single_indexed_place_offsets(target)
+    {
+        return Ok(CompilerBodyPlaceIntegerWriteShape::FrameIndexed {
+            descriptor_offset,
+            index_region,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+        });
     }
     match target.steps() {
         [
@@ -2789,7 +2860,7 @@ fn compiler_body_place_integer_write_shape(
             field_byte_offset: *field_byte_offset,
         }),
         _ => Err(Diagnostic::error(
-            "final compiler-body integer-write target is not a retained direct or frame-held pointee shape",
+            "final compiler-body integer-write target is not a retained direct, frame-held pointee, or frame-indexed shape",
         )),
     }
 }
@@ -3606,6 +3677,64 @@ fn compiler_place_value_address_sites(
                 .collect()
         }
         Architecture::Aarch64 => Ok(vec![(0, place.region)]),
+    }
+}
+
+fn compiler_place_integer_write_address_sites(
+    architecture: Architecture,
+    place: omega_target_operations::Place,
+    kind: omega_machine_bytes::CompilerInstructionValidationKind,
+) -> Result<Vec<(usize, omega_target_operations::RuntimeStorageRegion)>, Diagnostic> {
+    let omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyPlaceIntegerWrite {
+        target,
+        value,
+        byte_size,
+    } = kind
+    else {
+        return Err(Diagnostic::error(
+            "invalid final place integer-write validation recipe",
+        ));
+    };
+    if target != place {
+        return Err(Diagnostic::error(
+            "final place integer-write relocation recipe changed its retained target",
+        ));
+    }
+    match architecture {
+        Architecture::X86_64 => {
+            let (_, sites) =
+                omega_isa_x86_64::encode_place_integer_write(&place, value, byte_size)?;
+            sites
+                .iter()
+                .map(|(offset, side)| {
+                    let region = match side {
+                        omega_isa_x86_64::PlaceCopySide::Target => place.region,
+                        omega_isa_x86_64::PlaceCopySide::TargetIndex => place
+                            .scaled_index_region()
+                            .ok_or_else(|| Diagnostic::error("place integer-write index relocation has no retained index step"))?,
+                        omega_isa_x86_64::PlaceCopySide::TargetIndex2 => place
+                            .scaled_index_regions()
+                            .nth(1)
+                            .ok_or_else(|| Diagnostic::error("place integer-write second index relocation has no retained index step"))?,
+                        _ => return Err(Diagnostic::error("place integer-write recipe retained an invalid source relocation site")),
+                    };
+                    Ok((offset, region))
+                })
+                .collect()
+        }
+        Architecture::Aarch64 => {
+            let shape = compiler_body_place_integer_write_shape(&place)?;
+            let mut sites = vec![(0, place.region)];
+            if let CompilerBodyPlaceIntegerWriteShape::FrameIndexed { index_region, .. } = shape
+                && index_region == omega_target_operations::RuntimeStorageRegion::Machine
+            {
+                sites.push((
+                    omega_isa_aarch64::FRAME_INDEXED_OPERAND_MACHINE_INDEX_BASE_OFFSET,
+                    index_region,
+                ));
+            }
+            Ok(sites)
+        }
     }
 }
 

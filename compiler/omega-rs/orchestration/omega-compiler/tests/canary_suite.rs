@@ -1127,7 +1127,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         executable_regions.contains(
             "\"certificate_schema\": \"omega.final-footprint-certificate\""
         )
-            && executable_regions.contains("\"certificate_format_version\": 31")
+            && executable_regions.contains("\"certificate_format_version\": 32")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
             && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")
@@ -2174,6 +2174,75 @@ fn compiler_body_pointee_integer_write_footprints_reach_x86_and_aarch64_artifact
                 && footprints.contains(expected_register)
                 && footprints.contains("\"enumeration_complete\": false"),
             "{target} artifact must retain the pointee integer-write footprint without claiming completeness"
+        );
+        let _ = fs::remove_dir_all(&scratch);
+    }
+}
+
+#[test]
+fn compiler_body_cross_region_frame_indexed_integer_write_footprints_reach_artifacts() {
+    for (target, expected_register) in [
+        ("linux_x64", "\"X86R11\""),
+        ("linux_arm64", "\"Aarch64X(15)\""),
+    ] {
+        let scratch = std::env::temp_dir().join(format!(
+            "omega-compiler-body-frame-indexed-integer-write-footprint-{target}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&scratch);
+        let source = scratch.join("src");
+        let output = scratch.join("out");
+        fs::create_dir_all(&source)
+            .expect("create compiler-body frame-indexed integer-write source directory");
+        fs::write(
+            source.join("main.omg"),
+            r#"use omega::language::std::console;
+
+data Entry { value: i32; }
+data Main {
+    console: Console;
+    entries: [Entry; 4];
+    index: u64;
+}
+
+machine Main::main(&mut self) {
+    self.index = 2;
+    let view: &mut [Entry] = self.entries.as_mut_slice();
+    view[self.index].value = 7;
+    transition self.entries[2].value == 7 {
+        true -> good()
+        false -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
+"#,
+        )
+        .expect("write compiler-body cross-region frame-indexed integer-write canary");
+        fs::write(
+            source.join("build.omg"),
+            format!("target {target} {{\n}}\n"),
+        )
+        .expect("write compiler-body frame-indexed integer-write target");
+        compile(CompileOptions {
+            root_path: source.join("main.omg"),
+            build_dir: Some(output.clone()),
+            target_name: Some(target.into()),
+            write_output: true,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "compiler-body frame-indexed integer writes should compile for {target}: {diagnostics:?}"
+            )
+        });
+        let footprints = fs::read_to_string(output.join("08_boundary_footprints.json")).expect(
+            "compiler-body frame-indexed integer-write footprint evidence should be written",
+        );
+        assert!(
+            footprints.contains("\"origin\": \"compiler_body_place_integer_write\"")
+                && footprints.contains(expected_register)
+                && footprints.contains("\"enumeration_complete\": false"),
+            "{target} artifact must retain the frame-indexed integer-write footprint without claiming completeness"
         );
         let _ = fs::remove_dir_all(&scratch);
     }
