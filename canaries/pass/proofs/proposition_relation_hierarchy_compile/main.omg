@@ -1,0 +1,109 @@
+// N6: core relation properties consume proposition families and keep their
+// laws independent. The composite hierarchy is imported from core rather than
+// rediscovered through proof-machine name suffixes.
+use omega::language::core::relation;
+
+data Carrier {
+}
+
+proposition related(left: Carrier, right: Carrier);
+
+machine related_reflexive(value: Carrier)
+satisfies Reflexive<Carrier, related>::reflexive
+requires related(value, value)
+ensures related(value, value)
+{
+}
+
+machine related_symmetric(left: Carrier, right: Carrier)
+satisfies Symmetric<Carrier, related>::symmetric
+requires
+    related(left, right)
+    related(right, left)
+ensures related(right, left)
+{
+}
+
+machine related_transitive(left: Carrier, middle: Carrier, right: Carrier)
+satisfies Transitive<Carrier, related>::transitive
+requires
+    related(left, middle)
+    related(middle, right)
+    related(left, right)
+ensures related(left, right)
+{
+}
+
+machine related_antisymmetric(left: Carrier, right: Carrier)
+satisfies Antisymmetric<Carrier, related>::antisymmetric
+requires
+    related(left, right)
+    related(right, left)
+    left == right
+ensures left == right
+{
+}
+
+data Index {
+}
+
+data Stream<machine Sequence>
+where machine Sequence(index: Index) -> Index;
+{
+    case Empty;
+    case More(tail: Stream<Sequence>);
+}
+
+proposition stream_related<machine Left, machine Right>(
+    left: Stream<Left>,
+    right: Stream<Right>
+);
+
+machine stream_related_reflexive<machine Sequence>(value: Stream<Sequence>)
+where machine Sequence(index: Index) -> Index;
+satisfies Reflexive<Stream, stream_related>::reflexive
+requires stream_related<Sequence, Sequence>(value, value)
+ensures stream_related<Sequence, Sequence>(value, value)
+{
+}
+
+machine stream_related_symmetric<machine Left, machine Right>(
+    left: Stream<Left>,
+    right: Stream<Right>
+)
+where machine Left(index: Index) -> Index;
+where machine Right(index: Index) -> Index;
+satisfies Symmetric<Stream, stream_related>::symmetric
+requires
+    stream_related<Left, Right>(left, right)
+    stream_related<Right, Left>(right, left)
+ensures stream_related<Right, Left>(right, left)
+{
+}
+
+machine stream_related_transitive<
+    machine Left,
+    machine Middle,
+    machine Right
+>(
+    left: Stream<Left>,
+    middle: Stream<Middle>,
+    right: Stream<Right>
+)
+where machine Left(index: Index) -> Index;
+where machine Middle(index: Index) -> Index;
+where machine Right(index: Index) -> Index;
+satisfies Transitive<Stream, stream_related>::transitive
+requires
+    stream_related<Left, Middle>(left, middle)
+    stream_related<Middle, Right>(middle, right)
+    stream_related<Left, Right>(left, right)
+ensures stream_related<Left, Right>(left, right)
+{
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

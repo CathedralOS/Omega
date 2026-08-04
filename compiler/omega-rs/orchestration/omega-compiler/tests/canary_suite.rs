@@ -43645,6 +43645,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "proofs/integer_measured_nat_induction_compile",
     "proofs/ring_full_polynomial_compile",
     "proofs/ring_identity_slot_bridge_compile",
+    "proofs/proposition_relation_hierarchy_compile",
     "proofs/quotient_equivalence_compile",
     "proofs/quotient_generic_relation_compile",
     "proofs/quotient_machine_family_compile",
