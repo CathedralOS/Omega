@@ -476,6 +476,33 @@ fn compiler_instruction_validation_kind(
                 },
             )
         }
+        SelectedInstructionKind::WritePlaceBinary {
+            target,
+            byte_size,
+            left,
+            operator,
+            right,
+            is_float,
+            domain,
+            target_signed,
+        } if matches!(
+            omega_instruction_selection::classify_write_place_shape(target),
+            omega_instruction_selection::WritePlaceShape::Direct { .. }
+        ) =>
+        {
+            Some(
+                CompilerInstructionValidationKind::CompilerBodyPlaceBinaryWrite {
+                    target: *target,
+                    byte_size: *byte_size,
+                    left: *left,
+                    operator: *operator,
+                    right: *right,
+                    is_float: *is_float,
+                    domain: *domain,
+                    target_signed: *target_signed,
+                },
+            )
+        }
         SelectedInstructionKind::SetDispatchState { dispatch_index } => {
             Some(CompilerInstructionValidationKind::DispatchStateWrite {
                 dispatch_index: *dispatch_index,

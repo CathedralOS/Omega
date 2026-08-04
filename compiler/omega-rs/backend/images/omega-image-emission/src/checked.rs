@@ -171,6 +171,11 @@ enum CompilerInstructionRelocationRecipe {
     },
     PlaceValue(omega_target_operations::Place),
     PlaceIntegerWrite(omega_target_operations::Place),
+    PlaceBinaryWrite {
+        target: omega_target_operations::Place,
+        left: omega_target_operations::RuntimeValueOperandHandle,
+        right: omega_target_operations::RuntimeValueOperandHandle,
+    },
     RuntimeTextLiteral {
         buffer_symbol: std::sync::Arc<str>,
     },
@@ -1345,6 +1350,66 @@ fn validate_compiler_function_instruction_boundaries(
                             CompilerInstructionRelocationRecipe::PlaceIntegerWrite(target),
                         )
                     }
+                    omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyPlaceBinaryWrite {
+                        target,
+                        byte_size,
+                        left,
+                        operator,
+                        right,
+                        is_float,
+                        domain,
+                        target_signed,
+                    } => {
+                        if !matches!(
+                            compiler_body_place_integer_write_shape(&target)?,
+                            CompilerBodyPlaceIntegerWriteShape::Direct { .. }
+                        ) {
+                            return Err(Diagnostic::error(
+                                "final compiler-body binary-write subset retained a non-direct target",
+                            ));
+                        }
+                        let bytes = match architecture {
+                            Architecture::X86_64 => omega_isa_x86_64::encode_place_binary_write(
+                                &code.runtime_value_operands,
+                                &target,
+                                byte_size,
+                                left,
+                                operator,
+                                right,
+                                is_float,
+                                domain,
+                                target_signed,
+                            )?.0,
+                            Architecture::Aarch64 => {
+                                let CompilerBodyPlaceIntegerWriteShape::Direct { byte_offset } =
+                                    compiler_body_place_integer_write_shape(&target)?
+                                else {
+                                    unreachable!("direct binary-write shape checked above")
+                                };
+                                omega_isa_aarch64::encode_runtime_storage_binary_write(
+                                    &code.runtime_value_operands,
+                                    byte_offset,
+                                    byte_size,
+                                    left,
+                                    operator,
+                                    right,
+                                    is_float,
+                                    domain,
+                                    target_signed,
+                                )?
+                            }
+                        };
+                        (
+                            None,
+                            bytes,
+                            22u8,
+                            CompilerInstructionRelocationRecipe::PlaceBinaryWrite {
+                                target,
+                                left,
+                                right,
+                            },
+                        )
+                    }
                     omega_machine_bytes::CompilerInstructionValidationKind::DispatchStateWrite {
                         dispatch_index,
                         case_leave_byte_distance,
@@ -1493,6 +1558,37 @@ fn validate_compiler_function_instruction_boundaries(
                             architecture,
                             place,
                             kind_for_relocations,
+                        )?;
+                        validate_compiler_data_address_relocations(
+                            architecture,
+                            object,
+                            relocations,
+                            instruction.selected_instruction_index,
+                            instruction_byte_offset,
+                            &address_sites,
+                        )?;
+                        encoded_instruction_bytes == expected_bytes
+                            && compiler_instruction_non_relocation_bits_match(
+                                architecture,
+                                &expected_bytes,
+                                final_instruction_bytes,
+                                &address_sites
+                                    .iter()
+                                    .map(|(offset, _)| *offset)
+                                    .collect::<Vec<_>>(),
+                            )
+                    }
+                    CompilerInstructionRelocationRecipe::PlaceBinaryWrite {
+                        target,
+                        left,
+                        right,
+                    } => {
+                        let address_sites = compiler_place_binary_write_address_sites(
+                            architecture,
+                            &code.runtime_value_operands,
+                            target,
+                            left,
+                            right,
                         )?;
                         validate_compiler_data_address_relocations(
                             architecture,
@@ -2141,6 +2237,42 @@ fn compiler_instruction_footprint(
                 MachineStateSet::empty(),
             )
         }
+        CompilerInstructionValidationKind::CompilerBodyPlaceBinaryWrite {
+            target,
+            left,
+            operator,
+            right,
+            ..
+        } => {
+            if !matches!(
+                compiler_body_place_integer_write_shape(&target).ok()?,
+                CompilerBodyPlaceIntegerWriteShape::Direct { .. }
+            ) {
+                return None;
+            }
+            match architecture {
+                Architecture::X86_64 => (
+                    BoundaryFootprintFragmentOrigin::CompilerBodyPlaceBinaryWrite,
+                    omega_isa_x86_64::place_binary_write_register_write_ceiling(),
+                    omega_isa_x86_64::place_binary_write_additional_machine_state(
+                        runtime_value_operands,
+                        left,
+                        operator,
+                        right,
+                    ),
+                ),
+                Architecture::Aarch64 => (
+                    BoundaryFootprintFragmentOrigin::CompilerBodyPlaceBinaryWrite,
+                    omega_isa_aarch64::place_binary_write_register_write_ceiling(),
+                    omega_isa_aarch64::place_binary_write_additional_machine_state(
+                        runtime_value_operands,
+                        left,
+                        operator,
+                        right,
+                    ),
+                ),
+            }
+        }
         CompilerInstructionValidationKind::DispatchStateWrite { .. } => (
             BoundaryFootprintFragmentOrigin::DispatchScaffold,
             match architecture {
@@ -2189,6 +2321,7 @@ fn validate_compiler_body_specification_footprints(
                 | BoundaryFootprintFragmentOrigin::ExitIndirectResultCopy
                 | BoundaryFootprintFragmentOrigin::CompilerBodyPlaceCopy
                 | BoundaryFootprintFragmentOrigin::CompilerBodyPlaceIntegerWrite
+                | BoundaryFootprintFragmentOrigin::CompilerBodyPlaceBinaryWrite
         )
     });
     let boundary_contract_fingerprint = if !has_body_rows {
@@ -2229,6 +2362,10 @@ fn validate_compiler_body_specification_footprints(
         (
             11u8,
             BoundaryFootprintFragmentOrigin::CompilerBodyPlaceIntegerWrite,
+        ),
+        (
+            12u8,
+            BoundaryFootprintFragmentOrigin::CompilerBodyPlaceBinaryWrite,
         ),
     ] {
         let evidence_rows = derived
@@ -4011,6 +4148,53 @@ fn compiler_place_integer_write_address_sites(
             Ok(sites)
         }
     }
+}
+
+fn compiler_place_binary_write_address_sites(
+    architecture: Architecture,
+    operands: &psi_arena::Arena<omega_target_operations::RuntimeValueOperand>,
+    target: omega_target_operations::Place,
+    left: omega_target_operations::RuntimeValueOperandHandle,
+    right: omega_target_operations::RuntimeValueOperandHandle,
+) -> Result<Vec<(usize, omega_target_operations::RuntimeStorageRegion)>, Diagnostic> {
+    if !matches!(
+        compiler_body_place_integer_write_shape(&target)?,
+        CompilerBodyPlaceIntegerWriteShape::Direct { .. }
+    ) {
+        return Err(Diagnostic::error(
+            "final compiler-body binary-write relocation recipe retained a non-direct target",
+        ));
+    }
+    let operand_start = match architecture {
+        Architecture::X86_64 => omega_isa_x86_64::place_binary_operand_start_width(&target),
+        Architecture::Aarch64 => 8,
+    };
+    let mut sites = vec![(0, target.region)];
+    let mut visiting = Vec::new();
+    collect_compiler_runtime_value_address_sites(
+        architecture,
+        operands,
+        left,
+        operand_start,
+        &mut visiting,
+        &mut sites,
+    )?;
+    let right_gap = match architecture {
+        Architecture::X86_64 => omega_isa_x86_64::BINARY_RIGHT_OPERAND_PUSH_WIDTH,
+        Architecture::Aarch64 => 0,
+    };
+    let right_offset = operand_start
+        + compiler_runtime_value_operand_width(architecture, operands, left)?
+        + right_gap;
+    collect_compiler_runtime_value_address_sites(
+        architecture,
+        operands,
+        right,
+        right_offset,
+        &mut visiting,
+        &mut sites,
+    )?;
+    Ok(sites)
 }
 
 fn compiler_runtime_value_compare_address_sites(

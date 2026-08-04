@@ -1061,12 +1061,18 @@ Runtime-indexed immediate writes into single- and double-indexed inline machine
 arrays are included too. The x86 general place materializer replays the
 remaining otherwise-unclassified immediate integer-write paths with exact
 index-depth scratch and relocation sites.
+Direct-target binary writes retain their complete checked recipe and roots
+into the canonical runtime-value operand arena; final validation regenerates
+the evaluator/store bytes, walks nested operand relocations, and matches the
+closed target may-write ceiling to the separately retained
+`CompilerBodyPlaceBinaryWrite` fragment.
 Place-copy selection retains its separate `compiler_body_place_copy` evidence
 only for
 the `Ordinary` role; final validation regenerates the same place-copy bytes,
 checks the storage, pointer-slot, and index relocations, and requires the target
-scratch union to match. Other ordinary copy/write shapes
-and calls remain outside the partial proof. The pointee-pair selector resolves
+scratch union to match. Indirect/indexed binary targets,
+conversion/string/bit-field writes, and calls remain outside the partial
+proof. The pointee-pair selector resolves
 both reference operands before flat storage, so the source remains a
 dereference rather than being mistaken for pointer-slot contents.
 Direct-image emission also validates the fixed encoder-owned function-entry
