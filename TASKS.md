@@ -882,7 +882,7 @@ proves complete region coverage, and composes admitted leaves under their
 separate provenance. Do not add a second whole-image decoder/admission path.
 
 The existing single final-region artifact now carries the domain-separated
-`omega.final-footprint-certificate` schema, format version 64, and a certificate
+`omega.final-footprint-certificate` schema, format version 65, and a certificate
 fingerprint over its final placement binding, compiler-text derivation, and
 complete region inventory. Its explicit completeness flags remain false until
 compiler-body footprint decoding and admitted-leaf evidence land. The envelope
@@ -1016,10 +1016,12 @@ relocations bind to
 bounded-buffer literal writes now replay all x86 targets and every classified
 AArch64 place target, including indexed and double-indexed owned carriers, with
 their exact target, literal, relocation walk, and separate
-`CompilerBodyPlaceBoundedBufferWrite` footprint. Literal appends into
-the same owned carriers now share that evidence with their own exact encoder
-and relocation recipe. Source-carrier appends now share it as well, replaying
-both place walks and the copy-loop state. Immediate compact bit-field writes
+`CompilerBodyPlaceBoundedBufferWrite` footprint. Literal appends now replay all
+x86 targets and every classified AArch64 target with their own exact encoder
+and relocation recipe. Source-carrier appends now share it as well: x86 retains
+both general place walks, while AArch64 serves every classified target with a
+direct or pointee source and replays the indexed target walk, source walk, and
+copy-loop state. Immediate compact bit-field writes
 now retain their exact storage region, base offset, fragment layout, and value;
 final validation replays the target encoder and sole destination relocation
 against a separate `CompilerBodyStorageBitFieldWrite` footprint. Pointee-pair

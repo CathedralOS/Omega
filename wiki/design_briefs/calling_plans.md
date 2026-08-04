@@ -1111,7 +1111,7 @@ relocation, and data relocation now consume that complete plan. Their former
 manual `+8`/`+12` stack accounting and trailing-mode operation classifier are
 retired; the operation key only selects the concrete adapter subcall.
 
-Final footprint certificate format v64 now retains an exact
+Final footprint certificate format v65 now retains an exact
 function-to-instruction partition in the encoded carrier. Checked image
 emission replays every contiguous function
 and instruction boundary over relocated final bytes, rejects gaps, overlaps,
@@ -1221,10 +1221,12 @@ exact rodata and storage/index relocations plus a separate
 writes replay all x86 targets and every classified AArch64 place target,
 including indexed and double-indexed owned carriers and the exact target,
 literal, relocation walk, and separate
-`CompilerBodyPlaceBoundedBufferWrite` footprint. Literal appends into those
-owned carriers share the fragment while retaining their distinct exact encoder
-and relocation recipe; source-carrier appends likewise replay both place walks
-and their copy-loop state. Immediate compact bit-field writes retain their exact
+`CompilerBodyPlaceBoundedBufferWrite` footprint. Literal appends replay all x86
+targets and every classified AArch64 target while retaining their distinct
+exact encoder and relocation recipe. Source-carrier appends likewise replay
+both general x86 place walks; AArch64 serves every classified target with a
+direct or pointee source and replays its indexed target walk, source walk, and
+copy-loop state. Immediate compact bit-field writes retain their exact
 storage region, base offset, fragment layout, and value, replay the target
 encoder and destination relocation, and match a separate
 `CompilerBodyStorageBitFieldWrite` fragment. Pointee-pair

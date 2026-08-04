@@ -1968,8 +1968,10 @@ pub fn encode_append_place_bounded_buffer_source(
     match architecture {
         Architecture::X86_64 => x86_64::encode_place_bounded_buffer_source_append(target, source)
             .map(|(bytes, _)| bytes),
-        Architecture::Aarch64 => aarch64::encode_place_bounded_buffer_source_append(target, source)
-            .map(|(bytes, _)| bytes),
+        Architecture::Aarch64 => {
+            aarch64_encode_append_place_bounded_buffer_source_with_sites(target, source)
+                .map(|(bytes, _)| bytes)
+        }
     }
 }
 
@@ -1989,10 +1991,100 @@ pub fn encode_append_place_bounded_buffer_literal(
     match architecture {
         Architecture::X86_64 => x86_64::encode_place_bounded_buffer_literal_append(target, literal)
             .map(|(bytes, _)| bytes),
-        Architecture::Aarch64 => {
-            aarch64::encode_place_bounded_buffer_literal_append(target, literal)
-                .map(|(bytes, _)| bytes)
-        }
+        Architecture::Aarch64 => match classify_write_place_shape(target) {
+            WritePlaceShape::Direct { .. } | WritePlaceShape::Pointee { .. } => {
+                aarch64::encode_place_bounded_buffer_literal_append(target, literal)
+                    .map(|(bytes, _)| bytes)
+            }
+            WritePlaceShape::FrameIndexed {
+                descriptor_offset,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+            } => aarch64::encode_runtime_frame_indexed_bounded_buffer_literal_append(
+                descriptor_offset,
+                omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+                literal,
+            ),
+            WritePlaceShape::FrameIndexedByRegion {
+                descriptor_offset,
+                index_region,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+            } => aarch64::encode_runtime_frame_indexed_bounded_buffer_literal_append(
+                descriptor_offset,
+                index_region,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+                literal,
+            ),
+            WritePlaceShape::FrameBaseIndexed {
+                base_byte_offset,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+            } => aarch64::encode_runtime_frame_base_indexed_bounded_buffer_literal_append(
+                base_byte_offset,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+                literal,
+            ),
+            WritePlaceShape::MachineIndexed {
+                base_byte_offset,
+                index_region,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+            } => aarch64::encode_runtime_machine_indexed_bounded_buffer_literal_append(
+                base_byte_offset,
+                index_region,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+                literal,
+            ),
+            WritePlaceShape::MachineDoubleIndexed {
+                base_byte_offset,
+                outer_index_region,
+                outer_index_offset,
+                outer_index_byte_size,
+                outer_stride,
+                inner_index_region,
+                inner_index_offset,
+                inner_index_byte_size,
+                inner_stride,
+                field_byte_offset,
+            } => aarch64::encode_runtime_machine_double_indexed_bounded_buffer_literal_append(
+                base_byte_offset,
+                outer_index_offset,
+                outer_index_region,
+                outer_index_byte_size,
+                outer_stride,
+                inner_index_offset,
+                inner_index_region,
+                inner_index_byte_size,
+                inner_stride,
+                field_byte_offset,
+                literal,
+            ),
+            WritePlaceShape::Unsupported => Err(Diagnostic::error(
+                "AppendPlaceBoundedBufferLiteral on aarch64 serves every classified place shape; unsupported general paths refuse loudly until the aarch64 place materializer lands",
+            )),
+        },
     }
 }
 
@@ -2023,7 +2115,107 @@ pub fn aarch64_encode_append_place_bounded_buffer_source_with_sites(
     target: &omega_target_operations::Place,
     source: &omega_target_operations::Place,
 ) -> Result<(Vec<u8>, omega_isa_aarch64::BoundedBufferPlaceSites), Diagnostic> {
-    aarch64::encode_place_bounded_buffer_source_append(target, source)
+    if !matches!(
+        classify_write_place_shape(source),
+        WritePlaceShape::Direct { .. } | WritePlaceShape::Pointee { .. }
+    ) {
+        return Err(Diagnostic::error(
+            "AppendPlaceBoundedBufferSource on aarch64 requires a direct or pointee source",
+        ));
+    }
+    match classify_write_place_shape(target) {
+        WritePlaceShape::Direct { .. } | WritePlaceShape::Pointee { .. } => {
+            aarch64::encode_place_bounded_buffer_source_append(target, source)
+        }
+        WritePlaceShape::FrameIndexed {
+            descriptor_offset,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+        } => aarch64::encode_runtime_frame_indexed_bounded_buffer_source_append(
+            descriptor_offset,
+            omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+            source,
+        ),
+        WritePlaceShape::FrameIndexedByRegion {
+            descriptor_offset,
+            index_region,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+        } => aarch64::encode_runtime_frame_indexed_bounded_buffer_source_append(
+            descriptor_offset,
+            index_region,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+            source,
+        ),
+        WritePlaceShape::FrameBaseIndexed {
+            base_byte_offset,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+        } => aarch64::encode_runtime_frame_base_indexed_bounded_buffer_source_append(
+            base_byte_offset,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+            source,
+        ),
+        WritePlaceShape::MachineIndexed {
+            base_byte_offset,
+            index_region,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+        } => aarch64::encode_runtime_machine_indexed_bounded_buffer_source_append(
+            base_byte_offset,
+            index_region,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+            source,
+        ),
+        WritePlaceShape::MachineDoubleIndexed {
+            base_byte_offset,
+            outer_index_region,
+            outer_index_offset,
+            outer_index_byte_size,
+            outer_stride,
+            inner_index_region,
+            inner_index_offset,
+            inner_index_byte_size,
+            inner_stride,
+            field_byte_offset,
+        } => aarch64::encode_runtime_machine_double_indexed_bounded_buffer_source_append(
+            base_byte_offset,
+            outer_index_offset,
+            outer_index_region,
+            outer_index_byte_size,
+            outer_stride,
+            inner_index_offset,
+            inner_index_region,
+            inner_index_byte_size,
+            inner_stride,
+            field_byte_offset,
+            source,
+        ),
+        WritePlaceShape::Unsupported => Err(Diagnostic::error(
+            "AppendPlaceBoundedBufferSource on aarch64 retained an unsupported target",
+        )),
+    }
 }
 
 pub fn aarch64_encode_append_place_bounded_buffer_literal_with_sites(

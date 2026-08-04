@@ -2607,6 +2607,22 @@ fn append_bounded_buffer_literal_at_x16(
     Ok(())
 }
 
+fn append_bounded_buffer_literal_to_x16(
+    bytes: &mut Vec<u8>,
+    literal: &str,
+) -> Result<(), Diagnostic> {
+    bytes.extend(encode_load_x_from_x(15, 16, 0)?);
+    append_add_x_constant(bytes, 14, 16, 8, 13)?;
+    bytes.extend(encode_add_x_register(14, 14, 15));
+    for byte in literal.as_bytes() {
+        append_unsigned_immediate(bytes, 17, u64::from(*byte));
+        bytes.extend(encode_store_byte_w_post_increment(17, 14, 1)?);
+    }
+    bytes.extend(encode_add_x_immediate(15, 15, literal.len())?);
+    bytes.extend(encode_store_x_to_x(15, 16, 0)?);
+    Ok(())
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn encode_runtime_frame_indexed_bounded_buffer_write(
     descriptor_offset: usize,
@@ -2791,6 +2807,324 @@ pub fn encode_runtime_machine_double_indexed_bounded_buffer_write(
 /// Closed may-write ceiling shared by every classified immediate bounded-buffer
 /// encoder. x16 owns the destination and x17 carries length/bytes; the other
 /// registers cover the fixed indexed and large-offset address recipes.
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_frame_indexed_bounded_buffer_literal_append(
+    descriptor_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    literal: &str,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(
+        super::widths::runtime_frame_indexed_bounded_buffer_literal_append_width(
+            index_region,
+            element_byte_size,
+            field_byte_offset,
+            literal,
+        ),
+    );
+    append_runtime_frame_index_target_address_with_index_region(
+        &mut bytes,
+        16,
+        index_region,
+        descriptor_offset,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+        17,
+        26,
+    )?;
+    append_bounded_buffer_literal_to_x16(&mut bytes, literal)?;
+    debug_assert_eq!(
+        bytes.len(),
+        super::widths::runtime_frame_indexed_bounded_buffer_literal_append_width(
+            index_region,
+            element_byte_size,
+            field_byte_offset,
+            literal,
+        )
+    );
+    Ok(bytes)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_frame_base_indexed_bounded_buffer_literal_append(
+    base_byte_offset: usize,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    literal: &str,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(
+        super::widths::runtime_frame_base_indexed_bounded_buffer_literal_append_width(
+            base_byte_offset,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+            literal,
+        ),
+    );
+    append_runtime_frame_base_index_target_address(
+        &mut bytes,
+        16,
+        base_byte_offset,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+        17,
+        26,
+    )?;
+    append_bounded_buffer_literal_to_x16(&mut bytes, literal)?;
+    debug_assert_eq!(
+        bytes.len(),
+        super::widths::runtime_frame_base_indexed_bounded_buffer_literal_append_width(
+            base_byte_offset,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+            literal,
+        )
+    );
+    Ok(bytes)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_machine_indexed_bounded_buffer_literal_append(
+    base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    literal: &str,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(
+        super::widths::runtime_machine_indexed_bounded_buffer_literal_append_width(
+            base_byte_offset,
+            index_region,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+            literal,
+        ),
+    );
+    append_runtime_machine_index_target_address(
+        &mut bytes,
+        base_byte_offset,
+        index_region,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+    )?;
+    append_bounded_buffer_literal_to_x16(&mut bytes, literal)?;
+    debug_assert_eq!(
+        bytes.len(),
+        super::widths::runtime_machine_indexed_bounded_buffer_literal_append_width(
+            base_byte_offset,
+            index_region,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+            literal,
+        )
+    );
+    Ok(bytes)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_machine_double_indexed_bounded_buffer_literal_append(
+    base_byte_offset: usize,
+    outer_index_offset: usize,
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    outer_index_byte_size: usize,
+    outer_stride: usize,
+    inner_index_offset: usize,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_byte_size: usize,
+    inner_stride: usize,
+    field_byte_offset: usize,
+    literal: &str,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(
+        super::widths::runtime_machine_double_indexed_bounded_buffer_literal_append_width(
+            outer_index_region,
+            inner_index_region,
+            literal,
+        ),
+    );
+    let (outer_base, inner_base) =
+        append_double_index_bases(&mut bytes, outer_index_region, inner_index_region);
+    append_double_index_address_math(
+        &mut bytes,
+        outer_base,
+        outer_index_offset,
+        outer_index_byte_size,
+        outer_stride,
+        inner_base,
+        inner_index_offset,
+        inner_index_byte_size,
+        inner_stride,
+        base_byte_offset + field_byte_offset,
+    )?;
+    append_bounded_buffer_literal_to_x16(&mut bytes, literal)?;
+    debug_assert_eq!(
+        bytes.len(),
+        super::widths::runtime_machine_double_indexed_bounded_buffer_literal_append_width(
+            outer_index_region,
+            inner_index_region,
+            literal,
+        )
+    );
+    Ok(bytes)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_frame_indexed_bounded_buffer_source_append(
+    descriptor_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    source: &omega_target_operations::Place,
+) -> Result<
+    (
+        Vec<u8>,
+        super::place_bounded_buffer::BoundedBufferPlaceSites,
+    ),
+    Diagnostic,
+> {
+    let mut bytes = Vec::new();
+    append_runtime_frame_index_target_address_with_index_region(
+        &mut bytes,
+        16,
+        index_region,
+        descriptor_offset,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+        17,
+        26,
+    )?;
+    let sites =
+        super::place_bounded_buffer::append_bounded_buffer_source_to_x16(&mut bytes, source)?;
+    Ok((bytes, sites))
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_frame_base_indexed_bounded_buffer_source_append(
+    base_byte_offset: usize,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    source: &omega_target_operations::Place,
+) -> Result<
+    (
+        Vec<u8>,
+        super::place_bounded_buffer::BoundedBufferPlaceSites,
+    ),
+    Diagnostic,
+> {
+    let mut bytes = Vec::new();
+    append_runtime_frame_base_index_target_address(
+        &mut bytes,
+        16,
+        base_byte_offset,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+        17,
+        26,
+    )?;
+    let sites =
+        super::place_bounded_buffer::append_bounded_buffer_source_to_x16(&mut bytes, source)?;
+    Ok((bytes, sites))
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_machine_indexed_bounded_buffer_source_append(
+    base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    source: &omega_target_operations::Place,
+) -> Result<
+    (
+        Vec<u8>,
+        super::place_bounded_buffer::BoundedBufferPlaceSites,
+    ),
+    Diagnostic,
+> {
+    let mut bytes = Vec::new();
+    append_runtime_machine_index_target_address(
+        &mut bytes,
+        base_byte_offset,
+        index_region,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+    )?;
+    let sites =
+        super::place_bounded_buffer::append_bounded_buffer_source_to_x16(&mut bytes, source)?;
+    Ok((bytes, sites))
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_machine_double_indexed_bounded_buffer_source_append(
+    base_byte_offset: usize,
+    outer_index_offset: usize,
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    outer_index_byte_size: usize,
+    outer_stride: usize,
+    inner_index_offset: usize,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_byte_size: usize,
+    inner_stride: usize,
+    field_byte_offset: usize,
+    source: &omega_target_operations::Place,
+) -> Result<
+    (
+        Vec<u8>,
+        super::place_bounded_buffer::BoundedBufferPlaceSites,
+    ),
+    Diagnostic,
+> {
+    let mut bytes = Vec::new();
+    let (outer_base, inner_base) =
+        append_double_index_bases(&mut bytes, outer_index_region, inner_index_region);
+    append_double_index_address_math(
+        &mut bytes,
+        outer_base,
+        outer_index_offset,
+        outer_index_byte_size,
+        outer_stride,
+        inner_base,
+        inner_index_offset,
+        inner_index_byte_size,
+        inner_stride,
+        base_byte_offset + field_byte_offset,
+    )?;
+    let sites =
+        super::place_bounded_buffer::append_bounded_buffer_source_to_x16(&mut bytes, source)?;
+    Ok((bytes, sites))
+}
+
 pub fn place_bounded_buffer_write_register_write_ceiling() -> RegisterSet {
     RegisterSet::new([
         MachineRegister::Aarch64X(14),
@@ -8471,6 +8805,165 @@ mod tests {
                     "Gate",
                 )
             );
+        }
+    }
+
+    #[test]
+    fn indexed_bounded_buffer_literal_appends_match_their_widths() {
+        let frame = omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
+        let machine = omega_target_operations::RuntimeStorageRegion::Machine;
+        for index_region in [frame, machine] {
+            let frame_indexed = encode_runtime_frame_indexed_bounded_buffer_literal_append(
+                24,
+                index_region,
+                8,
+                8,
+                16,
+                0,
+                "te",
+            )
+            .expect("frame-indexed bounded-buffer literal append");
+            assert_eq!(
+                frame_indexed.len(),
+                super::super::widths::runtime_frame_indexed_bounded_buffer_literal_append_width(
+                    index_region,
+                    16,
+                    0,
+                    "te",
+                )
+            );
+
+            let machine_indexed = encode_runtime_machine_indexed_bounded_buffer_literal_append(
+                24,
+                index_region,
+                8,
+                8,
+                16,
+                0,
+                "te",
+            )
+            .expect("machine-indexed bounded-buffer literal append");
+            assert_eq!(
+                machine_indexed.len(),
+                super::super::widths::runtime_machine_indexed_bounded_buffer_literal_append_width(
+                    24,
+                    index_region,
+                    8,
+                    8,
+                    16,
+                    0,
+                    "te",
+                )
+            );
+        }
+
+        let frame_base =
+            encode_runtime_frame_base_indexed_bounded_buffer_literal_append(24, 8, 8, 16, 0, "te")
+                .expect("frame-base-indexed bounded-buffer literal append");
+        assert_eq!(
+            frame_base.len(),
+            super::super::widths::runtime_frame_base_indexed_bounded_buffer_literal_append_width(
+                24, 8, 8, 16, 0, "te",
+            )
+        );
+
+        for (outer_region, inner_region) in [
+            (machine, machine),
+            (frame, machine),
+            (machine, frame),
+            (frame, frame),
+        ] {
+            let double = encode_runtime_machine_double_indexed_bounded_buffer_literal_append(
+                24,
+                8,
+                outer_region,
+                8,
+                32,
+                16,
+                inner_region,
+                8,
+                16,
+                0,
+                "te",
+            )
+            .expect("double-indexed bounded-buffer literal append");
+            assert_eq!(
+                double.len(),
+                super::super::widths::runtime_machine_double_indexed_bounded_buffer_literal_append_width(
+                    outer_region,
+                    inner_region,
+                    "te",
+                )
+            );
+        }
+    }
+
+    #[test]
+    fn indexed_bounded_buffer_source_appends_retain_the_direct_source_site() {
+        let frame = omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
+        let machine = omega_target_operations::RuntimeStorageRegion::Machine;
+        let source = omega_target_operations::Place::at(frame, 40);
+
+        for index_region in [frame, machine] {
+            for (_, sites) in [
+                encode_runtime_frame_indexed_bounded_buffer_source_append(
+                    24,
+                    index_region,
+                    8,
+                    8,
+                    16,
+                    0,
+                    &source,
+                )
+                .expect("frame-indexed bounded-buffer source append"),
+                encode_runtime_machine_indexed_bounded_buffer_source_append(
+                    24,
+                    index_region,
+                    8,
+                    8,
+                    16,
+                    0,
+                    &source,
+                )
+                .expect("machine-indexed bounded-buffer source append"),
+            ] {
+                assert_eq!(
+                    sites.iter().collect::<Vec<_>>(),
+                    vec![(
+                        sites.iter().next().expect("source relocation").0,
+                        super::super::place_bounded_buffer::BoundedBufferPlaceSide::Source,
+                    )]
+                );
+            }
+        }
+
+        let (_, sites) = encode_runtime_frame_base_indexed_bounded_buffer_source_append(
+            24, 8, 8, 16, 0, &source,
+        )
+        .expect("frame-base-indexed bounded-buffer source append");
+        assert_eq!(sites.iter().count(), 1);
+
+        for (outer_region, inner_region) in [
+            (machine, machine),
+            (frame, machine),
+            (machine, frame),
+            (frame, frame),
+        ] {
+            let (_, sites) = encode_runtime_machine_double_indexed_bounded_buffer_source_append(
+                24,
+                8,
+                outer_region,
+                8,
+                32,
+                16,
+                inner_region,
+                8,
+                16,
+                0,
+                &source,
+            )
+            .expect("double-indexed bounded-buffer source append");
+            assert_eq!(sites.iter().count(), 1);
         }
     }
 

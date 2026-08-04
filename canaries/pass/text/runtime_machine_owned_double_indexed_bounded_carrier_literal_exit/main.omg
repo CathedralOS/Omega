@@ -20,7 +20,9 @@ data Main {
 machine Main::main(&mut self) {
     self.outer = 1;
     self.inner = 1;
-    self.rooms[self.outer][self.inner].label = "Gate";
+    self.rooms[self.outer][self.inner].label = "Ga";
+    self.rooms[self.outer][self.inner].label =
+        self.rooms[self.outer][self.inner].label + "te";
 
     let actual: [u8; 8] in Utf8 = self.rooms[1][1].label;
     transition actual == "Gate" {
