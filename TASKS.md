@@ -1369,8 +1369,11 @@ improvements do not change public identity.
   canonical Boolean leaves converge through ordinary block-parameter bindings.
   Explicit Boolean conditionals compose the same control in both their guard
   and return arms while preserving branch bindings and selected-path fuel.
-  Short-circuit forms nested inside equality remain bounded implementation
-  work, not a language-design blocker. The
+  Value-producing decision trees now also admit short-circuit expressions as
+  either operand of equality/inequality: each selected leaf retains the
+  explicit v17 `BooleanEqual` operation (and canonical `BooleanNot` for
+  inequality), so its proof axiom and fuel unit are not erased by control
+  lowering. The
   initial vocabulary now has canonical semantic bytes and a domain-separated
   semantic fingerprint as well: decoding rejects alternate encodings, invalid
   modules, and trailing data, while a golden identity test freezes the format.

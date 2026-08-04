@@ -391,6 +391,17 @@ ensures true == true
     (first == second) && (second == third)
 }
 
+machine terminal_boolean_short_circuit_equality(
+    first: bool,
+    second: bool,
+    third: bool
+) -> bool
+requires true == true
+ensures true == true
+{
+    (first && second) == (second || third)
+}
+
 machine terminal_ninth_boolean(
     first: bool,
     second: bool,

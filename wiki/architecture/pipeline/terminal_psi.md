@@ -99,8 +99,12 @@ Boolean state has one ordinary Boolean parameter, and each jump carries the
 result of the same recursively nested Boolean expression vocabulary from its
 source state. Short-circuit binding leaves converge on the next state through
 ordinary Boolean block-parameter arguments; a final-state short-circuit return
-uses the same terminal decision form. Compile-known Boolean bindings likewise
-must match the closed reflexive contract. A single-state
+uses the same terminal decision form. When equality or inequality contains a
+short-circuit operand, value-producing decision leaves retain the explicit
+`BooleanEqual` operation and the canonical `BooleanNot` composition rather
+than replacing their proof and fuel sites with a truth-table branch.
+Compile-known Boolean bindings likewise must match the closed reflexive
+contract. A single-state
 integer machine may declare any sequence of ordinary primitive-integer
 parameters, including none, and return one exact named parameter, one landed
 literal, or a recursively nested

@@ -105,7 +105,7 @@ enum LoweredBooleanReturnExpression {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum LoweredBooleanDecision {
-    Return(bool),
+    Value(LoweredBooleanReturnExpression),
     Test {
         condition: LoweredBooleanReturnExpression,
         when_true: Box<LoweredBooleanDecision>,
@@ -1903,12 +1903,8 @@ fn validate_short_circuit_expression(
             validate_short_circuit_expression(operand)
         }
         LoweredBooleanReturnExpression::Equal { left, right } => {
-            if contains_short_circuit(left) || contains_short_circuit(right) {
-                return unsupported(
-                    "short-circuit expressions nested inside equality are not yet supported",
-                );
-            }
-            Ok(())
+            validate_short_circuit_expression(left)?;
+            validate_short_circuit_expression(right)
         }
         LoweredBooleanReturnExpression::And { left, right }
         | LoweredBooleanReturnExpression::Or { left, right } => {
@@ -2595,23 +2591,87 @@ fn build_integer_conditional_module(
     }
 }
 
-fn lower_boolean_decision(
+fn bind_boolean_decision<F>(
+    decision: LoweredBooleanDecision,
+    continuation: &F,
+) -> LoweredBooleanDecision
+where
+    F: Fn(&LoweredBooleanReturnExpression) -> LoweredBooleanDecision,
+{
+    match decision {
+        LoweredBooleanDecision::Value(expression) => continuation(&expression),
+        LoweredBooleanDecision::Test {
+            condition,
+            when_true,
+            when_false,
+        } => LoweredBooleanDecision::Test {
+            condition,
+            when_true: Box::new(bind_boolean_decision(*when_true, continuation)),
+            when_false: Box::new(bind_boolean_decision(*when_false, continuation)),
+        },
+    }
+}
+
+fn branch_boolean_decision(
+    decision: LoweredBooleanDecision,
+    when_true: LoweredBooleanDecision,
+    when_false: LoweredBooleanDecision,
+) -> LoweredBooleanDecision {
+    match decision {
+        LoweredBooleanDecision::Value(LoweredBooleanReturnExpression::Constant { value }) => {
+            if value {
+                when_true
+            } else {
+                when_false
+            }
+        }
+        LoweredBooleanDecision::Value(condition) => LoweredBooleanDecision::Test {
+            condition,
+            when_true: Box::new(when_true),
+            when_false: Box::new(when_false),
+        },
+        LoweredBooleanDecision::Test {
+            condition,
+            when_true: nested_true,
+            when_false: nested_false,
+        } => LoweredBooleanDecision::Test {
+            condition,
+            when_true: Box::new(branch_boolean_decision(
+                *nested_true,
+                when_true.clone(),
+                when_false.clone(),
+            )),
+            when_false: Box::new(branch_boolean_decision(
+                *nested_false,
+                when_true,
+                when_false,
+            )),
+        },
+    }
+}
+
+fn lower_boolean_control_decision(
     expression: &LoweredBooleanReturnExpression,
     when_true: LoweredBooleanDecision,
     when_false: LoweredBooleanDecision,
 ) -> LoweredBooleanDecision {
     match expression {
         LoweredBooleanReturnExpression::And { left, right } => {
-            let right = lower_boolean_decision(right, when_true, when_false.clone());
-            lower_boolean_decision(left, right, when_false)
+            let right = lower_boolean_control_decision(right, when_true, when_false.clone());
+            lower_boolean_control_decision(left, right, when_false)
         }
         LoweredBooleanReturnExpression::Or { left, right } => {
-            let right = lower_boolean_decision(right, when_true.clone(), when_false);
-            lower_boolean_decision(left, when_true, right)
+            let right = lower_boolean_control_decision(right, when_true.clone(), when_false);
+            lower_boolean_control_decision(left, when_true, right)
         }
         LoweredBooleanReturnExpression::Not { operand } if contains_short_circuit(operand) => {
-            lower_boolean_decision(operand, when_false, when_true)
+            lower_boolean_control_decision(operand, when_false, when_true)
         }
+        expression if contains_short_circuit(expression) => branch_boolean_decision(
+            lower_boolean_value_decision(expression),
+            when_true,
+            when_false,
+        ),
         expression => LoweredBooleanDecision::Test {
             condition: expression.clone(),
             when_true: Box::new(when_true),
@@ -2620,9 +2680,51 @@ fn lower_boolean_decision(
     }
 }
 
+fn lower_boolean_value_decision(
+    expression: &LoweredBooleanReturnExpression,
+) -> LoweredBooleanDecision {
+    if !contains_short_circuit(expression) {
+        return LoweredBooleanDecision::Value(expression.clone());
+    }
+    match expression {
+        LoweredBooleanReturnExpression::And { .. } | LoweredBooleanReturnExpression::Or { .. } => {
+            lower_boolean_control_decision(
+                expression,
+                LoweredBooleanDecision::Value(LoweredBooleanReturnExpression::Constant {
+                    value: true,
+                }),
+                LoweredBooleanDecision::Value(LoweredBooleanReturnExpression::Constant {
+                    value: false,
+                }),
+            )
+        }
+        LoweredBooleanReturnExpression::Not { operand } => {
+            bind_boolean_decision(lower_boolean_value_decision(operand), &|operand| {
+                LoweredBooleanDecision::Value(LoweredBooleanReturnExpression::Not {
+                    operand: Box::new(operand.clone()),
+                })
+            })
+        }
+        LoweredBooleanReturnExpression::Equal { left, right } => {
+            bind_boolean_decision(lower_boolean_value_decision(left), &|left| {
+                bind_boolean_decision(lower_boolean_value_decision(right), &|right| {
+                    LoweredBooleanDecision::Value(LoweredBooleanReturnExpression::Equal {
+                        left: Box::new(left.clone()),
+                        right: Box::new(right.clone()),
+                    })
+                })
+            })
+        }
+        LoweredBooleanReturnExpression::Constant { .. }
+        | LoweredBooleanReturnExpression::Parameter { .. } => {
+            unreachable!("non-short-circuit expressions return above")
+        }
+    }
+}
+
 fn boolean_decision_block_count(decision: &LoweredBooleanDecision) -> usize {
     match decision {
-        LoweredBooleanDecision::Return(_) => 1,
+        LoweredBooleanDecision::Value(_) => 1,
         LoweredBooleanDecision::Test {
             when_true,
             when_false,
@@ -2633,7 +2735,7 @@ fn boolean_decision_block_count(decision: &LoweredBooleanDecision) -> usize {
 
 fn boolean_decision_test_count(decision: &LoweredBooleanDecision) -> usize {
     match decision {
-        LoweredBooleanDecision::Return(_) => 0,
+        LoweredBooleanDecision::Value(_) => 0,
         LoweredBooleanDecision::Test {
             when_true,
             when_false,
@@ -2660,8 +2762,15 @@ fn emit_boolean_guard_decision_blocks(
     blocks: &mut Vec<Option<Block>>,
 ) -> LoweredBooleanDecisionTarget {
     match decision {
-        LoweredBooleanDecision::Return(true) => when_true_target.clone(),
-        LoweredBooleanDecision::Return(false) => when_false_target.clone(),
+        LoweredBooleanDecision::Value(LoweredBooleanReturnExpression::Constant { value: true }) => {
+            when_true_target.clone()
+        }
+        LoweredBooleanDecision::Value(LoweredBooleanReturnExpression::Constant {
+            value: false,
+        }) => when_false_target.clone(),
+        LoweredBooleanDecision::Value(_) => {
+            unreachable!("guard control decisions end in canonical Boolean choices")
+        }
         LoweredBooleanDecision::Test {
             condition,
             when_true,
@@ -2755,9 +2864,9 @@ fn emit_boolean_decision_blocks(
     blocks.push(None);
     let operation_start = all_operations.len();
     let (terminator, operation_end) = match decision {
-        LoweredBooleanDecision::Return(value) => {
+        LoweredBooleanDecision::Value(expression) => {
             let returned = emit_boolean_expression(
-                &LoweredBooleanReturnExpression::Constant { value: *value },
+                expression,
                 expression_parameters,
                 next_value_identity,
                 all_operations,
@@ -2857,11 +2966,7 @@ fn emit_boolean_return_blocks(
     blocks: &mut Vec<Option<Block>>,
 ) -> BlockId {
     if contains_short_circuit(expression) {
-        let decision = lower_boolean_decision(
-            expression,
-            LoweredBooleanDecision::Return(true),
-            LoweredBooleanDecision::Return(false),
-        );
+        let decision = lower_boolean_value_decision(expression);
         return emit_boolean_decision_blocks(
             &decision,
             parameters,
@@ -2918,11 +3023,7 @@ fn build_boolean_short_circuit_module(
         .expect("parameter count fits a semantic identity")
         .checked_add(1)
         .expect("generated identities follow parameter identities");
-    let decision = lower_boolean_decision(
-        &return_expression,
-        LoweredBooleanDecision::Return(true),
-        LoweredBooleanDecision::Return(false),
-    );
+    let decision = lower_boolean_value_decision(&return_expression);
     let mut all_operations = Vec::new();
     let mut blocks = Vec::new();
     let mut next_edge_identity = 1_u64;
@@ -3125,18 +3226,14 @@ fn build_boolean_conditional_module(
     }
     let mut next_value_identity = 1_u64;
     let parameters = allocate_boolean_parameters(parameter_count, &mut next_value_identity);
-    let condition_decision = lower_boolean_decision(
+    let condition_decision = lower_boolean_control_decision(
         &condition,
-        LoweredBooleanDecision::Return(true),
-        LoweredBooleanDecision::Return(false),
+        LoweredBooleanDecision::Value(LoweredBooleanReturnExpression::Constant { value: true }),
+        LoweredBooleanDecision::Value(LoweredBooleanReturnExpression::Constant { value: false }),
     );
     let guard_block_count = boolean_decision_test_count(&condition_decision);
     let true_block_count = if contains_short_circuit(&when_true_expression) {
-        boolean_decision_block_count(&lower_boolean_decision(
-            &when_true_expression,
-            LoweredBooleanDecision::Return(true),
-            LoweredBooleanDecision::Return(false),
-        ))
+        boolean_decision_block_count(&lower_boolean_value_decision(&when_true_expression))
     } else {
         1
     };
@@ -3375,11 +3472,7 @@ fn build_boolean_state_chain_module(
             current_parameters.clone()
         };
         if contains_short_circuit(jump_expression) {
-            let decision = lower_boolean_decision(
-                jump_expression,
-                LoweredBooleanDecision::Return(true),
-                LoweredBooleanDecision::Return(false),
-            );
+            let decision = lower_boolean_value_decision(jump_expression);
             let decision_block_count = boolean_decision_block_count(&decision);
             let target = block_id(
                 u64::try_from(blocks.len())
@@ -3458,11 +3551,7 @@ fn build_boolean_state_chain_module(
         current_parameters = vec![next_parameter];
     }
     if contains_short_circuit(&return_expression) {
-        let decision = lower_boolean_decision(
-            &return_expression,
-            LoweredBooleanDecision::Return(true),
-            LoweredBooleanDecision::Return(false),
-        );
+        let decision = lower_boolean_value_decision(&return_expression);
         let expected_entry = block_id(
             u64::try_from(blocks.len())
                 .expect("generated block count fits a semantic identity")

@@ -218,7 +218,10 @@ decision leaves carry canonical Boolean values through ordinary jump bindings,
 and deciding paths bypass the unused subtree before converging on the next
 source state. Explicit Boolean conditionals use terminal test edges from a
 short-circuit guard directly to the selected branch, while each selected arm
-may independently contain the same decision form.
+may independently contain the same decision form. Equality and inequality may
+also consume short-circuit operands: value-producing leaves retain the
+`BooleanEqual` operation and, for inequality, its canonical `BooleanNot`, so
+schedule-v1 still charges those explicit semantic sites.
 Attributed response reporting additionally waits on executable terminal
 wait/foreign-edge variants carrying their response-contract status. The current
 total operation plus unconditional jump/return vocabulary can close a bounded
