@@ -91,6 +91,17 @@ fn assign_function(
             parameter_index: *parameter_index,
             location: assign_direct_location(*source_value, *location, architecture)?,
         },
+        TerminalTargetOperation::ReturnBooleanNotParameter {
+            psi_edge,
+            source_value,
+            parameter_index,
+            location,
+        } => TerminalAssignedOperation::ReturnBooleanNotParameter {
+            psi_edge: *psi_edge,
+            source_value: *source_value,
+            parameter_index: *parameter_index,
+            location: assign_direct_location(*source_value, *location, architecture)?,
+        },
         TerminalTargetOperation::ReturnIntegerExpression {
             psi_edge,
             source_value,
@@ -182,6 +193,17 @@ fn assign_boolean_control(
             parameter_index,
             location,
         } => TerminalAssignedBooleanControl::ReturnParameter {
+            psi_return_edge: *psi_return_edge,
+            source_value: *source_value,
+            parameter_index: *parameter_index,
+            location: assign_direct_location(*source_value, *location, architecture)?,
+        },
+        TerminalTargetBooleanControl::ReturnNotParameter {
+            psi_return_edge,
+            source_value,
+            parameter_index,
+            location,
+        } => TerminalAssignedBooleanControl::ReturnNotParameter {
             psi_return_edge: *psi_return_edge,
             source_value: *source_value,
             parameter_index: *parameter_index,

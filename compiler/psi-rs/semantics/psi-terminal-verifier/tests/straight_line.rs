@@ -126,6 +126,142 @@ fn v2_boolean_constant_axiom_proves_the_return_contract() {
 }
 
 #[test]
+fn v15_boolean_not_axiom_proves_the_return_contract() {
+    let parameter = ValueId::new(20).expect("parameter");
+    let negated = ValueId::new(21).expect("negated");
+    let result = ValueId::new(22).expect("result");
+    let obligation = ObligationId::new(20).expect("obligation");
+    let term = |id| ScalarTerm::value(id, ScalarType::Boolean);
+    let not_parameter = ScalarTerm::boolean_not(term(parameter)).unwrap();
+    let goal = Proposition::Equal(term(result), not_parameter.clone());
+    let module = TerminalModule {
+        semantic_version: SemanticVersion::V15,
+        entry: MachineId::new(20).expect("machine"),
+        machines: vec![TerminalMachine {
+            id: MachineId::new(20).expect("machine"),
+            parameters: vec![ValueDeclaration {
+                id: parameter,
+                scalar_type: ScalarType::Boolean,
+            }],
+            result: ValueDeclaration {
+                id: result,
+                scalar_type: ScalarType::Boolean,
+            },
+            structural_places: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: BlockId::new(20).expect("block"),
+            blocks: vec![Block {
+                id: BlockId::new(20).expect("block"),
+                parameters: Vec::new(),
+                operations: vec![Operation {
+                    id: OperationId::new(20).expect("operation"),
+                    result: ValueDeclaration {
+                        id: negated,
+                        scalar_type: ScalarType::Boolean,
+                    },
+                    kind: OperationKind::BooleanNot { operand: parameter },
+                }],
+                terminator: Terminator::Return {
+                    edge: EdgeId::new(20).expect("edge"),
+                    value: negated,
+                },
+            }],
+            contract: MachineContract {
+                id: ContractId::new(20).expect("contract"),
+                requires: Vec::new(),
+                ensures: vec![ContractClause {
+                    obligation,
+                    proposition: goal.clone(),
+                }],
+            },
+        }],
+    };
+    let bundle = ProofBundle {
+        evidence: vec![ObligationEvidence {
+            obligation,
+            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                identity: EvidenceIdentity::new(20).expect("certificate"),
+                proof_system_version: ProofSystemVersion::CURRENT,
+                proof: ProofNode {
+                    conclusion: goal,
+                    rule: ProofRule::EqualityTransitivity {
+                        left_equals_middle: Box::new(ProofNode {
+                            conclusion: Proposition::Equal(term(result), term(negated)),
+                            rule: ProofRule::SemanticAxiom { index: 1 },
+                        }),
+                        middle_equals_right: Box::new(ProofNode {
+                            conclusion: Proposition::Equal(term(negated), not_parameter),
+                            rule: ProofRule::SemanticAxiom { index: 0 },
+                        }),
+                    },
+                },
+            }),
+        }],
+    };
+
+    verify_module(&module, &bundle, &AdmissionProfile::default())
+        .expect("v15 Boolean-not semantics should reconstruct operation and return axioms");
+
+    let mut old_operation = module.clone();
+    old_operation.semantic_version = SemanticVersion::V14;
+    assert_eq!(
+        validate_module(&old_operation).expect_err("v14 cannot contain a Boolean-not operation"),
+        ModuleError::OperationRequiresSemanticVersion {
+            operation: OperationId::new(20).expect("operation"),
+            required: SemanticVersion::V15,
+            actual: SemanticVersion::V14,
+        }
+    );
+
+    let mut old_proposition = module.clone();
+    old_proposition.semantic_version = SemanticVersion::V14;
+    old_proposition.machines[0].blocks[0].operations[0].kind =
+        OperationKind::BooleanConstant { value: true };
+    old_proposition.machines[0].contract.ensures.clear();
+    old_proposition.machines[0].contract.requires = vec![Proposition::Equal(
+        ScalarTerm::boolean_not(ScalarTerm::boolean(false)).unwrap(),
+        ScalarTerm::boolean(true),
+    )];
+    assert_eq!(
+        validate_module(&old_proposition)
+            .expect_err("v14 cannot contain a Boolean-not proposition term"),
+        ModuleError::PropositionRequiresSemanticVersion {
+            contract: ContractId::new(20).expect("contract"),
+            clause: ContractClauseKind::Requires,
+            required: SemanticVersion::V15,
+            actual: SemanticVersion::V14,
+        }
+    );
+
+    let integer =
+        ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 operand type"));
+    let mut wrong_operand = module.clone();
+    wrong_operand.machines[0].contract.ensures.clear();
+    wrong_operand.machines[0].parameters[0].scalar_type = integer;
+    assert_eq!(
+        validate_module(&wrong_operand).expect_err("Boolean not requires a Boolean operand"),
+        ModuleError::BooleanNotOperandTypeMismatch {
+            operation: OperationId::new(20).expect("operation"),
+            operand: parameter,
+            actual: integer,
+        }
+    );
+
+    let mut wrong_result = module;
+    wrong_result.machines[0].contract.ensures.clear();
+    wrong_result.machines[0].result.scalar_type = integer;
+    wrong_result.machines[0].blocks[0].operations[0]
+        .result
+        .scalar_type = integer;
+    assert_eq!(
+        validate_module(&wrong_result).expect_err("Boolean not requires a Boolean result"),
+        ModuleError::BooleanNotRequiresBooleanResult(OperationId::new(20).expect("operation"))
+    );
+}
+
+#[test]
 fn v9_content_conservation_accepts_a_replaceable_certificate() {
     let (module, goal, obligation) = reflexive_content_module();
     let bundle = ProofBundle {

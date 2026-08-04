@@ -26,6 +26,7 @@ use psi_core::{
 /// identities and bindings.
 /// Version 14 adds canonical machine-local entry-claim bindings independently
 /// of one-to-one output equalities.
+/// Version 15 adds total Boolean logical negation.
 /// Older bytes retain their original meaning and identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SemanticVersion(NonZeroU16);
@@ -45,7 +46,8 @@ impl SemanticVersion {
     pub const V12: Self = Self(NonZeroU16::new(12).expect("twelve is nonzero"));
     pub const V13: Self = Self(NonZeroU16::new(13).expect("thirteen is nonzero"));
     pub const V14: Self = Self(NonZeroU16::new(14).expect("fourteen is nonzero"));
-    pub const CURRENT: Self = Self::V14;
+    pub const V15: Self = Self(NonZeroU16::new(15).expect("fifteen is nonzero"));
+    pub const CURRENT: Self = Self::V15;
 
     pub fn new(raw: u16) -> Option<Self> {
         NonZeroU16::new(raw).map(Self)
@@ -242,6 +244,7 @@ pub struct Operation {
 pub enum OperationKind {
     IntegerConstant { value: IntegerValue },
     BooleanConstant { value: bool },
+    BooleanNot { operand: ValueId },
     WrappingIntegerAdd { left: ValueId, right: ValueId },
     SaturatingIntegerAdd { left: ValueId, right: ValueId },
     WrappingIntegerSubtract { left: ValueId, right: ValueId },

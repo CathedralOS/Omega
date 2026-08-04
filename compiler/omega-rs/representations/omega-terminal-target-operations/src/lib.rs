@@ -66,6 +66,13 @@ pub enum TerminalTargetOperation {
         parameter_index: usize,
         location: TerminalScalarParameterLocation,
     },
+    /// Return the logical negation of one caller-supplied canonical Boolean.
+    ReturnBooleanNotParameter {
+        psi_edge: EdgeId,
+        source_value: ValueId,
+        parameter_index: usize,
+        location: TerminalScalarParameterLocation,
+    },
     /// Return a runtime integer expression lowered from exact-width terminal
     /// Psi operations. Every node has the enclosing result's integer type.
     ReturnIntegerExpression {
@@ -109,6 +116,12 @@ pub enum TerminalTargetBooleanControl {
         value: bool,
     },
     ReturnParameter {
+        psi_return_edge: EdgeId,
+        source_value: ValueId,
+        parameter_index: usize,
+        location: TerminalScalarParameterLocation,
+    },
+    ReturnNotParameter {
         psi_return_edge: EdgeId,
         source_value: ValueId,
         parameter_index: usize,

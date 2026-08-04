@@ -65,6 +65,11 @@ pub enum TerminalAbstractOperation {
         result: ValueId,
         value: bool,
     },
+    BooleanNot {
+        psi_operation: OperationId,
+        result: ValueId,
+        operand: ValueId,
+    },
     WrappingIntegerAdd {
         psi_operation: OperationId,
         result: ValueId,

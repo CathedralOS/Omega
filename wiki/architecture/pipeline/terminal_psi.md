@@ -39,8 +39,9 @@ structural-place declarations and content-conservation propositions; v10 adds
 canonical identity-preserving claim reshuffles; v11 adds distinct stable
 sum-case segments to structural content paths; v12 adds exact authored-
 partition substitution witnesses; v13 adds one structural Boolean conditional
-with ordered true/false successors; and current v14 adds canonical machine-local
-entry-claim bindings independently of output equality. None of v9-v14 adds an
+with ordered true/false successors; v14 adds canonical machine-local
+entry-claim bindings independently of output equality; and current v15 adds
+total Boolean logical negation. None of v9-v14 adds an
 executable operation. The conditional is control vocabulary rather than an
 operation, and an entry-claim binding is identity metadata rather than a
 proposition.
@@ -88,8 +89,9 @@ the Psi check.
 
 The first Psi-owned terminal source producer is live as
 `psi-checked-trees-to-terminal`. It accepts four exact free-machine forms. A
-Boolean machine may return a literal or one exact named parameter from any
-sequence of ordinary Boolean parameters, either directly or through a
+Boolean machine may return a literal, one exact named parameter, or a
+recursively nested builtin logical negation of either from any sequence of
+ordinary Boolean parameters, either directly or through a
 nonempty linear sequence of unconditional state bindings. Every non-entry
 Boolean state has one ordinary Boolean parameter, and each jump carries a
 literal or an exact parameter from its source state. Compile-known Boolean
@@ -172,8 +174,8 @@ source-independent consumer is also live:
 `omega-terminal-psi-to-abstract-operations` accepts only a
 `VerifiedTerminalModule` and produces an owned stream of scalar materialization,
 wrapping-add, saturating-add, wrapping-subtract, saturating-subtract,
-wrapping-multiply, saturating-multiply,
-jump-binding, and return requirements with stable Psi provenance. Its function
+wrapping-multiply, saturating-multiply, Boolean-not, jump-binding, and return
+requirements with stable Psi provenance. Its function
 records also retain declared runtime parameters and the result pseudo-value
 with exact scalar types; the real checked-source producer now exercises that
 path through a ninth stack argument. Neither it nor
@@ -258,7 +260,7 @@ authored integer/Boolean literal and operator-token spans through syntax,
 resolution, typing, and checking; terminal operations and their result values
 therefore point to their exact authored expression sites. Authored transition
 arrows likewise survive into terminal jump-edge sites; a synthesized return
-edge honestly retains its source-state declaration fallback. Terminal contract
+edge retains the exact returned-expression site. Terminal contract
 and obligation subjects point to the exact authored `ensures` fact site rather
 than the enclosing machine declaration. The real-source
 canary encodes and manifests the debug section,
@@ -429,7 +431,7 @@ and derived theorem. Validation requires an authored separation tree, checks
 source and wrapper place roles, and mechanically replays the substitution
 before exposing the derived proposition as a semantic axiom. Archived v12-v13
 modules bind every derived entry projection through the listed identity row;
-current v14 instead resolves it through the independently encoded entry-claim
+v14 instead resolves it through the independently encoded entry-claim
 binding. Existing proof format v9 already represents the resulting proposition.
 Composition through surrounding non-direct
 rewrites, sealed introduction and custody-exit frontier rows, and the general
@@ -517,24 +519,26 @@ version 8 adds `SaturatingIntegerMultiply`; version 9 adds proof-only
 structural places and content-conservation propositions; version 10 adds
 canonical identity-preserving claim reshuffles; version 11 adds stable sum-case
 content-path segments; version 12 adds exact authored-partition substitution
-rows; version 13 adds the ordered Boolean conditional terminator; and current
-version 14 adds canonical machine-local entry-claim bindings without asserting
-an output equality.
+rows; version 13 adds the ordered Boolean conditional terminator; version 14
+adds canonical machine-local entry-claim bindings without asserting an output
+equality; and current version 15 adds total `BooleanNot` operations and scalar
+terms.
 The arithmetic operations require two already defined operands of the exact
 result integer type and have distinct canonical recursive proposition terms for
 their exact logical results. Validation and execution continue to accept valid
 v1 through v13 modules under their original meaning, while an older module
 cannot claim a later operation, control form, or evidence row.
-`migrate_module_to_current` is an explicit validated older-to-v14 translation.
+`migrate_module_to_current` is an explicit validated older-to-v15 translation.
 For v10-v13 content rows it derives the new entry bindings from the already
 validated reshuffles and remaps claim references into dense machine-local IDs;
 it otherwise preserves the graph and obligations. Migration creates new
 canonical bytes and a new semantic fingerprint. An unchanged proof bundle
 retains its separate bytes and identity but is verified again against the
-migrated module. Golden tests retain the archived v1 through v13 fingerprints
-and independently freeze the current v14 fingerprint, v10 identity-reshuffle
-fixture, v11 sum-case fixture, v12 partition-composition fixture, and v14
-entry-claim fixture.
+migrated module. Golden tests retain the archived v1 through v14 fingerprints
+and independently freeze the current v15 fingerprint, v10 identity-reshuffle
+fixture, v11 sum-case fixture, v12 partition-composition fixture, v14
+entry-claim fixture, and v15 Boolean-negation fixture. The archived v14 current
+fixture also retains its original identity.
 
 The same codec gives proof bundles their own canonical `PSIPRF` bytes and golden
 fingerprint. Proof format v1 remains the minimal frozen encoding for the
@@ -544,9 +548,10 @@ adds the recursive wrapping-subtract scalar term; format v5 adds the recursive
 saturating-subtract scalar term; format v6 adds the recursive wrapping-multiply
 scalar term; format v7 adds the recursive saturating-multiply scalar term;
 format v8 adds content-conservation propositions and field/fixed-index
-structural-place terms; format v9 adds sum-case path segments. The encoder
+structural-place terms; format v9 adds sum-case path segments; and format v10
+adds recursive Boolean-negation terms. The encoder
 selects the minimal format needed by a carried proof tree, and the
-decoder rejects a v2, v3, v4, v5, v6, v7, or v8 bundle representable in an earlier format.
+decoder rejects a bundle encoded with a newer format than its proof tree needs.
 Evidence entries are strictly ordered by `ObligationId`; the
 closed encoding covers kernel judgments, separately versioned recursive proof
 trees, and exact admission site/authority/evidence/profile identities. Unknown
@@ -582,13 +587,13 @@ metadata bound to one exact semantic identity. The checked-source producer
 populates retained declaration spans plus exact integer/Boolean-literal and
 operator sites for terminal operations and their result values. Authored jump
 edges use their exact transition-arrow sites; synthesized return edges retain
-the source-state declaration fallback.
+the exact returned-expression site.
 
 ## Logical-fuel v1
 
 `psi-terminal-fuel` owns the accounting identity independently from terminal
 semantic versioning. Schedule v1 charges one logical unit for each executed
-`IntegerConstant`, `BooleanConstant`, `WrappingIntegerAdd`,
+`IntegerConstant`, `BooleanConstant`, `BooleanNot`, `WrappingIntegerAdd`,
 `SaturatingIntegerAdd`, `WrappingIntegerSubtract`,
 `SaturatingIntegerSubtract`, `WrappingIntegerMultiply`, or
 `SaturatingIntegerMultiply` and one for each
@@ -716,7 +721,7 @@ generic installation ladder. Migrating the Cathedral hard-root graph remains.
    proof bytes and role-separated semantic/proof/install/debug manifest hashes
    are also live. Semantic migration is exercised: archived v1 and v2 bytes
    retain their identities and migrate explicitly into separately fingerprinted
-   current-v14 modules; archived v3 wrapping-add, v4 saturating-add, v5
+   current-v15 modules; archived v3 wrapping-add, v4 saturating-add, v5
    wrapping-subtract, v6 saturating-subtract, and v7 wrapping-multiply
    identities plus the v8 saturating-multiply identity are frozen as well. Typed
    installation records, the canonical typed debug/source-map schema, and

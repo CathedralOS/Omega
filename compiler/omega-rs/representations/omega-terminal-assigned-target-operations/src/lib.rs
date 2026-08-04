@@ -49,6 +49,12 @@ pub enum TerminalAssignedOperation {
         parameter_index: usize,
         location: TerminalAssignedScalarLocation,
     },
+    ReturnBooleanNotParameter {
+        psi_edge: EdgeId,
+        source_value: ValueId,
+        parameter_index: usize,
+        location: TerminalAssignedScalarLocation,
+    },
     ReturnIntegerExpression {
         psi_edge: EdgeId,
         source_value: ValueId,
@@ -87,6 +93,12 @@ pub enum TerminalAssignedBooleanControl {
         value: bool,
     },
     ReturnParameter {
+        psi_return_edge: EdgeId,
+        source_value: ValueId,
+        parameter_index: usize,
+        location: TerminalAssignedScalarLocation,
+    },
+    ReturnNotParameter {
         psi_return_edge: EdgeId,
         source_value: ValueId,
         parameter_index: usize,
