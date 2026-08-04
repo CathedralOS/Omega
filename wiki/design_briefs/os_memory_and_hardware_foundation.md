@@ -1074,13 +1074,15 @@ also replays a frame-held descriptor indexed from machine storage.
 Direct runtime-storage numeric conversion writes retain their complete cast
 policy and source-operand root, replay exact conversion/store bytes and nested
 relocations, and match a separate `CompilerBodyStorageConvertWrite` fragment.
+Composed-place conversion writes share that fragment and exact recipe for all
+x86 materializer targets and for AArch64 pointee and machine-indexed targets.
 Place-copy selection retains its separate `compiler_body_place_copy` evidence
 only for
 the `Ordinary` role; final validation regenerates the same place-copy bytes,
 checks the storage, pointer-slot, and index relocations, and requires the target
-scratch union to match. Other otherwise-general binary targets, composed-place
-conversion, string/bit-field writes, and calls remain outside the partial
-proof. The pointee-pair selector resolves
+scratch union to match. Other otherwise-general binary targets and AArch64
+composed-place conversion shapes, string/bit-field writes, and calls remain
+outside the partial proof. The pointee-pair selector resolves
 both reference operands before flat storage, so the source remains a
 dereference rather than being mistaken for pointer-slot contents.
 Direct-image emission also validates the fixed encoder-owned function-entry
