@@ -1127,7 +1127,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         executable_regions.contains(
             "\"certificate_schema\": \"omega.final-footprint-certificate\""
         )
-            && executable_regions.contains("\"certificate_format_version\": 62")
+            && executable_regions.contains("\"certificate_format_version\": 63")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
             && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")
@@ -2823,7 +2823,7 @@ fn compiler_body_bounded_buffer_literal_append_footprints_reach_artifacts() {
 
 #[test]
 fn compiler_body_string_write_footprints_reach_x86_and_aarch64_artifacts() {
-    let canary = pass_canary("text/runtime_machine_owned_indexed_string_field_concat_exit");
+    let canary = pass_canary("text/runtime_machine_owned_double_indexed_string_field_concat_exit");
     for (target, expected_register) in [
         ("linux_x64", "\"X86R14\""),
         ("linux_arm64", "\"Aarch64X(17)\""),
@@ -28485,6 +28485,39 @@ fn runtime_machine_owned_indexed_string_field_concat_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_machine_owned_double_indexed_string_field_concat_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_machine_owned_double_indexed_string_field_concat_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-machine-owned-double-indexed-string-field-concat-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime machine-owned double-indexed string field concat canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime machine-owned double-indexed string field concat canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(83),
+        "expected runtime machine-owned double-indexed string field concat canary to preserve double-runtime-indexed string writes and exit 83, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_mutable_machine_owned_parameter_write_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_mutable_machine_owned_parameter_write_exit");
     let main_path = canary.join("main.omg");
@@ -45526,6 +45559,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "text/runtime_string_append_in_place_exit",
     "text/runtime_string_field_concat_exit",
     "text/runtime_machine_owned_indexed_string_field_concat_exit",
+    "text/runtime_machine_owned_double_indexed_string_field_concat_exit",
     "text/runtime_slice_alias_indexed_string_field_concat_exit",
     "text/runtime_slice_indexed_string_guard_exit",
     "text/runtime_slice_machine_indexed_string_guard_exit",

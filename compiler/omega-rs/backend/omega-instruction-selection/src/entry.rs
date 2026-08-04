@@ -1070,6 +1070,7 @@ pub fn derive_boundary_compiler_body_place_string_write_footprint<'instruction>(
                     | crate::WritePlaceShape::FrameIndexedByRegion { .. }
                     | crate::WritePlaceShape::FrameBaseIndexed { .. }
                     | crate::WritePlaceShape::MachineIndexed { .. }
+                    | crate::WritePlaceShape::MachineDoubleIndexed { .. }
             );
         if !supported {
             continue;

@@ -110,3 +110,15 @@ pub(crate) fn runtime_machine_indexed_string_data_address_offset_with_index_regi
         field_byte_offset,
     )
 }
+
+pub(crate) fn runtime_machine_double_indexed_string_data_address_offset(
+    architecture: Architecture,
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+) -> usize {
+    omega_instruction_selection::runtime_machine_double_indexed_string_data_address_offset(
+        architecture,
+        outer_index_region,
+        inner_index_region,
+    )
+}

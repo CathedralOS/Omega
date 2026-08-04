@@ -1116,7 +1116,8 @@ relocation recipe. Source-carrier appends share it too, with both place walks
 and the copy-loop state replayed.
 String-descriptor writes are inside the proof for all x86 targets and the
 direct, pointee, frame-indexed, cross-region frame-indexed, inline-frame-
-indexed, and frame- or machine-indexed machine-storage AArch64 shapes, with
+indexed, and single- or double-runtime-indexed machine-storage AArch64 shapes,
+with
 exact rodata and storage/index relocation identity.
 Direct-image emission also validates the fixed encoder-owned function-entry
 prologue and return epilogue against the exact relocated entry-region bytes on
@@ -1135,7 +1136,7 @@ relocation-envelope fingerprints plus their composed derivation identity. The
 boundary/placement binding includes that derivation identity, so a valid final
 inventory cannot be paired with evidence from a different encoded-to-final
 derivation. The single emitted artifact is now self-described as
-`omega.final-footprint-certificate` format v62, with a domain-separated
+`omega.final-footprint-certificate` format v63, with a domain-separated
 certificate fingerprint over its final placement binding, compiler-text
 derivation, and region inventory. It remains explicitly incomplete evidence,
 not an admission certificate, until the missing footprint classes close. The

@@ -1695,10 +1695,9 @@ pub fn x86_64_encode_write_place_address_with_sites(
 
 /// Text rung 2a: the place-shaped string-descriptor write. x86_64 rides the
 /// materializer; aarch64 decomposes by WritePlaceShape to the retained
-/// string encoders (which serve direct/pointee/frame-indexed, including cross-
-/// region indices, inline-frame-indexed, and the frame-resident machine-
-/// indexed shapes only -- everything else refuses loudly until the aarch64
-/// place materializer lands).
+/// string encoders. Every classified place shape is served; unsupported
+/// general paths still refuse loudly until the aarch64 place materializer
+/// lands.
 pub fn encode_write_place_string(
     architecture: Architecture,
     target: &omega_target_operations::Place,
@@ -1780,10 +1779,33 @@ pub fn encode_write_place_string(
                 field_byte_offset,
                 byte_length,
             ),
+            WritePlaceShape::MachineDoubleIndexed {
+                base_byte_offset,
+                outer_index_region,
+                outer_index_offset,
+                outer_index_byte_size,
+                outer_stride,
+                inner_index_region,
+                inner_index_offset,
+                inner_index_byte_size,
+                inner_stride,
+                field_byte_offset,
+            } => aarch64::encode_runtime_machine_double_indexed_string_write(
+                base_byte_offset,
+                outer_index_offset,
+                outer_index_region,
+                outer_index_byte_size,
+                outer_stride,
+                inner_index_offset,
+                inner_index_region,
+                inner_index_byte_size,
+                inner_stride,
+                field_byte_offset,
+                byte_length,
+            ),
             _ => Err(Diagnostic::error(
-                "WritePlaceString on aarch64 serves direct, pointee, frame-indexed, \
-                 frame-base-indexed, cross-region frame-indexed, and machine-indexed place shapes only until the \
-                 aarch64 place materializer lands; this shape refuses loudly",
+                "WritePlaceString on aarch64 serves every classified place shape; \
+                 unsupported general paths refuse loudly until the aarch64 place materializer lands",
             )),
         },
     }

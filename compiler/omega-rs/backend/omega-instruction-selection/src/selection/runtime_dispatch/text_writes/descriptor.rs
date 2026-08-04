@@ -1,8 +1,9 @@
 use crate::InstructionSelectionInput;
 use crate::selection::instruction_sink::SelectedInstructionSink;
 use crate::selection::storage_places::{
-    resolve_runtime_frame_indexed_target, resolve_runtime_machine_indexed_target_in_table,
-    resolve_runtime_storage_place, resolve_runtime_storage_place_is_bounded_byte_buffer,
+    resolve_runtime_frame_indexed_target, resolve_runtime_machine_double_indexed_source,
+    resolve_runtime_machine_indexed_target_in_table, resolve_runtime_storage_place,
+    resolve_runtime_storage_place_is_bounded_byte_buffer,
 };
 use omega_abstract_operations::SelectedInstruction;
 use omega_abstract_operations::TargetDataObjectHandle;
@@ -68,6 +69,34 @@ pub(in crate::selection) fn select_runtime_string_descriptor_write(
                 indexed_target.index_offset,
                 indexed_target.index_byte_size,
                 indexed_target.element_byte_size,
+                indexed_target.field_byte_offset,
+                data,
+                value.len(),
+            ),
+            source_key: literal_source_key,
+            source_statement: statement_index,
+        });
+        return;
+    }
+
+    if let Some(indexed_target) = resolve_runtime_machine_double_indexed_source(
+        input,
+        dispatch_index,
+        target_source_key,
+        resolved_target,
+    ) && indexed_target.byte_count == input.runtime_abi.string_descriptor_size()
+    {
+        selected_instructions.push(SelectedInstruction {
+            kind: crate::selection::runtime_dispatch::write_place_string_machine_double_indexed(
+                indexed_target.base_byte_offset,
+                indexed_target.outer_index_region,
+                indexed_target.outer_index_offset,
+                indexed_target.outer_index_byte_size,
+                indexed_target.outer_stride,
+                indexed_target.inner_index_region,
+                indexed_target.inner_index_offset,
+                indexed_target.inner_index_byte_size,
+                indexed_target.inner_stride,
                 indexed_target.field_byte_offset,
                 data,
                 value.len(),
