@@ -8,6 +8,29 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
     program: &mut SymbolResolvedTrees,
     symbols: &SymbolTable,
 ) {
+    let trait_proposition_slots = program
+        .roots
+        .traits
+        .iter()
+        .map(|trait_definition| {
+            (
+                trait_definition.name.as_str().to_owned(),
+                program
+                    .tables
+                    .declarations
+                    .data_type_parameters
+                    .span_or_empty(trait_definition.type_parameters)
+                    .iter()
+                    .map(|parameter| {
+                        matches!(
+                            parameter.kind,
+                            psi_symbol_resolved_trees::data::TypeParameterKind::Proposition { .. }
+                        )
+                    })
+                    .collect::<Vec<_>>(),
+            )
+        })
+        .collect::<Vec<_>>();
     let type_constraints = &program.tables.types.constraints;
     let data_type_parameters = &mut program.tables.declarations.data_type_parameters;
     let data_members = &mut program.tables.declarations.data_members;
@@ -166,7 +189,61 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
             SymbolHandle::invalid(),
             conformance.arguments,
         );
+        if let Some((_, proposition_slots)) = trait_proposition_slots
+            .iter()
+            .find(|(name, _)| name == conformance.trait_name.as_str())
+        {
+            assign_proposition_family_argument_symbols(
+                symbols,
+                child_type_references,
+                &[],
+                conformance.arguments,
+                proposition_slots,
+            );
+        }
     });
+}
+
+pub(in crate::symbols) fn assign_proposition_family_argument_symbols(
+    symbols: &SymbolTable,
+    child_type_references: &mut Arena<psi_symbol_resolved_trees::types::TypeReference>,
+    local_type_parameters: &[psi_symbol_resolved_trees::data::TypeParameter],
+    arguments: HandleSpan<psi_symbol_resolved_trees::types::TypeReference>,
+    proposition_slots: &[bool],
+) {
+    for (argument, is_proposition) in child_type_references
+        .span_mut_or_empty(arguments)
+        .iter_mut()
+        .zip(proposition_slots)
+    {
+        if !is_proposition {
+            continue;
+        }
+        let psi_symbol_resolved_trees::types::TypeReference::Named { symbol, name } = argument
+        else {
+            continue;
+        };
+        let local = local_type_parameters
+            .iter()
+            .find(|parameter| {
+                parameter.name.as_str() == name.as_str()
+                    && matches!(
+                        parameter.kind,
+                        psi_symbol_resolved_trees::data::TypeParameterKind::Proposition { .. }
+                    )
+            })
+            .map(|parameter| parameter.symbol)
+            .unwrap_or_else(SymbolHandle::invalid);
+        *symbol = if local.is_valid() {
+            local
+        } else {
+            crate::symbols::lookup::top_level_symbol(
+                symbols,
+                SymbolKind::Proposition,
+                name.as_str(),
+            )
+        };
+    }
 }
 
 pub(in crate::symbols) fn assign_type_reference_symbol_with_locals_and_self_type_and_constraints(

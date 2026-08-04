@@ -229,6 +229,97 @@ fn generic_proposition_parameter_rejects_wrong_value_argument_type() {
 }
 
 #[test]
+fn concrete_proposition_family_substitutes_into_trait_application() {
+    let typed = typed_program_from_source(
+        r#"
+        data Carrier {}
+        proposition related(left: Carrier, right: Carrier);
+
+        trait RelationKind<C, proposition Relation>
+        where proposition Relation(left: C, right: C);
+        {
+        }
+
+        Carrier satisfies RelationKind<Carrier, related>;
+        "#,
+    );
+
+    validate_program(&typed)
+        .expect("a proposition declaration with the substituted signature should be accepted");
+}
+
+#[test]
+fn trait_proposition_slot_rejects_a_data_type_argument() {
+    let typed = typed_program_from_source(
+        r#"
+        data Carrier {}
+
+        trait RelationKind<C, proposition Relation>
+        where proposition Relation(left: C, right: C);
+        {
+        }
+
+        Carrier satisfies RelationKind<Carrier, Carrier>;
+        "#,
+    );
+
+    let diagnostics = validate_program(&typed)
+        .expect_err("a proposition-family slot must not accept a runtime data type");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains(
+            "argument `Carrier` for proposition parameter `Relation` is not a proposition family",
+        )
+    }));
+}
+
+#[test]
+fn concrete_proposition_family_rejects_incompatible_signature() {
+    let typed = typed_program_from_source(
+        r#"
+        data Carrier {}
+        proposition related(left: Carrier, right: bool);
+
+        trait RelationKind<C, proposition Relation>
+        where proposition Relation(left: C, right: C);
+        {
+        }
+
+        Carrier satisfies RelationKind<Carrier, related>;
+        "#,
+    );
+
+    let diagnostics = validate_program(&typed)
+        .expect_err("a concrete proposition family must match the substituted signature");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains("proposition family `related`")
+            && diagnostic.message.contains("value parameter 2")
+            && diagnostic
+                .message
+                .contains("requires `Carrier` after substitution")
+    }));
+}
+
+#[test]
+fn trait_composition_forwards_a_proposition_family_parameter() {
+    let typed = typed_program_from_source(
+        r#"
+        trait Reflexive<C, proposition Relation>
+        where proposition Relation(left: C, right: C);
+        {
+        }
+
+        trait Equivalence<C, proposition Relation>: Reflexive<C, Relation>
+        where proposition Relation(left: C, right: C);
+        {
+        }
+        "#,
+    );
+
+    validate_program(&typed)
+        .expect("a composed trait should forward its proposition-family parameter exactly");
+}
+
+#[test]
 fn local_dynamic_value_rejects_boundary_trait() {
     let typed = typed_program_from_source(
         r#"

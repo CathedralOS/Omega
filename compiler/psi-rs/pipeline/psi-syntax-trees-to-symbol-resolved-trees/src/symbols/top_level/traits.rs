@@ -6,13 +6,39 @@ use crate::symbols::top_level::{
     assign_machine_parameter_signature_symbols, assign_proposition_parameter_signature_symbols,
     next_child_of_kind,
 };
-use crate::symbols::type_references::assign_type_reference_argument_symbols_with_constraints;
+use crate::symbols::type_references::{
+    assign_proposition_family_argument_symbols,
+    assign_type_reference_argument_symbols_with_constraints,
+};
 
 pub(super) fn assign_trait_symbols(
     program: &mut SymbolResolvedTrees,
     symbols: &SymbolTable,
     root_children: &mut impl Iterator<Item = SymbolHandle>,
 ) {
+    let trait_proposition_slots = program
+        .roots
+        .traits
+        .iter()
+        .map(|trait_definition| {
+            (
+                trait_definition.name.as_str().to_owned(),
+                program
+                    .tables
+                    .declarations
+                    .data_type_parameters
+                    .span_or_empty(trait_definition.type_parameters)
+                    .iter()
+                    .map(|parameter| {
+                        matches!(
+                            parameter.kind,
+                            psi_symbol_resolved_trees::data::TypeParameterKind::Proposition { .. }
+                        )
+                    })
+                    .collect::<Vec<_>>(),
+            )
+        })
+        .collect::<Vec<_>>();
     let type_constraints = &program.tables.types.constraints;
     let declarations = &mut program.tables.declarations;
     let data_type_parameters = &mut declarations.data_type_parameters;
@@ -97,6 +123,19 @@ pub(super) fn assign_trait_symbols(
                 trait_symbol,
                 bound.arguments,
             );
+            if bound.conformance_name.is_none()
+                && let Some((_, proposition_slots)) = trait_proposition_slots
+                    .iter()
+                    .find(|(name, _)| name == bound.carrier_name.as_str())
+            {
+                assign_proposition_family_argument_symbols(
+                    symbols,
+                    child_type_references,
+                    &local_type_parameters,
+                    bound.arguments,
+                    proposition_slots,
+                );
+            }
         }
 
         for requirement in trait_requirements.span_mut_or_empty(trait_definition.requires) {
@@ -110,6 +149,18 @@ pub(super) fn assign_trait_symbols(
                 trait_symbol,
                 requirement.arguments,
             );
+            if let Some((_, proposition_slots)) = trait_proposition_slots
+                .iter()
+                .find(|(name, _)| name == requirement.name.as_str())
+            {
+                assign_proposition_family_argument_symbols(
+                    symbols,
+                    child_type_references,
+                    &local_type_parameters,
+                    requirement.arguments,
+                    proposition_slots,
+                );
+            }
         }
 
         for machine in trait_machine_signatures.span_mut_or_empty(trait_definition.machines) {
