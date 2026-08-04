@@ -399,7 +399,8 @@ fn compiler_instruction_validation_kind(
             role: CopyPlacesRole::Ordinary,
         } if matches!(
             omega_instruction_selection::classify_copy_places_shape(source, target),
-            omega_instruction_selection::CopyPlacesShape::ToPointee { .. }
+            omega_instruction_selection::CopyPlacesShape::Direct { .. }
+                | omega_instruction_selection::CopyPlacesShape::ToPointee { .. }
         ) =>
         {
             Some(CompilerInstructionValidationKind::CompilerBodyPlaceCopy {
