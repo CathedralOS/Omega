@@ -148,6 +148,12 @@ and executes `u8` 200+100 as 44. The v4 saturating slice traverses the
 same path and clamps that sum to 255. Semantic v13 conditionals round-trip,
 validate, execute both arms, charge only the selected successor, and retain both
 ordered successors through Omega's abstract boundary.
+Omega's exact target continuation executes one runtime Boolean conditional
+whose integer-returning arms may cross acyclic computed jump chains. A
+compile-known conditional encountered within either arm folds to its selected
+successor and excludes the untaken operations and edges from emitted
+provenance. Runtime-nested conditionals still await the general target block
+program.
 `psi-terminal-fuel` defines schedule v1 as one unit per executed terminal
 operation and one unit per taken terminal edge. The verified interpreter returns
 exact schedule-keyed usage attributed to stable operation/edge identities; a
@@ -162,8 +168,8 @@ block-to-edge segment certificates, including the endpoint charge, so adjacent
 segments neither omit nor double-charge a jump. The current-vocabulary semantic
 safe-point selector now returns the complete canonical graph partition at every
 explicit jump, conditional, or return edge; validation rejects omitted or
-reordered segments. Build-time migration, loop certificates, target/native
-conditional lowering, and native metering remain.
+reordered segments. Build-time migration, loop certificates, general
+target/native block lowering, and native metering remain.
 Attributed response reporting additionally waits on executable terminal
 wait/foreign-edge variants carrying their response-contract status. The current
 total operation plus unconditional jump/return vocabulary can close a bounded
