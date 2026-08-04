@@ -18,7 +18,8 @@ data Main {
 
 machine Main::main(&mut self) {
     self.index = 1;
-    self.rooms[self.index].label = "Gate";
+    self.rooms[self.index].label = "Ga";
+    self.rooms[self.index].label = self.rooms[self.index].label + "te";
 
     transition self.rooms[1].label == "Gate" {
         true -> good()

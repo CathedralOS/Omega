@@ -38,8 +38,7 @@ use super::super::super::bindings::{
 use super::super::super::storage_places::{
     resolve_binary_write_arithmetic_domain, resolve_runtime_storage_arithmetic_domain,
     resolve_runtime_storage_is_signed, resolve_runtime_storage_place,
-    resolve_runtime_storage_place_is_bounded_byte_buffer, resolve_runtime_storage_primitive_type,
-    runtime_storage_target_is_atomic,
+    resolve_runtime_storage_primitive_type, runtime_storage_target_is_atomic,
 };
 use super::super::super::storage_places::{
     resolve_runtime_assignment_value_call_result_place_by_ordinal,
@@ -50,8 +49,9 @@ use super::super::super::storage_places::{
 };
 use super::super::guards::static_guard_conjunct_summary_in_table;
 use super::super::text_writes::{
-    runtime_text_builder_write_in_table_emit, runtime_text_builder_write_with_scratch_emit,
-    select_runtime_string_descriptor_write, string_literal_data_handle,
+    resolve_bounded_buffer_target_place, runtime_text_builder_write_in_table_emit,
+    runtime_text_builder_write_with_scratch_emit, select_runtime_string_descriptor_write,
+    string_literal_data_handle,
 };
 use super::slice_descriptors::emit_runtime_frame_slot_slice_descriptor_write_in_table;
 use super::static_values::{
@@ -90,7 +90,7 @@ pub(super) use static_writes::select_runtime_static_mutation_write_in_table;
 pub(in crate::selection::runtime_dispatch) use value_operands::resolve_runtime_text_equals_operand_in_table;
 use value_operands::resolve_runtime_value_operand;
 
-fn resolve_bounded_buffer_place(
+fn resolve_direct_or_pointee_bounded_buffer_place(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     source_key: StateKey,
@@ -1584,15 +1584,29 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
     // parameter pointees share one lowering.
     // The length-fits guard already proved the result fits the target's N. (Handles
     // the 2-segment `runtime_text_builder` shape as the n=2 special case.)
-    if let Expression::Binary(binary) = value
+    let resolved_bounded_concat_value = if aliases.is_empty() {
+        None
+    } else {
+        resolved_segment_expressions.clear();
+        let copied_aliases = RuntimeAliasBuffer::copy_from_bindings(
+            alias_expressions,
+            aliases,
+            resolved_segment_expressions,
+        );
+        let value_handle = resolved_segment_expressions.insert_tree(value);
+        let resolved = resolve_runtime_alias_binding_handle(
+            value_handle,
+            operation_source_key,
+            copied_aliases.bindings(),
+            resolved_segment_expressions,
+        );
+        Some(resolved_segment_expressions.to_tree(resolved.expression))
+    };
+    let bounded_concat_value = resolved_bounded_concat_value.as_ref().unwrap_or(value);
+
+    if let Expression::Binary(binary) = bounded_concat_value
         && binary.operator == psi_checked_trees::expression::BinaryOperator::Add
-        && resolve_runtime_storage_place_is_bounded_byte_buffer(
-            input,
-            dispatch_index,
-            target_source_key,
-            resolved_target,
-        )
-        && let Some(target_place) = resolve_bounded_buffer_place(
+        && let Some(target_place) = resolve_bounded_buffer_target_place(
             input,
             dispatch_index,
             target_source_key,
@@ -1601,7 +1615,7 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
             resolved_target,
         )
     {
-        let segments = flatten_string_concat_segments(value);
+        let segments = flatten_string_concat_segments(bounded_concat_value);
         if let Some((first, rest)) = segments.split_first() {
             let mut kinds: Vec<SelectedInstructionKind> = Vec::with_capacity(segments.len());
             let mut all_segments_resolved = true;
@@ -1615,12 +1629,7 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
                     target: target_place,
                     literal: std::sync::Arc::from(prefix.to_string()),
                 });
-            } else if resolve_runtime_storage_place_is_bounded_byte_buffer(
-                input,
-                dispatch_index,
-                target_source_key,
-                first,
-            ) && let Some(source_place) = resolve_bounded_buffer_place(
+            } else if let Some(source_place) = resolve_bounded_buffer_target_place(
                 input,
                 dispatch_index,
                 target_source_key,
@@ -1632,14 +1641,26 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
                 // content. A distinct source initializes through an empty value
                 // before the common append operation.
                 if source_place != target_place {
-                    kinds.push(SelectedInstructionKind::WritePlaceBoundedBuffer {
-                        target: target_place,
-                        literal: std::sync::Arc::from(""),
-                    });
-                    kinds.push(SelectedInstructionKind::AppendPlaceBoundedBufferSource {
-                        target: target_place,
-                        source: source_place,
-                    });
+                    if resolve_direct_or_pointee_bounded_buffer_place(
+                        input,
+                        dispatch_index,
+                        target_source_key,
+                        source_machine,
+                        source_state,
+                        first,
+                    ) == Some(source_place)
+                    {
+                        kinds.push(SelectedInstructionKind::WritePlaceBoundedBuffer {
+                            target: target_place,
+                            literal: std::sync::Arc::from(""),
+                        });
+                        kinds.push(SelectedInstructionKind::AppendPlaceBoundedBufferSource {
+                            target: target_place,
+                            source: source_place,
+                        });
+                    } else {
+                        all_segments_resolved = false;
+                    }
                 }
             } else {
                 all_segments_resolved = false;
@@ -1651,12 +1672,7 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
                         target: target_place,
                         literal: std::sync::Arc::from(literal.to_string()),
                     });
-                } else if resolve_runtime_storage_place_is_bounded_byte_buffer(
-                    input,
-                    dispatch_index,
-                    target_source_key,
-                    segment,
-                ) && let Some(source_place) = resolve_bounded_buffer_place(
+                } else if let Some(source_place) = resolve_bounded_buffer_target_place(
                     input,
                     dispatch_index,
                     target_source_key,
@@ -1664,10 +1680,23 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
                     source_state,
                     segment,
                 ) {
-                    kinds.push(SelectedInstructionKind::AppendPlaceBoundedBufferSource {
-                        target: target_place,
-                        source: source_place,
-                    });
+                    if resolve_direct_or_pointee_bounded_buffer_place(
+                        input,
+                        dispatch_index,
+                        target_source_key,
+                        source_machine,
+                        source_state,
+                        segment,
+                    ) == Some(source_place)
+                    {
+                        kinds.push(SelectedInstructionKind::AppendPlaceBoundedBufferSource {
+                            target: target_place,
+                            source: source_place,
+                        });
+                    } else {
+                        all_segments_resolved = false;
+                        break;
+                    }
                 } else {
                     all_segments_resolved = false;
                     break;

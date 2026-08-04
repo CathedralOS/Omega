@@ -12,7 +12,7 @@ use omega_control_flow::StateKey;
 use psi_checked_trees::expression::Expression;
 
 #[allow(clippy::too_many_arguments)]
-fn resolve_bounded_buffer_target_place(
+pub(in crate::selection) fn resolve_bounded_buffer_target_place(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     source_key: StateKey,

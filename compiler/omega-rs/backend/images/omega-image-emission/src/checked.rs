@@ -1563,11 +1563,16 @@ fn validate_compiler_function_instruction_boundaries(
                         target,
                         literal,
                     } => {
+                        let shape = compiler_body_place_integer_write_shape(&target)?;
                         if architecture == Architecture::Aarch64
                             && !matches!(
-                                compiler_body_place_integer_write_shape(&target)?,
+                                shape,
                                 CompilerBodyPlaceIntegerWriteShape::Direct { .. }
                                     | CompilerBodyPlaceIntegerWriteShape::Pointee { .. }
+                                    | CompilerBodyPlaceIntegerWriteShape::FrameIndexed { .. }
+                                    | CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. }
+                                    | CompilerBodyPlaceIntegerWriteShape::MachineIndexed { .. }
+                                    | CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed { .. }
                             )
                         {
                             return Err(Diagnostic::error(
@@ -1581,10 +1586,88 @@ fn validate_compiler_function_instruction_boundaries(
                                     &target,
                                     &literal,
                                 )?.0,
-                                Architecture::Aarch64 => omega_isa_aarch64::encode_place_bounded_buffer_literal_append(
-                                    &target,
-                                    &literal,
-                                )?.0,
+                                Architecture::Aarch64 => match shape {
+                                    CompilerBodyPlaceIntegerWriteShape::Direct { .. }
+                                    | CompilerBodyPlaceIntegerWriteShape::Pointee { .. } => {
+                                        omega_isa_aarch64::encode_place_bounded_buffer_literal_append(
+                                            &target,
+                                            &literal,
+                                        )?.0
+                                    }
+                                    CompilerBodyPlaceIntegerWriteShape::FrameIndexed {
+                                        descriptor_offset,
+                                        index_region,
+                                        index_offset,
+                                        index_byte_size,
+                                        element_byte_size,
+                                        field_byte_offset,
+                                    } => omega_isa_aarch64::encode_runtime_frame_indexed_bounded_buffer_literal_append(
+                                        descriptor_offset,
+                                        index_region,
+                                        index_offset,
+                                        index_byte_size,
+                                        element_byte_size,
+                                        field_byte_offset,
+                                        &literal,
+                                    )?,
+                                    CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed {
+                                        base_byte_offset,
+                                        index_offset,
+                                        index_byte_size,
+                                        element_byte_size,
+                                        field_byte_offset,
+                                    } => omega_isa_aarch64::encode_runtime_frame_base_indexed_bounded_buffer_literal_append(
+                                        base_byte_offset,
+                                        index_offset,
+                                        index_byte_size,
+                                        element_byte_size,
+                                        field_byte_offset,
+                                        &literal,
+                                    )?,
+                                    CompilerBodyPlaceIntegerWriteShape::MachineIndexed {
+                                        base_byte_offset,
+                                        index_region,
+                                        index_offset,
+                                        index_byte_size,
+                                        element_byte_size,
+                                        field_byte_offset,
+                                    } => omega_isa_aarch64::encode_runtime_machine_indexed_bounded_buffer_literal_append(
+                                        base_byte_offset,
+                                        index_region,
+                                        index_offset,
+                                        index_byte_size,
+                                        element_byte_size,
+                                        field_byte_offset,
+                                        &literal,
+                                    )?,
+                                    CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed {
+                                        base_byte_offset,
+                                        outer_index_region,
+                                        outer_index_offset,
+                                        outer_index_byte_size,
+                                        outer_stride,
+                                        inner_index_region,
+                                        inner_index_offset,
+                                        inner_index_byte_size,
+                                        inner_stride,
+                                        field_byte_offset,
+                                    } => omega_isa_aarch64::encode_runtime_machine_double_indexed_bounded_buffer_literal_append(
+                                        base_byte_offset,
+                                        outer_index_offset,
+                                        outer_index_region,
+                                        outer_index_byte_size,
+                                        outer_stride,
+                                        inner_index_offset,
+                                        inner_index_region,
+                                        inner_index_byte_size,
+                                        inner_stride,
+                                        field_byte_offset,
+                                        &literal,
+                                    )?,
+                                    CompilerBodyPlaceIntegerWriteShape::General => unreachable!(
+                                        "aarch64 bounded-buffer literal-append shape checked above"
+                                    ),
+                                },
                             },
                             26u8,
                             CompilerInstructionRelocationRecipe::PlaceBoundedBufferLiteralAppend {
@@ -1597,13 +1680,21 @@ fn validate_compiler_function_instruction_boundaries(
                         target,
                         source,
                     } => {
-                        if architecture == Architecture::Aarch64
-                            && ![target, source].into_iter().all(|place| matches!(
-                                compiler_body_place_integer_write_shape(&place),
-                                Ok(CompilerBodyPlaceIntegerWriteShape::Direct { .. }
-                                    | CompilerBodyPlaceIntegerWriteShape::Pointee { .. })
-                            ))
-                        {
+                        let target_shape = compiler_body_place_integer_write_shape(&target)?;
+                        let source_shape = compiler_body_place_integer_write_shape(&source)?;
+                        if architecture == Architecture::Aarch64 && (!matches!(
+                            target_shape,
+                            CompilerBodyPlaceIntegerWriteShape::Direct { .. }
+                                | CompilerBodyPlaceIntegerWriteShape::Pointee { .. }
+                                | CompilerBodyPlaceIntegerWriteShape::FrameIndexed { .. }
+                                | CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. }
+                                | CompilerBodyPlaceIntegerWriteShape::MachineIndexed { .. }
+                                | CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed { .. }
+                        ) || !matches!(
+                            source_shape,
+                            CompilerBodyPlaceIntegerWriteShape::Direct { .. }
+                                | CompilerBodyPlaceIntegerWriteShape::Pointee { .. }
+                        )) {
                             return Err(Diagnostic::error(
                                 "final aarch64 compiler-body bounded-buffer source append retained an unsupported place",
                             ));
@@ -1612,7 +1703,10 @@ fn validate_compiler_function_instruction_boundaries(
                             None,
                             match architecture {
                                 Architecture::X86_64 => omega_isa_x86_64::encode_place_bounded_buffer_source_append(&target, &source)?.0,
-                                Architecture::Aarch64 => omega_isa_aarch64::encode_place_bounded_buffer_source_append(&target, &source)?.0,
+                                Architecture::Aarch64 => encode_aarch64_bounded_buffer_source_append(
+                                    &target,
+                                    &source,
+                                )?.0,
                             },
                             27u8,
                             CompilerInstructionRelocationRecipe::PlaceBoundedBufferSourceAppend {
@@ -2775,14 +2869,7 @@ fn validate_compiler_function_instruction_boundaries(
                                 }).collect::<Result<Vec<_>, Diagnostic>>()?
                             }
                             Architecture::Aarch64 => {
-                                let (_, sites) =
-                                    omega_isa_aarch64::encode_place_bounded_buffer_literal_append(
-                                        &target, &literal,
-                                    )?;
-                                sites
-                                    .iter()
-                                    .map(|(offset, _)| (offset, target.region))
-                                    .collect()
+                                aarch64_bounded_buffer_write_relocation_sites(target)?
                             }
                         };
                         validate_compiler_data_address_relocations(
@@ -2827,24 +2914,15 @@ fn validate_compiler_function_instruction_boundaries(
                                 }).collect::<Result<Vec<_>, Diagnostic>>()?
                             }
                             Architecture::Aarch64 => {
+                                let mut address_sites =
+                                    aarch64_bounded_buffer_write_relocation_sites(target)?;
                                 let (_, sites) =
-                                    omega_isa_aarch64::encode_place_bounded_buffer_source_append(
-                                        &target, &source,
-                                    )?;
-                                sites
-                                    .iter()
-                                    .map(|(offset, side)| {
-                                        let region = match side {
-                                            omega_isa_aarch64::BoundedBufferPlaceSide::Target => {
-                                                target.region
-                                            }
-                                            omega_isa_aarch64::BoundedBufferPlaceSide::Source => {
-                                                source.region
-                                            }
-                                        };
-                                        (offset, region)
-                                    })
-                                    .collect()
+                                    encode_aarch64_bounded_buffer_source_append(&target, &source)?;
+                                address_sites.extend(sites.iter().filter_map(|(offset, side)| {
+                                    (side == omega_isa_aarch64::BoundedBufferPlaceSide::Source)
+                                        .then_some((offset, source.region))
+                                }));
+                                address_sites
                             }
                         };
                         validate_compiler_data_address_relocations(
@@ -3809,6 +3887,10 @@ fn compiler_instruction_footprint(
                     compiler_body_place_integer_write_shape(&target).ok()?,
                     CompilerBodyPlaceIntegerWriteShape::Direct { .. }
                         | CompilerBodyPlaceIntegerWriteShape::Pointee { .. }
+                        | CompilerBodyPlaceIntegerWriteShape::FrameIndexed { .. }
+                        | CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. }
+                        | CompilerBodyPlaceIntegerWriteShape::MachineIndexed { .. }
+                        | CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed { .. }
                 ) {
                     return None;
                 }
@@ -3832,13 +3914,19 @@ fn compiler_instruction_footprint(
                 omega_isa_x86_64::place_bounded_buffer_source_append_additional_machine_state(),
             ),
             Architecture::Aarch64 => {
-                if ![target, source].into_iter().all(|place| {
-                    matches!(
-                        compiler_body_place_integer_write_shape(&place),
-                        Ok(CompilerBodyPlaceIntegerWriteShape::Direct { .. }
-                            | CompilerBodyPlaceIntegerWriteShape::Pointee { .. })
-                    )
-                }) {
+                if !matches!(
+                    compiler_body_place_integer_write_shape(&target).ok()?,
+                    CompilerBodyPlaceIntegerWriteShape::Direct { .. }
+                        | CompilerBodyPlaceIntegerWriteShape::Pointee { .. }
+                        | CompilerBodyPlaceIntegerWriteShape::FrameIndexed { .. }
+                        | CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. }
+                        | CompilerBodyPlaceIntegerWriteShape::MachineIndexed { .. }
+                        | CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed { .. }
+                ) || !matches!(
+                    compiler_body_place_integer_write_shape(&source).ok()?,
+                    CompilerBodyPlaceIntegerWriteShape::Direct { .. }
+                        | CompilerBodyPlaceIntegerWriteShape::Pointee { .. }
+                ) {
                     return None;
                 }
                 (
@@ -6717,6 +6805,100 @@ fn aarch64_bounded_buffer_write_relocation_sites(
         }
     }
     Ok(sites)
+}
+
+fn encode_aarch64_bounded_buffer_source_append(
+    target: &omega_target_operations::Place,
+    source: &omega_target_operations::Place,
+) -> Result<(Vec<u8>, omega_isa_aarch64::BoundedBufferPlaceSites), Diagnostic> {
+    if !matches!(
+        compiler_body_place_integer_write_shape(source)?,
+        CompilerBodyPlaceIntegerWriteShape::Direct { .. }
+            | CompilerBodyPlaceIntegerWriteShape::Pointee { .. }
+    ) {
+        return Err(Diagnostic::error(
+            "final aarch64 bounded-buffer source append retained an unsupported source",
+        ));
+    }
+    match compiler_body_place_integer_write_shape(target)? {
+        CompilerBodyPlaceIntegerWriteShape::Direct { .. }
+        | CompilerBodyPlaceIntegerWriteShape::Pointee { .. } => {
+            omega_isa_aarch64::encode_place_bounded_buffer_source_append(target, source)
+        }
+        CompilerBodyPlaceIntegerWriteShape::FrameIndexed {
+            descriptor_offset,
+            index_region,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+        } => omega_isa_aarch64::encode_runtime_frame_indexed_bounded_buffer_source_append(
+            descriptor_offset,
+            index_region,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+            source,
+        ),
+        CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed {
+            base_byte_offset,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+        } => omega_isa_aarch64::encode_runtime_frame_base_indexed_bounded_buffer_source_append(
+            base_byte_offset,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+            source,
+        ),
+        CompilerBodyPlaceIntegerWriteShape::MachineIndexed {
+            base_byte_offset,
+            index_region,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+        } => omega_isa_aarch64::encode_runtime_machine_indexed_bounded_buffer_source_append(
+            base_byte_offset,
+            index_region,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+            source,
+        ),
+        CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed {
+            base_byte_offset,
+            outer_index_region,
+            outer_index_offset,
+            outer_index_byte_size,
+            outer_stride,
+            inner_index_region,
+            inner_index_offset,
+            inner_index_byte_size,
+            inner_stride,
+            field_byte_offset,
+        } => omega_isa_aarch64::encode_runtime_machine_double_indexed_bounded_buffer_source_append(
+            base_byte_offset,
+            outer_index_offset,
+            outer_index_region,
+            outer_index_byte_size,
+            outer_stride,
+            inner_index_offset,
+            inner_index_region,
+            inner_index_byte_size,
+            inner_stride,
+            field_byte_offset,
+            source,
+        ),
+        CompilerBodyPlaceIntegerWriteShape::General => Err(Diagnostic::error(
+            "final aarch64 bounded-buffer source append retained an unsupported target",
+        )),
+    }
 }
 
 fn validate_compiler_place_string_relocations(

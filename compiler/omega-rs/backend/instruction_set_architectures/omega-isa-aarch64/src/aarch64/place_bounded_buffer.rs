@@ -72,10 +72,19 @@ pub fn encode_place_bounded_buffer_source_append(
         14,
         BoundedBufferPlaceSide::Source,
     )?;
+    append_bounded_buffer_source(&mut bytes, target_offset, source_offset)?;
+    Ok((bytes, sites))
+}
+
+fn append_bounded_buffer_source(
+    bytes: &mut Vec<u8>,
+    target_offset: usize,
+    source_offset: usize,
+) -> Result<(), Diagnostic> {
     bytes.extend(encode_load_x_from_x(15, 16, target_offset)?);
     bytes.extend(encode_load_x_from_x(13, 14, source_offset)?);
-    append_add_x_constant(&mut bytes, 12, 14, source_offset + 8, 10)?;
-    append_add_x_constant(&mut bytes, 11, 16, target_offset + 8, 10)?;
+    append_add_x_constant(bytes, 12, 14, source_offset + 8, 10)?;
+    append_add_x_constant(bytes, 11, 16, target_offset + 8, 10)?;
     bytes.extend(encode_add_x_register(11, 11, 15));
     bytes.extend(encode_add_x_register(15, 15, 13));
     bytes.extend(encode_store_x_to_x(15, 16, target_offset)?);
@@ -84,7 +93,25 @@ pub fn encode_place_bounded_buffer_source_append(
     bytes.extend(encode_store_byte_w_post_increment(17, 11, 1)?);
     bytes.extend(encode_subs_x_immediate(13, 13, 1)?);
     bytes.extend(encode_unconditional_branch(-16)?);
-    Ok((bytes, sites))
+    Ok(())
+}
+
+/// Append a direct/pointee source carrier after an indexed target recipe has
+/// already materialized the exact destination carrier address into x16.
+pub(super) fn append_bounded_buffer_source_to_x16(
+    bytes: &mut Vec<u8>,
+    source: &Place,
+) -> Result<BoundedBufferPlaceSites, Diagnostic> {
+    let mut sites = BoundedBufferPlaceSites::default();
+    let source_offset = materialize_direct_or_pointee(
+        bytes,
+        &mut sites,
+        source,
+        14,
+        BoundedBufferPlaceSide::Source,
+    )?;
+    append_bounded_buffer_source(bytes, 0, source_offset)?;
+    Ok(sites)
 }
 
 pub fn place_bounded_buffer_source_append_register_write_ceiling() -> RegisterSet {
@@ -97,6 +124,9 @@ pub fn place_bounded_buffer_source_append_register_write_ceiling() -> RegisterSe
         MachineRegister::Aarch64X(15),
         MachineRegister::Aarch64X(16),
         MachineRegister::Aarch64X(17),
+        MachineRegister::Aarch64X(19),
+        MachineRegister::Aarch64X(20),
+        MachineRegister::Aarch64X(26),
     ])
 }
 
@@ -136,6 +166,9 @@ pub fn place_bounded_buffer_literal_append_register_write_ceiling() -> RegisterS
         MachineRegister::Aarch64X(15),
         MachineRegister::Aarch64X(16),
         MachineRegister::Aarch64X(17),
+        MachineRegister::Aarch64X(19),
+        MachineRegister::Aarch64X(20),
+        MachineRegister::Aarch64X(26),
     ])
 }
 
