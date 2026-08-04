@@ -678,51 +678,45 @@ fn lower_integer_conditional(
                 function.machine,
             ));
         };
-        let [binding] = successor.bindings.as_slice() else {
+        if *result != function.result.value || *scalar_type != function.result.scalar_type {
             return Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(
                 function.machine,
             ));
-        };
-        if *result != function.result.value
-            || *scalar_type != function.result.scalar_type
-            || binding.scalar_type != function.result.scalar_type
-        {
-            return Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(
-                function.machine,
-            ));
-        }
-        let KnownScalar::Integer {
-            scalar_type: argument_type,
-            value:
-                KnownInteger::Runtime(TerminalTargetIntegerExpression::Parameter {
-                    parameter_index,
-                    location,
-                    ..
-                }),
-        } = values
-            .get(&binding.argument)
-            .ok_or(LoweringError::UnknownValue(binding.argument))?
-        else {
-            return Err(LoweringError::ConditionalArmMustBindRuntimeParameter(
-                successor.psi_edge,
-            ));
-        };
-        if *argument_type != result_type {
-            return Err(LoweringError::ValueTypeMismatch(binding.argument));
         }
         let mut arm_values = BTreeMap::new();
-        insert_value(
-            &mut arm_values,
-            binding.parameter,
-            KnownScalar::Integer {
-                scalar_type: result_type,
-                value: KnownInteger::Runtime(TerminalTargetIntegerExpression::Parameter {
-                    source_value: binding.parameter,
-                    parameter_index: *parameter_index,
-                    location: *location,
-                }),
-            },
-        )?;
+        for binding in &successor.bindings {
+            let KnownScalar::Integer {
+                scalar_type: argument_type,
+                value:
+                    KnownInteger::Runtime(TerminalTargetIntegerExpression::Parameter {
+                        parameter_index,
+                        location,
+                        ..
+                    }),
+            } = values
+                .get(&binding.argument)
+                .ok_or(LoweringError::UnknownValue(binding.argument))?
+            else {
+                return Err(LoweringError::ConditionalArmMustBindRuntimeParameter(
+                    successor.psi_edge,
+                ));
+            };
+            if binding.scalar_type != ScalarType::Integer(*argument_type) {
+                return Err(LoweringError::ValueTypeMismatch(binding.argument));
+            }
+            insert_value(
+                &mut arm_values,
+                binding.parameter,
+                KnownScalar::Integer {
+                    scalar_type: *argument_type,
+                    value: KnownInteger::Runtime(TerminalTargetIntegerExpression::Parameter {
+                        source_value: binding.parameter,
+                        parameter_index: *parameter_index,
+                        location: *location,
+                    }),
+                },
+            )?;
+        }
         let mut operations_provenance = Vec::new();
         for operation in body {
             if !lower_conditional_integer_operation(

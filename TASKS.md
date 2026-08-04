@@ -1160,9 +1160,10 @@ improvements do not change public identity.
   unconditional one-parameter Boolean state bindings. Optional compile-known
   propagation also requires its result to match the closed reflexive contract.
   A fourth exact form lowers an ordered positive-Boolean/fallback conditional.
-  Each arm binds one already-defined integer entry parameter to a one-parameter
-  branch state that returns a recursively nested landed-literal/parameter
-  add/subtract/multiply expression in a settled Wrapping or Saturating domain.
+  Each arm binds an ordered sequence of already-defined integer entry
+  parameters to exactly typed branch parameters, then returns a recursively
+  nested landed-literal/parameter add/subtract/multiply expression in a settled
+  Wrapping or Saturating domain.
   It emits the module and
   proof bundle separately; real-source canaries cover all six versioned integer
   policy operations in constant-fed and runtime-fed forms, Boolean literal,
@@ -1187,7 +1188,7 @@ improvements do not change public identity.
   The source conditional survives frontend disposal, executes either arm with
   only its selected edge charged, retains both successors through the Omega
   abstract boundary, and reaches emitted host machine code for both arms. Its
-  branch-local wrapping add/multiply paths each have a four-unit fixed-work
+  two-binding branch-local arithmetic paths each have a five-unit fixed-work
   certificate. The target/native continuation remains deliberately exact:
   runtime Boolean selection between two integer expressions is live, with each
   branch independently assigned and emitted; general CFG programs fail closed.

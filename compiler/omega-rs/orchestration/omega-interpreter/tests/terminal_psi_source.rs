@@ -497,17 +497,17 @@ fn checked_source_conditional_survives_frontend_drop() {
     assert_eq!(semantic_module.semantic_version.get(), 14);
     let fixed = derive_fixed_entry_fuel(&verified, semantic_module.entry)
         .expect("source conditional should have an exact maximum fuel bound");
-    assert_eq!(fixed.ceiling_units(), 4);
+    assert_eq!(fixed.ceiling_units(), 5);
 
     let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
     for (condition, expected, selected, unselected) in [
         (
             true,
-            20_u128,
+            49_u128,
             EdgeId::new(1).unwrap(),
             EdgeId::new(2).unwrap(),
         ),
-        (false, 58, EdgeId::new(2).unwrap(), EdgeId::new(1).unwrap()),
+        (false, 239, EdgeId::new(2).unwrap(), EdgeId::new(1).unwrap()),
     ] {
         let measured = interpret_terminal_measured(
             &verified,
@@ -524,7 +524,7 @@ fn checked_source_conditional_survives_frontend_drop() {
             ],
         )
         .expect("selected source conditional arm should execute");
-        assert_eq!(measured.usage().total_units(), 4);
+        assert_eq!(measured.usage().total_units(), 5);
         assert!(
             measured
                 .usage()
@@ -543,10 +543,16 @@ fn checked_source_conditional_survives_frontend_drop() {
 
     let abstract_operations = lower_verified_module(&verified)
         .expect("source conditional should cross the Omega abstract boundary");
-    assert!(matches!(
-        abstract_operations.functions[0].operations[0],
-        TerminalAbstractOperation::Conditional { .. }
-    ));
+    let TerminalAbstractOperation::Conditional {
+        when_true,
+        when_false,
+        ..
+    } = &abstract_operations.functions[0].operations[0]
+    else {
+        panic!("abstract plan must retain the conditional")
+    };
+    assert_eq!(when_true.bindings.len(), 2);
+    assert_eq!(when_false.bindings.len(), 2);
     let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
         .expect("computed source conditional should lower for the host");
     let TerminalTargetOperation::ReturnIntegerConditionalExpressions {
@@ -563,18 +569,22 @@ fn checked_source_conditional_survives_frontend_drop() {
     ));
     assert!(matches!(
         &when_false.expression,
-        TerminalTargetIntegerExpression::WrappingMultiply { .. }
+        TerminalTargetIntegerExpression::WrappingAdd { left, .. }
+            if matches!(
+                left.as_ref(),
+                TerminalTargetIntegerExpression::WrappingMultiply { .. }
+            )
     ));
     assert_eq!(
         target_operations.functions[0].provenance.operations.len(),
-        4
+        6
     );
     let assigned = assign_registers(&target_operations)
         .expect("source conditional parameter homes should assign");
     let machine_code =
         emit_machine_code(&assigned).expect("source conditional machine code should emit");
     #[cfg(unix)]
-    for (condition, expected) in [(true, 20), (false, 58)] {
+    for (condition, expected) in [(true, 49), (false, 239)] {
         assert_eq!(
             run_host_machine_code_with_conditional_u8(
                 &machine_code.functions[0].bytes,
