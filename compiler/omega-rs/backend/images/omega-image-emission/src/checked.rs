@@ -355,6 +355,7 @@ enum CompilerBodyPlaceIntegerWriteShape {
         inner_stride: usize,
         field_byte_offset: usize,
     },
+    General,
 }
 
 fn validate_compiler_function_instruction_boundaries(
@@ -1333,6 +1334,11 @@ fn validate_compiler_function_instruction_boundaries(
                                     byte_size,
                                     value,
                                 )?,
+                                CompilerBodyPlaceIntegerWriteShape::General => {
+                                    return Err(Diagnostic::error(
+                                        "final aarch64 compiler-body integer write reached the x86-only general materializer class",
+                                    ));
+                                }
                             },
                             },
                             22u8,
@@ -2129,6 +2135,7 @@ fn compiler_instruction_footprint(
                                 inner_index_region,
                             )
                         }
+                        CompilerBodyPlaceIntegerWriteShape::General => return None,
                     },
                 },
                 MachineStateSet::empty(),
@@ -2967,9 +2974,7 @@ fn compiler_body_place_integer_write_shape(
         });
     }
     if target.region != omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
-        return Err(Diagnostic::error(
-            "final indexed or pointee integer-write root is not the runtime frame",
-        ));
+        return Ok(CompilerBodyPlaceIntegerWriteShape::General);
     }
     if let Ok((
         base_byte_offset,
@@ -3023,9 +3028,7 @@ fn compiler_body_place_integer_write_shape(
             pointer_byte_offset: *pointer_byte_offset,
             field_byte_offset: *field_byte_offset,
         }),
-        _ => Err(Diagnostic::error(
-            "final compiler-body integer-write target is not a retained direct, frame-held pointee, frame-indexed, or inline array shape",
-        )),
+        _ => Ok(CompilerBodyPlaceIntegerWriteShape::General),
     }
 }
 
@@ -5964,11 +5967,12 @@ fn fingerprint_into(fingerprint: &mut u64, bytes: &[u8]) {
 #[cfg(test)]
 mod tests {
     use super::{
-        CompilerBodyPlaceCopyShape, compiler_body_place_copy_shape,
+        CompilerBodyPlaceCopyShape, CompilerBodyPlaceIntegerWriteShape,
+        compiler_body_place_copy_shape, compiler_body_place_integer_write_shape,
         compiler_instruction_non_relocation_bits_match, compiler_place_copy_address_sites,
-        compiler_place_value_address_sites, compiler_runtime_value_compare_address_sites,
-        emit_checked_executable_image, validate_checked_instruction_bytes,
-        validate_compiler_data_address_relocations,
+        compiler_place_integer_write_address_sites, compiler_place_value_address_sites,
+        compiler_runtime_value_compare_address_sites, emit_checked_executable_image,
+        validate_checked_instruction_bytes, validate_compiler_data_address_relocations,
         validate_compiler_function_instruction_boundaries,
         validate_compiler_runtime_text_relocations, validate_executable_region_enumeration,
         validate_final_text_relocation_envelope,
@@ -6516,6 +6520,59 @@ mod tests {
                         .scaled_index_regions()
                         .nth(1)
                         .expect("second target index"),
+                };
+                (offset, region)
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(replay_sites, expected_sites);
+    }
+
+    #[test]
+    fn general_x86_integer_write_replay_uses_the_materializer_and_its_sites() {
+        use omega_target_operations::{Place, PlaceStep, RuntimeStorageRegion};
+
+        let target = Place::at(RuntimeStorageRegion::RuntimeFrame, 32)
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::Machine,
+                index_offset: 64,
+                index_byte_size: 8,
+                element_byte_size: 24,
+            })
+            .expect("cross-region inline frame target");
+        assert!(matches!(
+            compiler_body_place_integer_write_shape(&target).expect("classify final integer write"),
+            CompilerBodyPlaceIntegerWriteShape::General
+        ));
+
+        let value = 7;
+        let byte_size = 4;
+        let (bytes, encoded_sites) =
+            omega_isa_x86_64::encode_place_integer_write(&target, value, byte_size)
+                .expect("general x86 integer write");
+        assert!(!bytes.is_empty());
+        let replay_sites = compiler_place_integer_write_address_sites(
+            omega_target::Architecture::X86_64,
+            target,
+            omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyPlaceIntegerWrite {
+                target,
+                value,
+                byte_size,
+            },
+        )
+        .expect("general x86 integer-write final relocation sites");
+        let expected_sites = encoded_sites
+            .iter()
+            .map(|(offset, side)| {
+                let region = match side {
+                    omega_isa_x86_64::PlaceCopySide::Target => target.region,
+                    omega_isa_x86_64::PlaceCopySide::TargetIndex => target
+                        .scaled_index_region()
+                        .expect("general target index region"),
+                    omega_isa_x86_64::PlaceCopySide::TargetIndex2 => target
+                        .scaled_index_regions()
+                        .nth(1)
+                        .expect("general second target index region"),
+                    _ => panic!("integer-write materializer emitted a non-target site"),
                 };
                 (offset, region)
             })

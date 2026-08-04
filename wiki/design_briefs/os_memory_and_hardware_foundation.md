@@ -1058,7 +1058,9 @@ indexed descriptor, and runtime-indexed writes into inline frame arrays also
 retain a separate ordinary-body fragment and replay exact target `Place`,
 value, width, every storage/index relocation, and target scratch.
 Runtime-indexed immediate writes into single- and double-indexed inline machine
-arrays are included too.
+arrays are included too. The x86 general place materializer replays the
+remaining otherwise-unclassified immediate integer-write paths with exact
+index-depth scratch and relocation sites.
 Place-copy selection retains its separate `compiler_body_place_copy` evidence
 only for
 the `Ordinary` role; final validation regenerates the same place-copy bytes,

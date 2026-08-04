@@ -832,6 +832,9 @@ pub fn derive_boundary_compiler_body_place_integer_write_footprint<'instruction>
                 omega_target::Architecture::X86_64,
                 crate::WritePlaceShape::MachineDoubleIndexed { .. },
             ) => omega_isa_x86_64::place_integer_write_clobbers(target),
+            (omega_target::Architecture::X86_64, crate::WritePlaceShape::Unsupported) => {
+                omega_isa_x86_64::place_integer_write_clobbers(target)
+            }
             _ => continue,
         };
         registers.extend_from_slice(clobbers.as_slice());
@@ -2781,6 +2784,49 @@ mod tests {
                 MachineRegister::Aarch64X(20),
                 MachineRegister::Aarch64X(21),
                 MachineRegister::Aarch64X(26),
+            ]
+        );
+    }
+
+    #[test]
+    fn compiler_body_general_x86_integer_write_uses_materializer_clobbers() {
+        let boundary = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::SystemVAMD64,
+            &CallSignature {
+                parameters: Vec::new(),
+                result: None,
+            },
+        )
+        .expect("SysV boundary");
+        let target = omega_abstract_operations::Place::at(
+            omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+            16,
+        )
+        .with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+            index_region: omega_abstract_operations::RuntimeStorageRegion::Machine,
+            index_offset: 64,
+            index_byte_size: 8,
+            element_byte_size: 24,
+        })
+        .expect("cross-region inline frame target");
+        assert_eq!(
+            crate::classify_write_place_shape(&target),
+            crate::WritePlaceShape::Unsupported
+        );
+        let instruction = SelectedInstructionKind::WritePlaceInteger {
+            target,
+            value: 7,
+            byte_size: 4,
+        };
+        let evidence =
+            derive_boundary_compiler_body_place_integer_write_footprint(&boundary, [&instruction])
+                .expect("ordinary general integer-write evidence");
+        assert_eq!(
+            evidence.registers().as_slice(),
+            &[
+                MachineRegister::X86Rax,
+                MachineRegister::X86R11,
+                MachineRegister::X86R15,
             ]
         );
     }
