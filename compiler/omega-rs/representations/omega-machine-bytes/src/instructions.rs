@@ -61,6 +61,17 @@ pub enum CompilerInstructionValidationKind {
         failure_branch_distance: isize,
         operator: StateGuardOperator,
     },
+    ReturnRegisterIntegerWrite {
+        register: omega_calling_conventions::MachineRegister,
+        byte_size: usize,
+        value: i64,
+    },
+    RuntimeStorageToReturnRegister {
+        register: omega_calling_conventions::MachineRegister,
+        storage_region: RuntimeStorageRegion,
+        byte_offset: usize,
+        byte_size: usize,
+    },
     DispatchStateWrite {
         dispatch_index: u32,
         case_leave_byte_distance: isize,

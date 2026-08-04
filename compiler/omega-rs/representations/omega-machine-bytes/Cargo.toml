@@ -9,6 +9,7 @@ name = "omega_machine_bytes"
 path = "src/lib.rs"
 
 [dependencies]
+omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }
 omega-control-flow = { path = "../omega-control-flow" }
 psi-arena = { path = "../../../psi-rs/foundation/psi-arena" }
 psi-language-core = { path = "../../../psi-rs/foundation/psi-language-core" }

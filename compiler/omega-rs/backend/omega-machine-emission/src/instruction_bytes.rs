@@ -315,6 +315,30 @@ fn compiler_instruction_validation_kind(
             )?,
             operator: *operator,
         }),
+        SelectedInstructionKind::WriteReturnRegisterInteger {
+            register,
+            byte_size,
+            value,
+        } => Some(
+            CompilerInstructionValidationKind::ReturnRegisterIntegerWrite {
+                register: *register,
+                byte_size: *byte_size,
+                value: *value,
+            },
+        ),
+        SelectedInstructionKind::CopyRuntimeStorageToReturnRegister {
+            register,
+            region,
+            byte_offset,
+            byte_size,
+        } => Some(
+            CompilerInstructionValidationKind::RuntimeStorageToReturnRegister {
+                register: *register,
+                storage_region: *region,
+                byte_offset: *byte_offset,
+                byte_size: *byte_size,
+            },
+        ),
         SelectedInstructionKind::SetDispatchState { dispatch_index } => {
             Some(CompilerInstructionValidationKind::DispatchStateWrite {
                 dispatch_index: *dispatch_index,

@@ -1023,6 +1023,10 @@ their operand roots and normalized comparison parameters. Final validation
 regenerates the evaluator bytes, reconstructs every nested storage/index/text
 relocation site, and checks the target may-write ceiling plus operand-sensitive
 stack/control state against `runtime_value_guard_comparison`.
+Direct exit-result register materialization is also replayed from normalized
+register/value or register/storage recipes. Relocated storage loads must name
+their retained region, and the resulting register union must equal the earlier
+`exit_result_registers` StatePlan fragment.
 Direct-image emission also validates the fixed encoder-owned function-entry
 prologue and return epilogue against the exact relocated entry-region bytes on
 x86-64 and AArch64 before publication. The inventory names this narrow
