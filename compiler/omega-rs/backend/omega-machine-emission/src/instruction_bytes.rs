@@ -576,6 +576,26 @@ fn compiler_instruction_validation_kind(
                         plan: binding.call_plan().clone(),
                     },
                 )
+            } else if operands.iter().any(|operand| {
+                matches!(
+                    operand.kind,
+                    omega_assigned_target_operations::InstructionOperandKind::RuntimeScalarInteger { .. }
+                )
+            }) && operands.iter().all(|operand| {
+                matches!(
+                    operand.kind,
+                    omega_assigned_target_operations::InstructionOperandKind::ImmediateInteger(_)
+                        | omega_assigned_target_operations::InstructionOperandKind::ByteLength(_)
+                        | omega_assigned_target_operations::InstructionOperandKind::RuntimeScalarInteger { .. }
+                )
+            }) {
+                Some(
+                    CompilerInstructionValidationKind::CompilerBodyOutboundSyscallStorageArguments {
+                        operands: operands.to_vec(),
+                        number: *number,
+                        plan: binding.call_plan().clone(),
+                    },
+                )
             } else if !operands.is_empty()
                 && operands.iter().all(|operand| {
                     matches!(

@@ -19,6 +19,7 @@ pub enum BoundaryFootprintFragmentOrigin {
     CompilerBodyConstantHostResult,
     CompilerBodyOutboundSyscall,
     CompilerBodyOutboundSyscallResult,
+    CompilerBodyOutboundSyscallStorageArguments,
     CompilerBodyStorageBitFieldWrite,
     CompilerBodyPlaceBoundedBufferWrite,
     CompilerBodyPlaceStringWrite,
@@ -66,7 +67,8 @@ impl BoundaryFootprintPlan {
                 validate_call_return_mechanics_footprint(boundary, &fragment.evidence)?
             }
             BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscall
-            | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallResult => {
+            | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallResult
+            | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallStorageArguments => {
                 validate_outbound_call_footprint(boundary, &fragment.evidence)?
             }
             BoundaryFootprintFragmentOrigin::RuntimeValueGuardComparison
@@ -239,5 +241,16 @@ mod tests {
                 },
             )
             .expect("result-bearing outbound calls may use their prescribed control state");
+
+        outbound
+            .retain_validated_fragment(
+                &boundary,
+                BoundaryFootprintFragment {
+                    origin:
+                        BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallStorageArguments,
+                    evidence: control_evidence(),
+                },
+            )
+            .expect("storage-argument outbound calls may use their prescribed control state");
     }
 }
