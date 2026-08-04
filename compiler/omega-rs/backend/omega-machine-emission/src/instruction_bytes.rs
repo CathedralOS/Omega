@@ -14,6 +14,7 @@ use omega_machine_instructions::{MachineInstruction, MachineInstructionPlan};
 use omega_target_operations::RuntimeValueOperandSource;
 use psi_arena::{Arena, HandleSpan};
 use psi_diagnostics::Diagnostic;
+use std::sync::Arc;
 
 pub(crate) fn emit_function_bytes(
     emission_context: MachineEmissionContext<'_>,
@@ -233,6 +234,71 @@ fn compiler_instruction_validation_kind(
             )?,
             operator: *operator,
         }),
+        SelectedInstructionKind::CompareRuntimeTextLiteral { buffer, literal } => {
+            let buffer_symbol = Arc::clone(&emission_context.data.objects.get(*buffer).symbol);
+            let failure_branch_distances =
+                branch_distances::byte_distances_to_next_runtime_machine_write_end(
+                    emission_context.target.architecture,
+                    emission_context,
+                    laid_out_instructions,
+                    machine_instruction_index,
+                    literal,
+                )?
+                .collect();
+            Some(CompilerInstructionValidationKind::RuntimeTextLiteralGuard {
+                buffer_symbol,
+                literal: Arc::clone(literal),
+                failure_branch_distances,
+                delimiter_failure_branch_distance:
+                    branch_distances::byte_distance_to_next_runtime_write_end(
+                        emission_context,
+                        laid_out_instructions,
+                        machine_instruction_index,
+                    )?,
+            })
+        }
+        SelectedInstructionKind::CompareRuntimeTextStorage {
+            buffer,
+            source_region,
+            source_offset,
+            operator,
+        } => {
+            let buffer_object = emission_context.data.objects.get(*buffer);
+            let literal_len = buffer_object.bytes.len();
+            let compare_failure_offset =
+                omega_instruction_selection::runtime_text_storage_compare_failure_branch_offset(
+                    emission_context.target.architecture,
+                    *source_offset,
+                    literal_len,
+                );
+            let delimiter_failure_offset =
+                omega_instruction_selection::runtime_text_storage_compare_delimiter_branch_offset(
+                    emission_context.target.architecture,
+                    *source_offset,
+                    literal_len,
+                );
+            Some(CompilerInstructionValidationKind::RuntimeTextStorageGuard {
+                buffer_symbol: Arc::clone(&buffer_object.symbol),
+                source_region: *source_region,
+                source_offset: *source_offset,
+                literal_len,
+                compare_failure_branch_distance:
+                    branch_distances::byte_distance_to_next_guarded_effect_end(
+                        emission_context,
+                        laid_out_instructions,
+                        machine_instruction_index,
+                        compare_failure_offset,
+                    )?,
+                delimiter_failure_branch_distance:
+                    branch_distances::byte_distance_to_next_guarded_effect_end(
+                        emission_context,
+                        laid_out_instructions,
+                        machine_instruction_index,
+                        delimiter_failure_offset,
+                    )?,
+                operator: *operator,
+            })
+        }
         SelectedInstructionKind::SetDispatchState { dispatch_index } => {
             Some(CompilerInstructionValidationKind::DispatchStateWrite {
                 dispatch_index: *dispatch_index,

@@ -1,9 +1,10 @@
 use omega_target_operations::{Place, RuntimeStorageRegion, StateGuardOperator};
 use psi_arena::HandleSpan;
+use std::sync::Arc;
 
 /// Fixed compiler-owned instruction programs whose final encodings can be
 /// replayed directly from the target specification.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CompilerInstructionValidationKind {
     FunctionEnter,
     FunctionReturn,
@@ -36,6 +37,21 @@ pub enum CompilerInstructionValidationKind {
         byte_size: usize,
         expected_value: i64,
         failure_branch_distance: isize,
+        operator: StateGuardOperator,
+    },
+    RuntimeTextLiteralGuard {
+        buffer_symbol: Arc<str>,
+        literal: Arc<str>,
+        failure_branch_distances: Vec<isize>,
+        delimiter_failure_branch_distance: isize,
+    },
+    RuntimeTextStorageGuard {
+        buffer_symbol: Arc<str>,
+        source_region: RuntimeStorageRegion,
+        source_offset: usize,
+        literal_len: usize,
+        compare_failure_branch_distance: isize,
+        delimiter_failure_branch_distance: isize,
         operator: StateGuardOperator,
     },
     DispatchStateWrite {
@@ -190,7 +206,7 @@ pub enum CheckedInstructionValidationKind {
     },
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct EncodedMachineInstruction {
     pub selected_instruction_index: u32,
     pub bytes: HandleSpan<u8>,

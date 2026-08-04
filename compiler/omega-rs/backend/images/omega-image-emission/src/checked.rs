@@ -151,7 +151,7 @@ pub fn emit_checked_executable_image(
 /// Replay the complete compiler function/instruction partition against final
 /// placed text. Relocations may change instruction fields, so the retained
 /// spans own boundaries while the final bytes own the fingerprint.
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 enum CompilerInstructionRelocationRecipe {
     None,
     StaticStorage(omega_target_operations::RuntimeStorageRegion),
@@ -160,6 +160,13 @@ enum CompilerInstructionRelocationRecipe {
         right: omega_target_operations::Place,
     },
     PlaceValue(omega_target_operations::Place),
+    RuntimeTextLiteral {
+        buffer_symbol: std::sync::Arc<str>,
+    },
+    RuntimeTextStorage {
+        buffer_symbol: std::sync::Arc<str>,
+        source_region: omega_target_operations::RuntimeStorageRegion,
+    },
 }
 
 fn validate_compiler_function_instruction_boundaries(
@@ -213,11 +220,11 @@ fn validate_compiler_function_instruction_boundaries(
             })?;
         if instructions
             .first()
-            .and_then(|instruction| instruction.compiler_validation_kind)
+            .and_then(|instruction| instruction.compiler_validation_kind.clone())
             != Some(omega_machine_bytes::CompilerInstructionValidationKind::FunctionEnter)
             || instructions
                 .last()
-                .and_then(|instruction| instruction.compiler_validation_kind)
+                .and_then(|instruction| instruction.compiler_validation_kind.clone())
                 != Some(omega_machine_bytes::CompilerInstructionValidationKind::FunctionReturn)
         {
             return Err(Diagnostic::error(format!(
@@ -270,7 +277,9 @@ fn validate_compiler_function_instruction_boundaries(
                     instruction.selected_instruction_index
                 ))
             })?;
-            if let Some(kind) = instruction.compiler_validation_kind {
+            if let Some(kind) = instruction.compiler_validation_kind.clone() {
+                let kind_for_relocations = kind.clone();
+                let kind_for_footprint = kind.clone();
                 let (expected_position, expected_bytes, kind_tag, relocation_recipe): (
                     Option<usize>,
                     Vec<u8>,
@@ -427,6 +436,71 @@ fn validate_compiler_function_instruction_boundaries(
                         10u8,
                         CompilerInstructionRelocationRecipe::PlaceValue(place),
                     ),
+                    omega_machine_bytes::CompilerInstructionValidationKind::RuntimeTextLiteralGuard {
+                        buffer_symbol,
+                        literal,
+                        failure_branch_distances,
+                        delimiter_failure_branch_distance,
+                    } => (
+                        None,
+                        match architecture {
+                            Architecture::X86_64 => {
+                                omega_isa_x86_64::encode_runtime_text_literal_compare(
+                                    &literal,
+                                    failure_branch_distances.into_iter(),
+                                    delimiter_failure_branch_distance,
+                                )?
+                            }
+                            Architecture::Aarch64 => {
+                                omega_isa_aarch64::encode_runtime_text_literal_compare(
+                                    &literal,
+                                    failure_branch_distances.into_iter(),
+                                    delimiter_failure_branch_distance,
+                                )?
+                            }
+                        },
+                        11u8,
+                        CompilerInstructionRelocationRecipe::RuntimeTextLiteral {
+                            buffer_symbol,
+                        },
+                    ),
+                    omega_machine_bytes::CompilerInstructionValidationKind::RuntimeTextStorageGuard {
+                        buffer_symbol,
+                        source_region,
+                        source_offset,
+                        literal_len,
+                        compare_failure_branch_distance,
+                        delimiter_failure_branch_distance,
+                        operator,
+                    } => (
+                        None,
+                        match architecture {
+                            Architecture::X86_64 => {
+                                omega_isa_x86_64::encode_runtime_text_storage_compare_bytes(
+                                    source_offset,
+                                    literal_len,
+                                    compare_failure_branch_distance,
+                                    operator
+                                        == omega_target_operations::StateGuardOperator::NotEqual,
+                                )?
+                            }
+                            Architecture::Aarch64 => {
+                                omega_isa_aarch64::encode_runtime_text_storage_compare_bytes(
+                                    source_offset,
+                                    literal_len,
+                                    compare_failure_branch_distance,
+                                    delimiter_failure_branch_distance,
+                                    operator
+                                        == omega_target_operations::StateGuardOperator::NotEqual,
+                                )?
+                            }
+                        },
+                        12u8,
+                        CompilerInstructionRelocationRecipe::RuntimeTextStorage {
+                            buffer_symbol,
+                            source_region,
+                        },
+                    ),
                     omega_machine_bytes::CompilerInstructionValidationKind::DispatchStateWrite {
                         dispatch_index,
                         case_leave_byte_distance,
@@ -486,8 +560,12 @@ fn validate_compiler_function_instruction_boundaries(
                             )
                     }
                     CompilerInstructionRelocationRecipe::PlacePair { left, right } => {
-                        let address_sites =
-                            compiler_place_pair_address_sites(architecture, left, right, kind)?;
+                        let address_sites = compiler_place_pair_address_sites(
+                            architecture,
+                            left,
+                            right,
+                            kind_for_relocations.clone(),
+                        )?;
                         validate_compiler_data_address_relocations(
                             architecture,
                             object,
@@ -508,8 +586,11 @@ fn validate_compiler_function_instruction_boundaries(
                             )
                     }
                     CompilerInstructionRelocationRecipe::PlaceValue(place) => {
-                        let address_sites =
-                            compiler_place_value_address_sites(architecture, place, kind)?;
+                        let address_sites = compiler_place_value_address_sites(
+                            architecture,
+                            place,
+                            kind_for_relocations,
+                        )?;
                         validate_compiler_data_address_relocations(
                             architecture,
                             object,
@@ -529,6 +610,49 @@ fn validate_compiler_function_instruction_boundaries(
                                     .collect::<Vec<_>>(),
                             )
                     }
+                    CompilerInstructionRelocationRecipe::RuntimeTextLiteral { buffer_symbol } => {
+                        validate_compiler_runtime_text_relocations(
+                            architecture,
+                            object,
+                            relocations,
+                            instruction.selected_instruction_index,
+                            instruction_byte_offset,
+                            &buffer_symbol,
+                            None,
+                        )?;
+                        encoded_instruction_bytes == expected_bytes
+                            && compiler_instruction_non_relocation_bits_match(
+                                architecture,
+                                &expected_bytes,
+                                final_instruction_bytes,
+                                &[0],
+                            )
+                    }
+                    CompilerInstructionRelocationRecipe::RuntimeTextStorage {
+                        buffer_symbol,
+                        source_region,
+                    } => {
+                        let source_site = match architecture {
+                            Architecture::Aarch64 => 8,
+                            Architecture::X86_64 => 10,
+                        };
+                        validate_compiler_runtime_text_relocations(
+                            architecture,
+                            object,
+                            relocations,
+                            instruction.selected_instruction_index,
+                            instruction_byte_offset,
+                            &buffer_symbol,
+                            Some((source_site, source_region)),
+                        )?;
+                        encoded_instruction_bytes == expected_bytes
+                            && compiler_instruction_non_relocation_bits_match(
+                                architecture,
+                                &expected_bytes,
+                                final_instruction_bytes,
+                                &[0, source_site],
+                            )
+                    }
                 };
                 if expected_position.is_some_and(|position| instruction_index != position)
                     || !bytes_match
@@ -538,7 +662,9 @@ fn validate_compiler_function_instruction_boundaries(
                         instruction.selected_instruction_index
                     )));
                 }
-                if let Some(footprint) = compiler_instruction_footprint(architecture, kind) {
+                if let Some(footprint) =
+                    compiler_instruction_footprint(architecture, kind_for_footprint)
+                {
                     compiler_instruction_footprints.push(footprint);
                 }
                 let (class_count, class_fingerprint) = if kind_tag <= 2 {
@@ -739,6 +865,30 @@ fn compiler_instruction_footprint(
             ),
             Architecture::Aarch64 => return None,
         },
+        CompilerInstructionValidationKind::RuntimeTextLiteralGuard { .. } => match architecture {
+            Architecture::X86_64 => (
+                BoundaryFootprintFragmentOrigin::RuntimeTextGuardComparison,
+                omega_isa_x86_64::runtime_text_literal_compare_register_writes(),
+                omega_isa_x86_64::runtime_text_literal_compare_additional_machine_state(),
+            ),
+            Architecture::Aarch64 => (
+                BoundaryFootprintFragmentOrigin::RuntimeTextGuardComparison,
+                omega_isa_aarch64::runtime_text_literal_compare_register_writes(),
+                omega_isa_aarch64::runtime_text_literal_compare_additional_machine_state(),
+            ),
+        },
+        CompilerInstructionValidationKind::RuntimeTextStorageGuard { .. } => match architecture {
+            Architecture::X86_64 => (
+                BoundaryFootprintFragmentOrigin::RuntimeTextGuardComparison,
+                omega_isa_x86_64::runtime_text_storage_compare_register_writes(),
+                omega_isa_x86_64::runtime_text_storage_compare_additional_machine_state(),
+            ),
+            Architecture::Aarch64 => (
+                BoundaryFootprintFragmentOrigin::RuntimeTextGuardComparison,
+                omega_isa_aarch64::runtime_text_storage_compare_register_writes(),
+                omega_isa_aarch64::runtime_text_storage_compare_additional_machine_state(),
+            ),
+        },
         CompilerInstructionValidationKind::DispatchStateWrite { .. } => (
             BoundaryFootprintFragmentOrigin::DispatchScaffold,
             match architecture {
@@ -778,6 +928,7 @@ fn validate_compiler_body_specification_footprints(
             origin,
             BoundaryFootprintFragmentOrigin::DispatchScaffold
                 | BoundaryFootprintFragmentOrigin::StaticGuardComparison
+                | BoundaryFootprintFragmentOrigin::RuntimeTextGuardComparison
                 | BoundaryFootprintFragmentOrigin::PlaceGuardComparison
         )
     });
@@ -802,7 +953,11 @@ fn validate_compiler_body_specification_footprints(
     for (tag, origin) in [
         (1u8, BoundaryFootprintFragmentOrigin::DispatchScaffold),
         (2u8, BoundaryFootprintFragmentOrigin::StaticGuardComparison),
-        (3u8, BoundaryFootprintFragmentOrigin::PlaceGuardComparison),
+        (
+            3u8,
+            BoundaryFootprintFragmentOrigin::RuntimeTextGuardComparison,
+        ),
+        (4u8, BoundaryFootprintFragmentOrigin::PlaceGuardComparison),
     ] {
         let evidence_rows = derived
             .iter()
@@ -1115,6 +1270,111 @@ fn validate_compiler_data_address_relocations(
         )));
     }
     Ok(())
+}
+
+fn validate_compiler_runtime_text_relocations(
+    architecture: Architecture,
+    object: &omega_object_file::ObjectPlan,
+    relocations: &RelocationPlan,
+    selected_instruction_index: u32,
+    instruction_byte_offset: usize,
+    buffer_symbol: &str,
+    source: Option<(usize, omega_target_operations::RuntimeStorageRegion)>,
+) -> Result<(), Diagnostic> {
+    #[derive(Clone, Copy)]
+    enum ExpectedTarget<'symbol> {
+        Buffer(&'symbol str),
+        Storage(omega_target_operations::RuntimeStorageRegion),
+    }
+
+    let mut actual = relocations
+        .records()
+        .filter_map(|(_, relocation)| {
+            (relocation.section == SectionKind::Text
+                && relocation.origin.selected_instruction_index()
+                    == Some(selected_instruction_index))
+            .then_some(relocation)
+        })
+        .collect::<Vec<_>>();
+    actual.sort_unstable_by_key(|relocation| relocation.offset);
+
+    let mut sites = vec![(0usize, ExpectedTarget::Buffer(buffer_symbol))];
+    if let Some((site, region)) = source {
+        sites.push((site, ExpectedTarget::Storage(region)));
+    }
+    let mut expected = Vec::new();
+    for (site, target) in sites {
+        match architecture {
+            Architecture::X86_64 => expected.push((
+                instruction_byte_offset + site + 2,
+                RelocationKind::Absolute64,
+                8usize,
+                target,
+            )),
+            Architecture::Aarch64 => {
+                expected.push((
+                    instruction_byte_offset + site,
+                    RelocationKind::Aarch64Page21,
+                    4usize,
+                    target,
+                ));
+                expected.push((
+                    instruction_byte_offset + site + 4,
+                    RelocationKind::Aarch64PageOffset12,
+                    4usize,
+                    target,
+                ));
+            }
+        }
+    }
+    expected.sort_unstable_by_key(|(offset, _, _, _)| *offset);
+
+    let matches = actual.len() == expected.len()
+        && actual
+            .iter()
+            .zip(&expected)
+            .all(|(relocation, (offset, kind, width, target))| {
+                let target_matches = match target {
+                    ExpectedTarget::Buffer(symbol) => compiler_data_object_symbol_matches(
+                        object,
+                        relocation.symbol_handle,
+                        symbol,
+                    ),
+                    ExpectedTarget::Storage(region) => {
+                        compiler_storage_symbol_matches(object, relocation.symbol_handle, *region)
+                    }
+                };
+                relocation.offset == *offset
+                    && relocation.kind == *kind
+                    && relocation.byte_width == *width
+                    && relocation.addend == 0
+                    && target_matches
+            });
+    if !matches {
+        return Err(Diagnostic::error(format!(
+            "compiler runtime-text guard instruction #{selected_instruction_index} does not retain its exact buffer/source relocation set"
+        )));
+    }
+    Ok(())
+}
+
+fn compiler_data_object_symbol_matches(
+    object: &omega_object_file::ObjectPlan,
+    symbol_handle: omega_object_file::ObjectSymbolHandle,
+    expected_symbol: &str,
+) -> bool {
+    object.layout.symbols.is_valid(symbol_handle)
+        && object.layout.symbols.get(symbol_handle).kind == omega_object_file::SymbolKind::Object
+        && object.layout.symbols.get(symbol_handle).section
+            == omega_object_file::SymbolSection::Section(SectionKind::Data)
+        && object.layout.symbols.get(symbol_handle).name == expected_symbol
+        && object
+            .layout
+            .symbols
+            .iter()
+            .filter(|(_, symbol)| symbol.name == expected_symbol)
+            .count()
+            == 1
 }
 
 fn compiler_storage_symbol_matches(
@@ -2727,7 +2987,8 @@ mod tests {
         compiler_instruction_non_relocation_bits_match, compiler_place_value_address_sites,
         emit_checked_executable_image, validate_checked_instruction_bytes,
         validate_compiler_data_address_relocations,
-        validate_compiler_function_instruction_boundaries, validate_executable_region_enumeration,
+        validate_compiler_function_instruction_boundaries,
+        validate_compiler_runtime_text_relocations, validate_executable_region_enumeration,
         validate_final_text_relocation_envelope,
     };
     use crate::ExecutableImageInput;
@@ -3218,6 +3479,98 @@ mod tests {
         )
         .expect_err("missing place-derived relocations must reject");
         assert!(diagnostic.message.contains("place-derived"));
+    }
+
+    #[test]
+    fn runtime_text_guard_replay_binds_buffer_and_storage_symbols() {
+        let target = NativeTarget::linux_x64();
+        let mut object = ObjectPlan::with_capacity(target, 0, 2);
+        let buffer_symbol = object.layout.symbols.insert(SymbolPlan {
+            name: "omega_data_text_guard_buffer".to_owned(),
+            section: SymbolSection::Section(SectionKind::Data),
+            offset: 0,
+            size: 16,
+            kind: SymbolKind::Object,
+            import_library: String::new(),
+        });
+        let storage_symbol = object.layout.symbols.insert(SymbolPlan {
+            name: omega_object_file::runtime_frame_storage_symbol_name(),
+            section: SymbolSection::Section(SectionKind::Bss),
+            offset: 0,
+            size: 64,
+            kind: SymbolKind::Object,
+            import_library: String::new(),
+        });
+        let instruction_index = 41;
+        let instruction_offset = 32;
+        let mut relocations = RelocationPlan::with_target(target);
+        for (relative_offset, symbol_handle) in [(2usize, buffer_symbol), (12, storage_symbol)] {
+            relocations.push_record(RelocationRecord {
+                origin: RelocationOrigin::Instruction {
+                    function_symbol_handle: Handle::invalid(),
+                    selected_instruction_index: instruction_index,
+                },
+                section: SectionKind::Text,
+                offset: instruction_offset + relative_offset,
+                byte_width: 8,
+                symbol_handle,
+                addend: 0,
+                kind: RelocationKind::Absolute64,
+            });
+        }
+
+        validate_compiler_runtime_text_relocations(
+            omega_target::Architecture::X86_64,
+            &object,
+            &relocations,
+            instruction_index,
+            instruction_offset,
+            "omega_data_text_guard_buffer",
+            Some((
+                10,
+                omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+            )),
+        )
+        .expect("runtime-text replay should accept its exact data and storage symbols");
+
+        let diagnostic = validate_compiler_runtime_text_relocations(
+            omega_target::Architecture::X86_64,
+            &object,
+            &relocations,
+            instruction_index,
+            instruction_offset,
+            "omega_data_other_buffer",
+            Some((
+                10,
+                omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+            )),
+        )
+        .expect_err("a substituted runtime-text buffer symbol must reject");
+        assert!(diagnostic.message.contains("buffer/source relocation set"));
+
+        let mut missing_source = RelocationPlan::with_target(target);
+        missing_source.push_record(
+            relocations
+                .records()
+                .next()
+                .expect("buffer relocation")
+                .1
+                .clone(),
+        );
+        let diagnostic = validate_compiler_runtime_text_relocations(
+            omega_target::Architecture::X86_64,
+            &object,
+            &missing_source,
+            instruction_index,
+            instruction_offset,
+            "omega_data_text_guard_buffer",
+            Some((
+                10,
+                omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+            )),
+        )
+        .expect_err("a missing runtime-text source relocation must reject");
+        assert!(diagnostic.message.contains("buffer/source relocation set"));
     }
 
     #[test]

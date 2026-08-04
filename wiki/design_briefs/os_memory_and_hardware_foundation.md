@@ -1011,6 +1011,12 @@ inventory emission rejects a missing or duplicate entry-symbol match, so the
 handler evidence cannot float beside an unrelated compiler-function span. The
 typed placed inventory is recomputed after attachment, making that association
 part of its fingerprint rather than a presentation-only JSON annotation.
+Final compiler-body validation now replays both runtime-text guard forms from
+their retained normalized recipes. The certificate checks the exact final bytes
+outside relocation fields, binds the literal-buffer `.data` symbol and any
+descriptor source-storage symbol, and requires the re-derived target register/
+flags union to equal the earlier `runtime_text_guard_comparison` StatePlan
+fragment.
 Direct-image emission also validates the fixed encoder-owned function-entry
 prologue and return epilogue against the exact relocated entry-region bytes on
 x86-64 and AArch64 before publication. The inventory names this narrow
