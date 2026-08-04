@@ -756,7 +756,10 @@ Remaining:
   accepting call or data offsets; missing or incompatible plan evidence cannot
   fall back to catalog-shaped relocation arithmetic. A selected
   `HostOperation` with no retained binding now rejects at that independent
-  relocation gate instead of reaching a no-plan data-offset path. Runtime line
+  relocation gate instead of reaching a no-plan data-offset path. Selected
+  constant-result rows, which transfer no boundary control and own no
+  `CallPlan`, use dedicated fixed non-boundary relocation geometry rather than
+  entering that compatibility oracle. Runtime line
   and byte I/O host keys pass the same binding gate on every target before any
   Windows composite-subplan check or relocation collection. Every other selected
   host mechanism now requires its retained plan before data-address relocation

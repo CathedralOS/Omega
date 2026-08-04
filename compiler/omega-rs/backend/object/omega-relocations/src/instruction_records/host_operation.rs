@@ -42,10 +42,9 @@ fn validate_host_relocation_plan(
     operation_key: omega_calling_conventions::HostOperationKey,
     operands: HandleSpan<InstructionOperand>,
 ) -> Result<(), Diagnostic> {
-    let Some(binding) = retained_host_binding_or_constant_result(
-        context.input.host_abi,
-        operation_key,
-    )? else {
+    let Some(binding) =
+        retained_host_binding_or_constant_result(context.input.host_abi, operation_key)?
+    else {
         // The selected platform row materializes a deterministic constant and
         // transfers no control, so there is deliberately no host binding or
         // call relocation to validate. Result-place relocations are still
@@ -82,17 +81,20 @@ fn retained_host_binding_or_constant_result(
 }
 
 fn selected_constant_result(host_abi: &HostAbiPlan, operation_key: HostOperationKey) -> bool {
-    host_abi.platform_call_lowerings.iter().any(|(_, lowering)| {
-        matches!(lowering.data, PlatformCallData::ConstantResult { .. })
-            && host_abi
-                .host_operations
-                .span(lowering.operations)
-                .is_some_and(|operations| {
-                    operations
-                        .iter()
-                        .any(|operation| operation.key == operation_key)
-                })
-    })
+    host_abi
+        .platform_call_lowerings
+        .iter()
+        .any(|(_, lowering)| {
+            matches!(lowering.data, PlatformCallData::ConstantResult { .. })
+                && host_abi
+                    .host_operations
+                    .span(lowering.operations)
+                    .is_some_and(|operations| {
+                        operations
+                            .iter()
+                            .any(|operation| operation.key == operation_key)
+                    })
+        })
 }
 
 fn retained_host_binding(
