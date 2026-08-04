@@ -4,6 +4,49 @@ use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use psi_tokens_to_syntax_trees::parse_syntax_trees;
 
 #[test]
+fn generic_proposition_applications_remain_proof_facts_when_typed() {
+    let source = r#"
+        trait Reflexive<C, proposition Relation>
+        where proposition Relation(left: C, right: C);
+        {
+            machine prove(value: C) ensures Relation(value, value);
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved_program = lower_syntax_trees(&syntax_trees).expect("resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved_program).expect("typing should succeed");
+
+    let trait_definition = &typed.traits()[0];
+    let [_, relation] = typed.trait_type_parameters(trait_definition) else {
+        panic!("trait should retain a proposition parameter");
+    };
+    assert!(matches!(
+        relation.kind,
+        psi_typed_trees::data::TypeParameterKind::Proposition { .. }
+    ));
+    let [signature] = typed.trait_machine_signatures(trait_definition) else {
+        panic!("trait should retain one proof signature");
+    };
+    let [contract] = typed.state_signature_contracts(signature) else {
+        panic!("proof signature should retain one ensures contract");
+    };
+    let [psi_typed_trees::domain::ProofFact::Proposition(application)] =
+        typed.proof_facts.span_or_empty(contract.facts)
+    else {
+        panic!("Relation(value, value) should be a proposition proof fact");
+    };
+    assert_eq!(application.proposition, relation.symbol);
+    assert!(
+        typed
+            .normalize_proposition_application(application)
+            .is_some()
+    );
+}
+
+#[test]
 fn proposition_declarations_and_fact_applications_remain_distinct_when_typed() {
     let source = r#"
         proposition related(left: i32, right: i32);

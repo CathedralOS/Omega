@@ -22,6 +22,7 @@ pub(super) fn assign_contract_reference_symbols(
     let machine_owned_data = &tables.declarations.machine_owned_data;
     let machine_state_handles = &tables.declarations.machine_state_handles;
     let machine_states = &tables.declarations.machine_states;
+    let trait_machine_signatures = &tables.declarations.trait_machine_signatures;
     let state_parameters = &tables.declarations.state_parameters;
     let signature_contracts = &tables.declarations.signature_contracts;
     let proof_facts = &tables.declarations.proof_facts;
@@ -70,6 +71,35 @@ pub(super) fn assign_contract_reference_symbols(
                 state_parameters.span_or_empty(state.parameters),
                 state.symbol,
                 state.contracts,
+                signature_contracts,
+                proof_facts,
+                expression_table,
+                child_type_references,
+            );
+        }
+    }
+
+    // Trait requirements own the trait's generic telescope, including
+    // proposition-family parameters. Resolve their contract expressions in
+    // that lexical scope just as ordinary machine contracts are resolved in
+    // the machine scope.
+    for trait_definition in roots.traits.iter() {
+        let scope = MachineScope {
+            symbol: trait_definition.symbol,
+            type_parameters: data_type_parameters.span_or_empty(trait_definition.type_parameters),
+            attached_data: None,
+            inherited_data_members: None,
+            owned_data: &[],
+            data_definitions,
+            data_members,
+        };
+        for signature in trait_machine_signatures.span_or_empty(trait_definition.machines) {
+            assign_contract_span(
+                symbols,
+                &scope,
+                state_parameters.span_or_empty(signature.parameters),
+                signature.symbol,
+                signature.contracts,
                 signature_contracts,
                 proof_facts,
                 expression_table,

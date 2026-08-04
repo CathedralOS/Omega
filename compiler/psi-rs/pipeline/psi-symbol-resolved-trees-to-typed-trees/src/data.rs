@@ -98,6 +98,22 @@ pub(crate) fn lower_type_parameter_kind(
                 contract: crate::state::lower_state_signature(lowerer, contract)?,
             })
         }
+        resolved::data::TypeParameterKind::Proposition { contract } => {
+            let mut parameters = psi_arena::HandleSpan::empty();
+            for parameter in lowerer.source_trees.state_parameters(contract.parameters) {
+                let parameter = crate::state::lower_state_parameter(lowerer, parameter)?;
+                lowerer
+                    .typed_trees
+                    .state_parameters
+                    .append_to_span(&mut parameters, parameter);
+            }
+            Ok(typed::data::TypeParameterKind::Proposition {
+                contract: typed::data::PropositionParameterSignature {
+                    name: crate::name::lower_name(&contract.name),
+                    parameters,
+                },
+            })
+        }
     }
 }
 

@@ -160,18 +160,37 @@ pub(crate) fn validate_proof_facts(
                     .propositions()
                     .iter()
                     .find(|proposition| proposition.symbol == application.proposition);
-                let Some(declaration) = declaration else {
+                let parameter_signature = program
+                    .data_type_parameters
+                    .iter()
+                    .map(|(_, parameter)| parameter)
+                    .find_map(|parameter| match &parameter.kind {
+                        psi_typed_trees::data::TypeParameterKind::Proposition { contract }
+                            if parameter.symbol == application.proposition =>
+                        {
+                            Some(contract)
+                        }
+                        _ => None,
+                    });
+                if declaration.is_none() && parameter_signature.is_none() {
                     diagnostics.push(Diagnostic::error(format!(
                         "{owner} references an unknown proposition `{}`",
                         application.name.as_str()
                     )));
                     continue;
+                }
+                let parameters = if let Some(declaration) = declaration {
+                    program.proposition_parameters(declaration)
+                } else if let Some(signature) = parameter_signature {
+                    program.state_parameters.span_or_empty(signature.parameters)
+                } else {
+                    &[]
                 };
                 for (index, (argument, parameter)) in program
                     .expression_table
                     .expression_handles(application.arguments)
                     .iter()
-                    .zip(program.proposition_parameters(declaration))
+                    .zip(parameters)
                     .enumerate()
                 {
                     if !crate::expression_types::argument_matches_type_reference_handle(

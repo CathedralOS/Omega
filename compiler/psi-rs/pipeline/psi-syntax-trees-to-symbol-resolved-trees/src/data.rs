@@ -190,11 +190,23 @@ pub(crate) fn lower_type_parameters(
                     )?,
                 }
             }
-            syntax::item::TypeParameterKind::Proposition { .. } => {
-                return Err(Diagnostic::error(format!(
-                    "proposition parameter `{}` reached symbol resolution before generic proposition signatures are available",
-                    parameter.name.as_str()
-                )));
+            syntax::item::TypeParameterKind::Proposition { contract } => {
+                let contract = contract.as_ref().ok_or_else(|| {
+                    Diagnostic::error(format!(
+                        "proposition parameter `{}` reached symbol resolution without its mandatory authored signature",
+                        parameter.name.as_str()
+                    ))
+                })?;
+                TypeParameterKind::Proposition {
+                    contract: psi_symbol_resolved_trees::data::PropositionParameterSignature {
+                        name: crate::name::lower_name(&contract.name),
+                        parameters: crate::state::lower_state_parameters(
+                            lowerer,
+                            syntax_trees,
+                            contract.parameters,
+                        )?,
+                    },
+                }
             }
         };
         lowered.push(TypeParameter {

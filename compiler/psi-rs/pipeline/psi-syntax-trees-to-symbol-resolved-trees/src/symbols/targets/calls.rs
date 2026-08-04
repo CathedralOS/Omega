@@ -124,6 +124,19 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
         return machine_parameter;
     }
 
+    // A proposition-family parameter is callable-shaped only in a proof fact.
+    // Typing owns that positional restriction; resolution preserves its
+    // distinct target category here instead of confusing it with a machine.
+    let proposition_parameter = child_symbol_by_kinds(
+        symbols,
+        machine.symbol,
+        &[SymbolKind::PropositionParameter],
+        target.as_str(),
+    );
+    if proposition_parameter.is_valid() {
+        return proposition_parameter;
+    }
+
     let builtin =
         top_level_symbol_by_kinds(symbols, &[SymbolKind::BuiltinFunction], target.as_str());
     if builtin.is_valid() {

@@ -115,6 +115,9 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
                     parameter.name.as_str().to_owned(),
                     *type_reference,
                 )),
+                // Proposition parameters are currently legal only on trait
+                // abstraction surfaces, never on executable machines.
+                TypeParameterKind::Proposition { .. } => {}
             }
         }
         all_type_parameter_symbols.extend(type_parameters.iter().cloned());
@@ -2967,6 +2970,7 @@ fn template_contract_fingerprint(program: &TypedTrees, machine_index: usize) -> 
                 TypeParameterKind::Type => "T",
                 TypeParameterKind::Const { .. } => "C",
                 TypeParameterKind::Machine { .. } => "M",
+                TypeParameterKind::Proposition { .. } => "P",
             };
             (
                 parameter.name.as_str().to_owned(),
@@ -2982,6 +2986,7 @@ fn template_contract_fingerprint(program: &TypedTrees, machine_index: usize) -> 
                 TypeParameterKind::Type => "T",
                 TypeParameterKind::Const { .. } => "C",
                 TypeParameterKind::Machine { .. } => "M",
+                TypeParameterKind::Proposition { .. } => "P",
             };
             (parameter.symbol, format!("${prefix}{index}"))
         })
@@ -3001,6 +3006,7 @@ fn template_contract_fingerprint(program: &TypedTrees, machine_index: usize) -> 
             TypeParameterKind::Type => 1,
             TypeParameterKind::Const { .. } => 2,
             TypeParameterKind::Machine { .. } => 3,
+            TypeParameterKind::Proposition { .. } => 4,
         });
         bytes.extend((index as u32).to_le_bytes());
         encode_data_properties(parameter.bounds, &mut bytes);
@@ -3014,6 +3020,23 @@ fn template_contract_fingerprint(program: &TypedTrees, machine_index: usize) -> 
             ),
             TypeParameterKind::Machine { contract } => {
                 encode_state_signature(program, contract, &binders, &type_binders, &mut bytes)
+            }
+            TypeParameterKind::Proposition { contract } => {
+                bytes.extend((contract.parameters.len() as u32).to_le_bytes());
+                for parameter in program.state_parameters.span_or_empty(contract.parameters) {
+                    bytes.push(u8::from(parameter.is_mutable));
+                    bytes.push(u8::from(parameter.is_self));
+                    encode_normalized_text(
+                        program
+                            .normalized_type_identity_with_binders(
+                                parameter.type_reference,
+                                &type_binders,
+                            )
+                            .as_str(),
+                        &binders,
+                        &mut bytes,
+                    );
+                }
             }
             TypeParameterKind::Type => {}
         }

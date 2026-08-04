@@ -24,6 +24,10 @@ pub enum SymbolKind {
     /// symbol is callable inside its generic machine through its authored
     /// signature contract.
     MachineParameter,
+    /// A generic proof-formula family. It is applicable only in proof-fact
+    /// position and owns the value-parameter symbols of its authored
+    /// proposition signature.
+    PropositionParameter,
     /// An opaque proof-static machine identity used as a proposition-family
     /// index. It is deliberately not callable and owns no signature children.
     PropositionMachineParameter,

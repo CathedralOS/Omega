@@ -2,7 +2,10 @@ use psi_symbol_resolved_trees::SymbolResolvedTrees;
 use psi_symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use crate::symbols::lookup::{child_symbol_by_kinds, top_level_symbol};
-use crate::symbols::top_level::{assign_machine_parameter_signature_symbols, next_child_of_kind};
+use crate::symbols::top_level::{
+    assign_machine_parameter_signature_symbols, assign_proposition_parameter_signature_symbols,
+    next_child_of_kind,
+};
 use crate::symbols::type_references::assign_type_reference_argument_symbols_with_constraints;
 
 pub(super) fn assign_trait_symbols(
@@ -25,12 +28,46 @@ pub(super) fn assign_trait_symbols(
         for type_parameter in
             data_type_parameters.span_mut_or_empty(trait_definition.type_parameters)
         {
-            type_parameter.symbol =
-                next_child_of_kind(&mut trait_children, symbols, SymbolKind::TypeParameter);
+            let kind = match type_parameter.kind {
+                psi_symbol_resolved_trees::data::TypeParameterKind::Proposition { .. } => {
+                    SymbolKind::PropositionParameter
+                }
+                psi_symbol_resolved_trees::data::TypeParameterKind::Machine { .. } => {
+                    SymbolKind::MachineParameter
+                }
+                _ => SymbolKind::TypeParameter,
+            };
+            type_parameter.symbol = next_child_of_kind(&mut trait_children, symbols, kind);
         }
         let local_type_parameters = data_type_parameters
             .span_or_empty(trait_definition.type_parameters)
             .to_vec();
+
+        for index in 0..trait_definition.type_parameters.len() {
+            let (parameter_symbol, kind) = {
+                let parameter =
+                    &data_type_parameters.span_or_empty(trait_definition.type_parameters)[index];
+                (parameter.symbol, parameter.kind.clone())
+            };
+            if let psi_symbol_resolved_trees::data::TypeParameterKind::Proposition {
+                mut contract,
+            } = kind
+            {
+                assign_proposition_parameter_signature_symbols(
+                    symbols,
+                    state_parameters,
+                    child_type_references,
+                    type_constraints,
+                    &mut contract,
+                    parameter_symbol,
+                    &local_type_parameters,
+                    trait_symbol,
+                );
+                data_type_parameters.span_mut_or_empty(trait_definition.type_parameters)[index]
+                    .kind =
+                    psi_symbol_resolved_trees::data::TypeParameterKind::Proposition { contract };
+            }
+        }
 
         for bound in &mut trait_definition.conformance_bounds {
             bound.subject = local_type_parameters

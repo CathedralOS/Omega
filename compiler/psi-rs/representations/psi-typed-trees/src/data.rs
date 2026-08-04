@@ -138,6 +138,17 @@ pub enum TypeParameterKind {
     Machine {
         contract: crate::signature::StateSignature,
     },
+    /// Generic proof-formula family with an authored value-parameter
+    /// signature. It carries no executable state or runtime result.
+    Proposition {
+        contract: PropositionParameterSignature,
+    },
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PropositionParameterSignature {
+    pub name: Identifier,
+    pub parameters: HandleSpan<crate::signature::StateParameter>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -178,7 +178,36 @@ impl crate::TypedTrees {
         let declaration = self
             .propositions()
             .iter()
-            .find(|candidate| candidate.symbol == application.proposition)?;
+            .find(|candidate| candidate.symbol == application.proposition);
+        if declaration.is_none()
+            && self.symbols.get(application.proposition).kind
+                == psi_symbols::SymbolKind::PropositionParameter
+        {
+            let parameter_count = self
+                .data_type_parameters
+                .iter()
+                .map(|(_, parameter)| parameter)
+                .find_map(|parameter| match &parameter.kind {
+                    crate::data::TypeParameterKind::Proposition { contract }
+                        if parameter.symbol == application.proposition =>
+                    {
+                        Some(contract.parameters.len())
+                    }
+                    _ => None,
+                })?;
+            if !binder_labels.is_empty() || parameter_count != argument_labels.len() {
+                return None;
+            }
+            return Some(NormalizedPropositionFormula::Proposition {
+                label: canonical_application_label(
+                    application.name.as_str(),
+                    binder_labels,
+                    argument_labels,
+                ),
+                classification: PropositionEvidenceClassification::FactOnly,
+            });
+        }
+        let declaration = declaration?;
         let binders = self.proposition_binders(declaration);
         let parameters = self.proposition_parameters(declaration);
         if binders.len() != binder_labels.len() || parameters.len() != argument_labels.len() {

@@ -15,7 +15,18 @@ pub(in crate::symbols::symbol_table) fn insert_trait_symbol_children(
         program
             .trait_type_parameters(trait_definition)
             .iter()
-            .map(|parameter| symbol_seed(SymbolKind::TypeParameter, &parameter.name, has_sources))
+            .map(|parameter| {
+                let kind = match parameter.kind {
+                    psi_symbol_resolved_trees::data::TypeParameterKind::Machine { .. } => {
+                        SymbolKind::MachineParameter
+                    }
+                    psi_symbol_resolved_trees::data::TypeParameterKind::Proposition { .. } => {
+                        SymbolKind::PropositionParameter
+                    }
+                    _ => SymbolKind::TypeParameter,
+                };
+                symbol_seed(kind, &parameter.name, has_sources)
+            })
             .chain(
                 program
                     .trait_machine_signatures(trait_definition.machines)
@@ -25,8 +36,23 @@ pub(in crate::symbols::symbol_table) fn insert_trait_symbol_children(
     );
 
     let mut trait_children = SymbolTableBuilder::child_handles(trait_children);
-    for _ in program.trait_type_parameters(trait_definition) {
-        let _ = trait_children.next();
+    for parameter in program.trait_type_parameters(trait_definition) {
+        let parameter_symbol = trait_children.next();
+        if let (
+            Some(parameter_symbol),
+            psi_symbol_resolved_trees::data::TypeParameterKind::Proposition { contract },
+        ) = (parameter_symbol, &parameter.kind)
+        {
+            builder.insert_children(
+                parameter_symbol,
+                program
+                    .state_parameters(contract.parameters)
+                    .iter()
+                    .map(|parameter| {
+                        symbol_seed(SymbolKind::Parameter, &parameter.name, has_sources)
+                    }),
+            );
+        }
     }
 
     for (machine_symbol, machine) in trait_children.zip(

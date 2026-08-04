@@ -325,6 +325,20 @@ fn count_type_parameter(
                 }
             }
         }
+        crate::data::TypeParameterKind::Proposition { contract } => {
+            count_declaration_name(&contract.name, counts);
+            for contract_parameter in typed_trees
+                .state_parameters
+                .span_or_empty(contract.parameters)
+            {
+                count_declaration_name(&contract_parameter.name, counts);
+                count_type_reference_handle(
+                    &typed_trees.type_reference_table,
+                    contract_parameter.type_reference,
+                    counts,
+                );
+            }
+        }
     }
 }
 

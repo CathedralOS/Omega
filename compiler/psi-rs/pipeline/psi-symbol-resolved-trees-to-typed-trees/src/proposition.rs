@@ -79,9 +79,11 @@ pub(crate) fn lower_proposition_definition(
                 .expressions
                 .expression(*proposition)
                 && call.target_symbol.is_valid()
-                && lowerer.source_trees.symbols.get(call.target_symbol).kind
-                    == psi_symbols::SymbolKind::Proposition
-            {
+                && matches!(
+                    lowerer.source_trees.symbols.get(call.target_symbol).kind,
+                    psi_symbols::SymbolKind::Proposition
+                        | psi_symbols::SymbolKind::PropositionParameter
+                ) {
                 typed::proposition::PropositionFormula::Application(lower_proposition_application(
                     lowerer, call,
                 )?)
@@ -112,23 +114,41 @@ pub(crate) fn lower_proposition_application(
         .source_trees
         .propositions
         .iter()
-        .find(|proposition| proposition.symbol == call.target_symbol)
-        .ok_or_else(|| {
-            Diagnostic::error(format!(
-                "proposition application `{}` has no resolved declaration",
-                call.target.as_str()
-            ))
-        })?;
-    let binders = lowerer
+        .find(|proposition| proposition.symbol == call.target_symbol);
+    let proposition_parameter = lowerer
         .source_trees
         .tables
         .declarations
-        .proposition_binders
-        .span_or_empty(declaration.binders);
+        .data_type_parameters
+        .iter()
+        .map(|(_, parameter)| parameter)
+        .find(|parameter| {
+            parameter.symbol == call.target_symbol
+                && matches!(
+                    parameter.kind,
+                    resolved::data::TypeParameterKind::Proposition { .. }
+                )
+        });
+    if declaration.is_none() && proposition_parameter.is_none() {
+        return Err(Diagnostic::error(format!(
+            "proposition application `{}` has no resolved declaration or generic proposition parameter",
+            call.target.as_str()
+        )));
+    }
+    let binders = declaration
+        .map(|declaration| {
+            lowerer
+                .source_trees
+                .tables
+                .declarations
+                .proposition_binders
+                .span_or_empty(declaration.binders)
+        })
+        .unwrap_or(&[]);
     if binders.len() != call.machine_arguments.len() {
         return Err(Diagnostic::error(format!(
             "proposition `{}` expects {} proof-static binder argument(s), received {}",
-            declaration.name.as_str(),
+            call.target.as_str(),
             binders.len(),
             call.machine_arguments.len()
         )));
@@ -140,25 +160,33 @@ pub(crate) fn lower_proposition_application(
         ) {
             return Err(Diagnostic::error(format!(
                 "proposition `{}` binder `{}` is not a machine index; type/const proposition arguments are not implemented yet",
-                declaration.name.as_str(),
+                call.target.as_str(),
                 binder.name.as_str()
             )));
         }
         if !argument.symbol.is_valid() {
             return Err(Diagnostic::error(format!(
                 "proposition `{}` received an unresolved machine-index argument for binder `{}`",
-                declaration.name.as_str(),
+                call.target.as_str(),
                 binder.name.as_str()
             )));
         }
     }
-    let parameters = lowerer
-        .source_trees
-        .state_parameters(declaration.parameters);
+    let parameters = if let Some(declaration) = declaration {
+        lowerer
+            .source_trees
+            .state_parameters(declaration.parameters)
+    } else if let Some(resolved::data::TypeParameterKind::Proposition { contract }) =
+        proposition_parameter.map(|parameter| &parameter.kind)
+    {
+        lowerer.source_trees.state_parameters(contract.parameters)
+    } else {
+        &[]
+    };
     if parameters.len() != call.arguments.len() {
         return Err(Diagnostic::error(format!(
             "proposition `{}` expects {} value argument(s), received {}",
-            declaration.name.as_str(),
+            call.target.as_str(),
             parameters.len(),
             call.arguments.len()
         )));

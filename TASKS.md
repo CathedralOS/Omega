@@ -1665,7 +1665,14 @@ and allocation handles expose no compiler-owned stack/control storage.
      identity, snapshots, duplicate/missing-contract diagnostics, and
      non-trait rejection are covered. Symbol resolution deliberately fails
      closed until the signature receives a dedicated resolved/typed kind and
-     proposition applications can target it;
+     proposition applications can target it. Generic-binder semantic slice
+     landed 2026-08-03: proposition-family parameters and their value
+     signatures now retain dedicated resolved/typed kinds, lexical symbols,
+     parameter type resolution, source/typed identity, and proof-fact
+     normalization; trait requirement contracts can apply the abstract family
+     with arity and value-type validation while runtime use remains rejected.
+     Concrete proposition-family substitution at selected conformance sites
+     remains in this rung;
   2. add the proof stratum to selected-conformance projection and permit
      by-value `dyn` only when the complete normalized value has no runtime
      carrier;
