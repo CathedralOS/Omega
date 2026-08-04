@@ -1081,13 +1081,16 @@ only for
 the `Ordinary` role; final validation regenerates the same place-copy bytes,
 checks the storage, pointer-slot, and index relocations, and requires the target
 scratch union to match. Other otherwise-general binary targets and AArch64
-composed-place conversion shapes, string writes, and calls remain
+composed-place conversion shapes, string-descriptor/text-assembly writes, and calls remain
 outside the partial proof. The pointee-pair selector resolves
 both reference operands before flat storage, so the source remains a
 dereference rather than being mistaken for pointer-slot contents.
 Immediate compact bit-field writes are inside the partial proof: the retained
 row binds their exact storage region, base offset, fragment layout, value,
 target encoder, destination relocation, and dedicated state-footprint fragment.
+Immediate bounded-buffer literal writes are also inside the proof for all x86
+place targets and direct/pointee AArch64 targets, including their target,
+literal, relocation walk, and dedicated footprint fragment.
 Direct-image emission also validates the fixed encoder-owned function-entry
 prologue and return epilogue against the exact relocated entry-region bytes on
 x86-64 and AArch64 before publication. The inventory names this narrow

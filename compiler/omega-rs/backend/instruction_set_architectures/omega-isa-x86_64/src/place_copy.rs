@@ -510,6 +510,21 @@ pub fn encode_place_bounded_buffer_write(
     Ok((bytes, sites))
 }
 
+/// Register writes of the place-shaped bounded-buffer literal materializer.
+/// Its address walk is identical to an immediate integer write, and the
+/// length/content stores reuse rax as their only value scratch.
+pub fn place_bounded_buffer_write_register_writes(target: &Place) -> RegisterSet {
+    place_integer_write_clobbers(target)
+}
+
+pub fn place_bounded_buffer_write_additional_machine_state(target: &Place) -> MachineStateSet {
+    if target.scaled_index_regions().next().is_some() {
+        MachineStateSet::new([MachineState::Flags])
+    } else {
+        MachineStateSet::empty()
+    }
+}
+
 /// Append one bounded byte carrier to another after materializing both
 /// addresses through the common Place walk. The caller's domain/capacity
 /// proof guarantees that the resulting length fits the destination.

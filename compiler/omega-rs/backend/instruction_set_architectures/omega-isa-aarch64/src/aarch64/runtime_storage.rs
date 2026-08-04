@@ -2415,6 +2415,22 @@ pub fn encode_runtime_pointee_bounded_buffer_write(
     Ok(bytes)
 }
 
+/// Closed may-write ceiling shared by the direct and pointee immediate
+/// bounded-buffer encoders. x16 owns the destination, x17 carries length and
+/// bytes, while x15/x19 cover their respective large-offset recipes.
+pub fn place_bounded_buffer_write_register_write_ceiling() -> RegisterSet {
+    RegisterSet::new([
+        MachineRegister::Aarch64X(15),
+        MachineRegister::Aarch64X(16),
+        MachineRegister::Aarch64X(17),
+        MachineRegister::Aarch64X(19),
+    ])
+}
+
+pub const fn place_bounded_buffer_write_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::empty()
+}
+
 /// Append a string LITERAL onto an owned `[u8; N]` carrier at its running
 /// length (a later concat segment, e.g. the trailing `" =="`). x16 = machine
 /// storage base (the only relocation, at instruction start); x15 = running
