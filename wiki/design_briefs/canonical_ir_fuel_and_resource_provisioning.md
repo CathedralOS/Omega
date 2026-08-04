@@ -152,8 +152,12 @@ Omega's exact target continuation executes one runtime Boolean conditional
 whose integer-returning arms may cross acyclic computed jump chains. A
 compile-known conditional encountered within either arm folds to its selected
 successor and excludes the untaken operations and edges from emitted
-provenance. Runtime-nested conditionals still await the general target block
-program.
+provenance. Runtime-nested acyclic conditionals retain recursive successor
+control through target selection and register assignment, then emit every
+integer-returning leaf on x86-64 and AArch64. AArch64 tests branch on the
+assigned Boolean register, or an exact byte loaded from the incoming stack,
+without clobbering an unrelated integer input in `x0`. Entry jump prefixes,
+loops, and the remaining general target block program are still fail-closed.
 `psi-terminal-fuel` defines schedule v1 as one unit per executed terminal
 operation and one unit per taken terminal edge. The verified interpreter returns
 exact schedule-keyed usage attributed to stable operation/edge identities; a

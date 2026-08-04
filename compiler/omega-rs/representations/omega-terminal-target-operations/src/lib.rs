@@ -74,24 +74,38 @@ pub enum TerminalTargetOperation {
         scalar_type: IntegerType,
         expression: TerminalTargetIntegerExpression,
     },
-    /// Select between two integer expressions using one caller-supplied
-    /// Boolean. Both structural and return edges remain explicit.
-    ReturnIntegerConditionalExpressions {
+    /// Execute an acyclic conditional-control tree whose leaves return integer
+    /// expressions. Every structural and return edge remains explicit.
+    ReturnIntegerConditionalControl {
         condition_source: ValueId,
         condition_parameter_index: usize,
         condition_location: TerminalScalarParameterLocation,
         scalar_type: IntegerType,
-        when_true: TerminalTargetConditionalIntegerExpression,
-        when_false: TerminalTargetConditionalIntegerExpression,
+        when_true: TerminalTargetConditionalIntegerArm,
+        when_false: TerminalTargetConditionalIntegerArm,
     },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TerminalTargetConditionalIntegerExpression {
+pub struct TerminalTargetConditionalIntegerArm {
     pub psi_edge: EdgeId,
-    pub psi_return_edge: EdgeId,
-    pub source_value: ValueId,
-    pub expression: TerminalTargetIntegerExpression,
+    pub control: Box<TerminalTargetIntegerControl>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TerminalTargetIntegerControl {
+    Return {
+        psi_return_edge: EdgeId,
+        source_value: ValueId,
+        expression: TerminalTargetIntegerExpression,
+    },
+    Conditional {
+        condition_source: ValueId,
+        condition_parameter_index: usize,
+        condition_location: TerminalScalarParameterLocation,
+        when_true: TerminalTargetConditionalIntegerArm,
+        when_false: TerminalTargetConditionalIntegerArm,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
