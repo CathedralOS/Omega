@@ -264,11 +264,59 @@ pub(super) fn collect_runtime_storage_string_relocations(
                     }
                 }
                 Architecture::Aarch64 => {
-                    // The retained direct/pointee carrier encoders anchor
-                    // their single base reloc at the instruction start.
+                    // Every classified recipe anchors its target storage base
+                    // at the instruction start; indexed recipes may retain one
+                    // additional index-region base.
                     context.insert_data_address_at_instruction_start(
                         context.storage_region_symbol_handle(target.region),
                     );
+                    match omega_instruction_selection::classify_write_place_shape(target) {
+                        omega_instruction_selection::WritePlaceShape::FrameIndexedByRegion {
+                            index_region,
+                            ..
+                        } if index_region
+                            == omega_target_operations::RuntimeStorageRegion::Machine =>
+                        {
+                            context.insert_data_address_at_relative_offset(
+                                omega_instruction_selection::frame_indexed_operand_machine_index_base_offset(
+                                    context.input.target.architecture,
+                                ),
+                                context.storage_region_symbol_handle(index_region),
+                            );
+                        }
+                        omega_instruction_selection::WritePlaceShape::MachineIndexed {
+                            base_byte_offset,
+                            index_region,
+                            ..
+                        } if index_region
+                            == omega_target_operations::RuntimeStorageRegion::RuntimeFrame =>
+                        {
+                            context.insert_data_address_at_relative_offset(
+                                runtime_machine_indexed_string_runtime_frame_address_offset(
+                                    context.input.target.architecture,
+                                    base_byte_offset,
+                                ),
+                                context.runtime_frame_symbol_handle(),
+                            );
+                        }
+                        omega_instruction_selection::WritePlaceShape::MachineDoubleIndexed {
+                            outer_index_region,
+                            inner_index_region,
+                            ..
+                        } if outer_index_region
+                            == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+                            || inner_index_region
+                                == omega_target_operations::RuntimeStorageRegion::RuntimeFrame =>
+                        {
+                            context.insert_data_address_at_relative_offset(
+                                omega_instruction_selection::runtime_storage_copy_from_runtime_machine_double_indexed_frame_base_offset(
+                                    context.input.target.architecture,
+                                ),
+                                context.runtime_frame_symbol_handle(),
+                            );
+                        }
+                        _ => {}
+                    }
                 }
             }
             true

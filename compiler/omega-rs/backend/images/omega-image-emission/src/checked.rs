@@ -1444,6 +1444,10 @@ fn validate_compiler_function_instruction_boundaries(
                                 shape,
                                 CompilerBodyPlaceIntegerWriteShape::Direct { .. }
                                     | CompilerBodyPlaceIntegerWriteShape::Pointee { .. }
+                                    | CompilerBodyPlaceIntegerWriteShape::FrameIndexed { .. }
+                                    | CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. }
+                                    | CompilerBodyPlaceIntegerWriteShape::MachineIndexed { .. }
+                                    | CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed { .. }
                             )
                         {
                             return Err(Diagnostic::error(
@@ -1472,6 +1476,76 @@ fn validate_compiler_function_instruction_boundaries(
                                         field_byte_offset,
                                     } => omega_isa_aarch64::encode_runtime_pointee_bounded_buffer_write(
                                         pointer_byte_offset,
+                                        field_byte_offset,
+                                        &literal,
+                                    )?,
+                                    CompilerBodyPlaceIntegerWriteShape::FrameIndexed {
+                                        descriptor_offset,
+                                        index_region,
+                                        index_offset,
+                                        index_byte_size,
+                                        element_byte_size,
+                                        field_byte_offset,
+                                    } => omega_isa_aarch64::encode_runtime_frame_indexed_bounded_buffer_write(
+                                        descriptor_offset,
+                                        index_region,
+                                        index_offset,
+                                        index_byte_size,
+                                        element_byte_size,
+                                        field_byte_offset,
+                                        &literal,
+                                    )?,
+                                    CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed {
+                                        base_byte_offset,
+                                        index_offset,
+                                        index_byte_size,
+                                        element_byte_size,
+                                        field_byte_offset,
+                                    } => omega_isa_aarch64::encode_runtime_frame_base_indexed_bounded_buffer_write(
+                                        base_byte_offset,
+                                        index_offset,
+                                        index_byte_size,
+                                        element_byte_size,
+                                        field_byte_offset,
+                                        &literal,
+                                    )?,
+                                    CompilerBodyPlaceIntegerWriteShape::MachineIndexed {
+                                        base_byte_offset,
+                                        index_region,
+                                        index_offset,
+                                        index_byte_size,
+                                        element_byte_size,
+                                        field_byte_offset,
+                                    } => omega_isa_aarch64::encode_runtime_machine_indexed_bounded_buffer_write(
+                                        base_byte_offset,
+                                        index_region,
+                                        index_offset,
+                                        index_byte_size,
+                                        element_byte_size,
+                                        field_byte_offset,
+                                        &literal,
+                                    )?,
+                                    CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed {
+                                        base_byte_offset,
+                                        outer_index_region,
+                                        outer_index_offset,
+                                        outer_index_byte_size,
+                                        outer_stride,
+                                        inner_index_region,
+                                        inner_index_offset,
+                                        inner_index_byte_size,
+                                        inner_stride,
+                                        field_byte_offset,
+                                    } => omega_isa_aarch64::encode_runtime_machine_double_indexed_bounded_buffer_write(
+                                        base_byte_offset,
+                                        outer_index_offset,
+                                        outer_index_region,
+                                        outer_index_byte_size,
+                                        outer_stride,
+                                        inner_index_offset,
+                                        inner_index_region,
+                                        inner_index_byte_size,
+                                        inner_stride,
                                         field_byte_offset,
                                         &literal,
                                     )?,
@@ -2657,7 +2731,9 @@ fn validate_compiler_function_instruction_boundaries(
                                     })
                                     .collect::<Result<Vec<_>, Diagnostic>>()?
                             }
-                            Architecture::Aarch64 => vec![(0, target.region)],
+                            Architecture::Aarch64 => {
+                                aarch64_bounded_buffer_write_relocation_sites(target)?
+                            }
                         };
                         validate_compiler_data_address_relocations(
                             architecture,
@@ -3705,6 +3781,10 @@ fn compiler_instruction_footprint(
                     compiler_body_place_integer_write_shape(&target).ok()?,
                     CompilerBodyPlaceIntegerWriteShape::Direct { .. }
                         | CompilerBodyPlaceIntegerWriteShape::Pointee { .. }
+                        | CompilerBodyPlaceIntegerWriteShape::FrameIndexed { .. }
+                        | CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. }
+                        | CompilerBodyPlaceIntegerWriteShape::MachineIndexed { .. }
+                        | CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed { .. }
                 ) {
                     return None;
                 }
@@ -6582,6 +6662,61 @@ fn compiler_runtime_value_operand_width(
         Architecture::X86_64 => omega_isa_x86_64::runtime_value_operand_width(operands, operand),
         Architecture::Aarch64 => omega_isa_aarch64::runtime_value_operand_width(operands, operand),
     })
+}
+
+fn aarch64_bounded_buffer_write_relocation_sites(
+    target: omega_target_operations::Place,
+) -> Result<Vec<(usize, omega_target_operations::RuntimeStorageRegion)>, Diagnostic> {
+    use omega_target_operations::RuntimeStorageRegion;
+
+    let mut sites = vec![(0, target.region)];
+    match compiler_body_place_integer_write_shape(&target)? {
+        CompilerBodyPlaceIntegerWriteShape::Direct { .. }
+        | CompilerBodyPlaceIntegerWriteShape::Pointee { .. }
+        | CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. } => {}
+        CompilerBodyPlaceIntegerWriteShape::FrameIndexed { index_region, .. } => {
+            if index_region == RuntimeStorageRegion::Machine {
+                sites.push((
+                    omega_isa_aarch64::FRAME_INDEXED_OPERAND_MACHINE_INDEX_BASE_OFFSET,
+                    index_region,
+                ));
+            }
+        }
+        CompilerBodyPlaceIntegerWriteShape::MachineIndexed {
+            base_byte_offset,
+            index_region,
+            ..
+        } => {
+            if index_region == RuntimeStorageRegion::RuntimeFrame {
+                sites.push((
+                    omega_isa_aarch64::runtime_machine_indexed_string_runtime_frame_address_offset(
+                        base_byte_offset,
+                    ),
+                    RuntimeStorageRegion::RuntimeFrame,
+                ));
+            }
+        }
+        CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed {
+            outer_index_region,
+            inner_index_region,
+            ..
+        } => {
+            if outer_index_region == RuntimeStorageRegion::RuntimeFrame
+                || inner_index_region == RuntimeStorageRegion::RuntimeFrame
+            {
+                sites.push((
+                    omega_isa_aarch64::runtime_machine_double_indexed_frame_base_offset(),
+                    RuntimeStorageRegion::RuntimeFrame,
+                ));
+            }
+        }
+        CompilerBodyPlaceIntegerWriteShape::General => {
+            return Err(Diagnostic::error(
+                "final aarch64 bounded-buffer write retained an unsupported target",
+            ));
+        }
+    }
+    Ok(sites)
 }
 
 fn validate_compiler_place_string_relocations(

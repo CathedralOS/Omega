@@ -180,7 +180,7 @@ pub(crate) fn copy_places_from_fixed_indexed(
 /// A RUNTIME-indexed element place: deref the frame-resident descriptor,
 /// scale the frame-resident index, walk to the field. Four steps -- the
 /// PLACE_MAX_STEPS shape (a zero field offset merges away).
-fn indexed_place(
+pub(crate) fn indexed_place(
     descriptor_offset: usize,
     index_region: RuntimeStorageRegion,
     index_offset: usize,
@@ -265,7 +265,7 @@ pub(crate) fn copy_places_to_indexed(
 /// A MACHINE inline-array element place (no deref -- machine statics), the
 /// index slot in ITS OWN region (the cross-region index the materializer
 /// serves with r11's own base).
-fn machine_indexed_place(
+pub(crate) fn machine_indexed_place(
     base_byte_offset: usize,
     index_region: RuntimeStorageRegion,
     index_offset: usize,
@@ -288,9 +288,31 @@ fn machine_indexed_place(
         .expect("a machine-indexed place is three steps, within PLACE_MAX_STEPS")
 }
 
+pub(crate) fn frame_base_indexed_place(
+    base_byte_offset: usize,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> omega_abstract_operations::Place {
+    omega_abstract_operations::Place::at(RuntimeStorageRegion::RuntimeFrame, base_byte_offset)
+        .with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+            index_region: RuntimeStorageRegion::RuntimeFrame,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+        })
+        .and_then(|place| {
+            place.with_step(omega_abstract_operations::PlaceStep::ConstOffset(
+                field_byte_offset,
+            ))
+        })
+        .expect("a frame-base-indexed place is three steps, within PLACE_MAX_STEPS")
+}
+
 /// Rung 2c-x: an inline 2D-array element path (`arr[i][j].field`, no
 /// deref): `[Const(base), SI(outer), SI(inner), Const(field)]`.
-fn double_indexed_place(
+pub(crate) fn double_indexed_place(
     region: RuntimeStorageRegion,
     base_byte_offset: usize,
     outer_index_region: RuntimeStorageRegion,
@@ -1295,19 +1317,8 @@ pub(crate) fn write_place_address_machine_indexed(
     }
 }
 
-/// Text rung 2b: the bounded-buffer constructor pair (the two retired
-/// carrier-write spellings as places).
-pub(crate) fn write_place_bounded_buffer_direct(
-    region: RuntimeStorageRegion,
-    byte_offset: usize,
-    literal: std::sync::Arc<str>,
-) -> SelectedInstructionKind {
-    SelectedInstructionKind::WritePlaceBoundedBuffer {
-        target: omega_abstract_operations::Place::at(region, byte_offset),
-        literal,
-    }
-}
-
+/// Text rung 2b: the retained pointee convenience constructor. Direct and
+/// indexed carrier writes now carry their canonical Place directly.
 pub(crate) fn write_place_bounded_buffer_pointee(
     pointer_byte_offset: usize,
     field_byte_offset: usize,

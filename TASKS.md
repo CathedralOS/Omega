@@ -882,7 +882,7 @@ proves complete region coverage, and composes admitted leaves under their
 separate provenance. Do not add a second whole-image decoder/admission path.
 
 The existing single final-region artifact now carries the domain-separated
-`omega.final-footprint-certificate` schema, format version 63, and a certificate
+`omega.final-footprint-certificate` schema, format version 64, and a certificate
 fingerprint over its final placement binding, compiler-text derivation, and
 complete region inventory. Its explicit completeness flags remain false until
 compiler-body footprint decoding and admitted-leaf evidence land. The envelope
@@ -1013,9 +1013,10 @@ frame-indexed, cross-region frame-indexed, inline-frame-indexed, and single- or
 double-runtime-indexed machine storage. The exact rodata and storage/index
 relocations bind to
 `CompilerBodyPlaceStringWrite` evidence. Immediate
-bounded-buffer literal writes now replay all x86 place targets plus direct and
-pointee AArch64 targets, with their exact target, literal, relocation walk, and
-separate `CompilerBodyPlaceBoundedBufferWrite` footprint; literal appends into
+bounded-buffer literal writes now replay all x86 targets and every classified
+AArch64 place target, including indexed and double-indexed owned carriers, with
+their exact target, literal, relocation walk, and separate
+`CompilerBodyPlaceBoundedBufferWrite` footprint. Literal appends into
 the same owned carriers now share that evidence with their own exact encoder
 and relocation recipe. Source-carrier appends now share it as well, replaying
 both place walks and the copy-loop state. Immediate compact bit-field writes

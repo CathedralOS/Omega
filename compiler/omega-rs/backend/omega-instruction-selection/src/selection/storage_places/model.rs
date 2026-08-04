@@ -135,6 +135,7 @@ pub(in crate::selection) struct RuntimeFrameIndexedTarget {
     pub(in crate::selection) element_byte_size: usize,
     pub(in crate::selection) field_byte_offset: usize,
     pub(in crate::selection) byte_count: usize,
+    pub(in crate::selection) is_bounded_byte_buffer: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -145,6 +146,7 @@ pub(in crate::selection) struct RuntimeFrameBaseIndexedTarget {
     pub(in crate::selection) element_byte_size: usize,
     pub(in crate::selection) field_byte_offset: usize,
     pub(in crate::selection) byte_count: usize,
+    pub(in crate::selection) is_bounded_byte_buffer: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

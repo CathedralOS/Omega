@@ -1109,8 +1109,9 @@ Immediate compact bit-field writes are inside the partial proof: the retained
 row binds their exact storage region, base offset, fragment layout, value,
 target encoder, destination relocation, and dedicated state-footprint fragment.
 Immediate bounded-buffer literal writes are also inside the proof for all x86
-place targets and direct/pointee AArch64 targets, including their target,
-literal, relocation walk, and dedicated footprint fragment. Literal appends
+targets and every classified AArch64 place target, including indexed and
+double-indexed owned carriers, their target/literal/relocation walk, and the
+dedicated footprint fragment. Literal appends
 into those carriers share the fragment with a separately replayed encoder and
 relocation recipe. Source-carrier appends share it too, with both place walks
 and the copy-loop state replayed.
@@ -1136,7 +1137,7 @@ relocation-envelope fingerprints plus their composed derivation identity. The
 boundary/placement binding includes that derivation identity, so a valid final
 inventory cannot be paired with evidence from a different encoded-to-final
 derivation. The single emitted artifact is now self-described as
-`omega.final-footprint-certificate` format v63, with a domain-separated
+`omega.final-footprint-certificate` format v64, with a domain-separated
 certificate fingerprint over its final placement binding, compiler-text
 derivation, and region inventory. It remains explicitly incomplete evidence,
 not an admission certificate, until the missing footprint classes close. The
