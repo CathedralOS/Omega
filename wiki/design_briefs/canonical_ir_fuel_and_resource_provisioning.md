@@ -213,7 +213,10 @@ usage is three units on that path versus four when the right operand is
 evaluated. Recursive Boolean expressions can drive the resulting control nodes
 or be returned from their leaves, so equality operands in a short-circuit
 expression preserve the same metered semantics through native AArch64/x86-64
-control.
+control. The same construction composes with linear Boolean state chains:
+decision leaves carry canonical Boolean values through ordinary jump bindings,
+and deciding paths bypass the unused subtree before converging on the next
+source state.
 Attributed response reporting additionally waits on executable terminal
 wait/foreign-edge variants carrying their response-contract status. The current
 total operation plus unconditional jump/return vocabulary can close a bounded
