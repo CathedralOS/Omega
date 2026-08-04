@@ -2128,8 +2128,11 @@ ordinary code never receives a raw executable address.
   classification now derives every stored-integer leaf's physical width and
   alignment from the validated encoding metadata; a native and cross-target
   canary preserves that physical representation through a by-value state pass.
-  Ordinary scalar resolution stays fail-closed until that consumer uses the
-  dedicated encoding metadata.
+  The target-neutral ordinary scalar materializer now fit-checks concrete
+  signed and unsigned values, writes only the stored width in either byte
+  order, and sign- or zero-extends through the matching decoder; rejection is
+  atomic. A compiler/provider-resolved symbolic value uses the same fit check;
+  unresolved symbolic `IntegerAt` materialization stays fail-closed.
   Linux `read_dir` now retains the real three-argument `getdents64`
   plan, omits the Darwin-only cursor at selection, and decodes the Linux record
   offsets in both target packages. Direct syscall failures now flow as explicit
