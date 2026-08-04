@@ -4173,6 +4173,27 @@ pub fn encode_runtime_storage_copy_to_runtime_machine_double_indexed_from_runtim
     Ok(bytes)
 }
 
+/// Exact scratch footprint of a double-indexed machine-array write. x15 is
+/// included exactly when the source or either index is frame-resident.
+pub fn runtime_storage_copy_to_runtime_machine_double_indexed_clobbers(
+    source_region: omega_target_operations::RuntimeStorageRegion,
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+) -> RegisterSet {
+    let mut registers = vec![
+        MachineRegister::Aarch64X(14),
+        MachineRegister::Aarch64X(16),
+        MachineRegister::Aarch64X(17),
+        MachineRegister::Aarch64X(24),
+        MachineRegister::Aarch64X(26),
+    ];
+    let frame = omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
+    if source_region == frame || outer_index_region == frame || inner_index_region == frame {
+        registers.push(MachineRegister::Aarch64X(15));
+    }
+    RegisterSet::new(registers)
+}
+
 /// Read `g[i][j]` from a FRAME-resident 2D array (a `let`/param local): one
 /// frame pair serves the array and both indices, then the shared address math,
 /// the element load, and the relocated target pair + store. Every offset is a
