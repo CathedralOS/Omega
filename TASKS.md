@@ -120,10 +120,13 @@ composite claim-frontier work remain.
   initial-storage `Extent in Granted` positions are now live, and
   `Extent::Granted` retains that exact requirement as its second authorized
   route. Target entry schemas inherit the qualified positions without
-  recognizing target names. Remaining work is the installation handoff: check
-  `Granted`'s `no_wrap` predicate before importing either complete fact, bind
-  the selected target-entry plan to those positions, and derive the installed
-  image/static and later allocated-storage subextents.
+  recognizing target names. The installation handoff now binds the selected
+  schema's exact core requirement and calling-plan fingerprint to generated ABI
+  captures at semantic positions 0 and 1. It validates both runtime geometries'
+  `no_wrap` obligations before consuming either admitted grant, returns both
+  grants on rejection, and imports the image and initial-storage roots only as
+  one successful handoff. Remaining work is to derive installed image/static
+  and later allocated-storage subextents from those roots.
 
 - `Task<T>` plus the interrupt mask guard and acknowledgement token are now
   ordinary linear data. The interrupt carriers expose the compact

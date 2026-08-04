@@ -40,10 +40,11 @@ pub struct ServiceMethod {
     /// are part of these identities, so a provider plan cannot be replayed
     /// after an authority-bearing parameter is weakened or replaced.
     pub parameter_type_identities: Vec<String>,
-    /// Linear bodyless qualifications accepted at this boundary entry. These
+    /// Linear routed qualifications accepted at this boundary entry. These
     /// are structured separately from the complete type identity so provider
-    /// admission, carry planning, and authority-flow artifacts do not have to
-    /// parse a display string to recover a source obligation.
+    /// admission, carry planning, predicate discharge, and authority-flow
+    /// artifacts do not have to parse a display string to recover a source
+    /// obligation.
     pub entry_claims: Vec<ServiceEntryClaim>,
     /// Whether the method declares a return type.
     pub has_result: bool,
@@ -93,6 +94,11 @@ pub struct ServiceEntryClaim {
     /// Carrier-aware normalized semantic-domain identity retained by the typed
     /// constraint. This is not the authored short spelling.
     pub domain: String,
+    /// Whether the routed qualification also carries predicates that must be
+    /// proved at the concrete installed occurrence. Bodyless claims may flow
+    /// through the generic external-root acknowledgement path; predicate
+    /// claims require a specialized installer that discharges them first.
+    pub predicate_body: psi_language_semantics::DomainPredicateBody,
     /// Accepted resource claims are born maximally strict. Exact positive
     /// carry permissions remain separate constrained-type facts.
     pub effective_carry: psi_language_semantics::CarryPolicy,
@@ -353,7 +359,7 @@ fn service_entry_claims(
         {
             continue;
         }
-        append_bodyless_entry_claims(
+        append_routed_entry_claims(
             program,
             parameter.type_reference,
             parameter_index,
@@ -449,7 +455,7 @@ fn append_bodyless_result_claims(
     }
 }
 
-fn append_bodyless_entry_claims(
+fn append_routed_entry_claims(
     program: &psi_typed_trees::TypedTrees,
     type_reference: psi_typed_trees::types::TypeReferenceHandle,
     parameter_index: usize,
@@ -461,7 +467,7 @@ fn append_bodyless_entry_claims(
 
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { referee, .. } => {
-            append_bodyless_entry_claims(
+            append_routed_entry_claims(
                 program,
                 *referee,
                 parameter_index,
@@ -474,7 +480,7 @@ fn append_bodyless_entry_claims(
             base_type,
             constraints,
         } => {
-            append_bodyless_entry_claims(
+            append_routed_entry_claims(
                 program,
                 *base_type,
                 parameter_index,
@@ -487,8 +493,6 @@ fn append_bodyless_entry_claims(
                     continue;
                 };
                 if domain.symbol.is_valid()
-                    && domain.predicate_body
-                        == psi_language_semantics::DomainPredicateBody::Bodyless
                     && domain.establishment_routes.iter().any(|route| {
                         matches!(
                             route,
@@ -508,6 +512,7 @@ fn append_bodyless_entry_claims(
                             .flatten()
                             .unwrap_or_else(|| domain.name.as_str())
                             .to_owned(),
+                        predicate_body: domain.predicate_body,
                         effective_carry: psi_language_semantics::CarryPolicy::STRICT,
                         authority_flow: ServiceEntryAuthorityFlow::Accepts,
                     });
@@ -631,9 +636,10 @@ impl ProviderPlan {
             });
             for claim in entry_claims {
                 rendered.push_str(&format!(
-                    "\nmc:{}/{}/{}/{}",
+                    "\nmc:{}/{}/{}/{}/{}",
                     claim.parameter_index,
                     claim.domain,
+                    claim.predicate_body.as_str(),
                     claim.authority_flow.as_str(),
                     claim.effective_carry,
                 ));
@@ -929,6 +935,7 @@ mod tests {
         accepted.schema.methods[0].entry_claims = vec![ServiceEntryClaim {
             parameter_index: 0,
             domain: "InterruptAcknowledgement::Pending".to_owned(),
+            predicate_body: psi_language_semantics::DomainPredicateBody::Bodyless,
             effective_carry: psi_language_semantics::CarryPolicy::STRICT,
             authority_flow: ServiceEntryAuthorityFlow::Accepts,
         }];
@@ -946,6 +953,15 @@ mod tests {
             accepted.identity_fingerprint(),
             relaxed.identity_fingerprint(),
             "the compiler-owned entry carry policy is receipt identity"
+        );
+
+        let mut predicate_bearing = accepted.clone();
+        predicate_bearing.schema.methods[0].entry_claims[0].predicate_body =
+            psi_language_semantics::DomainPredicateBody::Present;
+        assert_ne!(
+            accepted.identity_fingerprint(),
+            predicate_bearing.identity_fingerprint(),
+            "predicate discharge is part of the selected provider contract"
         );
     }
 

@@ -125,6 +125,34 @@ pub struct ExtentRootGrant {
     era: MappingEraId,
 }
 
+/// Runtime geometry whose source-language `no_wrap(base, length)` predicate
+/// has already been checked in proof-level (non-wrapping) arithmetic.
+///
+/// Keeping this as a separate value lets an entry installer validate every
+/// inbound range before it imports any complete `Extent::Granted` fact.  It
+/// carries geometry only; authority still comes exclusively from consuming an
+/// admitted [`ExtentRootGrant`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ValidatedExtentGeometry {
+    base: u64,
+    length: u64,
+}
+
+impl ValidatedExtentGeometry {
+    pub fn check(base: u64, length: u64) -> Result<Self, ExtentDiagnostic> {
+        validate_range(base, length)?;
+        Ok(Self { base, length })
+    }
+
+    pub const fn base(self) -> u64 {
+        self.base
+    }
+
+    pub const fn length(self) -> u64 {
+        self.length
+    }
+}
+
 impl ExtentRootGrant {
     pub const fn from_admitted_provider(
         lineage: ExtentLineageId,
@@ -143,24 +171,40 @@ impl ExtentRootGrant {
     }
 
     pub fn mint(self, base: u64, length: u64) -> Result<Extent, MintError> {
-        if let Err(diagnostic) = validate_range(base, length) {
-            return Err(MintError {
-                grant: self,
-                diagnostic,
-            });
-        }
-        Ok(Extent {
-            base,
-            length,
-            address_space: self.address_space,
-            rights: self.rights,
-            provenance: self.provenance,
-            era: self.era,
+        let geometry = match ValidatedExtentGeometry::check(base, length) {
+            Ok(geometry) => geometry,
+            Err(diagnostic) => {
+                return Err(MintError {
+                    grant: self,
+                    diagnostic,
+                });
+            }
+        };
+        Ok(self.mint_validated(geometry))
+    }
+
+    /// Consume admitted authority for geometry whose `no_wrap` obligation was
+    /// checked before this operation began.
+    pub fn mint_validated(self, geometry: ValidatedExtentGeometry) -> Extent {
+        let Self {
+            lineage,
+            address_space,
+            rights,
+            provenance,
+            era,
+        } = self;
+        Extent {
+            base: geometry.base,
+            length: geometry.length,
+            address_space,
+            rights,
+            provenance,
+            era,
             lineage: Lineage {
-                root: self.lineage,
+                root: lineage,
                 path: Vec::new(),
             },
-        })
+        }
     }
 }
 
@@ -1066,6 +1110,22 @@ mod tests {
             id(20, ExtentProvenanceId::from_normalized_identity),
             id(30, MappingEraId::from_normalized_identity),
         )
+    }
+
+    #[test]
+    fn validated_geometry_checks_no_wrap_before_authority_is_consumed() {
+        let image = ValidatedExtentGeometry::check(0x1000, 0x800).expect("image geometry");
+        let storage = ValidatedExtentGeometry::check(0x4000, 0x1000).expect("storage geometry");
+        assert_eq!((image.base(), image.length()), (0x1000, 0x800));
+
+        let overflow = ValidatedExtentGeometry::check(u64::MAX, 2)
+            .expect_err("proof-level addition must not wrap");
+        assert!(overflow.0.contains("overflows address width"));
+
+        let image = root_grant(1).mint_validated(image);
+        let storage = root_grant(2).mint_validated(storage);
+        assert_eq!((image.base(), image.length()), (0x1000, 0x800));
+        assert_eq!((storage.base(), storage.length()), (0x4000, 0x1000));
     }
 
     #[test]

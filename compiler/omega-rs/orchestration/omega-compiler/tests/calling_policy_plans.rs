@@ -1,10 +1,17 @@
 use omega_calling_conventions::{
     CallSignature, CallingPolicy, EntryControl, EntryStack, MachineState, MachineStateSet,
-    Preemption, ValueShape,
+    Preemption, ValueShape, evaluate_ordinary_boundary_entry_plan,
 };
 use omega_compiler::{
-    compile_to_checked, evaluate_calling_policy_plan, selected_external_root_entry_fact_bindings,
-    selected_external_root_provider_plan, selected_external_root_provider_plan_id,
+    ProgramStorageRootInput, SelectedExternalRootProviderPlan, bind_program_storage_entry_plan,
+    compile_to_checked, evaluate_calling_policy_plan, install_program_storage_entry_roots,
+    selected_external_root_entry_fact_bindings, selected_external_root_provider_plan,
+    selected_external_root_provider_plan_id,
+};
+use omega_instruction_selection::derive_boundary_entry_storage;
+use psi_extents::{
+    AddressSpaceId, ExtentDiagnostic, ExtentLineageId, ExtentProvenanceId, ExtentRights,
+    ExtentRootGrant, MappingEraId,
 };
 use std::fs;
 use std::path::PathBuf;
@@ -295,6 +302,10 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
     assert_eq!(pending.parameter_index, 0);
     assert_eq!(pending.domain, "InterruptAcknowledgement::Pending");
     assert_eq!(
+        pending.predicate_body,
+        psi_language_semantics::DomainPredicateBody::Bodyless
+    );
+    assert_eq!(
         pending.effective_carry,
         psi_language_semantics::CarryPolicy::STRICT
     );
@@ -489,12 +500,110 @@ machine Main::main(&mut self) { }
     assert_eq!(method.name, "enter");
     assert_eq!(method.parameter_type_identities.len(), 2);
     for identity in &method.parameter_type_identities {
-        assert!(identity.contains("Extent"), "missing Extent carrier: {identity}");
+        assert!(
+            identity.contains("Extent"),
+            "missing Extent carrier: {identity}"
+        );
         assert!(
             identity.contains("Granted"),
             "missing exact Granted qualification: {identity}"
         );
     }
+    assert_eq!(method.entry_claims.len(), 2);
+    assert_eq!(method.entry_claims[0].parameter_index, 0);
+    assert_eq!(method.entry_claims[1].parameter_index, 1);
+    assert!(
+        method
+            .entry_claims
+            .iter()
+            .all(|claim| claim.domain == "Extent::Granted")
+    );
+    assert!(
+        method
+            .entry_claims
+            .iter()
+            .all(|claim| claim.predicate_body.is_present())
+    );
+
+    let shape = ValueShape::integer(16, 8);
+    let boundary = evaluate_ordinary_boundary_entry_plan(
+        CallingPolicy::SystemVAMD64,
+        &CallSignature {
+            parameters: vec![shape, shape],
+            result: None,
+        },
+    )
+    .expect("ordinary process-entry plan");
+    let storage =
+        derive_boundary_entry_storage(boundary.plan(), &[(0, shape), (16, shape)], None, None)
+            .expect("generated process-entry captures");
+    let mut selected_schema = schema;
+    selected_schema.methods[0].calling_plan_fingerprint = Some(boundary.contract_fingerprint());
+    let selected = SelectedExternalRootProviderPlan {
+        identity: omega_external_roots::ProviderPlanId::from_normalized_identity(90)
+            .expect("selected provider identity"),
+        schema: selected_schema,
+    };
+    let generic_error = selected
+        .entry_claims(&selected.schema.methods[0].requirement_identity)
+        .expect_err("predicate-bearing roots require their specialized installer");
+    assert!(generic_error.0.contains("predicate obligations"));
+    let binding = bind_program_storage_entry_plan(&selected, &boundary, &storage)
+        .expect("stable storage positions should bind to selected ABI captures");
+    assert_eq!(binding.image().parameter_index(), 0);
+    assert_eq!(binding.initial_storage().parameter_index(), 1);
+    assert_eq!(
+        binding.image().placement(),
+        &boundary.plan().call.parameters[0]
+    );
+    assert_eq!(
+        binding.initial_storage().placement(),
+        &boundary.plan().call.parameters[1]
+    );
+
+    let failed = install_program_storage_entry_roots(
+        binding,
+        root_input(91, 0x1000, 0x800),
+        root_input(92, u64::MAX, 2),
+    )
+    .expect_err("both no-wrap predicates must precede either fact import");
+    assert!(failed.diagnostic().0.contains("initial-storage"));
+    let (binding, image, storage_input) = (*failed).into_parts();
+    let installed = install_program_storage_entry_roots(
+        binding,
+        image,
+        storage_input.with_geometry(0x8000, 0x2000),
+    )
+    .expect("returned grants remain usable after rejected geometry");
+    assert_eq!(
+        (installed.image().base(), installed.image().length()),
+        (0x1000, 0x800)
+    );
+    assert_eq!(
+        (
+            installed.initial_storage().base(),
+            installed.initial_storage().length()
+        ),
+        (0x8000, 0x2000)
+    );
+}
+
+fn root_input(lineage: u64, base: u64, length: u64) -> ProgramStorageRootInput {
+    fn extent_id<T>(identity: u64, constructor: fn(u64) -> Result<T, ExtentDiagnostic>) -> T {
+        constructor(identity).expect("normalized extent identity")
+    }
+
+    ProgramStorageRootInput::new(
+        ExtentRootGrant::from_admitted_provider(
+            extent_id(lineage, ExtentLineageId::from_normalized_identity),
+            extent_id(100, AddressSpaceId::from_normalized_identity),
+            ExtentRights::none(),
+            extent_id(101, ExtentProvenanceId::from_normalized_identity),
+            extent_id(102, MappingEraId::from_normalized_identity),
+        ),
+        base,
+        length,
+    )
 }
 
 #[test]

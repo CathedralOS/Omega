@@ -85,9 +85,12 @@ Program image and initial stack/storage roots use a second core-owned route on
 the same `Extent::Granted` domain. The live
 `ProgramStorageEntry::enter(image: Extent in Granted, initial_storage: Extent in
 Granted)` requirement names the exact qualified positions; target entry traits
-inherit it and refine only their plan/ABI. Installation introduces those roots
-only after validating `Granted`'s `no_wrap` predicate. Target-owned root domains
-or name-based role recognition are not alternatives.
+inherit it and refine only their plan/ABI. Installation binds those semantic
+positions to the selected calling-plan fingerprint and generated ABI captures,
+then introduces both roots only after validating both `Granted::no_wrap`
+obligations. Rejection returns both admitted grants without importing either
+complete fact. Target-owned root domains or name-based role recognition are not
+alternatives.
 
 The fields carry runtime geometry. `Extent::Granted` states that the geometry
 descends from a live admitted or checked authority claim. Constructing the same

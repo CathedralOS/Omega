@@ -249,15 +249,20 @@ impl SelectedExternalRootProviderPlan {
                 },
             ));
         };
-        let mut claims = method
-            .entry_claims
-            .iter()
-            .map(|claim| omega_external_roots::ExternalRootEntryClaim {
+        let mut claims = Vec::with_capacity(method.entry_claims.len());
+        for claim in &method.entry_claims {
+            if claim.predicate_body.is_present() {
+                return Err(omega_external_roots::ExternalRootDiagnostic(format!(
+                    "external-root entry claim `{}` carries predicate obligations and requires a specialized installation handoff",
+                    claim.domain
+                )));
+            }
+            claims.push(omega_external_roots::ExternalRootEntryClaim {
                 parameter_index: claim.parameter_index,
                 domain: claim.domain.clone(),
                 effective_carry: claim.effective_carry,
-            })
-            .collect::<Vec<_>>();
+            });
+        }
         claims.sort_by(|left, right| {
             left.parameter_index
                 .cmp(&right.parameter_index)
@@ -919,6 +924,12 @@ pub fn selected_external_root_entry_fact_bindings(
 
     for method in &plan.schema.methods {
         for claim in &method.entry_claims {
+            if claim.predicate_body.is_present() {
+                return Err(omega_external_roots::ExternalRootDiagnostic(format!(
+                    "selected external-root claim `{}` carries predicate obligations and requires a specialized installation handoff",
+                    claim.domain
+                )));
+            }
             let rows = plan
                 .rows
                 .iter()

@@ -374,6 +374,7 @@ dependencies = [
  "psi-checked-trees",
  "psi-diagnostics",
  "psi-effects",
+ "psi-extents",
  "psi-facts",
  "psi-language-core",
  "psi-language-semantics",
