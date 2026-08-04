@@ -176,6 +176,10 @@ enum CompilerInstructionRelocationRecipe {
         left: omega_target_operations::RuntimeValueOperandHandle,
         right: omega_target_operations::RuntimeValueOperandHandle,
     },
+    StorageConvertWrite {
+        target_region: omega_target_operations::RuntimeStorageRegion,
+        source: omega_target_operations::RuntimeValueOperandHandle,
+    },
     RuntimeTextLiteral {
         buffer_symbol: std::sync::Arc<str>,
     },
@@ -1511,6 +1515,54 @@ fn validate_compiler_function_instruction_boundaries(
                             },
                         )
                     }
+                    omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyStorageConvertWrite {
+                        target_region,
+                        target_offset,
+                        target_byte_size,
+                        source,
+                        source_byte_size,
+                        source_is_float,
+                        target_is_float,
+                        source_signed,
+                        target_signed,
+                        trapping,
+                        saturating,
+                    } => (
+                        None,
+                        match architecture {
+                            Architecture::X86_64 => omega_isa_x86_64::encode_runtime_storage_convert(
+                                &code.runtime_value_operands,
+                                target_offset,
+                                target_byte_size,
+                                source,
+                                source_byte_size,
+                                source_is_float,
+                                target_is_float,
+                                source_signed,
+                                target_signed,
+                                trapping,
+                                saturating,
+                            )?,
+                            Architecture::Aarch64 => omega_isa_aarch64::encode_runtime_storage_convert(
+                                &code.runtime_value_operands,
+                                target_offset,
+                                target_byte_size,
+                                source,
+                                source_byte_size,
+                                source_is_float,
+                                target_is_float,
+                                source_signed,
+                                target_signed,
+                                trapping,
+                                saturating,
+                            )?,
+                        },
+                        22u8,
+                        CompilerInstructionRelocationRecipe::StorageConvertWrite {
+                            target_region,
+                            source,
+                        },
+                    ),
                     omega_machine_bytes::CompilerInstructionValidationKind::DispatchStateWrite {
                         dispatch_index,
                         case_leave_byte_distance,
@@ -1690,6 +1742,35 @@ fn validate_compiler_function_instruction_boundaries(
                             target,
                             left,
                             right,
+                        )?;
+                        validate_compiler_data_address_relocations(
+                            architecture,
+                            object,
+                            relocations,
+                            instruction.selected_instruction_index,
+                            instruction_byte_offset,
+                            &address_sites,
+                        )?;
+                        encoded_instruction_bytes == expected_bytes
+                            && compiler_instruction_non_relocation_bits_match(
+                                architecture,
+                                &expected_bytes,
+                                final_instruction_bytes,
+                                &address_sites
+                                    .iter()
+                                    .map(|(offset, _)| *offset)
+                                    .collect::<Vec<_>>(),
+                            )
+                    }
+                    CompilerInstructionRelocationRecipe::StorageConvertWrite {
+                        target_region,
+                        source,
+                    } => {
+                        let address_sites = compiler_storage_convert_write_address_sites(
+                            architecture,
+                            &code.runtime_value_operands,
+                            target_region,
+                            source,
                         )?;
                         validate_compiler_data_address_relocations(
                             architecture,
@@ -2379,6 +2460,26 @@ fn compiler_instruction_footprint(
                 ),
             }
         }
+        CompilerInstructionValidationKind::CompilerBodyStorageConvertWrite { source, .. } => {
+            match architecture {
+                Architecture::X86_64 => (
+                    BoundaryFootprintFragmentOrigin::CompilerBodyStorageConvertWrite,
+                    omega_isa_x86_64::storage_convert_write_register_write_ceiling(),
+                    omega_isa_x86_64::storage_convert_write_additional_machine_state(
+                        runtime_value_operands,
+                        source,
+                    ),
+                ),
+                Architecture::Aarch64 => (
+                    BoundaryFootprintFragmentOrigin::CompilerBodyStorageConvertWrite,
+                    omega_isa_aarch64::storage_convert_write_register_write_ceiling(),
+                    omega_isa_aarch64::storage_convert_write_additional_machine_state(
+                        runtime_value_operands,
+                        source,
+                    ),
+                ),
+            }
+        }
         CompilerInstructionValidationKind::DispatchStateWrite { .. } => (
             BoundaryFootprintFragmentOrigin::DispatchScaffold,
             match architecture {
@@ -2428,6 +2529,7 @@ fn validate_compiler_body_specification_footprints(
                 | BoundaryFootprintFragmentOrigin::CompilerBodyPlaceCopy
                 | BoundaryFootprintFragmentOrigin::CompilerBodyPlaceIntegerWrite
                 | BoundaryFootprintFragmentOrigin::CompilerBodyPlaceBinaryWrite
+                | BoundaryFootprintFragmentOrigin::CompilerBodyStorageConvertWrite
         )
     });
     let boundary_contract_fingerprint = if !has_body_rows {
@@ -2472,6 +2574,10 @@ fn validate_compiler_body_specification_footprints(
         (
             12u8,
             BoundaryFootprintFragmentOrigin::CompilerBodyPlaceBinaryWrite,
+        ),
+        (
+            13u8,
+            BoundaryFootprintFragmentOrigin::CompilerBodyStorageConvertWrite,
         ),
     ] {
         let evidence_rows = derived
@@ -4392,6 +4498,29 @@ fn compiler_place_binary_write_address_sites(
         operands,
         right,
         right_offset,
+        &mut visiting,
+        &mut sites,
+    )?;
+    Ok(sites)
+}
+
+fn compiler_storage_convert_write_address_sites(
+    architecture: Architecture,
+    operands: &psi_arena::Arena<omega_target_operations::RuntimeValueOperand>,
+    target_region: omega_target_operations::RuntimeStorageRegion,
+    source: omega_target_operations::RuntimeValueOperandHandle,
+) -> Result<Vec<(usize, omega_target_operations::RuntimeStorageRegion)>, Diagnostic> {
+    let operand_start = match architecture {
+        Architecture::X86_64 => 10,
+        Architecture::Aarch64 => 8,
+    };
+    let mut sites = vec![(0, target_region)];
+    let mut visiting = Vec::new();
+    collect_compiler_runtime_value_address_sites(
+        architecture,
+        operands,
+        source,
+        operand_start,
         &mut visiting,
         &mut sites,
     )?;

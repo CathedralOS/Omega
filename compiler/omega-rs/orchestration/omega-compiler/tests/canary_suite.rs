@@ -1127,7 +1127,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         executable_regions.contains(
             "\"certificate_schema\": \"omega.final-footprint-certificate\""
         )
-            && executable_regions.contains("\"certificate_format_version\": 43")
+            && executable_regions.contains("\"certificate_format_version\": 44")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
             && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")
@@ -2433,6 +2433,7 @@ machine Main::main(&mut self) {
     state good(&mut self) { self.console.exit_process(70); }
     state bad(&mut self) { self.console.exit_process(71); }
 }
+
 "#,
     )] {
         let scratch = std::env::temp_dir().join(format!(
@@ -2466,6 +2467,52 @@ machine Main::main(&mut self) {
                 && footprints.contains("\"X86R14\"")
                 && footprints.contains("\"enumeration_complete\": false"),
             "linux_x64 artifact must retain the general binary-write footprint for {case_name} without claiming completeness"
+        );
+        let _ = fs::remove_dir_all(&scratch);
+    }
+}
+
+#[test]
+fn compiler_body_storage_convert_write_footprints_reach_x86_and_aarch64_artifacts() {
+    let canary = pass_canary("control_flow/runtime_entry_cast_result_exit");
+    for (target, expected_register) in [
+        ("linux_x64", "\"X86R14\""),
+        ("linux_arm64", "\"Aarch64X(16)\""),
+    ] {
+        let scratch = std::env::temp_dir().join(format!(
+            "omega-compiler-body-storage-convert-write-footprint-{target}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&scratch);
+        let source = scratch.join("src");
+        let output = scratch.join("out");
+        fs::create_dir_all(&source)
+            .expect("create compiler-body storage-convert-write source directory");
+        fs::copy(canary.join("main.omg"), source.join("main.omg"))
+            .expect("copy compiler-body storage-convert-write canary");
+        fs::write(
+            source.join("build.omg"),
+            format!("target {target} {{\n}}\n"),
+        )
+        .expect("write compiler-body storage-convert-write target");
+        compile(CompileOptions {
+            root_path: source.join("main.omg"),
+            build_dir: Some(output.clone()),
+            target_name: Some(target.into()),
+            write_output: true,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "compiler-body storage conversion writes should compile for {target}: {diagnostics:?}"
+            )
+        });
+        let footprints = fs::read_to_string(output.join("08_boundary_footprints.json"))
+            .expect("compiler-body storage-convert-write footprint evidence should be written");
+        assert!(
+            footprints.contains("\"origin\": \"compiler_body_storage_convert_write\"")
+                && footprints.contains(expected_register)
+                && footprints.contains("\"enumeration_complete\": false"),
+            "{target} artifact must retain the storage-convert-write footprint without claiming completeness"
         );
         let _ = fs::remove_dir_all(&scratch);
     }

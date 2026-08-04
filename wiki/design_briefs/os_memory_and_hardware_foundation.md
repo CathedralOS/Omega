@@ -1071,12 +1071,15 @@ Final validation regenerates the evaluator/store bytes, walks nested operand
 relocations, and matches the closed target may-write ceiling to the separately
 retained `CompilerBodyPlaceBinaryWrite` fragment. The x86 general materializer
 also replays a frame-held descriptor indexed from machine storage.
+Direct runtime-storage numeric conversion writes retain their complete cast
+policy and source-operand root, replay exact conversion/store bytes and nested
+relocations, and match a separate `CompilerBodyStorageConvertWrite` fragment.
 Place-copy selection retains its separate `compiler_body_place_copy` evidence
 only for
 the `Ordinary` role; final validation regenerates the same place-copy bytes,
 checks the storage, pointer-slot, and index relocations, and requires the target
-scratch union to match. Other otherwise-general binary targets,
-conversion/string/bit-field writes, and calls remain outside the partial
+scratch union to match. Other otherwise-general binary targets, composed-place
+conversion, string/bit-field writes, and calls remain outside the partial
 proof. The pointee-pair selector resolves
 both reference operands before flat storage, so the source remains a
 dereference rather than being mistaken for pointer-slot contents.

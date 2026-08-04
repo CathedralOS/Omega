@@ -911,6 +911,44 @@ pub fn derive_boundary_compiler_body_place_binary_write_footprint<'instruction>(
     Ok(evidence)
 }
 
+/// Derive the closed encoder-family footprint for direct compiler-body
+/// conversion writes from the same operand arena consumed by emission.
+pub fn derive_boundary_compiler_body_storage_convert_write_footprint<'instruction>(
+    boundary: &ValidatedBoundaryEntryPlan,
+    runtime_value_operands: &impl omega_target_operations::RuntimeValueOperandSource,
+    instructions: impl IntoIterator<Item = &'instruction SelectedInstructionKind>,
+) -> Result<StateFootprintEvidence, PlanDiagnostic> {
+    let architecture = boundary.plan().call.policy.architecture();
+    let mut registers = Vec::new();
+    let mut additional_state = MachineStateSet::empty();
+    for instruction in instructions {
+        let SelectedInstructionKind::WriteRuntimeStorageConvert { source, .. } = instruction else {
+            continue;
+        };
+        let (writes, state) = match architecture {
+            omega_target::Architecture::X86_64 => (
+                omega_isa_x86_64::storage_convert_write_register_write_ceiling(),
+                omega_isa_x86_64::storage_convert_write_additional_machine_state(
+                    runtime_value_operands,
+                    *source,
+                ),
+            ),
+            omega_target::Architecture::Aarch64 => (
+                omega_isa_aarch64::storage_convert_write_register_write_ceiling(),
+                omega_isa_aarch64::storage_convert_write_additional_machine_state(
+                    runtime_value_operands,
+                    *source,
+                ),
+            ),
+        };
+        registers.extend_from_slice(writes.as_slice());
+        additional_state = additional_state.union(state);
+    }
+    let evidence = StateFootprintEvidence::new(RegisterSet::new(registers), additional_state);
+    validate_runtime_value_guard_footprint(boundary, &evidence)?;
+    Ok(evidence)
+}
+
 /// Derive result placement and exit control for a compiler-owned entry stub.
 /// This consumes the complete plan so result lowering cannot accidentally
 /// accept placements from a carrier whose state obligations are invalid.

@@ -8049,6 +8049,13 @@ pub fn place_binary_write_register_write_ceiling() -> RegisterSet {
     RegisterSet::new(registers)
 }
 
+/// Closed may-write ceiling of a direct conversion write. It shares the
+/// recursive runtime-value evaluator with binary writes and preserves the
+/// relocated destination in r14 while conversion policy may use r11/xmm0/xmm1.
+pub fn storage_convert_write_register_write_ceiling() -> RegisterSet {
+    place_binary_write_register_write_ceiling()
+}
+
 fn runtime_value_operand_uses_stack(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     operand: RuntimeValueOperandHandle,
@@ -8112,6 +8119,13 @@ pub fn runtime_value_compare_additional_machine_state(
         state = state.union(MachineStateSet::new([MachineState::ControlState]));
     }
     state
+}
+
+pub fn storage_convert_write_additional_machine_state(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    source: RuntimeValueOperandHandle,
+) -> MachineStateSet {
+    runtime_value_compare_additional_machine_state(runtime_value_operands, source, source)
 }
 
 /// Machine state touched by a place-shaped binary write. Its outer evaluator
