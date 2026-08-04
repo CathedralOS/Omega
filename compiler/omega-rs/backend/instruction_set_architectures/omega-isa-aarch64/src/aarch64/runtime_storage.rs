@@ -4077,6 +4077,26 @@ pub fn encode_runtime_storage_copy_from_runtime_machine_double_indexed_to_runtim
     Ok(bytes)
 }
 
+/// Exact scratch footprint of a machine-rooted double-indexed read. x15 is
+/// present exactly when either index slot is frame-resident.
+pub fn runtime_storage_copy_from_runtime_machine_double_indexed_clobbers(
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+) -> RegisterSet {
+    let mut registers = vec![
+        MachineRegister::Aarch64X(14),
+        MachineRegister::Aarch64X(16),
+        MachineRegister::Aarch64X(17),
+        MachineRegister::Aarch64X(26),
+    ];
+    if outer_index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+        || inner_index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+    {
+        registers.push(MachineRegister::Aarch64X(15));
+    }
+    RegisterSet::new(registers)
+}
+
 /// Write `grid[i][j] = <storage slot>` -- the source value loads into x24
 /// FIRST (right after the base pairs, while x16 is still the unbiased machine
 /// base; the shared frame pair also serves a frame-resident SOURCE), then the
