@@ -89,8 +89,10 @@ inherit it and refine only their plan/ABI. Installation binds those semantic
 positions to the selected calling-plan fingerprint and generated ABI captures,
 then introduces both roots only after validating both `Granted::no_wrap`
 obligations. Rejection returns both admitted grants without importing either
-complete fact. Target-owned root domains or name-based role recognition are not
-alternatives.
+complete fact. Image/static ranges remain borrowed views beneath the installed
+image root; owned initial-storage allocations produce a conserved partition
+with every nonempty remainder and can recompose the exact parent lineage.
+Target-owned root domains or name-based role recognition are not alternatives.
 
 The fields carry runtime geometry. `Extent::Granted` states that the geometry
 descends from a live admitted or checked authority claim. Constructing the same

@@ -125,8 +125,13 @@ composite claim-frontier work remain.
   captures at semantic positions 0 and 1. It validates both runtime geometries'
   `no_wrap` obligations before consuming either admitted grant, returns both
   grants on rejection, and imports the image and initial-storage roots only as
-  one successful handoff. Remaining work is to derive installed image/static
-  and later allocated-storage subextents from those roots.
+  one successful handoff. Installed image sections/statics now derive as
+  borrowed subrange views under that one root; independently owned initial-
+  storage allocations use a conserved partition that retains every prefix and
+  suffix remainder, rejects invalid geometry without consuming the pool, and
+  can recompose the exact parent lineage. Remaining integration is for concrete
+  target startup providers to feed their emitted image/layout geometry into the
+  handoff and allocate their later frames/task stacks from the returned pool.
 
 - `Task<T>` plus the interrupt mask guard and acknowledgement token are now
   ordinary linear data. The interrupt carriers expose the compact

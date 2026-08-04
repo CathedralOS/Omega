@@ -279,6 +279,12 @@ impl Extent {
             });
         }
 
+        Ok(self.split_at_validated(lower_length))
+    }
+
+    fn split_at_validated(self, lower_length: u64) -> (Self, Self) {
+        debug_assert!(lower_length > 0 && lower_length < self.length);
+
         let upper_base = self.base + lower_length;
         let upper_length = self.length - lower_length;
         let mut lower_path = self.lineage.path.clone();
@@ -310,7 +316,65 @@ impl Extent {
                 path: upper_path,
             },
         };
-        Ok((lower, upper))
+        (lower, upper)
+    }
+
+    /// Extract one independently owned subextent while retaining every byte
+    /// of the parent authority in an explicit conserved partition.
+    ///
+    /// Borrowed layout/static views should use [`Extent::loan`] instead. This
+    /// operation is for an allocation or other subresource that genuinely
+    /// leaves the parent's ownership domain.
+    pub fn partition_owned(
+        self,
+        offset: u64,
+        length: u64,
+    ) -> Result<OwnedExtentPartition, OwnedPartitionError> {
+        if length == 0 {
+            return Err(OwnedPartitionError {
+                extent: self,
+                diagnostic: ExtentDiagnostic(
+                    "owned subextent must carry nonempty authority".into(),
+                ),
+            });
+        }
+        let Some(end) = offset.checked_add(length) else {
+            return Err(OwnedPartitionError {
+                extent: self,
+                diagnostic: ExtentDiagnostic("owned subextent range overflows".into()),
+            });
+        };
+        if end > self.length {
+            let parent_length = self.length;
+            return Err(OwnedPartitionError {
+                extent: self,
+                diagnostic: ExtentDiagnostic(format!(
+                    "owned subextent {offset}..{end} exceeds {parent_length}-byte parent"
+                )),
+            });
+        }
+
+        let (before, selected, after) = match (offset, end == self.length) {
+            (0, true) => (None, self, None),
+            (0, false) => {
+                let (selected, after) = self.split_at_validated(length);
+                (None, selected, Some(after))
+            }
+            (_, true) => {
+                let (before, selected) = self.split_at_validated(offset);
+                (Some(before), selected, None)
+            }
+            (_, false) => {
+                let (before, tail) = self.split_at_validated(offset);
+                let (selected, after) = tail.split_at_validated(length);
+                (Some(before), selected, Some(after))
+            }
+        };
+        Ok(OwnedExtentPartition {
+            before,
+            selected,
+            after,
+        })
     }
 
     pub fn attenuate(self, rights: ExtentRights) -> Result<Self, AttenuationError> {
@@ -363,6 +427,51 @@ impl Extent {
         length: u64,
     ) -> Result<ExtentLoan<'_>, ExtentDiagnostic> {
         ExtentLoan::exclusive(self, offset, length)
+    }
+}
+
+/// One exact owned extraction and all authority needed to account for its
+/// parent. Private fields prevent callers from silently dropping a remainder
+/// while inspecting the partition; `into_parts` explicitly transfers every
+/// resulting claim.
+#[derive(Debug)]
+pub struct OwnedExtentPartition {
+    before: Option<Extent>,
+    selected: Extent,
+    after: Option<Extent>,
+}
+
+impl OwnedExtentPartition {
+    pub const fn before(&self) -> Option<&Extent> {
+        self.before.as_ref()
+    }
+
+    pub const fn selected(&self) -> &Extent {
+        &self.selected
+    }
+
+    pub const fn after(&self) -> Option<&Extent> {
+        self.after.as_ref()
+    }
+
+    pub fn into_parts(self) -> (Option<Extent>, Extent, Option<Extent>) {
+        (self.before, self.selected, self.after)
+    }
+
+    /// Recompose an unmodified partition into its exact parent authority.
+    pub fn rejoin(self) -> Extent {
+        let mut restored = self.selected;
+        if let Some(after) = self.after {
+            restored = restored
+                .merge(after)
+                .expect("private owned partition retains exact upper sibling");
+        }
+        if let Some(before) = self.before {
+            restored = before
+                .merge(restored)
+                .expect("private owned partition retains exact lower sibling");
+        }
+        restored
     }
 }
 
@@ -1038,6 +1147,22 @@ pub struct SplitError {
     diagnostic: ExtentDiagnostic,
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub struct OwnedPartitionError {
+    extent: Extent,
+    diagnostic: ExtentDiagnostic,
+}
+
+impl OwnedPartitionError {
+    pub const fn diagnostic(&self) -> &ExtentDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_extent(self) -> Extent {
+        self.extent
+    }
+}
+
 impl SplitError {
     pub const fn diagnostic(&self) -> &ExtentDiagnostic {
         &self.diagnostic
@@ -1140,6 +1265,69 @@ mod tests {
             .expect("sibling merge is order independent");
         assert_eq!((restored.base(), restored.length()), (0x1000, 0x1000));
         assert_eq!(restored.lineage_root().normalized_identity(), 1);
+    }
+
+    #[test]
+    fn owned_partition_retains_gaps_and_recomposes_exact_parent() {
+        let partition = grant(1, 0x1000, 0x1000)
+            .partition_owned(0x300, 0x500)
+            .expect("middle allocation");
+        assert_eq!(
+            partition
+                .before()
+                .map(|extent| (extent.base(), extent.length())),
+            Some((0x1000, 0x300))
+        );
+        assert_eq!(
+            (partition.selected().base(), partition.selected().length()),
+            (0x1300, 0x500)
+        );
+        assert_eq!(
+            partition
+                .after()
+                .map(|extent| (extent.base(), extent.length())),
+            Some((0x1800, 0x800))
+        );
+
+        let restored = partition.rejoin();
+        assert_eq!((restored.base(), restored.length()), (0x1000, 0x1000));
+        assert_eq!(restored.lineage_root().normalized_identity(), 1);
+    }
+
+    #[test]
+    fn owned_partition_handles_parent_edges_without_empty_claims() {
+        let lower = grant(1, 0, 100)
+            .partition_owned(0, 40)
+            .expect("lower allocation");
+        assert!(lower.before().is_none());
+        assert_eq!(lower.selected().length(), 40);
+        assert_eq!(lower.after().map(Extent::length), Some(60));
+
+        let upper = lower
+            .rejoin()
+            .partition_owned(40, 60)
+            .expect("upper allocation");
+        assert_eq!(upper.before().map(Extent::length), Some(40));
+        assert_eq!(upper.selected().length(), 60);
+        assert!(upper.after().is_none());
+
+        let whole = upper
+            .rejoin()
+            .partition_owned(0, 100)
+            .expect("whole allocation");
+        assert!(whole.before().is_none());
+        assert!(whole.after().is_none());
+        assert_eq!(whole.selected().length(), 100);
+    }
+
+    #[test]
+    fn failed_owned_partition_returns_original_authority() {
+        let error = grant(1, 0x1000, 64)
+            .partition_owned(60, 8)
+            .expect_err("out-of-range owned allocation");
+        assert!(error.diagnostic().0.contains("exceeds"));
+        let original = error.into_extent();
+        assert_eq!((original.base(), original.length()), (0x1000, 64));
     }
 
     #[test]

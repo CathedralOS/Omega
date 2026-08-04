@@ -49,8 +49,9 @@ pub use layout_plans::{
     compute_layout_plan,
 };
 pub use program_storage_entry::{
-    InstalledProgramStorageRoots, ProgramStorageEntryDiagnostic, ProgramStorageEntryParameter,
-    ProgramStorageEntryPlanBinding, ProgramStorageRootInput, ProgramStorageRootInstallationError,
+    InstalledImageSubextent, InstalledProgramStorageRoots, PartitionedProgramStorageRoots,
+    ProgramStorageEntryDiagnostic, ProgramStorageEntryParameter, ProgramStorageEntryPlanBinding,
+    ProgramStoragePartitionError, ProgramStorageRootInput, ProgramStorageRootInstallationError,
     bind_program_storage_entry_plan, install_program_storage_entry_roots,
 };
 pub use provider_plans::{
