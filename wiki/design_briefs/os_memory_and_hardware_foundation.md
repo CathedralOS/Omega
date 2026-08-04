@@ -1080,14 +1080,16 @@ Text-buffer materialization is inside the partial proof for its direct x86 form
 and its direct, pointee, and frame-indexed AArch64 forms. The retained row binds
 the exact buffer data-object identity and target place, replays the existing
 target encoder and mixed data/storage relocation set, and matches a dedicated
-`CompilerBodyTextAssemblyWrite` footprint. Remaining text-assembly writes stay
-outside the partial proof.
+`CompilerBodyTextAssemblyWrite` footprint. Direct, pointee, and frame-indexed
+literal appends on both targets share that fragment and retain their exact
+literal, buffer identity, target place, encoder, and relocation set. Stored-
+source text appends remain outside the partial proof.
 Place-copy selection retains its separate `compiler_body_place_copy` evidence
 only for
 the `Ordinary` role; final validation regenerates the same place-copy bytes,
 checks the storage, pointer-slot, and index relocations, and requires the target
-scratch union to match. Other otherwise-general binary targets and AArch64
-composed-place conversion shapes, text-assembly writes, and calls remain
+scratch union to match. Other otherwise-general binary targets, AArch64
+composed-place conversion shapes, stored-source text appends, and calls remain
 outside the partial proof. The pointee-pair selector resolves
 both reference operands before flat storage, so the source remains a
 dereference rather than being mistaken for pointer-slot contents.

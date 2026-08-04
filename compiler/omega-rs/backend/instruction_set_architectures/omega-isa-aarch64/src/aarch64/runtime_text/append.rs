@@ -179,6 +179,14 @@ pub fn encode_runtime_text_stored_place_append_to_runtime_pointee(
     Ok(bytes)
 }
 
+pub fn runtime_text_literal_append_register_writes() -> RegisterSet {
+    RegisterSet::new([15, 16, 17, 20, 22, 26].map(MachineRegister::Aarch64X))
+}
+
+pub fn runtime_text_literal_append_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::empty()
+}
+
 pub fn encode_runtime_text_literal_append(
     buffer_offset: usize,
     target_offset: usize,

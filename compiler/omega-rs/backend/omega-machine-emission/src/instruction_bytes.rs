@@ -584,6 +584,25 @@ fn compiler_instruction_validation_kind(
                 },
             )
         }
+        SelectedInstructionKind::AppendTextLiteralToPlace {
+            buffer,
+            target,
+            literal,
+        } if matches!(
+            omega_instruction_selection::classify_write_place_shape(target),
+            omega_instruction_selection::WritePlaceShape::Direct { .. }
+                | omega_instruction_selection::WritePlaceShape::Pointee { .. }
+                | omega_instruction_selection::WritePlaceShape::FrameIndexed { .. }
+        ) =>
+        {
+            Some(
+                CompilerInstructionValidationKind::CompilerBodyTextLiteralAppend {
+                    buffer_symbol: Arc::clone(&emission_context.data.objects.get(*buffer).symbol),
+                    target: *target,
+                    literal: Arc::clone(literal),
+                },
+            )
+        }
         SelectedInstructionKind::WritePlaceBinary {
             target,
             byte_size,

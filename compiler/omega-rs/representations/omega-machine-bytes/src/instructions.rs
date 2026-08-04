@@ -134,6 +134,11 @@ pub enum CompilerInstructionValidationKind {
         buffer_symbol: Arc<str>,
         target: Place,
     },
+    CompilerBodyTextLiteralAppend {
+        buffer_symbol: Arc<str>,
+        target: Place,
+        literal: Arc<str>,
+    },
     CompilerBodyPlaceBinaryWrite {
         target: Place,
         byte_size: usize,

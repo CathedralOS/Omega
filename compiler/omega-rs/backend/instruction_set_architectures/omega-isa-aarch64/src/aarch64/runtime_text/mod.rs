@@ -57,6 +57,8 @@ pub use append::{
     runtime_text_buffer_materialize_register_writes,
     runtime_text_buffer_materialize_to_runtime_frame_indexed_register_writes,
     runtime_text_buffer_materialize_to_runtime_pointee_register_writes,
+    runtime_text_literal_append_additional_machine_state,
+    runtime_text_literal_append_register_writes,
 };
 pub use byte_io::{
     encode_runtime_byte_read_import, encode_runtime_byte_read_syscall,

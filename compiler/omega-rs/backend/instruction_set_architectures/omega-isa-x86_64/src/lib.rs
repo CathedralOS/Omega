@@ -7543,6 +7543,19 @@ pub fn runtime_text_literal_append_width(literal: &str) -> usize {
     27 + literal.len() * 9 + 14
 }
 
+pub fn runtime_text_literal_append_register_writes() -> RegisterSet {
+    RegisterSet::new([
+        MachineRegister::X86Rax,
+        MachineRegister::X86Rcx,
+        MachineRegister::X86R14,
+        MachineRegister::X86R15,
+    ])
+}
+
+pub fn runtime_text_literal_append_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::new([MachineState::Flags])
+}
+
 pub fn encode_runtime_text_literal_append(
     target_offset: usize,
     literal: &str,
@@ -7947,6 +7960,18 @@ pub fn runtime_text_literal_append_to_runtime_frame_indexed_width(
     // + store r15->[rax+field] ptr (7) + store r11->[rax+field+8] len (7)
     frame_indexed_string_prefix_width(index_byte_size) + 17 + literal.len() * 9 + 14
 }
+
+pub fn runtime_text_literal_append_to_runtime_frame_indexed_register_writes() -> RegisterSet {
+    RegisterSet::new([
+        MachineRegister::X86Rax,
+        MachineRegister::X86Rcx,
+        MachineRegister::X86R11,
+        MachineRegister::X86R14,
+        MachineRegister::X86R15,
+    ])
+}
+
+pub const RUNTIME_TEXT_INDEXED_LITERAL_APPEND_BUFFER_IMM_OFFSET: usize = 34;
 
 pub fn encode_runtime_text_literal_append_to_runtime_frame_indexed(
     descriptor_offset: usize,
