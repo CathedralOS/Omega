@@ -67,8 +67,10 @@ names as storage authority. The source requirement and qualified-position
 identity are live. Installation now requires an exact selected calling-plan
 fingerprint and generated ABI capture for each semantic position, validates
 both `Granted::no_wrap` obligations before consuming either admitted grant,
-and returns both grants intact on rejection. Deriving sections/statics and
-allocated storage as conserved subextents remains.
+and returns both grants intact on rejection. Compiler-derived image/static
+ranges remain borrowed views under the installed image root. Initial-storage
+allocations that leave the pool's ownership use an explicit conserved
+partition retaining every remainder and can recompose the exact parent.
 
 ## Facts, authority, reach, and trust remain separate
 

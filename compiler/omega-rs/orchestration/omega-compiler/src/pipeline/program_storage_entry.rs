@@ -9,7 +9,9 @@
 use omega_calling_conventions::{ValidatedBoundaryEntryPlan, ValuePlacement};
 use omega_effects::provider_plan::ServiceEntryAuthorityFlow;
 use omega_instruction_selection::DerivedBoundaryEntryStorage;
-use psi_extents::{Extent, ExtentRootGrant, ValidatedExtentGeometry};
+use psi_extents::{
+    Extent, ExtentLoan, ExtentRootGrant, OwnedExtentPartition, ValidatedExtentGeometry,
+};
 
 use super::SelectedExternalRootProviderPlan;
 
@@ -156,8 +158,132 @@ impl InstalledProgramStorageRoots {
         &self.initial_storage
     }
 
+    /// Derive a section/static view without splitting the installed image's
+    /// ownership. Several disjoint or overlapping compiler views may coexist
+    /// under the same one admitted image root.
+    pub fn image_subextent(
+        &self,
+        offset: u64,
+        length: u64,
+    ) -> Result<InstalledImageSubextent<'_>, ProgramStorageEntryDiagnostic> {
+        let loan = self.image.loan(offset, length).map_err(|diagnostic| {
+            ProgramStorageEntryDiagnostic(format!(
+                "installed image subextent is outside the admitted image root: {diagnostic}"
+            ))
+        })?;
+        Ok(InstalledImageSubextent {
+            binding: &self.binding,
+            loan,
+        })
+    }
+
+    /// Split one independently owned allocation from initial storage while
+    /// retaining the installed image and every storage remainder.
+    pub fn partition_initial_storage(
+        self,
+        offset: u64,
+        length: u64,
+    ) -> Result<PartitionedProgramStorageRoots, Box<ProgramStoragePartitionError>> {
+        let Self {
+            binding,
+            image,
+            initial_storage,
+        } = self;
+        match initial_storage.partition_owned(offset, length) {
+            Ok(initial_storage) => Ok(PartitionedProgramStorageRoots {
+                binding,
+                image,
+                initial_storage,
+            }),
+            Err(error) => {
+                let diagnostic = ProgramStorageEntryDiagnostic(format!(
+                    "initial-storage allocation cannot be derived: {}",
+                    error.diagnostic()
+                ));
+                Err(Box::new(ProgramStoragePartitionError {
+                    roots: Self {
+                        binding,
+                        image,
+                        initial_storage: error.into_extent(),
+                    },
+                    diagnostic,
+                }))
+            }
+        }
+    }
+
     pub fn into_parts(self) -> (ProgramStorageEntryPlanBinding, Extent, Extent) {
         (self.binding, self.image, self.initial_storage)
+    }
+}
+
+/// Borrowed compiler-derived range within the one admitted program image.
+pub struct InstalledImageSubextent<'a> {
+    binding: &'a ProgramStorageEntryPlanBinding,
+    loan: ExtentLoan<'a>,
+}
+
+impl<'a> InstalledImageSubextent<'a> {
+    pub const fn binding(&self) -> &'a ProgramStorageEntryPlanBinding {
+        self.binding
+    }
+
+    pub const fn loan(&self) -> &ExtentLoan<'a> {
+        &self.loan
+    }
+}
+
+impl std::fmt::Debug for InstalledImageSubextent<'_> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("InstalledImageSubextent")
+            .field("provider_plan", &self.binding.provider_plan)
+            .field("requirement_identity", &self.binding.requirement_identity)
+            .field("loan", &self.loan)
+            .finish()
+    }
+}
+
+/// One owned allocation plus all authority needed to conserve its installed
+/// initial-storage parent.
+#[derive(Debug)]
+pub struct PartitionedProgramStorageRoots {
+    binding: ProgramStorageEntryPlanBinding,
+    image: Extent,
+    initial_storage: OwnedExtentPartition,
+}
+
+impl PartitionedProgramStorageRoots {
+    pub const fn binding(&self) -> &ProgramStorageEntryPlanBinding {
+        &self.binding
+    }
+
+    pub const fn image(&self) -> &Extent {
+        &self.image
+    }
+
+    pub const fn allocation(&self) -> &Extent {
+        self.initial_storage.selected()
+    }
+
+    pub const fn before(&self) -> Option<&Extent> {
+        self.initial_storage.before()
+    }
+
+    pub const fn after(&self) -> Option<&Extent> {
+        self.initial_storage.after()
+    }
+
+    pub fn into_parts(self) -> (ProgramStorageEntryPlanBinding, Extent, OwnedExtentPartition) {
+        (self.binding, self.image, self.initial_storage)
+    }
+
+    pub fn rejoin(self) -> InstalledProgramStorageRoots {
+        InstalledProgramStorageRoots {
+            binding: self.binding,
+            image: self.image,
+            initial_storage: self.initial_storage.rejoin(),
+        }
     }
 }
 
@@ -365,3 +491,27 @@ impl std::fmt::Display for ProgramStorageRootInstallationError {
 }
 
 impl std::error::Error for ProgramStorageRootInstallationError {}
+
+#[derive(Debug)]
+pub struct ProgramStoragePartitionError {
+    roots: InstalledProgramStorageRoots,
+    diagnostic: ProgramStorageEntryDiagnostic,
+}
+
+impl ProgramStoragePartitionError {
+    pub const fn diagnostic(&self) -> &ProgramStorageEntryDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_roots(self) -> InstalledProgramStorageRoots {
+        self.roots
+    }
+}
+
+impl std::fmt::Display for ProgramStoragePartitionError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(&self.diagnostic, formatter)
+    }
+}
+
+impl std::error::Error for ProgramStoragePartitionError {}

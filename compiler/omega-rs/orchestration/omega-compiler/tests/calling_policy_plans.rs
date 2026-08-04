@@ -586,6 +586,55 @@ machine Main::main(&mut self) { }
         ),
         (0x8000, 0x2000)
     );
+
+    let static_view = installed
+        .image_subextent(0x100, 0x80)
+        .expect("static geometry stays a borrowed image view");
+    assert_eq!(
+        (static_view.loan().base(), static_view.loan().length()),
+        (0x1100, 0x80)
+    );
+    assert_eq!(
+        static_view.binding().requirement_identity(),
+        installed.binding().requirement_identity()
+    );
+    drop(static_view);
+
+    let failed = installed
+        .partition_initial_storage(0x1f00, 0x200)
+        .expect_err("an allocation cannot exceed initial storage");
+    assert!(failed.diagnostic().0.contains("exceeds"));
+    let installed = failed.into_roots();
+    let partitioned = installed
+        .partition_initial_storage(0x400, 0x800)
+        .expect("owned allocation conserves both remainders");
+    assert_eq!(
+        partitioned
+            .before()
+            .map(|extent| (extent.base(), extent.length())),
+        Some((0x8000, 0x400))
+    );
+    assert_eq!(
+        (
+            partitioned.allocation().base(),
+            partitioned.allocation().length()
+        ),
+        (0x8400, 0x800)
+    );
+    assert_eq!(
+        partitioned
+            .after()
+            .map(|extent| (extent.base(), extent.length())),
+        Some((0x8c00, 0x1400))
+    );
+    let restored = partitioned.rejoin();
+    assert_eq!(
+        (
+            restored.initial_storage().base(),
+            restored.initial_storage().length()
+        ),
+        (0x8000, 0x2000)
+    );
 }
 
 fn root_input(lineage: u64, base: u64, length: u64) -> ProgramStorageRootInput {

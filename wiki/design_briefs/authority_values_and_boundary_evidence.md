@@ -449,7 +449,11 @@ now joins the selected schema's requirement and calling-plan fingerprint to the
 generated captures for positions 0 and 1. Both runtime geometries must satisfy
 `Granted`'s `no_wrap` predicate before either admitted grant is consumed; a
 rejected handoff returns both grants without importing a complete qualified
-fact. Section/static and allocated-storage subextent derivation remains.
+fact. Image sections/statics derive as borrowed subrange views under the one
+installed image root. An independently owned allocation from initial storage
+instead produces an explicit conserved partition containing the selected range
+and every nonempty prefix/suffix remainder; invalid extraction returns the
+original pool and an unmodified partition recomposes the exact parent lineage.
 
 The admitted root is a scoped hypothesis import, not a proof that external
 reality equals the compiler model. A selected provider states the exact
