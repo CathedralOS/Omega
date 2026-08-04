@@ -5,7 +5,7 @@ use crate::{
 use psi_diagnostics::Diagnostic;
 
 pub const FINAL_FOOTPRINT_CERTIFICATE_SCHEMA: &str = "omega.final-footprint-certificate";
-pub const FINAL_FOOTPRINT_CERTIFICATE_FORMAT_VERSION: u32 = 3;
+pub const FINAL_FOOTPRINT_CERTIFICATE_FORMAT_VERSION: u32 = 4;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum FinalFootprintClass {
@@ -13,6 +13,7 @@ pub enum FinalFootprintClass {
     CompilerFunctionRelocationEnvelope,
     CompilerFunctionCallReturnMechanics,
     CompilerFunctionInstructionEnumeration,
+    CompilerFunctionBodySpecificationSubset,
     CatalogCheckedAssembly,
     ImportThunks,
     RelaxationProducts,
@@ -35,6 +36,9 @@ impl FinalFootprintClass {
             Self::CompilerFunctionInstructionEnumeration => {
                 "compiler_function_instruction_enumeration"
             }
+            Self::CompilerFunctionBodySpecificationSubset => {
+                "compiler_function_body_specification_subset"
+            }
             Self::CatalogCheckedAssembly => "catalog_checked_assembly",
             Self::CompilerFunctionBodyFootprintDecoding => {
                 "compiler_function_body_footprint_decoding"
@@ -49,6 +53,7 @@ impl FinalFootprintClass {
             Self::CompilerFunctionRelocationEnvelope => 2,
             Self::CompilerFunctionCallReturnMechanics => 3,
             Self::CompilerFunctionInstructionEnumeration => 11,
+            Self::CompilerFunctionBodySpecificationSubset => 12,
             Self::CatalogCheckedAssembly => 4,
             Self::ImportThunks => 5,
             Self::RelaxationProducts => 6,
@@ -90,6 +95,7 @@ impl FinalFootprintCoverage {
                 FinalFootprintClass::CompilerFunctionRelocationEnvelope,
                 FinalFootprintClass::CompilerFunctionCallReturnMechanics,
                 FinalFootprintClass::CompilerFunctionInstructionEnumeration,
+                FinalFootprintClass::CompilerFunctionBodySpecificationSubset,
                 FinalFootprintClass::CatalogCheckedAssembly,
                 FinalFootprintClass::ImportThunks,
             ],
@@ -370,6 +376,8 @@ mod tests {
                 zero_width_instruction_count: 0,
                 fixed_mechanics_instruction_count: 2,
                 fixed_mechanics_validation_fingerprint: 14,
+                body_specification_instruction_count: 3,
+                body_specification_validation_fingerprint: 15,
                 validation_fingerprint: 11,
             },
             PlacedExecutableRegionInventory {
@@ -456,6 +464,8 @@ mod tests {
                     zero_width_instruction_count: 0,
                     fixed_mechanics_instruction_count: 0,
                     fixed_mechanics_validation_fingerprint: 0,
+                    body_specification_instruction_count: 0,
+                    body_specification_validation_fingerprint: 0,
                     validation_fingerprint: 0,
                 },
                 inventory,

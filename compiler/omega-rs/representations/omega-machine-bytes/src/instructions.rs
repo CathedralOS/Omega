@@ -6,6 +6,23 @@ use psi_arena::HandleSpan;
 pub enum CompilerInstructionValidationKind {
     FunctionEnter,
     FunctionReturn,
+    DispatchLoopEnter {
+        entry_dispatch_index: u32,
+    },
+    DispatchCaseEnter {
+        dispatch_index: u32,
+        skip_byte_distance: isize,
+    },
+    DispatchStateWrite {
+        dispatch_index: u32,
+        case_leave_byte_distance: isize,
+    },
+    DispatchForwardBranchSkip {
+        branch_arms_end_byte_distance: isize,
+    },
+    DispatchCaseLeave {
+        loop_byte_distance: isize,
+    },
 }
 
 /// The only registers the x86 checked-assembly operand evaluator may target.

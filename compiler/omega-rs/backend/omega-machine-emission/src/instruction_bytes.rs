@@ -119,8 +119,12 @@ pub(crate) fn emit_function_bytes(
         }
         let checked_validation_kind =
             checked_instruction_validation_kind(emission_context, &machine_instruction.source_kind);
-        let compiler_validation_kind =
-            compiler_instruction_validation_kind(&machine_instruction.source_kind);
+        let compiler_validation_kind = compiler_instruction_validation_kind(
+            emission_context,
+            &laid_out_instructions,
+            machine_instruction_index,
+            &machine_instruction.source_kind,
+        )?;
         let checked_operand_loaders =
             checked_operand_loaders(emission_context, &machine_instruction.source_kind);
         if machine_instruction
@@ -147,17 +151,74 @@ pub(crate) fn emit_function_bytes(
 }
 
 fn compiler_instruction_validation_kind(
+    emission_context: MachineEmissionContext<'_>,
+    laid_out_instructions: &[layout::LaidOutMachineInstruction],
+    machine_instruction_index: usize,
     kind: &SelectedInstructionKind,
-) -> Option<CompilerInstructionValidationKind> {
-    match kind {
+) -> Result<Option<CompilerInstructionValidationKind>, Diagnostic> {
+    Ok(match kind {
         SelectedInstructionKind::EnterFunction => {
             Some(CompilerInstructionValidationKind::FunctionEnter)
         }
         SelectedInstructionKind::LeaveFunction => {
             Some(CompilerInstructionValidationKind::FunctionReturn)
         }
+        SelectedInstructionKind::EnterDispatchLoop {
+            entry_dispatch_index,
+            ..
+        } => Some(CompilerInstructionValidationKind::DispatchLoopEnter {
+            entry_dispatch_index: *entry_dispatch_index,
+        }),
+        SelectedInstructionKind::EnterDispatchCase { dispatch_index, .. } => {
+            Some(CompilerInstructionValidationKind::DispatchCaseEnter {
+                dispatch_index: *dispatch_index,
+                skip_byte_distance: branch_distances::byte_distance_to_case_end(
+                    laid_out_instructions,
+                    machine_instruction_index,
+                )?,
+            })
+        }
+        SelectedInstructionKind::SetDispatchState { dispatch_index } => {
+            Some(CompilerInstructionValidationKind::DispatchStateWrite {
+                dispatch_index: *dispatch_index,
+                case_leave_byte_distance: branch_distances::byte_distance_to_case_leave(
+                    laid_out_instructions,
+                    machine_instruction_index,
+                )?,
+            })
+        }
+        SelectedInstructionKind::TerminateDispatch => {
+            Some(CompilerInstructionValidationKind::DispatchStateWrite {
+                dispatch_index: emission_context.terminal_dispatch_index,
+                case_leave_byte_distance: branch_distances::byte_distance_to_dispatch_loop_leave(
+                    emission_context,
+                    laid_out_instructions,
+                    machine_instruction_index,
+                )?,
+            })
+        }
+        SelectedInstructionKind::EvaluateDispatchGuard {
+            guard_lowering: StateGuardLowering::ForwardBranchSkip,
+            ..
+        } => Some(
+            CompilerInstructionValidationKind::DispatchForwardBranchSkip {
+                branch_arms_end_byte_distance: branch_distances::byte_distance_to_branch_arms_end(
+                    emission_context,
+                    laid_out_instructions,
+                    machine_instruction_index,
+                )?,
+            },
+        ),
+        SelectedInstructionKind::LeaveDispatchCase => {
+            Some(CompilerInstructionValidationKind::DispatchCaseLeave {
+                loop_byte_distance: branch_distances::byte_distance_to_dispatch_loop_start(
+                    laid_out_instructions,
+                    machine_instruction_index,
+                )?,
+            })
+        }
         _ => None,
-    }
+    })
 }
 
 fn checked_operand_loader(

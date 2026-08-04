@@ -1111,7 +1111,7 @@ relocation, and data relocation now consume that complete plan. Their former
 manual `+8`/`+12` stack accounting and trailing-mode operation classifier are
 retired; the operation key only selects the concrete adapter subcall.
 
-Final footprint certificate format v3 now retains an exact
+Final footprint certificate format v4 now retains an exact
 function-to-instruction partition in the encoded carrier. Checked image
 emission replays every contiguous function
 and instruction boundary over relocated final bytes, rejects gaps, overlaps,
@@ -1124,6 +1124,12 @@ compiler function do already replay the exact architecture-owned entry and
 return byte programs. This replaces the old entry-symbol-only prefix/suffix
 check and binds the validated mechanics count and fingerprint into the same
 certificate.
+The first middle-row target-spec replay covers dispatch-loop entry, case entry,
+state writes and termination, forward arm skips, and case leaves. Their
+normalized indices and branch distances survive emission; final validation
+regenerates the x86-64/AArch64 program and fingerprints the matching placed
+bytes. The certificate names this as a body-specification subset and continues
+to list complete compiler-body footprint decoding as missing.
 
 Remaining order:
 
