@@ -770,9 +770,18 @@ pub fn copy_places_to_machine_indexed_clobbers(byte_count: usize) -> RegisterSet
 }
 
 /// Exact scratch footprint of an inline frame-array double-indexed read. Both
-/// indices reuse r11 during the source walk.
+/// indices use the materializer's distinct r11/r10 scratches.
 pub fn copy_places_from_frame_base_double_indexed_clobbers(byte_count: usize) -> RegisterSet {
-    copy_places_from_indexed_clobbers(byte_count)
+    let mut registers = vec![
+        MachineRegister::X86R10,
+        MachineRegister::X86R11,
+        MachineRegister::X86R14,
+        MachineRegister::X86R15,
+    ];
+    if byte_count > 0 {
+        registers.push(MachineRegister::X86Rax);
+    }
+    RegisterSet::new(registers)
 }
 
 /// Exact scratch footprint of a direct place-pair copy. Both address bases are
@@ -1166,6 +1175,20 @@ mod tests {
         assert_eq!(
             copy_places_to_machine_indexed_clobbers(8),
             copy_places_from_indexed_clobbers(8)
+        );
+    }
+
+    #[test]
+    fn frame_double_indexed_clobbers_include_both_index_scratches() {
+        assert_eq!(
+            copy_places_from_frame_base_double_indexed_clobbers(8).as_slice(),
+            &[
+                MachineRegister::X86Rax,
+                MachineRegister::X86R10,
+                MachineRegister::X86R11,
+                MachineRegister::X86R14,
+                MachineRegister::X86R15,
+            ]
         );
     }
 

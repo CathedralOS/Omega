@@ -2381,6 +2381,59 @@ mod tests {
     }
 
     #[test]
+    fn compiler_body_frame_double_indexed_footprint_uses_both_index_scratches() {
+        let boundary = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::SystemVAMD64,
+            &CallSignature {
+                parameters: Vec::new(),
+                result: None,
+            },
+        )
+        .expect("System V boundary");
+        let source = omega_abstract_operations::Place::at(
+            omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+            32,
+        )
+        .with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+            index_region: omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+            index_offset: 40,
+            index_byte_size: 8,
+            element_byte_size: 24,
+        })
+        .and_then(|place| {
+            place.with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+                index_region: omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+                index_offset: 48,
+                index_byte_size: 8,
+                element_byte_size: 8,
+            })
+        })
+        .expect("frame double-indexed source");
+        let instruction = SelectedInstructionKind::CopyPlaces {
+            source,
+            target: omega_abstract_operations::Place::at(
+                omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+                64,
+            ),
+            byte_count: 8,
+            role: omega_abstract_operations::CopyPlacesRole::Ordinary,
+        };
+        let evidence =
+            derive_boundary_compiler_body_place_copy_footprint(&boundary, [&instruction])
+                .expect("ordinary frame-double-indexed evidence");
+        assert_eq!(
+            evidence.registers().as_slice(),
+            &[
+                MachineRegister::X86Rax,
+                MachineRegister::X86R10,
+                MachineRegister::X86R11,
+                MachineRegister::X86R14,
+                MachineRegister::X86R15,
+            ]
+        );
+    }
+
+    #[test]
     fn boundary_exit_consumes_the_exact_selected_result_register() {
         let result = ValueShape::integer(8, 8);
         let mut boundary = evaluate_ordinary_boundary_entry_plan(
