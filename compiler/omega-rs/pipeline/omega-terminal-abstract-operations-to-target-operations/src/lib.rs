@@ -16,9 +16,9 @@ use omega_terminal_abstract_operations::{
 };
 use omega_terminal_target_operations::{
     TerminalPsiProvenance, TerminalScalarParameterLocation, TerminalTargetBooleanControl,
-    TerminalTargetConditionalBooleanArm, TerminalTargetConditionalIntegerArm,
-    TerminalTargetFunction, TerminalTargetIntegerControl, TerminalTargetIntegerExpression,
-    TerminalTargetOperation, TerminalTargetOperationPlan,
+    TerminalTargetBooleanExpression, TerminalTargetConditionalBooleanArm,
+    TerminalTargetConditionalIntegerArm, TerminalTargetFunction, TerminalTargetIntegerControl,
+    TerminalTargetIntegerExpression, TerminalTargetOperation, TerminalTargetOperationPlan,
 };
 use psi_core::{
     BlockId, EdgeId, IntegerType, IntegerValue, MachineId, OperationId, ScalarType, ValueId,
@@ -82,10 +82,13 @@ fn lower_function(
     {
         let location = scalar_parameter_location(parameter, placement)?;
         let value = match parameter.scalar_type {
-            ScalarType::Boolean => KnownScalar::BooleanParameter {
-                parameter_index,
-                location,
-            },
+            ScalarType::Boolean => {
+                KnownScalar::BooleanRuntime(TerminalTargetBooleanExpression::Parameter {
+                    source_value: parameter.value,
+                    parameter_index,
+                    location,
+                })
+            }
             ScalarType::Integer(scalar_type) => KnownScalar::Integer {
                 scalar_type,
                 value: KnownInteger::Runtime(TerminalTargetIntegerExpression::Parameter {
@@ -153,7 +156,11 @@ fn lower_function(
                     .get(operand)
                     .cloned()
                     .ok_or(LoweringError::UnknownValue(*operand))?;
-                insert_value(&mut values, *result, negate_boolean(operand, *result)?)?;
+                insert_value(
+                    &mut values,
+                    *result,
+                    negate_boolean(operand, *psi_operation, *result)?,
+                )?;
                 provenance.operations.push(*psi_operation);
             }
             TerminalAbstractOperation::BooleanEqual {
@@ -170,7 +177,11 @@ fn lower_function(
                     .get(right)
                     .cloned()
                     .ok_or(LoweringError::UnknownValue(*right))?;
-                insert_value(&mut values, *result, equal_boolean(left, right, *result)?)?;
+                insert_value(
+                    &mut values,
+                    *result,
+                    equal_boolean(left, right, *psi_operation, *result)?,
+                )?;
                 provenance.operations.push(*psi_operation);
             }
             TerminalAbstractOperation::WrappingIntegerAdd {
@@ -613,24 +624,42 @@ fn lower_function(
                         scalar_type,
                         expression,
                     },
-                    KnownScalar::BooleanParameter {
+                    KnownScalar::BooleanRuntime(TerminalTargetBooleanExpression::Parameter {
                         parameter_index,
                         location,
-                    } => TerminalTargetOperation::ReturnBooleanParameter {
+                        ..
+                    }) => TerminalTargetOperation::ReturnBooleanParameter {
                         psi_edge: *psi_edge,
                         source_value: *value,
                         parameter_index,
                         location,
                     },
-                    KnownScalar::BooleanNotParameter {
-                        parameter_index,
-                        location,
-                    } => TerminalTargetOperation::ReturnBooleanNotParameter {
-                        psi_edge: *psi_edge,
-                        source_value: *value,
-                        parameter_index,
-                        location,
-                    },
+                    KnownScalar::BooleanRuntime(TerminalTargetBooleanExpression::Not {
+                        operand,
+                        ..
+                    }) if matches!(*operand, TerminalTargetBooleanExpression::Parameter { .. }) => {
+                        let TerminalTargetBooleanExpression::Parameter {
+                            parameter_index,
+                            location,
+                            ..
+                        } = *operand
+                        else {
+                            unreachable!("guard requires a parameter operand")
+                        };
+                        TerminalTargetOperation::ReturnBooleanNotParameter {
+                            psi_edge: *psi_edge,
+                            source_value: *value,
+                            parameter_index,
+                            location,
+                        }
+                    }
+                    KnownScalar::BooleanRuntime(expression) => {
+                        TerminalTargetOperation::ReturnBooleanExpression {
+                            psi_edge: *psi_edge,
+                            source_value: *value,
+                            expression,
+                        }
+                    }
                 });
             }
         }
@@ -788,45 +817,27 @@ fn lower_boolean_block(
                     edges: lowered.edges,
                 })
             }
-            KnownScalar::BooleanParameter {
-                parameter_index,
-                location,
-            } => {
-                let when_true = lower_boolean_arm(function, &values, when_true, &visited)?;
-                let when_false = lower_boolean_arm(function, &values, when_false, &visited)?;
-                operations.extend(when_true.operations);
-                operations.extend(when_false.operations);
-                let mut edges = when_true.edges;
-                edges.extend(when_false.edges);
+            KnownScalar::BooleanRuntime(expression) => {
+                let (parameter_index, location, invert) =
+                    direct_boolean_condition(expression, *condition)?;
+                let (selected_true, selected_false) = if invert {
+                    (when_false, when_true)
+                } else {
+                    (when_true, when_false)
+                };
+                let lowered_true = lower_boolean_arm(function, &values, selected_true, &visited)?;
+                let lowered_false = lower_boolean_arm(function, &values, selected_false, &visited)?;
+                operations.extend(lowered_true.operations);
+                operations.extend(lowered_false.operations);
+                let mut edges = lowered_true.edges;
+                edges.extend(lowered_false.edges);
                 Ok(LoweredBooleanControl {
                     control: TerminalTargetBooleanControl::Conditional {
                         condition_source: *condition,
                         condition_parameter_index: parameter_index,
                         condition_location: location,
-                        when_true: when_true.arm,
-                        when_false: when_false.arm,
-                    },
-                    operations,
-                    edges,
-                })
-            }
-            KnownScalar::BooleanNotParameter {
-                parameter_index,
-                location,
-            } => {
-                let inverted_true = lower_boolean_arm(function, &values, when_false, &visited)?;
-                let inverted_false = lower_boolean_arm(function, &values, when_true, &visited)?;
-                operations.extend(inverted_true.operations);
-                operations.extend(inverted_false.operations);
-                let mut edges = inverted_true.edges;
-                edges.extend(inverted_false.edges);
-                Ok(LoweredBooleanControl {
-                    control: TerminalTargetBooleanControl::Conditional {
-                        condition_source: *condition,
-                        condition_parameter_index: parameter_index,
-                        condition_location: location,
-                        when_true: inverted_true.arm,
-                        when_false: inverted_false.arm,
+                        when_true: lowered_true.arm,
+                        when_false: lowered_false.arm,
                     },
                     operations,
                     edges,
@@ -859,24 +870,25 @@ fn lower_boolean_block(
                         value: returned_value,
                     }
                 }
-                KnownScalar::BooleanParameter {
-                    parameter_index,
-                    location,
-                } => TerminalTargetBooleanControl::ReturnParameter {
-                    psi_return_edge: *psi_edge,
-                    source_value: *value,
-                    parameter_index,
-                    location,
-                },
-                KnownScalar::BooleanNotParameter {
-                    parameter_index,
-                    location,
-                } => TerminalTargetBooleanControl::ReturnNotParameter {
-                    psi_return_edge: *psi_edge,
-                    source_value: *value,
-                    parameter_index,
-                    location,
-                },
+                KnownScalar::BooleanRuntime(expression) => {
+                    let (parameter_index, location, invert) =
+                        direct_boolean_condition(expression, *value)?;
+                    if invert {
+                        TerminalTargetBooleanControl::ReturnNotParameter {
+                            psi_return_edge: *psi_edge,
+                            source_value: *value,
+                            parameter_index,
+                            location,
+                        }
+                    } else {
+                        TerminalTargetBooleanControl::ReturnParameter {
+                            psi_return_edge: *psi_edge,
+                            source_value: *value,
+                            parameter_index,
+                            location,
+                        }
+                    }
+                }
                 KnownScalar::Integer { .. } => {
                     return Err(LoweringError::ValueTypeMismatch(*value));
                 }
@@ -1064,49 +1076,34 @@ fn lower_conditional_block(
                     edges: lowered.edges,
                 })
             }
-            KnownScalar::BooleanParameter {
-                parameter_index,
-                location,
-            } => {
-                let when_true =
-                    lower_conditional_arm(function, result_type, &values, when_true, &visited)?;
-                let when_false =
-                    lower_conditional_arm(function, result_type, &values, when_false, &visited)?;
-                operations.extend(when_true.operations);
-                operations.extend(when_false.operations);
-                let mut edges = when_true.edges;
-                edges.extend(when_false.edges);
+            KnownScalar::BooleanRuntime(expression) => {
+                let (parameter_index, location, invert) =
+                    direct_boolean_condition(expression, *condition)?;
+                let (selected_true, selected_false) = if invert {
+                    (when_false, when_true)
+                } else {
+                    (when_true, when_false)
+                };
+                let lowered_true =
+                    lower_conditional_arm(function, result_type, &values, selected_true, &visited)?;
+                let lowered_false = lower_conditional_arm(
+                    function,
+                    result_type,
+                    &values,
+                    selected_false,
+                    &visited,
+                )?;
+                operations.extend(lowered_true.operations);
+                operations.extend(lowered_false.operations);
+                let mut edges = lowered_true.edges;
+                edges.extend(lowered_false.edges);
                 Ok(LoweredIntegerControl {
                     control: TerminalTargetIntegerControl::Conditional {
                         condition_source: *condition,
                         condition_parameter_index: parameter_index,
                         condition_location: location,
-                        when_true: when_true.arm,
-                        when_false: when_false.arm,
-                    },
-                    operations,
-                    edges,
-                })
-            }
-            KnownScalar::BooleanNotParameter {
-                parameter_index,
-                location,
-            } => {
-                let inverted_true =
-                    lower_conditional_arm(function, result_type, &values, when_false, &visited)?;
-                let inverted_false =
-                    lower_conditional_arm(function, result_type, &values, when_true, &visited)?;
-                operations.extend(inverted_true.operations);
-                operations.extend(inverted_false.operations);
-                let mut edges = inverted_true.edges;
-                edges.extend(inverted_false.edges);
-                Ok(LoweredIntegerControl {
-                    control: TerminalTargetIntegerControl::Conditional {
-                        condition_source: *condition,
-                        condition_parameter_index: parameter_index,
-                        condition_location: location,
-                        when_true: inverted_true.arm,
-                        when_false: inverted_false.arm,
+                        when_true: lowered_true.arm,
+                        when_false: lowered_false.arm,
                     },
                     operations,
                     edges,
@@ -1261,7 +1258,34 @@ fn lower_conditional_scalar_operation(
             .get(operand)
             .cloned()
             .ok_or(LoweringError::UnknownValue(*operand))?;
-        insert_value(values, *result, negate_boolean(operand, *result)?)?;
+        insert_value(
+            values,
+            *result,
+            negate_boolean(operand, *psi_operation, *result)?,
+        )?;
+        provenance.push(*psi_operation);
+        return Ok(true);
+    }
+    if let TerminalAbstractOperation::BooleanEqual {
+        psi_operation,
+        result,
+        left,
+        right,
+    } = operation
+    {
+        let left_value = values
+            .get(left)
+            .cloned()
+            .ok_or(LoweringError::UnknownValue(*left))?;
+        let right_value = values
+            .get(right)
+            .cloned()
+            .ok_or(LoweringError::UnknownValue(*right))?;
+        insert_value(
+            values,
+            *result,
+            equal_boolean(left_value, right_value, *psi_operation, *result)?,
+        )?;
         provenance.push(*psi_operation);
         return Ok(true);
     }
@@ -1592,17 +1616,10 @@ fn insert_value(
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum KnownScalar {
     Boolean(bool),
+    BooleanRuntime(TerminalTargetBooleanExpression),
     Integer {
         scalar_type: IntegerType,
         value: KnownInteger,
-    },
-    BooleanParameter {
-        parameter_index: usize,
-        location: TerminalScalarParameterLocation,
-    },
-    BooleanNotParameter {
-        parameter_index: usize,
-        location: TerminalScalarParameterLocation,
     },
 }
 
@@ -1610,9 +1627,8 @@ impl KnownScalar {
     const fn scalar_type(&self) -> ScalarType {
         match self {
             Self::Boolean(_) => ScalarType::Boolean,
+            Self::BooleanRuntime(_) => ScalarType::Boolean,
             Self::Integer { scalar_type, .. } => ScalarType::Integer(*scalar_type),
-            Self::BooleanParameter { .. } => ScalarType::Boolean,
-            Self::BooleanNotParameter { .. } => ScalarType::Boolean,
         }
     }
 
@@ -1622,30 +1638,36 @@ impl KnownScalar {
                 scalar_type,
                 value: value.rebind_direct_parameter(source_value),
             },
-            value @ (Self::Boolean(_)
-            | Self::BooleanParameter { .. }
-            | Self::BooleanNotParameter { .. }) => value,
+            Self::BooleanRuntime(TerminalTargetBooleanExpression::Parameter {
+                parameter_index,
+                location,
+                ..
+            }) => Self::BooleanRuntime(TerminalTargetBooleanExpression::Parameter {
+                source_value,
+                parameter_index,
+                location,
+            }),
+            value @ (Self::Boolean(_) | Self::BooleanRuntime(_)) => value,
         }
     }
 }
 
-fn negate_boolean(value: KnownScalar, result: ValueId) -> Result<KnownScalar, LoweringError> {
+fn negate_boolean(
+    value: KnownScalar,
+    psi_operation: OperationId,
+    result: ValueId,
+) -> Result<KnownScalar, LoweringError> {
     match value {
         KnownScalar::Boolean(value) => Ok(KnownScalar::Boolean(!value)),
-        KnownScalar::BooleanParameter {
-            parameter_index,
-            location,
-        } => Ok(KnownScalar::BooleanNotParameter {
-            parameter_index,
-            location,
-        }),
-        KnownScalar::BooleanNotParameter {
-            parameter_index,
-            location,
-        } => Ok(KnownScalar::BooleanParameter {
-            parameter_index,
-            location,
-        }),
+        KnownScalar::BooleanRuntime(TerminalTargetBooleanExpression::Not { operand, .. }) => {
+            Ok(KnownScalar::BooleanRuntime(*operand))
+        }
+        KnownScalar::BooleanRuntime(expression) => Ok(KnownScalar::BooleanRuntime(
+            TerminalTargetBooleanExpression::Not {
+                psi_operation,
+                operand: Box::new(expression),
+            },
+        )),
         KnownScalar::Integer { .. } => Err(LoweringError::ValueTypeMismatch(result)),
     }
 }
@@ -1653,6 +1675,7 @@ fn negate_boolean(value: KnownScalar, result: ValueId) -> Result<KnownScalar, Lo
 fn equal_boolean(
     left: KnownScalar,
     right: KnownScalar,
+    psi_operation: OperationId,
     result: ValueId,
 ) -> Result<KnownScalar, LoweringError> {
     match (left, right) {
@@ -1661,9 +1684,38 @@ fn equal_boolean(
         }
         (value, KnownScalar::Boolean(true)) | (KnownScalar::Boolean(true), value) => Ok(value),
         (value, KnownScalar::Boolean(false)) | (KnownScalar::Boolean(false), value) => {
-            negate_boolean(value, result)
+            negate_boolean(value, psi_operation, result)
         }
-        _ => Err(LoweringError::UnsupportedRuntimeBooleanEquality(result)),
+        (KnownScalar::BooleanRuntime(left), KnownScalar::BooleanRuntime(right)) => Ok(
+            KnownScalar::BooleanRuntime(TerminalTargetBooleanExpression::Equal {
+                psi_operation,
+                left: Box::new(left),
+                right: Box::new(right),
+            }),
+        ),
+        _ => Err(LoweringError::ValueTypeMismatch(result)),
+    }
+}
+
+fn direct_boolean_condition(
+    expression: TerminalTargetBooleanExpression,
+    value: ValueId,
+) -> Result<(usize, TerminalScalarParameterLocation, bool), LoweringError> {
+    match expression {
+        TerminalTargetBooleanExpression::Parameter {
+            parameter_index,
+            location,
+            ..
+        } => Ok((parameter_index, location, false)),
+        TerminalTargetBooleanExpression::Not { operand, .. } => match *operand {
+            TerminalTargetBooleanExpression::Parameter {
+                parameter_index,
+                location,
+                ..
+            } => Ok((parameter_index, location, true)),
+            _ => Err(LoweringError::UnsupportedRuntimeBooleanCondition(value)),
+        },
+        _ => Err(LoweringError::UnsupportedRuntimeBooleanCondition(value)),
     }
 }
 
@@ -1769,7 +1821,7 @@ pub enum LoweringError {
     DuplicateValue(ValueId),
     UnknownValue(ValueId),
     ValueTypeMismatch(ValueId),
-    UnsupportedRuntimeBooleanEquality(ValueId),
+    UnsupportedRuntimeBooleanCondition(ValueId),
     IntegerConstantHasNonIntegerType(ValueId),
     IntegerConstantOutsideType(ValueId),
     WrappingAddOperandTypeMismatch(ValueId),
@@ -2184,6 +2236,57 @@ mod tests {
                 location: TerminalScalarParameterLocation::Register(MachineRegister::X86Rdi),
                 ..
             }
+        ));
+    }
+
+    #[test]
+    fn lowers_runtime_boolean_equality_to_a_target_expression() {
+        let mut plan = parameter_return_plan(2);
+        let function = &mut plan.functions[0];
+        for parameter in &mut function.parameters {
+            parameter.scalar_type = ScalarType::Boolean;
+        }
+        function.result.scalar_type = ScalarType::Boolean;
+        let result = ValueId::new(50).expect("equality result");
+        function.operations.insert(
+            0,
+            TerminalAbstractOperation::BooleanEqual {
+                psi_operation: OperationId::new(50).expect("equality operation"),
+                result,
+                left: function.parameters[0].value,
+                right: function.parameters[1].value,
+            },
+        );
+        let TerminalAbstractOperation::Return {
+            value, scalar_type, ..
+        } = &mut function.operations[1]
+        else {
+            unreachable!("fixture ends in return")
+        };
+        *value = result;
+        *scalar_type = ScalarType::Boolean;
+
+        let lowered = lower_to_target_operations(&plan, NativeTarget::linux_x64()).unwrap();
+        assert!(matches!(
+            &lowered.functions[0].operation,
+            TerminalTargetOperation::ReturnBooleanExpression {
+                source_value,
+                expression: TerminalTargetBooleanExpression::Equal {
+                    psi_operation,
+                    left,
+                    right,
+                },
+                ..
+            } if *source_value == result
+                && *psi_operation == OperationId::new(50).expect("equality operation")
+                && matches!(
+                    left.as_ref(),
+                    TerminalTargetBooleanExpression::Parameter { parameter_index: 0, .. }
+                )
+                && matches!(
+                    right.as_ref(),
+                    TerminalTargetBooleanExpression::Parameter { parameter_index: 1, .. }
+                )
         ));
     }
 

@@ -5,10 +5,11 @@
 
 use omega_target::Architecture;
 use omega_terminal_assigned_target_operations::{
-    TerminalAssignedBooleanControl, TerminalAssignedConditionalBooleanArm,
-    TerminalAssignedConditionalIntegerArm, TerminalAssignedFunction,
-    TerminalAssignedIntegerControl, TerminalAssignedIntegerExpression, TerminalAssignedOperation,
-    TerminalAssignedOperationPlan, TerminalAssignedScalarLocation, TerminalExpressionFrame,
+    TerminalAssignedBooleanControl, TerminalAssignedBooleanExpression,
+    TerminalAssignedConditionalBooleanArm, TerminalAssignedConditionalIntegerArm,
+    TerminalAssignedFunction, TerminalAssignedIntegerControl, TerminalAssignedIntegerExpression,
+    TerminalAssignedOperation, TerminalAssignedOperationPlan, TerminalAssignedScalarLocation,
+    TerminalExpressionFrame,
 };
 use omega_terminal_machine_code::{TerminalMachineCodeFunction, TerminalMachineCodePlan};
 use omega_terminal_target_operations::MachineRegister;
@@ -96,6 +97,12 @@ fn emit_function(
             Architecture::X86_64 => {
                 emit_x86_64_boolean_not_parameter_return(*source_value, *location)?
             }
+        },
+        TerminalAssignedOperation::ReturnBooleanExpression {
+            frame, expression, ..
+        } => match architecture {
+            Architecture::Aarch64 => emit_aarch64_boolean_expression(frame, expression)?,
+            Architecture::X86_64 => emit_x86_64_boolean_expression(frame, expression)?,
         },
         TerminalAssignedOperation::ReturnIntegerExpression {
             source_value,
@@ -644,6 +651,120 @@ fn emit_aarch64_return(scalar_type: IntegerType, bits: u64) -> Vec<u8> {
         .collect()
 }
 
+fn emit_x86_64_boolean_expression(
+    frame: &TerminalExpressionFrame,
+    expression: &TerminalAssignedBooleanExpression,
+) -> Result<Vec<u8>, EmissionError> {
+    if frame.byte_size == 0 && !frame.register_spills.is_empty() {
+        return Err(EmissionError::AssignedFrameSizeMismatch);
+    }
+    let mut bytes = Vec::new();
+    if frame.byte_size != 0 {
+        emit_x86_64_adjust_sp(&mut bytes, frame.byte_size, false);
+        for spill in &frame.register_spills {
+            let register = x86_gpr_code(spill.source_value, spill.register)?;
+            if register == 4 {
+                return Err(EmissionError::ExpressionScratchRegisterConflict {
+                    value: spill.source_value,
+                    register: spill.register,
+                });
+            }
+            emit_x86_64_stack_store(&mut bytes, register, spill.byte_offset);
+        }
+    }
+    emit_x86_64_boolean_expression_node(&mut bytes, expression, frame.byte_size, 0)?;
+    if frame.byte_size != 0 {
+        emit_x86_64_adjust_sp(&mut bytes, frame.byte_size, true);
+    }
+    bytes.push(0xc3); // ret
+    Ok(bytes)
+}
+
+fn emit_x86_64_boolean_expression_node(
+    bytes: &mut Vec<u8>,
+    expression: &TerminalAssignedBooleanExpression,
+    frame_byte_size: u32,
+    stack_depth: u32,
+) -> Result<(), EmissionError> {
+    match expression {
+        TerminalAssignedBooleanExpression::Immediate { value, .. } => {
+            bytes.push(0xb8); // mov eax, imm32
+            bytes.extend_from_slice(&u32::from(*value).to_le_bytes());
+        }
+        TerminalAssignedBooleanExpression::Parameter {
+            source_value,
+            location,
+            ..
+        } => {
+            match location {
+                TerminalAssignedScalarLocation::Register(register) => {
+                    let register_code = x86_gpr_code(*source_value, *register)?;
+                    if matches!(register_code, 0 | 4 | 10 | 11) {
+                        return Err(EmissionError::ExpressionScratchRegisterConflict {
+                            value: *source_value,
+                            register: *register,
+                        });
+                    }
+                    let rex = 0x48 | (((register_code >> 3) & 1) << 2);
+                    bytes.extend_from_slice(&[rex, 0x89, 0xc0 | ((register_code & 7) << 3)]);
+                }
+                TerminalAssignedScalarLocation::FrameSpill { byte_offset } => {
+                    let displacement = byte_offset.checked_add(stack_depth).ok_or(
+                        EmissionError::IncomingStackOffsetNotEncodable {
+                            value: *source_value,
+                            byte_offset: *byte_offset,
+                        },
+                    )?;
+                    bytes.extend_from_slice(&[0x48, 0x8b]);
+                    if displacement <= i8::MAX as u32 {
+                        bytes.extend_from_slice(&[0x44, 0x24, displacement as u8]);
+                    } else {
+                        bytes.extend_from_slice(&[0x84, 0x24]);
+                        bytes.extend_from_slice(&displacement.to_le_bytes());
+                    }
+                }
+                TerminalAssignedScalarLocation::IncomingStack { byte_offset } => {
+                    let displacement = byte_offset
+                        .checked_add(8)
+                        .and_then(|offset| offset.checked_add(frame_byte_size))
+                        .and_then(|offset| offset.checked_add(stack_depth))
+                        .ok_or(EmissionError::IncomingStackOffsetNotEncodable {
+                            value: *source_value,
+                            byte_offset: *byte_offset,
+                        })?;
+                    bytes.extend_from_slice(&[0x48, 0x8b]);
+                    if displacement <= i8::MAX as u32 {
+                        bytes.extend_from_slice(&[0x44, 0x24, displacement as u8]);
+                    } else {
+                        bytes.extend_from_slice(&[0x84, 0x24]);
+                        bytes.extend_from_slice(&displacement.to_le_bytes());
+                    }
+                }
+            }
+            bytes.extend_from_slice(&[0x83, 0xe0, 0x01]); // and eax, 1
+        }
+        TerminalAssignedBooleanExpression::Not { operand, .. } => {
+            emit_x86_64_boolean_expression_node(bytes, operand, frame_byte_size, stack_depth)?;
+            bytes.extend_from_slice(&[0x83, 0xf0, 0x01]); // xor eax, 1
+        }
+        TerminalAssignedBooleanExpression::Equal { left, right, .. } => {
+            emit_x86_64_boolean_expression_node(bytes, left, frame_byte_size, stack_depth)?;
+            bytes.push(0x50); // push rax
+            let nested_depth = stack_depth.checked_add(8).ok_or(
+                EmissionError::ExpressionStackDepthNotEncodable {
+                    value: boolean_expression_source(left),
+                },
+            )?;
+            emit_x86_64_boolean_expression_node(bytes, right, frame_byte_size, nested_depth)?;
+            bytes.extend_from_slice(&[0x41, 0x5a]); // pop r10
+            bytes.extend_from_slice(&[0x49, 0x39, 0xc2]); // cmp r10, rax
+            bytes.extend_from_slice(&[0x0f, 0x94, 0xc0]); // sete al
+            bytes.extend_from_slice(&[0x0f, 0xb6, 0xc0]); // movzx eax, al
+        }
+    }
+    Ok(())
+}
+
 fn emit_x86_64_integer_expression(
     scalar_type: IntegerType,
     frame: &TerminalExpressionFrame,
@@ -934,6 +1055,113 @@ fn emit_x86_64_saturating_multiply(bytes: &mut Vec<u8>, scalar_type: IntegerType
 fn emit_x86_64_mov_r10(bytes: &mut Vec<u8>, value: u64) {
     bytes.extend_from_slice(&[0x49, 0xba]);
     bytes.extend_from_slice(&value.to_le_bytes());
+}
+
+fn emit_aarch64_boolean_expression(
+    frame: &TerminalExpressionFrame,
+    expression: &TerminalAssignedBooleanExpression,
+) -> Result<Vec<u8>, EmissionError> {
+    if frame.byte_size == 0 && !frame.register_spills.is_empty() {
+        return Err(EmissionError::AssignedFrameSizeMismatch);
+    }
+    let mut instructions = Vec::new();
+    if frame.byte_size != 0 {
+        emit_aarch64_adjust_sp(&mut instructions, frame.byte_size, false)?;
+        for spill in &frame.register_spills {
+            instructions.push(aarch64_stack_access(
+                0xf900_0000,
+                aarch64_spill_register(spill.source_value, spill.register)?,
+                spill.source_value,
+                spill.byte_offset,
+            )?);
+        }
+    }
+    emit_aarch64_boolean_expression_node(&mut instructions, expression, frame, 0)?;
+    if frame.byte_size != 0 {
+        emit_aarch64_adjust_sp(&mut instructions, frame.byte_size, true)?;
+    }
+    instructions.push(0xd65f_03c0); // ret x30
+    Ok(instructions
+        .into_iter()
+        .flat_map(u32::to_le_bytes)
+        .collect())
+}
+
+fn emit_aarch64_boolean_expression_node(
+    instructions: &mut Vec<u32>,
+    expression: &TerminalAssignedBooleanExpression,
+    frame: &TerminalExpressionFrame,
+    stack_depth: u32,
+) -> Result<(), EmissionError> {
+    match expression {
+        TerminalAssignedBooleanExpression::Immediate { value, .. } => {
+            emit_aarch64_mov_immediate(instructions, 0, u64::from(*value));
+        }
+        TerminalAssignedBooleanExpression::Parameter {
+            source_value,
+            location,
+            ..
+        } => {
+            let byte_offset = match location {
+                TerminalAssignedScalarLocation::FrameSpill { byte_offset } => {
+                    stack_depth.checked_add(*byte_offset)
+                }
+                TerminalAssignedScalarLocation::IncomingStack { byte_offset } => stack_depth
+                    .checked_add(frame.byte_size)
+                    .and_then(|offset| offset.checked_add(*byte_offset)),
+                TerminalAssignedScalarLocation::Register(_) => {
+                    return Err(EmissionError::AssignedFrameArchitectureMismatch(
+                        Architecture::Aarch64,
+                    ));
+                }
+            }
+            .ok_or(EmissionError::IncomingStackOffsetNotEncodable {
+                value: *source_value,
+                byte_offset: match location {
+                    TerminalAssignedScalarLocation::Register(_)
+                    | TerminalAssignedScalarLocation::FrameSpill { .. } => 0,
+                    TerminalAssignedScalarLocation::IncomingStack { byte_offset } => *byte_offset,
+                },
+            })?;
+            instructions.push(aarch64_stack_access(
+                0xf940_0000,
+                0,
+                *source_value,
+                byte_offset,
+            )?);
+            instructions.push(0x1200_0000); // and w0, w0, #1
+        }
+        TerminalAssignedBooleanExpression::Not { operand, .. } => {
+            emit_aarch64_boolean_expression_node(instructions, operand, frame, stack_depth)?;
+            instructions.push(0x5200_0000); // eor w0, w0, #1
+        }
+        TerminalAssignedBooleanExpression::Equal { left, right, .. } => {
+            emit_aarch64_boolean_expression_node(instructions, left, frame, stack_depth)?;
+            emit_aarch64_adjust_sp(instructions, 16, false)?;
+            instructions.push(aarch64_stack_access(
+                0xf900_0000,
+                0,
+                boolean_expression_source(left),
+                0,
+            )?);
+            let nested_depth = stack_depth.checked_add(16).ok_or(
+                EmissionError::ExpressionStackDepthNotEncodable {
+                    value: boolean_expression_source(left),
+                },
+            )?;
+            emit_aarch64_boolean_expression_node(instructions, right, frame, nested_depth)?;
+            instructions.push(aarch64_stack_access(
+                0xf940_0000,
+                9,
+                boolean_expression_source(left),
+                0,
+            )?);
+            emit_aarch64_adjust_sp(instructions, 16, true)?;
+            instructions.push(0x6b00_013f); // cmp w9, w0
+            instructions.push(0x1a9f_17e0); // cset w0, eq
+        }
+    }
+    Ok(())
 }
 
 fn emit_aarch64_integer_expression(
@@ -1257,6 +1485,17 @@ fn expression_source(expression: &TerminalAssignedIntegerExpression) -> ValueId 
     }
 }
 
+fn boolean_expression_source(expression: &TerminalAssignedBooleanExpression) -> ValueId {
+    match expression {
+        TerminalAssignedBooleanExpression::Immediate { source_value, .. }
+        | TerminalAssignedBooleanExpression::Parameter { source_value, .. } => *source_value,
+        TerminalAssignedBooleanExpression::Not { operand, .. } => {
+            boolean_expression_source(operand)
+        }
+        TerminalAssignedBooleanExpression::Equal { left, .. } => boolean_expression_source(left),
+    }
+}
+
 fn native_integer_bounds(scalar_type: IntegerType) -> (u64, u64) {
     let width = scalar_type.bits();
     match scalar_type.sign() {
@@ -1339,7 +1578,7 @@ mod tests {
     use super::*;
     use omega_target::NativeTarget;
     use omega_terminal_target_operations::{
-        TerminalPsiProvenance, TerminalScalarParameterLocation,
+        TerminalPsiProvenance, TerminalScalarParameterLocation, TerminalTargetBooleanExpression,
         TerminalTargetConditionalIntegerArm, TerminalTargetFunction, TerminalTargetIntegerControl,
         TerminalTargetIntegerExpression, TerminalTargetOperation, TerminalTargetOperationPlan,
     };
@@ -1464,6 +1703,58 @@ mod tests {
                 .functions[0]
                 .bytes,
             [0x00, 0x00, 0x80, 0x52, 0xc0, 0x03, 0x5f, 0xd6]
+        );
+    }
+
+    #[test]
+    fn emits_runtime_boolean_equality_for_both_architectures() {
+        let x86 = emit_machine_code(&boolean_equality_plan(
+            NativeTarget::linux_x64(),
+            MachineRegister::X86Rdi,
+            MachineRegister::X86Rsi,
+        ))
+        .unwrap();
+        assert_eq!(
+            x86.functions[0].bytes,
+            [
+                0x48, 0x89, 0xf8, // mov rax, rdi
+                0x83, 0xe0, 0x01, // and eax, 1
+                0x50, // push rax
+                0x48, 0x89, 0xf0, // mov rax, rsi
+                0x83, 0xe0, 0x01, // and eax, 1
+                0x41, 0x5a, // pop r10
+                0x49, 0x39, 0xc2, // cmp r10, rax
+                0x0f, 0x94, 0xc0, // sete al
+                0x0f, 0xb6, 0xc0, // movzx eax, al
+                0xc3,
+            ]
+        );
+
+        let aarch64 = emit_machine_code(&boolean_equality_plan(
+            NativeTarget::linux_arm64(),
+            MachineRegister::Aarch64X(0),
+            MachineRegister::Aarch64X(1),
+        ))
+        .unwrap();
+        assert_eq!(
+            aarch64_instructions(&aarch64.functions[0].bytes),
+            [
+                0xd100_43ff, // sub sp, sp, #16
+                0xf900_03e0, // str x0, [sp]
+                0xf900_07e1, // str x1, [sp, #8]
+                0xf940_03e0, // ldr x0, [sp]
+                0x1200_0000, // and w0, w0, #1
+                0xd100_43ff, // sub sp, sp, #16
+                0xf900_03e0, // str x0, [sp]
+                0xf940_0fe0, // ldr x0, [sp, #24]
+                0x1200_0000, // and w0, w0, #1
+                0xf940_03e9, // ldr x9, [sp]
+                0x9100_43ff, // add sp, sp, #16
+                0x6b00_013f, // cmp w9, w0
+                0x1a9f_17e0, // cset w0, eq
+                0x9100_43ff, // add sp, sp, #16
+                0xd65f_03c0, // ret
+            ]
         );
     }
 
@@ -2116,6 +2407,39 @@ mod tests {
                     source_value: ValueId::new(3).expect("result"),
                     scalar_type,
                     expression,
+                },
+            }],
+        }
+    }
+
+    fn boolean_equality_plan(
+        target: NativeTarget,
+        left_register: MachineRegister,
+        right_register: MachineRegister,
+    ) -> TerminalTargetOperationPlan {
+        TerminalTargetOperationPlan {
+            terminal_psi: identity(),
+            target,
+            entry: MachineId::new(1).expect("machine"),
+            functions: vec![TerminalTargetFunction {
+                machine: MachineId::new(1).expect("machine"),
+                provenance: TerminalPsiProvenance::default(),
+                operation: TerminalTargetOperation::ReturnBooleanExpression {
+                    psi_edge: EdgeId::new(1).expect("edge"),
+                    source_value: ValueId::new(3).expect("result"),
+                    expression: TerminalTargetBooleanExpression::Equal {
+                        psi_operation: OperationId::new(1).expect("operation"),
+                        left: Box::new(TerminalTargetBooleanExpression::Parameter {
+                            source_value: ValueId::new(1).expect("left"),
+                            parameter_index: 0,
+                            location: TerminalScalarParameterLocation::Register(left_register),
+                        }),
+                        right: Box::new(TerminalTargetBooleanExpression::Parameter {
+                            source_value: ValueId::new(2).expect("right"),
+                            parameter_index: 1,
+                            location: TerminalScalarParameterLocation::Register(right_register),
+                        }),
+                    },
                 },
             }],
         }

@@ -175,8 +175,8 @@ source-independent consumer is also live:
 `omega-terminal-psi-to-abstract-operations` accepts only a
 `VerifiedTerminalModule` and produces an owned stream of scalar materialization,
 wrapping-add, saturating-add, wrapping-subtract, saturating-subtract,
-wrapping-multiply, saturating-multiply, Boolean-not, jump-binding, and return
-requirements with stable Psi provenance. Its function
+wrapping-multiply, saturating-multiply, Boolean-not, Boolean-equality,
+jump-binding, and return requirements with stable Psi provenance. Its function
 records also retain declared runtime parameters and the result pseudo-value
 with exact scalar types; the real checked-source producer now exercises that
 path through a ninth stack argument. Neither it nor
@@ -193,7 +193,10 @@ AMD64, or Microsoft x64 register/incoming-stack locations for runtime scalar
 parameters. Direct parameter returns stay explicit; parameter-fed wrapping and
 saturating addition plus wrapping and saturating subtraction and wrapping and
 saturating multiplication lower to recursive, exact-width
-target expressions. For the exact conditional form, a Boolean ABI parameter
+target expressions. Runtime Boolean equality lowers to a recursive Boolean
+target expression with canonical immediate/parameter, negation, and equality
+nodes; assigned AArch64 and x86-64 emission preserves both inputs and produces
+canonical zero/one results. For the exact conditional form, a Boolean ABI parameter
 retains both emitted arms, while a compile-known Boolean constant selects one
 arm and omits the unreachable arm from target bytes and provenance. Each arm
 may now cross an acyclic sequence of computed unconditional bindings before
@@ -222,7 +225,9 @@ and 8/16/32/64-bit integers in selected native registers or incoming stack
 slots on both architectures. Runtime wrapping/saturating addition,
 wrapping/saturating subtraction, and wrapping/saturating multiplication support
 signed and unsigned 8/16/32/64-bit operands, recursive expressions, and mixed
-immediate/register/stack leaves. The assigned plan preserves every referenced
+immediate/register/stack leaves. Runtime Boolean equality uses the same assigned
+frame discipline and supports recursive Boolean expressions on both native
+architectures. The assigned plan preserves every referenced
 AArch64 argument register in an aligned local spill frame before evaluation
 into `x0`; both emitters compensate incoming-stack addresses for their assigned
 frame and expression stack.
@@ -598,7 +603,7 @@ the exact returned-expression site.
 
 `psi-terminal-fuel` owns the accounting identity independently from terminal
 semantic versioning. Schedule v1 charges one logical unit for each executed
-`IntegerConstant`, `BooleanConstant`, `BooleanNot`, `WrappingIntegerAdd`,
+`IntegerConstant`, `BooleanConstant`, `BooleanNot`, `BooleanEqual`, `WrappingIntegerAdd`,
 `SaturatingIntegerAdd`, `WrappingIntegerSubtract`,
 `SaturatingIntegerSubtract`, `WrappingIntegerMultiply`, or
 `SaturatingIntegerMultiply` and one for each
