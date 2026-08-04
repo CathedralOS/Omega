@@ -335,6 +335,76 @@ pub fn encode_runtime_text_stored_place_append_to_runtime_frame_indexed(
     }
 }
 
+pub fn encode_runtime_text_stored_place_append_to_place(
+    architecture: Architecture,
+    source_offset: usize,
+    target: &omega_target_operations::Place,
+) -> Result<Vec<u8>, Diagnostic> {
+    use crate::{WritePlaceShape, classify_write_place_shape};
+
+    match (architecture, classify_write_place_shape(target)) {
+        (architecture, WritePlaceShape::Direct { byte_offset }) => {
+            encode_runtime_text_stored_place_append(architecture, 0, source_offset, byte_offset)
+        }
+        (
+            architecture,
+            WritePlaceShape::Pointee {
+                pointer_byte_offset,
+                field_byte_offset,
+            },
+        ) => encode_runtime_text_stored_place_append_to_runtime_pointee(
+            architecture,
+            0,
+            source_offset,
+            pointer_byte_offset,
+            field_byte_offset,
+        ),
+        (
+            architecture,
+            WritePlaceShape::FrameIndexed {
+                descriptor_offset,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+            },
+        ) => encode_runtime_text_stored_place_append_to_runtime_frame_indexed(
+            architecture,
+            0,
+            source_offset,
+            descriptor_offset,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+        ),
+        (
+            Architecture::Aarch64,
+            WritePlaceShape::FrameBaseIndexed {
+                base_byte_offset,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+            },
+        ) => aarch64::encode_runtime_text_stored_place_append_to_runtime_frame_base_indexed(
+            0,
+            source_offset,
+            base_byte_offset,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+        ),
+        (Architecture::X86_64, _) => Err(Diagnostic::error(
+            "AppendTextStoredToPlace on x86_64 serves direct, pointee, and frame-indexed targets",
+        )),
+        (Architecture::Aarch64, _) => Err(Diagnostic::error(
+            "AppendTextStoredToPlace on aarch64 serves transient direct, pointee, frame-indexed, and frame-base-indexed targets",
+        )),
+    }
+}
+
 pub fn encode_runtime_text_literal_append(
     architecture: Architecture,
     buffer_offset: usize,
@@ -413,6 +483,76 @@ pub fn encode_runtime_text_literal_append_to_runtime_frame_indexed(
     }
 }
 
+pub fn encode_runtime_text_literal_append_to_place(
+    architecture: Architecture,
+    target: &omega_target_operations::Place,
+    literal: &str,
+) -> Result<Vec<u8>, Diagnostic> {
+    use crate::{WritePlaceShape, classify_write_place_shape};
+
+    match (architecture, classify_write_place_shape(target)) {
+        (architecture, WritePlaceShape::Direct { byte_offset }) => {
+            encode_runtime_text_literal_append(architecture, 0, byte_offset, literal)
+        }
+        (
+            architecture,
+            WritePlaceShape::Pointee {
+                pointer_byte_offset,
+                field_byte_offset,
+            },
+        ) => encode_runtime_text_literal_append_to_runtime_pointee(
+            architecture,
+            0,
+            pointer_byte_offset,
+            field_byte_offset,
+            literal,
+        ),
+        (
+            architecture,
+            WritePlaceShape::FrameIndexed {
+                descriptor_offset,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+            },
+        ) => encode_runtime_text_literal_append_to_runtime_frame_indexed(
+            architecture,
+            0,
+            descriptor_offset,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+            literal,
+        ),
+        (
+            Architecture::Aarch64,
+            WritePlaceShape::FrameBaseIndexed {
+                base_byte_offset,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+            },
+        ) => aarch64::encode_runtime_text_literal_append_to_runtime_frame_base_indexed(
+            0,
+            base_byte_offset,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+            literal,
+        ),
+        (Architecture::X86_64, _) => Err(Diagnostic::error(
+            "AppendTextLiteralToPlace on x86_64 serves direct, pointee, and frame-indexed targets",
+        )),
+        (Architecture::Aarch64, _) => Err(Diagnostic::error(
+            "AppendTextLiteralToPlace on aarch64 serves transient direct, pointee, frame-indexed, and frame-base-indexed targets",
+        )),
+    }
+}
+
 pub fn encode_runtime_text_buffer_materialize(
     architecture: Architecture,
     target_offset: usize,
@@ -469,6 +609,119 @@ pub fn encode_runtime_text_buffer_materialize_to_runtime_frame_indexed(
                 field_byte_offset,
             )
         }
+    }
+}
+
+pub fn encode_runtime_text_buffer_materialize_to_place(
+    architecture: Architecture,
+    target: &omega_target_operations::Place,
+) -> Result<Vec<u8>, Diagnostic> {
+    use crate::{WritePlaceShape, classify_write_place_shape};
+
+    match (architecture, classify_write_place_shape(target)) {
+        (Architecture::X86_64, WritePlaceShape::Direct { byte_offset }) => {
+            x86_64::encode_runtime_text_buffer_materialize(byte_offset)
+        }
+        (
+            Architecture::X86_64,
+            WritePlaceShape::Pointee {
+                pointer_byte_offset,
+                field_byte_offset,
+            },
+        ) => x86_64::encode_runtime_text_buffer_materialize_to_runtime_pointee(
+            pointer_byte_offset,
+            field_byte_offset,
+        ),
+        (
+            Architecture::X86_64,
+            WritePlaceShape::FrameIndexed {
+                descriptor_offset,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+            },
+        ) => x86_64::encode_runtime_text_buffer_materialize_to_runtime_frame_indexed(
+            descriptor_offset,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+        ),
+        (Architecture::X86_64, _) => Err(Diagnostic::error(
+            "MaterializeTextBufferToPlace on x86_64 serves direct, pointee, and frame-indexed targets",
+        )),
+        (Architecture::Aarch64, WritePlaceShape::Direct { byte_offset }) => {
+            aarch64::encode_runtime_text_buffer_materialize(byte_offset)
+        }
+        (
+            Architecture::Aarch64,
+            WritePlaceShape::Pointee {
+                pointer_byte_offset,
+                field_byte_offset,
+            },
+        ) => aarch64::encode_runtime_text_buffer_materialize_to_runtime_pointee(
+            pointer_byte_offset,
+            field_byte_offset,
+        ),
+        (
+            Architecture::Aarch64,
+            WritePlaceShape::FrameIndexed {
+                descriptor_offset,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+            },
+        ) => aarch64::encode_runtime_text_buffer_materialize_to_runtime_frame_indexed(
+            descriptor_offset,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+        ),
+        (
+            Architecture::Aarch64,
+            WritePlaceShape::FrameIndexedByRegion {
+                descriptor_offset,
+                index_region,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+            },
+        ) => aarch64::encode_runtime_text_buffer_materialize_to_runtime_frame_indexed_with_index_region(
+            descriptor_offset,
+            index_region,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+        ),
+        (
+            Architecture::Aarch64,
+            WritePlaceShape::FrameBaseIndexed {
+                base_byte_offset,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+            },
+        ) => aarch64::encode_runtime_text_buffer_materialize_to_runtime_frame_base_indexed(
+            base_byte_offset,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+        ),
+        (
+            Architecture::Aarch64,
+            WritePlaceShape::MachineIndexed { .. }
+            | WritePlaceShape::MachineDoubleIndexed { .. }
+            | WritePlaceShape::Unsupported,
+        ) => Err(Diagnostic::error(
+            "MaterializeTextBufferToPlace on aarch64 serves transient direct, pointee, frame-indexed, and frame-base-indexed targets",
+        )),
     }
 }
 

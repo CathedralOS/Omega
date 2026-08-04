@@ -1111,7 +1111,7 @@ relocation, and data relocation now consume that complete plan. Their former
 manual `+8`/`+12` stack accounting and trailing-mode operation classifier are
 retired; the operation key only selects the concrete adapter subcall.
 
-Final footprint certificate format v65 now retains an exact
+Final footprint certificate format v66 now retains an exact
 function-to-instruction partition in the encoded carrier. Checked image
 emission replays every contiguous function
 and instruction boundary over relocated final bytes, rejects gaps, overlaps,
@@ -1195,16 +1195,17 @@ Final validation replays the exact target encoder
 and relocation set and matches the derived scratch union to the
 respective retained `CompilerBodyPlaceCopy` or
 `CompilerBodyPlaceIntegerWrite` fragment. Other otherwise-general binary
-targets, unclassified AArch64 place shapes, remaining text-
-assembly writes, and calls remain unreplayed. Text-buffer materialization
-replays its direct, pointee, and frame-indexed forms on x86 and AArch64,
-binding the exact buffer data object and target storage relocations to a
-dedicated `CompilerBodyTextAssemblyWrite` footprint. Direct, pointee, and frame-
-indexed literal text appends on both targets share that fragment and retain
-their exact literal, buffer, place, encoder, and relocation recipe. Stored-
-source appends share it for direct, pointee, or frame-indexed targets on both
-architectures, including the exact source storage and mixed
-buffer/source/target relocations. Segmented literal-buffer writes share the
+targets, unclassified AArch64 place shapes, persistent-machine text assembly,
+and calls remain unreplayed. Text-buffer materialization replays its direct,
+pointee, and frame-indexed forms on x86; AArch64 additionally covers
+cross-region frame indices and transient inline-frame indexed destinations.
+The exact buffer data object and target storage relocations bind to a dedicated
+`CompilerBodyTextAssemblyWrite` footprint. Literal and stored-source appends
+share that fragment for the same ordinary forms plus transient inline-frame
+indexed AArch64 destinations, retaining their exact literal or source storage,
+buffer, place, encoder, and mixed relocation recipe. Persistent machine
+destinations remain outside scratch-buffer assembly because the borrowed view
+cannot outlive its buffer. Segmented literal-buffer writes share the
 text-assembly fragment as well,
 retaining their exact buffer symbol, byte offset, literal, encoder, and sole
 data-object relocation. Segmented stored-suffix appends share it too, retaining

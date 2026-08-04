@@ -1220,11 +1220,20 @@ pub fn derive_boundary_compiler_body_text_assembly_write_footprint<'instruction>
             ),
             (
                 omega_target::Architecture::Aarch64,
-                crate::WritePlaceShape::FrameIndexed { .. },
+                crate::WritePlaceShape::FrameIndexed { .. }
+                | crate::WritePlaceShape::FrameBaseIndexed { .. },
                 2,
             ) => (
                 omega_isa_aarch64::runtime_text_stored_place_append_to_runtime_frame_indexed_register_writes(),
                 omega_isa_aarch64::runtime_text_stored_place_append_additional_machine_state(),
+            ),
+            (
+                omega_target::Architecture::Aarch64,
+                crate::WritePlaceShape::FrameBaseIndexed { .. },
+                1,
+            ) => (
+                omega_isa_aarch64::runtime_text_literal_append_to_runtime_frame_base_indexed_register_writes(),
+                omega_isa_aarch64::runtime_text_literal_append_additional_machine_state(),
             ),
             (
                 omega_target::Architecture::Aarch64,
@@ -1254,7 +1263,9 @@ pub fn derive_boundary_compiler_body_text_assembly_write_footprint<'instruction>
             ),
             (
                 omega_target::Architecture::Aarch64,
-                crate::WritePlaceShape::FrameIndexed { .. },
+                crate::WritePlaceShape::FrameIndexed { .. }
+                | crate::WritePlaceShape::FrameIndexedByRegion { .. }
+                | crate::WritePlaceShape::FrameBaseIndexed { .. },
                 0,
             ) => (
                 omega_isa_aarch64::runtime_text_buffer_materialize_to_runtime_frame_indexed_register_writes(),

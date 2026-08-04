@@ -1899,14 +1899,31 @@ fn validate_compiler_function_instruction_boundaries(
                                 Architecture::Aarch64,
                                 CompilerBodyPlaceIntegerWriteShape::FrameIndexed {
                                     descriptor_offset,
+                                    index_region,
                                     index_offset,
                                     index_byte_size,
                                     element_byte_size,
                                     field_byte_offset,
-                                    ..
                                 },
-                            ) => omega_isa_aarch64::encode_runtime_text_buffer_materialize_to_runtime_frame_indexed(
+                            ) => omega_isa_aarch64::encode_runtime_text_buffer_materialize_to_runtime_frame_indexed_with_index_region(
                                 descriptor_offset,
+                                index_region,
+                                index_offset,
+                                index_byte_size,
+                                element_byte_size,
+                                field_byte_offset,
+                            )?,
+                            (
+                                Architecture::Aarch64,
+                                CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed {
+                                    base_byte_offset,
+                                    index_offset,
+                                    index_byte_size,
+                                    element_byte_size,
+                                    field_byte_offset,
+                                },
+                            ) => omega_isa_aarch64::encode_runtime_text_buffer_materialize_to_runtime_frame_base_indexed(
+                                base_byte_offset,
                                 index_offset,
                                 index_byte_size,
                                 element_byte_size,
@@ -2010,6 +2027,24 @@ fn validate_compiler_function_instruction_boundaries(
                                 field_byte_offset,
                                 &literal,
                             )?,
+                            (
+                                Architecture::Aarch64,
+                                CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed {
+                                    base_byte_offset,
+                                    index_offset,
+                                    index_byte_size,
+                                    element_byte_size,
+                                    field_byte_offset,
+                                },
+                            ) => omega_isa_aarch64::encode_runtime_text_literal_append_to_runtime_frame_base_indexed(
+                                0,
+                                base_byte_offset,
+                                index_offset,
+                                index_byte_size,
+                                element_byte_size,
+                                field_byte_offset,
+                                &literal,
+                            )?,
                             _ => {
                                 return Err(Diagnostic::error(
                                     "final compiler-body text literal append retained an unsupported target",
@@ -2104,6 +2139,24 @@ fn validate_compiler_function_instruction_boundaries(
                                 0,
                                 source_offset,
                                 descriptor_offset,
+                                index_offset,
+                                index_byte_size,
+                                element_byte_size,
+                                field_byte_offset,
+                            )?,
+                            (
+                                Architecture::Aarch64,
+                                CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed {
+                                    base_byte_offset,
+                                    index_offset,
+                                    index_byte_size,
+                                    element_byte_size,
+                                    field_byte_offset,
+                                },
+                            ) => omega_isa_aarch64::encode_runtime_text_stored_place_append_to_runtime_frame_base_indexed(
+                                0,
+                                source_offset,
+                                base_byte_offset,
                                 index_offset,
                                 index_byte_size,
                                 element_byte_size,
@@ -4004,7 +4057,8 @@ fn compiler_instruction_footprint(
                 ),
                 (
                     Architecture::Aarch64,
-                    CompilerBodyPlaceIntegerWriteShape::FrameIndexed { .. },
+                    CompilerBodyPlaceIntegerWriteShape::FrameIndexed { .. }
+                    | CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. },
                 ) => (
                     omega_isa_aarch64::runtime_text_buffer_materialize_to_runtime_frame_indexed_register_writes(),
                     omega_isa_aarch64::runtime_text_buffer_materialize_additional_machine_state(),
@@ -4034,6 +4088,13 @@ fn compiler_instruction_footprint(
                 ) => (
                     omega_isa_x86_64::runtime_text_literal_append_to_runtime_frame_indexed_register_writes(),
                     omega_isa_x86_64::runtime_text_literal_append_additional_machine_state(),
+                ),
+                (
+                    Architecture::Aarch64,
+                    CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. },
+                ) => (
+                    omega_isa_aarch64::runtime_text_literal_append_to_runtime_frame_base_indexed_register_writes(),
+                    omega_isa_aarch64::runtime_text_literal_append_additional_machine_state(),
                 ),
                 (
                     Architecture::Aarch64,
@@ -4080,7 +4141,8 @@ fn compiler_instruction_footprint(
                 ),
                 (
                     Architecture::Aarch64,
-                    CompilerBodyPlaceIntegerWriteShape::FrameIndexed { .. },
+                    CompilerBodyPlaceIntegerWriteShape::FrameIndexed { .. }
+                    | CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. },
                 ) => (
                     omega_isa_aarch64::runtime_text_stored_place_append_to_runtime_frame_indexed_register_writes(),
                     omega_isa_aarch64::runtime_text_stored_place_append_additional_machine_state(),
@@ -6901,6 +6963,44 @@ fn encode_aarch64_bounded_buffer_source_append(
     }
 }
 
+fn aarch64_text_buffer_materialize_buffer_address_offset(
+    target: omega_target_operations::Place,
+) -> Result<usize, Diagnostic> {
+    let total_width = match compiler_body_place_integer_write_shape(&target)? {
+        CompilerBodyPlaceIntegerWriteShape::FrameIndexed {
+            index_region,
+            element_byte_size,
+            field_byte_offset,
+            ..
+        } => omega_isa_aarch64::runtime_text_buffer_materialize_to_runtime_frame_indexed_with_index_region_width(
+            index_region,
+            element_byte_size,
+            field_byte_offset,
+        ),
+        CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed {
+            base_byte_offset,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+        } => omega_isa_aarch64::runtime_text_buffer_materialize_to_runtime_frame_base_indexed_width(
+            base_byte_offset,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+        ),
+        _ => {
+            return Err(Diagnostic::error(
+                "final aarch64 indexed text-buffer materialization retained an unsupported target",
+            ));
+        }
+    };
+    total_width.checked_sub(40).ok_or_else(|| {
+        Diagnostic::error("aarch64 text-buffer materialization width underflowed its fixed tail")
+    })
+}
+
 fn validate_compiler_place_string_relocations(
     architecture: Architecture,
     object: &omega_object_file::ObjectPlan,
@@ -7180,21 +7280,19 @@ fn validate_compiler_text_buffer_materialize_relocations(
         ],
         (
             Architecture::Aarch64,
-            CompilerBodyPlaceIntegerWriteShape::FrameIndexed {
-                element_byte_size,
-                field_byte_offset,
-                ..
-            },
-        ) => vec![
-            (0usize, ExpectedTarget::Storage(target.region)),
-            (
-                omega_isa_aarch64::runtime_text_indexed_buffer_materialize_buffer_address_offset(
-                    element_byte_size,
-                    field_byte_offset,
-                ),
+            CompilerBodyPlaceIntegerWriteShape::FrameIndexed { .. }
+            | CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. },
+        ) => {
+            let mut sites = aarch64_bounded_buffer_write_relocation_sites(target)?
+                .into_iter()
+                .map(|(site, region)| (site, ExpectedTarget::Storage(region)))
+                .collect::<Vec<_>>();
+            sites.push((
+                aarch64_text_buffer_materialize_buffer_address_offset(target)?,
                 ExpectedTarget::Buffer,
-            ),
-        ],
+            ));
+            sites
+        }
         _ => {
             return Err(Diagnostic::error(
                 "final text-buffer materialization relocation recipe retained an unsupported target",
@@ -7320,6 +7418,28 @@ fn validate_compiler_text_literal_append_relocations(
             (0usize, ExpectedTarget::Storage(target.region)),
             (
                 omega_isa_aarch64::runtime_text_indexed_literal_append_buffer_address_offset(
+                    element_byte_size,
+                    field_byte_offset,
+                ),
+                ExpectedTarget::Buffer,
+            ),
+        ],
+        (
+            Architecture::Aarch64,
+            CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed {
+                base_byte_offset,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+            },
+        ) => vec![
+            (0usize, ExpectedTarget::Storage(target.region)),
+            (
+                omega_isa_aarch64::runtime_text_frame_base_indexed_literal_append_buffer_address_offset(
+                    base_byte_offset,
+                    index_offset,
+                    index_byte_size,
                     element_byte_size,
                     field_byte_offset,
                 ),
@@ -7494,6 +7614,38 @@ fn validate_compiler_text_stored_append_relocations(
             ),
             (
                 omega_isa_aarch64::runtime_text_indexed_stored_place_source_address_offset(
+                    element_byte_size,
+                    field_byte_offset,
+                ),
+                ExpectedTarget::Storage(source_region),
+            ),
+        ],
+        (
+            Architecture::Aarch64,
+            CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed {
+                base_byte_offset,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+            },
+        ) => vec![
+            (0usize, ExpectedTarget::Storage(target.region)),
+            (
+                omega_isa_aarch64::runtime_text_frame_base_indexed_stored_place_buffer_address_offset(
+                    base_byte_offset,
+                    index_offset,
+                    index_byte_size,
+                    element_byte_size,
+                    field_byte_offset,
+                ),
+                ExpectedTarget::Buffer,
+            ),
+            (
+                omega_isa_aarch64::runtime_text_frame_base_indexed_stored_place_source_address_offset(
+                    base_byte_offset,
+                    index_offset,
+                    index_byte_size,
                     element_byte_size,
                     field_byte_offset,
                 ),

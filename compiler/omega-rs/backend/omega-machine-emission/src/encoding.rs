@@ -76,114 +76,27 @@ pub(super) fn encode_machine_instruction_bytes(
         // architectures (the transitional pattern); unsupported shapes
         // refuse loudly.
         SelectedInstructionKind::MaterializeTextBufferToPlace { target, .. } => {
-            match omega_instruction_selection::classify_write_place_shape(target) {
-                omega_instruction_selection::WritePlaceShape::Direct { byte_offset } => {
-                    runtime_text::encode_runtime_text_buffer_materialize(input, byte_offset)
-                }
-                omega_instruction_selection::WritePlaceShape::Pointee {
-                    pointer_byte_offset,
-                    field_byte_offset,
-                } => runtime_text::encode_runtime_text_buffer_materialize_to_runtime_pointee(
-                    input,
-                    pointer_byte_offset,
-                    field_byte_offset,
-                ),
-                omega_instruction_selection::WritePlaceShape::FrameIndexed {
-                    descriptor_offset,
-                    index_offset,
-                    index_byte_size,
-                    element_byte_size,
-                    field_byte_offset,
-                } => runtime_text::encode_runtime_text_buffer_materialize_to_runtime_frame_indexed(
-                    input,
-                    descriptor_offset,
-                    index_offset,
-                    index_byte_size,
-                    element_byte_size,
-                    field_byte_offset,
-                ),
-                _ => Err(psi_diagnostics::Diagnostic::error(
-                    "MaterializeTextBufferToPlace serves direct, pointee, and \
-                     frame-indexed place shapes only; this shape refuses loudly",
-                )),
-            }
+            omega_instruction_selection::encode_runtime_text_buffer_materialize_to_place(
+                input.target.architecture,
+                target,
+            )
         }
         SelectedInstructionKind::AppendTextStoredToPlace {
             source_offset,
             target,
             ..
-        } => match omega_instruction_selection::classify_write_place_shape(target) {
-            omega_instruction_selection::WritePlaceShape::Direct { byte_offset } => {
-                runtime_text::encode_runtime_text_stored_place_append(
-                    input,
-                    *source_offset,
-                    byte_offset,
-                )
-            }
-            omega_instruction_selection::WritePlaceShape::Pointee {
-                pointer_byte_offset,
-                field_byte_offset,
-            } => runtime_text::encode_runtime_text_stored_place_append_to_runtime_pointee(
-                input,
-                *source_offset,
-                pointer_byte_offset,
-                field_byte_offset,
-            ),
-            omega_instruction_selection::WritePlaceShape::FrameIndexed {
-                descriptor_offset,
-                index_offset,
-                index_byte_size,
-                element_byte_size,
-                field_byte_offset,
-            } => runtime_text::encode_runtime_text_stored_place_append_to_runtime_frame_indexed(
-                input,
-                *source_offset,
-                descriptor_offset,
-                index_offset,
-                index_byte_size,
-                element_byte_size,
-                field_byte_offset,
-            ),
-            _ => Err(psi_diagnostics::Diagnostic::error(
-                "AppendTextStoredToPlace serves direct, pointee, and frame-indexed \
-                 place shapes only; this shape refuses loudly",
-            )),
-        },
+        } => omega_instruction_selection::encode_runtime_text_stored_place_append_to_place(
+            input.target.architecture,
+            *source_offset,
+            target,
+        ),
         SelectedInstructionKind::AppendTextLiteralToPlace {
             target, literal, ..
-        } => match omega_instruction_selection::classify_write_place_shape(target) {
-            omega_instruction_selection::WritePlaceShape::Direct { byte_offset } => {
-                runtime_text::encode_runtime_text_literal_append(input, byte_offset, literal)
-            }
-            omega_instruction_selection::WritePlaceShape::Pointee {
-                pointer_byte_offset,
-                field_byte_offset,
-            } => runtime_text::encode_runtime_text_literal_append_to_runtime_pointee(
-                input,
-                pointer_byte_offset,
-                field_byte_offset,
-                literal,
-            ),
-            omega_instruction_selection::WritePlaceShape::FrameIndexed {
-                descriptor_offset,
-                index_offset,
-                index_byte_size,
-                element_byte_size,
-                field_byte_offset,
-            } => runtime_text::encode_runtime_text_literal_append_to_runtime_frame_indexed(
-                input,
-                descriptor_offset,
-                index_offset,
-                index_byte_size,
-                element_byte_size,
-                field_byte_offset,
-                literal,
-            ),
-            _ => Err(psi_diagnostics::Diagnostic::error(
-                "AppendTextLiteralToPlace serves direct, pointee, and frame-indexed \
-                 place shapes only; this shape refuses loudly",
-            )),
-        },
+        } => omega_instruction_selection::encode_runtime_text_literal_append_to_place(
+            input.target.architecture,
+            target,
+            literal,
+        ),
         SelectedInstructionKind::WriteRuntimeStorageConvert {
             target_offset,
             target_byte_size,

@@ -812,6 +812,65 @@ pub fn runtime_text_stored_place_append_to_runtime_frame_indexed_width(
     }
 }
 
+pub fn runtime_text_stored_place_append_to_place_width(
+    architecture: Architecture,
+    source_offset: usize,
+    target: &omega_target_operations::Place,
+) -> usize {
+    use crate::{WritePlaceShape, classify_write_place_shape};
+
+    match (architecture, classify_write_place_shape(target)) {
+        (architecture, WritePlaceShape::Direct { byte_offset }) => {
+            runtime_text_stored_place_append_width(architecture, source_offset, byte_offset)
+        }
+        (
+            architecture,
+            WritePlaceShape::Pointee {
+                pointer_byte_offset,
+                field_byte_offset,
+            },
+        ) => runtime_text_stored_place_append_to_runtime_pointee_width(
+            architecture,
+            source_offset,
+            pointer_byte_offset,
+            field_byte_offset,
+        ),
+        (
+            architecture,
+            WritePlaceShape::FrameIndexed {
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+                ..
+            },
+        ) => runtime_text_stored_place_append_to_runtime_frame_indexed_width(
+            architecture,
+            source_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+        ),
+        (
+            Architecture::Aarch64,
+            WritePlaceShape::FrameBaseIndexed {
+                base_byte_offset,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+            },
+        ) => aarch64::runtime_text_stored_place_append_to_runtime_frame_base_indexed_width(
+            source_offset,
+            base_byte_offset,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+        ),
+        _ => 0,
+    }
+}
+
 pub fn runtime_text_stored_place_append_to_runtime_pointee_width(
     architecture: Architecture,
     source_offset: usize,
@@ -887,6 +946,65 @@ pub fn runtime_text_literal_append_to_runtime_frame_indexed_width(
     }
 }
 
+pub fn runtime_text_literal_append_to_place_width(
+    architecture: Architecture,
+    target: &omega_target_operations::Place,
+    literal: &str,
+) -> usize {
+    use crate::{WritePlaceShape, classify_write_place_shape};
+
+    match (architecture, classify_write_place_shape(target)) {
+        (architecture, WritePlaceShape::Direct { byte_offset }) => {
+            runtime_text_literal_append_width(architecture, byte_offset, literal)
+        }
+        (
+            architecture,
+            WritePlaceShape::Pointee {
+                pointer_byte_offset,
+                field_byte_offset,
+            },
+        ) => runtime_text_literal_append_to_runtime_pointee_width(
+            architecture,
+            pointer_byte_offset,
+            field_byte_offset,
+            literal,
+        ),
+        (
+            architecture,
+            WritePlaceShape::FrameIndexed {
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+                ..
+            },
+        ) => runtime_text_literal_append_to_runtime_frame_indexed_width(
+            architecture,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+            literal,
+        ),
+        (
+            Architecture::Aarch64,
+            WritePlaceShape::FrameBaseIndexed {
+                base_byte_offset,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+            },
+        ) => aarch64::runtime_text_literal_append_to_runtime_frame_base_indexed_width(
+            base_byte_offset,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+            literal,
+        ),
+        _ => 0,
+    }
+}
+
 pub fn runtime_text_buffer_materialize_width(
     architecture: Architecture,
     target_offset: usize,
@@ -935,6 +1053,122 @@ pub fn runtime_text_buffer_materialize_to_runtime_frame_indexed_width(
             x86_64::runtime_text_buffer_materialize_to_runtime_frame_indexed_width(index_byte_size)
         }
     }
+}
+
+pub fn runtime_text_buffer_materialize_to_place_width(
+    architecture: Architecture,
+    target: &omega_target_operations::Place,
+) -> usize {
+    use crate::{WritePlaceShape, classify_write_place_shape};
+
+    match (architecture, classify_write_place_shape(target)) {
+        (architecture, WritePlaceShape::Direct { byte_offset }) => {
+            runtime_text_buffer_materialize_width(architecture, byte_offset)
+        }
+        (
+            architecture,
+            WritePlaceShape::Pointee {
+                pointer_byte_offset,
+                field_byte_offset,
+            },
+        ) => runtime_text_buffer_materialize_to_runtime_pointee_width(
+            architecture,
+            pointer_byte_offset,
+            field_byte_offset,
+        ),
+        (
+            architecture,
+            WritePlaceShape::FrameIndexed {
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+                ..
+            },
+        ) => runtime_text_buffer_materialize_to_runtime_frame_indexed_width(
+            architecture,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+        ),
+        (
+            Architecture::Aarch64,
+            WritePlaceShape::FrameIndexedByRegion {
+                index_region,
+                element_byte_size,
+                field_byte_offset,
+                ..
+            },
+        ) => aarch64::runtime_text_buffer_materialize_to_runtime_frame_indexed_with_index_region_width(
+            index_region,
+            element_byte_size,
+            field_byte_offset,
+        ),
+        (
+            Architecture::Aarch64,
+            WritePlaceShape::FrameBaseIndexed {
+                base_byte_offset,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+            },
+        ) => aarch64::runtime_text_buffer_materialize_to_runtime_frame_base_indexed_width(
+            base_byte_offset,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+        ),
+        _ => 0,
+    }
+}
+
+pub fn runtime_text_frame_base_indexed_literal_append_buffer_address_offset(
+    base_byte_offset: usize,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> usize {
+    aarch64::runtime_text_frame_base_indexed_literal_append_buffer_address_offset(
+        base_byte_offset,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+    )
+}
+
+pub fn runtime_text_frame_base_indexed_stored_place_buffer_address_offset(
+    base_byte_offset: usize,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> usize {
+    aarch64::runtime_text_frame_base_indexed_stored_place_buffer_address_offset(
+        base_byte_offset,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+    )
+}
+
+pub fn runtime_text_frame_base_indexed_stored_place_source_address_offset(
+    base_byte_offset: usize,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> usize {
+    aarch64::runtime_text_frame_base_indexed_stored_place_source_address_offset(
+        base_byte_offset,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+    )
 }
 
 pub fn runtime_machine_integer_write_width(

@@ -258,6 +258,24 @@ pub fn runtime_text_stored_place_append_to_runtime_frame_indexed_width(
         + runtime_text_descriptor_load_pair_width(source_offset)
 }
 
+pub fn runtime_text_stored_place_append_to_runtime_frame_base_indexed_width(
+    source_offset: usize,
+    base_byte_offset: usize,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> usize {
+    runtime_frame_base_indexed_string_data_address_offset(
+        base_byte_offset,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+    ) + 68
+        + runtime_text_descriptor_load_pair_width(source_offset)
+}
+
 pub fn runtime_text_stored_place_append_to_runtime_pointee_width(
     source_offset: usize,
     pointer_byte_offset: usize,
@@ -301,6 +319,25 @@ pub fn runtime_text_literal_append_to_runtime_frame_indexed_width(
         + literal.len() * 8
 }
 
+pub fn runtime_text_literal_append_to_runtime_frame_base_indexed_width(
+    base_byte_offset: usize,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    literal: &str,
+) -> usize {
+    runtime_frame_base_indexed_string_data_address_offset(
+        base_byte_offset,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+    ) + 28
+        + add_constant_width(literal.len())
+        + literal.len() * 8
+}
+
 pub fn runtime_text_buffer_materialize_width(target_offset: usize) -> usize {
     44 + runtime_text_descriptor_load_pair_width(target_offset)
         + runtime_text_descriptor_store_pair_width(target_offset)
@@ -310,7 +347,39 @@ pub fn runtime_text_buffer_materialize_to_runtime_frame_indexed_width(
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> usize {
-    runtime_frame_index_setup_width(element_byte_size, field_byte_offset) + 52
+    runtime_text_buffer_materialize_to_runtime_frame_indexed_with_index_region_width(
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+        element_byte_size,
+        field_byte_offset,
+    )
+}
+
+pub fn runtime_text_buffer_materialize_to_runtime_frame_indexed_with_index_region_width(
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> usize {
+    runtime_frame_indexed_string_data_address_offset_with_index_region(
+        index_region,
+        element_byte_size,
+        field_byte_offset,
+    ) + 52
+}
+
+pub fn runtime_text_buffer_materialize_to_runtime_frame_base_indexed_width(
+    base_byte_offset: usize,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> usize {
+    runtime_frame_base_indexed_string_data_address_offset(
+        base_byte_offset,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+    ) + 52
 }
 
 pub fn runtime_text_indexed_literal_append_buffer_address_offset(
@@ -318,6 +387,22 @@ pub fn runtime_text_indexed_literal_append_buffer_address_offset(
     field_byte_offset: usize,
 ) -> usize {
     runtime_frame_index_setup_width(element_byte_size, field_byte_offset) + 4
+}
+
+pub fn runtime_text_frame_base_indexed_literal_append_buffer_address_offset(
+    base_byte_offset: usize,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> usize {
+    runtime_frame_base_indexed_string_data_address_offset(
+        base_byte_offset,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+    ) + 4
 }
 
 pub fn runtime_text_stored_place_pointee_source_address_offset(
@@ -337,11 +422,43 @@ pub fn runtime_text_indexed_stored_place_buffer_address_offset(
     runtime_frame_index_setup_width(element_byte_size, field_byte_offset) + 8
 }
 
+pub fn runtime_text_frame_base_indexed_stored_place_buffer_address_offset(
+    base_byte_offset: usize,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> usize {
+    runtime_frame_base_indexed_string_data_address_offset(
+        base_byte_offset,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+    ) + 8
+}
+
 pub fn runtime_text_indexed_stored_place_source_address_offset(
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> usize {
     runtime_frame_index_setup_width(element_byte_size, field_byte_offset) + 24
+}
+
+pub fn runtime_text_frame_base_indexed_stored_place_source_address_offset(
+    base_byte_offset: usize,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> usize {
+    runtime_frame_base_indexed_string_data_address_offset(
+        base_byte_offset,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+    ) + 24
 }
 
 pub fn runtime_text_indexed_buffer_materialize_buffer_address_offset(

@@ -110,6 +110,37 @@ pub(super) fn collect_runtime_text_append_relocations(
                         source_symbol,
                     );
                 }
+                omega_instruction_selection::WritePlaceShape::FrameBaseIndexed {
+                    base_byte_offset,
+                    index_offset,
+                    index_byte_size,
+                    element_byte_size,
+                    field_byte_offset,
+                } if context.input.target.architecture == omega_target::Architecture::Aarch64 => {
+                    context.insert_data_address_at_instruction_start(
+                        context.storage_region_symbol_handle(target.region),
+                    );
+                    context.insert_data_address_at_relative_offset(
+                        omega_instruction_selection::runtime_text_frame_base_indexed_stored_place_buffer_address_offset(
+                            base_byte_offset,
+                            index_offset,
+                            index_byte_size,
+                            element_byte_size,
+                            field_byte_offset,
+                        ),
+                        buffer_symbol,
+                    );
+                    context.insert_data_address_at_relative_offset(
+                        omega_instruction_selection::runtime_text_frame_base_indexed_stored_place_source_address_offset(
+                            base_byte_offset,
+                            index_offset,
+                            index_byte_size,
+                            element_byte_size,
+                            field_byte_offset,
+                        ),
+                        source_symbol,
+                    );
+                }
                 _ => unreachable!(
                     "an unsupported AppendTextStoredToPlace shape refuses at encoding; \
                      layout would have failed first"
@@ -141,6 +172,27 @@ pub(super) fn collect_runtime_text_append_relocations(
                     context.insert_data_address_at_relative_offset(
                         runtime_text_indexed_literal_append_buffer_address_offset(
                             context.input.target.architecture,
+                            element_byte_size,
+                            field_byte_offset,
+                        ),
+                        buffer_symbol,
+                    );
+                }
+                omega_instruction_selection::WritePlaceShape::FrameBaseIndexed {
+                    base_byte_offset,
+                    index_offset,
+                    index_byte_size,
+                    element_byte_size,
+                    field_byte_offset,
+                } if context.input.target.architecture == omega_target::Architecture::Aarch64 => {
+                    context.insert_data_address_at_instruction_start(
+                        context.storage_region_symbol_handle(target.region),
+                    );
+                    context.insert_data_address_at_relative_offset(
+                        omega_instruction_selection::runtime_text_frame_base_indexed_literal_append_buffer_address_offset(
+                            base_byte_offset,
+                            index_offset,
+                            index_byte_size,
                             element_byte_size,
                             field_byte_offset,
                         ),
