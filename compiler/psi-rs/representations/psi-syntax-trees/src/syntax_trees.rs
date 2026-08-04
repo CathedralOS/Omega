@@ -525,6 +525,19 @@ impl SyntaxTrees {
                                 .map(|contract| this.copy_state_signature_value(other, contract)),
                         }
                     }
+                    crate::item::TypeParameterKind::Proposition { contract } => {
+                        crate::item::TypeParameterKind::Proposition {
+                            contract: contract.as_ref().map(|contract| {
+                                crate::item::PropositionParameterSignature {
+                                    name: contract.name.clone(),
+                                    parameters: this.copy_state_parameter_handle_span(
+                                        other,
+                                        contract.parameters,
+                                    ),
+                                }
+                            }),
+                        }
+                    }
                 };
                 TypeParameter {
                     name: parameter.name.clone(),

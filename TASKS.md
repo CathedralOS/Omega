@@ -1659,6 +1659,13 @@ and allocation handles expose no compiler-owned stack/control storage.
      may forward established facts or cite a checked/accepted contract after
      discharging its normalized proposition requirements, while an empty
      ordinary body can no longer invent a primitive proposition ensure;
+     generic-binder source slice landed 2026-08-03: trait headers accept the
+     distinct `<proposition Relation>` kind only with one mandatory authored
+     `where proposition Relation(...)` application signature; source copying,
+     identity, snapshots, duplicate/missing-contract diagnostics, and
+     non-trait rejection are covered. Symbol resolution deliberately fails
+     closed until the signature receives a dedicated resolved/typed kind and
+     proposition applications can target it;
   2. add the proof stratum to selected-conformance projection and permit
      by-value `dyn` only when the complete normalized value has no runtime
      carrier;

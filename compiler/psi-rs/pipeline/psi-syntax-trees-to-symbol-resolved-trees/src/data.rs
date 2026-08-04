@@ -190,6 +190,12 @@ pub(crate) fn lower_type_parameters(
                     )?,
                 }
             }
+            syntax::item::TypeParameterKind::Proposition { .. } => {
+                return Err(Diagnostic::error(format!(
+                    "proposition parameter `{}` reached symbol resolution before generic proposition signatures are available",
+                    parameter.name.as_str()
+                )));
+            }
         };
         lowered.push(TypeParameter {
             symbol: SymbolHandle::invalid(),

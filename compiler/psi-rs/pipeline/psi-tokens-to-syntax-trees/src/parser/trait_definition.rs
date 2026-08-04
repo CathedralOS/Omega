@@ -1,4 +1,4 @@
-use crate::parser::data::{parse_machine_type_parameters, parse_type_parameters};
+use crate::parser::data::{parse_machine_type_parameters, parse_proposition_type_parameters};
 use crate::parser::input::{Input, ParseResult};
 use crate::parser::proof_fact::parse_proof_facts_until;
 use crate::parser::state::{parse_optional_return_type, parse_optional_state_parameters};
@@ -19,10 +19,12 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
 ) -> ParseResult<'tokens, 'source, TraitDefinition> {
     let input = input.take_contextual("trait")?;
     let (name, mut input) = input.take_identifier()?;
-    let (generic_parameters, next) = parse_type_parameters(syntax_trees, input)?;
+    let (generic_parameters, next) = parse_proposition_type_parameters(syntax_trees, input)?;
     input = next;
     let type_parameters = generic_parameters.type_parameters;
     let (parents, next) = parse_trait_parents(syntax_trees, input)?;
+    input = next;
+    let ((), next) = parse_proposition_parameter_contracts(syntax_trees, type_parameters, input)?;
     input = next;
     let conformance_bounds = if input.at_contextual("where") {
         let (bounds, next) =
@@ -136,6 +138,81 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
         },
         input,
     ))
+}
+
+fn parse_proposition_parameter_contracts<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    type_parameters: HandleSpan<psi_syntax_trees::item::TypeParameter>,
+    mut input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, ()> {
+    loop {
+        if !input.at_contextual("where") {
+            break;
+        }
+        let after_where = input.take_contextual("where")?;
+        if !after_where.at_contextual("proposition") {
+            break;
+        }
+        let after_proposition = after_where.take_contextual("proposition")?;
+        let (name, after_name) = after_proposition.take_identifier()?;
+        let Some(parameter_index) = syntax_trees
+            .items
+            .type_parameters(type_parameters)
+            .iter()
+            .position(|parameter| parameter.name == name)
+        else {
+            return Err(after_name.error_here(format!(
+                "`where proposition {}` has no matching `<proposition {}>` parameter",
+                name.as_str(),
+                name.as_str(),
+            )));
+        };
+        match &syntax_trees.items.type_parameters(type_parameters)[parameter_index].kind {
+            psi_syntax_trees::item::TypeParameterKind::Proposition { contract: None } => {}
+            psi_syntax_trees::item::TypeParameterKind::Proposition { contract: Some(_) } => {
+                return Err(after_name.error_here(format!(
+                    "proposition parameter `{}` already has a declaration-site signature",
+                    name.as_str(),
+                )));
+            }
+            _ => {
+                return Err(after_name.error_here(format!(
+                    "`{}` is not a proposition parameter; declare it as `<proposition {}>` first",
+                    name.as_str(),
+                    name.as_str(),
+                )));
+            }
+        }
+        let (parameters, rest) = parse_optional_state_parameters(syntax_trees, after_name)?;
+        let rest = rest.take_punctuation(PunctuationKind::Semicolon, ";")?;
+        syntax_trees.items.type_parameters_mut(type_parameters)[parameter_index].kind =
+            psi_syntax_trees::item::TypeParameterKind::Proposition {
+                contract: Some(psi_syntax_trees::item::PropositionParameterSignature {
+                    name,
+                    parameters,
+                }),
+            };
+        input = rest;
+    }
+
+    if let Some(missing) = syntax_trees
+        .items
+        .type_parameters(type_parameters)
+        .iter()
+        .find(|parameter| {
+            matches!(
+                parameter.kind,
+                psi_syntax_trees::item::TypeParameterKind::Proposition { contract: None }
+            )
+        })
+    {
+        return Err(input.error_here(format!(
+            "proposition parameter `{}` requires an authored declaration-site signature: write `where proposition {}(...)`;",
+            missing.name.as_str(),
+            missing.name.as_str(),
+        )));
+    }
+    Ok(((), input))
 }
 
 fn parse_trait_parents<'tokens, 'source>(
