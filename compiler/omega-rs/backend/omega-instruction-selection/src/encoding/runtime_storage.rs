@@ -1695,9 +1695,10 @@ pub fn x86_64_encode_write_place_address_with_sites(
 
 /// Text rung 2a: the place-shaped string-descriptor write. x86_64 rides the
 /// materializer; aarch64 decomposes by WritePlaceShape to the retained
-/// string encoders (which serve direct/pointee/frame-indexed and the
-/// frame-resident machine-indexed shapes only -- everything else refuses
-/// loudly until the aarch64 place materializer lands).
+/// string encoders (which serve direct/pointee/frame-indexed, including cross-
+/// region indices, inline-frame-indexed, and the frame-resident machine-
+/// indexed shapes only -- everything else refuses loudly until the aarch64
+/// place materializer lands).
 pub fn encode_write_place_string(
     architecture: Architecture,
     target: &omega_target_operations::Place,
@@ -1727,6 +1728,22 @@ pub fn encode_write_place_string(
                 field_byte_offset,
             } => aarch64::encode_runtime_frame_indexed_string_write(
                 descriptor_offset,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+                byte_length,
+            ),
+            WritePlaceShape::FrameIndexedByRegion {
+                descriptor_offset,
+                index_region,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+            } => aarch64::encode_runtime_frame_indexed_string_write_with_index_region(
+                descriptor_offset,
+                index_region,
                 index_offset,
                 index_byte_size,
                 element_byte_size,
@@ -1764,7 +1781,7 @@ pub fn encode_write_place_string(
             ),
             _ => Err(Diagnostic::error(
                 "WritePlaceString on aarch64 serves direct, pointee, frame-indexed, \
-                 frame-base-indexed, and frame-resident machine-indexed place shapes only until the \
+                 frame-base-indexed, cross-region frame-indexed, and frame-resident machine-indexed place shapes only until the \
                  aarch64 place materializer lands; this shape refuses loudly",
             )),
         },

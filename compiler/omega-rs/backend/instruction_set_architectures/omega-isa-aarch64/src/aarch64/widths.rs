@@ -1184,8 +1184,25 @@ pub fn runtime_frame_indexed_string_write_width(
     field_byte_offset: usize,
     byte_length: usize,
 ) -> usize {
-    runtime_frame_index_setup_width(element_byte_size, field_byte_offset)
-        + 8
+    runtime_frame_indexed_string_write_width_with_index_region(
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+        element_byte_size,
+        field_byte_offset,
+        byte_length,
+    )
+}
+
+pub fn runtime_frame_indexed_string_write_width_with_index_region(
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_length: usize,
+) -> usize {
+    runtime_frame_indexed_string_data_address_offset_with_index_region(
+        index_region,
+        element_byte_size,
+        field_byte_offset,
+    ) + 8
         + 4
         + unsigned_immediate_width(byte_length as u64)
         + 4
@@ -1195,7 +1212,24 @@ pub fn runtime_frame_indexed_string_data_address_offset(
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> usize {
+    runtime_frame_indexed_string_data_address_offset_with_index_region(
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+        element_byte_size,
+        field_byte_offset,
+    )
+}
+
+pub fn runtime_frame_indexed_string_data_address_offset_with_index_region(
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> usize {
     runtime_frame_index_setup_width(element_byte_size, field_byte_offset)
+        + if index_region == omega_target_operations::RuntimeStorageRegion::Machine {
+            8
+        } else {
+            0
+        }
 }
 
 pub fn runtime_frame_base_indexed_string_write_width(

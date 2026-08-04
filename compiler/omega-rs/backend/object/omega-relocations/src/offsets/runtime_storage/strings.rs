@@ -35,6 +35,27 @@ pub(crate) fn runtime_frame_indexed_string_data_address_offset(
     }
 }
 
+pub(crate) fn runtime_frame_indexed_string_data_address_offset_with_index_region(
+    architecture: Architecture,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => {
+            runtime_frame_index_setup_width(element_byte_size, field_byte_offset)
+                + if index_region == omega_target_operations::RuntimeStorageRegion::Machine {
+                    8
+                } else {
+                    0
+                }
+        }
+        Architecture::X86_64 => unreachable!(
+            "x86 string-descriptor relocations come from the generic place materializer"
+        ),
+    }
+}
+
 pub(crate) fn runtime_frame_base_indexed_string_data_address_offset(
     architecture: Architecture,
     base_byte_offset: usize,

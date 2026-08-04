@@ -1,6 +1,7 @@
 use super::super::offsets::{
     runtime_frame_base_indexed_string_data_address_offset,
     runtime_frame_indexed_string_data_address_offset,
+    runtime_frame_indexed_string_data_address_offset_with_index_region,
     runtime_machine_indexed_string_data_address_offset,
     runtime_machine_indexed_string_runtime_frame_address_offset,
     string_descriptor_machine_address_offset, string_descriptor_pointee_address_offset,
@@ -93,6 +94,35 @@ pub(super) fn collect_runtime_storage_string_relocations(
                             context.insert_data_address_at_relative_offset(
                                 runtime_frame_indexed_string_data_address_offset(
                                     context.input.target.architecture,
+                                    element_byte_size,
+                                    field_byte_offset,
+                                ),
+                                data_symbol,
+                            );
+                        }
+                        omega_instruction_selection::WritePlaceShape::FrameIndexedByRegion {
+                            index_region,
+                            element_byte_size,
+                            field_byte_offset,
+                            ..
+                        } => {
+                            context.insert_data_address_at_instruction_start(
+                                context.storage_region_symbol_handle(target.region),
+                            );
+                            if index_region
+                                == omega_target_operations::RuntimeStorageRegion::Machine
+                            {
+                                context.insert_data_address_at_relative_offset(
+                                    omega_instruction_selection::frame_indexed_operand_machine_index_base_offset(
+                                        context.input.target.architecture,
+                                    ),
+                                    context.storage_region_symbol_handle(index_region),
+                                );
+                            }
+                            context.insert_data_address_at_relative_offset(
+                                runtime_frame_indexed_string_data_address_offset_with_index_region(
+                                    context.input.target.architecture,
+                                    index_region,
                                     element_byte_size,
                                     field_byte_offset,
                                 ),
