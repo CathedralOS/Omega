@@ -1166,10 +1166,10 @@ hidden-result copies, and the machine-array write-side mirror plus the
 machine-inline `arr[i] = arr[j]` pair are included. The x86 general place
 materializer also replays every remaining otherwise-unclassified `CopyPlaces`
 path with scratch derived from each retained place's exact index depth.
-Direct-place immediate integer writes, writes through a frame-held pointer, and
-writes through a frame-held indexed descriptor also retain a separate
-ordinary-body fragment and replay exact target `Place`, value, width, every
-storage/index relocation, and target scratch.
+Direct-place immediate integer writes, writes through a frame-held pointer or
+indexed descriptor, and runtime-indexed writes into inline frame arrays also
+retain a separate ordinary-body fragment and replay exact target `Place`,
+value, width, every storage/index relocation, and target scratch.
 Final validation replays the exact target encoder
 and relocation set and matches the derived scratch union to the
 respective retained `CompilerBodyPlaceCopy` or
