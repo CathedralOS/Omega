@@ -135,7 +135,9 @@ metadata and bounded spans for stable terminal subjects, rejects unknown
 subjects and wrong-module attachment, and remains replaceable presentation
 evidence. The checked-source producer fills retained declaration spans and the
 real-source canary round-trips the manifested debug bytes after frontend state
-is dropped. Exact expression/transition-site span retention remains. General
+is dropped. Generated operations and values retain their exact source-expression
+spans; explicit transitions retain their arrow site, and implicit returns retain
+the returned expression rather than the enclosing state declaration. General
 register assignment remains on the legacy backend.
 
 Semantic v1 integer, v2 Boolean, v3 wrapping-add, v4 saturating-add, v5

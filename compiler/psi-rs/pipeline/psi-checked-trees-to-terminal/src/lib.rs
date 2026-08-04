@@ -3289,6 +3289,9 @@ fn source_transition_spans_for_state(
         .iter()
         .filter_map(|statement| match statement {
             StatementNode::Transition(transition) => Some(transition.source_span),
+            StatementNode::Expression(expression) => {
+                Some(checked.expression_table.source_span(*expression))
+            }
             _ => None,
         })
         .collect()

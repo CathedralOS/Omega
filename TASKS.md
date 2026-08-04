@@ -1222,6 +1222,9 @@ improvements do not change public identity.
   The real-source Boolean conditional crosses that complete verified, metered,
   interpreted, assigned, and native-emitted lane after the Psi frontend is
   dropped.
+  Its replaceable debug map now pins generated operations/values to exact
+  expression spans and every edge to either the explicit transition arrow or
+  the implicit returned expression, rather than falling back to a whole state.
   Because the
   legacy exit prover cannot establish ordinary `result == literal` contracts,
   this bootstrap canary preserves a closed typed `requires`/`ensures` fact and
