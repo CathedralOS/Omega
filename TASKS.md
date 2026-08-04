@@ -882,7 +882,7 @@ proves complete region coverage, and composes admitted leaves under their
 separate provenance. Do not add a second whole-image decoder/admission path.
 
 The existing single final-region artifact now carries the domain-separated
-`omega.final-footprint-certificate` schema, format version 21, and a certificate
+`omega.final-footprint-certificate` schema, format version 22, and a certificate
 fingerprint over its final placement binding, compiler-text derivation, and
 complete region inventory. Its explicit completeness flags remain false until
 compiler-body footprint decoding and admitted-leaf evidence land. The envelope
@@ -948,11 +948,12 @@ frame-held pointee sources landing in direct storage, and frame-held
 pointee-to-pointee copies. Single runtime-indexed sources with frame-held
 descriptor/index slots landing in direct frame or machine storage are included
 too, along with their direct-frame-source to frame-indexed-target mirror and
-frame-indexed-source to frame-held-pointee form. Their explicit `Ordinary` role
-prevents overlap with the indirect-result fragment; the exact place-copy bytes,
-storage/pointer/index relocations, and target scratch union must equal the
-retained `CompilerBodyPlaceCopy` evidence. Other ordinary copy/write shapes and
-calls remain incomplete. Pointee-pair selection
+frame-indexed-source to frame-held-pointee form. Runtime-indexed reads from
+inline frame arrays into direct frame storage are included as well. Their
+explicit `Ordinary` role prevents overlap with the indirect-result fragment;
+the exact place-copy bytes, storage/pointer/index relocations, and target
+scratch union must equal the retained `CompilerBodyPlaceCopy` evidence. Other
+ordinary copy/write shapes and calls remain incomplete. Pointee-pair selection
 now resolves both reference operands before the flat-storage fallback,
 preventing the source pointer bits from being copied as field data. The final
 validator now also

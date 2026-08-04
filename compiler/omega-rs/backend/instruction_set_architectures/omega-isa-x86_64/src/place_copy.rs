@@ -749,6 +749,13 @@ pub fn copy_places_indexed_to_pointee_clobbers(byte_count: usize) -> RegisterSet
     copy_places_from_indexed_clobbers(byte_count)
 }
 
+/// Exact scratch footprint of a frame-resident inline-array element read into
+/// direct frame storage. The two-base materializer uses the standard
+/// one-index walk even though every relocation site names the frame region.
+pub fn copy_places_from_frame_base_indexed_clobbers(byte_count: usize) -> RegisterSet {
+    copy_places_from_indexed_clobbers(byte_count)
+}
+
 /// Exact scratch footprint of a direct place-pair copy. Both address bases are
 /// materialized unconditionally; non-empty copies stage chunks through rax.
 pub fn copy_places_direct_clobbers(byte_count: usize) -> RegisterSet {
@@ -1103,6 +1110,18 @@ mod tests {
         );
         assert_eq!(
             copy_places_indexed_to_pointee_clobbers(8),
+            copy_places_from_indexed_clobbers(8)
+        );
+    }
+
+    #[test]
+    fn frame_base_indexed_clobbers_match_the_one_index_place_walk() {
+        assert_eq!(
+            copy_places_from_frame_base_indexed_clobbers(0),
+            copy_places_from_indexed_clobbers(0)
+        );
+        assert_eq!(
+            copy_places_from_frame_base_indexed_clobbers(8),
             copy_places_from_indexed_clobbers(8)
         );
     }

@@ -3244,6 +3244,19 @@ pub fn runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee_clobbe
     runtime_storage_copy_from_runtime_frame_indexed_clobbers()
 }
 
+/// Exact scratch footprint of the frame-resident inline-array read. x16 walks
+/// the source element, x24 preserves the unbiased frame base, x20/x17/x26 form
+/// the indexed address, and x17 also stages each copied chunk.
+pub fn runtime_storage_copy_from_runtime_frame_base_indexed_clobbers() -> RegisterSet {
+    RegisterSet::new([
+        MachineRegister::Aarch64X(16),
+        MachineRegister::Aarch64X(17),
+        MachineRegister::Aarch64X(20),
+        MachineRegister::Aarch64X(24),
+        MachineRegister::Aarch64X(26),
+    ])
+}
+
 /// Offset of the second page-pair in the to-runtime-storage variant. A
 /// frame-to-frame copy reuses the opening frame base and has no second site.
 pub fn runtime_storage_copy_from_runtime_frame_indexed_target_address_offset(
@@ -7327,6 +7340,20 @@ mod tests {
         assert_eq!(
             runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee_clobbers(),
             runtime_storage_copy_from_runtime_frame_indexed_clobbers()
+        );
+    }
+
+    #[test]
+    fn frame_base_indexed_clobbers_match_the_inline_array_encoder() {
+        assert_eq!(
+            runtime_storage_copy_from_runtime_frame_base_indexed_clobbers().as_slice(),
+            &[
+                MachineRegister::Aarch64X(16),
+                MachineRegister::Aarch64X(17),
+                MachineRegister::Aarch64X(20),
+                MachineRegister::Aarch64X(24),
+                MachineRegister::Aarch64X(26),
+            ]
         );
     }
 
