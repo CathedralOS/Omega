@@ -7,6 +7,7 @@ use crate::symbols::lookup::{child_symbol_by_kinds, top_level_symbol};
 use crate::symbols::scope::MachineScope;
 use crate::symbols::top_level::{assign_machine_parameter_signature_symbols, next_child_of_kind};
 use crate::symbols::type_references::{
+    assign_proposition_family_argument_symbols,
     assign_type_reference_argument_symbols_with_constraints,
     assign_type_reference_symbol_with_locals_and_self_type_and_constraints,
 };
@@ -16,6 +17,29 @@ pub(super) fn assign_machine_symbols(
     symbols: &SymbolTable,
     root_children: &mut impl Iterator<Item = SymbolHandle>,
 ) {
+    let trait_proposition_slots = program
+        .roots
+        .traits
+        .iter()
+        .map(|trait_definition| {
+            (
+                trait_definition.name.as_str().to_owned(),
+                program
+                    .tables
+                    .declarations
+                    .data_type_parameters
+                    .span_or_empty(trait_definition.type_parameters)
+                    .iter()
+                    .map(|parameter| {
+                        matches!(
+                            parameter.kind,
+                            psi_symbol_resolved_trees::data::TypeParameterKind::Proposition { .. }
+                        )
+                    })
+                    .collect::<Vec<_>>(),
+            )
+        })
+        .collect::<Vec<_>>();
     let tables = &mut program.tables;
     let type_constraints = &tables.types.constraints;
     let declarations = &mut tables.declarations;
@@ -133,6 +157,18 @@ pub(super) fn assign_machine_symbols(
                 machine_symbol,
                 conformance.arguments,
             );
+            if let Some((_, proposition_slots)) = trait_proposition_slots
+                .iter()
+                .find(|(name, _)| name == conformance.name.as_str())
+            {
+                assign_proposition_family_argument_symbols(
+                    symbols,
+                    child_type_references,
+                    &local_type_parameters,
+                    conformance.arguments,
+                    proposition_slots,
+                );
+            }
         }
 
         for bound in &mut machine.conformance_bounds {
@@ -164,6 +200,19 @@ pub(super) fn assign_machine_symbols(
                 machine_symbol,
                 bound.arguments,
             );
+            if bound.conformance_name.is_none()
+                && let Some((_, proposition_slots)) = trait_proposition_slots
+                    .iter()
+                    .find(|(name, _)| name == bound.carrier_name.as_str())
+            {
+                assign_proposition_family_argument_symbols(
+                    symbols,
+                    child_type_references,
+                    &local_type_parameters,
+                    bound.arguments,
+                    proposition_slots,
+                );
+            }
         }
 
         for state in machine_state_handles

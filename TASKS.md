@@ -1671,8 +1671,13 @@ and allocation handles expose no compiler-owned stack/control storage.
      parameter type resolution, source/typed identity, and proof-fact
      normalization; trait requirement contracts can apply the abstract family
      with arity and value-type validation while runtime use remains rejected.
-     Concrete proposition-family substitution at selected conformance sites
-     remains in this rung;
+     Concrete-substitution slice landed 2026-08-03: trait applications resolve
+     proposition slots contextually (without admitting propositions as value
+     types), validate a concrete declaration's value signature after ordinary
+     type-parameter substitution, reject category/signature mismatches, and
+     forward abstract proposition parameters through composed traits. Indexed
+     carrier-family telescope matching and proposition-law conformance
+     substitution remain in this rung;
   2. add the proof stratum to selected-conformance projection and permit
      by-value `dyn` only when the complete normalized value has no runtime
      carrier;

@@ -603,6 +603,14 @@ pub(super) fn validate_trait_application_obligations(
         return;
     }
 
+    validate_proposition_family_arguments(
+        program,
+        applied_trait,
+        applied_arguments,
+        application_label,
+        diagnostics,
+    );
+
     for obligation in &applied_trait.conformance_bounds {
         let Some(subject_index) = parameters.iter().position(|parameter| {
             (parameter.symbol.is_valid() && parameter.symbol == obligation.subject)
@@ -708,6 +716,112 @@ pub(super) fn validate_trait_application_obligations(
                 obligation.subject_name,
                 trait_application_label(program, required_trait, &obligation.arguments),
             ))),
+        }
+    }
+}
+
+fn validate_proposition_family_arguments(
+    program: &TypedTrees,
+    applied_trait: &TraitDefinition,
+    applied_arguments: &[TypeReferenceHandle],
+    application_label: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let parameters = program.trait_type_parameters(applied_trait);
+    let mut bindings = parameters
+        .iter()
+        .zip(applied_arguments)
+        .map(|(parameter, argument)| TraitTypeBinding {
+            parameter_symbol: parameter.symbol,
+            parameter_name: parameter.name.to_string(),
+            target: TraitTypeBindingTarget::Type(*argument),
+        })
+        .collect::<Vec<_>>();
+
+    for (parameter, argument) in parameters.iter().zip(applied_arguments) {
+        let TypeParameterKind::Proposition { contract: expected } = &parameter.kind else {
+            continue;
+        };
+        let TypeReferenceNode::Named { symbol, name } =
+            program.type_reference_table.type_reference(*argument)
+        else {
+            diagnostics.push(Diagnostic::error(format!(
+                "{application_label} proposition-family argument `{}` must be a direct proposition name",
+                parameter.name,
+            )));
+            continue;
+        };
+        let actual_parameters = if symbol.is_valid()
+            && program.symbols.get(*symbol).kind == psi_symbols::SymbolKind::Proposition
+        {
+            program
+                .propositions()
+                .iter()
+                .find(|proposition| proposition.symbol == *symbol)
+                .map(|proposition| program.proposition_parameters(proposition))
+        } else if symbol.is_valid()
+            && program.symbols.get(*symbol).kind == psi_symbols::SymbolKind::PropositionParameter
+        {
+            program
+                .data_type_parameters
+                .iter()
+                .map(|(_, parameter)| parameter)
+                .find_map(|parameter| match &parameter.kind {
+                    TypeParameterKind::Proposition { contract } if parameter.symbol == *symbol => {
+                        Some(program.state_parameters.span_or_empty(contract.parameters))
+                    }
+                    _ => None,
+                })
+        } else {
+            None
+        };
+        let Some(actual_parameters) = actual_parameters else {
+            diagnostics.push(Diagnostic::error(format!(
+                "{application_label} argument `{}` for proposition parameter `{}` is not a proposition family",
+                name, parameter.name,
+            )));
+            continue;
+        };
+        let expected_parameters = program.state_parameters.span_or_empty(expected.parameters);
+        if actual_parameters.len() != expected_parameters.len() {
+            diagnostics.push(Diagnostic::error(format!(
+                "{application_label} proposition family `{name}` has {} value parameter(s), but `{}` requires {}",
+                actual_parameters.len(),
+                parameter.name,
+                expected_parameters.len(),
+            )));
+            continue;
+        }
+        for (index, (actual, expected)) in actual_parameters
+            .iter()
+            .zip(expected_parameters)
+            .enumerate()
+        {
+            if !type_references_match_with_trait_bindings(
+                program,
+                actual.type_reference,
+                expected.type_reference,
+                parameters,
+                &mut bindings,
+            ) {
+                let expected_type =
+                    required_trait_type_parameter(program, expected.type_reference, parameters)
+                        .and_then(|expected_parameter| {
+                            parameters
+                                .iter()
+                                .position(|candidate| candidate.symbol == expected_parameter.symbol)
+                        })
+                        .and_then(|index| applied_arguments.get(index).copied())
+                        .map(|argument| program.display_type_reference(argument))
+                        .unwrap_or_else(|| program.display_type_reference(expected.type_reference));
+                diagnostics.push(Diagnostic::error(format!(
+                    "{application_label} proposition family `{name}` value parameter {} has type `{}`, but `{}` requires `{}` after substitution",
+                    index + 1,
+                    program.display_type_reference(actual.type_reference),
+                    parameter.name,
+                    expected_type,
+                )));
+            }
         }
     }
 }
