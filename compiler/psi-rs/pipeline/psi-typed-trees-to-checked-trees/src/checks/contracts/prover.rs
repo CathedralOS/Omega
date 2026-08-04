@@ -137,6 +137,26 @@ pub(super) fn semantic_contexts_prove_contract_fact(
                 semantic_context_proves_boolean_expression(program, semantic, context, expression)
             })
         }
+        FactPayload::ContractPropositionApplication { .. } => {
+            let Some(required_label) = semantic.proposition_fact_label(program, fact) else {
+                return false;
+            };
+            entry_contexts.iter().any(|entry_context| {
+                let context = semantic.contexts.get(*entry_context);
+                semantic
+                    .context_view(context)
+                    .proves_proposition_label(program, &required_label)
+                    || required_label
+                        .strip_prefix("boolean:")
+                        .is_some_and(|required_boolean| {
+                            semantic.context_view(context).facts().any(|candidate| {
+                                semantic
+                                    .boolean_fact_label(program, candidate)
+                                    .is_some_and(|label| label == required_boolean)
+                            })
+                        })
+            })
+        }
         _ => true,
     }
 }

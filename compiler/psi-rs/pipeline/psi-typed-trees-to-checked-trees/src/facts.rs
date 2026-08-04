@@ -996,23 +996,43 @@ fn encode_proposition_application_canonical(
     parameter_names: &[String],
     out: &mut Vec<u8>,
 ) {
-    out.extend(application.name.as_str().as_bytes());
-    out.push(0);
-    for binder in &application.binder_arguments {
-        for member in &binder.path {
-            out.extend(member.as_str().as_bytes());
-            out.push(b':');
-        }
-        out.push(0);
-    }
-    out.push(0xfd);
-    for argument in program
+    let binder_labels = application
+        .binder_arguments
+        .iter()
+        .map(|binder| {
+            binder
+                .path
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::")
+        })
+        .collect::<Vec<_>>();
+    let argument_labels = program
         .expression_table
         .expression_handles(application.arguments)
-    {
-        encode_expression_canonical(program, *argument, parameter_names, out);
+        .iter()
+        .map(|argument| {
+            let mut bytes = Vec::new();
+            encode_expression_canonical(program, *argument, parameter_names, &mut bytes);
+            bytes
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>()
+        })
+        .collect::<Vec<_>>();
+    if let Some(formula) = program.normalize_proposition_application_with_labels(
+        application,
+        &binder_labels,
+        &argument_labels,
+    ) {
+        out.extend(formula.identity_label().as_bytes());
+    } else {
+        // Invalid/cyclic aliases are rejected by validation; retaining a
+        // fail-closed marker prevents an accidental identity collision here.
+        out.extend(b"invalid-proposition-application");
     }
-    out.push(0xfc);
+    out.push(0);
 }
 
 fn encode_contract_expression_canonical(

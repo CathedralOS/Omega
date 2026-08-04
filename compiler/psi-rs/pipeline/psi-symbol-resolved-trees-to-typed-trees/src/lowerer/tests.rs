@@ -64,6 +64,54 @@ fn proposition_application_rejects_in_runtime_value_position() {
 }
 
 #[test]
+fn transparent_proposition_alias_normalizes_to_its_expansion() {
+    let source = r#"
+        proposition related(left: i32, right: i32);
+        proposition self_related(value: i32) = related(value, value);
+
+        machine through_alias(value: i32)
+        requires self_related(value)
+        {
+        }
+
+        machine through_expansion(value: i32)
+        requires related(value, value)
+        {
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved_program = lower_syntax_trees(&syntax_trees).expect("resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved_program).expect("typing should succeed");
+
+    let normalized = typed
+        .machines()
+        .iter()
+        .map(|machine| {
+            let [contract] = typed.machine_contracts(machine) else {
+                panic!("machine should retain one contract");
+            };
+            let [psi_typed_trees::domain::ProofFact::Proposition(application)] =
+                typed.proof_facts.span_or_empty(contract.facts)
+            else {
+                panic!("contract should retain one proposition application");
+            };
+            typed
+                .normalize_proposition_application(application)
+                .expect("application should normalize")
+                .identity_label()
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(normalized.len(), 2);
+    assert_eq!(normalized[0], normalized[1]);
+    assert!(!normalized[0].contains("self_related"));
+    assert!(normalized[0].contains("related"));
+}
+
+#[test]
 fn lowers_dungeon_style_machine_program() {
     let source = r#"
     data Inventory {

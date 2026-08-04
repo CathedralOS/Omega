@@ -55,6 +55,7 @@ use crate::invariants::validate_invariant_definitions;
 use crate::locals::{WritableRoots, validate_local_data_names};
 use crate::machine_data::validate_owned_data;
 use crate::places::validate_assignment_target_handle;
+use crate::proof_facts::validate_proposition_definitions;
 use crate::state_signatures::{
     StateSignatureOwner, validate_callable_state_signatures, validate_machine_contracts,
     validate_machine_service_reaches,
@@ -135,6 +136,8 @@ fn validate_program_internal(
     callable_overloads::validate_named_callable_overload_declarations(program, &mut diagnostics);
     let symbols = TopLevelSymbols::build(program, &mut diagnostics);
     let fact_plan = psi_facts::build_definition_fact_plan(program);
+
+    validate_proposition_definitions(program, &mut diagnostics);
 
     literals::validate_literal_widths(program, &mut diagnostics);
     literals::validate_suffix_landings(program, &mut diagnostics);

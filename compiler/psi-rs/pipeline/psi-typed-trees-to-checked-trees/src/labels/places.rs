@@ -50,6 +50,10 @@ pub(crate) fn semantic_fact_requirement_label(
             semantic_boolean_fact_label(program, semantic, fact)
                 .unwrap_or_else(|| "unknown boolean expression".to_owned())
         }
+        FactPayload::ContractPropositionApplication { .. }
+        | FactPayload::PropositionApplication { .. } => semantic
+            .proposition_fact_label(program, fact)
+            .unwrap_or_else(|| "unknown proposition application".to_owned()),
         _ => "unknown contract fact".to_owned(),
     }
 }

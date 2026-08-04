@@ -14,7 +14,12 @@ pub(super) fn direct_context_proves_boolean_expression(
     let required_label = program.expression_table.display_name(expression);
 
     semantic.context_view(context).facts().any(|fact| {
-        let Some(candidate_label) = semantic_boolean_fact_label(program, semantic, fact) else {
+        let candidate_label = semantic_boolean_fact_label(program, semantic, fact).or_else(|| {
+            semantic
+                .proposition_fact_label(program, fact)
+                .and_then(|label| label.strip_prefix("boolean:").map(str::to_owned))
+        });
+        let Some(candidate_label) = candidate_label else {
             return false;
         };
 
@@ -45,7 +50,12 @@ pub(super) fn direct_context_proves_instantiated_boolean_expression(
     );
 
     semantic.context_view(context).facts().any(|fact| {
-        let Some(candidate_label) = semantic_boolean_fact_label(program, semantic, fact) else {
+        let candidate_label = semantic_boolean_fact_label(program, semantic, fact).or_else(|| {
+            semantic
+                .proposition_fact_label(program, fact)
+                .and_then(|label| label.strip_prefix("boolean:").map(str::to_owned))
+        });
+        let Some(candidate_label) = candidate_label else {
             return false;
         };
 

@@ -1646,8 +1646,14 @@ and allocation handles expose no compiler-owned stack/control storage.
      fact, machine-index and value arity are checked, runtime-value use rejects,
      monomorphization deep-copies the application, and checked fact payloads
      preserve its proposition identity without coercing it to `bool`.
-     Type/const proposition application, transparent-alias expansion,
-     proposition-aware entailment/evidence, and normalized terminal identity
+     Normalization slice landed 2026-08-03: transparent proposition chains
+     expand before identity (including Boolean-backed aliases), cycles reject,
+     fact-only versus witness-bearing classification enters the canonical
+     identity, call/operator substitutions retain caller terms, and requires
+     discharge uses exact normalized proposition matching rather than the
+     legacy unknown-payload fallback. Type/const proposition application,
+     checked proof introduction and witness evidence, generic proposition
+     binders, and self-contained terminal-Psi declaration/application identity
      remain in this rung;
   2. add the proof stratum to selected-conformance projection and permit
      by-value `dyn` only when the complete normalized value has no runtime

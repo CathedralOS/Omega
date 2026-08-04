@@ -237,7 +237,55 @@ fn requires_fact_proven(
             operands,
             *expression,
         ),
-        ProofFact::Proposition(_) => false,
+        ProofFact::Proposition(application) => {
+            let binder_labels = application
+                .binder_arguments
+                .iter()
+                .map(|argument| {
+                    argument
+                        .path
+                        .iter()
+                        .map(|member| member.as_str())
+                        .collect::<Vec<_>>()
+                        .join("::")
+                })
+                .collect::<Vec<_>>();
+            let argument_labels = program
+                .expression_table
+                .expression_handles(application.arguments)
+                .iter()
+                .map(|argument| {
+                    instantiate_operator_contract_expression_label(
+                        program, parameters, operands, *argument,
+                    )
+                })
+                .collect::<Vec<_>>();
+            let Some(required_label) = program
+                .normalize_proposition_application_with_labels(
+                    application,
+                    &binder_labels,
+                    &argument_labels,
+                )
+                .map(|formula| formula.identity_label())
+            else {
+                return false;
+            };
+            contexts.iter().any(|context| {
+                let context = semantic.contexts.get(*context);
+                semantic
+                    .context_view(context)
+                    .proves_proposition_label(program, &required_label)
+                    || required_label
+                        .strip_prefix("boolean:")
+                        .is_some_and(|required_boolean| {
+                            semantic.context_view(context).facts().any(|candidate| {
+                                semantic
+                                    .boolean_fact_label(program, candidate)
+                                    .is_some_and(|label| label == required_boolean)
+                            })
+                        })
+            })
+        }
     }
 }
 

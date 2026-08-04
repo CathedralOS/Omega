@@ -139,6 +139,70 @@ pub(super) fn append_contract_semantic_facts(
     }
 }
 
+fn instantiate_call_proposition_payload(
+    program: &psi_typed_trees::TypedTrees,
+    facts: &mut FactPlan,
+    call: &ContractCallFact,
+    contract: &ContractProofFact,
+    payload: &mut FactPayload,
+) {
+    let FactPayload::ContractPropositionApplication { instantiated, .. } = payload else {
+        return;
+    };
+    let psi_typed_trees::domain::ProofFact::Proposition(application) =
+        program.proof_facts.get(contract.fact)
+    else {
+        return;
+    };
+    let Some(call_site) = crate::find_call_site(
+        program,
+        call.caller_machine_symbol,
+        call.caller_state_symbol,
+        call.statement_index,
+        call.call_ordinal,
+    ) else {
+        return;
+    };
+    let Some(target_parameters) = crate::call_target_parameters(program, call.target_state_symbol)
+    else {
+        return;
+    };
+    let binder_labels = application
+        .binder_arguments
+        .iter()
+        .map(|argument| {
+            argument
+                .path
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::")
+        })
+        .collect::<Vec<_>>();
+    let argument_labels = program
+        .expression_table
+        .expression_handles(application.arguments)
+        .iter()
+        .map(|argument| {
+            crate::checks::contracts::labels::instantiate_call_contract_expression_label(
+                program,
+                call.caller_state_symbol,
+                call.statement_index,
+                &call_site,
+                target_parameters,
+                *argument,
+            )
+        })
+        .collect::<Vec<_>>();
+    if let Some(formula) = program.normalize_proposition_application_with_labels(
+        application,
+        &binder_labels,
+        &argument_labels,
+    ) {
+        *instantiated = facts.append_instantiated_expression(formula.identity_label());
+    }
+}
+
 fn append_call_semantic_contract_refs(
     program: &psi_typed_trees::TypedTrees,
     proof: &ProofFacts,
@@ -152,7 +216,8 @@ fn append_call_semantic_contract_refs(
     for source_ref in proof.contract_fact_refs.span_or_empty(source_refs) {
         let contract = proof.contract_facts.get(source_ref.fact);
         let place = instantiate_call_contract_place(program, facts, call, contract);
-        let payload = semantic_contract_payload(program, contract);
+        let mut payload = semantic_contract_payload(program, contract);
+        instantiate_call_proposition_payload(program, facts, call, contract, &mut payload);
         let evidence = crate::qualification_evidence::call_contract_evidence(
             program,
             call.target_machine_symbol,

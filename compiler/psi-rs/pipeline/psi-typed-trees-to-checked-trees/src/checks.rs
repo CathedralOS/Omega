@@ -1,7 +1,7 @@
 mod borrows;
 mod carry;
 mod content;
-mod contracts;
+pub(crate) mod contracts;
 mod multiplicity;
 mod operators;
 mod ranges;

@@ -73,6 +73,14 @@ impl<'facts> FactContextView<'facts> {
         self.proves_boolean_expression_for_place_in_program(program, expression, None)
     }
 
+    pub fn proves_proposition_label(self, program: &TypedTrees, required_label: &str) -> bool {
+        self.facts().any(|fact| {
+            self.plan
+                .proposition_fact_label(program, fact)
+                .is_some_and(|candidate| candidate == required_label)
+        })
+    }
+
     pub fn proves_boolean_expression_for_place_in_program(
         self,
         program: &TypedTrees,

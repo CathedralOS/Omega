@@ -344,6 +344,41 @@ pub(super) fn append_operator_statement_ensures(
                 }
                 psi_typed_trees::domain::ProofFact::Proposition(application) => {
                     let place = semantic.append_symbol_place(application.proposition);
+                    let binder_labels = application
+                        .binder_arguments
+                        .iter()
+                        .map(|argument| {
+                            argument
+                                .path
+                                .iter()
+                                .map(|member| member.as_str())
+                                .collect::<Vec<_>>()
+                                .join("::")
+                        })
+                        .collect::<Vec<_>>();
+                    let argument_labels = program
+                        .expression_table
+                        .expression_handles(application.arguments)
+                        .iter()
+                        .map(|argument| {
+                            crate::labels::instantiate_operator_contract_expression_label_with_labels(
+                                program,
+                                parameters,
+                                &operand_labels,
+                                *argument,
+                            )
+                        })
+                        .collect::<Vec<_>>();
+                    let instantiated = program
+                        .normalize_proposition_application_with_labels(
+                            application,
+                            &binder_labels,
+                            &argument_labels,
+                        )
+                        .map(|formula| {
+                            semantic.append_instantiated_expression(formula.identity_label())
+                        })
+                        .unwrap_or_else(psi_arena::Handle::invalid);
                     let fact = semantic.append_fact(Fact {
                         place: FactPlace::Place(place),
                         point,
@@ -355,6 +390,7 @@ pub(super) fn append_operator_statement_ensures(
                             kind: semantic_contract_fact_kind(ContractProofFactKind::Ensures),
                             fact: fact_handle,
                             proposition: application.proposition,
+                            instantiated,
                         },
                     });
                     semantic.append_ref(&mut refs, fact);
