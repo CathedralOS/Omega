@@ -1198,6 +1198,40 @@ pub fn runtime_frame_indexed_string_data_address_offset(
     runtime_frame_index_setup_width(element_byte_size, field_byte_offset)
 }
 
+pub fn runtime_frame_base_indexed_string_write_width(
+    base_byte_offset: usize,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_length: usize,
+) -> usize {
+    runtime_frame_base_indexed_string_data_address_offset(
+        base_byte_offset,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+    ) + 16
+        + unsigned_immediate_width(byte_length as u64)
+}
+
+pub fn runtime_frame_base_indexed_string_data_address_offset(
+    base_byte_offset: usize,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> usize {
+    runtime_frame_base_index_setup_width_with_index_width(
+        base_byte_offset,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+    )
+}
+
 pub fn runtime_machine_indexed_string_write_width(
     base_byte_offset: usize,
     element_byte_size: usize,

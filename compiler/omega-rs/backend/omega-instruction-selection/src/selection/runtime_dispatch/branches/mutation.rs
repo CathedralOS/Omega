@@ -1086,6 +1086,29 @@ fn select_runtime_string_mutation_write_in_table(
         );
     }
 
+    if data.is_valid()
+        && let Some(indexed_target) = resolve_runtime_frame_base_indexed_target_in_table(
+            input,
+            dispatch_index,
+            target_source_key,
+            expressions,
+            target,
+        )
+        && indexed_target.byte_count == input.runtime_abi.string_descriptor_size()
+    {
+        return Some(
+            crate::selection::runtime_dispatch::write_place_string_frame_base_indexed(
+                indexed_target.base_byte_offset,
+                indexed_target.index_offset,
+                indexed_target.index_byte_size,
+                indexed_target.element_byte_size,
+                indexed_target.field_byte_offset,
+                data,
+                value.len(),
+            ),
+        );
+    }
+
     let target_place = resolve_runtime_storage_place_in_table(
         input,
         dispatch_index,

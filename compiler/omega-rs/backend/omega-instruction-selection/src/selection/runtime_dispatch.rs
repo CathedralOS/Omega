@@ -947,6 +947,38 @@ pub(crate) fn write_place_string_frame_indexed(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn write_place_string_frame_base_indexed(
+    base_byte_offset: usize,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    data: omega_abstract_operations::AbstractDataObjectHandle,
+    byte_length: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::WritePlaceString {
+        target: omega_abstract_operations::Place::at(
+            RuntimeStorageRegion::RuntimeFrame,
+            base_byte_offset,
+        )
+        .with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+            index_region: RuntimeStorageRegion::RuntimeFrame,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+        })
+        .and_then(|place| {
+            place.with_step(omega_abstract_operations::PlaceStep::ConstOffset(
+                field_byte_offset,
+            ))
+        })
+        .expect("a frame-base-indexed place is three steps, within PLACE_MAX_STEPS"),
+        data,
+        byte_length,
+    }
+}
+
 pub(crate) fn write_place_string_machine_indexed(
     base_byte_offset: usize,
     index_offset: usize,
