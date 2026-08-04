@@ -130,6 +130,18 @@ pub enum CompilerInstructionValidationKind {
         trapping: bool,
         saturating: bool,
     },
+    CompilerBodyPlaceConvertWrite {
+        target: Place,
+        target_byte_size: usize,
+        source: omega_target_operations::RuntimeValueOperandHandle,
+        source_byte_size: usize,
+        source_is_float: bool,
+        target_is_float: bool,
+        source_signed: bool,
+        target_signed: bool,
+        trapping: bool,
+        saturating: bool,
+    },
     DispatchStateWrite {
         dispatch_index: u32,
         case_leave_byte_distance: isize,

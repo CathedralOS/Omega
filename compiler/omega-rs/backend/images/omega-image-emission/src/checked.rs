@@ -180,6 +180,10 @@ enum CompilerInstructionRelocationRecipe {
         target_region: omega_target_operations::RuntimeStorageRegion,
         source: omega_target_operations::RuntimeValueOperandHandle,
     },
+    PlaceConvertWrite {
+        target: omega_target_operations::Place,
+        source: omega_target_operations::RuntimeValueOperandHandle,
+    },
     RuntimeTextLiteral {
         buffer_symbol: std::sync::Arc<str>,
     },
@@ -1563,6 +1567,99 @@ fn validate_compiler_function_instruction_boundaries(
                             source,
                         },
                     ),
+                    omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyPlaceConvertWrite {
+                        target,
+                        target_byte_size,
+                        source,
+                        source_byte_size,
+                        source_is_float,
+                        target_is_float,
+                        source_signed,
+                        target_signed,
+                        trapping,
+                        saturating,
+                    } => {
+                        let shape = compiler_body_place_integer_write_shape(&target)?;
+                        if architecture == Architecture::Aarch64
+                            && !matches!(
+                                shape,
+                                CompilerBodyPlaceIntegerWriteShape::Pointee { .. }
+                                    | CompilerBodyPlaceIntegerWriteShape::MachineIndexed { .. }
+                            )
+                        {
+                            return Err(Diagnostic::error(
+                                "final aarch64 compiler-body place conversion retained an unsupported target",
+                            ));
+                        }
+                        (
+                            None,
+                            match architecture {
+                                Architecture::X86_64 => omega_isa_x86_64::encode_place_convert_write(
+                                    &code.runtime_value_operands,
+                                    &target,
+                                    target_byte_size,
+                                    source,
+                                    source_byte_size,
+                                    source_is_float,
+                                    target_is_float,
+                                    source_signed,
+                                    target_signed,
+                                    trapping,
+                                    saturating,
+                                )?.0,
+                                Architecture::Aarch64 => match shape {
+                                    CompilerBodyPlaceIntegerWriteShape::Pointee {
+                                        pointer_byte_offset,
+                                        field_byte_offset,
+                                    } => omega_isa_aarch64::encode_runtime_pointee_convert_write(
+                                        &code.runtime_value_operands,
+                                        pointer_byte_offset,
+                                        field_byte_offset,
+                                        target_byte_size,
+                                        source,
+                                        source_byte_size,
+                                        source_is_float,
+                                        target_is_float,
+                                        source_signed,
+                                        target_signed,
+                                        trapping,
+                                        saturating,
+                                    )?,
+                                    CompilerBodyPlaceIntegerWriteShape::MachineIndexed {
+                                        base_byte_offset,
+                                        index_region,
+                                        index_offset,
+                                        index_byte_size,
+                                        element_byte_size,
+                                        field_byte_offset,
+                                    } => omega_isa_aarch64::encode_runtime_machine_indexed_convert_write(
+                                        &code.runtime_value_operands,
+                                        base_byte_offset,
+                                        index_region,
+                                        index_offset,
+                                        index_byte_size,
+                                        element_byte_size,
+                                        field_byte_offset,
+                                        target_byte_size,
+                                        source,
+                                        source_byte_size,
+                                        source_is_float,
+                                        target_is_float,
+                                        source_signed,
+                                        target_signed,
+                                        trapping,
+                                        saturating,
+                                    )?,
+                                    _ => unreachable!("aarch64 place-convert shape checked above"),
+                                },
+                            },
+                            22u8,
+                            CompilerInstructionRelocationRecipe::PlaceConvertWrite {
+                                target,
+                                source,
+                            },
+                        )
+                    }
                     omega_machine_bytes::CompilerInstructionValidationKind::DispatchStateWrite {
                         dispatch_index,
                         case_leave_byte_distance,
@@ -1770,6 +1867,32 @@ fn validate_compiler_function_instruction_boundaries(
                             architecture,
                             &code.runtime_value_operands,
                             target_region,
+                            source,
+                        )?;
+                        validate_compiler_data_address_relocations(
+                            architecture,
+                            object,
+                            relocations,
+                            instruction.selected_instruction_index,
+                            instruction_byte_offset,
+                            &address_sites,
+                        )?;
+                        encoded_instruction_bytes == expected_bytes
+                            && compiler_instruction_non_relocation_bits_match(
+                                architecture,
+                                &expected_bytes,
+                                final_instruction_bytes,
+                                &address_sites
+                                    .iter()
+                                    .map(|(offset, _)| *offset)
+                                    .collect::<Vec<_>>(),
+                            )
+                    }
+                    CompilerInstructionRelocationRecipe::PlaceConvertWrite { target, source } => {
+                        let address_sites = compiler_place_convert_write_address_sites(
+                            architecture,
+                            &code.runtime_value_operands,
+                            target,
                             source,
                         )?;
                         validate_compiler_data_address_relocations(
@@ -2461,6 +2584,26 @@ fn compiler_instruction_footprint(
             }
         }
         CompilerInstructionValidationKind::CompilerBodyStorageConvertWrite { source, .. } => {
+            match architecture {
+                Architecture::X86_64 => (
+                    BoundaryFootprintFragmentOrigin::CompilerBodyStorageConvertWrite,
+                    omega_isa_x86_64::storage_convert_write_register_write_ceiling(),
+                    omega_isa_x86_64::storage_convert_write_additional_machine_state(
+                        runtime_value_operands,
+                        source,
+                    ),
+                ),
+                Architecture::Aarch64 => (
+                    BoundaryFootprintFragmentOrigin::CompilerBodyStorageConvertWrite,
+                    omega_isa_aarch64::storage_convert_write_register_write_ceiling(),
+                    omega_isa_aarch64::storage_convert_write_additional_machine_state(
+                        runtime_value_operands,
+                        source,
+                    ),
+                ),
+            }
+        }
+        CompilerInstructionValidationKind::CompilerBodyPlaceConvertWrite { source, .. } => {
             match architecture {
                 Architecture::X86_64 => (
                     BoundaryFootprintFragmentOrigin::CompilerBodyStorageConvertWrite,
@@ -4515,6 +4658,71 @@ fn compiler_storage_convert_write_address_sites(
         Architecture::Aarch64 => 8,
     };
     let mut sites = vec![(0, target_region)];
+    let mut visiting = Vec::new();
+    collect_compiler_runtime_value_address_sites(
+        architecture,
+        operands,
+        source,
+        operand_start,
+        &mut visiting,
+        &mut sites,
+    )?;
+    Ok(sites)
+}
+
+fn compiler_place_convert_write_address_sites(
+    architecture: Architecture,
+    operands: &psi_arena::Arena<omega_target_operations::RuntimeValueOperand>,
+    target: omega_target_operations::Place,
+    source: omega_target_operations::RuntimeValueOperandHandle,
+) -> Result<Vec<(usize, omega_target_operations::RuntimeStorageRegion)>, Diagnostic> {
+    let mut sites = vec![(0, target.region)];
+    let operand_start = match architecture {
+        Architecture::X86_64 => {
+            sites.extend(omega_isa_x86_64::place_binary_index_base_positions(&target));
+            omega_isa_x86_64::place_binary_operand_start_width(&target)
+        }
+        Architecture::Aarch64 => match compiler_body_place_integer_write_shape(&target)? {
+            CompilerBodyPlaceIntegerWriteShape::Pointee {
+                pointer_byte_offset,
+                field_byte_offset,
+            } => omega_isa_aarch64::runtime_pointee_operand_start_width(
+                pointer_byte_offset,
+                field_byte_offset,
+            ),
+            CompilerBodyPlaceIntegerWriteShape::MachineIndexed {
+                base_byte_offset,
+                index_region,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+            } => {
+                if index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
+                    sites.push((
+                            omega_isa_aarch64::runtime_machine_indexed_integer_runtime_frame_address_offset(
+                                base_byte_offset,
+                            ),
+                            omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                        ));
+                }
+                omega_isa_aarch64::runtime_machine_indexed_integer_write_width(
+                    base_byte_offset,
+                    index_region,
+                    index_offset,
+                    index_byte_size,
+                    element_byte_size,
+                    field_byte_offset,
+                    0,
+                )
+            }
+            _ => {
+                return Err(Diagnostic::error(
+                    "final aarch64 compiler-body place-convert relocation recipe retained an unsupported target",
+                ));
+            }
+        },
+    };
     let mut visiting = Vec::new();
     collect_compiler_runtime_value_address_sites(
         architecture,

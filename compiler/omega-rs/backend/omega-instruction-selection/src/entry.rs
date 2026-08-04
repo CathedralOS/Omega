@@ -922,22 +922,33 @@ pub fn derive_boundary_compiler_body_storage_convert_write_footprint<'instructio
     let mut registers = Vec::new();
     let mut additional_state = MachineStateSet::empty();
     for instruction in instructions {
-        let SelectedInstructionKind::WriteRuntimeStorageConvert { source, .. } = instruction else {
-            continue;
+        let source = match instruction {
+            SelectedInstructionKind::WriteRuntimeStorageConvert { source, .. } => *source,
+            SelectedInstructionKind::WritePlaceConvert { target, source, .. }
+                if architecture == omega_target::Architecture::X86_64
+                    || matches!(
+                        crate::classify_write_place_shape(target),
+                        crate::WritePlaceShape::Pointee { .. }
+                            | crate::WritePlaceShape::MachineIndexed { .. }
+                    ) =>
+            {
+                *source
+            }
+            _ => continue,
         };
         let (writes, state) = match architecture {
             omega_target::Architecture::X86_64 => (
                 omega_isa_x86_64::storage_convert_write_register_write_ceiling(),
                 omega_isa_x86_64::storage_convert_write_additional_machine_state(
                     runtime_value_operands,
-                    *source,
+                    source,
                 ),
             ),
             omega_target::Architecture::Aarch64 => (
                 omega_isa_aarch64::storage_convert_write_register_write_ceiling(),
                 omega_isa_aarch64::storage_convert_write_additional_machine_state(
                     runtime_value_operands,
-                    *source,
+                    source,
                 ),
             ),
         };

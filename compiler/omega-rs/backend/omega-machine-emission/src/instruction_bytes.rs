@@ -539,6 +539,39 @@ fn compiler_instruction_validation_kind(
                 saturating: *saturating,
             },
         ),
+        SelectedInstructionKind::WritePlaceConvert {
+            target,
+            target_byte_size,
+            source,
+            source_byte_size,
+            source_is_float,
+            target_is_float,
+            source_signed,
+            target_signed,
+            trapping,
+            saturating,
+        } if emission_context.target.architecture == omega_target::Architecture::X86_64
+            || matches!(
+                omega_instruction_selection::classify_write_place_shape(target),
+                omega_instruction_selection::WritePlaceShape::Pointee { .. }
+                    | omega_instruction_selection::WritePlaceShape::MachineIndexed { .. }
+            ) =>
+        {
+            Some(
+                CompilerInstructionValidationKind::CompilerBodyPlaceConvertWrite {
+                    target: *target,
+                    target_byte_size: *target_byte_size,
+                    source: *source,
+                    source_byte_size: *source_byte_size,
+                    source_is_float: *source_is_float,
+                    target_is_float: *target_is_float,
+                    source_signed: *source_signed,
+                    target_signed: *target_signed,
+                    trapping: *trapping,
+                    saturating: *saturating,
+                },
+            )
+        }
         SelectedInstructionKind::SetDispatchState { dispatch_index } => {
             Some(CompilerInstructionValidationKind::DispatchStateWrite {
                 dispatch_index: *dispatch_index,
