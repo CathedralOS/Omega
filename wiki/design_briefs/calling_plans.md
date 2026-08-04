@@ -1111,7 +1111,7 @@ relocation, and data relocation now consume that complete plan. Their former
 manual `+8`/`+12` stack accounting and trailing-mode operation classifier are
 retired; the operation key only selects the concrete adapter subcall.
 
-Final footprint certificate format v7 now retains an exact
+Final footprint certificate format v8 now retains an exact
 function-to-instruction partition in the encoded carrier. Checked image
 emission replays every contiguous function
 and instruction boundary over relocated final bytes, rejects gaps, overlaps,
@@ -1137,8 +1137,11 @@ static guards are included by retaining the comparison operator, storage
 region, operand geometry, immediate, float mode, and branch distance. Their
 zero-address target program is checked before relocation; exact storage-symbol
 relocation rows and unchanged non-relocation bits bind that recipe to final
-placed bytes. Final validation independently derives the dispatch-scaffold and
-static-guard register/machine-state unions from the replayed rows, requires
+placed bytes. Place-pair and place-vs-immediate guards retain canonical `Place`
+operands and replay the same x86 materializer or admitted direct AArch64
+encoder, including every place/index storage relocation site. Final validation
+independently derives the dispatch-scaffold, static-guard, and place-guard
+register/machine-state unions from the replayed rows, requires
 them to equal the semantic fragments already admitted under the boundary's
 `StatePlan`, and includes the resulting footprint fingerprint and boundary
 contract identity in the certificate. Certificate construction rejects a

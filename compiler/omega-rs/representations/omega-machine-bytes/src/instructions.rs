@@ -1,4 +1,4 @@
-use omega_target_operations::{RuntimeStorageRegion, StateGuardOperator};
+use omega_target_operations::{Place, RuntimeStorageRegion, StateGuardOperator};
 use psi_arena::HandleSpan;
 
 /// Fixed compiler-owned instruction programs whose final encodings can be
@@ -22,6 +22,21 @@ pub enum CompilerInstructionValidationKind {
         expected_value: i64,
         skip_byte_distance: isize,
         is_float: bool,
+    },
+    PlacePairGuard {
+        left: Place,
+        right: Place,
+        byte_size: usize,
+        failure_branch_distance: isize,
+        operator: StateGuardOperator,
+        is_float: bool,
+    },
+    PlaceValueGuard {
+        place: Place,
+        byte_size: usize,
+        expected_value: i64,
+        failure_branch_distance: isize,
+        operator: StateGuardOperator,
     },
     DispatchStateWrite {
         dispatch_index: u32,
