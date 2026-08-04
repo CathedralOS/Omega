@@ -613,29 +613,55 @@ fn lower_integer_conditional(
             function.machine,
         ));
     }
-    let TerminalAbstractOperation::Conditional {
-        condition,
-        when_true,
-        when_false,
-    } = function.operations.first().ok_or(
-        LoweringError::ConditionalControlFlowRequiresBlockLowering(function.machine),
-    )?
+    let entry_end = function.block_entries[1].operation_offset;
+    let Some((terminator, entry_body)) = function
+        .operations
+        .get(..entry_end)
+        .and_then(|operations| operations.split_last())
     else {
         return Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(
             function.machine,
         ));
     };
-    let KnownScalar::BooleanParameter {
-        parameter_index: condition_parameter_index,
-        location: condition_location,
-    } = values
-        .get(condition)
-        .ok_or(LoweringError::UnknownValue(*condition))?
+    let TerminalAbstractOperation::Conditional {
+        condition,
+        when_true,
+        when_false,
+    } = terminator
     else {
-        return Err(LoweringError::ConditionalConditionMustBeRuntimeParameter(
-            *condition,
+        return Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(
+            function.machine,
         ));
     };
+    let mut values = values.clone();
+    let mut entry_operations = Vec::new();
+    for operation in entry_body {
+        let TerminalAbstractOperation::BooleanConstant {
+            psi_operation,
+            result,
+            value,
+        } = operation
+        else {
+            return Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(
+                function.machine,
+            ));
+        };
+        insert_value(&mut values, *result, KnownScalar::Boolean(*value))?;
+        entry_operations.push(*psi_operation);
+    }
+    let condition_source = *condition;
+    let condition = values
+        .get(&condition_source)
+        .cloned()
+        .ok_or(LoweringError::UnknownValue(condition_source))?;
+    if !matches!(
+        condition,
+        KnownScalar::Boolean(_) | KnownScalar::BooleanParameter { .. }
+    ) {
+        return Err(LoweringError::ConditionalConditionMustBeBoolean(
+            condition_source,
+        ));
+    }
     let ScalarType::Integer(result_type) = function.result.scalar_type else {
         return Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(
             function.machine,
@@ -754,27 +780,83 @@ fn lower_integer_conditional(
     };
     let (when_true, mut true_operations) = lower_arm(when_true)?;
     let (when_false, false_operations) = lower_arm(when_false)?;
-    true_operations.extend(false_operations);
-    Ok(TerminalTargetFunction {
-        machine: function.machine,
-        provenance: TerminalPsiProvenance {
-            operations: true_operations,
-            edges: vec![
-                when_true.psi_edge,
-                when_false.psi_edge,
-                when_true.psi_return_edge,
-                when_false.psi_return_edge,
-            ],
-        },
-        operation: TerminalTargetOperation::ReturnIntegerConditionalExpressions {
-            condition_source: *condition,
-            condition_parameter_index: *condition_parameter_index,
-            condition_location: *condition_location,
-            scalar_type: result_type,
-            when_true,
-            when_false,
-        },
-    })
+    match condition {
+        KnownScalar::Boolean(selected_true_arm) => {
+            let (selected, selected_operations) = if selected_true_arm {
+                (when_true, true_operations)
+            } else {
+                (when_false, false_operations)
+            };
+            entry_operations.extend(selected_operations);
+            let psi_edge = selected.psi_return_edge;
+            let source_value = selected.source_value;
+            let operation = match selected.expression {
+                TerminalTargetIntegerExpression::Immediate { value, .. } => {
+                    TerminalTargetOperation::ReturnIntegerImmediate {
+                        psi_edge,
+                        source_value,
+                        scalar_type: result_type,
+                        value,
+                    }
+                }
+                TerminalTargetIntegerExpression::Parameter {
+                    parameter_index,
+                    location,
+                    ..
+                } => TerminalTargetOperation::ReturnIntegerParameter {
+                    psi_edge,
+                    source_value,
+                    scalar_type: result_type,
+                    parameter_index,
+                    location,
+                },
+                expression => TerminalTargetOperation::ReturnIntegerExpression {
+                    psi_edge,
+                    source_value,
+                    scalar_type: result_type,
+                    expression,
+                },
+            };
+            Ok(TerminalTargetFunction {
+                machine: function.machine,
+                provenance: TerminalPsiProvenance {
+                    operations: entry_operations,
+                    edges: vec![selected.psi_edge, selected.psi_return_edge],
+                },
+                operation,
+            })
+        }
+        KnownScalar::BooleanParameter {
+            parameter_index: condition_parameter_index,
+            location: condition_location,
+        } => {
+            entry_operations.append(&mut true_operations);
+            entry_operations.extend(false_operations);
+            Ok(TerminalTargetFunction {
+                machine: function.machine,
+                provenance: TerminalPsiProvenance {
+                    operations: entry_operations,
+                    edges: vec![
+                        when_true.psi_edge,
+                        when_false.psi_edge,
+                        when_true.psi_return_edge,
+                        when_false.psi_return_edge,
+                    ],
+                },
+                operation: TerminalTargetOperation::ReturnIntegerConditionalExpressions {
+                    condition_source,
+                    condition_parameter_index,
+                    condition_location,
+                    scalar_type: result_type,
+                    when_true,
+                    when_false,
+                },
+            })
+        }
+        KnownScalar::Integer { .. } => Err(LoweringError::ConditionalConditionMustBeBoolean(
+            condition_source,
+        )),
+    }
 }
 
 fn lower_conditional_integer_operation(
@@ -1154,7 +1236,7 @@ pub enum LoweringError {
     FunctionHasNoReturn(MachineId),
     FunctionResultMismatch(MachineId),
     ConditionalControlFlowRequiresBlockLowering(MachineId),
-    ConditionalConditionMustBeRuntimeParameter(ValueId),
+    ConditionalConditionMustBeBoolean(ValueId),
     ConditionalArmMustBindRuntimeParameter(psi_core::EdgeId),
     DuplicateValue(ValueId),
     UnknownValue(ValueId),
@@ -1186,7 +1268,8 @@ mod tests {
     use super::*;
     use omega_terminal_abstract_operations::{
         TerminalAbstractFunction, TerminalAbstractOperation, TerminalAbstractOperationPlan,
-        TerminalAbstractParameter, TerminalAbstractResult,
+        TerminalAbstractParameter, TerminalAbstractResult, TerminalAbstractSuccessor,
+        TerminalValueBinding,
     };
     use omega_terminal_target_operations::MachineRegister;
     use psi_core::{BlockId, EdgeId};
@@ -1573,6 +1656,155 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    #[test]
+    fn folds_a_compile_known_conditional_to_only_the_selected_arm() {
+        let condition_operation = psi_core::OperationId::new(20).expect("condition operation");
+        let true_operation = psi_core::OperationId::new(21).expect("true operation");
+        let false_operation = psi_core::OperationId::new(22).expect("false operation");
+        let true_edge = EdgeId::new(1).expect("true edge");
+        let false_edge = EdgeId::new(2).expect("false edge");
+        let true_return = EdgeId::new(3).expect("true return");
+        let false_return = EdgeId::new(4).expect("false return");
+
+        for (select_true, selected_operation, selected_edges) in [
+            (true, true_operation, [true_edge, true_return]),
+            (false, false_operation, [false_edge, false_return]),
+        ] {
+            let plan = constant_conditional_plan(select_true);
+            let lowered =
+                lower_to_target_operations(&plan, NativeTarget::linux_x64()).expect("lower");
+            let function = &lowered.functions[0];
+            assert_eq!(
+                function.provenance.operations,
+                [condition_operation, selected_operation]
+            );
+            assert_eq!(function.provenance.edges, selected_edges);
+            assert!(
+                matches!(
+                    &function.operation,
+                    TerminalTargetOperation::ReturnIntegerExpression {
+                        psi_edge,
+                        expression:
+                            TerminalTargetIntegerExpression::WrappingAdd { psi_operation, .. },
+                        ..
+                    } if select_true && *psi_edge == true_return && *psi_operation == true_operation
+                ) || matches!(
+                    &function.operation,
+                    TerminalTargetOperation::ReturnIntegerExpression {
+                        psi_edge,
+                        expression:
+                            TerminalTargetIntegerExpression::SaturatingMultiply {
+                                psi_operation,
+                                ..
+                            },
+                        ..
+                    } if !select_true && *psi_edge == false_return && *psi_operation == false_operation
+                )
+            );
+        }
+    }
+
+    fn constant_conditional_plan(select_true: bool) -> TerminalAbstractOperationPlan {
+        let machine = MachineId::new(20).expect("machine");
+        let integer = IntegerType::new(psi_core::IntegerSign::Unsigned, 8).expect("u8");
+        let scalar_type = ScalarType::Integer(integer);
+        let argument = ValueId::new(1).expect("argument");
+        let condition = ValueId::new(2).expect("condition");
+        let true_parameter = ValueId::new(3).expect("true parameter");
+        let false_parameter = ValueId::new(4).expect("false parameter");
+        let true_value = ValueId::new(5).expect("true value");
+        let false_value = ValueId::new(6).expect("false value");
+        let result = ValueId::new(7).expect("result");
+        let true_edge = EdgeId::new(1).expect("true edge");
+        let false_edge = EdgeId::new(2).expect("false edge");
+        let true_return = EdgeId::new(3).expect("true return");
+        let false_return = EdgeId::new(4).expect("false return");
+        TerminalAbstractOperationPlan {
+            terminal_psi: identity(),
+            entry: machine,
+            functions: vec![TerminalAbstractFunction {
+                machine,
+                entry: BlockId::new(1).expect("entry block"),
+                parameters: vec![TerminalAbstractParameter {
+                    value: argument,
+                    scalar_type,
+                }],
+                result: TerminalAbstractResult {
+                    value: result,
+                    scalar_type,
+                },
+                block_entries: vec![
+                    omega_terminal_abstract_operations::TerminalAbstractBlockEntry {
+                        block: BlockId::new(1).expect("entry block"),
+                        operation_offset: 0,
+                    },
+                    omega_terminal_abstract_operations::TerminalAbstractBlockEntry {
+                        block: BlockId::new(2).expect("true block"),
+                        operation_offset: 2,
+                    },
+                    omega_terminal_abstract_operations::TerminalAbstractBlockEntry {
+                        block: BlockId::new(3).expect("false block"),
+                        operation_offset: 4,
+                    },
+                ],
+                operations: vec![
+                    TerminalAbstractOperation::BooleanConstant {
+                        psi_operation: psi_core::OperationId::new(20).expect("condition operation"),
+                        result: condition,
+                        value: select_true,
+                    },
+                    TerminalAbstractOperation::Conditional {
+                        condition,
+                        when_true: TerminalAbstractSuccessor {
+                            psi_edge: true_edge,
+                            target: BlockId::new(2).expect("true block"),
+                            bindings: vec![TerminalValueBinding {
+                                parameter: true_parameter,
+                                argument,
+                                scalar_type,
+                            }],
+                        },
+                        when_false: TerminalAbstractSuccessor {
+                            psi_edge: false_edge,
+                            target: BlockId::new(3).expect("false block"),
+                            bindings: vec![TerminalValueBinding {
+                                parameter: false_parameter,
+                                argument,
+                                scalar_type,
+                            }],
+                        },
+                    },
+                    TerminalAbstractOperation::WrappingIntegerAdd {
+                        psi_operation: psi_core::OperationId::new(21).expect("true operation"),
+                        result: true_value,
+                        scalar_type: integer,
+                        left: true_parameter,
+                        right: true_parameter,
+                    },
+                    TerminalAbstractOperation::Return {
+                        psi_edge: true_return,
+                        result,
+                        value: true_value,
+                        scalar_type,
+                    },
+                    TerminalAbstractOperation::SaturatingIntegerMultiply {
+                        psi_operation: psi_core::OperationId::new(22).expect("false operation"),
+                        result: false_value,
+                        scalar_type: integer,
+                        left: false_parameter,
+                        right: false_parameter,
+                    },
+                    TerminalAbstractOperation::Return {
+                        psi_edge: false_return,
+                        result,
+                        value: false_value,
+                        scalar_type,
+                    },
+                ],
+            }],
+        }
     }
 
     fn parameter_return_plan(parameter_count: usize) -> TerminalAbstractOperationPlan {
