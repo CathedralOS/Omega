@@ -90,9 +90,9 @@ the Psi check.
 
 The first Psi-owned terminal source producer is live as
 `psi-checked-trees-to-terminal`. It accepts four exact free-machine forms. A
-Boolean machine may return a literal, one exact named parameter, or a
-recursively nested builtin logical negation of either from any sequence of
-ordinary Boolean parameters, either directly or through a
+Boolean machine may return a literal, exact named parameter, or a recursively
+nested expression over builtin logical negation and Boolean equality/inequality
+from any sequence of ordinary Boolean parameters, either directly or through a
 nonempty linear sequence of unconditional state bindings. Every non-entry
 Boolean state has one ordinary Boolean parameter, and each jump carries a
 literal or an exact parameter from its source state. Compile-known Boolean
@@ -123,7 +123,8 @@ four forms require a matching closed
 `requires`/`ensures` pair. The producer rejects all other checked-tree shapes,
 including selected domain-owned operator meanings. The source canary lowers
 all six versioned integer-policy operations in both constant-fed and
-runtime-parameter forms, Boolean literal and ninth-parameter returns, a
+runtime-parameter forms, Boolean literal, negation, equality/inequality, and
+ninth-parameter returns, a
 three-state Boolean chain carrying its ninth parameter, a closed three-state
 integer chain, a direct zero-parameter integer literal, plus a nine-parameter
 integer direct return, discards
