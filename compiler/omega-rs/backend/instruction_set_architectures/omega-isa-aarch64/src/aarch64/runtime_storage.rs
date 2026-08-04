@@ -4542,6 +4542,20 @@ pub fn encode_runtime_storage_copy_machine_indexed_to_machine_indexed(
     Ok(bytes)
 }
 
+/// Exact scratch footprint of `machine[i] = machine[j]`. x16 walks each
+/// machine element, x20 selects each index base, x17/x26 load and scale the
+/// indices and later stage copy chunks, and x24 preserves the source address
+/// while the target address is materialized.
+pub fn runtime_storage_copy_machine_indexed_to_machine_indexed_clobbers() -> RegisterSet {
+    RegisterSet::new([
+        MachineRegister::Aarch64X(16),
+        MachineRegister::Aarch64X(17),
+        MachineRegister::Aarch64X(20),
+        MachineRegister::Aarch64X(24),
+        MachineRegister::Aarch64X(26),
+    ])
+}
+
 fn append_runtime_machine_index_target_address(
     bytes: &mut Vec<u8>,
     base_byte_offset: usize,

@@ -293,6 +293,20 @@ enum CompilerBodyPlaceCopyShape {
         inner_stride: usize,
         field_byte_offset: usize,
     },
+    MachineIndexedPair {
+        source_base_byte_offset: usize,
+        source_index_region: omega_target_operations::RuntimeStorageRegion,
+        source_index_offset: usize,
+        source_index_byte_size: usize,
+        source_element_byte_size: usize,
+        source_field_byte_offset: usize,
+        target_base_byte_offset: usize,
+        target_index_region: omega_target_operations::RuntimeStorageRegion,
+        target_index_offset: usize,
+        target_index_byte_size: usize,
+        target_element_byte_size: usize,
+        target_field_byte_offset: usize,
+    },
 }
 
 fn validate_compiler_function_instruction_boundaries(
@@ -1120,6 +1134,34 @@ fn validate_compiler_function_instruction_boundaries(
                                         field_byte_offset,
                                         byte_count,
                                     )?,
+                                    CompilerBodyPlaceCopyShape::MachineIndexedPair {
+                                        source_base_byte_offset,
+                                        source_index_region,
+                                        source_index_offset,
+                                        source_index_byte_size,
+                                        source_element_byte_size,
+                                        source_field_byte_offset,
+                                        target_base_byte_offset,
+                                        target_index_region,
+                                        target_index_offset,
+                                        target_index_byte_size,
+                                        target_element_byte_size,
+                                        target_field_byte_offset,
+                                    } => omega_isa_aarch64::encode_runtime_storage_copy_machine_indexed_to_machine_indexed(
+                                        source_base_byte_offset,
+                                        source_index_offset,
+                                        source_index_region,
+                                        source_index_byte_size,
+                                        source_element_byte_size,
+                                        source_field_byte_offset,
+                                        target_base_byte_offset,
+                                        target_index_offset,
+                                        target_index_region,
+                                        target_index_byte_size,
+                                        target_element_byte_size,
+                                        target_field_byte_offset,
+                                        byte_count,
+                                    )?,
                                 },
                             },
                             21u8,
@@ -1763,6 +1805,9 @@ fn compiler_instruction_footprint(
                                 byte_count,
                             )
                         }
+                        CompilerBodyPlaceCopyShape::MachineIndexedPair { .. } => {
+                            omega_isa_x86_64::copy_places_machine_indexed_pair_clobbers(byte_count)
+                        }
                     },
                     Architecture::Aarch64 => match shape {
                         CompilerBodyPlaceCopyShape::Direct {
@@ -1840,6 +1885,9 @@ fn compiler_instruction_footprint(
                             outer_index_region,
                             inner_index_region,
                         ),
+                        CompilerBodyPlaceCopyShape::MachineIndexedPair { .. } => {
+                            omega_isa_aarch64::runtime_storage_copy_machine_indexed_to_machine_indexed_clobbers()
+                        }
                     },
                 },
                 MachineStateSet::empty(),
@@ -2308,6 +2356,39 @@ fn compiler_place_copy_address_sites(
                 }
                 Ok(sites)
             }
+            CompilerBodyPlaceCopyShape::MachineIndexedPair {
+                source_index_region,
+                target_index_region,
+                ..
+            } => {
+                let mut sites = vec![(0, source.region)];
+                let frame = omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
+                if source_index_region == frame {
+                    sites.push((
+                        omega_isa_aarch64::runtime_storage_copy_machine_indexed_frame_index_offset(
+                            source_index_region,
+                            false,
+                        ),
+                        frame,
+                    ));
+                }
+                sites.push((
+                    omega_isa_aarch64::runtime_storage_copy_machine_indexed_to_machine_indexed_second_base_offset(
+                        source_index_region,
+                    ),
+                    target.region,
+                ));
+                if target_index_region == frame {
+                    sites.push((
+                        omega_isa_aarch64::runtime_storage_copy_machine_indexed_frame_index_offset(
+                            source_index_region,
+                            true,
+                        ),
+                        frame,
+                    ));
+                }
+                Ok(sites)
+            }
             _ => Ok(vec![(0, source.region), (8, target.region)]),
         },
     }
@@ -2526,6 +2607,36 @@ fn compiler_body_place_copy_shape(
             inner_index_byte_size,
             inner_stride,
             field_byte_offset,
+        });
+    }
+    if let Ok((
+        source_base_byte_offset,
+        source_index_region,
+        source_index_offset,
+        source_index_byte_size,
+        source_element_byte_size,
+        source_field_byte_offset,
+        target_base_byte_offset,
+        target_index_region,
+        target_index_offset,
+        target_index_byte_size,
+        target_element_byte_size,
+        target_field_byte_offset,
+    )) = compiler_place_copy_machine_indexed_pair_offsets(source, target)
+    {
+        return Ok(CompilerBodyPlaceCopyShape::MachineIndexedPair {
+            source_base_byte_offset,
+            source_index_region,
+            source_index_offset,
+            source_index_byte_size,
+            source_element_byte_size,
+            source_field_byte_offset,
+            target_base_byte_offset,
+            target_index_region,
+            target_index_offset,
+            target_index_byte_size,
+            target_element_byte_size,
+            target_field_byte_offset,
         });
     }
     let (
@@ -2914,6 +3025,65 @@ fn compiler_place_copy_to_machine_double_indexed_offsets(
         *inner_size,
         *inner_stride,
         field_byte_offset,
+    ))
+}
+
+#[allow(clippy::type_complexity)]
+fn compiler_place_copy_machine_indexed_pair_offsets(
+    source: &omega_target_operations::Place,
+    target: &omega_target_operations::Place,
+) -> Result<
+    (
+        usize,
+        omega_target_operations::RuntimeStorageRegion,
+        usize,
+        usize,
+        usize,
+        usize,
+        usize,
+        omega_target_operations::RuntimeStorageRegion,
+        usize,
+        usize,
+        usize,
+        usize,
+    ),
+    Diagnostic,
+> {
+    let machine = omega_target_operations::RuntimeStorageRegion::Machine;
+    if source.region != machine || target.region != machine {
+        return Err(Diagnostic::error(
+            "final machine-indexed pair is not rooted entirely in machine storage",
+        ));
+    }
+    let (
+        source_base_byte_offset,
+        source_index_region,
+        source_index_offset,
+        source_index_byte_size,
+        source_element_byte_size,
+        source_field_byte_offset,
+    ) = compiler_single_direct_indexed_place_offsets(source)?;
+    let (
+        target_base_byte_offset,
+        target_index_region,
+        target_index_offset,
+        target_index_byte_size,
+        target_element_byte_size,
+        target_field_byte_offset,
+    ) = compiler_single_direct_indexed_place_offsets(target)?;
+    Ok((
+        source_base_byte_offset,
+        source_index_region,
+        source_index_offset,
+        source_index_byte_size,
+        source_element_byte_size,
+        source_field_byte_offset,
+        target_base_byte_offset,
+        target_index_region,
+        target_index_offset,
+        target_index_byte_size,
+        target_element_byte_size,
+        target_field_byte_offset,
     ))
 }
 

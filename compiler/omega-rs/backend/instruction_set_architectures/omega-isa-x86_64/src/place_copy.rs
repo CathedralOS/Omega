@@ -795,6 +795,14 @@ pub fn copy_places_to_machine_double_indexed_clobbers(byte_count: usize) -> Regi
     copy_places_from_frame_base_double_indexed_clobbers(byte_count)
 }
 
+/// Exact scratch footprint of `machine[i] = machine[j]`. Each side has one
+/// runtime index, and the generic two-base materializer reuses r11 for the
+/// two walks; r10 is reserved for a second index within ONE place and is not
+/// written by this shape.
+pub fn copy_places_machine_indexed_pair_clobbers(byte_count: usize) -> RegisterSet {
+    copy_places_from_indexed_clobbers(byte_count)
+}
+
 /// Exact scratch footprint of a direct place-pair copy. Both address bases are
 /// materialized unconditionally; non-empty copies stage chunks through rax.
 pub fn copy_places_direct_clobbers(byte_count: usize) -> RegisterSet {
