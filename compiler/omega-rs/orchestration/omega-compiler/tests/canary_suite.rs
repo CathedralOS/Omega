@@ -1127,7 +1127,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         executable_regions.contains(
             "\"certificate_schema\": \"omega.final-footprint-certificate\""
         )
-            && executable_regions.contains("\"certificate_format_version\": 21")
+            && executable_regions.contains("\"certificate_format_version\": 22")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
             && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")
@@ -1736,6 +1736,59 @@ fn compiler_body_indexed_to_pointee_copy_footprints_reach_x86_and_aarch64_artifa
                 && footprints.contains(expected_registers)
                 && footprints.contains("\"enumeration_complete\": false"),
             "{target} artifact must retain the ordinary indexed-to-pointee footprint without claiming completeness"
+        );
+        let _ = fs::remove_dir_all(&scratch);
+    }
+}
+
+#[test]
+fn compiler_body_frame_base_indexed_copy_footprints_reach_x86_and_aarch64_artifacts() {
+    let canary = pass_canary("collections/runtime_frame_indexed_local_read_exit");
+    for (target, expected_register) in [
+        ("linux_x64", "\"X86R11\""),
+        ("linux_arm64", "\"Aarch64X(24)\""),
+    ] {
+        let scratch = std::env::temp_dir().join(format!(
+            "omega-compiler-body-frame-base-indexed-footprint-{target}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&scratch);
+        let source = scratch.join("src");
+        let output = scratch.join("out");
+        fs::create_dir_all(&source)
+            .expect("create compiler-body frame-base-indexed source directory");
+        fs::copy(canary.join("main.omg"), source.join("main.omg"))
+            .expect("copy compiler-body frame-base-indexed canary");
+        fs::write(
+            source.join("build.omg"),
+            format!("target {target} {{\n}}\n"),
+        )
+        .expect("write compiler-body frame-base-indexed target");
+
+        compile(CompileOptions {
+            root_path: source.join("main.omg"),
+            build_dir: Some(output.clone()),
+            target_name: Some(target.into()),
+            write_output: true,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "compiler-body frame-base-indexed copy should compile for {target}: {diagnostics:?}"
+            )
+        });
+        let abstract_operations = fs::read_to_string(output.join("08_abstract_operations.html"))
+            .expect("compiler-body frame-base-indexed abstract operations should be written");
+        let footprints = fs::read_to_string(output.join("08_boundary_footprints.json"))
+            .expect("compiler-body frame-base-indexed footprint evidence should be written");
+        assert!(
+            abstract_operations.contains("CopyPlaces"),
+            "{target} canary must exercise a frame-base-indexed CopyPlaces operation"
+        );
+        assert!(
+            footprints.contains("\"origin\": \"compiler_body_place_copy\"")
+                && footprints.contains(expected_register)
+                && footprints.contains("\"enumeration_complete\": false"),
+            "{target} artifact must retain the ordinary frame-base-indexed footprint without claiming completeness"
         );
         let _ = fs::remove_dir_all(&scratch);
     }
