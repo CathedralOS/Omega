@@ -1647,6 +1647,25 @@ pub fn runtime_machine_double_indexed_binary_left_operand_offset(
     double_indexed_base_width(outer_index_region, inner_index_region) + 36
 }
 
+pub fn runtime_machine_double_indexed_string_data_address_offset(
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+) -> usize {
+    double_indexed_base_width(outer_index_region, inner_index_region) + 36
+}
+
+pub fn runtime_machine_double_indexed_string_write_width(
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    byte_length: usize,
+) -> usize {
+    runtime_machine_double_indexed_string_data_address_offset(
+        outer_index_region,
+        inner_index_region,
+    ) + 16
+        + unsigned_immediate_width(byte_length as u64)
+}
+
 /// The shared frame pair sits directly after the machine pair in every
 /// double-indexed op.
 pub fn runtime_machine_double_indexed_frame_base_offset() -> usize {

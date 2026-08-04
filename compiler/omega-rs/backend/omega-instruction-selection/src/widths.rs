@@ -2586,6 +2586,24 @@ pub fn runtime_storage_copy_from_runtime_machine_double_indexed_frame_base_offse
     }
 }
 
+pub fn runtime_machine_double_indexed_string_data_address_offset(
+    architecture: Architecture,
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::runtime_machine_double_indexed_string_data_address_offset(
+                outer_index_region,
+                inner_index_region,
+            )
+        }
+        Architecture::X86_64 => unreachable!(
+            "x86 string-descriptor relocations come from the generic place materializer"
+        ),
+    }
+}
+
 /// Target-region relocation start (the write-half `mov r15,imm64`, pre-`+2`)
 /// inside the double-indexed read. x86_64 only.
 pub fn runtime_storage_copy_from_runtime_machine_double_indexed_target_base_offset(

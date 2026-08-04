@@ -1003,6 +1003,50 @@ pub(crate) fn write_place_string_machine_indexed(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn write_place_string_machine_double_indexed(
+    base_byte_offset: usize,
+    outer_index_region: RuntimeStorageRegion,
+    outer_index_offset: usize,
+    outer_index_byte_size: usize,
+    outer_stride: usize,
+    inner_index_region: RuntimeStorageRegion,
+    inner_index_offset: usize,
+    inner_index_byte_size: usize,
+    inner_stride: usize,
+    field_byte_offset: usize,
+    data: omega_abstract_operations::AbstractDataObjectHandle,
+    byte_length: usize,
+) -> SelectedInstructionKind {
+    let target =
+        omega_abstract_operations::Place::at(RuntimeStorageRegion::Machine, base_byte_offset)
+            .with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+                index_region: outer_index_region,
+                index_offset: outer_index_offset,
+                index_byte_size: outer_index_byte_size,
+                element_byte_size: outer_stride,
+            })
+            .and_then(|place| {
+                place.with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+                    index_region: inner_index_region,
+                    index_offset: inner_index_offset,
+                    index_byte_size: inner_index_byte_size,
+                    element_byte_size: inner_stride,
+                })
+            })
+            .and_then(|place| {
+                place.with_step(omega_abstract_operations::PlaceStep::ConstOffset(
+                    field_byte_offset,
+                ))
+            })
+            .expect("a machine-double-indexed place is four steps, within PLACE_MAX_STEPS");
+    SelectedInstructionKind::WritePlaceString {
+        target,
+        data,
+        byte_length,
+    }
+}
+
 /// Task #132: the text-crossing constructors (the nine retired
 /// Materialize/AppendStored/AppendLiteral spellings as places).
 pub(crate) fn text_place_direct(

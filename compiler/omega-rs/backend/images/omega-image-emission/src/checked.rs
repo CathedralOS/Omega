@@ -1561,6 +1561,7 @@ fn validate_compiler_function_instruction_boundaries(
                                     | CompilerBodyPlaceIntegerWriteShape::FrameIndexed { .. }
                                     | CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. }
                                     | CompilerBodyPlaceIntegerWriteShape::MachineIndexed { .. }
+                                    | CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed { .. }
                             )
                         {
                             return Err(Diagnostic::error(
@@ -1630,6 +1631,30 @@ fn validate_compiler_function_instruction_boundaries(
                                     index_offset,
                                     index_byte_size,
                                     element_byte_size,
+                                    field_byte_offset,
+                                    byte_length,
+                                )?,
+                                CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed {
+                                    base_byte_offset,
+                                    outer_index_region,
+                                    outer_index_offset,
+                                    outer_index_byte_size,
+                                    outer_stride,
+                                    inner_index_region,
+                                    inner_index_offset,
+                                    inner_index_byte_size,
+                                    inner_stride,
+                                    field_byte_offset,
+                                } => omega_isa_aarch64::encode_runtime_machine_double_indexed_string_write(
+                                    base_byte_offset,
+                                    outer_index_offset,
+                                    outer_index_region,
+                                    outer_index_byte_size,
+                                    outer_stride,
+                                    inner_index_offset,
+                                    inner_index_region,
+                                    inner_index_byte_size,
+                                    inner_stride,
                                     field_byte_offset,
                                     byte_length,
                                 )?,
@@ -3759,6 +3784,7 @@ fn compiler_instruction_footprint(
                             | CompilerBodyPlaceIntegerWriteShape::FrameIndexed { .. }
                             | CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. }
                             | CompilerBodyPlaceIntegerWriteShape::MachineIndexed { .. }
+                            | CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed { .. }
                     ) {
                         return None;
                     }
@@ -6631,6 +6657,31 @@ fn validate_compiler_place_string_relocations(
                         index_region,
                         element_byte_size,
                         field_byte_offset,
+                    ),
+                    ExpectedTarget::Data,
+                ));
+            }
+            CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed {
+                outer_index_region,
+                inner_index_region,
+                ..
+            } => {
+                sites.push((0, ExpectedTarget::Storage(target.region)));
+                if outer_index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+                    || inner_index_region
+                        == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+                {
+                    sites.push((
+                        omega_isa_aarch64::runtime_machine_double_indexed_frame_base_offset(),
+                        ExpectedTarget::Storage(
+                            omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                        ),
+                    ));
+                }
+                sites.push((
+                    omega_isa_aarch64::runtime_machine_double_indexed_string_data_address_offset(
+                        outer_index_region,
+                        inner_index_region,
                     ),
                     ExpectedTarget::Data,
                 ));

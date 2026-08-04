@@ -1,0 +1,35 @@
+domain [u8]::Utf8
+requires
+    valid_utf8(self);
+use omega::language::std::console;
+
+data Room {
+    description: &[u8] in Utf8;
+}
+
+data Main {
+    console: Console;
+    rooms: [[Room; 2]; 2];
+    outer: u64 [0..=1];
+    inner: u64 [0..=1];
+}
+
+machine Main::main(&mut self) {
+    self.outer = 1;
+    self.inner = 1;
+    self.rooms[self.outer][self.inner].description = "prefix " + "omega";
+
+    let actual: &[u8] in Utf8 = self.rooms[1][1].description;
+    transition actual == "prefix omega" {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(83);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(84);
+    }
+}

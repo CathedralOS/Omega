@@ -2910,11 +2910,63 @@ pub fn encode_runtime_machine_indexed_string_write_with_index_region(
     Ok(bytes)
 }
 
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_machine_double_indexed_string_write(
+    base_byte_offset: usize,
+    outer_index_offset: usize,
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    outer_index_byte_size: usize,
+    outer_stride: usize,
+    inner_index_offset: usize,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_byte_size: usize,
+    inner_stride: usize,
+    field_byte_offset: usize,
+    byte_length: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(
+        super::widths::runtime_machine_double_indexed_string_write_width(
+            outer_index_region,
+            inner_index_region,
+            byte_length,
+        ),
+    );
+    let (outer_base, inner_base) =
+        append_double_index_bases(&mut bytes, outer_index_region, inner_index_region);
+    append_double_index_address_math(
+        &mut bytes,
+        outer_base,
+        outer_index_offset,
+        outer_index_byte_size,
+        outer_stride,
+        inner_base,
+        inner_index_offset,
+        inner_index_byte_size,
+        inner_stride,
+        base_byte_offset + field_byte_offset,
+    )?;
+    bytes.extend(encode_adrp_placeholder(17));
+    bytes.extend(encode_add_page_offset_placeholder(17));
+    bytes.extend(encode_store_x_to_x(17, 16, 0)?);
+    append_unsigned_immediate(&mut bytes, 17, byte_length as u64);
+    bytes.extend(encode_store_x_to_x(17, 16, 8)?);
+    debug_assert_eq!(
+        bytes.len(),
+        super::widths::runtime_machine_double_indexed_string_write_width(
+            outer_index_region,
+            inner_index_region,
+            byte_length,
+        )
+    );
+    Ok(bytes)
+}
+
 /// Closed may-write ceiling of the retained string-descriptor write shapes.
 /// It unions the direct/pointee offset scratches with the frame- and
 /// machine-indexed address recipe while x17 carries data and length.
 pub fn place_string_write_register_write_ceiling() -> RegisterSet {
     RegisterSet::new([
+        MachineRegister::Aarch64X(14),
         MachineRegister::Aarch64X(15),
         MachineRegister::Aarch64X(16),
         MachineRegister::Aarch64X(17),
@@ -8230,6 +8282,47 @@ mod tests {
                 16,
                 0,
             );
+            assert_eq!(bytes.len() - data_site, 20);
+        }
+    }
+
+    #[test]
+    fn machine_double_indexed_string_write_matches_width_and_data_site() {
+        let frame = omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
+        let machine = omega_target_operations::RuntimeStorageRegion::Machine;
+        for (outer_region, inner_region) in [
+            (machine, machine),
+            (frame, machine),
+            (machine, frame),
+            (frame, frame),
+        ] {
+            let bytes = encode_runtime_machine_double_indexed_string_write(
+                24,
+                8,
+                outer_region,
+                8,
+                32,
+                16,
+                inner_region,
+                8,
+                16,
+                0,
+                7,
+            )
+            .expect("double-indexed string descriptor write");
+            assert_eq!(
+                bytes.len(),
+                super::super::widths::runtime_machine_double_indexed_string_write_width(
+                    outer_region,
+                    inner_region,
+                    7,
+                )
+            );
+            let data_site =
+                super::super::widths::runtime_machine_double_indexed_string_data_address_offset(
+                    outer_region,
+                    inner_region,
+                );
             assert_eq!(bytes.len() - data_site, 20);
         }
     }
