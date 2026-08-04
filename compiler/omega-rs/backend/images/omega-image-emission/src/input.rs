@@ -6,6 +6,7 @@ pub struct ExecutableImageInput<'a> {
     pub object: &'a ObjectPlan,
     pub relocations: &'a RelocationPlan,
     pub encoded_machine_code: &'a omega_machine_bytes::EncodedMachineCode,
+    pub encoded_machine_semantics: &'a omega_machine_bytes::EncodedMachineSemanticSummary,
     pub text_bytes: &'a [u8],
     pub data_bytes: &'a [u8],
     /// PE optional-header Subsystem (console 3, gui 2, efi_application 10);

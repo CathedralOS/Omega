@@ -29,6 +29,7 @@ pub fn emit_checked_executable_image(
         ));
     }
     let encoded_machine_code = input.encoded_machine_code;
+    let encoded_machine_semantics = input.encoded_machine_semantics;
     let relocations = input.relocations;
     let object = input.object;
     if let Some(emitted_output) = emit_executable_image(input) {
@@ -44,6 +45,7 @@ pub fn emit_checked_executable_image(
             &emitted_output.final_text_bytes,
             object,
             relocations,
+            encoded_machine_semantics,
         )?;
         let (checked_instruction_validation_count, checked_instruction_validation_fingerprint) =
             validate_checked_instruction_bytes(
@@ -110,6 +112,18 @@ pub fn emit_checked_executable_image(
                 .body_specification_validation_fingerprint
                 .to_le_bytes(),
         );
+        fingerprint_into(
+            &mut derivation_fingerprint,
+            &compiler_function_validation
+                .body_specification_boundary_contract_fingerprint
+                .to_le_bytes(),
+        );
+        fingerprint_into(
+            &mut derivation_fingerprint,
+            &compiler_function_validation
+                .body_specification_footprint_fingerprint
+                .to_le_bytes(),
+        );
         compiler_text_validation.derivation_fingerprint = derivation_fingerprint;
         emitted_output.compiler_text_validation = Some(compiler_text_validation);
         emitted_output.compiler_function_validation = Some(compiler_function_validation);
@@ -131,6 +145,7 @@ fn validate_compiler_function_instruction_boundaries(
     final_text_bytes: &[u8],
     object: &omega_object_file::ObjectPlan,
     relocations: &RelocationPlan,
+    semantics: &omega_machine_bytes::EncodedMachineSemanticSummary,
 ) -> Result<CompilerFunctionValidationEvidence, Diagnostic> {
     if code.byte_count != final_text_bytes.len() || code.bytes.len() != final_text_bytes.len() {
         return Err(Diagnostic::error(
@@ -147,6 +162,7 @@ fn validate_compiler_function_instruction_boundaries(
     let mut fixed_mechanics_validation_fingerprint = 0xcbf2_9ce4_8422_2325u64;
     let mut body_specification_instruction_count = 0usize;
     let mut body_specification_validation_fingerprint = 0xcbf2_9ce4_8422_2325u64;
+    let mut body_specification_footprints = Vec::new();
 
     for (function_index, (_, function)) in code.functions.iter().enumerate() {
         if function.byte_offset != expected_byte_offset {
@@ -381,6 +397,9 @@ fn validate_compiler_function_instruction_boundaries(
                         instruction.selected_instruction_index
                     )));
                 }
+                if let Some(footprint) = compiler_instruction_footprint(architecture, kind) {
+                    body_specification_footprints.push(footprint);
+                }
                 let (class_count, class_fingerprint) = if kind_tag <= 2 {
                     (
                         &mut fixed_mechanics_instruction_count,
@@ -447,6 +466,11 @@ fn validate_compiler_function_instruction_boundaries(
         ));
     }
 
+    let (
+        body_specification_boundary_contract_fingerprint,
+        body_specification_footprint_fingerprint,
+    ) = validate_compiler_body_specification_footprints(semantics, &body_specification_footprints)?;
+
     Ok(CompilerFunctionValidationEvidence {
         function_count: code.functions.len(),
         instruction_count,
@@ -455,8 +479,152 @@ fn validate_compiler_function_instruction_boundaries(
         fixed_mechanics_validation_fingerprint,
         body_specification_instruction_count,
         body_specification_validation_fingerprint,
+        body_specification_boundary_contract_fingerprint,
+        body_specification_footprint_fingerprint,
         validation_fingerprint: fingerprint,
     })
+}
+
+fn compiler_instruction_footprint(
+    architecture: Architecture,
+    kind: omega_machine_bytes::CompilerInstructionValidationKind,
+) -> Option<(
+    omega_machine_instructions::BoundaryFootprintFragmentOrigin,
+    omega_calling_conventions::StateFootprintEvidence,
+)> {
+    use omega_calling_conventions::{MachineStateSet, StateFootprintEvidence};
+    use omega_machine_bytes::CompilerInstructionValidationKind;
+    use omega_machine_instructions::BoundaryFootprintFragmentOrigin;
+
+    let (origin, registers, additional_state) = match kind {
+        CompilerInstructionValidationKind::FunctionEnter
+        | CompilerInstructionValidationKind::FunctionReturn => return None,
+        CompilerInstructionValidationKind::DispatchLoopEnter { .. } => (
+            BoundaryFootprintFragmentOrigin::DispatchScaffold,
+            match architecture {
+                Architecture::X86_64 => omega_isa_x86_64::dispatch_loop_enter_register_writes(),
+                Architecture::Aarch64 => omega_isa_aarch64::dispatch_loop_enter_register_writes(),
+            },
+            MachineStateSet::empty(),
+        ),
+        CompilerInstructionValidationKind::DispatchCaseEnter { .. } => match architecture {
+            Architecture::X86_64 => (
+                BoundaryFootprintFragmentOrigin::DispatchScaffold,
+                omega_isa_x86_64::dispatch_case_enter_register_writes(),
+                omega_isa_x86_64::dispatch_case_enter_additional_machine_state(),
+            ),
+            Architecture::Aarch64 => (
+                BoundaryFootprintFragmentOrigin::DispatchScaffold,
+                omega_isa_aarch64::dispatch_case_enter_register_writes(),
+                omega_isa_aarch64::dispatch_case_enter_additional_machine_state(),
+            ),
+        },
+        CompilerInstructionValidationKind::DispatchStaticGuard { is_float, .. } => {
+            match architecture {
+                Architecture::X86_64 => (
+                    BoundaryFootprintFragmentOrigin::StaticGuardComparison,
+                    omega_isa_x86_64::dispatch_guard_compare_static_register_writes(is_float),
+                    omega_isa_x86_64::dispatch_guard_compare_static_additional_machine_state(),
+                ),
+                Architecture::Aarch64 => (
+                    BoundaryFootprintFragmentOrigin::StaticGuardComparison,
+                    omega_isa_aarch64::dispatch_guard_compare_static_register_writes(is_float),
+                    omega_isa_aarch64::dispatch_guard_compare_static_additional_machine_state(),
+                ),
+            }
+        }
+        CompilerInstructionValidationKind::DispatchStateWrite { .. } => (
+            BoundaryFootprintFragmentOrigin::DispatchScaffold,
+            match architecture {
+                Architecture::X86_64 => omega_isa_x86_64::dispatch_state_write_register_writes(),
+                Architecture::Aarch64 => omega_isa_aarch64::dispatch_state_write_register_writes(),
+            },
+            MachineStateSet::empty(),
+        ),
+        CompilerInstructionValidationKind::DispatchForwardBranchSkip { .. }
+        | CompilerInstructionValidationKind::DispatchCaseLeave { .. } => (
+            BoundaryFootprintFragmentOrigin::DispatchScaffold,
+            match architecture {
+                Architecture::X86_64 => omega_isa_x86_64::dispatch_case_leave_register_writes(),
+                Architecture::Aarch64 => omega_isa_aarch64::dispatch_case_leave_register_writes(),
+            },
+            MachineStateSet::empty(),
+        ),
+    };
+    Some((
+        origin,
+        StateFootprintEvidence::new(registers, additional_state),
+    ))
+}
+
+fn validate_compiler_body_specification_footprints(
+    semantics: &omega_machine_bytes::EncodedMachineSemanticSummary,
+    derived: &[(
+        omega_machine_instructions::BoundaryFootprintFragmentOrigin,
+        omega_calling_conventions::StateFootprintEvidence,
+    )],
+) -> Result<(u64, u64), Diagnostic> {
+    use omega_calling_conventions::compose_state_footprints;
+    use omega_machine_instructions::BoundaryFootprintFragmentOrigin;
+
+    let boundary_contract_fingerprint = if derived.is_empty() {
+        0
+    } else {
+        semantics
+            .boundaries
+            .footprints
+            .boundary_contract_fingerprint
+            .ok_or_else(|| {
+                Diagnostic::error(
+                    "final body-specification footprint rows have no StatePlan boundary-contract identity",
+                )
+            })?
+    };
+    let mut fingerprint = 0xcbf2_9ce4_8422_2325u64;
+    fingerprint_into(
+        &mut fingerprint,
+        &boundary_contract_fingerprint.to_le_bytes(),
+    );
+    for (tag, origin) in [
+        (1u8, BoundaryFootprintFragmentOrigin::DispatchScaffold),
+        (2u8, BoundaryFootprintFragmentOrigin::StaticGuardComparison),
+    ] {
+        let evidence_rows = derived
+            .iter()
+            .filter_map(|(row_origin, evidence)| (*row_origin == origin).then_some(evidence))
+            .collect::<Vec<_>>();
+        let retained = semantics
+            .boundaries
+            .footprints
+            .fragments
+            .iter()
+            .filter(|fragment| fragment.origin == origin)
+            .collect::<Vec<_>>();
+        if evidence_rows.is_empty() {
+            if !retained.is_empty() {
+                return Err(Diagnostic::error(format!(
+                    "retained {origin:?} footprint has no final target-specification instruction rows"
+                )));
+            }
+            continue;
+        }
+        let composed = compose_state_footprints(evidence_rows.iter().copied());
+        if retained.len() != 1 || retained[0].evidence != composed {
+            return Err(Diagnostic::error(format!(
+                "final {origin:?} target-specification footprint does not match its StatePlan-validated semantic fragment"
+            )));
+        }
+        fingerprint_into(&mut fingerprint, &[tag]);
+        fingerprint_into(
+            &mut fingerprint,
+            &(evidence_rows.len() as u64).to_le_bytes(),
+        );
+        fingerprint_into(
+            &mut fingerprint,
+            &composed.evidence_fingerprint().to_le_bytes(),
+        );
+    }
+    Ok((boundary_contract_fingerprint, fingerprint))
 }
 
 fn validate_compiler_storage_relocation(
@@ -2119,6 +2287,7 @@ mod tests {
         let target = NativeTarget::linux_arm64();
         let object = ObjectPlan::with_capacity(target, 0, 0);
         let relocations = RelocationPlan::with_target(target);
+        let semantics = omega_machine_bytes::EncodedMachineSemanticSummary::default();
 
         let diagnostic = emit_checked_executable_image(
             ExecutableImageInput {
@@ -2129,6 +2298,7 @@ mod tests {
                     target, 0, 0, 0,
                 )
                 .code,
+                encoded_machine_semantics: &semantics,
                 text_bytes: &[0xaa, 0xbb],
                 data_bytes: &[],
                 subsystem: 3,
@@ -2193,6 +2363,9 @@ mod tests {
     fn compiler_functions_retain_a_complete_final_instruction_partition() {
         use omega_machine_bytes::{
             CompilerInstructionValidationKind, EncodedMachineFunction, EncodedMachineInstruction,
+        };
+        use omega_machine_instructions::{
+            BoundaryFootprintFragment, BoundaryFootprintFragmentOrigin,
         };
         use psi_arena::HandleSpan;
 
@@ -2294,6 +2467,33 @@ mod tests {
             instructions: HandleSpan::from_parts(first, 5),
         });
         plan.code.byte_count = final_bytes.len();
+        let mut semantics = omega_machine_bytes::EncodedMachineSemanticSummary::default();
+        semantics
+            .boundaries
+            .footprints
+            .boundary_contract_fingerprint = Some(0x1234);
+        semantics
+            .boundaries
+            .footprints
+            .fragments
+            .push(BoundaryFootprintFragment {
+                origin: BoundaryFootprintFragmentOrigin::DispatchScaffold,
+                evidence: omega_calling_conventions::StateFootprintEvidence::new(
+                    omega_isa_x86_64::dispatch_loop_enter_register_writes(),
+                    omega_calling_conventions::MachineStateSet::empty(),
+                ),
+            });
+        semantics
+            .boundaries
+            .footprints
+            .fragments
+            .push(BoundaryFootprintFragment {
+                origin: BoundaryFootprintFragmentOrigin::StaticGuardComparison,
+                evidence: omega_calling_conventions::StateFootprintEvidence::new(
+                    omega_isa_x86_64::dispatch_guard_compare_static_register_writes(false),
+                    omega_isa_x86_64::dispatch_guard_compare_static_additional_machine_state(),
+                ),
+            });
 
         let evidence = validate_compiler_function_instruction_boundaries(
             omega_target::Architecture::X86_64,
@@ -2301,6 +2501,7 @@ mod tests {
             &final_bytes,
             &object,
             &relocations,
+            &semantics,
         )
         .expect("retained function rows should enumerate exact final boundaries");
         assert_eq!(evidence.function_count, 1);
@@ -2308,6 +2509,26 @@ mod tests {
         assert_eq!(evidence.zero_width_instruction_count, 1);
         assert_eq!(evidence.fixed_mechanics_instruction_count, 2);
         assert_eq!(evidence.body_specification_instruction_count, 2);
+        assert_ne!(evidence.body_specification_footprint_fingerprint, 0);
+
+        let mut mismatched_semantics = semantics.clone();
+        mismatched_semantics
+            .boundaries
+            .footprints
+            .fragments
+            .retain(|fragment| {
+                fragment.origin != BoundaryFootprintFragmentOrigin::StaticGuardComparison
+            });
+        let diagnostic = validate_compiler_function_instruction_boundaries(
+            omega_target::Architecture::X86_64,
+            &plan.code,
+            &final_bytes,
+            &object,
+            &relocations,
+            &mismatched_semantics,
+        )
+        .expect_err("final guard footprint without its StatePlan fragment must reject");
+        assert!(diagnostic.message.contains("StatePlan-validated"));
 
         let missing_relocations = RelocationPlan::with_target(target);
         let diagnostic = validate_compiler_function_instruction_boundaries(
@@ -2316,6 +2537,7 @@ mod tests {
             &final_bytes,
             &object,
             &missing_relocations,
+            &semantics,
         )
         .expect_err("a static guard without its retained relocation must reject");
         assert!(
@@ -2332,6 +2554,7 @@ mod tests {
             &mutated,
             &object,
             &relocations,
+            &semantics,
         )
         .expect_err("a static guard opcode mutation must reject");
         assert!(
@@ -2348,6 +2571,7 @@ mod tests {
             &mutated,
             &object,
             &relocations,
+            &semantics,
         )
         .expect_err("mutated fixed mechanics must reject");
         assert!(
@@ -2364,6 +2588,7 @@ mod tests {
             &mutated,
             &object,
             &relocations,
+            &semantics,
         )
         .expect_err("mutated dispatch specification bytes must reject");
         assert!(
@@ -2379,6 +2604,7 @@ mod tests {
             &final_bytes,
             &object,
             &relocations,
+            &semantics,
         )
         .expect_err("a function without its retained return row must reject");
         assert!(
