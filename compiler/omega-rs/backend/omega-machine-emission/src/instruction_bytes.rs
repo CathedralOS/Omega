@@ -19,13 +19,13 @@ pub(crate) fn emit_function_bytes(
     machine_instructions: &MachineInstructionPlan,
     encoded_code: &mut EncodedMachineCode,
     machine_instructions_span: HandleSpan<MachineInstruction>,
-) -> Result<(), Diagnostic> {
+) -> Result<HandleSpan<EncodedMachineInstruction>, Diagnostic> {
     let Some(machine_instructions) = machine_instructions
         .code
         .instructions
         .span(machine_instructions_span)
     else {
-        return Ok(());
+        return Ok(HandleSpan::empty());
     };
     let laid_out_instructions =
         layout_machine_instructions(emission_context, machine_instructions)?;
@@ -36,6 +36,7 @@ pub(crate) fn emit_function_bytes(
             .sum(),
     );
 
+    let mut encoded_instructions = HandleSpan::empty();
     for (machine_instruction_index, machine_instruction) in machine_instructions.iter().enumerate()
     {
         let laid_out_instruction = &laid_out_instructions[machine_instruction_index];
@@ -70,12 +71,13 @@ pub(crate) fn emit_function_bytes(
                     machine_instruction.selected_instruction_index
                 )));
             }
-            encoded_code.instructions.insert(EncodedMachineInstruction {
+            let instruction = encoded_code.instructions.insert(EncodedMachineInstruction {
                 selected_instruction_index: machine_instruction.selected_instruction_index,
                 bytes: HandleSpan::empty(),
                 checked_validation_kind: None,
                 checked_operand_loaders: [None, None],
             });
+            encoded_instructions.push_contiguous(instruction);
             continue;
         }
 
@@ -127,15 +129,16 @@ pub(crate) fn emit_function_bytes(
                 machine_instruction.selected_instruction_index
             )));
         }
-        encoded_code.instructions.insert(EncodedMachineInstruction {
+        let instruction = encoded_code.instructions.insert(EncodedMachineInstruction {
             selected_instruction_index: machine_instruction.selected_instruction_index,
             bytes: byte_span,
             checked_validation_kind,
             checked_operand_loaders,
         });
+        encoded_instructions.push_contiguous(instruction);
     }
 
-    Ok(())
+    Ok(encoded_instructions)
 }
 
 fn checked_operand_loader(

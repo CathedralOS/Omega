@@ -44,6 +44,7 @@ fn builds_sections_and_symbols_for_runtime_frame_import_and_data() {
             source_key: Default::default(),
             byte_offset: 32,
             byte_count: 12,
+            instructions: Default::default(),
         });
 
     let mut host_abi = HostAbiPlan {
@@ -163,6 +164,7 @@ fn reports_missing_entry_machine_layout() {
             source_key: Default::default(),
             byte_offset: 0,
             byte_count: 4,
+            instructions: Default::default(),
         });
     let data = TargetDataPlan::with_capacity(0, 0);
 

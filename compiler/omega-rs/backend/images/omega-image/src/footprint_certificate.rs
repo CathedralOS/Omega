@@ -1,14 +1,18 @@
-use crate::{CompilerTextValidationEvidence, PlacedExecutableRegionInventory};
+use crate::{
+    CompilerFunctionValidationEvidence, CompilerTextValidationEvidence,
+    PlacedExecutableRegionInventory,
+};
 use psi_diagnostics::Diagnostic;
 
 pub const FINAL_FOOTPRINT_CERTIFICATE_SCHEMA: &str = "omega.final-footprint-certificate";
-pub const FINAL_FOOTPRINT_CERTIFICATE_FORMAT_VERSION: u32 = 1;
+pub const FINAL_FOOTPRINT_CERTIFICATE_FORMAT_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum FinalFootprintClass {
     CompilerFunctions,
     CompilerFunctionRelocationEnvelope,
     CompilerEntryCallReturnMechanics,
+    CompilerFunctionInstructionEnumeration,
     CatalogCheckedAssembly,
     ImportThunks,
     RelaxationProducts,
@@ -28,6 +32,9 @@ impl FinalFootprintClass {
             Self::GeneratedStubs => "generated_stubs",
             Self::CompilerFunctionRelocationEnvelope => "compiler_function_relocation_envelope",
             Self::CompilerEntryCallReturnMechanics => "compiler_entry_call_return_mechanics",
+            Self::CompilerFunctionInstructionEnumeration => {
+                "compiler_function_instruction_enumeration"
+            }
             Self::CatalogCheckedAssembly => "catalog_checked_assembly",
             Self::CompilerFunctionBodyFootprintDecoding => {
                 "compiler_function_body_footprint_decoding"
@@ -41,6 +48,7 @@ impl FinalFootprintClass {
             Self::CompilerFunctions => 1,
             Self::CompilerFunctionRelocationEnvelope => 2,
             Self::CompilerEntryCallReturnMechanics => 3,
+            Self::CompilerFunctionInstructionEnumeration => 11,
             Self::CatalogCheckedAssembly => 4,
             Self::ImportThunks => 5,
             Self::RelaxationProducts => 6,
@@ -81,6 +89,7 @@ impl FinalFootprintCoverage {
             final_byte_validated_classes: vec![
                 FinalFootprintClass::CompilerFunctionRelocationEnvelope,
                 FinalFootprintClass::CompilerEntryCallReturnMechanics,
+                FinalFootprintClass::CompilerFunctionInstructionEnumeration,
                 FinalFootprintClass::CatalogCheckedAssembly,
                 FinalFootprintClass::ImportThunks,
             ],
@@ -158,6 +167,7 @@ pub struct FinalFootprintCertificate {
     pub implementation_evidence_fingerprint: u64,
     pub implementation_fragment_count: usize,
     pub compiler_text_validation: CompilerTextValidationEvidence,
+    pub compiler_function_validation: CompilerFunctionValidationEvidence,
     pub inventory: PlacedExecutableRegionInventory,
     pub boundary_placement_binding_fingerprint: u64,
 }
@@ -168,6 +178,7 @@ impl FinalFootprintCertificate {
         implementation_evidence_fingerprint: u64,
         implementation_fragment_count: usize,
         compiler_text_validation: CompilerTextValidationEvidence,
+        compiler_function_validation: CompilerFunctionValidationEvidence,
         inventory: PlacedExecutableRegionInventory,
     ) -> Result<Self, Diagnostic> {
         if !inventory.unclassified_gaps.is_empty() {
@@ -182,12 +193,14 @@ impl FinalFootprintCertificate {
             boundary_contract_fingerprint,
             implementation_evidence_fingerprint,
             compiler_text_validation.derivation_fingerprint,
+            compiler_function_validation.evidence_fingerprint(),
             inventory.inventory_fingerprint,
         );
         let certificate_fingerprint = certificate_fingerprint(
             coverage_fingerprint,
             boundary_placement_binding_fingerprint,
             compiler_text_validation.derivation_fingerprint,
+            compiler_function_validation.evidence_fingerprint(),
             inventory.inventory_fingerprint,
         );
         Ok(Self {
@@ -200,6 +213,7 @@ impl FinalFootprintCertificate {
             implementation_evidence_fingerprint,
             implementation_fragment_count,
             compiler_text_validation,
+            compiler_function_validation,
             inventory,
             boundary_placement_binding_fingerprint,
         })
@@ -230,6 +244,7 @@ impl FinalFootprintCertificate {
             self.boundary_contract_fingerprint,
             self.implementation_evidence_fingerprint,
             self.compiler_text_validation.derivation_fingerprint,
+            self.compiler_function_validation.evidence_fingerprint(),
             self.inventory.inventory_fingerprint,
         );
         if self.boundary_placement_binding_fingerprint != expected_binding {
@@ -241,6 +256,7 @@ impl FinalFootprintCertificate {
             expected_coverage,
             expected_binding,
             self.compiler_text_validation.derivation_fingerprint,
+            self.compiler_function_validation.evidence_fingerprint(),
             self.inventory.inventory_fingerprint,
         );
         if self.certificate_fingerprint != expected_certificate {
@@ -256,6 +272,7 @@ fn placement_binding_fingerprint(
     boundary_contract_fingerprint: Option<u64>,
     implementation_evidence_fingerprint: u64,
     compiler_text_derivation_fingerprint: u64,
+    compiler_function_validation_fingerprint: u64,
     inventory_fingerprint: u64,
 ) -> u64 {
     let mut hash = FNV_OFFSET;
@@ -282,6 +299,10 @@ fn placement_binding_fingerprint(
         &mut hash,
         &compiler_text_derivation_fingerprint.to_le_bytes(),
     );
+    fingerprint_bytes(
+        &mut hash,
+        &compiler_function_validation_fingerprint.to_le_bytes(),
+    );
     fingerprint_bytes(&mut hash, &inventory_fingerprint.to_le_bytes());
     hash
 }
@@ -290,6 +311,7 @@ fn certificate_fingerprint(
     coverage_fingerprint: u64,
     boundary_placement_binding_fingerprint: u64,
     compiler_text_derivation_fingerprint: u64,
+    compiler_function_validation_fingerprint: u64,
     inventory_fingerprint: u64,
 ) -> u64 {
     let mut hash = FNV_OFFSET;
@@ -306,6 +328,10 @@ fn certificate_fingerprint(
     fingerprint_bytes(
         &mut hash,
         &compiler_text_derivation_fingerprint.to_le_bytes(),
+    );
+    fingerprint_bytes(
+        &mut hash,
+        &compiler_function_validation_fingerprint.to_le_bytes(),
     );
     fingerprint_bytes(&mut hash, &inventory_fingerprint.to_le_bytes());
     hash
@@ -338,11 +364,17 @@ mod tests {
                 text_relocation_count: 9,
                 checked_instruction_validation_count: 10,
             },
+            CompilerFunctionValidationEvidence {
+                function_count: 1,
+                instruction_count: 2,
+                zero_width_instruction_count: 0,
+                validation_fingerprint: 11,
+            },
             PlacedExecutableRegionInventory {
                 text_address: 0x1000,
                 text_byte_count: 4,
-                text_fingerprint: 11,
-                inventory_fingerprint: 12,
+                text_fingerprint: 12,
+                inventory_fingerprint: 13,
                 regions: Vec::new(),
                 unclassified_gaps: Vec::new(),
             },
@@ -369,6 +401,16 @@ mod tests {
             {
                 let mut value = certificate.clone();
                 value.compiler_text_validation.derivation_fingerprint = 99;
+                value
+            },
+            {
+                let mut value = certificate.clone();
+                value.compiler_function_validation.validation_fingerprint = 99;
+                value
+            },
+            {
+                let mut value = certificate.clone();
+                value.compiler_function_validation.instruction_count = 99;
                 value
             },
             {
@@ -405,6 +447,12 @@ mod tests {
                     derivation_fingerprint: 0,
                     text_relocation_count: 0,
                     checked_instruction_validation_count: 0,
+                },
+                CompilerFunctionValidationEvidence {
+                    function_count: 0,
+                    instruction_count: 0,
+                    zero_width_instruction_count: 0,
+                    validation_fingerprint: 0,
                 },
                 inventory,
             )

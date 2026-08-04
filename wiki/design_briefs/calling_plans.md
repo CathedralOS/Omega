@@ -1111,6 +1111,16 @@ relocation, and data relocation now consume that complete plan. Their former
 manual `+8`/`+12` stack accounting and trailing-mode operation classifier are
 retired; the operation key only selects the concrete adapter subcall.
 
+Final footprint certificate format v2 now retains an exact
+function-to-instruction partition in the encoded carrier. Checked image
+emission replays every contiguous function
+and instruction boundary over relocated final bytes, rejects gaps, overlaps,
+and unowned instruction rows, and fingerprints the complete partition into the
+versioned footprint certificate. This is boundary enumeration evidence, not an
+instruction footprint assertion: ordinary instruction rows still need their
+closed target-spec footprint replay before the certificate can mark compiler
+body footprint decoding complete.
+
 Remaining order:
 
 1. Complete plan-driven outbound calls and their results;

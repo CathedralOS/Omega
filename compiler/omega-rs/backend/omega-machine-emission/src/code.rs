@@ -16,7 +16,7 @@ pub(crate) fn build_encoded_machine_code(
 
     for (_, function) in input.machine_instructions.code.functions.iter() {
         let byte_offset = code.bytes.len();
-        emit_function_bytes(
+        let instructions = emit_function_bytes(
             MachineEmissionContext {
                 target: input.target,
                 assigned_target_operations: input.assigned_target_operations,
@@ -33,6 +33,7 @@ pub(crate) fn build_encoded_machine_code(
             source_key: function.source_key,
             byte_offset,
             byte_count,
+            instructions,
         });
     }
 

@@ -47,6 +47,11 @@ pub(super) fn write_output(
                 "checked executable image omitted compiler-text validation evidence",
             )]
         })?;
+        let compiler_function_validation = image.compiler_function_validation.ok_or_else(|| {
+            vec![Diagnostic::error(
+                "checked executable image omitted compiler-function validation evidence",
+            )]
+        })?;
         let output_path = build_dir.join(&image.file_name);
         write_output_file(&output_path, &image.bytes, true)
             .map_err(|diagnostic| vec![diagnostic])?;
@@ -54,6 +59,7 @@ pub(super) fn write_output(
             options,
             footprints,
             &compiler_text_validation,
+            &compiler_function_validation,
             &image.executable_regions,
         )?;
 
@@ -89,6 +95,7 @@ fn write_executable_region_inventory(
     options: &CompileOptions,
     footprints: &omega_target_operations::BoundaryFootprintPlan,
     compiler_text_validation: &omega_image::CompilerTextValidationEvidence,
+    compiler_function_validation: &omega_image::CompilerFunctionValidationEvidence,
     inventory: &omega_image::PlacedExecutableRegionInventory,
 ) -> Result<(), Vec<Diagnostic>> {
     fn push_string(output: &mut String, value: &str) {
@@ -150,6 +157,7 @@ fn write_executable_region_inventory(
         implementation_evidence_fingerprint,
         footprints.fragments.len(),
         *compiler_text_validation,
+        *compiler_function_validation,
         inventory.clone(),
     )
     .map_err(|diagnostic| vec![diagnostic])?;
@@ -193,7 +201,7 @@ fn write_executable_region_inventory(
         json.push_str("null");
     }
     json.push_str(&format!(
-        ",\n  \"implementation_evidence_fingerprint\": \"0x{implementation_evidence_fingerprint:016x}\",\n  \"implementation_fragment_count\": {},\n  \"compiler_text_validation\": {{\"encoded_text_fingerprint\": \"0x{:016x}\", \"final_compiler_text_fingerprint\": \"0x{:016x}\", \"relocation_envelope_fingerprint\": \"0x{:016x}\", \"checked_instruction_validation_fingerprint\": \"0x{:016x}\", \"derivation_fingerprint\": \"0x{:016x}\", \"text_relocation_count\": {}, \"checked_instruction_validation_count\": {}}},\n  \"inventory_fingerprint\": \"0x{:016x}\",\n  \"boundary_placement_binding_fingerprint\": \"0x{:016x}\",\n",
+        ",\n  \"implementation_evidence_fingerprint\": \"0x{implementation_evidence_fingerprint:016x}\",\n  \"implementation_fragment_count\": {},\n  \"compiler_text_validation\": {{\"encoded_text_fingerprint\": \"0x{:016x}\", \"final_compiler_text_fingerprint\": \"0x{:016x}\", \"relocation_envelope_fingerprint\": \"0x{:016x}\", \"checked_instruction_validation_fingerprint\": \"0x{:016x}\", \"derivation_fingerprint\": \"0x{:016x}\", \"text_relocation_count\": {}, \"checked_instruction_validation_count\": {}}},\n  \"compiler_function_validation\": {{\"evidence_fingerprint\": \"0x{:016x}\", \"validation_fingerprint\": \"0x{:016x}\", \"function_count\": {}, \"instruction_count\": {}, \"zero_width_instruction_count\": {}}},\n  \"inventory_fingerprint\": \"0x{:016x}\",\n  \"boundary_placement_binding_fingerprint\": \"0x{:016x}\",\n",
         certificate.implementation_fragment_count,
         certificate.compiler_text_validation.encoded_text_fingerprint,
         certificate.compiler_text_validation.final_compiler_text_fingerprint,
@@ -206,6 +214,17 @@ fn write_executable_region_inventory(
         certificate
             .compiler_text_validation
             .checked_instruction_validation_count,
+        certificate
+            .compiler_function_validation
+            .evidence_fingerprint(),
+        certificate
+            .compiler_function_validation
+            .validation_fingerprint,
+        certificate.compiler_function_validation.function_count,
+        certificate.compiler_function_validation.instruction_count,
+        certificate
+            .compiler_function_validation
+            .zero_width_instruction_count,
         inventory.inventory_fingerprint,
         certificate.boundary_placement_binding_fingerprint,
     ));

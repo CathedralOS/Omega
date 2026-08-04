@@ -1,8 +1,8 @@
 use crate::dispatch::emit_executable_image;
 use crate::input::ExecutableImageInput;
 use omega_image::{
-    CompilerTextValidationEvidence, EmittedImageOutput, FinalExecutableRegionOrigin,
-    PlacedExecutableRegionInventory,
+    CompilerFunctionValidationEvidence, CompilerTextValidationEvidence, EmittedImageOutput,
+    FinalExecutableRegionOrigin, PlacedExecutableRegionInventory,
 };
 use omega_object_file::{RelocationKind, RelocationPlan, SectionKind};
 use omega_target::Architecture;
@@ -38,6 +38,10 @@ pub fn emit_checked_executable_image(
             &emitted_output.final_text_bytes,
             relocations,
         )?;
+        let compiler_function_validation = validate_compiler_function_instruction_boundaries(
+            encoded_machine_code,
+            &emitted_output.final_text_bytes,
+        )?;
         let (checked_instruction_validation_count, checked_instruction_validation_fingerprint) =
             validate_checked_instruction_bytes(
                 architecture,
@@ -64,8 +68,27 @@ pub fn emit_checked_executable_image(
             &mut derivation_fingerprint,
             &(checked_instruction_validation_count as u64).to_le_bytes(),
         );
+        fingerprint_into(
+            &mut derivation_fingerprint,
+            &compiler_function_validation
+                .validation_fingerprint
+                .to_le_bytes(),
+        );
+        fingerprint_into(
+            &mut derivation_fingerprint,
+            &(compiler_function_validation.function_count as u64).to_le_bytes(),
+        );
+        fingerprint_into(
+            &mut derivation_fingerprint,
+            &(compiler_function_validation.instruction_count as u64).to_le_bytes(),
+        );
+        fingerprint_into(
+            &mut derivation_fingerprint,
+            &(compiler_function_validation.zero_width_instruction_count as u64).to_le_bytes(),
+        );
         compiler_text_validation.derivation_fingerprint = derivation_fingerprint;
         emitted_output.compiler_text_validation = Some(compiler_text_validation);
+        emitted_output.compiler_function_validation = Some(compiler_function_validation);
         validate_executable_region_enumeration(&emitted_output.executable_regions)?;
         validate_compiler_entry_call_return_bytes(
             architecture,
@@ -79,6 +102,140 @@ pub fn emit_checked_executable_image(
     Err(Diagnostic::error(
         "cannot emit native executable; no direct image writer is registered for this target",
     ))
+}
+
+/// Replay the complete compiler function/instruction partition against final
+/// placed text. Relocations may change instruction fields, so the retained
+/// spans own boundaries while the final bytes own the fingerprint.
+fn validate_compiler_function_instruction_boundaries(
+    code: &omega_machine_bytes::EncodedMachineCode,
+    final_text_bytes: &[u8],
+) -> Result<CompilerFunctionValidationEvidence, Diagnostic> {
+    if code.byte_count != final_text_bytes.len() || code.bytes.len() != final_text_bytes.len() {
+        return Err(Diagnostic::error(
+            "compiler function enumeration does not cover the complete final compiler text",
+        ));
+    }
+
+    let mut fingerprint = 0xcbf2_9ce4_8422_2325u64;
+    let mut expected_byte_offset = 0usize;
+    let mut expected_instruction_arena_index = 1u32;
+    let mut instruction_count = 0usize;
+    let mut zero_width_instruction_count = 0usize;
+
+    for (function_index, (_, function)) in code.functions.iter().enumerate() {
+        if function.byte_offset != expected_byte_offset {
+            return Err(Diagnostic::error(format!(
+                "compiler function #{function_index} begins at byte {}, expected complete partition offset {expected_byte_offset}",
+                function.byte_offset
+            )));
+        }
+        let function_end = function
+            .byte_offset
+            .checked_add(function.byte_count)
+            .filter(|end| *end <= final_text_bytes.len())
+            .ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "compiler function #{function_index} exceeds final compiler text"
+                ))
+            })?;
+        let instructions = code
+            .instructions
+            .span(function.instructions)
+            .ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "compiler function #{function_index} has an invalid encoded-instruction span"
+                ))
+            })?;
+        if !function.instructions.is_empty()
+            && function.instructions.start().arena_index() != expected_instruction_arena_index
+        {
+            return Err(Diagnostic::error(format!(
+                "compiler function #{function_index} instruction rows are not a complete contiguous partition"
+            )));
+        }
+
+        let mut instruction_byte_offset = function.byte_offset;
+        for instruction in instructions {
+            let byte_count = instruction.bytes.len();
+            fingerprint_into(
+                &mut fingerprint,
+                &u64::from(instruction.selected_instruction_index).to_le_bytes(),
+            );
+            fingerprint_into(
+                &mut fingerprint,
+                &(instruction_byte_offset as u64).to_le_bytes(),
+            );
+            fingerprint_into(&mut fingerprint, &(byte_count as u64).to_le_bytes());
+            if byte_count == 0 {
+                zero_width_instruction_count += 1;
+                instruction_count += 1;
+                continue;
+            }
+            if instruction.bytes.start().arena_index() as usize != instruction_byte_offset + 1 {
+                return Err(Diagnostic::error(format!(
+                    "compiler function #{function_index} instruction #{} does not begin at its retained byte boundary",
+                    instruction.selected_instruction_index
+                )));
+            }
+            let instruction_end = instruction_byte_offset
+                .checked_add(byte_count)
+                .filter(|end| *end <= function_end)
+                .ok_or_else(|| {
+                    Diagnostic::error(format!(
+                        "compiler function #{function_index} instruction #{} exceeds its retained function boundary",
+                        instruction.selected_instruction_index
+                    ))
+                })?;
+            fingerprint_into(
+                &mut fingerprint,
+                &final_text_bytes[instruction_byte_offset..instruction_end],
+            );
+            instruction_byte_offset = instruction_end;
+            instruction_count += 1;
+        }
+        if instruction_byte_offset != function_end {
+            return Err(Diagnostic::error(format!(
+                "compiler function #{function_index} instruction rows cover {} byte(s), expected {}",
+                instruction_byte_offset - function.byte_offset,
+                function.byte_count
+            )));
+        }
+
+        expected_byte_offset = function_end;
+        expected_instruction_arena_index = expected_instruction_arena_index
+            .checked_add(function.instructions.count())
+            .ok_or_else(|| Diagnostic::error("compiler instruction partition overflowed"))?;
+        fingerprint_into(&mut fingerprint, &(function_index as u64).to_le_bytes());
+        fingerprint_into(
+            &mut fingerprint,
+            &(function.byte_offset as u64).to_le_bytes(),
+        );
+        fingerprint_into(
+            &mut fingerprint,
+            &(function.byte_count as u64).to_le_bytes(),
+        );
+        fingerprint_into(
+            &mut fingerprint,
+            &(function.instructions.len() as u64).to_le_bytes(),
+        );
+    }
+
+    if expected_byte_offset != final_text_bytes.len()
+        || instruction_count != code.instructions.len()
+        || expected_instruction_arena_index != code.instructions.len() as u32 + 1
+    {
+        return Err(Diagnostic::error(
+            "compiler function rows do not enumerate every final byte and encoded instruction",
+        ));
+    }
+
+    Ok(CompilerFunctionValidationEvidence {
+        function_count: code.functions.len(),
+        instruction_count,
+        zero_width_instruction_count,
+        validation_fingerprint: fingerprint,
+    })
 }
 
 fn validate_executable_region_enumeration(
@@ -1678,7 +1835,8 @@ fn validate_compiler_entry_call_return_bytes(
 mod tests {
     use super::{
         emit_checked_executable_image, validate_checked_instruction_bytes,
-        validate_compiler_entry_call_return_bytes, validate_executable_region_enumeration,
+        validate_compiler_entry_call_return_bytes,
+        validate_compiler_function_instruction_boundaries, validate_executable_region_enumeration,
         validate_final_text_relocation_envelope,
     };
     use crate::ExecutableImageInput;
@@ -1808,6 +1966,45 @@ mod tests {
             validate_final_text_relocation_envelope(&encoded, &relocated, &relocations)
                 .expect_err("an opcode mutation outside the displacement must reject");
         assert!(diagnostic.message.contains("byte 0"));
+    }
+
+    #[test]
+    fn compiler_functions_retain_a_complete_final_instruction_partition() {
+        use omega_machine_bytes::{EncodedMachineFunction, EncodedMachineInstruction};
+        use psi_arena::HandleSpan;
+
+        let target = NativeTarget::linux_x64();
+        let mut plan = omega_machine_bytes::EncodedMachinePlan::with_capacity(target, 1, 2, 3);
+        let bytes = plan.code.bytes.insert_many([0x90, 0x90, 0xc3]);
+        let first = plan.code.instructions.insert(EncodedMachineInstruction {
+            selected_instruction_index: 4,
+            bytes,
+            ..EncodedMachineInstruction::default()
+        });
+        plan.code.instructions.insert(EncodedMachineInstruction {
+            selected_instruction_index: 5,
+            ..EncodedMachineInstruction::default()
+        });
+        let function = plan.code.functions.insert(EncodedMachineFunction {
+            source_key: Default::default(),
+            byte_offset: 0,
+            byte_count: 3,
+            instructions: HandleSpan::from_parts(first, 2),
+        });
+        plan.code.byte_count = 3;
+
+        let evidence =
+            validate_compiler_function_instruction_boundaries(&plan.code, &[0x90, 0x90, 0xc3])
+                .expect("retained function rows should enumerate exact final boundaries");
+        assert_eq!(evidence.function_count, 1);
+        assert_eq!(evidence.instruction_count, 2);
+        assert_eq!(evidence.zero_width_instruction_count, 1);
+
+        plan.code.functions.get_mut(function).instructions = HandleSpan::from_parts(first, 1);
+        let diagnostic =
+            validate_compiler_function_instruction_boundaries(&plan.code, &[0x90, 0x90, 0xc3])
+                .expect_err("an unowned encoded instruction must reject");
+        assert!(diagnostic.message.contains("do not enumerate every"));
     }
 
     #[test]
