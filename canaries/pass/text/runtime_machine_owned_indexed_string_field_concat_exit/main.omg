@@ -10,14 +10,15 @@ data Room {
 data Main {
     console: Console;
     rooms: [Room; 2];
+    index: u64 [0..=1];
 }
 
 machine Main::main(&mut self) {
-    let index: u64 = 1;
-    self.rooms[index].description = "prefix " + "omega";
+    self.index = 1;
+    self.rooms[self.index].description = "prefix " + "omega";
 
     let room_slice: &[Room] = self.rooms.as_slice();
-    transition room_slice[index].description == "prefix omega" {
+    transition room_slice[self.index].description == "prefix omega" {
         true -> good()
         false -> bad()
     }

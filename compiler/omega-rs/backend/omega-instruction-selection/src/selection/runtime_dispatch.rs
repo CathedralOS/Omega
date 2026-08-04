@@ -981,6 +981,7 @@ pub(crate) fn write_place_string_frame_base_indexed(
 
 pub(crate) fn write_place_string_machine_indexed(
     base_byte_offset: usize,
+    index_region: RuntimeStorageRegion,
     index_offset: usize,
     index_byte_size: usize,
     element_byte_size: usize,
@@ -991,7 +992,7 @@ pub(crate) fn write_place_string_machine_indexed(
     SelectedInstructionKind::WritePlaceString {
         target: machine_indexed_place(
             base_byte_offset,
-            RuntimeStorageRegion::RuntimeFrame,
+            index_region,
             index_offset,
             index_byte_size,
             element_byte_size,

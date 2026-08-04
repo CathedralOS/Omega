@@ -819,6 +819,7 @@ fn append_runtime_text_literal_to_target(
         emit(
             crate::selection::runtime_dispatch::write_place_string_machine_indexed(
                 target.base_byte_offset,
+                target.index_region,
                 target.index_offset,
                 target.index_byte_size,
                 target.element_byte_size,
@@ -920,6 +921,7 @@ fn initialize_runtime_text_target_with_first_literal_segment(
         emit(
             crate::selection::runtime_dispatch::write_place_string_machine_indexed(
                 target.base_byte_offset,
+                target.index_region,
                 target.index_offset,
                 target.index_byte_size,
                 target.element_byte_size,

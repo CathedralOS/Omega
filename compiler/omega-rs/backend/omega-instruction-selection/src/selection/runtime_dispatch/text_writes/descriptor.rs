@@ -64,6 +64,7 @@ pub(in crate::selection) fn select_runtime_string_descriptor_write(
         selected_instructions.push(SelectedInstruction {
             kind: crate::selection::runtime_dispatch::write_place_string_machine_indexed(
                 indexed_target.base_byte_offset,
+                indexed_target.index_region,
                 indexed_target.index_offset,
                 indexed_target.index_byte_size,
                 indexed_target.element_byte_size,

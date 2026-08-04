@@ -1560,10 +1560,7 @@ fn validate_compiler_function_instruction_boundaries(
                                     | CompilerBodyPlaceIntegerWriteShape::Pointee { .. }
                                     | CompilerBodyPlaceIntegerWriteShape::FrameIndexed { .. }
                                     | CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. }
-                                    | CompilerBodyPlaceIntegerWriteShape::MachineIndexed {
-                                        index_region: omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
-                                        ..
-                                    }
+                                    | CompilerBodyPlaceIntegerWriteShape::MachineIndexed { .. }
                             )
                         {
                             return Err(Diagnostic::error(
@@ -1622,13 +1619,14 @@ fn validate_compiler_function_instruction_boundaries(
                                 )?,
                                 CompilerBodyPlaceIntegerWriteShape::MachineIndexed {
                                     base_byte_offset,
+                                    index_region,
                                     index_offset,
                                     index_byte_size,
                                     element_byte_size,
                                     field_byte_offset,
-                                    ..
-                                } => omega_isa_aarch64::encode_runtime_machine_indexed_string_write(
+                                } => omega_isa_aarch64::encode_runtime_machine_indexed_string_write_with_index_region(
                                     base_byte_offset,
+                                    index_region,
                                     index_offset,
                                     index_byte_size,
                                     element_byte_size,
@@ -3760,11 +3758,7 @@ fn compiler_instruction_footprint(
                             | CompilerBodyPlaceIntegerWriteShape::Pointee { .. }
                             | CompilerBodyPlaceIntegerWriteShape::FrameIndexed { .. }
                             | CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. }
-                            | CompilerBodyPlaceIntegerWriteShape::MachineIndexed {
-                                index_region:
-                                    omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
-                                ..
-                            }
+                            | CompilerBodyPlaceIntegerWriteShape::MachineIndexed { .. }
                     ) {
                         return None;
                     }
@@ -6662,23 +6656,29 @@ fn validate_compiler_place_string_relocations(
             }
             CompilerBodyPlaceIntegerWriteShape::MachineIndexed {
                 base_byte_offset,
-                index_region: omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                index_region,
+                index_offset,
+                index_byte_size,
                 element_byte_size,
                 field_byte_offset,
-                ..
             } => {
                 sites.push((0, ExpectedTarget::Storage(target.region)));
+                if index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
+                    sites.push((
+                        omega_isa_aarch64::runtime_machine_indexed_string_runtime_frame_address_offset(
+                            base_byte_offset,
+                        ),
+                        ExpectedTarget::Storage(
+                            omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                        ),
+                    ));
+                }
                 sites.push((
-                    omega_isa_aarch64::runtime_machine_indexed_string_runtime_frame_address_offset(
+                    omega_isa_aarch64::runtime_machine_indexed_string_data_address_offset_with_index_region(
                         base_byte_offset,
-                    ),
-                    ExpectedTarget::Storage(
-                        omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
-                    ),
-                ));
-                sites.push((
-                    omega_isa_aarch64::runtime_machine_indexed_string_data_address_offset(
-                        base_byte_offset,
+                        index_region,
+                        index_offset,
+                        index_byte_size,
                         element_byte_size,
                         field_byte_offset,
                     ),

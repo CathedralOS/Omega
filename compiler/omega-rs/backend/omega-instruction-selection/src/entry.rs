@@ -1069,10 +1069,7 @@ pub fn derive_boundary_compiler_body_place_string_write_footprint<'instruction>(
                     | crate::WritePlaceShape::FrameIndexed { .. }
                     | crate::WritePlaceShape::FrameIndexedByRegion { .. }
                     | crate::WritePlaceShape::FrameBaseIndexed { .. }
-                    | crate::WritePlaceShape::MachineIndexed {
-                        index_region: omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
-                        ..
-                    }
+                    | crate::WritePlaceShape::MachineIndexed { .. }
             );
         if !supported {
             continue;
