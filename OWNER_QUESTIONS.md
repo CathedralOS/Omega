@@ -58,6 +58,30 @@ accepts contextual `trap` by lowering it to an ordinary terminal transition;
 that erases the required semantic distinction and must not be treated as a
 settled spelling or control-outcome fact.
 
+## Q3 — How does a `Respects` proof name a normalized argument record and domain?
+
+The settled quotient model normalizes every operation's attached receiver and
+parameters into one argument record, derives the representative-dependent
+semantic precondition `P` from the operation, and requires `Respects<F, RA,
+RR>` to prove domain invariance plus result congruence. It does not settle the
+source-visible identities by which a proof machine names that synthesized
+record, its field projections, or `P`. Which surface is canonical?
+
+- synthesize a proof-only structural record and domain proposition for each
+  callable, with stable receiver/parameter projections made available inside
+  the selected `Respects` conformance; or
+- require an author-declared nominal argument-record adapter and an explicit
+  proposition for the representative-dependent domain, with validation tying
+  both exactly to the normalized callable signature and preconditions?
+
+The choice fixes whether parameter renames affect the record, how attached and
+free machines share one proof form, how `RA` is typed over heterogeneous
+carrier indices, what a partial-operation proof writes, callable and
+conformance identity, terminal-Psi vocabulary, and diagnostics for omitted or
+ambient-only preconditions. Until it is settled, the compiler must not bless
+the legacy flattened pair-of-calls scan as a `Respects` conformance or infer
+domain invariance merely because a result-congruence-shaped machine exists.
+
 ## Q4 — How does Build select a target entry schema and its implementation?
 
 Core now defines `ProgramStorageEntry::enter`, and target packages may inherit
