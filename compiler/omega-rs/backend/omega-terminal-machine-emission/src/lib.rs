@@ -100,7 +100,7 @@ fn emit_function(
                 }
             }
         }
-        TerminalAssignedOperation::ReturnIntegerConditionalParameters {
+        TerminalAssignedOperation::ReturnIntegerConditionalExpressions {
             condition_source,
             condition_location,
             scalar_type,
@@ -108,17 +108,17 @@ fn emit_function(
             when_false,
             ..
         } => {
-            require_native_integer_width(when_true.argument_value, *scalar_type)?;
-            require_native_integer_width(when_false.argument_value, *scalar_type)?;
+            require_native_integer_width(when_true.source_value, *scalar_type)?;
+            require_native_integer_width(when_false.source_value, *scalar_type)?;
             match architecture {
-                Architecture::Aarch64 => emit_aarch64_conditional_parameter_return(
+                Architecture::Aarch64 => emit_aarch64_conditional_expression_return(
                     *condition_source,
                     *condition_location,
                     *scalar_type,
                     when_true,
                     when_false,
                 )?,
-                Architecture::X86_64 => emit_x86_64_conditional_parameter_return(
+                Architecture::X86_64 => emit_x86_64_conditional_expression_return(
                     *condition_source,
                     *condition_location,
                     *scalar_type,
@@ -135,28 +135,22 @@ fn emit_function(
     })
 }
 
-fn emit_x86_64_conditional_parameter_return(
+fn emit_x86_64_conditional_expression_return(
     condition_source: ValueId,
     condition_location: TerminalAssignedScalarLocation,
     scalar_type: IntegerType,
-    when_true: &omega_terminal_assigned_target_operations::TerminalAssignedConditionalIntegerParameter,
-    when_false: &omega_terminal_assigned_target_operations::TerminalAssignedConditionalIntegerParameter,
+    when_true: &omega_terminal_assigned_target_operations::TerminalAssignedConditionalIntegerExpression,
+    when_false: &omega_terminal_assigned_target_operations::TerminalAssignedConditionalIntegerExpression,
 ) -> Result<Vec<u8>, EmissionError> {
     let mut bytes = emit_x86_64_parameter_return(condition_source, false, condition_location)?;
     if bytes.pop() != Some(0xc3) {
         return Err(EmissionError::ConditionalBranchEncodingInvalid);
     }
     bytes.extend_from_slice(&[0x85, 0xc0]); // test eax, eax
-    let true_bytes = emit_x86_64_parameter_return(
-        when_true.argument_value,
-        scalar_type.bits() > 32,
-        when_true.location,
-    )?;
-    let false_bytes = emit_x86_64_parameter_return(
-        when_false.argument_value,
-        scalar_type.bits() > 32,
-        when_false.location,
-    )?;
+    let true_bytes =
+        emit_x86_64_integer_expression(scalar_type, &when_true.frame, &when_true.expression)?;
+    let false_bytes =
+        emit_x86_64_integer_expression(scalar_type, &when_false.frame, &when_false.expression)?;
     let displacement = i32::try_from(true_bytes.len())
         .map_err(|_| EmissionError::ConditionalBranchDistanceNotEncodable)?;
     bytes.extend_from_slice(&[0x0f, 0x84]); // jz false arm
@@ -166,27 +160,21 @@ fn emit_x86_64_conditional_parameter_return(
     Ok(bytes)
 }
 
-fn emit_aarch64_conditional_parameter_return(
+fn emit_aarch64_conditional_expression_return(
     condition_source: ValueId,
     condition_location: TerminalAssignedScalarLocation,
     scalar_type: IntegerType,
-    when_true: &omega_terminal_assigned_target_operations::TerminalAssignedConditionalIntegerParameter,
-    when_false: &omega_terminal_assigned_target_operations::TerminalAssignedConditionalIntegerParameter,
+    when_true: &omega_terminal_assigned_target_operations::TerminalAssignedConditionalIntegerExpression,
+    when_false: &omega_terminal_assigned_target_operations::TerminalAssignedConditionalIntegerExpression,
 ) -> Result<Vec<u8>, EmissionError> {
     let mut bytes = emit_aarch64_parameter_return(condition_source, false, condition_location)?;
     if bytes.len() < 4 || bytes.split_off(bytes.len() - 4) != 0xd65f_03c0_u32.to_le_bytes() {
         return Err(EmissionError::ConditionalBranchEncodingInvalid);
     }
-    let true_bytes = emit_aarch64_parameter_return(
-        when_true.argument_value,
-        scalar_type.bits() > 32,
-        when_true.location,
-    )?;
-    let false_bytes = emit_aarch64_parameter_return(
-        when_false.argument_value,
-        scalar_type.bits() > 32,
-        when_false.location,
-    )?;
+    let true_bytes =
+        emit_aarch64_integer_expression(scalar_type, &when_true.frame, &when_true.expression)?;
+    let false_bytes =
+        emit_aarch64_integer_expression(scalar_type, &when_false.frame, &when_false.expression)?;
     let branch_words = true_bytes
         .len()
         .checked_div(4)
@@ -482,7 +470,8 @@ fn emit_x86_64_expression_node(
                         });
                     }
                     let rex = 0x48 | (((register_code >> 3) & 1) << 2);
-                    bytes.extend_from_slice(&[rex, 0x89, 0xc0 | ((register_code & 7) << 3)]); // mov rax, selected argument register
+                    bytes.extend_from_slice(&[rex, 0x89, 0xc0 | ((register_code & 7) << 3)]);
+                    // mov rax, selected argument register
                 }
                 TerminalAssignedScalarLocation::FrameSpill { byte_offset } => {
                     let displacement = byte_offset.checked_add(stack_depth).ok_or(
@@ -1094,7 +1083,7 @@ mod tests {
     use omega_target::NativeTarget;
     use omega_terminal_target_operations::{
         TerminalPsiProvenance, TerminalScalarParameterLocation,
-        TerminalTargetConditionalIntegerParameter, TerminalTargetFunction,
+        TerminalTargetConditionalIntegerExpression, TerminalTargetFunction,
         TerminalTargetIntegerExpression, TerminalTargetOperation, TerminalTargetOperationPlan,
     };
     use omega_terminal_target_operations_to_assigned_target_operations::assign_registers;
@@ -1141,13 +1130,15 @@ mod tests {
             ],
         };
         let arm = |edge, return_edge, source_value, parameter_index, register| {
-            TerminalTargetConditionalIntegerParameter {
+            TerminalTargetConditionalIntegerExpression {
                 psi_edge: EdgeId::new(edge).expect("edge"),
                 psi_return_edge: EdgeId::new(return_edge).expect("return edge"),
                 source_value: ValueId::new(source_value).expect("source value"),
-                argument_value: ValueId::new(source_value).expect("argument value"),
-                parameter_index,
-                location: TerminalScalarParameterLocation::Register(register),
+                expression: TerminalTargetIntegerExpression::Parameter {
+                    source_value: ValueId::new(source_value).expect("argument value"),
+                    parameter_index,
+                    location: TerminalScalarParameterLocation::Register(register),
+                },
             }
         };
         TerminalTargetOperationPlan {
@@ -1157,7 +1148,7 @@ mod tests {
             functions: vec![TerminalTargetFunction {
                 machine: MachineId::new(1).expect("machine"),
                 provenance: TerminalPsiProvenance::default(),
-                operation: TerminalTargetOperation::ReturnIntegerConditionalParameters {
+                operation: TerminalTargetOperation::ReturnIntegerConditionalExpressions {
                     condition_source: ValueId::new(1).expect("condition"),
                     condition_parameter_index: 0,
                     condition_location: TerminalScalarParameterLocation::Register(locations[0]),
@@ -1218,7 +1209,7 @@ mod tests {
     }
 
     #[test]
-    fn emits_direct_parameter_conditionals_for_both_architectures() {
+    fn emits_parameter_expression_conditionals_for_both_architectures() {
         assert_eq!(
             emit_machine_code(&conditional_plan(NativeTarget::linux_x64()))
                 .unwrap()
@@ -1227,19 +1218,29 @@ mod tests {
             [
                 0x89, 0xf8, // mov eax, edi
                 0x85, 0xc0, // test eax, eax
-                0x0f, 0x84, 3, 0, 0, 0, // jz false
-                0x89, 0xf0, 0xc3, // mov eax, esi; ret
-                0x89, 0xd0, 0xc3, // mov eax, edx; ret
+                0x0f, 0x84, 9, 0, 0, 0, // jz false
+                0x48, 0x89, 0xf0, // mov rax, rsi
+                0x25, 0xff, 0, 0, 0, 0xc3, // mask to u8; ret
+                0x48, 0x89, 0xd0, // mov rax, rdx
+                0x25, 0xff, 0, 0, 0, 0xc3, // mask to u8; ret
             ]
         );
         let aarch64 = emit_machine_code(&conditional_plan(NativeTarget::linux_arm64())).unwrap();
         assert_eq!(
             aarch64_instructions(&aarch64.functions[0].bytes),
             [
-                0x3400_0060, // cbz w0, false
-                0x2a01_03e0, // mov w0, w1
+                0x3400_00e0, // cbz w0, false
+                0xd100_43ff, // sub sp, sp, #16
+                0xf900_03e1, // str x1, [sp]
+                0xf940_03e0, // ldr x0, [sp]
+                0xd340_1c00, // mask to u8
+                0x9100_43ff, // add sp, sp, #16
                 0xd65f_03c0, // ret
-                0x2a02_03e0, // mov w0, w2
+                0xd100_43ff, // sub sp, sp, #16
+                0xf900_03e2, // str x2, [sp]
+                0xf940_03e0, // ldr x0, [sp]
+                0xd340_1c00, // mask to u8
+                0x9100_43ff, // add sp, sp, #16
                 0xd65f_03c0, // ret
             ]
         );

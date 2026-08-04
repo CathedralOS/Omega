@@ -1019,13 +1019,15 @@ improvements do not change public identity.
   arms, interpretation charges only the selected edge, and Omega abstract
   lowering retains canonical block entries plus both successors. The first
   checked-source producer lowers an ordered positive-Boolean/fallback branch
-  whose successors bind already-defined integer entry parameters to direct-
-  return branch states. The restricted fixed-work checker derives the maximum
+  whose successors bind already-defined integer entry parameters to branch
+  states that may compute recursively nested landed-literal/parameter
+  add/subtract/multiply expressions in settled Wrapping or Saturating domains.
+  The restricted fixed-work checker derives the maximum
   acyclic branch cost and complete safe-point graph partition. That exact
-  three-block/direct-parameter shape now retains both structural and return
-  edges through target assignment and emits executable x86-64/AArch64
-  conditional returns. General target/native block programs and branch-local
-  computation remain implementation work.
+  three-block shape now retains both structural and return edges plus each
+  branch's integer expression and operation provenance through independent
+  assigned frames, then emits executable x86-64/AArch64 conditional returns.
+  General target/native block programs remain implementation work.
   The first frontend-ownership migration slice is live: `psi-source` owns
   source identities, byte spans, and source-backed text; `psi-tokens` owns the
   token representation; `psi-arena` owns generic dense, paged, generational,
@@ -1159,8 +1161,9 @@ improvements do not change public identity.
   propagation also requires its result to match the closed reflexive contract.
   A fourth exact form lowers an ordered positive-Boolean/fallback conditional.
   Each arm binds one already-defined integer entry parameter to a one-parameter
-  branch state that returns it directly; computed branch-local work remains
-  fail-closed. It emits the module and
+  branch state that returns a recursively nested landed-literal/parameter
+  add/subtract/multiply expression in a settled Wrapping or Saturating domain.
+  It emits the module and
   proof bundle separately; real-source canaries cover all six versioned integer
   policy operations in constant-fed and runtime-fed forms, Boolean literal,
   ninth-parameter direct and three-state bound returns, a direct closed integer
@@ -1184,9 +1187,10 @@ improvements do not change public identity.
   The source conditional survives frontend disposal, executes either arm with
   only its selected edge charged, retains both successors through the Omega
   abstract boundary, and reaches emitted host machine code for both arms. Its
-  fixed-work certificate is two units. The target/native continuation remains
-  deliberately exact: runtime Boolean selection between two direct integer
-  parameter returns is live; general branch-local operations fail closed.
+  branch-local wrapping add/multiply paths each have a four-unit fixed-work
+  certificate. The target/native continuation remains deliberately exact:
+  runtime Boolean selection between two integer expressions is live, with each
+  branch independently assigned and emitted; general CFG programs fail closed.
   Because the
   legacy exit prover cannot establish ordinary `result == literal` contracts,
   this bootstrap canary preserves a closed typed `requires`/`ensures` fact and

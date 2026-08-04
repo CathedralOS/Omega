@@ -33,6 +33,7 @@ use omega_terminal_image_emission::{
 };
 use omega_terminal_machine_emission::emit_machine_code;
 use omega_terminal_psi_to_abstract_operations::lower_verified_module;
+use omega_terminal_target_operations::{TerminalTargetIntegerExpression, TerminalTargetOperation};
 use omega_terminal_target_operations_to_assigned_target_operations::assign_registers;
 use psi_checked_trees_to_terminal::{LoweringError, lower_machine};
 use psi_core::{
@@ -493,20 +494,20 @@ fn checked_source_conditional_survives_frontend_drop() {
         &AdmissionProfile::default(),
     )
     .expect("source conditional should verify after frontend drop");
-    assert_eq!(semantic_module.semantic_version.get(), 13);
+    assert_eq!(semantic_module.semantic_version.get(), 14);
     let fixed = derive_fixed_entry_fuel(&verified, semantic_module.entry)
         .expect("source conditional should have an exact maximum fuel bound");
-    assert_eq!(fixed.ceiling_units(), 2);
+    assert_eq!(fixed.ceiling_units(), 4);
 
     let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
     for (condition, expected, selected, unselected) in [
         (
             true,
-            17_u128,
+            20_u128,
             EdgeId::new(1).unwrap(),
             EdgeId::new(2).unwrap(),
         ),
-        (false, 29, EdgeId::new(2).unwrap(), EdgeId::new(1).unwrap()),
+        (false, 58, EdgeId::new(2).unwrap(), EdgeId::new(1).unwrap()),
     ] {
         let measured = interpret_terminal_measured(
             &verified,
@@ -523,7 +524,7 @@ fn checked_source_conditional_survives_frontend_drop() {
             ],
         )
         .expect("selected source conditional arm should execute");
-        assert_eq!(measured.usage().total_units(), 2);
+        assert_eq!(measured.usage().total_units(), 4);
         assert!(
             measured
                 .usage()
@@ -547,13 +548,33 @@ fn checked_source_conditional_survives_frontend_drop() {
         TerminalAbstractOperation::Conditional { .. }
     ));
     let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
-        .expect("direct-binding source conditional should lower for the host");
+        .expect("computed source conditional should lower for the host");
+    let TerminalTargetOperation::ReturnIntegerConditionalExpressions {
+        when_true,
+        when_false,
+        ..
+    } = &target_operations.functions[0].operation
+    else {
+        panic!("target plan must retain both computed conditional expressions")
+    };
+    assert!(matches!(
+        &when_true.expression,
+        TerminalTargetIntegerExpression::WrappingAdd { .. }
+    ));
+    assert!(matches!(
+        &when_false.expression,
+        TerminalTargetIntegerExpression::WrappingMultiply { .. }
+    ));
+    assert_eq!(
+        target_operations.functions[0].provenance.operations.len(),
+        4
+    );
     let assigned = assign_registers(&target_operations)
         .expect("source conditional parameter homes should assign");
     let machine_code =
         emit_machine_code(&assigned).expect("source conditional machine code should emit");
     #[cfg(unix)]
-    for (condition, expected) in [(true, 17), (false, 29)] {
+    for (condition, expected) in [(true, 20), (false, 58)] {
         assert_eq!(
             run_host_machine_code_with_conditional_u8(
                 &machine_code.functions[0].bytes,

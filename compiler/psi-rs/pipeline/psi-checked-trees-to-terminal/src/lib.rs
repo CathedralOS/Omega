@@ -1123,6 +1123,7 @@ fn lower_integer_conditional_machine(
     let when_true_argument = branch_argument(when_true, when_true_state)?;
     let when_false_argument = branch_argument(when_false, when_false_state)?;
 
+    let mut branch_expressions = Vec::with_capacity(2);
     for state in [when_true_state, when_false_state] {
         if integer_scalar_type(checked.primitive_type_reference(state.return_type).ok_or(
             LoweringError::Unsupported("conditional branch result must be a primitive integer"),
@@ -1149,16 +1150,22 @@ fn lower_integer_conditional_machine(
         let [StatementNode::Expression(return_expression)] =
             checked.statement_table.statements(state.statement_nodes)
         else {
-            return unsupported("conditional branch state must directly return its parameter");
+            return unsupported("conditional branch state must contain one integer expression");
         };
-        let ExpressionNode::Name(path) = checked.expression_table.expression(*return_expression)
-        else {
-            return unsupported("conditional branch state must directly return its parameter");
-        };
-        if direct_parameter_position(checked, path, std::slice::from_ref(parameter))? != 0 {
-            unreachable!("one branch parameter can only have position zero")
-        }
+        let parameter_types = [result_type];
+        let (expression, _) = lower_direct_return_expression(
+            checked,
+            *return_expression,
+            std::slice::from_ref(parameter),
+            &parameter_types,
+            result_type,
+        )?;
+        branch_expressions.push(expression);
     }
+    let [when_true_expression, when_false_expression]: [LoweredDirectExpression; 2] =
+        branch_expressions
+            .try_into()
+            .expect("the two conditional branch states each lower one expression");
 
     let contract_value = validate_contract(checked, machine, result_type, None)?;
     let (identity_reshuffles, partition_compositions) =
@@ -1168,6 +1175,8 @@ fn lower_integer_conditional_machine(
         condition,
         when_true_argument,
         when_false_argument,
+        when_true_expression,
+        when_false_expression,
         result_type,
         contract_value,
         identity_reshuffles,
@@ -1973,6 +1982,8 @@ fn build_integer_conditional_module(
     condition: LoweredBooleanReturnExpression,
     when_true_argument: usize,
     when_false_argument: usize,
+    when_true_expression: LoweredDirectExpression,
+    when_false_expression: LoweredDirectExpression,
     result_type: ScalarType,
     contract_value: IntegerValue,
     identity_reshuffles: LoweredContentIdentityReshuffles,
@@ -1995,13 +2006,14 @@ fn build_integer_conditional_module(
         .expect("parameter count fits a semantic identity")
         .checked_add(1)
         .expect("generated identities follow parameter identities");
-    let mut entry_operations = Vec::new();
+    let mut all_operations = Vec::new();
     let condition = emit_boolean_expression(
         &condition,
         &parameters,
         &mut next_value_identity,
-        &mut entry_operations,
+        &mut all_operations,
     );
+    let entry_operation_end = all_operations.len();
     let true_parameter = ValueDeclaration {
         id: value_id(next_value_identity),
         scalar_type: result_type,
@@ -2015,7 +2027,23 @@ fn build_integer_conditional_module(
     };
     next_value_identity = next_value_identity
         .checked_add(1)
-        .expect("result follows branch parameters");
+        .expect("branch expressions follow branch parameters");
+    let true_operation_start = all_operations.len();
+    let true_value = emit_direct_expression(
+        &when_true_expression,
+        std::slice::from_ref(&true_parameter),
+        result_type,
+        &mut next_value_identity,
+        &mut all_operations,
+    );
+    let true_operation_end = all_operations.len();
+    let false_value = emit_direct_expression(
+        &when_false_expression,
+        std::slice::from_ref(&false_parameter),
+        result_type,
+        &mut next_value_identity,
+        &mut all_operations,
+    );
     let result = ValueDeclaration {
         id: value_id(next_value_identity),
         scalar_type: result_type,
@@ -2058,7 +2086,7 @@ fn build_integer_conditional_module(
                     Block {
                         id: block_id(1),
                         parameters: Vec::new(),
-                        operations: entry_operations,
+                        operations: all_operations[..entry_operation_end].to_vec(),
                         terminator: Terminator::Conditional {
                             condition,
                             when_true: SuccessorEdge {
@@ -2076,19 +2104,20 @@ fn build_integer_conditional_module(
                     Block {
                         id: block_id(2),
                         parameters: vec![true_parameter],
-                        operations: Vec::new(),
+                        operations: all_operations[true_operation_start..true_operation_end]
+                            .to_vec(),
                         terminator: Terminator::Return {
                             edge: edge_id(3),
-                            value: true_parameter.id,
+                            value: true_value,
                         },
                     },
                     Block {
                         id: block_id(3),
                         parameters: vec![false_parameter],
-                        operations: Vec::new(),
+                        operations: all_operations[true_operation_end..].to_vec(),
                         terminator: Terminator::Return {
                             edge: edge_id(4),
-                            value: false_parameter.id,
+                            value: false_value,
                         },
                     },
                 ],

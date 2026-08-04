@@ -129,7 +129,7 @@ fn v13_conditional_round_trips_executes_and_lowers_both_ordered_successors() {
     assert_eq!(when_false.bindings[0].argument, ValueId::new(3).unwrap());
     let target_plan = lower_to_target_operations(&abstract_plan, NativeTarget::host())
         .expect("direct-binding conditional should lower for the host");
-    let TerminalTargetOperation::ReturnIntegerConditionalParameters {
+    let TerminalTargetOperation::ReturnIntegerConditionalExpressions {
         condition_source,
         when_true,
         when_false,
@@ -146,7 +146,7 @@ fn v13_conditional_round_trips_executes_and_lowers_both_ordered_successors() {
     let assigned = assign_registers(&target_plan).expect("conditional homes assign");
     assert!(matches!(
         assigned.functions[0].operation,
-        TerminalAssignedOperation::ReturnIntegerConditionalParameters { .. }
+        TerminalAssignedOperation::ReturnIntegerConditionalExpressions { .. }
     ));
     let machine_code = emit_machine_code(&assigned).expect("conditional machine code emits");
     assert!(!machine_code.functions[0].bytes.is_empty());
