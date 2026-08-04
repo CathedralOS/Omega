@@ -687,25 +687,16 @@ fn lower_integer_conditional(
             let pending = bindings
                 .iter()
                 .map(|binding| {
-                    let KnownScalar::Integer {
-                        scalar_type: argument_type,
-                        value,
-                    } = arm_values
+                    let value = arm_values
                         .get(&binding.argument)
                         .cloned()
-                        .ok_or(LoweringError::UnknownValue(binding.argument))?
-                    else {
-                        return Err(LoweringError::ConditionalArmBindingMustBeInteger(edge));
-                    };
-                    if binding.scalar_type != ScalarType::Integer(argument_type) {
-                        return Err(LoweringError::ValueTypeMismatch(binding.argument));
+                        .ok_or(LoweringError::UnknownValue(binding.argument))?;
+                    if binding.scalar_type != value.scalar_type() {
+                        return Err(LoweringError::ConditionalArmBindingTypeMismatch(edge));
                     }
                     Ok((
                         binding.parameter,
-                        KnownScalar::Integer {
-                            scalar_type: argument_type,
-                            value: value.rebind_direct_parameter(binding.parameter),
-                        },
+                        value.rebind_direct_parameter(binding.parameter),
                     ))
                 })
                 .collect::<Result<Vec<_>, _>>()?;
@@ -754,7 +745,7 @@ fn lower_integer_conditional(
                 ));
             };
             for operation in body {
-                if !lower_conditional_integer_operation(
+                if !lower_conditional_scalar_operation(
                     operation,
                     &mut arm_values,
                     &mut operations_provenance,
@@ -773,6 +764,26 @@ fn lower_integer_conditional(
                     bind(&mut arm_values, bindings, *psi_edge)?;
                     edge_provenance.push(*psi_edge);
                     block = *target;
+                }
+                TerminalAbstractOperation::Conditional {
+                    condition,
+                    when_true,
+                    when_false,
+                } => {
+                    let Some(KnownScalar::Boolean(selected_true_arm)) = arm_values.get(condition)
+                    else {
+                        return Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(
+                            function.machine,
+                        ));
+                    };
+                    let selected = if *selected_true_arm {
+                        when_true
+                    } else {
+                        when_false
+                    };
+                    bind(&mut arm_values, &selected.bindings, selected.psi_edge)?;
+                    edge_provenance.push(selected.psi_edge);
+                    block = selected.target;
                 }
                 TerminalAbstractOperation::Return {
                     psi_edge: psi_return_edge,
@@ -894,11 +905,21 @@ fn lower_integer_conditional(
     }
 }
 
-fn lower_conditional_integer_operation(
+fn lower_conditional_scalar_operation(
     operation: &TerminalAbstractOperation,
     values: &mut BTreeMap<ValueId, KnownScalar>,
     provenance: &mut Vec<psi_core::OperationId>,
 ) -> Result<bool, LoweringError> {
+    if let TerminalAbstractOperation::BooleanConstant {
+        psi_operation,
+        result,
+        value,
+    } = operation
+    {
+        insert_value(values, *result, KnownScalar::Boolean(*value))?;
+        provenance.push(*psi_operation);
+        return Ok(true);
+    }
     let (psi_operation, result, scalar_type, value) = match operation {
         TerminalAbstractOperation::IntegerConstant {
             psi_operation,
@@ -1244,6 +1265,16 @@ impl KnownScalar {
             Self::BooleanParameter { .. } => ScalarType::Boolean,
         }
     }
+
+    fn rebind_direct_parameter(self, source_value: ValueId) -> Self {
+        match self {
+            Self::Integer { scalar_type, value } => Self::Integer {
+                scalar_type,
+                value: value.rebind_direct_parameter(source_value),
+            },
+            value @ (Self::Boolean(_) | Self::BooleanParameter { .. }) => value,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1342,7 +1373,7 @@ pub enum LoweringError {
     FunctionResultMismatch(MachineId),
     ConditionalControlFlowRequiresBlockLowering(MachineId),
     ConditionalConditionMustBeBoolean(ValueId),
-    ConditionalArmBindingMustBeInteger(psi_core::EdgeId),
+    ConditionalArmBindingTypeMismatch(psi_core::EdgeId),
     DuplicateValue(ValueId),
     UnknownValue(ValueId),
     ValueTypeMismatch(ValueId),

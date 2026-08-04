@@ -1200,8 +1200,11 @@ improvements do not change public identity.
   two integer expressions is live, with each branch independently assigned and
   emitted. Each arm may traverse acyclic computed unconditional bindings and
   converge on a shared tail; provenance canonically retains every unique
-  contributing operation and edge. Nested conditionals and general CFG
-  programs still fail closed.
+  contributing operation and edge. A compile-known nested conditional inside
+  either arm now folds to only its selected successor, including scalar-typed
+  Boolean or integer edge bindings, while the outer runtime branch remains
+  executable. Runtime-nested conditionals and general CFG programs still fail
+  closed.
   Because the
   legacy exit prover cannot establish ordinary `result == literal` contracts,
   this bootstrap canary preserves a closed typed `requires`/`ensures` fact and

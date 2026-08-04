@@ -265,6 +265,115 @@ fn conditional_arms_lower_through_computed_jumps_to_a_shared_tail() {
 }
 
 #[test]
+fn compile_known_nested_conditional_folds_inside_a_runtime_arm() {
+    let module = nested_constant_conditional_module();
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("acyclic nested conditional verifies");
+    let fixed = derive_fixed_entry_fuel(&verified, MachineId::new(1).unwrap())
+        .expect("nested conditional has a fixed bound");
+    assert_eq!(fixed.ceiling_units(), 5);
+
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    for (condition, expected, fuel) in [(true, 6, 5), (false, 4, 2)] {
+        let measured = interpret_terminal_measured(
+            &verified,
+            &[
+                TerminalScalarValue::Boolean(condition),
+                TerminalScalarValue::Integer {
+                    scalar_type: integer,
+                    value: IntegerValue::Unsigned(3),
+                },
+                TerminalScalarValue::Integer {
+                    scalar_type: integer,
+                    value: IntegerValue::Unsigned(4),
+                },
+            ],
+        )
+        .expect("selected nested path executes");
+        assert_eq!(measured.usage().total_units(), fuel);
+        assert_eq!(
+            measured.value(),
+            TerminalScalarValue::Integer {
+                scalar_type: integer,
+                value: IntegerValue::Unsigned(expected),
+            }
+        );
+    }
+
+    let abstract_plan = lower_verified_module(&verified).expect("lower nested requirements");
+    let target_plan = lower_to_target_operations(&abstract_plan, NativeTarget::host())
+        .expect("compile-known nested condition should fold inside its runtime arm");
+    let function = &target_plan.functions[0];
+    assert_eq!(
+        function.provenance.operations,
+        [OperationId::new(1).unwrap(), OperationId::new(2).unwrap()]
+    );
+    assert_eq!(
+        function.provenance.edges,
+        [
+            EdgeId::new(1).unwrap(),
+            EdgeId::new(2).unwrap(),
+            EdgeId::new(3).unwrap(),
+            EdgeId::new(5).unwrap(),
+            EdgeId::new(6).unwrap(),
+        ]
+    );
+    let TerminalTargetOperation::ReturnIntegerConditionalExpressions {
+        when_true,
+        when_false,
+        ..
+    } = &function.operation
+    else {
+        panic!("outer runtime conditional must remain")
+    };
+    assert_eq!(when_true.psi_edge, EdgeId::new(1).unwrap());
+    assert_eq!(when_true.psi_return_edge, EdgeId::new(6).unwrap());
+    assert!(matches!(
+        when_true.expression,
+        TerminalTargetIntegerExpression::WrappingAdd { .. }
+    ));
+    assert_eq!(when_false.psi_edge, EdgeId::new(2).unwrap());
+    assert_eq!(when_false.psi_return_edge, EdgeId::new(5).unwrap());
+    let assigned = assign_registers(&target_plan).expect("folded nested arms assign");
+    let machine_code = emit_machine_code(&assigned).expect("folded nested arms emit");
+    assert!(!machine_code.functions[0].bytes.is_empty());
+}
+
+#[test]
+fn runtime_nested_conditional_still_requires_general_block_lowering() {
+    let mut module = nested_constant_conditional_module();
+    module.machines[0].parameters.push(ValueDeclaration {
+        id: ValueId::new(11).unwrap(),
+        scalar_type: ScalarType::Boolean,
+    });
+    module.machines[0].blocks[1].operations.clear();
+    let Terminator::Conditional { condition, .. } = &mut module.machines[0].blocks[1].terminator
+    else {
+        unreachable!("fixture has a nested conditional")
+    };
+    *condition = ValueId::new(11).unwrap();
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("runtime nested conditional verifies as terminal Psi");
+    let abstract_plan = lower_verified_module(&verified).expect("lower nested requirements");
+    assert!(matches!(
+        lower_to_target_operations(&abstract_plan, NativeTarget::host()),
+        Err(
+            omega_terminal_abstract_operations_to_target_operations::LoweringError::ConditionalControlFlowRequiresBlockLowering(
+                machine
+            )
+        ) if machine == MachineId::new(1).unwrap()
+    ));
+}
+
+#[test]
 fn conditional_requires_semantic_v13() {
     let module = conditional_module(SemanticVersion::V12);
     assert!(matches!(
@@ -478,6 +587,121 @@ fn conditional_shared_tail_module() -> TerminalModule {
                     terminator: Terminator::Return {
                         edge: EdgeId::new(5).unwrap(),
                         value: ValueId::new(9).unwrap(),
+                    },
+                },
+            ],
+            contract: MachineContract {
+                id: ContractId::new(1).unwrap(),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+            },
+        }],
+    }
+}
+
+fn nested_constant_conditional_module() -> TerminalModule {
+    let integer_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 terminal type");
+    let integer = ScalarType::Integer(integer_type);
+    let declaration = |raw, scalar_type| ValueDeclaration {
+        id: ValueId::new(raw).expect("nonzero value"),
+        scalar_type,
+    };
+    TerminalModule {
+        semantic_version: SemanticVersion::CURRENT,
+        entry: MachineId::new(1).unwrap(),
+        machines: vec![TerminalMachine {
+            id: MachineId::new(1).unwrap(),
+            parameters: vec![
+                declaration(1, ScalarType::Boolean),
+                declaration(2, integer),
+                declaration(3, integer),
+            ],
+            result: declaration(10, integer),
+            structural_places: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: BlockId::new(1).unwrap(),
+            blocks: vec![
+                Block {
+                    id: BlockId::new(1).unwrap(),
+                    parameters: Vec::new(),
+                    operations: Vec::new(),
+                    terminator: Terminator::Conditional {
+                        condition: ValueId::new(1).unwrap(),
+                        when_true: SuccessorEdge {
+                            edge: EdgeId::new(1).unwrap(),
+                            target: BlockId::new(2).unwrap(),
+                            arguments: vec![ValueId::new(2).unwrap()],
+                        },
+                        when_false: SuccessorEdge {
+                            edge: EdgeId::new(2).unwrap(),
+                            target: BlockId::new(3).unwrap(),
+                            arguments: vec![ValueId::new(3).unwrap()],
+                        },
+                    },
+                },
+                Block {
+                    id: BlockId::new(2).unwrap(),
+                    parameters: vec![declaration(4, integer)],
+                    operations: vec![Operation {
+                        id: OperationId::new(1).unwrap(),
+                        result: declaration(5, ScalarType::Boolean),
+                        kind: OperationKind::BooleanConstant { value: true },
+                    }],
+                    terminator: Terminator::Conditional {
+                        condition: ValueId::new(5).unwrap(),
+                        when_true: SuccessorEdge {
+                            edge: EdgeId::new(3).unwrap(),
+                            target: BlockId::new(4).unwrap(),
+                            arguments: vec![ValueId::new(4).unwrap()],
+                        },
+                        when_false: SuccessorEdge {
+                            edge: EdgeId::new(4).unwrap(),
+                            target: BlockId::new(5).unwrap(),
+                            arguments: vec![ValueId::new(4).unwrap()],
+                        },
+                    },
+                },
+                Block {
+                    id: BlockId::new(3).unwrap(),
+                    parameters: vec![declaration(6, integer)],
+                    operations: Vec::new(),
+                    terminator: Terminator::Return {
+                        edge: EdgeId::new(5).unwrap(),
+                        value: ValueId::new(6).unwrap(),
+                    },
+                },
+                Block {
+                    id: BlockId::new(4).unwrap(),
+                    parameters: vec![declaration(7, integer)],
+                    operations: vec![Operation {
+                        id: OperationId::new(2).unwrap(),
+                        result: declaration(8, integer),
+                        kind: OperationKind::WrappingIntegerAdd {
+                            left: ValueId::new(7).unwrap(),
+                            right: ValueId::new(7).unwrap(),
+                        },
+                    }],
+                    terminator: Terminator::Return {
+                        edge: EdgeId::new(6).unwrap(),
+                        value: ValueId::new(8).unwrap(),
+                    },
+                },
+                Block {
+                    id: BlockId::new(5).unwrap(),
+                    parameters: vec![declaration(9, integer)],
+                    operations: vec![Operation {
+                        id: OperationId::new(3).unwrap(),
+                        result: declaration(12, integer),
+                        kind: OperationKind::WrappingIntegerMultiply {
+                            left: ValueId::new(9).unwrap(),
+                            right: ValueId::new(9).unwrap(),
+                        },
+                    }],
+                    terminator: Terminator::Return {
+                        edge: EdgeId::new(7).unwrap(),
+                        value: ValueId::new(12).unwrap(),
                     },
                 },
             ],
