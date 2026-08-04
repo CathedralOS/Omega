@@ -87,6 +87,8 @@ fn verified_v1_integer_control_contract_slice_executes_directly() {
     let module = TerminalModule {
         semantic_version: SemanticVersion::V1,
         entry: machine.id,
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
         machines: vec![machine],
     };
     let constant_fact = Proposition::Equal(term(constant), seven());
@@ -246,6 +248,8 @@ fn interpreter_rejects_an_out_of_range_integer_argument() {
     let module = TerminalModule {
         semantic_version: SemanticVersion::V1,
         entry: machine.id,
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
         machines: vec![machine],
     };
     let verified = verify_module(

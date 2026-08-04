@@ -102,6 +102,25 @@ pub enum PropositionEvidenceClassification {
     Witness { evidence: String },
 }
 
+/// Structured endpoint of transparent-alias expansion for consumers that
+/// need a self-contained proposition application rather than its display
+/// label. Generic proposition parameters have no nominal endpoint until
+/// specialization and therefore do not produce this record.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NormalizedPropositionApplicationIdentity {
+    pub declaration: SymbolHandle,
+    pub name: String,
+    pub binder_arguments: Vec<NormalizedPropositionBinderArgument>,
+    pub arguments: Vec<String>,
+    pub classification: PropositionEvidenceClassification,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NormalizedPropositionBinderArgument {
+    pub kind: PropositionBinderArgumentKind,
+    pub identity: String,
+}
+
 impl NormalizedPropositionFormula {
     pub fn identity_label(&self) -> String {
         match self {
@@ -119,6 +138,135 @@ impl NormalizedPropositionFormula {
 }
 
 impl crate::TypedTrees {
+    pub fn normalize_nominal_proposition_application(
+        &self,
+        application: &PropositionApplication,
+    ) -> Option<NormalizedPropositionApplicationIdentity> {
+        let binder_labels = application
+            .binder_arguments
+            .iter()
+            .map(display_binder_argument)
+            .collect::<Vec<_>>();
+        let argument_labels = self
+            .expression_table
+            .expression_handles(application.arguments)
+            .iter()
+            .map(|argument| self.expression_table.display_name(*argument))
+            .collect::<Vec<_>>();
+        self.normalize_nominal_proposition_application_with_labels(
+            application,
+            &binder_labels,
+            &argument_labels,
+        )
+    }
+
+    pub fn normalize_nominal_proposition_application_with_labels(
+        &self,
+        application: &PropositionApplication,
+        binder_labels: &[String],
+        argument_labels: &[String],
+    ) -> Option<NormalizedPropositionApplicationIdentity> {
+        self.normalize_nominal_proposition_application_inner(
+            application,
+            binder_labels,
+            argument_labels,
+            &mut Vec::new(),
+        )
+    }
+
+    fn normalize_nominal_proposition_application_inner(
+        &self,
+        application: &PropositionApplication,
+        binder_labels: &[String],
+        argument_labels: &[String],
+        visiting: &mut Vec<SymbolHandle>,
+    ) -> Option<NormalizedPropositionApplicationIdentity> {
+        if visiting.contains(&application.proposition) {
+            return None;
+        }
+        let declaration = self
+            .propositions()
+            .iter()
+            .find(|candidate| candidate.symbol == application.proposition)?;
+        let binders = self.proposition_binders(declaration);
+        let parameters = self.proposition_parameters(declaration);
+        if binders.len() != binder_labels.len() || parameters.len() != argument_labels.len() {
+            return None;
+        }
+        let substitutions = binders
+            .iter()
+            .zip(binder_labels)
+            .map(|(binder, label)| (binder.symbol, label.clone()))
+            .chain(
+                parameters
+                    .iter()
+                    .zip(argument_labels)
+                    .map(|(parameter, label)| (parameter.symbol, label.clone())),
+            )
+            .collect::<Vec<_>>();
+        let endpoint = |classification| NormalizedPropositionApplicationIdentity {
+            declaration: declaration.symbol,
+            name: declaration.name.as_str().to_owned(),
+            binder_arguments: binders
+                .iter()
+                .zip(binder_labels)
+                .map(|(binder, identity)| NormalizedPropositionBinderArgument {
+                    kind: match binder.kind {
+                        PropositionBinderKind::Type => PropositionBinderArgumentKind::Type,
+                        PropositionBinderKind::Const { .. } => PropositionBinderArgumentKind::Const,
+                        PropositionBinderKind::Machine => PropositionBinderArgumentKind::Machine,
+                    },
+                    identity: identity.clone(),
+                })
+                .collect(),
+            arguments: argument_labels.to_vec(),
+            classification,
+        };
+        match &declaration.body {
+            PropositionBody::Primitive => {
+                Some(endpoint(PropositionEvidenceClassification::FactOnly))
+            }
+            PropositionBody::Witness { evidence } => {
+                Some(endpoint(PropositionEvidenceClassification::Witness {
+                    evidence: self.display_type_reference(*evidence),
+                }))
+            }
+            PropositionBody::Transparent {
+                proposition: PropositionFormula::BooleanExpression(_),
+            } => None,
+            PropositionBody::Transparent {
+                proposition: PropositionFormula::Application(expansion),
+            } => {
+                visiting.push(application.proposition);
+                let expanded_binders = expansion
+                    .binder_arguments
+                    .iter()
+                    .map(|argument| {
+                        substitutions
+                            .iter()
+                            .find(|(symbol, _)| *symbol == argument.symbol)
+                            .map(|(_, label)| label.clone())
+                            .unwrap_or_else(|| display_binder_argument(argument))
+                    })
+                    .collect::<Vec<_>>();
+                let expanded_arguments = self
+                    .expression_table
+                    .expression_handles(expansion.arguments)
+                    .iter()
+                    .map(|argument| render_expression(self, *argument, &substitutions, &[]))
+                    .collect::<Vec<_>>();
+                let normalized = self.normalize_nominal_proposition_application_inner(
+                    expansion,
+                    &expanded_binders,
+                    &expanded_arguments,
+                    visiting,
+                );
+                visiting.pop();
+                normalized
+            }
+        }
+    }
+
     pub fn render_proof_expression_with_symbols(
         &self,
         expression: ExpressionHandle,

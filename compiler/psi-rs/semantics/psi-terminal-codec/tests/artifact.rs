@@ -671,6 +671,8 @@ fn semantic_module() -> TerminalModule {
     TerminalModule {
         semantic_version: SemanticVersion::CURRENT,
         entry: machine_id(1),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(1),
             parameters: Vec::new(),

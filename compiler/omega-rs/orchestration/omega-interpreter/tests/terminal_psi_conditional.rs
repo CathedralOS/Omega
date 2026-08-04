@@ -716,6 +716,8 @@ fn conditional_module(semantic_version: SemanticVersion) -> TerminalModule {
     TerminalModule {
         semantic_version,
         entry: MachineId::new(1).unwrap(),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(1).unwrap(),
             parameters: vec![
@@ -786,6 +788,8 @@ fn conditional_shared_tail_module() -> TerminalModule {
     TerminalModule {
         semantic_version: SemanticVersion::CURRENT,
         entry: MachineId::new(1).unwrap(),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(1).unwrap(),
             parameters: vec![
@@ -888,6 +892,8 @@ fn nested_constant_conditional_module() -> TerminalModule {
     TerminalModule {
         semantic_version: SemanticVersion::CURRENT,
         entry: MachineId::new(1).unwrap(),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(1).unwrap(),
             parameters: vec![
@@ -1001,6 +1007,8 @@ fn nested_boolean_conditional_module() -> TerminalModule {
     TerminalModule {
         semantic_version: SemanticVersion::CURRENT,
         entry: MachineId::new(1).unwrap(),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(1).unwrap(),
             parameters: (1..=5).map(declaration).collect(),

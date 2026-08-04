@@ -8,8 +8,10 @@ use psi_core::{
 use psi_terminal::{
     Block, ClaimContentProjection, ContentEntryClaim, ContentIdentityReshuffle,
     ContentPartitionComposition, ContentPlaceSubstitution, ContractClause, MachineContract,
-    Operation, OperationKind, SemanticVersion, StructuralPlaceDeclaration, TerminalMachine,
-    TerminalModule, Terminator, ValueDeclaration,
+    Operation, OperationKind, PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
+    PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
+    PropositionDeclaration, PropositionEvidence, SemanticVersion, StructuralPlaceDeclaration,
+    TerminalMachine, TerminalModule, Terminator, ValueDeclaration,
 };
 use psi_terminal_codec::{
     CodecError, decode_module, encode_module, migrate_module_to_current, semantic_fingerprint,
@@ -30,11 +32,98 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.semantic_version, SemanticVersion::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "fedc2a183932f90079e8547d0ae975c2dc1ea6f7854621644625df102ba250bb"
+        "40dbb76be0de2b2a25865f90d8fd59a428f90d9031fb008f571362aeb64d45af"
     );
     assert_eq!(
         identity.program_fingerprint,
         semantic_fingerprint(&module).unwrap()
+    );
+}
+
+#[test]
+fn v16_proposition_vocabulary_round_trips_and_enters_identity() {
+    let mut module = fixture();
+    module.proposition_declarations = vec![PropositionDeclaration {
+        id: proposition_id(1),
+        name: "converges_together".to_owned(),
+        binders: vec![
+            PropositionBinderDeclaration {
+                name: "Left".to_owned(),
+                kind: PropositionBinderKind::Machine,
+            },
+            PropositionBinderDeclaration {
+                name: "Precision".to_owned(),
+                kind: PropositionBinderKind::Const {
+                    type_identity: "u32".to_owned(),
+                },
+            },
+        ],
+        parameter_types: vec!["CauchySeq<Left>".to_owned()],
+        evidence: PropositionEvidence::Witness {
+            evidence_type: "ConvergenceEvidence<Left>".to_owned(),
+        },
+    }];
+    module.proposition_applications = vec![PropositionApplicationIdentity {
+        id: proposition_id(1),
+        declaration: proposition_id(1),
+        binder_arguments: vec![
+            PropositionBinderArgumentIdentity {
+                kind: PropositionBinderArgumentKind::Machine,
+                identity: "unit_sample".to_owned(),
+            },
+            PropositionBinderArgumentIdentity {
+                kind: PropositionBinderArgumentKind::Const,
+                identity: "32u32".to_owned(),
+            },
+        ],
+        arguments: vec!["sequence".to_owned()],
+    }];
+
+    let bytes = encode_module(&module).expect("v16 proposition vocabulary should encode");
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+
+    let original = semantic_fingerprint(&module).expect("vocabulary has identity");
+    module.proposition_declarations[0].evidence = PropositionEvidence::FactOnly;
+    assert_ne!(
+        semantic_fingerprint(&module).expect("changed vocabulary has identity"),
+        original
+    );
+}
+
+#[test]
+fn proposition_vocabulary_is_versioned_and_category_checked() {
+    let mut module = fixture();
+    module.proposition_declarations = vec![PropositionDeclaration {
+        id: proposition_id(1),
+        name: "related".to_owned(),
+        binders: vec![PropositionBinderDeclaration {
+            name: "Carrier".to_owned(),
+            kind: PropositionBinderKind::Type,
+        }],
+        parameter_types: vec!["Carrier".to_owned()],
+        evidence: PropositionEvidence::FactOnly,
+    }];
+    module.proposition_applications = vec![PropositionApplicationIdentity {
+        id: proposition_id(1),
+        declaration: proposition_id(1),
+        binder_arguments: vec![PropositionBinderArgumentIdentity {
+            kind: PropositionBinderArgumentKind::Machine,
+            identity: "Generator".to_owned(),
+        }],
+        arguments: vec!["value".to_owned()],
+    }];
+    assert!(matches!(
+        encode_module(&module),
+        Err(CodecError::InvalidModule(
+            psi_terminal_verifier::ModuleError::PropositionApplicationBinderMismatch(_)
+        ))
+    ));
+
+    module.proposition_applications.clear();
+    module.semantic_version = SemanticVersion::V15;
+    assert_eq!(
+        encode_module(&module),
+        Err(CodecError::PropositionVocabularyRequiresV16)
     );
 }
 
@@ -909,6 +998,8 @@ fn fixture() -> TerminalModule {
     TerminalModule {
         semantic_version: SemanticVersion::CURRENT,
         entry: machine_id(1),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(1),
             parameters: vec![ValueDeclaration {
@@ -1003,6 +1094,8 @@ fn boolean_fixture(semantic_version: SemanticVersion) -> TerminalModule {
     TerminalModule {
         semantic_version,
         entry: machine_id(10),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(10),
             parameters: Vec::new(),
@@ -1071,6 +1164,8 @@ fn content_conservation_fixture(semantic_version: SemanticVersion) -> TerminalMo
     TerminalModule {
         semantic_version,
         entry: machine_id(80),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(80),
             parameters: vec![ValueDeclaration {
@@ -1269,6 +1364,8 @@ fn wrapping_add_fixture(semantic_version: SemanticVersion) -> TerminalModule {
     TerminalModule {
         semantic_version,
         entry: machine_id(20),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(20),
             parameters: Vec::new(),

@@ -362,6 +362,7 @@ fn expression_places_resolve_attached_data_members() {
         attached_data: Some(Identifier::generated("Main")),
         owned_data: HandleSpan::empty(),
         satisfies: HandleSpan::empty(),
+        conformance_bounds: Vec::new(),
         decreases: HandleSpan::empty(),
         decrease_order: HandleSpan::empty(),
         decrease_view_arguments: HandleSpan::empty(),

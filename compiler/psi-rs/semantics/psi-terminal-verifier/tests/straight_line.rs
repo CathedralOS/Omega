@@ -59,6 +59,8 @@ fn v2_boolean_constant_axiom_proves_the_return_contract() {
     let module = TerminalModule {
         semantic_version: SemanticVersion::V2,
         entry: MachineId::new(10).expect("machine"),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(10).expect("machine"),
             parameters: Vec::new(),
@@ -137,6 +139,8 @@ fn v15_boolean_not_axiom_proves_the_return_contract() {
     let module = TerminalModule {
         semantic_version: SemanticVersion::V15,
         entry: MachineId::new(20).expect("machine"),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(20).expect("machine"),
             parameters: vec![ValueDeclaration {
@@ -701,6 +705,8 @@ fn identity_reshuffle_module() -> (TerminalModule, Proposition, ObligationId) {
         TerminalModule {
             semantic_version: SemanticVersion::V10,
             entry: machine.id,
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
             machines: vec![machine],
         },
         goal,
@@ -928,6 +934,8 @@ fn reflexive_content_module() -> (TerminalModule, Proposition, ObligationId) {
         TerminalModule {
             semantic_version: SemanticVersion::V9,
             entry: machine.id,
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
             machines: vec![machine],
         },
         goal,
@@ -1474,6 +1482,8 @@ fn wrapping_add_module() -> (TerminalModule, Proposition, ObligationId) {
         TerminalModule {
             semantic_version: SemanticVersion::V3,
             entry: machine.id,
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
             machines: vec![machine],
         },
         goal,
@@ -1544,6 +1554,8 @@ fn saturating_add_module() -> (TerminalModule, Proposition, ObligationId) {
         TerminalModule {
             semantic_version: SemanticVersion::V4,
             entry: machine.id,
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
             machines: vec![machine],
         },
         goal,
@@ -1614,6 +1626,8 @@ fn wrapping_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
         TerminalModule {
             semantic_version: SemanticVersion::V5,
             entry: machine.id,
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
             machines: vec![machine],
         },
         goal,
@@ -1684,6 +1698,8 @@ fn saturating_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
         TerminalModule {
             semantic_version: SemanticVersion::V6,
             entry: machine.id,
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
             machines: vec![machine],
         },
         goal,
@@ -1754,6 +1770,8 @@ fn wrapping_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
         TerminalModule {
             semantic_version: SemanticVersion::V7,
             entry: machine.id,
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
             machines: vec![machine],
         },
         goal,
@@ -1824,6 +1842,8 @@ fn saturating_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
         TerminalModule {
             semantic_version: SemanticVersion::V8,
             entry: machine.id,
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
             machines: vec![machine],
         },
         goal,
@@ -1909,6 +1929,8 @@ impl Fixture {
             module: TerminalModule {
                 semantic_version: SemanticVersion::CURRENT,
                 entry: machine.id,
+                proposition_declarations: Vec::new(),
+                proposition_applications: Vec::new(),
                 machines: vec![machine],
             },
             integer,
