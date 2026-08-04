@@ -1360,12 +1360,14 @@ fn validate_compiler_function_instruction_boundaries(
                         domain,
                         target_signed,
                     } => {
+                        let shape = compiler_body_place_integer_write_shape(&target)?;
                         if !matches!(
-                            compiler_body_place_integer_write_shape(&target)?,
+                            shape,
                             CompilerBodyPlaceIntegerWriteShape::Direct { .. }
+                                | CompilerBodyPlaceIntegerWriteShape::Pointee { .. }
                         ) {
                             return Err(Diagnostic::error(
-                                "final compiler-body binary-write subset retained a non-direct target",
+                                "final compiler-body binary-write subset retained an unsupported target",
                             ));
                         }
                         let bytes = match architecture {
@@ -1380,24 +1382,34 @@ fn validate_compiler_function_instruction_boundaries(
                                 domain,
                                 target_signed,
                             )?.0,
-                            Architecture::Aarch64 => {
-                                let CompilerBodyPlaceIntegerWriteShape::Direct { byte_offset } =
-                                    compiler_body_place_integer_write_shape(&target)?
-                                else {
-                                    unreachable!("direct binary-write shape checked above")
-                                };
-                                omega_isa_aarch64::encode_runtime_storage_binary_write(
+                            Architecture::Aarch64 => match shape {
+                                CompilerBodyPlaceIntegerWriteShape::Direct { byte_offset } => {
+                                    omega_isa_aarch64::encode_runtime_storage_binary_write(
+                                        &code.runtime_value_operands,
+                                        byte_offset,
+                                        byte_size,
+                                        left,
+                                        operator,
+                                        right,
+                                        is_float,
+                                        domain,
+                                        target_signed,
+                                    )?
+                                }
+                                CompilerBodyPlaceIntegerWriteShape::Pointee {
+                                    pointer_byte_offset,
+                                    field_byte_offset,
+                                } => omega_isa_aarch64::encode_runtime_pointee_binary_write(
                                     &code.runtime_value_operands,
-                                    byte_offset,
+                                    pointer_byte_offset,
+                                    field_byte_offset,
                                     byte_size,
                                     left,
                                     operator,
                                     right,
-                                    is_float,
-                                    domain,
-                                    target_signed,
-                                )?
-                            }
+                                )?,
+                                _ => unreachable!("binary-write shape checked above"),
+                            },
                         };
                         (
                             None,
@@ -2247,6 +2259,7 @@ fn compiler_instruction_footprint(
             if !matches!(
                 compiler_body_place_integer_write_shape(&target).ok()?,
                 CompilerBodyPlaceIntegerWriteShape::Direct { .. }
+                    | CompilerBodyPlaceIntegerWriteShape::Pointee { .. }
             ) {
                 return None;
             }
@@ -4157,17 +4170,29 @@ fn compiler_place_binary_write_address_sites(
     left: omega_target_operations::RuntimeValueOperandHandle,
     right: omega_target_operations::RuntimeValueOperandHandle,
 ) -> Result<Vec<(usize, omega_target_operations::RuntimeStorageRegion)>, Diagnostic> {
+    let shape = compiler_body_place_integer_write_shape(&target)?;
     if !matches!(
-        compiler_body_place_integer_write_shape(&target)?,
+        shape,
         CompilerBodyPlaceIntegerWriteShape::Direct { .. }
+            | CompilerBodyPlaceIntegerWriteShape::Pointee { .. }
     ) {
         return Err(Diagnostic::error(
-            "final compiler-body binary-write relocation recipe retained a non-direct target",
+            "final compiler-body binary-write relocation recipe retained an unsupported target",
         ));
     }
     let operand_start = match architecture {
         Architecture::X86_64 => omega_isa_x86_64::place_binary_operand_start_width(&target),
-        Architecture::Aarch64 => 8,
+        Architecture::Aarch64 => match shape {
+            CompilerBodyPlaceIntegerWriteShape::Direct { .. } => 8,
+            CompilerBodyPlaceIntegerWriteShape::Pointee {
+                pointer_byte_offset,
+                field_byte_offset,
+            } => omega_isa_aarch64::runtime_pointee_operand_start_width(
+                pointer_byte_offset,
+                field_byte_offset,
+            ),
+            _ => unreachable!("binary-write shape checked above"),
+        },
     };
     let mut sites = vec![(0, target.region)];
     let mut visiting = Vec::new();

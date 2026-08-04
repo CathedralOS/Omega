@@ -869,7 +869,7 @@ pub fn derive_boundary_compiler_body_place_binary_write_footprint<'instruction>(
         };
         if !matches!(
             crate::classify_write_place_shape(target),
-            crate::WritePlaceShape::Direct { .. }
+            crate::WritePlaceShape::Direct { .. } | crate::WritePlaceShape::Pointee { .. }
         ) {
             continue;
         }
