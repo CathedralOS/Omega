@@ -2838,6 +2838,20 @@ pub fn encode_runtime_frame_base_indexed_integer_write(
     Ok(bytes)
 }
 
+/// Exact scratch footprint of an immediate integer write into an inline
+/// runtime-frame array. x20 owns the frame base, x16 the element address,
+/// x17 the index/value, x26 the scaled index, and the shared scale helper
+/// writes x19.
+pub fn runtime_frame_base_indexed_integer_write_clobbers() -> RegisterSet {
+    RegisterSet::new([
+        MachineRegister::Aarch64X(16),
+        MachineRegister::Aarch64X(17),
+        MachineRegister::Aarch64X(19),
+        MachineRegister::Aarch64X(20),
+        MachineRegister::Aarch64X(26),
+    ])
+}
+
 /// The machine-indexed ADDRESS write: `frame[target] = &machine[base + idx*size
 /// + field]` -- the SS5b wide-referee recast (`&self.buf[k] as &Wide`) binds the
 /// frame slot to the ELEMENT ADDRESS (reads deref it; a wider-than-pointer
@@ -7515,6 +7529,20 @@ mod tests {
                 MachineRegister::Aarch64X(19),
                 MachineRegister::Aarch64X(20),
                 MachineRegister::Aarch64X(21),
+                MachineRegister::Aarch64X(26),
+            ]
+        );
+    }
+
+    #[test]
+    fn frame_base_indexed_integer_write_clobbers_cover_inline_address_recipe() {
+        assert_eq!(
+            runtime_frame_base_indexed_integer_write_clobbers().as_slice(),
+            &[
+                MachineRegister::Aarch64X(16),
+                MachineRegister::Aarch64X(17),
+                MachineRegister::Aarch64X(19),
+                MachineRegister::Aarch64X(20),
                 MachineRegister::Aarch64X(26),
             ]
         );

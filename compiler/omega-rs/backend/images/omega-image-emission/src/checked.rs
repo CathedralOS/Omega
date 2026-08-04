@@ -328,6 +328,13 @@ enum CompilerBodyPlaceIntegerWriteShape {
         element_byte_size: usize,
         field_byte_offset: usize,
     },
+    FrameBaseIndexed {
+        base_byte_offset: usize,
+        index_offset: usize,
+        index_byte_size: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+    },
 }
 
 fn validate_compiler_function_instruction_boundaries(
@@ -1249,6 +1256,21 @@ fn validate_compiler_function_instruction_boundaries(
                                     byte_size,
                                     value,
                                 )?,
+                                CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed {
+                                    base_byte_offset,
+                                    index_offset,
+                                    index_byte_size,
+                                    element_byte_size,
+                                    field_byte_offset,
+                                } => omega_isa_aarch64::encode_runtime_frame_base_indexed_integer_write(
+                                    base_byte_offset,
+                                    index_offset,
+                                    index_byte_size,
+                                    element_byte_size,
+                                    field_byte_offset,
+                                    byte_size,
+                                    value,
+                                )?,
                             },
                             },
                             22u8,
@@ -2029,6 +2051,9 @@ fn compiler_instruction_footprint(
                         } => omega_isa_aarch64::runtime_frame_indexed_integer_write_clobbers(
                             index_region,
                         ),
+                        CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. } => {
+                            omega_isa_aarch64::runtime_frame_base_indexed_integer_write_clobbers()
+                        }
                     },
                 },
                 MachineStateSet::empty(),
@@ -2826,6 +2851,24 @@ fn compiler_body_place_integer_write_shape(
         ));
     }
     if let Ok((
+        base_byte_offset,
+        index_region,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+    )) = compiler_single_direct_indexed_place_offsets(target)
+        && index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+    {
+        return Ok(CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed {
+            base_byte_offset,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+        });
+    }
+    if let Ok((
         descriptor_offset,
         index_region,
         index_offset,
@@ -2860,7 +2903,7 @@ fn compiler_body_place_integer_write_shape(
             field_byte_offset: *field_byte_offset,
         }),
         _ => Err(Diagnostic::error(
-            "final compiler-body integer-write target is not a retained direct, frame-held pointee, or frame-indexed shape",
+            "final compiler-body integer-write target is not a retained direct, frame-held pointee, frame-indexed, or inline frame-array shape",
         )),
     }
 }
