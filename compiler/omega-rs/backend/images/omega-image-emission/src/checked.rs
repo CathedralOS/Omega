@@ -103,6 +103,18 @@ pub fn emit_checked_executable_image(
         );
         fingerprint_into(
             &mut derivation_fingerprint,
+            &compiler_function_validation
+                .fixed_mechanics_boundary_contract_fingerprint
+                .to_le_bytes(),
+        );
+        fingerprint_into(
+            &mut derivation_fingerprint,
+            &compiler_function_validation
+                .fixed_mechanics_footprint_fingerprint
+                .to_le_bytes(),
+        );
+        fingerprint_into(
+            &mut derivation_fingerprint,
             &(compiler_function_validation.body_specification_instruction_count as u64)
                 .to_le_bytes(),
         );
@@ -162,7 +174,7 @@ fn validate_compiler_function_instruction_boundaries(
     let mut fixed_mechanics_validation_fingerprint = 0xcbf2_9ce4_8422_2325u64;
     let mut body_specification_instruction_count = 0usize;
     let mut body_specification_validation_fingerprint = 0xcbf2_9ce4_8422_2325u64;
-    let mut body_specification_footprints = Vec::new();
+    let mut compiler_instruction_footprints = Vec::new();
 
     for (function_index, (_, function)) in code.functions.iter().enumerate() {
         if function.byte_offset != expected_byte_offset {
@@ -398,7 +410,7 @@ fn validate_compiler_function_instruction_boundaries(
                     )));
                 }
                 if let Some(footprint) = compiler_instruction_footprint(architecture, kind) {
-                    body_specification_footprints.push(footprint);
+                    compiler_instruction_footprints.push(footprint);
                 }
                 let (class_count, class_fingerprint) = if kind_tag <= 2 {
                     (
@@ -466,10 +478,15 @@ fn validate_compiler_function_instruction_boundaries(
         ));
     }
 
+    let (fixed_mechanics_boundary_contract_fingerprint, fixed_mechanics_footprint_fingerprint) =
+        validate_compiler_fixed_mechanics_footprint(semantics, &compiler_instruction_footprints)?;
     let (
         body_specification_boundary_contract_fingerprint,
         body_specification_footprint_fingerprint,
-    ) = validate_compiler_body_specification_footprints(semantics, &body_specification_footprints)?;
+    ) = validate_compiler_body_specification_footprints(
+        semantics,
+        &compiler_instruction_footprints,
+    )?;
 
     Ok(CompilerFunctionValidationEvidence {
         function_count: code.functions.len(),
@@ -477,6 +494,8 @@ fn validate_compiler_function_instruction_boundaries(
         zero_width_instruction_count,
         fixed_mechanics_instruction_count,
         fixed_mechanics_validation_fingerprint,
+        fixed_mechanics_boundary_contract_fingerprint,
+        fixed_mechanics_footprint_fingerprint,
         body_specification_instruction_count,
         body_specification_validation_fingerprint,
         body_specification_boundary_contract_fingerprint,
@@ -497,8 +516,30 @@ fn compiler_instruction_footprint(
     use omega_machine_instructions::BoundaryFootprintFragmentOrigin;
 
     let (origin, registers, additional_state) = match kind {
-        CompilerInstructionValidationKind::FunctionEnter
-        | CompilerInstructionValidationKind::FunctionReturn => return None,
+        CompilerInstructionValidationKind::FunctionEnter => match architecture {
+            Architecture::X86_64 => (
+                BoundaryFootprintFragmentOrigin::CallReturnMechanics,
+                omega_isa_x86_64::function_enter_register_writes(),
+                omega_isa_x86_64::function_enter_additional_machine_state(),
+            ),
+            Architecture::Aarch64 => (
+                BoundaryFootprintFragmentOrigin::CallReturnMechanics,
+                omega_isa_aarch64::function_enter_register_writes(),
+                omega_isa_aarch64::function_enter_additional_machine_state(),
+            ),
+        },
+        CompilerInstructionValidationKind::FunctionReturn => match architecture {
+            Architecture::X86_64 => (
+                BoundaryFootprintFragmentOrigin::CallReturnMechanics,
+                omega_isa_x86_64::return_register_writes(),
+                omega_isa_x86_64::return_additional_machine_state(),
+            ),
+            Architecture::Aarch64 => (
+                BoundaryFootprintFragmentOrigin::CallReturnMechanics,
+                omega_isa_aarch64::return_register_writes(),
+                omega_isa_aarch64::return_additional_machine_state(),
+            ),
+        },
         CompilerInstructionValidationKind::DispatchLoopEnter { .. } => (
             BoundaryFootprintFragmentOrigin::DispatchScaffold,
             match architecture {
@@ -567,7 +608,14 @@ fn validate_compiler_body_specification_footprints(
     use omega_calling_conventions::compose_state_footprints;
     use omega_machine_instructions::BoundaryFootprintFragmentOrigin;
 
-    let boundary_contract_fingerprint = if derived.is_empty() {
+    let has_body_rows = derived.iter().any(|(origin, _)| {
+        matches!(
+            origin,
+            BoundaryFootprintFragmentOrigin::DispatchScaffold
+                | BoundaryFootprintFragmentOrigin::StaticGuardComparison
+        )
+    });
+    let boundary_contract_fingerprint = if !has_body_rows {
         0
     } else {
         semantics
@@ -624,6 +672,63 @@ fn validate_compiler_body_specification_footprints(
             &composed.evidence_fingerprint().to_le_bytes(),
         );
     }
+    Ok((boundary_contract_fingerprint, fingerprint))
+}
+
+fn validate_compiler_fixed_mechanics_footprint(
+    semantics: &omega_machine_bytes::EncodedMachineSemanticSummary,
+    derived: &[(
+        omega_machine_instructions::BoundaryFootprintFragmentOrigin,
+        omega_calling_conventions::StateFootprintEvidence,
+    )],
+) -> Result<(u64, u64), Diagnostic> {
+    use omega_calling_conventions::compose_state_footprints;
+    use omega_machine_instructions::BoundaryFootprintFragmentOrigin;
+
+    let evidence_rows = derived
+        .iter()
+        .filter_map(|(origin, evidence)| {
+            (*origin == BoundaryFootprintFragmentOrigin::CallReturnMechanics).then_some(evidence)
+        })
+        .collect::<Vec<_>>();
+    if evidence_rows.is_empty() {
+        return Ok((0, 0xcbf2_9ce4_8422_2325u64));
+    }
+    let boundary_contract_fingerprint = semantics
+        .boundaries
+        .footprints
+        .boundary_contract_fingerprint
+        .ok_or_else(|| {
+            Diagnostic::error(
+                "final call-return footprint rows have no StatePlan boundary-contract identity",
+            )
+        })?;
+    let retained = semantics
+        .boundaries
+        .footprints
+        .fragments
+        .iter()
+        .filter(|fragment| fragment.origin == BoundaryFootprintFragmentOrigin::CallReturnMechanics)
+        .collect::<Vec<_>>();
+    let composed = compose_state_footprints(evidence_rows.iter().copied());
+    if retained.len() != 1 || retained[0].evidence != composed {
+        return Err(Diagnostic::error(
+            "final CallReturnMechanics target-specification footprint does not match its StatePlan-validated semantic fragment",
+        ));
+    }
+    let mut fingerprint = 0xcbf2_9ce4_8422_2325u64;
+    fingerprint_into(
+        &mut fingerprint,
+        &boundary_contract_fingerprint.to_le_bytes(),
+    );
+    fingerprint_into(
+        &mut fingerprint,
+        &(evidence_rows.len() as u64).to_le_bytes(),
+    );
+    fingerprint_into(
+        &mut fingerprint,
+        &composed.evidence_fingerprint().to_le_bytes(),
+    );
     Ok((boundary_contract_fingerprint, fingerprint))
 }
 
@@ -2472,6 +2577,25 @@ mod tests {
             .boundaries
             .footprints
             .boundary_contract_fingerprint = Some(0x1234);
+        let enter_footprint = omega_calling_conventions::StateFootprintEvidence::new(
+            omega_isa_x86_64::function_enter_register_writes(),
+            omega_isa_x86_64::function_enter_additional_machine_state(),
+        );
+        let return_footprint = omega_calling_conventions::StateFootprintEvidence::new(
+            omega_isa_x86_64::return_register_writes(),
+            omega_isa_x86_64::return_additional_machine_state(),
+        );
+        semantics
+            .boundaries
+            .footprints
+            .fragments
+            .push(BoundaryFootprintFragment {
+                origin: BoundaryFootprintFragmentOrigin::CallReturnMechanics,
+                evidence: omega_calling_conventions::compose_state_footprints([
+                    &enter_footprint,
+                    &return_footprint,
+                ]),
+            });
         semantics
             .boundaries
             .footprints
@@ -2508,8 +2632,28 @@ mod tests {
         assert_eq!(evidence.instruction_count, 5);
         assert_eq!(evidence.zero_width_instruction_count, 1);
         assert_eq!(evidence.fixed_mechanics_instruction_count, 2);
+        assert_ne!(evidence.fixed_mechanics_footprint_fingerprint, 0);
         assert_eq!(evidence.body_specification_instruction_count, 2);
         assert_ne!(evidence.body_specification_footprint_fingerprint, 0);
+
+        let mut mismatched_mechanics = semantics.clone();
+        mismatched_mechanics
+            .boundaries
+            .footprints
+            .fragments
+            .retain(|fragment| {
+                fragment.origin != BoundaryFootprintFragmentOrigin::CallReturnMechanics
+            });
+        let diagnostic = validate_compiler_function_instruction_boundaries(
+            omega_target::Architecture::X86_64,
+            &plan.code,
+            &final_bytes,
+            &object,
+            &relocations,
+            &mismatched_mechanics,
+        )
+        .expect_err("final call-return footprint without its StatePlan fragment must reject");
+        assert!(diagnostic.message.contains("CallReturnMechanics"));
 
         let mut mismatched_semantics = semantics.clone();
         mismatched_semantics
