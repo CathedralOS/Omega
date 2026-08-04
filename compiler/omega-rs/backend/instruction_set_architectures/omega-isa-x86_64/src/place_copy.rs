@@ -736,6 +736,12 @@ pub fn copy_places_from_indexed_clobbers(byte_count: usize) -> RegisterSet {
     RegisterSet::new(registers)
 }
 
+/// Exact scratch footprint of a copy with one runtime-indexed target. It uses
+/// the same one-index place-walk contract as the source-indexed mirror.
+pub fn copy_places_to_indexed_clobbers(byte_count: usize) -> RegisterSet {
+    copy_places_from_indexed_clobbers(byte_count)
+}
+
 /// Exact scratch footprint of a direct place-pair copy. Both address bases are
 /// materialized unconditionally; non-empty copies stage chunks through rax.
 pub fn copy_places_direct_clobbers(byte_count: usize) -> RegisterSet {
@@ -1067,6 +1073,18 @@ mod tests {
                 MachineRegister::X86R14,
                 MachineRegister::X86R15,
             ]
+        );
+    }
+
+    #[test]
+    fn to_indexed_clobbers_match_the_one_index_place_walk() {
+        assert_eq!(
+            copy_places_to_indexed_clobbers(0),
+            copy_places_from_indexed_clobbers(0)
+        );
+        assert_eq!(
+            copy_places_to_indexed_clobbers(8),
+            copy_places_from_indexed_clobbers(8)
         );
     }
 

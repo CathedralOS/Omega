@@ -1043,8 +1043,9 @@ The first ordinary compiler-body write subset covers direct storage-pair
 frame-held pointee sources landing in direct storage, and frame-held
 pointee-to-pointee copies. Single runtime-indexed sources with frame-held
 descriptor/index slots landing in direct frame or machine storage are included
-too. Selection retains their separate `compiler_body_place_copy` evidence only
-for the `Ordinary` role; final validation regenerates the same place-copy bytes,
+too, along with their direct-frame-source to frame-indexed-target mirror.
+Selection retains their separate `compiler_body_place_copy` evidence only for
+the `Ordinary` role; final validation regenerates the same place-copy bytes,
 checks the storage, pointer-slot, and index relocations, and requires the target
 scratch union to match. Other ordinary copy/write shapes and calls remain
 outside the partial proof. The pointee-pair selector resolves both reference
@@ -1067,7 +1068,7 @@ relocation-envelope fingerprints plus their composed derivation identity. The
 boundary/placement binding includes that derivation identity, so a valid final
 inventory cannot be paired with evidence from a different encoded-to-final
 derivation. The single emitted artifact is now self-described as
-`omega.final-footprint-certificate` format v19, with a domain-separated
+`omega.final-footprint-certificate` format v20, with a domain-separated
 certificate fingerprint over its final placement binding, compiler-text
 derivation, and region inventory. It remains explicitly incomplete evidence,
 not an admission certificate, until the missing footprint classes close. The
