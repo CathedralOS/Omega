@@ -1567,6 +1567,99 @@ fn checked_source_short_circuit_expression_conditions_reach_native_control() {
 
 #[cfg(unix)]
 #[test]
+fn checked_source_short_circuit_operands_preserve_terminal_equality() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("short-circuit equality canary should compile");
+    let lowered = lower_machine(&checked, "terminal_boolean_short_circuit_equality")
+        .expect("short-circuit equality operands should lower");
+    drop(checked);
+    assert!(
+        lowered.semantic_module.machines[0]
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .any(|operation| matches!(operation.kind, OperationKind::BooleanEqual { .. })),
+        "value-producing decision leaves must retain the v17 equality operation"
+    );
+
+    let semantic_bytes = encode_module(&lowered.semantic_module)
+        .expect("short-circuit equality control should encode");
+    let semantic_module =
+        decode_module(&semantic_bytes).expect("short-circuit equality control should decode");
+    let verified = verify_module(
+        &semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("short-circuit equality control should verify");
+    let fixed = derive_fixed_entry_fuel(&verified, semantic_module.entry)
+        .expect("short-circuit equality control should have exact fuel");
+    assert_eq!(fixed.ceiling_units(), 8);
+
+    for (first, second, third) in [
+        (false, false, false),
+        (false, false, true),
+        (false, true, false),
+        (false, true, true),
+        (true, false, false),
+        (true, false, true),
+        (true, true, false),
+        (true, true, true),
+    ] {
+        let expected = (first && second) == (second || third);
+        let expected_units = 4 + if first { 2 } else { 1 } + if second { 1 } else { 2 };
+        let measured = interpret_terminal_measured(
+            &verified,
+            &[
+                TerminalScalarValue::Boolean(first),
+                TerminalScalarValue::Boolean(second),
+                TerminalScalarValue::Boolean(third),
+            ],
+        )
+        .expect("short-circuit equality control should interpret");
+        assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+        assert_eq!(measured.usage().total_units(), expected_units);
+    }
+
+    let abstract_operations = lower_verified_module(&verified)
+        .expect("short-circuit equality control should cross the Omega boundary");
+    let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
+        .expect("short-circuit equality control should select for the host");
+    assert!(matches!(
+        target_operations.functions[0].operation,
+        TerminalTargetOperation::ReturnBooleanConditionalControl { .. }
+    ));
+    let assigned = assign_registers(&target_operations)
+        .expect("short-circuit equality control homes should assign");
+    let machine_code =
+        emit_machine_code(&assigned).expect("short-circuit equality control should emit");
+    let object_artifact = build_terminal_object_artifact(&machine_code)
+        .expect("short-circuit equality control should form an object");
+    let entry = object_artifact.entry_function();
+    for (first, second, third) in [
+        (false, false, false),
+        (false, false, true),
+        (false, true, false),
+        (false, true, true),
+        (true, false, false),
+        (true, false, true),
+        (true, true, false),
+        (true, true, true),
+    ] {
+        assert_eq!(
+            run_host_machine_code_with_three_bools(
+                entry.bytes(&object_artifact),
+                first,
+                second,
+                third,
+            ),
+            i32::from((first && second) == (second || third))
+        );
+    }
+}
+
+#[cfg(unix)]
+#[test]
 fn source_booleans_reach_constant_and_stack_parameter_machine_code() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("terminal-Psi Boolean source canary should compile");
