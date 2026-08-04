@@ -6,6 +6,8 @@
 //! records, and debug/source maps have separate identities and can be replaced
 //! without changing [`TerminalPsiIdentity`].
 
+use std::collections::BTreeMap;
+
 mod artifact_manifest;
 mod debug_map;
 mod proof_bundle;
@@ -32,10 +34,10 @@ use psi_core::{
     PropositionId, PsiSemanticId, ScalarTerm, ScalarType, StructuralPlaceKind,
 };
 use psi_terminal::{
-    Block, ClaimContentProjection, ContentIdentityReshuffle, ContentPartitionComposition,
-    ContentPlaceSubstitution, ContractClause, MachineContract, Operation, OperationKind,
-    SemanticVersion, StructuralPlaceDeclaration, SuccessorEdge, TerminalMachine, TerminalModule,
-    Terminator, ValueDeclaration,
+    Block, ClaimContentProjection, ContentEntryClaim, ContentIdentityReshuffle,
+    ContentPartitionComposition, ContentPlaceSubstitution, ContractClause, MachineContract,
+    Operation, OperationKind, SemanticVersion, StructuralPlaceDeclaration, SuccessorEdge,
+    TerminalMachine, TerminalModule, Terminator, ValueDeclaration,
 };
 use psi_terminal_verifier::{ModuleError, validate_module};
 use sha2::{Digest, Sha256};
@@ -89,15 +91,49 @@ pub fn terminal_psi_identity(module: &TerminalModule) -> Result<TerminalPsiIdent
 
 /// Re-encode a valid older semantic module under the current vocabulary.
 ///
-/// Migration is deliberately explicit: it preserves the semantic graph and
-/// proof obligations, but changes semantic version and therefore program
-/// fingerprint. Older bytes are never silently reinterpreted as the current
-/// version.
+/// Migration is deliberately explicit: it preserves the executable graph and
+/// proof obligations, translates any newly required semantic metadata, and
+/// changes semantic version and therefore program fingerprint. Older bytes are
+/// never silently reinterpreted as the current version.
 pub fn migrate_module_to_current(module: &TerminalModule) -> Result<TerminalModule, CodecError> {
     validate_canonical_order(module)?;
     validate_module(module).map_err(CodecError::InvalidModule)?;
     let mut migrated = module.clone();
+    if migrated.semantic_version < SemanticVersion::V14 {
+        for machine in &mut migrated.machines {
+            let mut claim_remap = BTreeMap::new();
+            for (index, reshuffle) in machine.content_identity_reshuffles.iter().enumerate() {
+                let claim = ClaimId::new(
+                    u64::try_from(index)
+                        .expect("an in-memory claim count fits u64")
+                        .checked_add(1)
+                        .expect("an in-memory claim count cannot exhaust u64"),
+                )
+                .expect("dense claim identities begin at one");
+                claim_remap.insert(reshuffle.claim, claim);
+            }
+            for reshuffle in &mut machine.content_identity_reshuffles {
+                reshuffle.claim = claim_remap[&reshuffle.claim];
+            }
+            for composition in &mut machine.content_partition_compositions {
+                for claim in &mut composition.input_claims {
+                    *claim = claim_remap[claim];
+                }
+                composition.input_claims.sort();
+            }
+            machine.content_entry_claims = machine
+                .content_identity_reshuffles
+                .iter()
+                .map(|reshuffle| ContentEntryClaim {
+                    claim: reshuffle.claim,
+                    input: reshuffle.input.clone(),
+                    projections: reshuffle.projections.clone(),
+                })
+                .collect();
+        }
+    }
     migrated.semantic_version = SemanticVersion::CURRENT;
+    validate_canonical_order(&migrated)?;
     validate_module(&migrated).map_err(CodecError::InvalidModule)?;
     Ok(migrated)
 }
@@ -123,6 +159,25 @@ fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
         if !strictly_increasing(machine.structural_places.iter().map(|place| place.id)) {
             return Err(CodecError::NonCanonicalOrder(
                 "structural places by PlaceId",
+            ));
+        }
+        if !strictly_increasing(
+            machine
+                .content_entry_claims
+                .iter()
+                .map(|binding| binding.claim),
+        ) {
+            return Err(CodecError::NonCanonicalOrder(
+                "content entry claims by ClaimId",
+            ));
+        }
+        if machine
+            .content_entry_claims
+            .iter()
+            .any(|binding| !strictly_increasing(binding.projections.iter()))
+        {
+            return Err(CodecError::NonCanonicalOrder(
+                "entry-claim content projections by identity and algebra",
             ));
         }
         if !strictly_increasing(
@@ -319,6 +374,12 @@ fn encode_machine(
             encode_structural_place_kind(writer, place.kind);
         }
     }
+    if semantic_version >= SemanticVersion::V14 {
+        writer.len("content entry claims", machine.content_entry_claims.len())?;
+        for binding in &machine.content_entry_claims {
+            encode_content_entry_claim(writer, binding)?;
+        }
+    }
     if semantic_version >= SemanticVersion::V10 {
         writer.len(
             "content identity reshuffles",
@@ -343,6 +404,15 @@ fn encode_machine(
         encode_block(writer, block)?;
     }
     encode_contract(writer, &machine.contract)
+}
+
+fn encode_content_entry_claim(
+    writer: &mut Writer,
+    binding: &ContentEntryClaim,
+) -> Result<(), CodecError> {
+    writer.id(binding.claim);
+    encode_content_structural_place(writer, &binding.input)?;
+    encode_claim_content_projections(writer, &binding.projections)
 }
 
 fn encode_content_partition_composition(
@@ -390,8 +460,15 @@ fn encode_content_identity_reshuffle(
     writer.id(reshuffle.claim);
     encode_content_structural_place(writer, &reshuffle.input)?;
     encode_content_structural_place(writer, &reshuffle.output)?;
-    writer.len("claim content projections", reshuffle.projections.len())?;
-    for content in &reshuffle.projections {
+    encode_claim_content_projections(writer, &reshuffle.projections)
+}
+
+fn encode_claim_content_projections(
+    writer: &mut Writer,
+    projections: &[ClaimContentProjection],
+) -> Result<(), CodecError> {
+    writer.len("claim content projections", projections.len())?;
+    for content in projections {
         writer.id(content.projection.domain);
         writer.u64(content.projection.projection_fingerprint);
         encode_content_algebra(writer, &content.algebra)?;
@@ -808,6 +885,16 @@ fn decode_machine(
     } else {
         Vec::new()
     };
+    let content_entry_claims = if semantic_version >= SemanticVersion::V14 {
+        let count = reader.count()?;
+        let mut bindings = Vec::new();
+        for _ in 0..count {
+            bindings.push(decode_content_entry_claim(reader)?);
+        }
+        bindings
+    } else {
+        Vec::new()
+    };
     let content_identity_reshuffles = if semantic_version >= SemanticVersion::V10 {
         let count = reader.count()?;
         let mut reshuffles = Vec::new();
@@ -840,11 +927,20 @@ fn decode_machine(
         parameters,
         result,
         structural_places,
+        content_entry_claims,
         content_identity_reshuffles,
         content_partition_compositions,
         entry,
         blocks,
         contract,
+    })
+}
+
+fn decode_content_entry_claim(reader: &mut Reader<'_>) -> Result<ContentEntryClaim, CodecError> {
+    Ok(ContentEntryClaim {
+        claim: reader.id("ClaimId")?,
+        input: decode_content_structural_place(reader)?,
+        projections: decode_claim_content_projections(reader)?,
     })
 }
 
@@ -899,6 +995,18 @@ fn decode_content_identity_reshuffle(
     let claim = reader.id::<ClaimId>("ClaimId")?;
     let input = decode_content_structural_place(reader)?;
     let output = decode_content_structural_place(reader)?;
+    let projections = decode_claim_content_projections(reader)?;
+    Ok(ContentIdentityReshuffle {
+        claim,
+        input,
+        output,
+        projections,
+    })
+}
+
+fn decode_claim_content_projections(
+    reader: &mut Reader<'_>,
+) -> Result<Vec<ClaimContentProjection>, CodecError> {
     let count = reader.count()?;
     let mut projections = Vec::new();
     for _ in 0..count {
@@ -910,12 +1018,7 @@ fn decode_content_identity_reshuffle(
             algebra: decode_content_algebra(reader)?,
         });
     }
-    Ok(ContentIdentityReshuffle {
-        claim,
-        input,
-        output,
-        projections,
-    })
+    Ok(projections)
 }
 
 fn decode_declarations(reader: &mut Reader<'_>) -> Result<Vec<ValueDeclaration>, CodecError> {

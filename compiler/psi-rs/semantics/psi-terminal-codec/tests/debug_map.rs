@@ -1,10 +1,11 @@
 use psi_core::{
-    BlockId, ContractId, EdgeId, IntegerSign, IntegerType, MachineId, OperationId, ScalarType,
-    ValueId,
+    BlockId, ClaimId, ContentAlgebra, ContentAlgebraKind, ContentDomainId, ContentPlaceVersion,
+    ContentProjectionIdentity, ContentStructuralPlace, ContractId, EdgeId, IntegerSign,
+    IntegerType, MachineId, OperationId, PlaceId, ScalarType, StructuralPlaceKind, ValueId,
 };
 use psi_terminal::{
-    Block, MachineContract, SemanticVersion, TerminalMachine, TerminalModule, Terminator,
-    ValueDeclaration,
+    Block, ClaimContentProjection, ContentEntryClaim, MachineContract, SemanticVersion,
+    StructuralPlaceDeclaration, TerminalMachine, TerminalModule, Terminator, ValueDeclaration,
 };
 use psi_terminal_codec::{
     DebugFileId, DebugMapError, DebugSite, DebugSourceFile, DebugSourceOrigin, DebugSourceSpan,
@@ -58,6 +59,54 @@ fn typed_debug_map_rejects_unknown_subjects_invalid_spans_and_order_drift() {
         validate_debug_map(&module, &reordered),
         Err(DebugMapError::NonCanonicalOrder("debug sites by subject"))
     );
+}
+
+#[test]
+fn typed_debug_map_accepts_an_entry_only_claim_subject() {
+    let mut module = fixture();
+    module.semantic_version = SemanticVersion::V14;
+    let claim = ClaimId::new(1).expect("claim");
+    let place = PlaceId::new(1).expect("place");
+    module.machines[0].structural_places = vec![StructuralPlaceDeclaration {
+        id: place,
+        kind: StructuralPlaceKind::Parameter {
+            position: 0,
+            is_self: false,
+        },
+    }];
+    module.machines[0].content_entry_claims = vec![ContentEntryClaim {
+        claim,
+        input: ContentStructuralPlace {
+            version: ContentPlaceVersion::Entry,
+            root: place,
+            segments: Vec::new(),
+        },
+        projections: vec![ClaimContentProjection {
+            projection: ContentProjectionIdentity {
+                domain: ContentDomainId::new(1).expect("content domain"),
+                projection_fingerprint: 1,
+            },
+            algebra: ContentAlgebra {
+                kind: ContentAlgebraKind::CountedQuantity,
+                parameter: "Byte".to_owned(),
+            },
+        }],
+    }];
+    let mut debug_map = debug_map(&module);
+    debug_map.sites.push(DebugSite {
+        subject: DebugSubject::Claim {
+            machine: machine_id(1),
+            claim,
+        },
+        span: DebugSourceSpan {
+            file: DebugFileId::new(1).expect("file"),
+            start: 13,
+            end: 15,
+        },
+    });
+
+    let bytes = encode_debug_map(&module, &debug_map).expect("entry claim has a debug subject");
+    assert_eq!(decode_debug_map(&module, &bytes), Ok(debug_map));
 }
 
 #[test]
@@ -140,6 +189,7 @@ fn fixture() -> TerminalModule {
                 scalar_type,
             },
             structural_places: Vec::new(),
+            content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
             content_partition_compositions: Vec::new(),
             entry: block_id(1),

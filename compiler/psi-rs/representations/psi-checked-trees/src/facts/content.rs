@@ -50,12 +50,22 @@ pub struct ContentPartitionCompositionFact {
     pub statement_index: usize,
     pub call_ordinal: usize,
     pub input_claim_identities: Vec<PermissionClaimIdentity>,
+    /// Exact caller-entry place bound to each transferred input claim. This is
+    /// independent of any one-to-one output equality and is therefore the
+    /// authoritative source for terminal-Psi entry-claim bindings.
+    pub input_claim_bindings: Vec<ContentPartitionInputClaimBinding>,
     /// Exact rows proving that staged call-result places reach callable-result
     /// places through identity-preserving local/aggregate transfers. Direct
     /// returns need no such intermediate evidence.
     pub result_rewrites: Vec<ContentPartitionResultRewrite>,
     pub substitutions: Vec<ContentPartitionPlaceSubstitution>,
     pub plan: ContentConservationPlan,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContentPartitionInputClaimBinding {
+    pub claim_identity: PermissionClaimIdentity,
+    pub entry_place: psi_language_semantics::content::ContentStructuralPlace,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

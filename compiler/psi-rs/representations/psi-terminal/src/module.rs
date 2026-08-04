@@ -24,6 +24,8 @@ use psi_core::{
 /// Version 13 adds a structural conditional terminator over an already-defined
 /// Boolean value. Its ordered true and false successors have independent edge
 /// identities and bindings.
+/// Version 14 adds canonical machine-local entry-claim bindings independently
+/// of one-to-one output equalities.
 /// Older bytes retain their original meaning and identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SemanticVersion(NonZeroU16);
@@ -42,7 +44,8 @@ impl SemanticVersion {
     pub const V11: Self = Self(NonZeroU16::new(11).expect("eleven is nonzero"));
     pub const V12: Self = Self(NonZeroU16::new(12).expect("twelve is nonzero"));
     pub const V13: Self = Self(NonZeroU16::new(13).expect("thirteen is nonzero"));
-    pub const CURRENT: Self = Self::V13;
+    pub const V14: Self = Self(NonZeroU16::new(14).expect("fourteen is nonzero"));
+    pub const CURRENT: Self = Self::V14;
 
     pub fn new(raw: u16) -> Option<Self> {
         NonZeroU16::new(raw).map(Self)
@@ -75,6 +78,9 @@ pub struct TerminalMachine {
     /// Proof-visible roots for structural-place propositions. Runtime scalar
     /// parameters remain independently declared above.
     pub structural_places: Vec<StructuralPlaceDeclaration>,
+    /// Canonical machine-local identities for claims present at entry. These
+    /// rows name content independently of any later output equality.
+    pub content_entry_claims: Vec<ContentEntryClaim>,
     /// Canonical one-to-one claim mappings. These are semantic ownership facts,
     /// not authored algebra theorems: each exact projection below yields one
     /// verifier-reconstructed equality between `input` and `output`.
@@ -98,6 +104,14 @@ pub struct StructuralPlaceDeclaration {
 pub struct ClaimContentProjection {
     pub projection: ContentProjectionIdentity,
     pub algebra: ContentAlgebra,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ContentEntryClaim {
+    pub claim: ClaimId,
+    pub input: ContentStructuralPlace,
+    /// Strictly ordered by `(projection, algebra)` in canonical modules.
+    pub projections: Vec<ClaimContentProjection>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

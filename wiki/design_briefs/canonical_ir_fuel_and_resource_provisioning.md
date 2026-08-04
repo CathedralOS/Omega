@@ -29,9 +29,11 @@ integer multiplication, unconditional jump/return control, and bodyful
 contracts. Semantic v9 adds proof-only structural places and content
 conservation, v10 adds identity-preserving claim reshuffles, v11 adds stable
 sum-case content-path segments, v12 adds exact authored-partition substitution
-rows, and current v13 adds structural Boolean conditional control without
-adding an executable operation. The verifier reconstructs operation, edge-
-binding, and return-binding axioms guaranteed on every return path, rejects
+rows, and v13 adds structural Boolean conditional control without adding an
+executable operation. Current v14 adds independent dense entry-claim bindings
+without adding an executable operation or proposition. The verifier
+reconstructs operation, edge-binding, and return-binding axioms guaranteed on
+every return path, rejects
 unreachable fact sources and out-of-scope contract
 values, and requires evidence for every `ensures`; the proof kernel checks
 semantic-axiom citations, equality composition, and closed integer relations
@@ -136,9 +138,11 @@ register assignment remains on the legacy backend.
 
 Semantic v1 integer, v2 Boolean, v3 wrapping-add, v4 saturating-add, v5
 wrapping-subtract, v6 saturating-subtract, v7 wrapping-multiply, v8
-saturating-multiply, v9 content, and v10 reshuffle modules retain their frozen
-bytes and execution semantics; explicit migration produces a new current-v13
-fingerprint. The v3 wrapping slice round-trips, verifies,
+saturating-multiply, v9 content, v10 reshuffle, v11 case-path, v12 partition,
+and v13 conditional modules retain their frozen bytes and execution semantics;
+explicit migration produces a new current-v14 fingerprint and derives dense
+entry bindings from any validated archived reshuffles. The v3 wrapping slice
+round-trips, verifies,
 meters, lowers, emits,
 and executes `u8` 200+100 as 44. The v4 saturating slice traverses the
 same path and clamps that sum to 255. Semantic v13 conditionals round-trip,

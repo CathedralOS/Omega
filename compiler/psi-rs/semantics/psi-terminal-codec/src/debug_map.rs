@@ -373,9 +373,13 @@ fn subject_exists(module: &TerminalModule, subject: DebugSubject) -> bool {
             .find(|candidate| candidate.id == machine)
             .is_some_and(|machine| {
                 machine
-                    .content_identity_reshuffles
+                    .content_entry_claims
                     .iter()
-                    .any(|reshuffle| reshuffle.claim == claim)
+                    .any(|binding| binding.claim == claim)
+                    || machine
+                        .content_identity_reshuffles
+                        .iter()
+                        .any(|reshuffle| reshuffle.claim == claim)
                     || machine
                         .content_partition_compositions
                         .iter()

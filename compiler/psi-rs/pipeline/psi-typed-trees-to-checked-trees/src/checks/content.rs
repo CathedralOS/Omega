@@ -211,6 +211,7 @@ enum ReturnedPartitionInvocationForm {
 struct PartitionCompositionEvidence {
     call_ordinal: Option<usize>,
     input_claim_identities: Vec<PermissionClaimIdentity>,
+    input_claim_bindings: Vec<psi_checked_trees::ContentPartitionInputClaimBinding>,
     result_rewrites: Vec<ContentPartitionResultRewrite>,
     substitutions: Vec<ContentPartitionPlaceSubstitution>,
     observed_entry_projection: bool,
@@ -477,9 +478,33 @@ fn instantiate_partition_wrapper(
     if !evidence.observed_entry_projection {
         return None;
     }
-    evidence
-        .input_claim_identities
-        .sort_by_key(|identity| format!("{identity:?}"));
+    evidence.input_claim_bindings.sort_by_key(|binding| {
+        (
+            format!("{:?}", binding.claim_identity),
+            format!("{:?}", binding.entry_place),
+        )
+    });
+    evidence.input_claim_bindings.dedup();
+    if evidence
+        .input_claim_bindings
+        .iter()
+        .enumerate()
+        .any(|(index, binding)| {
+            evidence.input_claim_bindings[index + 1..]
+                .iter()
+                .any(|later| {
+                    later.claim_identity == binding.claim_identity
+                        && later.entry_place != binding.entry_place
+                })
+        })
+    {
+        return None;
+    }
+    evidence.input_claim_identities = evidence
+        .input_claim_bindings
+        .iter()
+        .map(|binding| binding.claim_identity)
+        .collect();
     evidence.input_claim_identities.dedup();
     evidence.result_rewrites.sort_by_key(|rewrite| {
         (
@@ -516,6 +541,7 @@ fn instantiate_partition_wrapper(
         statement_index: invocation.statement_index,
         call_ordinal,
         input_claim_identities: evidence.input_claim_identities,
+        input_claim_bindings: evidence.input_claim_bindings,
         result_rewrites: evidence.result_rewrites,
         substitutions: evidence.substitutions,
         plan,
@@ -734,8 +760,7 @@ fn instantiate_partition_subject(
             if !transferred_to_invocation {
                 return None;
             }
-            evidence.input_claim_identities.push(claim_identity);
-            ContentStructuralPlace {
+            let entry_place = ContentStructuralPlace {
                 version: ContentPlaceVersion::Entry,
                 root: ContentPlaceRoot::Parameter {
                     position: u32::try_from(caller_position).ok()?,
@@ -744,7 +769,14 @@ fn instantiate_partition_subject(
                     is_self: caller_parameter.is_self,
                 },
                 segments: content_path(program, &actual.segments)?,
-            }
+            };
+            evidence.input_claim_bindings.push(
+                psi_checked_trees::ContentPartitionInputClaimBinding {
+                    claim_identity,
+                    entry_place: entry_place.clone(),
+                },
+            );
+            entry_place
         }
         _ => return None,
     };

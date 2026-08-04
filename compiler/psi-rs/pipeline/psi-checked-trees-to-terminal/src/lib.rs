@@ -37,10 +37,10 @@ use psi_language_semantics::content::{
 use psi_numerics::arithmetic::ArithmeticDomain;
 use psi_proof_kernel::{EvidenceRoute, PrimitiveJudgment};
 use psi_terminal::{
-    Block, ClaimContentProjection, ContentIdentityReshuffle, ContentPartitionComposition,
-    ContentPlaceSubstitution, ContractClause, MachineContract, Operation, OperationKind,
-    SemanticVersion, StructuralPlaceDeclaration, SuccessorEdge, TerminalMachine, TerminalModule,
-    Terminator, ValueDeclaration,
+    Block, ClaimContentProjection, ContentEntryClaim, ContentIdentityReshuffle,
+    ContentPartitionComposition, ContentPlaceSubstitution, ContractClause, MachineContract,
+    Operation, OperationKind, SemanticVersion, StructuralPlaceDeclaration, SuccessorEdge,
+    TerminalMachine, TerminalModule, Terminator, ValueDeclaration,
 };
 use psi_terminal_codec::{
     DebugFileId, DebugSite, DebugSourceFile, DebugSourceOrigin, DebugSourceSpan, DebugSubject,
@@ -122,6 +122,7 @@ pub struct LoweredContentConservation {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoweredContentIdentityReshuffles {
     pub structural_places: Vec<StructuralPlaceDeclaration>,
+    pub entry_claims: Vec<ContentEntryClaim>,
     pub reshuffles: Vec<ContentIdentityReshuffle>,
     /// Source checked identities paired with their dense terminal IDs.
     /// This map never enters terminal Psi; later derived rows consume it while
@@ -202,6 +203,7 @@ pub fn lower_content_identity_reshuffles(
     let Some(first) = facts.first() else {
         return Ok(LoweredContentIdentityReshuffles {
             structural_places: Vec::new(),
+            entry_claims: Vec::new(),
             reshuffles: Vec::new(),
             source_claims: Vec::new(),
         });
@@ -327,12 +329,21 @@ pub fn lower_content_identity_reshuffles(
                 projections: group.projections,
             }
         })
+        .collect::<Vec<_>>();
+    let entry_claims = reshuffles
+        .iter()
+        .map(|reshuffle| ContentEntryClaim {
+            claim: reshuffle.claim,
+            input: reshuffle.input.clone(),
+            projections: reshuffle.projections.clone(),
+        })
         .collect();
     Ok(LoweredContentIdentityReshuffles {
         structural_places: structural_places
             .into_iter()
             .map(|(id, kind)| StructuralPlaceDeclaration { id, kind })
             .collect(),
+        entry_claims,
         reshuffles,
         source_claims,
     })
@@ -343,18 +354,18 @@ pub fn lower_content_identity_reshuffles(
 /// the verifier can replay it and reject any manufactured `separate(...)` node.
 pub fn lower_content_partition_compositions(
     facts: &[ContentPartitionCompositionFact],
-    identity_reshuffles: &LoweredContentIdentityReshuffles,
+    identity_reshuffles: &mut LoweredContentIdentityReshuffles,
 ) -> Result<LoweredContentPartitionCompositions, LoweringError> {
+    let mut rebuilt_identity_reshuffles = identity_reshuffles.clone();
     let Some(first) = facts.first() else {
+        rebuild_content_entry_claims(&mut rebuilt_identity_reshuffles, facts)?;
+        *identity_reshuffles = rebuilt_identity_reshuffles;
         return Ok(LoweredContentPartitionCompositions {
             structural_places: Vec::new(),
             compositions: Vec::new(),
         });
     };
     let callable = (first.machine_symbol, first.state_symbol);
-    let mut target_places = BTreeMap::new();
-    let mut compositions = Vec::new();
-
     for fact in facts {
         if fact.source_derivation_depth != 0 {
             return Err(LoweringError::ContentPartitionDerivedSourceUnsupported);
@@ -372,6 +383,12 @@ pub fn lower_content_partition_compositions(
             return Err(LoweringError::ContentPartitionFactOwnerMismatch);
         }
         revalidate_content_partition_fact(fact)?;
+    }
+    rebuild_content_entry_claims(&mut rebuilt_identity_reshuffles, facts)?;
+    let mut target_places = BTreeMap::new();
+    let mut compositions = Vec::new();
+
+    for fact in facts {
         let source = lower_content_conservation_plan(&fact.source_plan)?;
         let derived = lower_content_conservation_plan(&fact.plan)?;
         let source_conservation = lowered_conservation(source.proposition)?;
@@ -409,7 +426,7 @@ pub fn lower_content_partition_compositions(
             .input_claim_identities
             .iter()
             .map(|identity| {
-                identity_reshuffles
+                rebuilt_identity_reshuffles
                     .source_claims
                     .iter()
                     .find_map(|(source, claim)| (source == identity).then_some(*claim))
@@ -437,6 +454,7 @@ pub fn lower_content_partition_compositions(
     if compositions.windows(2).any(|pair| pair[0] == pair[1]) {
         return Err(LoweringError::DuplicateContentPartitionComposition);
     }
+    *identity_reshuffles = rebuilt_identity_reshuffles;
     Ok(LoweredContentPartitionCompositions {
         structural_places: target_places
             .into_iter()
@@ -444,6 +462,182 @@ pub fn lower_content_partition_compositions(
             .collect(),
         compositions,
     })
+}
+
+fn rebuild_content_entry_claims(
+    lowered: &mut LoweredContentIdentityReshuffles,
+    partition_facts: &[ContentPartitionCompositionFact],
+) -> Result<(), LoweringError> {
+    #[derive(Debug)]
+    struct Group {
+        source_claim: PermissionClaimIdentity,
+        input: ContentStructuralPlace,
+        projections: Vec<ClaimContentProjection>,
+    }
+
+    let mut groups = lowered
+        .source_claims
+        .iter()
+        .map(|(source_claim, claim)| {
+            let reshuffle = lowered
+                .reshuffles
+                .iter()
+                .find(|reshuffle| reshuffle.claim == *claim)
+                .expect("lowered source claim names its reshuffle");
+            Group {
+                source_claim: *source_claim,
+                input: reshuffle.input.clone(),
+                projections: reshuffle.projections.clone(),
+            }
+        })
+        .collect::<Vec<_>>();
+
+    for fact in partition_facts {
+        let mut listed = Vec::new();
+        for identity in &fact.input_claim_identities {
+            if !listed.contains(identity) {
+                listed.push(*identity);
+            }
+        }
+        let mut bound = Vec::new();
+        for binding in &fact.input_claim_bindings {
+            if !bound.contains(&binding.claim_identity) {
+                bound.push(binding.claim_identity);
+            }
+        }
+        if bound.is_empty()
+            || listed.len() != bound.len()
+            || listed.iter().any(|identity| !bound.contains(identity))
+        {
+            return Err(LoweringError::ContentPartitionInputClaimBindingMismatch);
+        }
+
+        let lowered_plan = lower_content_conservation_plan(&fact.plan)?;
+        let Proposition::ContentConservation(conservation) = lowered_plan.proposition else {
+            unreachable!("content plan lowering always yields content conservation")
+        };
+        for binding in &fact.input_claim_bindings {
+            if binding.claim_identity == PermissionClaimIdentity::Unknown {
+                return Err(LoweringError::UnknownContentClaimIdentity);
+            }
+            let mut places = BTreeMap::new();
+            let input = lower_content_place(&binding.entry_place, &mut places)?;
+            if input.version != ContentPlaceVersion::Entry {
+                return Err(LoweringError::ContentEntryClaimRequiresEntryPlace);
+            }
+            let mut projections = Vec::new();
+            collect_terminal_content_projections(
+                conservation.left(),
+                conservation.algebra(),
+                &input,
+                &mut projections,
+            );
+            collect_terminal_content_projections(
+                conservation.right(),
+                conservation.algebra(),
+                &input,
+                &mut projections,
+            );
+            projections.sort();
+            projections.dedup();
+            if projections.is_empty() {
+                return Err(LoweringError::ContentEntryClaimHasNoProjection);
+            }
+            if let Some(group) = groups
+                .iter_mut()
+                .find(|group| group.source_claim == binding.claim_identity)
+            {
+                if group.input != input {
+                    return Err(LoweringError::ContentEntryClaimMapsMultiplePlaces);
+                }
+                group.projections.extend(projections);
+            } else {
+                groups.push(Group {
+                    source_claim: binding.claim_identity,
+                    input,
+                    projections,
+                });
+            }
+        }
+    }
+
+    for group in &mut groups {
+        group.projections.sort();
+        group.projections.dedup();
+    }
+    groups.sort_by(|left, right| {
+        (&left.input, &left.projections).cmp(&(&right.input, &right.projections))
+    });
+    for (index, group) in groups.iter().enumerate() {
+        if groups[..index]
+            .iter()
+            .any(|previous| previous.input == group.input)
+        {
+            return Err(LoweringError::DuplicateContentEntryClaimInput);
+        }
+        if groups[..index]
+            .iter()
+            .any(|previous| content_places_overlap(&previous.input, &group.input))
+        {
+            return Err(LoweringError::OverlappingContentEntryClaimInput);
+        }
+    }
+
+    let mut source_claims = Vec::with_capacity(groups.len());
+    let mut entry_claims = Vec::with_capacity(groups.len());
+    for (index, group) in groups.into_iter().enumerate() {
+        let claim = ClaimId::new(
+            u64::try_from(index)
+                .expect("an in-memory fact count fits u64")
+                .checked_add(1)
+                .expect("an in-memory fact count cannot exhaust u64"),
+        )
+        .expect("dense claim identities begin at one");
+        source_claims.push((group.source_claim, claim));
+        entry_claims.push(ContentEntryClaim {
+            claim,
+            input: group.input,
+            projections: group.projections,
+        });
+    }
+    for reshuffle in &mut lowered.reshuffles {
+        let source = lowered
+            .source_claims
+            .iter()
+            .find_map(|(source, old)| (*old == reshuffle.claim).then_some(*source))
+            .expect("every reshuffle has a checked source claim");
+        reshuffle.claim = source_claims
+            .iter()
+            .find_map(|(candidate, claim)| (*candidate == source).then_some(*claim))
+            .expect("every reshuffle source survives entry-claim rebuilding");
+    }
+    lowered.reshuffles.sort_by_key(|reshuffle| reshuffle.claim);
+    lowered.source_claims = source_claims;
+    lowered.entry_claims = entry_claims;
+    Ok(())
+}
+
+fn collect_terminal_content_projections(
+    term: &ContentTerm,
+    algebra: &ContentAlgebra,
+    subject: &ContentStructuralPlace,
+    output: &mut Vec<ClaimContentProjection>,
+) {
+    match term {
+        ContentTerm::Projection {
+            projection,
+            subject: candidate,
+        } if candidate == subject => output.push(ClaimContentProjection {
+            projection: *projection,
+            algebra: algebra.clone(),
+        }),
+        ContentTerm::Projection { .. } => {}
+        ContentTerm::Separate(terms) => {
+            for term in terms {
+                collect_terminal_content_projections(term, algebra, subject, output);
+            }
+        }
+    }
 }
 
 fn revalidate_content_partition_fact(
@@ -1585,7 +1779,7 @@ fn lower_content_evidence(
         .filter(|fact| fact.machine_symbol == machine.symbol && fact.state_symbol == state.symbol)
         .cloned()
         .collect::<Vec<_>>();
-    let identity_reshuffles = lower_content_identity_reshuffles(&identity_facts)?;
+    let mut identity_reshuffles = lower_content_identity_reshuffles(&identity_facts)?;
     let partition_facts = checked
         .facts
         .qualifications
@@ -1596,7 +1790,7 @@ fn lower_content_evidence(
         .cloned()
         .collect::<Vec<_>>();
     let partition_compositions =
-        lower_content_partition_compositions(&partition_facts, &identity_reshuffles)?;
+        lower_content_partition_compositions(&partition_facts, &mut identity_reshuffles)?;
     Ok((identity_reshuffles, partition_compositions))
 }
 
@@ -1856,6 +2050,7 @@ fn build_integer_conditional_module(
                     .into_iter()
                     .map(|(id, kind)| StructuralPlaceDeclaration { id, kind })
                     .collect(),
+                content_entry_claims: identity_reshuffles.entry_claims,
                 content_identity_reshuffles: identity_reshuffles.reshuffles,
                 content_partition_compositions: partition_compositions.compositions,
                 entry: block_id(1),
@@ -1986,6 +2181,7 @@ fn build_boolean_module(
                     .into_iter()
                     .map(|(id, kind)| StructuralPlaceDeclaration { id, kind })
                     .collect(),
+                content_entry_claims: identity_reshuffles.entry_claims,
                 content_identity_reshuffles: identity_reshuffles.reshuffles,
                 content_partition_compositions: partition_compositions.compositions,
                 entry: block_id(1),
@@ -2177,6 +2373,7 @@ fn build_boolean_state_chain_module(
                     .into_iter()
                     .map(|(id, kind)| StructuralPlaceDeclaration { id, kind })
                     .collect(),
+                content_entry_claims: identity_reshuffles.entry_claims,
                 content_identity_reshuffles: identity_reshuffles.reshuffles,
                 content_partition_compositions: partition_compositions.compositions,
                 entry: block_id(1),
@@ -2266,6 +2463,7 @@ fn build_direct_parameter_module(
                     .into_iter()
                     .map(|(id, kind)| StructuralPlaceDeclaration { id, kind })
                     .collect(),
+                content_entry_claims: identity_reshuffles.entry_claims,
                 content_identity_reshuffles: identity_reshuffles.reshuffles,
                 content_partition_compositions: partition_compositions.compositions,
                 entry: block_id(1),
@@ -2512,6 +2710,7 @@ fn build_integer_state_chain_module(
                     .into_iter()
                     .map(|(id, kind)| StructuralPlaceDeclaration { id, kind })
                     .collect(),
+                content_entry_claims: identity_reshuffles.entry_claims,
                 content_identity_reshuffles: identity_reshuffles.reshuffles,
                 content_partition_compositions: partition_compositions.compositions,
                 entry: block_id(1),
@@ -2837,6 +3036,12 @@ pub enum LoweringError {
     ContentPartitionFactOwnerMismatch,
     ContentPartitionNotConservation,
     ContentPartitionInputClaimNotLowered,
+    ContentPartitionInputClaimBindingMismatch,
+    ContentEntryClaimRequiresEntryPlace,
+    ContentEntryClaimHasNoProjection,
+    ContentEntryClaimMapsMultiplePlaces,
+    DuplicateContentEntryClaimInput,
+    OverlappingContentEntryClaimInput,
     DuplicateContentPartitionSubstitution,
     DuplicateContentPartitionComposition,
     ContentPartitionResultRewriteUnsupported,
@@ -3098,6 +3303,13 @@ mod tests {
         let mut places = Vec::new();
         subjects(source_plan.equation.left(), &mut places);
         subjects(source_plan.equation.right(), &mut places);
+        let claim_identity = identity_fact(SemanticDomainId(9), "left", 1).claim_identity;
+        let CheckedContentConservationTerm::Projection { subject, .. } =
+            source_plan.equation.left()
+        else {
+            panic!("fixture source input is a projection")
+        };
+        let entry_place = subject.clone();
         ContentPartitionCompositionFact {
             machine_symbol: plan.owner,
             state_symbol: plan.callable,
@@ -3107,9 +3319,11 @@ mod tests {
             source_plan,
             statement_index: 4,
             call_ordinal: 2,
-            input_claim_identities: vec![
-                identity_fact(SemanticDomainId(9), "left", 1).claim_identity,
-            ],
+            input_claim_identities: vec![claim_identity],
+            input_claim_bindings: vec![psi_checked_trees::ContentPartitionInputClaimBinding {
+                claim_identity,
+                entry_place,
+            }],
             result_rewrites: Vec::new(),
             substitutions: places
                 .into_iter()
@@ -3188,11 +3402,11 @@ mod tests {
     #[test]
     fn checked_partition_composition_lowers_with_exact_source_and_dense_claims() {
         let identity = identity_fact(SemanticDomainId(9), "left", 1);
-        let identities =
+        let mut identities =
             lower_content_identity_reshuffles(&[identity]).expect("identity fact lowers");
         let fact = partition_composition_fact();
         let lowered =
-            lower_content_partition_compositions(std::slice::from_ref(&fact), &identities)
+            lower_content_partition_compositions(std::slice::from_ref(&fact), &mut identities)
                 .expect("exact theorem substitution lowers");
 
         assert_eq!(lowered.compositions.len(), 1);
@@ -3212,15 +3426,17 @@ mod tests {
                 source,
                 target,
             });
+        let identities_before_error = identities.clone();
         assert_eq!(
-            lower_content_partition_compositions(&[staged], &identities),
+            lower_content_partition_compositions(&[staged], &mut identities),
             Err(LoweringError::ContentPartitionResultRewriteUnsupported)
         );
+        assert_eq!(identities, identities_before_error);
 
         let mut derived_source = fact.clone();
         derived_source.source_derivation_depth = 1;
         assert_eq!(
-            lower_content_partition_compositions(&[derived_source], &identities),
+            lower_content_partition_compositions(&[derived_source], &mut identities),
             Err(LoweringError::ContentPartitionDerivedSourceUnsupported)
         );
 
@@ -3231,8 +3447,33 @@ mod tests {
             CheckedContentConservationTerm::separate([projection.clone(), projection]),
         );
         assert_eq!(
-            lower_content_partition_compositions(&[drifted], &identities),
+            lower_content_partition_compositions(&[drifted], &mut identities),
             Err(LoweringError::ContentPartitionReplayMismatch)
+        );
+    }
+
+    #[test]
+    fn checked_partition_composition_lowers_a_partition_only_entry_claim() {
+        let fact = partition_composition_fact();
+        let mut identities =
+            lower_content_identity_reshuffles(&[]).expect("empty identity evidence lowers");
+        let lowered =
+            lower_content_partition_compositions(std::slice::from_ref(&fact), &mut identities)
+                .expect("partition input binding lowers independently of output equality");
+
+        assert!(identities.reshuffles.is_empty());
+        assert_eq!(identities.entry_claims.len(), 1);
+        assert_eq!(
+            identities.entry_claims[0].claim,
+            ClaimId::new(1).expect("dense claim")
+        );
+        assert_eq!(
+            identities.entry_claims[0].input.version,
+            ContentPlaceVersion::Entry
+        );
+        assert_eq!(
+            lowered.compositions[0].input_claims,
+            vec![ClaimId::new(1).expect("dense claim")]
         );
     }
 

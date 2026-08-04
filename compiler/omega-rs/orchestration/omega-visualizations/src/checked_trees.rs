@@ -618,6 +618,17 @@ pub fn claim_outcome_manifest_json(program: &CheckedTrees) -> String {
             }
             push_claim_identity_json(&mut json, program, *identity);
         }
+        json.push_str("],\n      \"input_claim_bindings\": [");
+        for (binding_index, binding) in row.input_claim_bindings.iter().enumerate() {
+            if binding_index > 0 {
+                json.push_str(", ");
+            }
+            json.push_str("{\"claim_identity\": ");
+            push_claim_identity_json(&mut json, program, binding.claim_identity);
+            json.push_str(", \"entry_place\": ");
+            push_content_structural_place_json(&mut json, &binding.entry_place);
+            json.push('}');
+        }
         json.push_str("],\n      \"result_rewrites\": [");
         for (rewrite_index, rewrite) in row.result_rewrites.iter().enumerate() {
             if rewrite_index > 0 {
@@ -2810,6 +2821,7 @@ mod tests {
             source: substitutions[1].source.clone(),
             target: substitutions[1].target.clone(),
         };
+        let partition_entry_place = input_subject.clone();
         let equation = ContentConservationEquation::new(input, output);
         let fingerprint = conservation_fingerprint(&algebra, &equation);
         let plan = ContentConservationPlan {
@@ -2861,6 +2873,15 @@ mod tests {
                         ordinal: 11,
                     },
                 ],
+                input_claim_bindings: vec![psi_checked_trees::ContentPartitionInputClaimBinding {
+                    claim_identity: psi_language_semantics::PermissionClaimIdentity::Established {
+                        machine_symbol: SymbolHandle::invalid(),
+                        state_symbol: SymbolHandle::invalid(),
+                        source: psi_language_semantics::PermissionEventSource::StateEntry,
+                        ordinal: 11,
+                    },
+                    entry_place: partition_entry_place,
+                }],
                 result_rewrites: vec![result_rewrite],
                 substitutions,
                 plan,
@@ -2885,6 +2906,10 @@ mod tests {
         assert!(json.contains("\"substitutions\": [{\"source\": {\"version\": \"entry\""));
         assert!(json.contains("\"call\": {\"statement_index\": 4, \"call_ordinal\": 2}"));
         assert!(json.contains("\"input_claim_identities\": [{\"kind\": \"established\""));
+        assert!(json.contains(
+            "\"input_claim_bindings\": [{\"claim_identity\": {\"kind\": \"established\""
+        ));
+        assert!(json.contains("\"entry_place\": {\"version\": \"entry\""));
         assert!(
             json.contains("\"result_rewrites\": [{\"claim_identity\": {\"kind\": \"established\"")
         );
