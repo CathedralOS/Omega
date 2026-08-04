@@ -233,6 +233,22 @@ ensures 20u8 == 20u8
     state selected_false(value: u8 in Wrapping) -> u8 in Wrapping { value * 2u8 }
 }
 
+machine terminal_boolean_conditional(
+    condition: bool,
+    when_true: bool,
+    when_false: bool
+) -> bool
+requires true == true
+ensures true == true
+{
+    transition condition {
+        true -> selected_true(when_true)
+        _ -> selected_false(when_false)
+    }
+    state selected_true(value: bool) -> bool { value }
+    state selected_false(value: bool) -> bool { value }
+}
+
 machine terminal_runtime_saturating_add(value: u8 in Saturating) -> u8 in Saturating
 requires 255u8 == 255u8
 ensures 255u8 == 255u8
