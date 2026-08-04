@@ -2771,6 +2771,27 @@ pub fn encode_runtime_frame_indexed_integer_write_with_index_region(
     Ok(bytes)
 }
 
+/// Exact scratch footprint of an immediate integer write through a
+/// frame-held indexed descriptor. The fixed-width address recipe always
+/// writes x16/x17/x19/x20/x21/x26; a machine-resident index additionally
+/// materializes its base in x15.
+pub fn runtime_frame_indexed_integer_write_clobbers(
+    index_region: omega_target_operations::RuntimeStorageRegion,
+) -> RegisterSet {
+    let mut registers = vec![
+        MachineRegister::Aarch64X(16),
+        MachineRegister::Aarch64X(17),
+        MachineRegister::Aarch64X(19),
+        MachineRegister::Aarch64X(20),
+        MachineRegister::Aarch64X(21),
+        MachineRegister::Aarch64X(26),
+    ];
+    if index_region == omega_target_operations::RuntimeStorageRegion::Machine {
+        registers.push(MachineRegister::Aarch64X(15));
+    }
+    RegisterSet::new(registers)
+}
+
 pub fn encode_runtime_frame_base_indexed_integer_write(
     base_byte_offset: usize,
     index_offset: usize,
@@ -7461,6 +7482,39 @@ mod tests {
                 MachineRegister::Aarch64X(17),
                 MachineRegister::Aarch64X(20),
                 MachineRegister::Aarch64X(24),
+                MachineRegister::Aarch64X(26),
+            ]
+        );
+    }
+
+    #[test]
+    fn frame_indexed_integer_write_clobbers_include_cross_region_base() {
+        assert_eq!(
+            runtime_frame_indexed_integer_write_clobbers(
+                omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+            )
+            .as_slice(),
+            &[
+                MachineRegister::Aarch64X(16),
+                MachineRegister::Aarch64X(17),
+                MachineRegister::Aarch64X(19),
+                MachineRegister::Aarch64X(20),
+                MachineRegister::Aarch64X(21),
+                MachineRegister::Aarch64X(26),
+            ]
+        );
+        assert_eq!(
+            runtime_frame_indexed_integer_write_clobbers(
+                omega_target_operations::RuntimeStorageRegion::Machine,
+            )
+            .as_slice(),
+            &[
+                MachineRegister::Aarch64X(15),
+                MachineRegister::Aarch64X(16),
+                MachineRegister::Aarch64X(17),
+                MachineRegister::Aarch64X(19),
+                MachineRegister::Aarch64X(20),
+                MachineRegister::Aarch64X(21),
                 MachineRegister::Aarch64X(26),
             ]
         );
