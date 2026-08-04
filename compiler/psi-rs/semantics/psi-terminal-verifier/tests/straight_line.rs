@@ -10,10 +10,10 @@ use psi_proof_kernel::{
     ProofSystemVersion,
 };
 use psi_terminal::{
-    Block, ClaimContentProjection, ContentIdentityReshuffle, ContentPartitionComposition,
-    ContentPlaceSubstitution, ContractClause, MachineContract, Operation, OperationKind,
-    SemanticVersion, StructuralPlaceDeclaration, TerminalMachine, TerminalModule, Terminator,
-    ValueDeclaration,
+    Block, ClaimContentProjection, ContentEntryClaim, ContentIdentityReshuffle,
+    ContentPartitionComposition, ContentPlaceSubstitution, ContractClause, MachineContract,
+    Operation, OperationKind, SemanticVersion, StructuralPlaceDeclaration, TerminalMachine,
+    TerminalModule, Terminator, ValueDeclaration,
 };
 use psi_terminal_verifier::{
     ContractClauseKind, ModuleError, ObligationEvidence, ProofBundle, VerificationError,
@@ -67,6 +67,7 @@ fn v2_boolean_constant_axiom_proves_the_return_contract() {
                 scalar_type: ScalarType::Boolean,
             },
             structural_places: Vec::new(),
+            content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
             content_partition_compositions: Vec::new(),
             entry: BlockId::new(10).expect("block"),
@@ -221,6 +222,93 @@ fn v12_partition_composition_replays_an_authored_theorem_as_a_semantic_axiom() {
 
     verify_module(&module, &bundle, &AdmissionProfile::default())
         .expect("an exact v12 theorem substitution should be reconstructed");
+}
+
+#[test]
+fn v14_partition_uses_an_entry_claim_without_manufacturing_an_equality() {
+    let (mut module, goal, obligation) = partition_composition_module();
+    module.semantic_version = SemanticVersion::V14;
+    let machine = &mut module.machines[0];
+    let reshuffle = machine.content_identity_reshuffles[0].clone();
+    let claim = ClaimId::new(1).expect("dense claim");
+    machine.content_entry_claims = vec![ContentEntryClaim {
+        claim,
+        input: reshuffle.input,
+        projections: reshuffle.projections,
+    }];
+    machine.content_identity_reshuffles.clear();
+    machine.content_partition_compositions[0].input_claims = vec![claim];
+    let bundle = ProofBundle {
+        evidence: vec![ObligationEvidence {
+            obligation,
+            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                identity: EvidenceIdentity::new(93).expect("certificate"),
+                proof_system_version: ProofSystemVersion::CURRENT,
+                proof: ProofNode {
+                    conclusion: goal,
+                    rule: ProofRule::SemanticAxiom { index: 0 },
+                },
+            }),
+        }],
+    };
+
+    verify_module(&module, &bundle, &AdmissionProfile::default())
+        .expect("the partition theorem, not the entry binding, is the sole semantic axiom");
+}
+
+#[test]
+fn v14_entry_claims_require_dense_unique_parameter_bindings() {
+    let (mut old, _, _) = identity_reshuffle_module();
+    let reshuffle = old.machines[0].content_identity_reshuffles[0].clone();
+    old.machines[0].content_entry_claims = vec![ContentEntryClaim {
+        claim: ClaimId::new(1).expect("claim"),
+        input: reshuffle.input.clone(),
+        projections: reshuffle.projections.clone(),
+    }];
+    assert!(matches!(
+        validate_module(&old),
+        Err(ModuleError::ContentEntryClaimsRequireSemanticVersion {
+            required: SemanticVersion::V14,
+            actual: SemanticVersion::V10,
+            ..
+        })
+    ));
+
+    let (mut sparse, _, _) = identity_reshuffle_module();
+    sparse.semantic_version = SemanticVersion::V14;
+    sparse.machines[0].content_identity_reshuffles.clear();
+    sparse.machines[0].content_entry_claims = vec![ContentEntryClaim {
+        claim: ClaimId::new(2).expect("sparse claim"),
+        input: reshuffle.input.clone(),
+        projections: reshuffle.projections.clone(),
+    }];
+    assert_eq!(
+        validate_module(&sparse).expect_err("entry claims must be dense"),
+        ModuleError::NonDenseContentEntryClaim {
+            expected: ClaimId::new(1).expect("expected claim"),
+            actual: ClaimId::new(2).expect("actual claim"),
+        }
+    );
+
+    let (mut overlapping, _, _) = identity_reshuffle_module();
+    overlapping.semantic_version = SemanticVersion::V14;
+    overlapping.machines[0].content_identity_reshuffles.clear();
+    let first = ContentEntryClaim {
+        claim: ClaimId::new(1).expect("first claim"),
+        input: reshuffle.input.clone(),
+        projections: reshuffle.projections.clone(),
+    };
+    let mut second = first.clone();
+    second.claim = ClaimId::new(2).expect("second claim");
+    second
+        .input
+        .segments
+        .push(ContentPlaceSegment::Field("child".to_owned()));
+    overlapping.machines[0].content_entry_claims = vec![first, second];
+    assert!(matches!(
+        validate_module(&overlapping),
+        Err(ModuleError::OverlappingContentEntryClaimInput { .. })
+    ));
 }
 
 #[test]
@@ -451,6 +539,7 @@ fn identity_reshuffle_module() -> (TerminalModule, Proposition, ObligationId) {
                 kind: StructuralPlaceKind::Result,
             },
         ],
+        content_entry_claims: Vec::new(),
         content_identity_reshuffles: vec![reshuffle],
         content_partition_compositions: Vec::new(),
         entry: BlockId::new(90).expect("block"),
@@ -677,6 +766,7 @@ fn reflexive_content_module() -> (TerminalModule, Proposition, ObligationId) {
                 is_self: false,
             },
         }],
+        content_entry_claims: Vec::new(),
         content_identity_reshuffles: Vec::new(),
         content_partition_compositions: Vec::new(),
         entry: BlockId::new(80).expect("block"),
@@ -1215,6 +1305,7 @@ fn wrapping_add_module() -> (TerminalModule, Proposition, ObligationId) {
             scalar_type,
         },
         structural_places: Vec::new(),
+        content_entry_claims: Vec::new(),
         content_identity_reshuffles: Vec::new(),
         content_partition_compositions: Vec::new(),
         entry: BlockId::new(20).expect("block"),
@@ -1284,6 +1375,7 @@ fn saturating_add_module() -> (TerminalModule, Proposition, ObligationId) {
             scalar_type,
         },
         structural_places: Vec::new(),
+        content_entry_claims: Vec::new(),
         content_identity_reshuffles: Vec::new(),
         content_partition_compositions: Vec::new(),
         entry: BlockId::new(30).expect("block"),
@@ -1353,6 +1445,7 @@ fn wrapping_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
             scalar_type,
         },
         structural_places: Vec::new(),
+        content_entry_claims: Vec::new(),
         content_identity_reshuffles: Vec::new(),
         content_partition_compositions: Vec::new(),
         entry: BlockId::new(40).expect("block"),
@@ -1422,6 +1515,7 @@ fn saturating_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
             scalar_type,
         },
         structural_places: Vec::new(),
+        content_entry_claims: Vec::new(),
         content_identity_reshuffles: Vec::new(),
         content_partition_compositions: Vec::new(),
         entry: BlockId::new(50).expect("block"),
@@ -1491,6 +1585,7 @@ fn wrapping_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
             scalar_type,
         },
         structural_places: Vec::new(),
+        content_entry_claims: Vec::new(),
         content_identity_reshuffles: Vec::new(),
         content_partition_compositions: Vec::new(),
         entry: BlockId::new(60).expect("block"),
@@ -1560,6 +1655,7 @@ fn saturating_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
             scalar_type,
         },
         structural_places: Vec::new(),
+        content_entry_claims: Vec::new(),
         content_identity_reshuffles: Vec::new(),
         content_partition_compositions: Vec::new(),
         entry: BlockId::new(70).expect("block"),
@@ -1627,6 +1723,7 @@ impl Fixture {
                 scalar_type,
             },
             structural_places: Vec::new(),
+            content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
             content_partition_compositions: Vec::new(),
             entry: BlockId::new(1).expect("entry block"),

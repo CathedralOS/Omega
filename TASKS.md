@@ -381,31 +381,32 @@ those rows remain absent until their actual checked proofs exist.
   exact source theorem, source fingerprint,
   dense input-claim references, total structural-place substitution, and
   derived equation. The verifier requires the source to contain separation,
-  binds every entry projection to one listed identity-reshuffle claim, replays
-  the substitution, and reconstructs only the exact derived theorem as a
-  semantic axiom. Canonical bytes include the witness; existing proof format v9
-  already carries the resulting content proposition.
-  Archived v1-v11 bytes retain their identities. The content producer now lives
+  binds every entry projection to one listed v14 entry-claim row, replays the
+  substitution, and reconstructs only the exact derived theorem as a semantic
+  axiom. The entry binding itself is not an axiom. Canonical bytes include the
+  witness; existing proof format v9 already carries the resulting content
+  proposition. Archived v1-v13 bytes retain their identities. The content
+  producer now lives
   in `psi-checked-trees-to-terminal`: it revalidates and lowers checked
   conservation plans, exact identity reshuffles, and direct partition
-  compositions into the existing v9-v12 terminal vocabulary, including dense
+  compositions into the existing v9-v14 terminal vocabulary, including dense
   claim identities and replayable place substitutions. The executable source
-  canary remains content-free and fail-closed. Next connect a real
-  content-bearing source slice after its separately recorded design
-  blocker is resolved, insert sealed introduction and custody-exit rows, and
-  discharge or admit the exact frontier theorem.
-- **TERMINAL-CONTENT-CLAIMS — BLOCKED on language/IR design:** a real direct
-  partition wrapper exposes a gap hidden by the synthetic terminal fixture.
+  canary remains content-free and fail-closed. Next connect the now-unblocked
+  real content-bearing source slice, insert sealed introduction and
+  custody-exit rows, and discharge or admit the exact frontier theorem.
+- **TERMINAL-CONTENT-CLAIMS — DESIGN RESOLVED; implementation unblocked:** a
+  real direct partition wrapper exposed a gap hidden by the synthetic terminal
+  fixture.
   Checked composition correctly carries distinct entry claim identities but no
   identity reshuffles: aggregate conservation does not prove either input is
   individually equal to one output. Terminal v12 can name an input claim only
-  through `ContentIdentityReshuffle`, and its verifier therefore requires the
-  stronger one-to-one equality. Do not synthesize that unsound evidence. Settle
-  and version an independent entry-claim binding (or enrich partition input
-  rows with claim, projection, algebra, and structural place without an output
-  equality) before adding the content-bearing source canary. This blocks only
-  source integration and the dependent frontier work; the Psi-owned checked
-  plan translators, canonical v9-v12 bytes, and verifier remain live.
+  through `ContentIdentityReshuffle`, and its verifier therefore required the
+  stronger one-to-one equality. Terminal semantic v14 now carries an
+  independent dense entry-claim binding with exact projection, algebra, and
+  entry place, and the checked producer emits it for partition-only claims.
+  The binding creates no equality axiom. Source integration and the dependent
+  frontier work are now implementation tasks rather than language-design
+  blockers.
   Contracts call the exact
   owner-unique `Content<A>::project` conformance machine; do not add
   `content(...)`, general `old(...)`, or `retired_via(...)`. Normalize one
@@ -1096,15 +1097,17 @@ improvements do not change public identity.
   has been removed; general terminal production grows only in this Psi stage.
   Its independent content-evidence producer now revalidates checked
   conservation, reshuffle, and direct partition-composition facts into terminal
-  v9-v12 rows. **TERMINAL-CONTENT-ENTRY-CLAIMS — DESIGN CLEAR:** add a
+  v9-v14 rows. **TERMINAL-CONTENT-ENTRY-CLAIMS — COMPLETE:** terminal v14 adds a
   fingerprinted machine-local entry-claim binding row containing dense claim
   identity, projection, algebra, and entry structural place, with no output and
   no equality assertion. Partition-composition rows reference those bindings;
   `ContentIdentityReshuffle` remains exclusively the one-to-one equality case.
   The verifier checks unique canonical bindings and permits later content axioms
-  to reference them independently. Version the semantic module, codec,
-  verifier, proof adapter, and producer together before landing the executable
-  content canary; the producer remains fail-closed meanwhile.
+  to reference them independently; the proof adapter does not expose a binding
+  itself as an axiom. The semantic module, codec, verifier, proof adapter,
+  checked facts, producer, debug presentation, archived migration, and golden
+  identities are versioned together. The executable content canary is now
+  unblocked.
   The first in-memory executable slice is also live: stable machine/block
   topology, representable integer constants, v2 Boolean constants, v3
   exact-width wrapping integer addition, v4 exact-width saturating integer
@@ -1113,8 +1116,9 @@ improvements do not change public identity.
   multiplication, v8 exact-width saturating integer multiplication, v9
   proof-only structural-place/content-conservation propositions, v10 canonical
   identity-preserving claim reshuffles, v11 stable sum-case content paths, and
-  v12 exact authored-partition substitution rows, and current-v13 structural
-  Boolean conditional edges; the executable slice retains unconditional
+  v12 exact authored-partition substitution rows, v13 structural Boolean
+  conditional edges, and current-v14 independent entry-claim bindings; the
+  executable slice retains unconditional
   jump/return edges plus the ordered conditional,
   bodyful contracts, verifier-reconstructed semantic axioms, exhaustive proof-
   bundle checking, and direct execution of the verified module in
@@ -1293,10 +1297,11 @@ improvements do not change public identity.
   `SaturatingIntegerMultiply`; v9 adds proof-only structural places and
   content-conservation propositions; v10 adds canonical identity-preserving
   claim reshuffles; v11 adds stable sum-case content-path segments; v12 adds
-  exact authored-partition substitution rows; current v13 adds structural
-  Boolean conditional control; and explicit validated migration preserves an
-  older semantic graph while producing a new v13
-  fingerprint. Archived v1 through v12 identities remain frozen. The clean
+  exact authored-partition substitution rows; v13 adds structural Boolean
+  conditional control; current v14 adds independent dense entry-claim
+  bindings; and explicit validated migration preserves an older semantic graph
+  while producing a new v14 fingerprint. Archived v1 through v13 identities
+  remain frozen. The clean
   lane now also constructs an owned, semantic-identity-bound object artifact
   with canonical function spans and retained Psi provenance, emits the Omega
   object container plus ELF/AArch64, ELF/x86-64, Mach-O/AArch64, and PE/x86-64

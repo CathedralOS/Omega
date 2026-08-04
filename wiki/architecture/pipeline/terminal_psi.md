@@ -38,10 +38,12 @@ exact-width saturating integer multiplication; v9 adds proof-only
 structural-place declarations and content-conservation propositions; v10 adds
 canonical identity-preserving claim reshuffles; v11 adds distinct stable
 sum-case segments to structural content paths; v12 adds exact authored-
-partition substitution witnesses; and current v13 adds one structural Boolean
-conditional with ordered true/false successors. None of v9-v13 adds an
+partition substitution witnesses; v13 adds one structural Boolean conditional
+with ordered true/false successors; and current v14 adds canonical machine-local
+entry-claim bindings independently of output equality. None of v9-v14 adds an
 executable operation. The conditional is control vocabulary rather than an
-operation.
+operation, and an entry-claim binding is identity metadata rather than a
+proposition.
 `psi-terminal-verifier` rejects malformed identities, types, contract scopes,
 cycles, unreachable fact sources, and missing/extra evidence, reconstructs the
 exact operation/edge/return axioms, and checks every `ensures` from a separate
@@ -143,11 +145,11 @@ remains this deliberately narrow integer/control/contract slice. An
 architecture test keeps one fail-closed `lower_machine` entry. General terminal
 production must extend this Psi stage rather than reintroduce an Omega-to-Psi
 bridge. The stage now independently revalidates and lowers checked content
-conservation, identity reshuffles, and direct partition compositions into the
-existing v9-v12 terminal vocabulary. Those evidence translators retain stable
-semantic paths, dense claim identities, source theorem fingerprints, and exact
-place substitutions. The current executable source canaries remain
-content-free.
+conservation, identity reshuffles, direct partition compositions, and exact
+entry-claim bindings into the current v9-v14 terminal vocabulary. Those
+evidence translators retain stable semantic paths, dense claim identities,
+source theorem fingerprints, and exact place substitutions. The current
+executable source canaries remain content-free.
 The current legacy exit prover also cannot establish an ordinary
 `result == literal` contract, so the bootstrap canary carries the closed typed
 fact `7i32 == 7i32` and asserts the executed result separately. An Omega
@@ -398,29 +400,34 @@ replaceable certificates. Terminal semantic v12 adds exact direct-wrapper
 partition composition: canonical rows retain the source theorem and
 fingerprint, dense participating claims, total structural-place substitution,
 and derived theorem. Validation requires an authored separation tree, checks
-source and wrapper place roles, binds every derived entry projection to one
-listed identity row, and mechanically replays the substitution before exposing
-the derived proposition as a semantic axiom. Existing proof format v9 already
-represents that proposition. Composition through surrounding non-direct
+source and wrapper place roles, and mechanically replays the substitution
+before exposing the derived proposition as a semantic axiom. Archived v12-v13
+modules bind every derived entry projection through the listed identity row;
+current v14 instead resolves it through the independently encoded entry-claim
+binding. Existing proof format v9 already represents the resulting proposition.
+Composition through surrounding non-direct
 rewrites, sealed introduction and custody-exit frontier rows, and the general
 frontier theorem remain to land.
 
-The first real-source integration attempt exposed one missing semantic row. A
+The first real-source integration attempt exposed and has now closed one
+missing semantic row. A
 direct partition wrapper has checked entry claim identities and an exact
 partition substitution, but correctly has no one-to-one identity reshuffles:
 aggregate conservation does not establish that either input equals a particular
-output. Terminal Psi therefore adds a fingerprinted machine-local entry-claim
+output. Terminal semantic v14 adds a fingerprinted machine-local entry-claim
 binding containing dense claim identity, projection, algebra, and entry
 structural place, with no output and no equality assertion. Partition
 compositions reference those bindings; `ContentIdentityReshuffle` remains the
 one-to-one equality case. Validation requires one canonical binding per claim
-identity and permits other content axioms to reference the same semantic
-subject. The producer remains fail-closed until the semantic version, codec,
-verifier, proof adapter, and producer land together.
+identity, rejects duplicate or overlapping entry subjects, and permits content
+axioms to reference the same semantic subject. The proof adapter does not turn
+the binding itself into an axiom. The checked producer retains exact
+claim-to-entry-place rows, emits dense v14 bindings for reshuffle and
+partition-only claims, and remains fail-closed on ambiguous bindings.
 
-Correction checkpoint (2026-08-02): checked-to-terminal content production now
+Correction checkpoint (2026-08-03): checked-to-terminal content production now
 lives in `psi-checked-trees-to-terminal`. It consumes Psi-owned checked facts;
-the v9-v12 terminal vocabulary, canonical codec, and verifier remain Psi-owned
+the v9-v14 terminal vocabulary, canonical codec, and verifier remain Psi-owned
 and source-independent. The deleted Omega-to-Psi translator must not return.
 
 These normalized obligations are semantic and fingerprinted. Their proof
@@ -484,19 +491,24 @@ version 8 adds `SaturatingIntegerMultiply`; version 9 adds proof-only
 structural places and content-conservation propositions; version 10 adds
 canonical identity-preserving claim reshuffles; version 11 adds stable sum-case
 content-path segments; version 12 adds exact authored-partition substitution
-rows; and current version 13 adds the ordered Boolean conditional terminator.
+rows; version 13 adds the ordered Boolean conditional terminator; and current
+version 14 adds canonical machine-local entry-claim bindings without asserting
+an output equality.
 The arithmetic operations require two already defined operands of the exact
 result integer type and have distinct canonical recursive proposition terms for
 their exact logical results. Validation and execution continue to accept valid
-v1/v2/v3/v4/v5/v6/v7/v8/v9/v10 modules under their original meaning, while an older
-module cannot claim a later operation or proposition tag.
-`migrate_module_to_current` is an explicit validated older-to-v13 translation:
-it preserves the graph and obligations, changes the version field, and therefore
-creates new canonical bytes and a new semantic fingerprint. An unchanged proof
-bundle retains its separate bytes and identity but is verified again against the
-migrated module. Golden tests retain the archived v1 through v12 fingerprints
-and independently freeze the current v13 fingerprint, v10 identity-reshuffle
-fixture, v11 sum-case fixture, and v12 partition-composition fixture.
+v1 through v13 modules under their original meaning, while an older module
+cannot claim a later operation, control form, or evidence row.
+`migrate_module_to_current` is an explicit validated older-to-v14 translation.
+For v10-v13 content rows it derives the new entry bindings from the already
+validated reshuffles and remaps claim references into dense machine-local IDs;
+it otherwise preserves the graph and obligations. Migration creates new
+canonical bytes and a new semantic fingerprint. An unchanged proof bundle
+retains its separate bytes and identity but is verified again against the
+migrated module. Golden tests retain the archived v1 through v13 fingerprints
+and independently freeze the current v14 fingerprint, v10 identity-reshuffle
+fixture, v11 sum-case fixture, v12 partition-composition fixture, and v14
+entry-claim fixture.
 
 The same codec gives proof bundles their own canonical `PSIPRF` bytes and golden
 fingerprint. Proof format v1 remains the minimal frozen encoding for the
@@ -678,7 +690,7 @@ generic installation ladder. Migrating the Cathedral hard-root graph remains.
    proof bytes and role-separated semantic/proof/install/debug manifest hashes
    are also live. Semantic migration is exercised: archived v1 and v2 bytes
    retain their identities and migrate explicitly into separately fingerprinted
-   current-v13 modules; archived v3 wrapping-add, v4 saturating-add, v5
+   current-v14 modules; archived v3 wrapping-add, v4 saturating-add, v5
    wrapping-subtract, v6 saturating-subtract, and v7 wrapping-multiply
    identities plus the v8 saturating-multiply identity are frozen as well. Typed
    installation records, the canonical typed debug/source-map schema, and

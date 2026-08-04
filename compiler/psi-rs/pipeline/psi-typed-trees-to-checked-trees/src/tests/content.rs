@@ -558,6 +558,14 @@ fn checked_facts_compose_authored_partitions_through_a_direct_wrapper() {
     );
     assert_eq!(forward_row.call_ordinal, 0);
     assert_eq!(forward_row.input_claim_identities.len(), 2);
+    assert_eq!(forward_row.input_claim_bindings.len(), 2);
+    assert!(forward_row.input_claim_bindings.iter().all(|binding| {
+        binding.entry_place.version == ContentPlaceVersion::Entry
+            && matches!(binding.entry_place.root, ContentPlaceRoot::Parameter { .. })
+            && forward_row
+                .input_claim_identities
+                .contains(&binding.claim_identity)
+    }));
     assert!(forward_row.result_rewrites.is_empty());
     assert_eq!(
         forward_row.substitutions.len(),

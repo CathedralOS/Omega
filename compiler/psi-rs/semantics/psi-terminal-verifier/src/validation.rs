@@ -58,6 +58,7 @@ pub fn validate_module(
             | SemanticVersion::V11
             | SemanticVersion::V12
             | SemanticVersion::V13
+            | SemanticVersion::V14
     ) {
         return Err(ModuleError::UnsupportedSemanticVersion(
             module.semantic_version,
@@ -134,6 +135,13 @@ fn validate_machine(
                 actual: semantic_version,
             },
         );
+    }
+    if semantic_version < SemanticVersion::V14 && !machine.content_entry_claims.is_empty() {
+        return Err(ModuleError::ContentEntryClaimsRequireSemanticVersion {
+            machine: machine.id,
+            required: SemanticVersion::V14,
+            actual: semantic_version,
+        });
     }
     if semantic_version < SemanticVersion::V12 && !machine.content_partition_compositions.is_empty()
     {
@@ -342,6 +350,13 @@ fn validate_machine(
             .map(|place| (place.id, place.kind)),
     )
     .map_err(ModuleError::MalformedProposition)?;
+    validate_content_entry_claims(
+        machine,
+        semantic_version,
+        registry,
+        &structural_place_kinds,
+        &context,
+    )?;
     validate_content_identity_reshuffles(
         machine,
         semantic_version,
@@ -406,6 +421,96 @@ fn validate_machine(
     validate_control_flow(machine, &blocks, &value_types)
 }
 
+fn validate_content_entry_claims(
+    machine: &TerminalMachine,
+    semantic_version: SemanticVersion,
+    registry: &mut IdRegistry,
+    structural_place_kinds: &BTreeMap<PlaceId, StructuralPlaceKind>,
+    context: &PropositionContext,
+) -> Result<(), ModuleError> {
+    if semantic_version < SemanticVersion::V14 {
+        return Ok(());
+    }
+    let mut inputs = BTreeSet::<ContentStructuralPlace>::new();
+    for (index, binding) in machine.content_entry_claims.iter().enumerate() {
+        let expected = ClaimId::new(
+            u64::try_from(index)
+                .expect("an in-memory claim count fits u64")
+                .checked_add(1)
+                .expect("an in-memory claim count cannot exhaust u64"),
+        )
+        .expect("dense claim identities begin at one");
+        if binding.claim != expected {
+            return Err(ModuleError::NonDenseContentEntryClaim {
+                expected,
+                actual: binding.claim,
+            });
+        }
+        if binding.projections.is_empty() {
+            return Err(ModuleError::ContentEntryClaimHasNoProjections(
+                binding.claim,
+            ));
+        }
+        if binding
+            .projections
+            .windows(2)
+            .any(|pair| pair[0] >= pair[1])
+        {
+            return Err(ModuleError::NonCanonicalContentEntryProjectionOrder(
+                binding.claim,
+            ));
+        }
+        if binding.input.version != psi_core::ContentPlaceVersion::Entry
+            || !matches!(
+                structural_place_kinds.get(&binding.input.root),
+                Some(StructuralPlaceKind::Parameter { .. })
+            )
+        {
+            return Err(ModuleError::ContentEntryClaimRequiresEntryParameter(
+                binding.claim,
+            ));
+        }
+        if inputs.contains(&binding.input) {
+            return Err(ModuleError::DuplicateContentEntryClaimInput(
+                binding.input.clone(),
+            ));
+        }
+        if let Some(previous) = inputs
+            .iter()
+            .find(|previous| content_places_overlap(previous, &binding.input))
+        {
+            return Err(ModuleError::OverlappingContentEntryClaimInput {
+                first: previous.clone(),
+                second: binding.input.clone(),
+            });
+        }
+        inputs.insert(binding.input.clone());
+        for content in &binding.projections {
+            if let Some(previous) = registry
+                .content_projection_algebras
+                .insert(content.projection, content.algebra.clone())
+                && previous != content.algebra
+            {
+                return Err(ModuleError::ContentProjectionAlgebraMismatch(
+                    content.projection,
+                ));
+            }
+            let term = ContentTerm::Projection {
+                projection: content.projection,
+                subject: binding.input.clone(),
+            };
+            context
+                .validate(&Proposition::ContentConservation(ContentConservation::new(
+                    content.algebra.clone(),
+                    term.clone(),
+                    term,
+                )))
+                .map_err(ModuleError::MalformedProposition)?;
+        }
+    }
+    Ok(())
+}
+
 fn validate_content_identity_reshuffles(
     machine: &TerminalMachine,
     semantic_version: SemanticVersion,
@@ -422,6 +527,22 @@ fn validate_content_identity_reshuffles(
             return Err(ModuleError::ContentIdentityReshuffleHasNoProjections(
                 reshuffle.claim,
             ));
+        }
+        if semantic_version >= SemanticVersion::V14 {
+            let Some(binding) = machine
+                .content_entry_claims
+                .iter()
+                .find(|binding| binding.claim == reshuffle.claim)
+            else {
+                return Err(ModuleError::ContentIdentityClaimHasNoEntryBinding(
+                    reshuffle.claim,
+                ));
+            };
+            if binding.input != reshuffle.input || binding.projections != reshuffle.projections {
+                return Err(ModuleError::ContentIdentityEntryBindingMismatch(
+                    reshuffle.claim,
+                ));
+            }
         }
         if semantic_version < SemanticVersion::V11
             && reshuffle
@@ -627,28 +748,42 @@ fn validate_content_partition_compositions(
             if subject.version != psi_core::ContentPlaceVersion::Entry {
                 continue;
             }
-            let matching = machine
-                .content_identity_reshuffles
-                .iter()
-                .filter(|reshuffle| {
-                    reshuffle.input == subject
-                        && reshuffle.projections.iter().any(|content| {
-                            content.projection == projection
-                                && content.algebra == *composition.derived.algebra()
-                        })
-                })
-                .collect::<Vec<_>>();
-            let [reshuffle] = matching.as_slice() else {
+            let matching = if semantic_version >= SemanticVersion::V14 {
+                machine
+                    .content_entry_claims
+                    .iter()
+                    .filter(|binding| {
+                        binding.input == subject
+                            && binding.projections.iter().any(|content| {
+                                content.projection == projection
+                                    && content.algebra == *composition.derived.algebra()
+                            })
+                    })
+                    .map(|binding| binding.claim)
+                    .collect::<Vec<_>>()
+            } else {
+                machine
+                    .content_identity_reshuffles
+                    .iter()
+                    .filter(|reshuffle| {
+                        reshuffle.input == subject
+                            && reshuffle.projections.iter().any(|content| {
+                                content.projection == projection
+                                    && content.algebra == *composition.derived.algebra()
+                            })
+                    })
+                    .map(|reshuffle| reshuffle.claim)
+                    .collect::<Vec<_>>()
+            };
+            let [claim] = matching.as_slice() else {
                 return Err(ModuleError::ContentPartitionInputProjectionNotClaimBound(
                     subject,
                 ));
             };
-            if !listed_claims.contains(&reshuffle.claim) {
-                return Err(ModuleError::ContentPartitionInputClaimNotListed(
-                    reshuffle.claim,
-                ));
+            if !listed_claims.contains(claim) {
+                return Err(ModuleError::ContentPartitionInputClaimNotListed(*claim));
             }
-            used_claims.insert(reshuffle.claim);
+            used_claims.insert(*claim);
         }
         if used_claims != listed_claims {
             return Err(ModuleError::ContentPartitionInputClaimUnused);
@@ -1483,6 +1618,11 @@ pub enum ModuleError {
         required: SemanticVersion,
         actual: SemanticVersion,
     },
+    ContentEntryClaimsRequireSemanticVersion {
+        machine: MachineId,
+        required: SemanticVersion,
+        actual: SemanticVersion,
+    },
     ContentPartitionCompositionsRequireSemanticVersion {
         machine: MachineId,
         required: SemanticVersion,
@@ -1493,7 +1633,21 @@ pub enum ModuleError {
         required: SemanticVersion,
         actual: SemanticVersion,
     },
+    NonDenseContentEntryClaim {
+        expected: ClaimId,
+        actual: ClaimId,
+    },
+    ContentEntryClaimHasNoProjections(ClaimId),
+    NonCanonicalContentEntryProjectionOrder(ClaimId),
+    ContentEntryClaimRequiresEntryParameter(ClaimId),
+    DuplicateContentEntryClaimInput(ContentStructuralPlace),
+    OverlappingContentEntryClaimInput {
+        first: ContentStructuralPlace,
+        second: ContentStructuralPlace,
+    },
     ContentIdentityReshuffleHasNoProjections(ClaimId),
+    ContentIdentityClaimHasNoEntryBinding(ClaimId),
+    ContentIdentityEntryBindingMismatch(ClaimId),
     NonCanonicalContentIdentityProjectionOrder(ClaimId),
     ContentIdentityReshuffleRequiresEntryParameter(ClaimId),
     ContentIdentityReshuffleRequiresCurrentResult(ClaimId),

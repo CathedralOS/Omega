@@ -6,10 +6,10 @@ use psi_core::{
     StructuralPlaceKind, ValueId,
 };
 use psi_terminal::{
-    Block, ClaimContentProjection, ContentIdentityReshuffle, ContentPartitionComposition,
-    ContentPlaceSubstitution, ContractClause, MachineContract, Operation, OperationKind,
-    SemanticVersion, StructuralPlaceDeclaration, TerminalMachine, TerminalModule, Terminator,
-    ValueDeclaration,
+    Block, ClaimContentProjection, ContentEntryClaim, ContentIdentityReshuffle,
+    ContentPartitionComposition, ContentPlaceSubstitution, ContractClause, MachineContract,
+    Operation, OperationKind, SemanticVersion, StructuralPlaceDeclaration, TerminalMachine,
+    TerminalModule, Terminator, ValueDeclaration,
 };
 use psi_terminal_codec::{
     CodecError, decode_module, encode_module, migrate_module_to_current, semantic_fingerprint,
@@ -30,11 +30,21 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.semantic_version, SemanticVersion::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "6cc8107a9a366b943151ecf8c766065d77d4ea1bb9c3b62c5603471e2e25e6e6"
+        "b11e8ba98262fcdabafac23a4941aa11c18b1293e53758957d839345c01c4fcc"
     );
     assert_eq!(
         identity.program_fingerprint,
         semantic_fingerprint(&module).unwrap()
+    );
+}
+
+#[test]
+fn archived_v13_current_fixture_keeps_its_identity() {
+    let mut module = fixture();
+    module.semantic_version = SemanticVersion::V13;
+    assert_eq!(
+        semantic_fingerprint(&module).unwrap().to_string(),
+        "6cc8107a9a366b943151ecf8c766065d77d4ea1bb9c3b62c5603471e2e25e6e6"
     );
 }
 
@@ -72,6 +82,20 @@ fn v10_identity_reshuffle_has_stable_canonical_bytes() {
         semantic_fingerprint(&module).unwrap().to_string(),
         "fdc2ff2c3593417f7faafa02d171028f2d417b1f248694596fc015005ce9f28e"
     );
+
+    let mut sparse = module;
+    sparse.machines[0].content_identity_reshuffles[0].claim = claim_id(9);
+    let migrated = migrate_module_to_current(&sparse).expect("v10 reshuffle migrates to v14");
+    assert_eq!(migrated.semantic_version, SemanticVersion::V14);
+    assert_eq!(migrated.machines[0].content_entry_claims.len(), 1);
+    assert_eq!(
+        migrated.machines[0].content_entry_claims[0].claim,
+        claim_id(1)
+    );
+    assert_eq!(
+        migrated.machines[0].content_identity_reshuffles[0].claim,
+        claim_id(1)
+    );
 }
 
 #[test]
@@ -107,6 +131,53 @@ fn v12_partition_composition_has_stable_canonical_bytes() {
     assert_eq!(
         semantic_fingerprint(&module).unwrap().to_string(),
         "f05e8d1d90585767fdb80846f8022699286fa85f1eccc8fc2680d5d1d58792ec"
+    );
+
+    let migrated = migrate_module_to_current(&module).expect("v12 partition migrates to v14");
+    assert_eq!(migrated.machines[0].content_entry_claims.len(), 1);
+    assert_eq!(
+        migrated.machines[0].content_partition_compositions[0].input_claims,
+        vec![claim_id(1)]
+    );
+}
+
+#[test]
+fn v14_entry_claim_has_stable_canonical_bytes() {
+    let module = entry_claim_fixture();
+    let bytes = encode_module(&module).expect("v14 entry claim should encode");
+
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
+    assert_eq!(
+        semantic_fingerprint(&module).unwrap().to_string(),
+        "2bc16f09bad47a02b07f524ece5f7880886ab0fd0374e4c30b0ba7612251f67e"
+    );
+}
+
+#[test]
+fn entry_claim_encoding_is_v14_and_canonically_ordered() {
+    let mut old = entry_claim_fixture();
+    old.semantic_version = SemanticVersion::V13;
+    assert!(matches!(
+        encode_module(&old),
+        Err(CodecError::InvalidModule(
+            psi_terminal_verifier::ModuleError::ContentEntryClaimsRequireSemanticVersion {
+                required: SemanticVersion::V14,
+                actual: SemanticVersion::V13,
+                ..
+            }
+        ))
+    ));
+
+    let mut projections = entry_claim_fixture();
+    projections.machines[0].content_entry_claims[0]
+        .projections
+        .swap(0, 1);
+    assert_eq!(
+        encode_module(&projections),
+        Err(CodecError::NonCanonicalOrder(
+            "entry-claim content projections by identity and algebra"
+        ))
     );
 }
 
@@ -819,6 +890,7 @@ fn fixture() -> TerminalModule {
                 scalar_type,
             },
             structural_places: Vec::new(),
+            content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
             content_partition_compositions: Vec::new(),
             entry: block_id(1),
@@ -909,6 +981,7 @@ fn boolean_fixture(semantic_version: SemanticVersion) -> TerminalModule {
                 scalar_type: ScalarType::Boolean,
             },
             structural_places: Vec::new(),
+            content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
             content_partition_compositions: Vec::new(),
             entry: block_id(10),
@@ -991,6 +1064,7 @@ fn content_conservation_fixture(semantic_version: SemanticVersion) -> TerminalMo
                     kind: StructuralPlaceKind::Result,
                 },
             ],
+            content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
             content_partition_compositions: Vec::new(),
             entry: block_id(80),
@@ -1053,6 +1127,17 @@ fn identity_reshuffle_fixture(semantic_version: SemanticVersion) -> TerminalModu
                 },
             },
         ],
+    }];
+    module
+}
+
+fn entry_claim_fixture() -> TerminalModule {
+    let mut module = identity_reshuffle_fixture(SemanticVersion::V14);
+    let reshuffle = module.machines[0].content_identity_reshuffles[0].clone();
+    module.machines[0].content_entry_claims = vec![ContentEntryClaim {
+        claim: reshuffle.claim,
+        input: reshuffle.input,
+        projections: reshuffle.projections,
     }];
     module
 }
@@ -1162,6 +1247,7 @@ fn wrapping_add_fixture(semantic_version: SemanticVersion) -> TerminalModule {
                 scalar_type,
             },
             structural_places: Vec::new(),
+            content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
             content_partition_compositions: Vec::new(),
             entry: block_id(20),

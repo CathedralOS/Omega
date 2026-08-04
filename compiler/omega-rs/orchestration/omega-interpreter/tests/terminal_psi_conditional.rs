@@ -252,6 +252,7 @@ fn conditional_module(semantic_version: SemanticVersion) -> TerminalModule {
             ],
             result: declaration(4, integer),
             structural_places: Vec::new(),
+            content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
             content_partition_compositions: Vec::new(),
             entry: BlockId::new(1).unwrap(),

@@ -213,7 +213,8 @@ requires each projected call-result claim to reach one unique result path.
 Fixed-point reuse records the source theorem's wrapper-derivation depth so a
 later boundary cannot mistake a derived theorem for an authored one.
 The derivation retains the source fingerprint, call site, input claim
-identities, result rewrite rows, and the substituted equation,
+identities, their exact caller-entry structural-place bindings, result rewrite
+rows, and the substituted equation,
 while preserving rather than creating the theorem's `separate(...)` tree.
 Sealed frontier rows remain implementation work. Terminal semantic v12
 remains direct-wrapper-only: a checked row with staged-result rewrite evidence
@@ -221,9 +222,11 @@ or a nonzero source-derivation depth fails closed at terminal production until
 reviewed terminal vocabulary can carry and revalidate that intermediate or
 transitive evidence. For direct rows v12 retains
 the exact source theorem, its fingerprint, dense input-claim references, the
-total place substitution, and the derived equation. The verifier binds every substituted
-entry projection to a listed identity-reshuffle claim, replays the substitution,
-and exposes only the replayed theorem as a semantic axiom.
+total place substitution, and the derived equation. Current terminal semantic
+v14 additionally retains dense machine-local entry-claim bindings with exact
+projection and algebra identity. The verifier binds every substituted entry
+projection to a listed entry claim, replays the substitution, and exposes only
+the replayed theorem—not the binding itself—as a semantic axiom.
 
 ### Content-bearing claims
 

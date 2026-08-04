@@ -164,6 +164,7 @@ fn fixture() -> (TerminalModule, ProofBundle) {
                 scalar_type,
             },
             structural_places: Vec::new(),
+            content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
             content_partition_compositions: Vec::new(),
             entry: block_id(1),
