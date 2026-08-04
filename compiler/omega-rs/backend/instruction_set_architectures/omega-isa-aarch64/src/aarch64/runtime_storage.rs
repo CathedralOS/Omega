@@ -3236,6 +3236,14 @@ pub fn runtime_storage_copy_to_runtime_frame_indexed_clobbers() -> RegisterSet {
     runtime_storage_copy_from_runtime_frame_indexed_clobbers()
 }
 
+/// Exact scratch footprint of the frame-indexed-source to frame-held-pointee
+/// encoder. It forms the same indexed address, then reuses x20 for the target
+/// pointee, without introducing another scratch register.
+pub fn runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee_clobbers() -> RegisterSet
+{
+    runtime_storage_copy_from_runtime_frame_indexed_clobbers()
+}
+
 /// Offset of the second page-pair in the to-runtime-storage variant. A
 /// frame-to-frame copy reuses the opening frame base and has no second site.
 pub fn runtime_storage_copy_from_runtime_frame_indexed_target_address_offset(
@@ -7310,6 +7318,14 @@ mod tests {
     fn to_indexed_clobbers_match_the_frame_index_address_contract() {
         assert_eq!(
             runtime_storage_copy_to_runtime_frame_indexed_clobbers(),
+            runtime_storage_copy_from_runtime_frame_indexed_clobbers()
+        );
+    }
+
+    #[test]
+    fn indexed_to_pointee_clobbers_match_the_frame_index_address_contract() {
+        assert_eq!(
+            runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee_clobbers(),
             runtime_storage_copy_from_runtime_frame_indexed_clobbers()
         );
     }
