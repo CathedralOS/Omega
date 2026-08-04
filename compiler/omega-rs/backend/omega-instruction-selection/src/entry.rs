@@ -733,6 +733,14 @@ pub fn derive_boundary_compiler_body_place_copy_footprint<'instruction>(
                 outer_index_region,
                 inner_index_region,
             ),
+            (
+                omega_target::Architecture::X86_64,
+                crate::CopyPlacesShape::MachineIndexedPair { .. },
+            ) => omega_isa_x86_64::copy_places_machine_indexed_pair_clobbers(*byte_count),
+            (
+                omega_target::Architecture::Aarch64,
+                crate::CopyPlacesShape::MachineIndexedPair { .. },
+            ) => omega_isa_aarch64::runtime_storage_copy_machine_indexed_to_machine_indexed_clobbers(),
             _ => continue,
         };
         registers.extend_from_slice(clobbers.as_slice());
@@ -2457,6 +2465,49 @@ mod tests {
             &[
                 MachineRegister::X86Rax,
                 MachineRegister::X86R10,
+                MachineRegister::X86R11,
+                MachineRegister::X86R14,
+                MachineRegister::X86R15,
+            ]
+        );
+    }
+
+    #[test]
+    fn compiler_body_machine_indexed_pair_reuses_one_x86_index_scratch() {
+        let boundary = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::SystemVAMD64,
+            &CallSignature {
+                parameters: Vec::new(),
+                result: None,
+            },
+        )
+        .expect("System V boundary");
+        let indexed = |base_offset, index_offset| {
+            omega_abstract_operations::Place::at(
+                omega_abstract_operations::RuntimeStorageRegion::Machine,
+                base_offset,
+            )
+            .with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+                index_region: omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+                index_offset,
+                index_byte_size: 8,
+                element_byte_size: 4,
+            })
+            .expect("machine indexed place")
+        };
+        let instruction = SelectedInstructionKind::CopyPlaces {
+            source: indexed(32, 40),
+            target: indexed(32, 48),
+            byte_count: 4,
+            role: omega_abstract_operations::CopyPlacesRole::Ordinary,
+        };
+        let evidence =
+            derive_boundary_compiler_body_place_copy_footprint(&boundary, [&instruction])
+                .expect("ordinary machine-indexed-pair evidence");
+        assert_eq!(
+            evidence.registers().as_slice(),
+            &[
+                MachineRegister::X86Rax,
                 MachineRegister::X86R11,
                 MachineRegister::X86R14,
                 MachineRegister::X86R15,

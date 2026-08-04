@@ -1162,7 +1162,8 @@ direct frame storage and from inline machine arrays into direct frame or
 machine storage are included too, together with direct-storage writes into
 runtime-indexed machine-array elements and double-runtime-indexed reads from
 inline frame or machine arrays. Their `Ordinary` role remains distinct from
-hidden-result copies, and the machine-array write-side mirror is included.
+hidden-result copies, and the machine-array write-side mirror plus the
+machine-inline `arr[i] = arr[j]` pair are included.
 Final validation replays the exact target encoder
 and relocation set and matches the derived scratch union to the
 retained `CompilerBodyPlaceCopy` fragment. Other ordinary copy/write shapes and

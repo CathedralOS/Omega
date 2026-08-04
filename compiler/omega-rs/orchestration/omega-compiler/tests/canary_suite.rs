@@ -1127,7 +1127,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         executable_regions.contains(
             "\"certificate_schema\": \"omega.final-footprint-certificate\""
         )
-            && executable_regions.contains("\"certificate_format_version\": 27")
+            && executable_regions.contains("\"certificate_format_version\": 28")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
             && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")
@@ -2038,6 +2038,50 @@ fn compiler_body_to_machine_double_indexed_copy_footprints_reach_x86_and_aarch64
                 && footprints.contains(expected_register)
                 && footprints.contains("\"enumeration_complete\": false"),
             "{target} artifact must retain the ordinary to-machine-double-indexed footprint without claiming completeness"
+        );
+        let _ = fs::remove_dir_all(&scratch);
+    }
+}
+
+#[test]
+fn compiler_body_machine_indexed_pair_copy_footprints_reach_x86_and_aarch64_artifacts() {
+    let canary = pass_canary("collections/runtime_dual_indexed_copy_exit");
+    for (target, expected_register) in [
+        ("linux_x64", "\"X86R11\""),
+        ("linux_arm64", "\"Aarch64X(24)\""),
+    ] {
+        let scratch = std::env::temp_dir().join(format!(
+            "omega-compiler-body-machine-indexed-pair-footprint-{target}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&scratch);
+        let source = scratch.join("src");
+        let output = scratch.join("out");
+        fs::create_dir_all(&source)
+            .expect("create compiler-body machine-indexed-pair source directory");
+        fs::copy(canary.join("main.omg"), source.join("main.omg"))
+            .expect("copy compiler-body machine-indexed-pair canary");
+        fs::write(
+            source.join("build.omg"),
+            format!("target {target} {{\n}}\n"),
+        )
+        .expect("write compiler-body machine-indexed-pair target");
+        compile(CompileOptions {
+            root_path: source.join("main.omg"),
+            build_dir: Some(output.clone()),
+            target_name: Some(target.into()),
+            write_output: true,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!("compiler-body machine-indexed-pair copy should compile for {target}: {diagnostics:?}")
+        });
+        let footprints = fs::read_to_string(output.join("08_boundary_footprints.json"))
+            .expect("compiler-body machine-indexed-pair footprint evidence should be written");
+        assert!(
+            footprints.contains("\"origin\": \"compiler_body_place_copy\"")
+                && footprints.contains(expected_register)
+                && footprints.contains("\"enumeration_complete\": false"),
+            "{target} artifact must retain the ordinary machine-indexed-pair footprint without claiming completeness"
         );
         let _ = fs::remove_dir_all(&scratch);
     }

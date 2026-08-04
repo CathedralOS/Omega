@@ -1048,8 +1048,9 @@ The frame-indexed-source to frame-held-pointee form is included as well.
 Runtime-indexed reads from inline frame arrays into direct frame storage are
 also covered, as are inline machine-array reads into direct frame or machine
 storage and direct-storage writes into runtime-indexed machine-array elements.
-Double-runtime-indexed reads from inline frame or machine arrays and the
-machine-array write-side mirror are covered too.
+Double-runtime-indexed reads from inline frame or machine arrays, the
+machine-array write-side mirror, and the machine-inline `arr[i] = arr[j]` pair
+are covered too.
 Selection retains their separate `compiler_body_place_copy` evidence only for
 the `Ordinary` role; final validation regenerates the same place-copy bytes,
 checks the storage, pointer-slot, and index relocations, and requires the target
