@@ -1085,7 +1085,9 @@ call or data offsets. An incompatible import plan therefore rejects relocation
 planning instead of letting offset helpers reconstruct catalog- or
 architecture-shaped placement; absence is excluded by the selected binding
 carrier itself. Compiler-materialized host constants remain
-outside this rule because they have no foreign call or selected binding.
+outside this rule because they have no foreign call or selected binding. Their
+sole result-place relocation uses dedicated fixed non-boundary geometry rather
+than entering the compatibility ABI oracle.
 
 The unused x86-64 call/data relocation wrappers that silently selected
 Microsoft x64 are now retired. The object relocation walk also no longer makes

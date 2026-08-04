@@ -3,7 +3,7 @@ use crate::data_address_records::insert_data_address_relocations;
 use crate::lookups::find_host_binding;
 use crate::offsets::FieldModelCallShape;
 use crate::offsets::{
-    data_address_relocation_offset_for_target_no_plan,
+    constant_result_data_relocation_offset_for_target,
     data_address_relocation_offset_for_target_with_plan,
 };
 use omega_calling_conventions::{HostBindingMechanism, HostOperationKey};
@@ -83,8 +83,8 @@ pub(super) fn collect_data_address_relocations(
                 relocation_plan,
                 function_symbol_handle,
                 selected_instruction_index,
-                match authoritative_plan {
-                    Some(plan) => data_address_relocation_offset_for_target_with_plan(
+                match selected_binding {
+                    Some(binding) => data_address_relocation_offset_for_target_with_plan(
                         input.target,
                         operation_key,
                         operands,
@@ -93,17 +93,11 @@ pub(super) fn collect_data_address_relocations(
                         is_syscall,
                         field_model_shape,
                         authored_import,
-                        plan,
+                        binding.call_plan(),
                     ),
-                    None => data_address_relocation_offset_for_target_no_plan(
+                    None => constant_result_data_relocation_offset_for_target(
                         input.target,
-                        operation_key,
-                        operands,
                         selected_text_offset,
-                        operand_index,
-                        is_syscall,
-                        field_model_shape,
-                        authored_import,
                     ),
                 },
                 symbol,
@@ -156,8 +150,8 @@ pub(super) fn collect_data_address_relocations(
                 relocation_plan,
                 function_symbol_handle,
                 selected_instruction_index,
-                match authoritative_plan {
-                    Some(plan) => data_address_relocation_offset_for_target_with_plan(
+                match selected_binding {
+                    Some(binding) => data_address_relocation_offset_for_target_with_plan(
                         input.target,
                         operation_key,
                         operands,
@@ -166,17 +160,11 @@ pub(super) fn collect_data_address_relocations(
                         is_syscall,
                         field_model_shape,
                         authored_import,
-                        plan,
+                        binding.call_plan(),
                     ),
-                    None => data_address_relocation_offset_for_target_no_plan(
+                    None => constant_result_data_relocation_offset_for_target(
                         input.target,
-                        operation_key,
-                        operands,
                         selected_text_offset,
-                        operand_index,
-                        is_syscall,
-                        field_model_shape,
-                        authored_import,
                     ),
                 },
                 symbol,

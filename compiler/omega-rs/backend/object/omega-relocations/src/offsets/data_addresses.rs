@@ -39,7 +39,25 @@ pub(crate) fn data_address_relocation_offset_for_target_with_plan(
     )
 }
 
+/// Return the one data relocation owned by a selected constant-result row.
+///
+/// Constant-result lowering has no boundary call and therefore no `CallPlan`.
+/// Keep that fixed instruction geometry separate from the compatibility ABI
+/// oracle so production relocation cannot mistake absent boundary evidence for
+/// permission to reconstruct a call layout.
+pub(crate) fn constant_result_data_relocation_offset_for_target(
+    target: NativeTarget,
+    selected_text_offset: usize,
+) -> usize {
+    selected_text_offset
+        + match target.architecture {
+            Architecture::Aarch64 => 16,
+            Architecture::X86_64 => 12,
+        }
+}
+
 #[allow(clippy::too_many_arguments)]
+#[allow(dead_code)]
 pub(crate) fn data_address_relocation_offset_for_target_no_plan(
     target: NativeTarget,
     operation_key: Option<HostOperationKey>,
@@ -608,8 +626,8 @@ fn data_address_relocation_offset_for_plan(
 #[cfg(test)]
 mod tests {
     use super::{
-        FieldModelCallShape, data_address_relocation_offset,
-        data_address_relocation_offset_for_target_no_plan,
+        FieldModelCallShape, constant_result_data_relocation_offset_for_target,
+        data_address_relocation_offset, data_address_relocation_offset_for_target_no_plan,
         data_address_relocation_offset_for_target_with_plan,
     };
     use omega_assigned_target_operations::{InstructionOperand, InstructionOperandKind};
@@ -642,6 +660,18 @@ mod tests {
                 kind: InstructionOperandKind::ImmediateInteger(0o644),
             },
         ]
+    }
+
+    #[test]
+    fn constant_result_relocation_uses_its_non_boundary_geometry() {
+        assert_eq!(
+            constant_result_data_relocation_offset_for_target(NativeTarget::linux_arm64(), 20,),
+            36
+        );
+        assert_eq!(
+            constant_result_data_relocation_offset_for_target(NativeTarget::windows_x64(), 20,),
+            32
+        );
     }
 
     #[test]
