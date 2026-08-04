@@ -339,6 +339,48 @@ fn compiler_instruction_validation_kind(
                 byte_size: *byte_size,
             },
         ),
+        SelectedInstructionKind::WriteEntryArgumentRegister {
+            register,
+            byte_offset,
+            byte_size,
+        } => Some(
+            CompilerInstructionValidationKind::EntryArgumentRegisterWrite {
+                register: *register,
+                byte_offset: *byte_offset,
+                byte_size: *byte_size,
+            },
+        ),
+        SelectedInstructionKind::WriteEntryStackArgument {
+            stack_byte_offset,
+            byte_offset,
+            byte_size,
+        } => Some(CompilerInstructionValidationKind::EntryStackArgumentWrite {
+            stack_byte_offset: *stack_byte_offset,
+            byte_offset: *byte_offset,
+            byte_size: *byte_size,
+        }),
+        SelectedInstructionKind::WriteEntryIndirectArgument {
+            pointer,
+            byte_offset,
+            byte_size,
+        } => Some(
+            CompilerInstructionValidationKind::EntryIndirectArgumentWrite {
+                pointer: *pointer,
+                byte_offset: *byte_offset,
+                byte_size: *byte_size,
+            },
+        ),
+        SelectedInstructionKind::WriteEntryArgumentsSliceDescriptor {
+            descriptor_offset,
+            spill_offset,
+            byte_length,
+        } => Some(
+            CompilerInstructionValidationKind::EntryArgumentsSliceDescriptorWrite {
+                descriptor_offset: *descriptor_offset,
+                spill_offset: *spill_offset,
+                byte_length: *byte_length,
+            },
+        ),
         SelectedInstructionKind::SetDispatchState { dispatch_index } => {
             Some(CompilerInstructionValidationKind::DispatchStateWrite {
                 dispatch_index: *dispatch_index,

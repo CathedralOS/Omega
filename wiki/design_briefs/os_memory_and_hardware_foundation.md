@@ -1027,6 +1027,12 @@ Direct exit-result register materialization is also replayed from normalized
 register/value or register/storage recipes. Relocated storage loads must name
 their retained region, and the resulting register union must equal the earlier
 `exit_result_registers` StatePlan fragment.
+Entry materialization is likewise replayed from normalized register, incoming-
+stack, indirect-pointer, and `args` slice-descriptor recipes. The validator
+requires the exact runtime-frame relocation site—including the later address
+site used after loading a stack-held indirect pointer—and requires the derived
+clobber unions to equal the earlier `entry_storage` and
+`entry_slice_descriptor` StatePlan fragments.
 Direct-image emission also validates the fixed encoder-owned function-entry
 prologue and return epilogue against the exact relocated entry-region bytes on
 x86-64 and AArch64 before publication. The inventory names this narrow
@@ -1044,7 +1050,7 @@ relocation-envelope fingerprints plus their composed derivation identity. The
 boundary/placement binding includes that derivation identity, so a valid final
 inventory cannot be paired with evidence from a different encoded-to-final
 derivation. The single emitted artifact is now self-described as
-`omega.final-footprint-certificate` format v1, with a domain-separated
+`omega.final-footprint-certificate` format v12, with a domain-separated
 certificate fingerprint over its final placement binding, compiler-text
 derivation, and region inventory. It remains explicitly incomplete evidence,
 not an admission certificate, until the missing footprint classes close. The
