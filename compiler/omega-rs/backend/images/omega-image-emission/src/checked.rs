@@ -2,7 +2,7 @@ use crate::dispatch::emit_executable_image;
 use crate::input::ExecutableImageInput;
 use omega_image::{
     CompilerFunctionValidationEvidence, CompilerTextValidationEvidence, EmittedImageOutput,
-    FinalExecutableRegionOrigin, PlacedExecutableRegionInventory,
+    PlacedExecutableRegionInventory,
 };
 use omega_object_file::{RelocationKind, RelocationPlan, SectionKind};
 use omega_target::Architecture;
@@ -22,7 +22,6 @@ pub fn emit_checked_executable_image(
     }
 
     let architecture = input.target.architecture;
-    let entry_symbol = omega_object_file::object_entry_symbol_name(input.object).to_owned();
     let encoded_text_bytes = input.text_bytes;
     if input.encoded_machine_code.bytes.storage_slice() != encoded_text_bytes {
         return Err(Diagnostic::error(
@@ -39,6 +38,7 @@ pub fn emit_checked_executable_image(
             relocations,
         )?;
         let compiler_function_validation = validate_compiler_function_instruction_boundaries(
+            architecture,
             encoded_machine_code,
             &emitted_output.final_text_bytes,
         )?;
@@ -86,16 +86,20 @@ pub fn emit_checked_executable_image(
             &mut derivation_fingerprint,
             &(compiler_function_validation.zero_width_instruction_count as u64).to_le_bytes(),
         );
+        fingerprint_into(
+            &mut derivation_fingerprint,
+            &(compiler_function_validation.fixed_mechanics_instruction_count as u64).to_le_bytes(),
+        );
+        fingerprint_into(
+            &mut derivation_fingerprint,
+            &compiler_function_validation
+                .fixed_mechanics_validation_fingerprint
+                .to_le_bytes(),
+        );
         compiler_text_validation.derivation_fingerprint = derivation_fingerprint;
         emitted_output.compiler_text_validation = Some(compiler_text_validation);
         emitted_output.compiler_function_validation = Some(compiler_function_validation);
         validate_executable_region_enumeration(&emitted_output.executable_regions)?;
-        validate_compiler_entry_call_return_bytes(
-            architecture,
-            &entry_symbol,
-            &emitted_output.final_text_bytes,
-            &emitted_output.executable_regions,
-        )?;
         return Ok(emitted_output);
     }
 
@@ -108,6 +112,7 @@ pub fn emit_checked_executable_image(
 /// placed text. Relocations may change instruction fields, so the retained
 /// spans own boundaries while the final bytes own the fingerprint.
 fn validate_compiler_function_instruction_boundaries(
+    architecture: Architecture,
     code: &omega_machine_bytes::EncodedMachineCode,
     final_text_bytes: &[u8],
 ) -> Result<CompilerFunctionValidationEvidence, Diagnostic> {
@@ -122,6 +127,8 @@ fn validate_compiler_function_instruction_boundaries(
     let mut expected_instruction_arena_index = 1u32;
     let mut instruction_count = 0usize;
     let mut zero_width_instruction_count = 0usize;
+    let mut fixed_mechanics_instruction_count = 0usize;
+    let mut fixed_mechanics_validation_fingerprint = 0xcbf2_9ce4_8422_2325u64;
 
     for (function_index, (_, function)) in code.functions.iter().enumerate() {
         if function.byte_offset != expected_byte_offset {
@@ -147,6 +154,19 @@ fn validate_compiler_function_instruction_boundaries(
                     "compiler function #{function_index} has an invalid encoded-instruction span"
                 ))
             })?;
+        if instructions
+            .first()
+            .and_then(|instruction| instruction.compiler_validation_kind)
+            != Some(omega_machine_bytes::CompilerInstructionValidationKind::FunctionEnter)
+            || instructions
+                .last()
+                .and_then(|instruction| instruction.compiler_validation_kind)
+                != Some(omega_machine_bytes::CompilerInstructionValidationKind::FunctionReturn)
+        {
+            return Err(Diagnostic::error(format!(
+                "compiler function #{function_index} does not retain exact entry and return validation rows"
+            )));
+        }
         if !function.instructions.is_empty()
             && function.instructions.start().arena_index() != expected_instruction_arena_index
         {
@@ -156,7 +176,7 @@ fn validate_compiler_function_instruction_boundaries(
         }
 
         let mut instruction_byte_offset = function.byte_offset;
-        for instruction in instructions {
+        for (instruction_index, instruction) in instructions.iter().enumerate() {
             let byte_count = instruction.bytes.len();
             fingerprint_into(
                 &mut fingerprint,
@@ -187,6 +207,56 @@ fn validate_compiler_function_instruction_boundaries(
                         instruction.selected_instruction_index
                     ))
                 })?;
+            if let Some(kind) = instruction.compiler_validation_kind {
+                let (expected_position, expected_bytes, kind_tag) = match kind {
+                    omega_machine_bytes::CompilerInstructionValidationKind::FunctionEnter => (
+                        0,
+                        match architecture {
+                            Architecture::X86_64 => {
+                                omega_isa_x86_64::encode_function_enter_bytes().to_vec()
+                            }
+                            Architecture::Aarch64 => {
+                                omega_isa_aarch64::encode_function_enter_bytes().to_vec()
+                            }
+                        },
+                        1u8,
+                    ),
+                    omega_machine_bytes::CompilerInstructionValidationKind::FunctionReturn => (
+                        instructions.len() - 1,
+                        match architecture {
+                            Architecture::X86_64 => {
+                                omega_isa_x86_64::encode_return_bytes().to_vec()
+                            }
+                            Architecture::Aarch64 => {
+                                omega_isa_aarch64::encode_return_bytes().to_vec()
+                            }
+                        },
+                        2u8,
+                    ),
+                };
+                if instruction_index != expected_position
+                    || final_text_bytes[instruction_byte_offset..instruction_end] != expected_bytes
+                {
+                    return Err(Diagnostic::error(format!(
+                        "compiler function #{function_index} instruction #{} does not match its fixed target call-return specification",
+                        instruction.selected_instruction_index
+                    )));
+                }
+                fingerprint_into(&mut fixed_mechanics_validation_fingerprint, &[kind_tag]);
+                fingerprint_into(
+                    &mut fixed_mechanics_validation_fingerprint,
+                    &(function_index as u64).to_le_bytes(),
+                );
+                fingerprint_into(
+                    &mut fixed_mechanics_validation_fingerprint,
+                    &(instruction_byte_offset as u64).to_le_bytes(),
+                );
+                fingerprint_into(
+                    &mut fixed_mechanics_validation_fingerprint,
+                    &final_text_bytes[instruction_byte_offset..instruction_end],
+                );
+                fixed_mechanics_instruction_count += 1;
+            }
             fingerprint_into(
                 &mut fingerprint,
                 &final_text_bytes[instruction_byte_offset..instruction_end],
@@ -234,6 +304,8 @@ fn validate_compiler_function_instruction_boundaries(
         function_count: code.functions.len(),
         instruction_count,
         zero_width_instruction_count,
+        fixed_mechanics_instruction_count,
+        fixed_mechanics_validation_fingerprint,
         validation_fingerprint: fingerprint,
     })
 }
@@ -1771,78 +1843,15 @@ fn fingerprint_into(fingerprint: &mut u64, bytes: &[u8]) {
     }
 }
 
-fn validate_compiler_entry_call_return_bytes(
-    architecture: Architecture,
-    entry_symbol: &str,
-    final_text_bytes: &[u8],
-    inventory: &PlacedExecutableRegionInventory,
-) -> Result<(), Diagnostic> {
-    let matching_entries = inventory
-        .regions
-        .iter()
-        .filter(|region| {
-            region.origin == FinalExecutableRegionOrigin::CompilerFunction
-                && region.symbol == entry_symbol
-        })
-        .collect::<Vec<_>>();
-    if matching_entries.len() != 1 {
-        return Err(Diagnostic::error(format!(
-            "final-byte validation requires exactly one compiler entry region named \
-             `{entry_symbol}`; found {}",
-            matching_entries.len()
-        )));
-    }
-    let entry = matching_entries[0];
-    let entry_end = entry
-        .section_offset
-        .checked_add(entry.byte_count)
-        .filter(|end| *end <= final_text_bytes.len())
-        .ok_or_else(|| {
-            Diagnostic::error(format!(
-                "compiler entry region `{entry_symbol}` exceeds relocated .text during final-byte validation"
-            ))
-        })?;
-    let bytes = &final_text_bytes[entry.section_offset..entry_end];
-    let (prologue, epilogue): (Vec<u8>, Vec<u8>) = match architecture {
-        Architecture::X86_64 => (
-            omega_isa_x86_64::encode_function_enter_bytes().to_vec(),
-            omega_isa_x86_64::encode_return_bytes().to_vec(),
-        ),
-        Architecture::Aarch64 => (
-            omega_isa_aarch64::encode_function_enter_bytes().to_vec(),
-            omega_isa_aarch64::encode_return_bytes().to_vec(),
-        ),
-    };
-    if bytes.len() < prologue.len() + epilogue.len() {
-        return Err(Diagnostic::error(format!(
-            "compiler entry region `{entry_symbol}` is too short for its fixed call-return mechanics"
-        )));
-    }
-    if !bytes.starts_with(&prologue) {
-        return Err(Diagnostic::error(format!(
-            "compiler entry region `{entry_symbol}` has invalid final function-entry bytes"
-        )));
-    }
-    if !bytes.ends_with(&epilogue) {
-        return Err(Diagnostic::error(format!(
-            "compiler entry region `{entry_symbol}` has invalid final function-return bytes"
-        )));
-    }
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::{
         emit_checked_executable_image, validate_checked_instruction_bytes,
-        validate_compiler_entry_call_return_bytes,
         validate_compiler_function_instruction_boundaries, validate_executable_region_enumeration,
         validate_final_text_relocation_envelope,
     };
     use crate::ExecutableImageInput;
-    use omega_image::{
-        FinalExecutableRegionOrigin, PlacedExecutableRegion, PlacedExecutableRegionInventory,
-    };
+    use omega_image::PlacedExecutableRegionInventory;
     use omega_object_file::{
         ObjectPlan, RelocationKind, RelocationOrigin, RelocationPlan, RelocationRecord, SectionKind,
     };
@@ -1874,50 +1883,6 @@ mod tests {
 
         assert!(diagnostic.message.contains("encoded 2 machine byte(s)"));
         assert!(diagnostic.message.contains("planned 4 byte(s)"));
-    }
-
-    #[test]
-    fn validates_fixed_call_return_mechanics_in_relocated_entry_bytes() {
-        let prologue = omega_isa_x86_64::encode_function_enter_bytes();
-        let epilogue = omega_isa_x86_64::encode_return_bytes();
-        let mut bytes = prologue
-            .into_iter()
-            .chain([0x90])
-            .chain(epilogue)
-            .collect::<Vec<_>>();
-        let inventory = PlacedExecutableRegionInventory {
-            text_address: 0x1000,
-            text_byte_count: bytes.len(),
-            text_fingerprint: 1,
-            inventory_fingerprint: 2,
-            regions: vec![PlacedExecutableRegion {
-                origin: FinalExecutableRegionOrigin::CompilerFunction,
-                section_offset: 0,
-                address: 0x1000,
-                byte_count: bytes.len(),
-                byte_fingerprint: 3,
-                symbol: "entry".into(),
-                footprint: None,
-            }],
-            unclassified_gaps: Vec::new(),
-        };
-
-        validate_compiler_entry_call_return_bytes(
-            omega_target::Architecture::X86_64,
-            "entry",
-            &bytes,
-            &inventory,
-        )
-        .expect("exact encoder-owned mechanics should validate");
-        bytes[0] ^= 0xff;
-        let diagnostic = validate_compiler_entry_call_return_bytes(
-            omega_target::Architecture::X86_64,
-            "entry",
-            &bytes,
-            &inventory,
-        )
-        .expect_err("mutated final mechanics must reject");
-        assert!(diagnostic.message.contains("function-entry bytes"));
     }
 
     #[test]
@@ -1970,41 +1935,80 @@ mod tests {
 
     #[test]
     fn compiler_functions_retain_a_complete_final_instruction_partition() {
-        use omega_machine_bytes::{EncodedMachineFunction, EncodedMachineInstruction};
+        use omega_machine_bytes::{
+            CompilerInstructionValidationKind, EncodedMachineFunction, EncodedMachineInstruction,
+        };
         use psi_arena::HandleSpan;
 
         let target = NativeTarget::linux_x64();
-        let mut plan = omega_machine_bytes::EncodedMachinePlan::with_capacity(target, 1, 2, 3);
-        let bytes = plan.code.bytes.insert_many([0x90, 0x90, 0xc3]);
+        let enter = omega_isa_x86_64::encode_function_enter_bytes();
+        let leave = omega_isa_x86_64::encode_return_bytes();
+        let final_bytes = enter.into_iter().chain(leave).collect::<Vec<_>>();
+        let mut plan =
+            omega_machine_bytes::EncodedMachinePlan::with_capacity(target, 1, 3, final_bytes.len());
+        let enter_bytes = plan.code.bytes.insert_many(enter);
+        let leave_bytes = plan.code.bytes.insert_many(leave);
         let first = plan.code.instructions.insert(EncodedMachineInstruction {
             selected_instruction_index: 4,
-            bytes,
+            bytes: enter_bytes,
+            compiler_validation_kind: Some(CompilerInstructionValidationKind::FunctionEnter),
             ..EncodedMachineInstruction::default()
         });
         plan.code.instructions.insert(EncodedMachineInstruction {
             selected_instruction_index: 5,
             ..EncodedMachineInstruction::default()
         });
+        plan.code.instructions.insert(EncodedMachineInstruction {
+            selected_instruction_index: 6,
+            bytes: leave_bytes,
+            compiler_validation_kind: Some(CompilerInstructionValidationKind::FunctionReturn),
+            ..EncodedMachineInstruction::default()
+        });
         let function = plan.code.functions.insert(EncodedMachineFunction {
             source_key: Default::default(),
             byte_offset: 0,
-            byte_count: 3,
-            instructions: HandleSpan::from_parts(first, 2),
+            byte_count: final_bytes.len(),
+            instructions: HandleSpan::from_parts(first, 3),
         });
-        plan.code.byte_count = 3;
+        plan.code.byte_count = final_bytes.len();
 
-        let evidence =
-            validate_compiler_function_instruction_boundaries(&plan.code, &[0x90, 0x90, 0xc3])
-                .expect("retained function rows should enumerate exact final boundaries");
+        let evidence = validate_compiler_function_instruction_boundaries(
+            omega_target::Architecture::X86_64,
+            &plan.code,
+            &final_bytes,
+        )
+        .expect("retained function rows should enumerate exact final boundaries");
         assert_eq!(evidence.function_count, 1);
-        assert_eq!(evidence.instruction_count, 2);
+        assert_eq!(evidence.instruction_count, 3);
         assert_eq!(evidence.zero_width_instruction_count, 1);
+        assert_eq!(evidence.fixed_mechanics_instruction_count, 2);
 
-        plan.code.functions.get_mut(function).instructions = HandleSpan::from_parts(first, 1);
-        let diagnostic =
-            validate_compiler_function_instruction_boundaries(&plan.code, &[0x90, 0x90, 0xc3])
-                .expect_err("an unowned encoded instruction must reject");
-        assert!(diagnostic.message.contains("do not enumerate every"));
+        let mut mutated = final_bytes.clone();
+        mutated[0] ^= 0xff;
+        let diagnostic = validate_compiler_function_instruction_boundaries(
+            omega_target::Architecture::X86_64,
+            &plan.code,
+            &mutated,
+        )
+        .expect_err("mutated fixed mechanics must reject");
+        assert!(
+            diagnostic
+                .message
+                .contains("fixed target call-return specification")
+        );
+
+        plan.code.functions.get_mut(function).instructions = HandleSpan::from_parts(first, 2);
+        let diagnostic = validate_compiler_function_instruction_boundaries(
+            omega_target::Architecture::X86_64,
+            &plan.code,
+            &final_bytes,
+        )
+        .expect_err("a function without its retained return row must reject");
+        assert!(
+            diagnostic
+                .message
+                .contains("entry and return validation rows")
+        );
     }
 
     #[test]
@@ -2043,18 +2047,21 @@ mod tests {
         instructions.insert(EncodedMachineInstruction {
             selected_instruction_index: 4,
             bytes: halt,
+            compiler_validation_kind: None,
             checked_validation_kind: Some(CheckedInstructionValidationKind::MachineHalt),
             checked_operand_loaders: [None, None],
         });
         instructions.insert(EncodedMachineInstruction {
             selected_instruction_index: 5,
             bytes: fence,
+            compiler_validation_kind: None,
             checked_validation_kind: Some(CheckedInstructionValidationKind::FullFence),
             checked_operand_loaders: [None, None],
         });
         instructions.insert(EncodedMachineInstruction {
             selected_instruction_index: 6,
             bytes: cli,
+            compiler_validation_kind: None,
             checked_validation_kind: Some(CheckedInstructionValidationKind::InterruptDisable),
             checked_operand_loaders: [None, None],
         });
@@ -2117,6 +2124,7 @@ mod tests {
         instructions.insert(EncodedMachineInstruction {
             selected_instruction_index: 8,
             bytes: out_span,
+            compiler_validation_kind: None,
             checked_validation_kind: Some(
                 CheckedInstructionValidationKind::PortWriteImmediatePort {
                     port: 0x3f8,
@@ -2141,6 +2149,7 @@ mod tests {
         instructions.insert(EncodedMachineInstruction {
             selected_instruction_index: 9,
             bytes: in_span,
+            compiler_validation_kind: None,
             checked_validation_kind: Some(
                 CheckedInstructionValidationKind::PortReadImmediatePort {
                     port: 0x3fd,
@@ -2249,6 +2258,7 @@ mod tests {
         instructions.insert(EncodedMachineInstruction {
             selected_instruction_index: 11,
             bytes: span,
+            compiler_validation_kind: None,
             checked_validation_kind: Some(CheckedInstructionValidationKind::ControlRegisterWrite {
                 register: AsmControlRegister::Cr3,
                 source_operand_byte_width: 17,
@@ -2350,6 +2360,7 @@ mod tests {
         instructions.insert(EncodedMachineInstruction {
             selected_instruction_index: 12,
             bytes: span,
+            compiler_validation_kind: None,
             checked_validation_kind: Some(CheckedInstructionValidationKind::ControlRegisterWrite {
                 register: AsmControlRegister::Cr3,
                 source_operand_byte_width: 24,
@@ -2474,6 +2485,7 @@ mod tests {
         instructions.insert(EncodedMachineInstruction {
             selected_instruction_index: 13,
             bytes: span,
+            compiler_validation_kind: None,
             checked_validation_kind: Some(CheckedInstructionValidationKind::ControlRegisterWrite {
                 register: AsmControlRegister::Cr3,
                 source_operand_byte_width: 37,
@@ -2574,6 +2586,7 @@ mod tests {
         instructions.insert(EncodedMachineInstruction {
             selected_instruction_index: 14,
             bytes: span,
+            compiler_validation_kind: None,
             checked_validation_kind: Some(CheckedInstructionValidationKind::ControlRegisterWrite {
                 register: AsmControlRegister::Cr3,
                 source_operand_byte_width: 52,
@@ -2684,6 +2697,7 @@ mod tests {
         instructions.insert(EncodedMachineInstruction {
             selected_instruction_index: 15,
             bytes: span,
+            compiler_validation_kind: None,
             checked_validation_kind: Some(CheckedInstructionValidationKind::ControlRegisterWrite {
                 register: AsmControlRegister::Cr3,
                 source_operand_byte_width: 48,
@@ -2781,6 +2795,7 @@ mod tests {
         instructions.insert(EncodedMachineInstruction {
             selected_instruction_index: 10,
             bytes: span,
+            compiler_validation_kind: None,
             checked_validation_kind: Some(
                 CheckedInstructionValidationKind::MsrWriteImmediateIndex {
                     index: 0xc000_0080,

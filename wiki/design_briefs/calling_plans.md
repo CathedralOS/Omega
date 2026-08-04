@@ -1111,7 +1111,7 @@ relocation, and data relocation now consume that complete plan. Their former
 manual `+8`/`+12` stack accounting and trailing-mode operation classifier are
 retired; the operation key only selects the concrete adapter subcall.
 
-Final footprint certificate format v2 now retains an exact
+Final footprint certificate format v3 now retains an exact
 function-to-instruction partition in the encoded carrier. Checked image
 emission replays every contiguous function
 and instruction boundary over relocated final bytes, rejects gaps, overlaps,
@@ -1119,7 +1119,11 @@ and unowned instruction rows, and fingerprints the complete partition into the
 versioned footprint certificate. This is boundary enumeration evidence, not an
 instruction footprint assertion: ordinary instruction rows still need their
 closed target-spec footprint replay before the certificate can mark compiler
-body footprint decoding complete.
+body footprint decoding complete. The retained first and last rows of every
+compiler function do already replay the exact architecture-owned entry and
+return byte programs. This replaces the old entry-symbol-only prefix/suffix
+check and binds the validated mechanics count and fingerprint into the same
+certificate.
 
 Remaining order:
 

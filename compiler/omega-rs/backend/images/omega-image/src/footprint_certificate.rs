@@ -5,13 +5,13 @@ use crate::{
 use psi_diagnostics::Diagnostic;
 
 pub const FINAL_FOOTPRINT_CERTIFICATE_SCHEMA: &str = "omega.final-footprint-certificate";
-pub const FINAL_FOOTPRINT_CERTIFICATE_FORMAT_VERSION: u32 = 2;
+pub const FINAL_FOOTPRINT_CERTIFICATE_FORMAT_VERSION: u32 = 3;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum FinalFootprintClass {
     CompilerFunctions,
     CompilerFunctionRelocationEnvelope,
-    CompilerEntryCallReturnMechanics,
+    CompilerFunctionCallReturnMechanics,
     CompilerFunctionInstructionEnumeration,
     CatalogCheckedAssembly,
     ImportThunks,
@@ -31,7 +31,7 @@ impl FinalFootprintClass {
             Self::Veneers => "veneers",
             Self::GeneratedStubs => "generated_stubs",
             Self::CompilerFunctionRelocationEnvelope => "compiler_function_relocation_envelope",
-            Self::CompilerEntryCallReturnMechanics => "compiler_entry_call_return_mechanics",
+            Self::CompilerFunctionCallReturnMechanics => "compiler_function_call_return_mechanics",
             Self::CompilerFunctionInstructionEnumeration => {
                 "compiler_function_instruction_enumeration"
             }
@@ -47,7 +47,7 @@ impl FinalFootprintClass {
         match self {
             Self::CompilerFunctions => 1,
             Self::CompilerFunctionRelocationEnvelope => 2,
-            Self::CompilerEntryCallReturnMechanics => 3,
+            Self::CompilerFunctionCallReturnMechanics => 3,
             Self::CompilerFunctionInstructionEnumeration => 11,
             Self::CatalogCheckedAssembly => 4,
             Self::ImportThunks => 5,
@@ -88,7 +88,7 @@ impl FinalFootprintCoverage {
             ],
             final_byte_validated_classes: vec![
                 FinalFootprintClass::CompilerFunctionRelocationEnvelope,
-                FinalFootprintClass::CompilerEntryCallReturnMechanics,
+                FinalFootprintClass::CompilerFunctionCallReturnMechanics,
                 FinalFootprintClass::CompilerFunctionInstructionEnumeration,
                 FinalFootprintClass::CatalogCheckedAssembly,
                 FinalFootprintClass::ImportThunks,
@@ -368,6 +368,8 @@ mod tests {
                 function_count: 1,
                 instruction_count: 2,
                 zero_width_instruction_count: 0,
+                fixed_mechanics_instruction_count: 2,
+                fixed_mechanics_validation_fingerprint: 14,
                 validation_fingerprint: 11,
             },
             PlacedExecutableRegionInventory {
@@ -452,6 +454,8 @@ mod tests {
                     function_count: 0,
                     instruction_count: 0,
                     zero_width_instruction_count: 0,
+                    fixed_mechanics_instruction_count: 0,
+                    fixed_mechanics_validation_fingerprint: 0,
                     validation_fingerprint: 0,
                 },
                 inventory,
