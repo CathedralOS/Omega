@@ -136,6 +136,22 @@ pub(crate) fn copy_places_from_pointee(
     }
 }
 
+/// Copy between two fields reached through frame-held pointer slots.
+pub(crate) fn copy_places_pointee_pair(
+    source_pointer_byte_offset: usize,
+    source_field_byte_offset: usize,
+    target_pointer_byte_offset: usize,
+    target_field_byte_offset: usize,
+    byte_count: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::CopyPlaces {
+        source: pointee_place(source_pointer_byte_offset, source_field_byte_offset),
+        target: pointee_place(target_pointer_byte_offset, target_field_byte_offset),
+        byte_count,
+        role: omega_abstract_operations::CopyPlacesRole::Ordinary,
+    }
+}
+
 /// Rung 2c-iv: a FIXED-indexed element read folds to a pure deref place --
 /// the compile-time index scales into the constant displacement
 /// (`*(frame[descriptor]) + index*size + field`), the same shape as a

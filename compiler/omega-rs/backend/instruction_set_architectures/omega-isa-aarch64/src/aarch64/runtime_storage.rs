@@ -3333,6 +3333,31 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_p
     Ok(bytes)
 }
 
+/// Exact scratch footprint when the fixed-indexed encoder above is used for
+/// a pointee pair (index zero, element size one). x16/x20 hold the pointees,
+/// x17 stages non-empty chunks, and large field/chunk offsets use x19/x26.
+pub fn runtime_storage_copy_pointee_pair_clobbers(
+    source_field_byte_offset: usize,
+    target_field_byte_offset: usize,
+    byte_count: usize,
+) -> RegisterSet {
+    let mut registers = vec![MachineRegister::Aarch64X(16), MachineRegister::Aarch64X(20)];
+    if byte_count > 0 {
+        registers.push(MachineRegister::Aarch64X(17));
+    }
+    if source_field_byte_offset > 4095 || target_field_byte_offset > 4095 {
+        registers.push(MachineRegister::Aarch64X(19));
+    }
+    for_each_runtime_copy_chunk(0, 0, byte_count, |offset, chunk_size| {
+        if !data_offset_encodable(offset, chunk_size) {
+            registers.extend([MachineRegister::Aarch64X(19), MachineRegister::Aarch64X(26)]);
+        }
+        Ok(())
+    })
+    .expect("runtime copy chunk partition is total");
+    RegisterSet::new(registers)
+}
+
 pub fn encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee(
     descriptor_offset: usize,
     index_offset: usize,
@@ -7195,6 +7220,33 @@ mod tests {
         );
         assert_eq!(
             runtime_storage_copy_from_runtime_pointee_clobbers(0, 0, 0, 32_776).as_slice(),
+            &[
+                MachineRegister::Aarch64X(16),
+                MachineRegister::Aarch64X(17),
+                MachineRegister::Aarch64X(19),
+                MachineRegister::Aarch64X(20),
+                MachineRegister::Aarch64X(26),
+            ]
+        );
+    }
+
+    #[test]
+    fn pointee_pair_clobbers_track_fields_data_and_large_offset_scratch() {
+        assert_eq!(
+            runtime_storage_copy_pointee_pair_clobbers(0, 0, 0).as_slice(),
+            &[MachineRegister::Aarch64X(16), MachineRegister::Aarch64X(20),]
+        );
+        assert_eq!(
+            runtime_storage_copy_pointee_pair_clobbers(4096, 0, 8).as_slice(),
+            &[
+                MachineRegister::Aarch64X(16),
+                MachineRegister::Aarch64X(17),
+                MachineRegister::Aarch64X(19),
+                MachineRegister::Aarch64X(20),
+            ]
+        );
+        assert_eq!(
+            runtime_storage_copy_pointee_pair_clobbers(0, 0, 32_776).as_slice(),
             &[
                 MachineRegister::Aarch64X(16),
                 MachineRegister::Aarch64X(17),

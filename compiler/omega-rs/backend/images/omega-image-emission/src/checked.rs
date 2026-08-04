@@ -199,6 +199,12 @@ enum CompilerBodyPlaceCopyShape {
         field_byte_offset: usize,
         target_offset: usize,
     },
+    PointeePair {
+        source_pointer_byte_offset: usize,
+        source_field_byte_offset: usize,
+        target_pointer_byte_offset: usize,
+        target_field_byte_offset: usize,
+    },
 }
 
 fn validate_compiler_function_instruction_boundaries(
@@ -824,6 +830,20 @@ fn validate_compiler_function_instruction_boundaries(
                                         target_offset,
                                         byte_count,
                                     )?,
+                                    CompilerBodyPlaceCopyShape::PointeePair {
+                                        source_pointer_byte_offset,
+                                        source_field_byte_offset,
+                                        target_pointer_byte_offset,
+                                        target_field_byte_offset,
+                                    } => omega_isa_aarch64::encode_runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_pointee(
+                                        source_pointer_byte_offset,
+                                        0,
+                                        1,
+                                        source_field_byte_offset,
+                                        target_pointer_byte_offset,
+                                        target_field_byte_offset,
+                                        byte_count,
+                                    )?,
                                 },
                             },
                             21u8,
@@ -1429,6 +1449,9 @@ fn compiler_instruction_footprint(
                         CompilerBodyPlaceCopyShape::FromPointee { .. } => {
                             omega_isa_x86_64::copy_places_from_pointee_clobbers(byte_count)
                         }
+                        CompilerBodyPlaceCopyShape::PointeePair { .. } => {
+                            omega_isa_x86_64::copy_places_pointee_pair_clobbers(byte_count)
+                        }
                     },
                     Architecture::Aarch64 => match shape {
                         CompilerBodyPlaceCopyShape::Direct {
@@ -1457,6 +1480,15 @@ fn compiler_instruction_footprint(
                             pointer_byte_offset,
                             field_byte_offset,
                             target_offset,
+                            byte_count,
+                        ),
+                        CompilerBodyPlaceCopyShape::PointeePair {
+                            source_field_byte_offset,
+                            target_field_byte_offset,
+                            ..
+                        } => omega_isa_aarch64::runtime_storage_copy_pointee_pair_clobbers(
+                            source_field_byte_offset,
+                            target_field_byte_offset,
                             byte_count,
                         ),
                     },
@@ -1791,10 +1823,10 @@ fn compiler_place_copy_address_sites(
                 })
                 .collect()
         }
-        Architecture::Aarch64 => {
-            compiler_body_place_copy_shape(&source, &target)?;
-            Ok(vec![(0, source.region), (8, target.region)])
-        }
+        Architecture::Aarch64 => match compiler_body_place_copy_shape(&source, &target)? {
+            CompilerBodyPlaceCopyShape::PointeePair { .. } => Ok(vec![(0, source.region)]),
+            _ => Ok(vec![(0, source.region), (8, target.region)]),
+        },
     }
 }
 
@@ -1819,13 +1851,67 @@ fn compiler_body_place_copy_shape(
             field_byte_offset,
         });
     }
-    let (pointer_byte_offset, field_byte_offset, target_offset) =
-        compiler_place_copy_from_pointee_offsets(source, target)?;
-    Ok(CompilerBodyPlaceCopyShape::FromPointee {
-        pointer_byte_offset,
-        field_byte_offset,
-        target_offset,
+    let (
+        source_pointer_byte_offset,
+        source_field_byte_offset,
+        target_pointer_byte_offset,
+        target_field_byte_offset,
+    ) = match compiler_place_copy_from_pointee_offsets(source, target) {
+        Ok(offsets) => {
+            return Ok(CompilerBodyPlaceCopyShape::FromPointee {
+                pointer_byte_offset: offsets.0,
+                field_byte_offset: offsets.1,
+                target_offset: offsets.2,
+            });
+        }
+        Err(_) => compiler_place_copy_pointee_pair_offsets(source, target)?,
+    };
+    Ok(CompilerBodyPlaceCopyShape::PointeePair {
+        source_pointer_byte_offset,
+        source_field_byte_offset,
+        target_pointer_byte_offset,
+        target_field_byte_offset,
     })
+}
+
+fn compiler_place_copy_pointee_pair_offsets(
+    source: &omega_target_operations::Place,
+    target: &omega_target_operations::Place,
+) -> Result<(usize, usize, usize, usize), Diagnostic> {
+    let (source_pointer_byte_offset, source_field_byte_offset) =
+        compiler_frame_pointee_offsets(source)?;
+    let (target_pointer_byte_offset, target_field_byte_offset) =
+        compiler_frame_pointee_offsets(target)?;
+    Ok((
+        source_pointer_byte_offset,
+        source_field_byte_offset,
+        target_pointer_byte_offset,
+        target_field_byte_offset,
+    ))
+}
+
+fn compiler_frame_pointee_offsets(
+    place: &omega_target_operations::Place,
+) -> Result<(usize, usize), Diagnostic> {
+    if place.region != omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
+        return Err(Diagnostic::error(
+            "final place-copy pointer is not captured in the runtime frame",
+        ));
+    }
+    match place.steps() {
+        [
+            omega_target_operations::PlaceStep::ConstOffset(pointer_byte_offset),
+            omega_target_operations::PlaceStep::Deref,
+        ] => Ok((*pointer_byte_offset, 0)),
+        [
+            omega_target_operations::PlaceStep::ConstOffset(pointer_byte_offset),
+            omega_target_operations::PlaceStep::Deref,
+            omega_target_operations::PlaceStep::ConstOffset(field_byte_offset),
+        ] => Ok((*pointer_byte_offset, *field_byte_offset)),
+        _ => Err(Diagnostic::error(
+            "final place-copy operand is not a frame-held pointee",
+        )),
+    }
 }
 
 fn compiler_place_copy_from_pointee_offsets(

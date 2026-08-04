@@ -363,6 +363,24 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indirect_copy(
     target: &Expression,
     value: &Expression,
 ) -> Option<SelectedInstructionKind> {
+    if let Some(pointer_source) =
+        resolve_runtime_pointee_slot_offset(input, dispatch_index, value_source_key, value)
+        && let Some(pointer_target) =
+            resolve_runtime_pointee_slot_offset(input, dispatch_index, target_source_key, target)
+        && pointer_source.pointee_byte_size == pointer_target.pointee_byte_size
+        && pointer_source.pointee_byte_size > 0
+    {
+        return Some(
+            crate::selection::runtime_dispatch::copy_places_pointee_pair(
+                pointer_source.pointer_byte_offset,
+                pointer_source.field_byte_offset,
+                pointer_target.pointer_byte_offset,
+                pointer_target.field_byte_offset,
+                pointer_source.pointee_byte_size,
+            ),
+        );
+    }
+
     if let Some(fixed_source) =
         resolve_runtime_frame_fixed_indexed_target(input, dispatch_index, value_source_key, value)
         && let Some(pointer_target) = resolve_runtime_pointee_fixed_indexed_target(
@@ -454,6 +472,32 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indirect_copy_in_t
     target: ExpressionHandle,
     value: ExpressionHandle,
 ) -> Option<SelectedInstructionKind> {
+    if let Some(pointer_source) = resolve_runtime_pointee_slot_offset_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        value,
+    ) && let Some(pointer_target) = resolve_runtime_pointee_slot_offset_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        expressions,
+        target,
+    ) && pointer_source.pointee_byte_size == pointer_target.pointee_byte_size
+        && pointer_source.pointee_byte_size > 0
+    {
+        return Some(
+            crate::selection::runtime_dispatch::copy_places_pointee_pair(
+                pointer_source.pointer_byte_offset,
+                pointer_source.field_byte_offset,
+                pointer_target.pointer_byte_offset,
+                pointer_target.field_byte_offset,
+                pointer_source.pointee_byte_size,
+            ),
+        );
+    }
+
     let source_place = resolve_runtime_storage_place_in_table(
         input,
         dispatch_index,

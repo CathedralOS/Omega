@@ -608,6 +608,29 @@ pub fn derive_boundary_compiler_body_place_copy_footprint<'instruction>(
                 target_offset,
                 *byte_count,
             ),
+            (omega_target::Architecture::X86_64, crate::CopyPlacesShape::PointeePair { .. })
+                if source.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+                    && target.region
+                        == omega_target_operations::RuntimeStorageRegion::RuntimeFrame =>
+            {
+                omega_isa_x86_64::copy_places_pointee_pair_clobbers(*byte_count)
+            }
+            (
+                omega_target::Architecture::Aarch64,
+                crate::CopyPlacesShape::PointeePair {
+                    source_field_byte_offset,
+                    target_field_byte_offset,
+                    ..
+                },
+            ) if source.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+                && target.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame =>
+            {
+                omega_isa_aarch64::runtime_storage_copy_pointee_pair_clobbers(
+                    source_field_byte_offset,
+                    target_field_byte_offset,
+                    *byte_count,
+                )
+            }
             _ => continue,
         };
         registers.extend_from_slice(clobbers.as_slice());
@@ -1925,6 +1948,51 @@ mod tests {
         let evidence =
             derive_boundary_compiler_body_place_copy_footprint(&boundary, [&instruction])
                 .expect("ordinary from-pointee evidence");
+
+        assert_eq!(
+            evidence.registers().as_slice(),
+            &[
+                MachineRegister::Aarch64X(16),
+                MachineRegister::Aarch64X(17),
+                MachineRegister::Aarch64X(19),
+                MachineRegister::Aarch64X(20),
+            ]
+        );
+    }
+
+    #[test]
+    fn compiler_body_pointee_pair_footprint_uses_exact_encoder_clobbers() {
+        let boundary = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::Aapcs64,
+            &CallSignature {
+                parameters: Vec::new(),
+                result: None,
+            },
+        )
+        .expect("AAPCS64 boundary");
+        let pointee = |pointer_offset, field_offset| {
+            omega_abstract_operations::Place::at(
+                omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+                pointer_offset,
+            )
+            .with_step(omega_abstract_operations::PlaceStep::Deref)
+            .and_then(|place| {
+                place.with_step(omega_abstract_operations::PlaceStep::ConstOffset(
+                    field_offset,
+                ))
+            })
+            .expect("frame-held pointee")
+        };
+        let instruction = SelectedInstructionKind::CopyPlaces {
+            source: pointee(32, 4096),
+            target: pointee(40, 0),
+            byte_count: 8,
+            role: omega_abstract_operations::CopyPlacesRole::Ordinary,
+        };
+
+        let evidence =
+            derive_boundary_compiler_body_place_copy_footprint(&boundary, [&instruction])
+                .expect("ordinary pointee-pair evidence");
 
         assert_eq!(
             evidence.registers().as_slice(),

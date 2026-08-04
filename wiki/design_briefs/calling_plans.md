@@ -1111,7 +1111,7 @@ relocation, and data relocation now consume that complete plan. Their former
 manual `+8`/`+12` stack accounting and trailing-mode operation classifier are
 retired; the operation key only selects the concrete adapter subcall.
 
-Final footprint certificate format v17 now retains an exact
+Final footprint certificate format v18 now retains an exact
 function-to-instruction partition in the encoded carrier. Checked image
 emission replays every contiguous function
 and instruction boundary over relocated final bytes, rejects gaps, overlaps,
@@ -1152,12 +1152,14 @@ contract identity in the certificate. Certificate construction rejects a
 different public ceiling. Unreplayed body classes remain outside that partial
 proof.
 Direct storage-pair `CopyPlaces` operations, direct-storage copies targeting a
-frame-held pointee, and frame-held pointee sources landing in direct storage are
-the first ordinary write rows in that subset. Their `Ordinary` role remains
-distinct from hidden-result copies; final validation replays the exact target
-encoder and relocation set and matches the derived scratch union to the
-retained `CompilerBodyPlaceCopy` fragment. Other ordinary copy/write shapes and
-calls remain unreplayed.
+frame-held pointee, frame-held pointee sources landing in direct storage, and
+frame-held pointee-to-pointee copies are the first ordinary write rows in that
+subset. Their `Ordinary` role remains distinct from hidden-result copies; final
+validation replays the exact target encoder and relocation set and matches the
+derived scratch union to the retained `CompilerBodyPlaceCopy` fragment. Other
+ordinary copy/write shapes and calls remain unreplayed. Pointee-pair selection
+resolves both reference operands before flat storage so the source pointer is
+never copied as field data.
 
 Remaining order:
 

@@ -714,6 +714,13 @@ pub fn copy_places_from_pointee_clobbers(byte_count: usize) -> RegisterSet {
     copy_places_direct_clobbers(byte_count)
 }
 
+/// Exact scratch footprint of a dereferenced-source to dereferenced-target
+/// copy. The shared-base walk holds the two pointees in r14/r15 and stages
+/// non-empty chunks through rax.
+pub fn copy_places_pointee_pair_clobbers(byte_count: usize) -> RegisterSet {
+    copy_places_direct_clobbers(byte_count)
+}
+
 /// Exact scratch footprint of a direct place-pair copy. Both address bases are
 /// materialized unconditionally; non-empty copies stage chunks through rax.
 pub fn copy_places_direct_clobbers(byte_count: usize) -> RegisterSet {
@@ -1003,6 +1010,22 @@ mod tests {
         );
         assert_eq!(
             copy_places_from_pointee_clobbers(8).as_slice(),
+            &[
+                MachineRegister::X86Rax,
+                MachineRegister::X86R14,
+                MachineRegister::X86R15,
+            ]
+        );
+    }
+
+    #[test]
+    fn pointee_pair_clobbers_track_empty_and_nonempty_chunks() {
+        assert_eq!(
+            copy_places_pointee_pair_clobbers(0).as_slice(),
+            &[MachineRegister::X86R14, MachineRegister::X86R15]
+        );
+        assert_eq!(
+            copy_places_pointee_pair_clobbers(8).as_slice(),
             &[
                 MachineRegister::X86Rax,
                 MachineRegister::X86R14,

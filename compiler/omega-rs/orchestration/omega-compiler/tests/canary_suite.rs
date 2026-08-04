@@ -1127,7 +1127,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         executable_regions.contains(
             "\"certificate_schema\": \"omega.final-footprint-certificate\""
         )
-            && executable_regions.contains("\"certificate_format_version\": 17")
+            && executable_regions.contains("\"certificate_format_version\": 18")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
             && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")
@@ -1472,6 +1472,90 @@ fn runtime_shared_ref_param_copy_exit_canary_runs() {
         output.status.code(),
         Some(42),
         "expected the dereferenced-source copy `self.got = r.value` to exit 42, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn compiler_body_pointee_pair_copy_footprints_reach_x86_and_aarch64_artifacts() {
+    let canary = pass_canary("calls/runtime_pointee_pair_copy_exit");
+    for (target, expected_registers) in [
+        ("linux_x64", "[\"X86Rax\", \"X86R14\", \"X86R15\"]"),
+        (
+            "linux_arm64",
+            "[\"Aarch64X(16)\", \"Aarch64X(17)\", \"Aarch64X(20)\", \"Aarch64X(26)\"]",
+        ),
+    ] {
+        let scratch = std::env::temp_dir().join(format!(
+            "omega-compiler-body-pointee-pair-footprint-{target}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&scratch);
+        let source = scratch.join("src");
+        let output = scratch.join("out");
+        fs::create_dir_all(&source).expect("create compiler-body pointee-pair source directory");
+        fs::copy(canary.join("main.omg"), source.join("main.omg"))
+            .expect("copy compiler-body pointee-pair canary");
+        fs::write(
+            source.join("build.omg"),
+            format!("target {target} {{\n}}\n"),
+        )
+        .expect("write compiler-body pointee-pair target");
+
+        compile(CompileOptions {
+            root_path: source.join("main.omg"),
+            build_dir: Some(output.clone()),
+            target_name: Some(target.into()),
+            write_output: true,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!("compiler-body pointee-pair copy should compile for {target}: {diagnostics:?}")
+        });
+        let abstract_operations = fs::read_to_string(output.join("08_abstract_operations.html"))
+            .expect("compiler-body pointee-pair abstract operations should be written");
+        let footprints = fs::read_to_string(output.join("08_boundary_footprints.json"))
+            .expect("compiler-body pointee-pair footprint evidence should be written");
+        assert!(
+            abstract_operations.contains("CopyPlaces"),
+            "{target} canary must exercise a pointee-pair CopyPlaces operation"
+        );
+        assert!(
+            footprints.contains("\"origin\": \"compiler_body_place_copy\"")
+                && footprints.contains(expected_registers)
+                && footprints.contains("\"enumeration_complete\": false"),
+            "{target} artifact must retain the ordinary pointee-pair footprint without claiming completeness"
+        );
+        let _ = fs::remove_dir_all(&scratch);
+    }
+}
+
+#[test]
+fn runtime_pointee_pair_copy_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_pointee_pair_copy_exit");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-pointee-pair-copy-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("pointee-pair copy canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("pointee-pair copy canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "expected `target.value = source.value` through two references to exit 42, got {:?}\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
