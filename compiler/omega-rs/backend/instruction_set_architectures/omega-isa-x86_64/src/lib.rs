@@ -7734,6 +7734,127 @@ pub fn encode_runtime_text_buffer_materialize(target_offset: usize) -> Result<Ve
     Ok(bytes)
 }
 
+pub fn runtime_text_buffer_materialize_to_runtime_pointee_width() -> usize {
+    runtime_text_buffer_materialize_width() + 7
+}
+
+pub fn runtime_text_buffer_materialize_to_runtime_pointee_register_writes() -> RegisterSet {
+    runtime_text_buffer_materialize_register_writes()
+}
+
+pub fn encode_runtime_text_buffer_materialize_to_runtime_pointee(
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(runtime_text_buffer_materialize_to_runtime_pointee_width());
+    append_mov_r14_imm64(&mut bytes, 0); // buffer base (reloc @ instruction start)
+    append_mov_r15_imm64(&mut bytes, 0); // runtime-frame base (reloc @ +10)
+    append_load_r15_from_r15(&mut bytes, pointer_byte_offset)?;
+    append_load_rax_from_r15(&mut bytes, field_byte_offset)?;
+    append_load_rcx_from_r15(&mut bytes, field_byte_offset + 8)?;
+    append_mov_r11_rcx(&mut bytes);
+    append_mov_r10_r14(&mut bytes);
+    append_mov_rsi_rax(&mut bytes);
+    append_mov_rdi_r10(&mut bytes);
+    append_rep_movsb(&mut bytes);
+    append_store_r14_to_r15(&mut bytes, field_byte_offset)?;
+    append_store_r11_to_r15(&mut bytes, field_byte_offset + 8)?;
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_text_buffer_materialize_to_runtime_pointee_width()
+    );
+    Ok(bytes)
+}
+
+pub fn runtime_text_buffer_materialize_to_runtime_frame_indexed_width(
+    index_byte_size: usize,
+) -> usize {
+    frame_indexed_string_prefix_width(index_byte_size) + 55
+}
+
+pub fn runtime_text_buffer_materialize_to_runtime_frame_indexed_buffer_imm_offset(
+    index_byte_size: usize,
+) -> usize {
+    frame_indexed_string_prefix_width(index_byte_size) + 3
+}
+
+pub fn runtime_text_buffer_materialize_to_runtime_frame_indexed_register_writes() -> RegisterSet {
+    runtime_text_buffer_materialize_register_writes()
+}
+
+pub fn encode_runtime_text_buffer_materialize_to_runtime_frame_indexed(
+    descriptor_offset: usize,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(
+        runtime_text_buffer_materialize_to_runtime_frame_indexed_width(index_byte_size),
+    );
+    append_frame_indexed_element_address_into_rax(
+        &mut bytes,
+        descriptor_offset,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+    )?;
+    bytes.extend([0x49, 0x89, 0xc7]); // mov r15, rax (indexed descriptor base)
+    append_mov_r14_imm64(&mut bytes, 0); // buffer base (reloc @ prefix + 3)
+    append_load_rax_from_r15(&mut bytes, field_byte_offset)?;
+    append_load_rcx_from_r15(&mut bytes, field_byte_offset + 8)?;
+    append_mov_r11_rcx(&mut bytes);
+    append_mov_r10_r14(&mut bytes);
+    append_mov_rsi_rax(&mut bytes);
+    append_mov_rdi_r10(&mut bytes);
+    append_rep_movsb(&mut bytes);
+    append_store_r14_to_r15(&mut bytes, field_byte_offset)?;
+    append_store_r11_to_r15(&mut bytes, field_byte_offset + 8)?;
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_text_buffer_materialize_to_runtime_frame_indexed_width(index_byte_size)
+    );
+    Ok(bytes)
+}
+
+#[cfg(test)]
+mod text_buffer_materialize_place_tests {
+    use super::*;
+
+    #[test]
+    fn pointee_materialize_width_matches_emission() {
+        let bytes = encode_runtime_text_buffer_materialize_to_runtime_pointee(24, 8)
+            .expect("pointee text-buffer materialization");
+        assert_eq!(
+            bytes.len(),
+            runtime_text_buffer_materialize_to_runtime_pointee_width()
+        );
+    }
+
+    #[test]
+    fn frame_indexed_materialize_width_and_buffer_site_follow_index_width() {
+        for index_byte_size in [1usize, 2, 4, 8] {
+            let bytes = encode_runtime_text_buffer_materialize_to_runtime_frame_indexed(
+                24,
+                40,
+                index_byte_size,
+                16,
+                8,
+            )
+            .expect("frame-indexed text-buffer materialization");
+            let buffer_site =
+                runtime_text_buffer_materialize_to_runtime_frame_indexed_buffer_imm_offset(
+                    index_byte_size,
+                );
+            assert_eq!(
+                bytes.len(),
+                runtime_text_buffer_materialize_to_runtime_frame_indexed_width(index_byte_size)
+            );
+            assert_eq!(&bytes[buffer_site..buffer_site + 2], &[0x49, 0xbe]);
+        }
+    }
+}
+
 pub fn runtime_text_literal_compare_branch_next_offset(byte_index: usize) -> usize {
     10 + byte_index * 15 + 15
 }

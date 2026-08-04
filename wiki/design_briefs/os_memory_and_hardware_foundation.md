@@ -1078,8 +1078,8 @@ Composed-place conversion writes share that fragment and exact recipe for all
 x86 materializer targets and every classified AArch64 target: direct, pointee,
 frame-descriptor-indexed, inline-frame-indexed, and single- or double-runtime-
 indexed machine places.
-Text-buffer materialization is inside the partial proof for its direct x86 form
-and its direct, pointee, and frame-indexed AArch64 forms. The retained row binds
+Text-buffer materialization is inside the partial proof for its direct,
+pointee, and frame-indexed forms on x86 and AArch64. The retained row binds
 the exact buffer data-object identity and target place, replays the existing
 target encoder and mixed data/storage relocation set, and matches a dedicated
 `CompilerBodyTextAssemblyWrite` footprint. Direct, pointee, and frame-indexed
@@ -1134,7 +1134,7 @@ relocation-envelope fingerprints plus their composed derivation identity. The
 boundary/placement binding includes that derivation identity, so a valid final
 inventory cannot be paired with evidence from a different encoded-to-final
 derivation. The single emitted artifact is now self-described as
-`omega.final-footprint-certificate` format v57, with a domain-separated
+`omega.final-footprint-certificate` format v58, with a domain-separated
 certificate fingerprint over its final placement binding, compiler-text
 derivation, and region inventory. It remains explicitly incomplete evidence,
 not an admission certificate, until the missing footprint classes close. The

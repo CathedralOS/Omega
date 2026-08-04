@@ -28,6 +28,7 @@ pub(super) fn collect_runtime_text_materialize_relocations(
                     );
                 }
                 omega_instruction_selection::WritePlaceShape::FrameIndexed {
+                    index_byte_size,
                     element_byte_size,
                     field_byte_offset,
                     ..
@@ -38,6 +39,7 @@ pub(super) fn collect_runtime_text_materialize_relocations(
                     context.insert_data_address_at_relative_offset(
                         runtime_text_indexed_buffer_materialize_buffer_address_offset(
                             context.input.target.architecture,
+                            index_byte_size,
                             element_byte_size,
                             field_byte_offset,
                         ),

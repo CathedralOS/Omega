@@ -1646,6 +1646,33 @@ fn validate_compiler_function_instruction_boundaries(
                                 byte_offset,
                             )?,
                             (
+                                Architecture::X86_64,
+                                CompilerBodyPlaceIntegerWriteShape::Pointee {
+                                    pointer_byte_offset,
+                                    field_byte_offset,
+                                },
+                            ) => omega_isa_x86_64::encode_runtime_text_buffer_materialize_to_runtime_pointee(
+                                pointer_byte_offset,
+                                field_byte_offset,
+                            )?,
+                            (
+                                Architecture::X86_64,
+                                CompilerBodyPlaceIntegerWriteShape::FrameIndexed {
+                                    descriptor_offset,
+                                    index_offset,
+                                    index_byte_size,
+                                    element_byte_size,
+                                    field_byte_offset,
+                                    ..
+                                },
+                            ) => omega_isa_x86_64::encode_runtime_text_buffer_materialize_to_runtime_frame_indexed(
+                                descriptor_offset,
+                                index_offset,
+                                index_byte_size,
+                                element_byte_size,
+                                field_byte_offset,
+                            )?,
+                            (
                                 Architecture::Aarch64,
                                 CompilerBodyPlaceIntegerWriteShape::Direct { byte_offset },
                             ) => omega_isa_aarch64::encode_runtime_text_buffer_materialize(
@@ -3722,6 +3749,20 @@ fn compiler_instruction_footprint(
                     CompilerBodyPlaceIntegerWriteShape::Direct { .. },
                 ) => (
                     omega_isa_x86_64::runtime_text_buffer_materialize_register_writes(),
+                    omega_isa_x86_64::runtime_text_buffer_materialize_additional_machine_state(),
+                ),
+                (
+                    Architecture::X86_64,
+                    CompilerBodyPlaceIntegerWriteShape::Pointee { .. },
+                ) => (
+                    omega_isa_x86_64::runtime_text_buffer_materialize_to_runtime_pointee_register_writes(),
+                    omega_isa_x86_64::runtime_text_buffer_materialize_additional_machine_state(),
+                ),
+                (
+                    Architecture::X86_64,
+                    CompilerBodyPlaceIntegerWriteShape::FrameIndexed { .. },
+                ) => (
+                    omega_isa_x86_64::runtime_text_buffer_materialize_to_runtime_frame_indexed_register_writes(),
                     omega_isa_x86_64::runtime_text_buffer_materialize_additional_machine_state(),
                 ),
                 (
@@ -6664,11 +6705,29 @@ fn validate_compiler_text_buffer_materialize_relocations(
         architecture,
         compiler_body_place_integer_write_shape(&target)?,
     ) {
-        (Architecture::X86_64, CompilerBodyPlaceIntegerWriteShape::Direct { .. }) => vec![
+        (
+            Architecture::X86_64,
+            CompilerBodyPlaceIntegerWriteShape::Direct { .. }
+            | CompilerBodyPlaceIntegerWriteShape::Pointee { .. },
+        ) => vec![
             (0usize, ExpectedTarget::Buffer),
             (
                 omega_isa_x86_64::RUNTIME_TEXT_BUFFER_MATERIALIZE_TARGET_IMM_OFFSET,
                 ExpectedTarget::Storage(target.region),
+            ),
+        ],
+        (
+            Architecture::X86_64,
+            CompilerBodyPlaceIntegerWriteShape::FrameIndexed {
+                index_byte_size, ..
+            },
+        ) => vec![
+            (0usize, ExpectedTarget::Storage(target.region)),
+            (
+                omega_isa_x86_64::runtime_text_buffer_materialize_to_runtime_frame_indexed_buffer_imm_offset(
+                    index_byte_size,
+                ),
+                ExpectedTarget::Buffer,
             ),
         ],
         (

@@ -1187,6 +1187,22 @@ pub fn derive_boundary_compiler_body_text_assembly_write_footprint<'instruction>
                 omega_isa_x86_64::runtime_text_buffer_materialize_additional_machine_state(),
             ),
             (
+                omega_target::Architecture::X86_64,
+                crate::WritePlaceShape::Pointee { .. },
+                0,
+            ) => (
+                omega_isa_x86_64::runtime_text_buffer_materialize_to_runtime_pointee_register_writes(),
+                omega_isa_x86_64::runtime_text_buffer_materialize_additional_machine_state(),
+            ),
+            (
+                omega_target::Architecture::X86_64,
+                crate::WritePlaceShape::FrameIndexed { .. },
+                0,
+            ) => (
+                omega_isa_x86_64::runtime_text_buffer_materialize_to_runtime_frame_indexed_register_writes(),
+                omega_isa_x86_64::runtime_text_buffer_materialize_additional_machine_state(),
+            ),
+            (
                 omega_target::Architecture::Aarch64,
                 crate::WritePlaceShape::Direct { .. } | crate::WritePlaceShape::Pointee { .. },
                 2,

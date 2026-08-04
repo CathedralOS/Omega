@@ -14,6 +14,7 @@ pub(crate) fn runtime_text_buffer_materialize_target_address_offset(
 
 pub(crate) fn runtime_text_indexed_buffer_materialize_buffer_address_offset(
     architecture: Architecture,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> usize {
@@ -21,6 +22,11 @@ pub(crate) fn runtime_text_indexed_buffer_materialize_buffer_address_offset(
         Architecture::Aarch64 => {
             runtime_frame_index_setup_width(element_byte_size, field_byte_offset) + 12
         }
-        Architecture::X86_64 => 8,
+        Architecture::X86_64 => {
+            let _ = (element_byte_size, field_byte_offset);
+            omega_isa_x86_64::runtime_text_buffer_materialize_to_runtime_frame_indexed_buffer_imm_offset(
+                index_byte_size,
+            )
+        }
     }
 }
