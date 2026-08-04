@@ -1064,9 +1064,10 @@ index-depth scratch and relocation sites.
 Direct-target binary writes, exact-integer writes through a frame-held pointer,
 and runtime-indexed writes through a frame-held descriptor retain their
 complete checked recipe and roots into the canonical runtime-value operand
-arena; final validation regenerates the evaluator/store bytes, walks nested
-operand relocations, and matches the closed target may-write ceiling to the
-separately retained `CompilerBodyPlaceBinaryWrite` fragment.
+arena; runtime-indexed writes into an inline frame array are included too.
+Final validation regenerates the evaluator/store bytes, walks nested operand
+relocations, and matches the closed target may-write ceiling to the separately
+retained `CompilerBodyPlaceBinaryWrite` fragment.
 Place-copy selection retains its separate `compiler_body_place_copy` evidence
 only for
 the `Ordinary` role; final validation regenerates the same place-copy bytes,

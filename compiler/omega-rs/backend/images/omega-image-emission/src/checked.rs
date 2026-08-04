@@ -1366,6 +1366,7 @@ fn validate_compiler_function_instruction_boundaries(
                             CompilerBodyPlaceIntegerWriteShape::Direct { .. }
                                 | CompilerBodyPlaceIntegerWriteShape::Pointee { .. }
                                 | CompilerBodyPlaceIntegerWriteShape::FrameIndexed { .. }
+                                | CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. }
                         ) {
                             return Err(Diagnostic::error(
                                 "final compiler-body binary-write subset retained an unsupported target",
@@ -1419,6 +1420,24 @@ fn validate_compiler_function_instruction_boundaries(
                                 } => omega_isa_aarch64::encode_runtime_frame_indexed_binary_write(
                                     &code.runtime_value_operands,
                                     descriptor_offset,
+                                    index_offset,
+                                    index_byte_size,
+                                    element_byte_size,
+                                    field_byte_offset,
+                                    byte_size,
+                                    left,
+                                    operator,
+                                    right,
+                                )?,
+                                CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed {
+                                    base_byte_offset,
+                                    index_offset,
+                                    index_byte_size,
+                                    element_byte_size,
+                                    field_byte_offset,
+                                } => omega_isa_aarch64::encode_runtime_frame_base_indexed_binary_write(
+                                    &code.runtime_value_operands,
+                                    base_byte_offset,
                                     index_offset,
                                     index_byte_size,
                                     element_byte_size,
@@ -2281,6 +2300,7 @@ fn compiler_instruction_footprint(
                 CompilerBodyPlaceIntegerWriteShape::Direct { .. }
                     | CompilerBodyPlaceIntegerWriteShape::Pointee { .. }
                     | CompilerBodyPlaceIntegerWriteShape::FrameIndexed { .. }
+                    | CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. }
             ) {
                 return None;
             }
@@ -4197,6 +4217,7 @@ fn compiler_place_binary_write_address_sites(
         CompilerBodyPlaceIntegerWriteShape::Direct { .. }
             | CompilerBodyPlaceIntegerWriteShape::Pointee { .. }
             | CompilerBodyPlaceIntegerWriteShape::FrameIndexed { .. }
+            | CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. }
     ) {
         return Err(Diagnostic::error(
             "final compiler-body binary-write relocation recipe retained an unsupported target",
@@ -4218,6 +4239,20 @@ fn compiler_place_binary_write_address_sites(
                 field_byte_offset,
                 ..
             } => omega_isa_aarch64::runtime_frame_indexed_integer_write_width(
+                element_byte_size,
+                field_byte_offset,
+                0,
+            ),
+            CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed {
+                base_byte_offset,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+            } => omega_isa_aarch64::runtime_frame_base_indexed_integer_write_width(
+                base_byte_offset,
+                index_offset,
+                index_byte_size,
                 element_byte_size,
                 field_byte_offset,
                 0,

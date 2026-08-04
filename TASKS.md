@@ -882,7 +882,7 @@ proves complete region coverage, and composes admitted leaves under their
 separate provenance. Do not add a second whole-image decoder/admission path.
 
 The existing single final-region artifact now carries the domain-separated
-`omega.final-footprint-certificate` schema, format version 39, and a certificate
+`omega.final-footprint-certificate` schema, format version 40, and a certificate
 fingerprint over its final placement binding, compiler-text derivation, and
 complete region inventory. Its explicit completeness flags remain false until
 compiler-body footprint decoding and admitted-leaf evidence land. The envelope
@@ -970,10 +970,11 @@ scratch and relocation sites.
 Direct-target binary writes, exact-integer writes through a frame-held
 pointer, and runtime-indexed writes through a frame-held descriptor now retain
 the exact operator, width, float mode, arithmetic policy, signedness, and roots
-into the canonical runtime-value operand arena. Final validation regenerates
-the complete evaluator/store program, recursively derives every operand
-relocation, and requires the target's closed may-write ceiling to equal the
-retained `CompilerBodyPlaceBinaryWrite` fragment. Other indexed binary targets,
+into the canonical runtime-value operand arena; runtime-indexed writes into an
+inline frame array are included too. Final validation regenerates the complete
+evaluator/store program, recursively derives every operand relocation, and
+requires the target's closed may-write ceiling to equal the retained
+`CompilerBodyPlaceBinaryWrite` fragment. Other indexed binary targets,
 conversion/string/bit-field writes, and calls remain incomplete. Pointee-pair
 selection now resolves both reference operands before the flat-storage fallback,
 preventing the source pointer bits from being copied as field data. The final
