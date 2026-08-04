@@ -8,10 +8,6 @@ use omega_image_emission::{
 use omega_object_file::{ObjectContainerInput, emit_omega_object_container};
 use psi_diagnostics::Diagnostic;
 
-const FINAL_FOOTPRINT_CERTIFICATE_SCHEMA: &str = "omega.final-footprint-certificate";
-const FINAL_FOOTPRINT_CERTIFICATE_FORMAT_VERSION: u32 = 1;
-const FINAL_FOOTPRINT_CERTIFICATE_COVERAGE_V1: &str = "enumeration_complete=false;region_enumeration_complete=true;footprint_enumeration_complete=false;covered=compiler_functions,import_thunks;absent=relaxation_products,veneers,generated_stubs;validated=compiler_function_relocation_envelope,compiler_entry_call_return_mechanics,catalog_checked_assembly,import_thunks;missing=compiler_function_body_footprint_decoding,admitted_leaves";
-
 pub(super) fn write_output(
     options: &CompileOptions,
     executable_tcb_authorization: &ExecutableTcbInstallationAuthorization,
@@ -136,40 +132,82 @@ fn write_executable_region_inventory(
         output.push_str("]}");
     }
 
+    fn push_classes(output: &mut String, classes: &[omega_image::FinalFootprintClass]) {
+        output.push('[');
+        for (index, class) in classes.iter().enumerate() {
+            if index > 0 {
+                output.push_str(", ");
+            }
+            push_string(output, class.name());
+        }
+        output.push(']');
+    }
+
     let implementation_evidence = footprints.composed_evidence();
     let implementation_evidence_fingerprint = implementation_evidence.evidence_fingerprint();
-    let binding_fingerprint = boundary_placement_binding_fingerprint(
+    let certificate = omega_image::FinalFootprintCertificate::current_partial(
         footprints.boundary_contract_fingerprint,
         implementation_evidence_fingerprint,
-        compiler_text_validation.derivation_fingerprint,
-        inventory.inventory_fingerprint,
-    );
-    let certificate_fingerprint = final_footprint_certificate_fingerprint(
-        binding_fingerprint,
-        compiler_text_validation.derivation_fingerprint,
-        inventory.inventory_fingerprint,
-    );
-    let coverage_fingerprint = final_footprint_coverage_fingerprint();
+        footprints.fragments.len(),
+        *compiler_text_validation,
+        inventory.clone(),
+    )
+    .map_err(|diagnostic| vec![diagnostic])?;
+    certificate
+        .validate_identity()
+        .map_err(|diagnostic| vec![diagnostic])?;
+    let coverage = &certificate.coverage;
+    let inventory = &certificate.inventory;
     let mut json = format!(
-        "{{\n  \"certificate_schema\": \"{FINAL_FOOTPRINT_CERTIFICATE_SCHEMA}\",\n  \"certificate_format_version\": {FINAL_FOOTPRINT_CERTIFICATE_FORMAT_VERSION},\n  \"certificate_fingerprint\": \"0x{certificate_fingerprint:016x}\",\n  \"coverage_fingerprint\": \"0x{coverage_fingerprint:016x}\",\n  \"placement_stage\": \"final_image\",\n  \"enumeration_complete\": false,\n  \"region_enumeration_complete\": true,\n  \"footprint_enumeration_complete\": false,\n  \"covered_classes\": [\"compiler_functions\", \"import_thunks\"],\n  \"absent_by_construction_classes\": [\"relaxation_products\", \"veneers\", \"generated_stubs\"],\n  \"final_byte_validated_classes\": [\"compiler_function_relocation_envelope\", \"compiler_entry_call_return_mechanics\", \"catalog_checked_assembly\", \"import_thunks\"],\n  \"missing_classes\": [\"compiler_function_body_footprint_decoding\", \"admitted_leaves\"],\n",
+        "{{\n  \"certificate_schema\": \"{}\",\n  \"certificate_format_version\": {},\n  \"certificate_fingerprint\": \"0x{:016x}\",\n  \"coverage_fingerprint\": \"0x{:016x}\",\n  \"placement_stage\": \"final_image\",\n  \"enumeration_complete\": {},\n  \"region_enumeration_complete\": {},\n  \"footprint_enumeration_complete\": {},\n",
+        certificate.schema,
+        certificate.format_version,
+        certificate.certificate_fingerprint,
+        certificate.coverage_fingerprint,
+        coverage.enumeration_complete,
+        coverage.region_enumeration_complete,
+        coverage.footprint_enumeration_complete,
     );
+    for (name, classes) in [
+        ("covered_classes", &coverage.covered_classes),
+        (
+            "absent_by_construction_classes",
+            &coverage.absent_by_construction_classes,
+        ),
+        (
+            "final_byte_validated_classes",
+            &coverage.final_byte_validated_classes,
+        ),
+        ("missing_classes", &coverage.missing_classes),
+    ] {
+        json.push_str("  \"");
+        json.push_str(name);
+        json.push_str("\": ");
+        push_classes(&mut json, classes);
+        json.push_str(",\n");
+    }
     json.push_str("  \"boundary_contract_fingerprint\": ");
-    if let Some(fingerprint) = footprints.boundary_contract_fingerprint {
+    if let Some(fingerprint) = certificate.boundary_contract_fingerprint {
         push_string(&mut json, &format!("0x{fingerprint:016x}"));
     } else {
         json.push_str("null");
     }
     json.push_str(&format!(
-        ",\n  \"implementation_evidence_fingerprint\": \"0x{implementation_evidence_fingerprint:016x}\",\n  \"implementation_fragment_count\": {},\n  \"compiler_text_validation\": {{\"encoded_text_fingerprint\": \"0x{:016x}\", \"final_compiler_text_fingerprint\": \"0x{:016x}\", \"relocation_envelope_fingerprint\": \"0x{:016x}\", \"checked_instruction_validation_fingerprint\": \"0x{:016x}\", \"derivation_fingerprint\": \"0x{:016x}\", \"text_relocation_count\": {}, \"checked_instruction_validation_count\": {}}},\n  \"inventory_fingerprint\": \"0x{:016x}\",\n  \"boundary_placement_binding_fingerprint\": \"0x{binding_fingerprint:016x}\",\n",
-        footprints.fragments.len(),
-        compiler_text_validation.encoded_text_fingerprint,
-        compiler_text_validation.final_compiler_text_fingerprint,
-        compiler_text_validation.relocation_envelope_fingerprint,
-        compiler_text_validation.checked_instruction_validation_fingerprint,
-        compiler_text_validation.derivation_fingerprint,
-        compiler_text_validation.text_relocation_count,
-        compiler_text_validation.checked_instruction_validation_count,
-        inventory.inventory_fingerprint
+        ",\n  \"implementation_evidence_fingerprint\": \"0x{implementation_evidence_fingerprint:016x}\",\n  \"implementation_fragment_count\": {},\n  \"compiler_text_validation\": {{\"encoded_text_fingerprint\": \"0x{:016x}\", \"final_compiler_text_fingerprint\": \"0x{:016x}\", \"relocation_envelope_fingerprint\": \"0x{:016x}\", \"checked_instruction_validation_fingerprint\": \"0x{:016x}\", \"derivation_fingerprint\": \"0x{:016x}\", \"text_relocation_count\": {}, \"checked_instruction_validation_count\": {}}},\n  \"inventory_fingerprint\": \"0x{:016x}\",\n  \"boundary_placement_binding_fingerprint\": \"0x{:016x}\",\n",
+        certificate.implementation_fragment_count,
+        certificate.compiler_text_validation.encoded_text_fingerprint,
+        certificate.compiler_text_validation.final_compiler_text_fingerprint,
+        certificate.compiler_text_validation.relocation_envelope_fingerprint,
+        certificate
+            .compiler_text_validation
+            .checked_instruction_validation_fingerprint,
+        certificate.compiler_text_validation.derivation_fingerprint,
+        certificate.compiler_text_validation.text_relocation_count,
+        certificate
+            .compiler_text_validation
+            .checked_instruction_validation_count,
+        inventory.inventory_fingerprint,
+        certificate.boundary_placement_binding_fingerprint,
     ));
     json.push_str(&format!(
         "  \"text_address\": \"0x{:016x}\",\n  \"text_byte_count\": {},\n  \"text_fingerprint\": \"0x{:016x}\",\n  \"regions\": [",
@@ -221,115 +259,8 @@ fn write_executable_region_inventory(
         .map_err(|diagnostic| vec![diagnostic])
 }
 
-fn boundary_placement_binding_fingerprint(
-    boundary_contract_fingerprint: Option<u64>,
-    implementation_evidence_fingerprint: u64,
-    compiler_text_derivation_fingerprint: u64,
-    inventory_fingerprint: u64,
-) -> u64 {
-    let mut hash = 0xcbf2_9ce4_8422_2325u64;
-    for byte in [
-        boundary_contract_fingerprint.is_some() as u8,
-        0x42,
-        0x50,
-        0x42,
-    ]
-    .into_iter()
-    .chain(
-        boundary_contract_fingerprint
-            .unwrap_or_default()
-            .to_le_bytes(),
-    )
-    .chain(implementation_evidence_fingerprint.to_le_bytes())
-    .chain(compiler_text_derivation_fingerprint.to_le_bytes())
-    .chain(inventory_fingerprint.to_le_bytes())
-    {
-        hash ^= u64::from(byte);
-        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
-    }
-    hash
-}
-
-fn final_footprint_certificate_fingerprint(
-    boundary_placement_binding_fingerprint: u64,
-    compiler_text_derivation_fingerprint: u64,
-    inventory_fingerprint: u64,
-) -> u64 {
-    let mut hash = 0xcbf2_9ce4_8422_2325u64;
-    for byte in FINAL_FOOTPRINT_CERTIFICATE_SCHEMA
-        .as_bytes()
-        .iter()
-        .copied()
-        .chain(FINAL_FOOTPRINT_CERTIFICATE_FORMAT_VERSION.to_le_bytes())
-        .chain(
-            FINAL_FOOTPRINT_CERTIFICATE_COVERAGE_V1
-                .as_bytes()
-                .iter()
-                .copied(),
-        )
-        .chain(boundary_placement_binding_fingerprint.to_le_bytes())
-        .chain(compiler_text_derivation_fingerprint.to_le_bytes())
-        .chain(inventory_fingerprint.to_le_bytes())
-    {
-        hash ^= u64::from(byte);
-        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
-    }
-    hash
-}
-
-fn final_footprint_coverage_fingerprint() -> u64 {
-    let mut hash = 0xcbf2_9ce4_8422_2325u64;
-    for byte in FINAL_FOOTPRINT_CERTIFICATE_COVERAGE_V1.as_bytes() {
-        hash ^= u64::from(*byte);
-        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
-    }
-    hash
-}
-
 fn io_diagnostic(error: std::io::Error) -> Vec<Diagnostic> {
     vec![Diagnostic::error(error.to_string())]
-}
-
-#[cfg(test)]
-mod executable_region_inventory_tests {
-    use super::{
-        boundary_placement_binding_fingerprint, final_footprint_certificate_fingerprint,
-        final_footprint_coverage_fingerprint,
-    };
-
-    #[test]
-    fn placement_binding_changes_with_contract_evidence_or_final_inventory() {
-        let baseline = boundary_placement_binding_fingerprint(Some(1), 2, 3, 4);
-        assert_ne!(
-            baseline,
-            boundary_placement_binding_fingerprint(Some(5), 2, 3, 4)
-        );
-        assert_ne!(
-            baseline,
-            boundary_placement_binding_fingerprint(Some(1), 5, 3, 4)
-        );
-        assert_ne!(
-            baseline,
-            boundary_placement_binding_fingerprint(Some(1), 2, 6, 4)
-        );
-        assert_ne!(
-            baseline,
-            boundary_placement_binding_fingerprint(Some(1), 2, 3, 7)
-        );
-        assert_ne!(
-            baseline,
-            boundary_placement_binding_fingerprint(None, 2, 3, 4)
-        );
-    }
-
-    #[test]
-    fn certificate_identity_changes_with_placement_text_or_inventory_evidence() {
-        let baseline = final_footprint_certificate_fingerprint(1, 2, 3);
-        assert_ne!(baseline, final_footprint_certificate_fingerprint(4, 2, 3));
-        assert_ne!(baseline, final_footprint_certificate_fingerprint(1, 4, 3));
-        assert_ne!(baseline, final_footprint_certificate_fingerprint(1, 2, 4));
-        assert_ne!(final_footprint_coverage_fingerprint(), 0);
-    }
 }
 
 /// PE optional-header Subsystem word for a GUI program (`Subsystem::Gui`;

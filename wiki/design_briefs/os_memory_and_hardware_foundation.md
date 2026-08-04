@@ -1031,7 +1031,10 @@ derivation. The single emitted artifact is now self-described as
 `omega.final-footprint-certificate` format v1, with a domain-separated
 certificate fingerprint over its final placement binding, compiler-text
 derivation, and region inventory. It remains explicitly incomplete evidence,
-not an admission certificate, until the missing footprint classes close.
+not an admission certificate, until the missing footprint classes close. The
+envelope now exists as a typed `omega-image` object with a closed class
+vocabulary and normalized coverage rows; its identity is replayed before the
+compiler serializes the artifact.
 Checked image emission rejects any unclassified final executable gap. The
 current closed emitter therefore publishes `region_enumeration_complete: true`:
 compiler functions and format-owned import thunks cover every `.text` byte,
