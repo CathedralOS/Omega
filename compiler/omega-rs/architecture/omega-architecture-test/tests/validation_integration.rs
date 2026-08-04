@@ -320,6 +320,74 @@ fn trait_composition_forwards_a_proposition_family_parameter() {
 }
 
 #[test]
+fn indexed_carrier_family_substitutes_a_relation_telescope() {
+    let typed = typed_program_from_source(
+        r#"
+        data Index {}
+
+        data Stream<machine Sequence>
+        where machine Sequence(index: Index) -> Index;
+        {
+            case Empty;
+            case More(tail: Stream<Sequence>);
+        }
+
+        proposition stream_related<machine Left, machine Right>(
+            left: Stream<Left>,
+            right: Stream<Right>
+        );
+
+        trait RelationKind<C, proposition Relation>
+        where proposition Relation(left: C, right: C);
+        {
+        }
+
+        Stream satisfies RelationKind<Stream, stream_related>;
+        "#,
+    );
+
+    validate_program(&typed)
+        .expect("the relation should instantiate one fresh carrier telescope per representative");
+}
+
+#[test]
+fn indexed_relation_requires_a_fresh_telescope_per_representative() {
+    let typed = typed_program_from_source(
+        r#"
+        data Index {}
+
+        data Stream<machine Sequence>
+        where machine Sequence(index: Index) -> Index;
+        {
+            case Empty;
+            case More(tail: Stream<Sequence>);
+        }
+
+        proposition aliases_index<machine Shared, machine Unused>(
+            left: Stream<Shared>,
+            right: Stream<Shared>
+        );
+
+        trait RelationKind<C, proposition Relation>
+        where proposition Relation(left: C, right: C);
+        {
+        }
+
+        Stream satisfies RelationKind<Stream, aliases_index>;
+        "#,
+    );
+
+    let diagnostics = validate_program(&typed)
+        .expect_err("each representative must receive its own carrier index telescope");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("proposition family `aliases_index`")
+            && diagnostic.message.contains("value parameter 2")
+    }));
+}
+
+#[test]
 fn local_dynamic_value_rejects_boundary_trait() {
     let typed = typed_program_from_source(
         r#"
