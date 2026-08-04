@@ -154,7 +154,10 @@ pub fn emit_checked_executable_image(
 #[derive(Clone)]
 enum CompilerInstructionRelocationRecipe {
     None,
-    StaticStorage(omega_target_operations::RuntimeStorageRegion),
+    StaticStorage {
+        storage_region: omega_target_operations::RuntimeStorageRegion,
+        address_site: usize,
+    },
     PlacePair {
         left: omega_target_operations::Place,
         right: omega_target_operations::Place,
@@ -368,7 +371,10 @@ fn validate_compiler_function_instruction_boundaries(
                             )?,
                         },
                         8u8,
-                        CompilerInstructionRelocationRecipe::StaticStorage(storage_region),
+                        CompilerInstructionRelocationRecipe::StaticStorage {
+                            storage_region,
+                            address_site: 0,
+                        },
                     ),
                     omega_machine_bytes::CompilerInstructionValidationKind::PlacePairGuard {
                         left,
@@ -588,7 +594,132 @@ fn validate_compiler_function_instruction_boundaries(
                             }
                         },
                         15u8,
-                        CompilerInstructionRelocationRecipe::StaticStorage(storage_region),
+                        CompilerInstructionRelocationRecipe::StaticStorage {
+                            storage_region,
+                            address_site: 0,
+                        },
+                    ),
+                    omega_machine_bytes::CompilerInstructionValidationKind::EntryArgumentRegisterWrite {
+                        register,
+                        byte_offset,
+                        byte_size,
+                    } => (
+                        None,
+                        match architecture {
+                            Architecture::X86_64 => {
+                                omega_isa_x86_64::encode_entry_argument_register_write_bytes(
+                                    register,
+                                    byte_offset,
+                                    byte_size,
+                                )?
+                            }
+                            Architecture::Aarch64 => {
+                                omega_isa_aarch64::encode_entry_argument_register_write_bytes(
+                                    register,
+                                    byte_offset,
+                                    byte_size,
+                                )?
+                            }
+                        },
+                        16u8,
+                        CompilerInstructionRelocationRecipe::StaticStorage {
+                            storage_region: omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                            address_site: 0,
+                        },
+                    ),
+                    omega_machine_bytes::CompilerInstructionValidationKind::EntryStackArgumentWrite {
+                        stack_byte_offset,
+                        byte_offset,
+                        byte_size,
+                    } => (
+                        None,
+                        match architecture {
+                            Architecture::X86_64 => {
+                                omega_isa_x86_64::encode_entry_stack_argument_write_bytes(
+                                    stack_byte_offset,
+                                    byte_offset,
+                                    byte_size,
+                                )?
+                            }
+                            Architecture::Aarch64 => {
+                                omega_isa_aarch64::encode_entry_stack_argument_write_bytes(
+                                    stack_byte_offset,
+                                    byte_offset,
+                                    byte_size,
+                                )?
+                            }
+                        },
+                        17u8,
+                        CompilerInstructionRelocationRecipe::StaticStorage {
+                            storage_region: omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                            address_site: 0,
+                        },
+                    ),
+                    omega_machine_bytes::CompilerInstructionValidationKind::EntryIndirectArgumentWrite {
+                        pointer,
+                        byte_offset,
+                        byte_size,
+                    } => {
+                        let address_site = match architecture {
+                            Architecture::X86_64 => {
+                                omega_isa_x86_64::entry_indirect_argument_frame_base_offset(pointer)
+                            }
+                            Architecture::Aarch64 => {
+                                omega_isa_aarch64::entry_indirect_argument_frame_base_offset(pointer)
+                            }
+                        };
+                        (
+                            None,
+                            match architecture {
+                                Architecture::X86_64 => {
+                                    omega_isa_x86_64::encode_entry_indirect_argument_write_bytes(
+                                        pointer,
+                                        byte_offset,
+                                        byte_size,
+                                    )?
+                                }
+                                Architecture::Aarch64 => {
+                                    omega_isa_aarch64::encode_entry_indirect_argument_write_bytes(
+                                        pointer,
+                                        byte_offset,
+                                        byte_size,
+                                    )?
+                                }
+                            },
+                            18u8,
+                            CompilerInstructionRelocationRecipe::StaticStorage {
+                                storage_region: omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                                address_site,
+                            },
+                        )
+                    }
+                    omega_machine_bytes::CompilerInstructionValidationKind::EntryArgumentsSliceDescriptorWrite {
+                        descriptor_offset,
+                        spill_offset,
+                        byte_length,
+                    } => (
+                        None,
+                        match architecture {
+                            Architecture::X86_64 => {
+                                omega_isa_x86_64::encode_entry_arguments_slice_descriptor_write_bytes(
+                                    descriptor_offset,
+                                    spill_offset,
+                                    byte_length,
+                                )?
+                            }
+                            Architecture::Aarch64 => {
+                                omega_isa_aarch64::encode_entry_arguments_slice_descriptor_write_bytes(
+                                    descriptor_offset,
+                                    spill_offset,
+                                    byte_length,
+                                )?
+                            }
+                        },
+                        19u8,
+                        CompilerInstructionRelocationRecipe::StaticStorage {
+                            storage_region: omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                            address_site: 0,
+                        },
                     ),
                     omega_machine_bytes::CompilerInstructionValidationKind::DispatchStateWrite {
                         dispatch_index,
@@ -631,13 +762,17 @@ fn validate_compiler_function_instruction_boundaries(
                     CompilerInstructionRelocationRecipe::None => {
                         final_instruction_bytes == expected_bytes
                     }
-                    CompilerInstructionRelocationRecipe::StaticStorage(storage_region) => {
+                    CompilerInstructionRelocationRecipe::StaticStorage {
+                        storage_region,
+                        address_site,
+                    } => {
                         validate_compiler_storage_relocation(
                             architecture,
                             object,
                             relocations,
                             instruction.selected_instruction_index,
                             instruction_byte_offset,
+                            address_site,
                             storage_region,
                         )?;
                         encoded_instruction_bytes == expected_bytes
@@ -645,7 +780,7 @@ fn validate_compiler_function_instruction_boundaries(
                                 architecture,
                                 &expected_bytes,
                                 final_instruction_bytes,
-                                &[0],
+                                &[address_site],
                             )
                     }
                     CompilerInstructionRelocationRecipe::PlacePair { left, right } => {
@@ -1062,6 +1197,46 @@ fn compiler_instruction_footprint(
             },
             MachineStateSet::empty(),
         ),
+        CompilerInstructionValidationKind::EntryArgumentRegisterWrite { .. } => (
+            BoundaryFootprintFragmentOrigin::EntryStorage,
+            match architecture {
+                Architecture::X86_64 => omega_isa_x86_64::entry_argument_register_write_clobbers(),
+                Architecture::Aarch64 => {
+                    omega_isa_aarch64::entry_argument_register_write_clobbers()
+                }
+            },
+            MachineStateSet::empty(),
+        ),
+        CompilerInstructionValidationKind::EntryStackArgumentWrite { .. } => (
+            BoundaryFootprintFragmentOrigin::EntryStorage,
+            match architecture {
+                Architecture::X86_64 => omega_isa_x86_64::entry_stack_argument_write_clobbers(),
+                Architecture::Aarch64 => omega_isa_aarch64::entry_stack_argument_write_clobbers(),
+            },
+            MachineStateSet::empty(),
+        ),
+        CompilerInstructionValidationKind::EntryIndirectArgumentWrite { pointer, .. } => (
+            BoundaryFootprintFragmentOrigin::EntryStorage,
+            match architecture {
+                Architecture::X86_64 => omega_isa_x86_64::entry_indirect_argument_write_clobbers(),
+                Architecture::Aarch64 => {
+                    omega_isa_aarch64::entry_indirect_argument_write_clobbers(pointer)
+                }
+            },
+            MachineStateSet::empty(),
+        ),
+        CompilerInstructionValidationKind::EntryArgumentsSliceDescriptorWrite { .. } => (
+            BoundaryFootprintFragmentOrigin::EntrySliceDescriptor,
+            match architecture {
+                Architecture::X86_64 => {
+                    omega_isa_x86_64::entry_arguments_slice_descriptor_write_clobbers()
+                }
+                Architecture::Aarch64 => {
+                    omega_isa_aarch64::entry_arguments_slice_descriptor_write_clobbers()
+                }
+            },
+            MachineStateSet::empty(),
+        ),
         CompilerInstructionValidationKind::DispatchStateWrite { .. } => (
             BoundaryFootprintFragmentOrigin::DispatchScaffold,
             match architecture {
@@ -1105,6 +1280,8 @@ fn validate_compiler_body_specification_footprints(
                 | BoundaryFootprintFragmentOrigin::RuntimeValueGuardComparison
                 | BoundaryFootprintFragmentOrigin::PlaceGuardComparison
                 | BoundaryFootprintFragmentOrigin::ExitResultRegisters
+                | BoundaryFootprintFragmentOrigin::EntryStorage
+                | BoundaryFootprintFragmentOrigin::EntrySliceDescriptor
         )
     });
     let boundary_contract_fingerprint = if !has_body_rows {
@@ -1138,6 +1315,8 @@ fn validate_compiler_body_specification_footprints(
         ),
         (5u8, BoundaryFootprintFragmentOrigin::PlaceGuardComparison),
         (6u8, BoundaryFootprintFragmentOrigin::ExitResultRegisters),
+        (7u8, BoundaryFootprintFragmentOrigin::EntryStorage),
+        (8u8, BoundaryFootprintFragmentOrigin::EntrySliceDescriptor),
     ] {
         let evidence_rows = derived
             .iter()
@@ -1151,7 +1330,12 @@ fn validate_compiler_body_specification_footprints(
             .filter(|fragment| fragment.origin == origin)
             .collect::<Vec<_>>();
         if evidence_rows.is_empty() {
-            if !retained.is_empty() {
+            let retains_valid_empty_entry_storage = origin
+                == BoundaryFootprintFragmentOrigin::EntryStorage
+                && retained.len() == 1
+                && retained[0].evidence.registers().as_slice().is_empty()
+                && retained[0].evidence.machine_state().is_empty();
+            if !retained.is_empty() && !retains_valid_empty_entry_storage {
                 return Err(Diagnostic::error(format!(
                     "retained {origin:?} footprint has no final target-specification instruction rows"
                 )));
@@ -1240,6 +1424,7 @@ fn validate_compiler_storage_relocation(
     relocations: &RelocationPlan,
     selected_instruction_index: u32,
     instruction_byte_offset: usize,
+    address_site: usize,
     storage_region: omega_target_operations::RuntimeStorageRegion,
 ) -> Result<(), Diagnostic> {
     let mut matching = relocations
@@ -1256,16 +1441,16 @@ fn validate_compiler_storage_relocation(
         Architecture::X86_64 => {
             matching.len() == 1
                 && matching[0].kind == RelocationKind::Absolute64
-                && matching[0].offset == instruction_byte_offset + 2
+                && matching[0].offset == instruction_byte_offset + address_site + 2
                 && matching[0].byte_width == 8
         }
         Architecture::Aarch64 => {
             matching.len() == 2
                 && matching[0].kind == RelocationKind::Aarch64Page21
-                && matching[0].offset == instruction_byte_offset
+                && matching[0].offset == instruction_byte_offset + address_site
                 && matching[0].byte_width == 4
                 && matching[1].kind == RelocationKind::Aarch64PageOffset12
-                && matching[1].offset == instruction_byte_offset + 4
+                && matching[1].offset == instruction_byte_offset + address_site + 4
                 && matching[1].byte_width == 4
                 && matching[0].symbol_handle == matching[1].symbol_handle
         }

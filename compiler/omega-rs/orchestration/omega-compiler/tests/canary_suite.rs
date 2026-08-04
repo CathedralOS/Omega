@@ -1127,7 +1127,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         executable_regions.contains(
             "\"certificate_schema\": \"omega.final-footprint-certificate\""
         )
-            && executable_regions.contains("\"certificate_format_version\": 11")
+            && executable_regions.contains("\"certificate_format_version\": 12")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
             && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")
@@ -39009,7 +39009,9 @@ fn aarch64_large_aggregate_entry_loads_a_stack_passed_pointer() {
     .expect("register-exhausted large aggregate should cross-compile through a stack pointer");
 
     let image = fs::read(build_dir.join("omega-program")).expect("read emitted AArch64 ELF");
-    let pointer_load = 0xf940_33f1u32;
+    // The ordinary prologue reserves the 112-byte AArch64 function frame
+    // before loading this first incoming stack argument.
+    let pointer_load = 0xf940_3bf1u32;
     let pointee_loads = [0xf940_022au32, 0xf940_062a, 0xf940_0a2a];
     let store_mask = 0xffc0_03ffu32;
     assert!(
@@ -40296,7 +40298,7 @@ fn efi_large_aggregate_stack_entry_loads_pointer_after_shadow_space() {
     assert!(
         image
             .windows(10)
-            .any(|window| { window == [0x4c, 0x8b, 0x9c, 0x24, 104, 0, 0, 0, 0x49, 0xbf] }),
+            .any(|window| { window == [0x4c, 0x8b, 0x9c, 0x24, 120, 0, 0, 0, 0x49, 0xbf] }),
         "expected fifth-slot pointer loaded after saved frame, return address, and shadow space"
     );
     let _ = fs::remove_dir_all(&build_dir);
@@ -40336,14 +40338,23 @@ fn efi_fifth_entry_argument_unmarshals_from_the_ms_x64_stack_area() {
     ];
     assert_eq!(&image[text_raw..text_raw + prologue.len()], &prologue);
 
-    // The fixed 12-byte frame prologue and four 17-byte register stores
-    // precede the fifth parameter's 25-byte stack copy. Its source displacement
-    // is saved frame (64) + return address (8) + shadow space (32).
-    let stack_copy = &image[text_raw + 80..text_raw + 105];
+    // Four 17-byte register stores precede the fifth parameter's 25-byte stack
+    // copy. Locate the exact copy shape rather than baking in the independently
+    // evolving fixed-prologue width. Its source displacement is saved frame
+    // (80, including MXCSR control-state preservation) + return address (8) +
+    // shadow space (32).
+    let stack_copy = image[text_raw..]
+        .windows(25)
+        .find(|window| {
+            window[0..2] == [0x49, 0xbf]
+                && window[10..18] == [0x4c, 0x8b, 0x94, 0x24, 120, 0, 0, 0]
+                && window[18..21] == [0x4d, 0x89, 0x97]
+        })
+        .expect("fifth stack-argument copy should be present");
     assert_eq!(&stack_copy[0..2], &[0x49, 0xbf], "mov r15, frame base");
     assert_eq!(
         &stack_copy[10..18],
-        &[0x4c, 0x8b, 0x94, 0x24, 104, 0, 0, 0],
+        &[0x4c, 0x8b, 0x94, 0x24, 120, 0, 0, 0],
         "mov r10, [rsp + saved-frame + return-address + shadow-space]"
     );
     assert_eq!(

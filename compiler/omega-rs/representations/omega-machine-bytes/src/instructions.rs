@@ -72,6 +72,26 @@ pub enum CompilerInstructionValidationKind {
         byte_offset: usize,
         byte_size: usize,
     },
+    EntryArgumentRegisterWrite {
+        register: omega_calling_conventions::MachineRegister,
+        byte_offset: usize,
+        byte_size: usize,
+    },
+    EntryStackArgumentWrite {
+        stack_byte_offset: u32,
+        byte_offset: usize,
+        byte_size: usize,
+    },
+    EntryIndirectArgumentWrite {
+        pointer: omega_calling_conventions::IndirectPointerLocation,
+        byte_offset: usize,
+        byte_size: usize,
+    },
+    EntryArgumentsSliceDescriptorWrite {
+        descriptor_offset: usize,
+        spill_offset: usize,
+        byte_length: usize,
+    },
     DispatchStateWrite {
         dispatch_index: u32,
         case_leave_byte_distance: isize,
