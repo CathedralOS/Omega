@@ -605,119 +605,23 @@ fn lower_integer_conditional(
     function: &TerminalAbstractFunction,
     values: &BTreeMap<ValueId, KnownScalar>,
 ) -> Result<TerminalTargetFunction, LoweringError> {
-    let Some(entry) = function
-        .block_entries
-        .first()
-        .filter(|_| function.block_entries.len() >= 2)
-    else {
-        return Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(
-            function.machine,
-        ));
-    };
-    if entry.block != function.entry || entry.operation_offset != 0 {
-        return Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(
-            function.machine,
-        ));
-    }
-    let entry_end = function.block_entries[1].operation_offset;
-    let Some((terminator, entry_body)) = function
-        .operations
-        .get(..entry_end)
-        .and_then(|operations| operations.split_last())
-    else {
-        return Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(
-            function.machine,
-        ));
-    };
-    let TerminalAbstractOperation::Conditional {
-        condition,
-        when_true,
-        when_false,
-    } = terminator
-    else {
-        return Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(
-            function.machine,
-        ));
-    };
-    let mut values = values.clone();
-    let mut entry_operations = Vec::new();
-    for operation in entry_body {
-        if !lower_conditional_scalar_operation(operation, &mut values, &mut entry_operations)? {
-            return Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(
-                function.machine,
-            ));
-        }
-    }
-    let condition_source = *condition;
-    let condition = values
-        .get(&condition_source)
-        .cloned()
-        .ok_or(LoweringError::UnknownValue(condition_source))?;
-    if !matches!(
-        condition,
-        KnownScalar::Boolean(_) | KnownScalar::BooleanParameter { .. }
-    ) {
-        return Err(LoweringError::ConditionalConditionMustBeBoolean(
-            condition_source,
-        ));
-    }
     let ScalarType::Integer(result_type) = function.result.scalar_type else {
         return Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(
             function.machine,
         ));
     };
-
-    let mut visited = BTreeSet::new();
-    visited.insert(function.entry);
-    match condition {
-        KnownScalar::Boolean(selected_true_arm) => {
-            let selected = if selected_true_arm {
-                when_true
-            } else {
-                when_false
-            };
-            let lowered =
-                lower_conditional_arm(function, result_type, &values, selected, &visited)?;
-            entry_operations.extend(lowered.operations);
-            let provenance = conditional_provenance(function, entry_operations, lowered.edges);
-            let operation =
-                target_operation_from_integer_control(*lowered.arm.control, result_type);
-            Ok(TerminalTargetFunction {
-                machine: function.machine,
-                provenance,
-                operation,
-            })
-        }
-        KnownScalar::BooleanParameter {
-            parameter_index: condition_parameter_index,
-            location: condition_location,
-        } => {
-            let when_true =
-                lower_conditional_arm(function, result_type, &values, when_true, &visited)?;
-            let when_false =
-                lower_conditional_arm(function, result_type, &values, when_false, &visited)?;
-            entry_operations.extend(when_true.operations);
-            entry_operations.extend(when_false.operations);
-            let mut edges = when_true.edges;
-            edges.extend(when_false.edges);
-            let provenance = conditional_provenance(function, entry_operations, edges);
-            Ok(TerminalTargetFunction {
-                machine: function.machine,
-                provenance,
-                operation: TerminalTargetOperation::ReturnIntegerConditionalControl {
-                    condition_source,
-                    condition_parameter_index,
-                    condition_location,
-                    scalar_type: result_type,
-                    when_true: when_true.arm,
-                    when_false: when_false.arm,
-                },
-            })
-        }
-        KnownScalar::Integer { .. } => Err(LoweringError::ConditionalConditionMustBeBoolean(
-            condition_source,
-        )),
-    }
+    let lowered = lower_conditional_block(
+        function,
+        result_type,
+        values.clone(),
+        function.entry,
+        BTreeSet::new(),
+    )?;
+    Ok(TerminalTargetFunction {
+        machine: function.machine,
+        provenance: conditional_provenance(function, lowered.operations, lowered.edges),
+        operation: target_operation_from_integer_control(lowered.control, result_type),
+    })
 }
 
 struct LoweredConditionalArm {

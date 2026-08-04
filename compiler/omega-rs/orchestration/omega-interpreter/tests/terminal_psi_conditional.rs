@@ -190,6 +190,79 @@ fn conditional_fixed_bound_uses_the_maximum_path_not_the_sum() {
 }
 
 #[test]
+fn unconditional_entry_prefix_reaches_runtime_conditional_control() {
+    let mut module = conditional_module(SemanticVersion::CURRENT);
+    module.machines[0].entry = BlockId::new(8).unwrap();
+    module.machines[0].blocks.push(Block {
+        id: BlockId::new(8).unwrap(),
+        parameters: Vec::new(),
+        operations: Vec::new(),
+        terminator: Terminator::Jump {
+            edge: EdgeId::new(8).unwrap(),
+            target: BlockId::new(1).unwrap(),
+            arguments: Vec::new(),
+        },
+    });
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("entry-prefixed conditional verifies");
+    let fixed = derive_fixed_entry_fuel(&verified, MachineId::new(1).unwrap())
+        .expect("entry-prefixed conditional has a fixed bound");
+    assert_eq!(fixed.ceiling_units(), 3);
+
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    for (condition, expected) in [(true, 17), (false, 29)] {
+        let measured = interpret_terminal_measured(
+            &verified,
+            &[
+                TerminalScalarValue::Boolean(condition),
+                TerminalScalarValue::Integer {
+                    scalar_type: integer,
+                    value: IntegerValue::Unsigned(17),
+                },
+                TerminalScalarValue::Integer {
+                    scalar_type: integer,
+                    value: IntegerValue::Unsigned(29),
+                },
+            ],
+        )
+        .expect("entry-prefixed conditional executes");
+        assert_eq!(measured.usage().total_units(), 3);
+        assert_eq!(
+            measured.value(),
+            TerminalScalarValue::Integer {
+                scalar_type: integer,
+                value: IntegerValue::Unsigned(expected),
+            }
+        );
+    }
+
+    let abstract_plan = lower_verified_module(&verified).expect("lower prefixed requirements");
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_plan = lower_to_target_operations(&abstract_plan, target)
+            .expect("entry-prefixed conditional lowers for each architecture");
+        assert!(
+            target_plan.functions[0]
+                .provenance
+                .edges
+                .contains(&EdgeId::new(8).unwrap())
+        );
+        assert!(matches!(
+            target_plan.functions[0].operation,
+            TerminalTargetOperation::ReturnIntegerConditionalControl { .. }
+        ));
+        let assigned = assign_registers(&target_plan)
+            .expect("entry-prefixed conditional assigns for each architecture");
+        let emitted = emit_machine_code(&assigned)
+            .expect("entry-prefixed conditional emits for each architecture");
+        assert!(!emitted.functions[0].bytes.is_empty());
+    }
+}
+
+#[test]
 fn conditional_arms_lower_through_computed_jumps_to_a_shared_tail() {
     let module = conditional_shared_tail_module();
     let verified = verify_module(
