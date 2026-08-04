@@ -1127,7 +1127,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         executable_regions.contains(
             "\"certificate_schema\": \"omega.final-footprint-certificate\""
         )
-            && executable_regions.contains("\"certificate_format_version\": 6")
+            && executable_regions.contains("\"certificate_format_version\": 7")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
             && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")
@@ -1150,6 +1150,8 @@ fn contract_canary_visualizes_flow_contract_summaries() {
             && executable_regions.contains("\"instruction_count\": ")
             && executable_regions.contains("\"fixed_mechanics_instruction_count\": 2")
             && executable_regions.contains("\"fixed_mechanics_validation_fingerprint\": \"0x")
+            && executable_regions.contains("\"fixed_mechanics_boundary_contract_fingerprint\": \"0x")
+            && executable_regions.contains("\"fixed_mechanics_footprint_fingerprint\": \"0x")
             && executable_regions.contains("\"body_specification_instruction_count\": ")
             && executable_regions.contains("\"body_specification_validation_fingerprint\": \"0x")
             && executable_regions.contains("\"body_specification_boundary_contract_fingerprint\": \"0x")

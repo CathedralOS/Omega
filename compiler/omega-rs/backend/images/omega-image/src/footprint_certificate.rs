@@ -5,7 +5,7 @@ use crate::{
 use psi_diagnostics::Diagnostic;
 
 pub const FINAL_FOOTPRINT_CERTIFICATE_SCHEMA: &str = "omega.final-footprint-certificate";
-pub const FINAL_FOOTPRINT_CERTIFICATE_FORMAT_VERSION: u32 = 6;
+pub const FINAL_FOOTPRINT_CERTIFICATE_FORMAT_VERSION: u32 = 7;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum FinalFootprintClass {
@@ -202,6 +202,14 @@ impl FinalFootprintCertificate {
                 "final body-specification footprint evidence names a different boundary contract",
             ));
         }
+        if compiler_function_validation.fixed_mechanics_instruction_count > 0
+            && boundary_contract_fingerprint
+                != Some(compiler_function_validation.fixed_mechanics_boundary_contract_fingerprint)
+        {
+            return Err(Diagnostic::error(
+                "final call-return footprint evidence names a different boundary contract",
+            ));
+        }
         let coverage = FinalFootprintCoverage::current_partial();
         coverage.validate_normalized()?;
         let coverage_fingerprint = coverage.fingerprint();
@@ -256,6 +264,20 @@ impl FinalFootprintCertificate {
         {
             return Err(Diagnostic::error(
                 "final body-specification footprint evidence names a different boundary contract",
+            ));
+        }
+        if self
+            .compiler_function_validation
+            .fixed_mechanics_instruction_count
+            > 0
+            && self.boundary_contract_fingerprint
+                != Some(
+                    self.compiler_function_validation
+                        .fixed_mechanics_boundary_contract_fingerprint,
+                )
+        {
+            return Err(Diagnostic::error(
+                "final call-return footprint evidence names a different boundary contract",
             ));
         }
         if self.coverage.region_enumeration_complete && !self.inventory.unclassified_gaps.is_empty()
@@ -400,6 +422,8 @@ mod tests {
                 zero_width_instruction_count: 0,
                 fixed_mechanics_instruction_count: 2,
                 fixed_mechanics_validation_fingerprint: 14,
+                fixed_mechanics_boundary_contract_fingerprint: 1,
+                fixed_mechanics_footprint_fingerprint: 17,
                 body_specification_instruction_count: 3,
                 body_specification_validation_fingerprint: 15,
                 body_specification_boundary_contract_fingerprint: 1,
@@ -490,6 +514,8 @@ mod tests {
                     zero_width_instruction_count: 0,
                     fixed_mechanics_instruction_count: 0,
                     fixed_mechanics_validation_fingerprint: 0,
+                    fixed_mechanics_boundary_contract_fingerprint: 0,
+                    fixed_mechanics_footprint_fingerprint: 0,
                     body_specification_instruction_count: 0,
                     body_specification_validation_fingerprint: 0,
                     body_specification_boundary_contract_fingerprint: 0,

@@ -882,7 +882,7 @@ proves complete region coverage, and composes admitted leaves under their
 separate provenance. Do not add a second whole-image decoder/admission path.
 
 The existing single final-region artifact now carries the domain-separated
-`omega.final-footprint-certificate` schema, format version 6, and a certificate
+`omega.final-footprint-certificate` schema, format version 7, and a certificate
 fingerprint over its final placement binding, compiler-text derivation, and
 complete region inventory. Its explicit completeness flags remain false until
 compiler-body footprint decoding and admitted-leaf evidence land. The envelope
@@ -899,6 +899,10 @@ register/state footprints. Each compiler function's retained first/last rows
 also replay the architecture's exact fixed entry/return byte programs; this
 supersedes the entry-symbol-only prefix/suffix check and covers every generated
 function under `compiler_function_call_return_mechanics`.
+Those final entry/return rows now also re-derive the architecture-owned
+register/machine-state union, require exact equality with the earlier
+`CallReturnMechanics` fragment admitted under `StatePlan`, and bind both the
+footprint and boundary-contract identity into the certificate.
 The first ordinary middle-row target-spec subset is also live: dispatch-loop
 entry, case entry, state write/termination, forward arm skip, and case leave
 retain their normalized indices and branch distances, regenerate the expected
