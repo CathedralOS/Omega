@@ -1139,7 +1139,7 @@ relocation-envelope fingerprints plus their composed derivation identity. The
 boundary/placement binding includes that derivation identity, so a valid final
 inventory cannot be paired with evidence from a different encoded-to-final
 derivation. The single emitted artifact is now self-described as
-`omega.final-footprint-certificate` format v68, with a domain-separated
+`omega.final-footprint-certificate` format v69, with a domain-separated
 certificate fingerprint over its final placement binding, compiler-text
 derivation, and region inventory. It remains explicitly incomplete evidence,
 not an admission certificate, until the missing footprint classes close. The
@@ -1150,8 +1150,12 @@ granting foreign-call control authority. The first outbound control-transfer
 subset is also explicit: immediate-only, no-result Linux syscalls replay their
 plan-selected register and supervisor instruction program, reject any
 relocation record, and retain the complete ordinary-clobber plus
-flags/instruction-pointer/control-state leaf under a dedicated origin. This
-does not cover result-bearing, storage-addressed, composite, or imported calls.
+flags/instruction-pointer/control-state leaf under a dedicated origin. A
+zero-parameter value-result companion now replays the plan-selected result
+register and exact result-region relocation, including AArch64's
+offset-sensitive X16[/X17] store-address scratch under its own origin. This does
+not cover parameter-bearing value calls, storage/data operands, composites, or
+imports.
 The
 envelope now exists as a typed `omega-image` object with a closed class
 vocabulary and normalized coverage rows; its identity is replayed before the

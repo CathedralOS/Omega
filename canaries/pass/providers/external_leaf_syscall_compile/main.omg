@@ -2,18 +2,30 @@
 // ordinary host-ABI syscall mechanism. The x86 structural test pins the final
 // number and instruction; this source also joins the general pass corpus.
 boundary trait RawProcess {
+    machine process_id() -> i64;
     machine exit(code: i32);
 }
+
+linux_x64 machine process_id_leaf() -> i64
+    satisfies RawProcess::process_id
+    via Binding::Syscall(39);
 
 linux_x64 machine exit_leaf(code: i32)
     satisfies RawProcess::exit
     via Binding::Syscall(60);
 
+linux_arm64 machine process_id_leaf() -> i64
+    satisfies RawProcess::process_id
+    via Binding::Syscall(172);
+
 linux_arm64 machine exit_leaf(code: i32)
     satisfies RawProcess::exit
     via Binding::Syscall(93);
 
-data Main { process: RawProcess; }
+data Main { process: RawProcess; pid: i64; }
 machine Main::main(&mut self) {
-    self.process.exit(70);
+    self.pid = self.process.process_id();
+    transition self.pid > 0 { true -> good() _ -> bad() }
+    state good(&mut self) { self.process.exit(70); }
+    state bad(&mut self) { self.process.exit(71); }
 }

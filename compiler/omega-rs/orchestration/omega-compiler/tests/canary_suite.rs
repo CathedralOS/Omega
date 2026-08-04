@@ -772,6 +772,12 @@ fn external_leaf_syscall_reaches_linux_x64_backend() {
         trust.contains("provider plan: linux_x64::satisfies::RawProcess ["),
         "syscall leaf must travel through target-scoped provider admission reporting:\n{trust}"
     );
+    let footprints = fs::read_to_string(build_dir.join("08_boundary_footprints.json"))
+        .expect("external-leaf syscall footprints should be emitted");
+    assert!(
+        footprints.contains("\"origin\": \"compiler_body_outbound_syscall_result\""),
+        "value-returning syscall leaf must retain its result-store footprint"
+    );
     let elf = fs::read(build_dir.join("omega-program"))
         .expect("external-leaf syscall ELF should be emitted");
     let exit_sequence = [
@@ -808,6 +814,12 @@ fn external_leaf_syscall_reaches_linux_x64_backend() {
     .expect("qualified Binding::Syscall leaf should cross-compile for linux_arm64");
     let arm_elf =
         fs::read(arm_out.join("omega-program")).expect("external-leaf arm syscall ELF emitted");
+    let arm_footprints = fs::read_to_string(arm_out.join("08_boundary_footprints.json"))
+        .expect("external-leaf arm syscall footprints should be emitted");
+    assert!(
+        arm_footprints.contains("\"origin\": \"compiler_body_outbound_syscall_result\""),
+        "AArch64 value-returning syscall leaf must retain its result-store footprint"
+    );
     let arm_exit_sequence = [0xa8, 0x0b, 0x80, 0xd2, 0x01, 0x00, 0x00, 0xd4];
     let arm_exit_argument = 0xd280_08c0u32.to_le_bytes();
     assert!(
@@ -1127,7 +1139,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         executable_regions.contains(
             "\"certificate_schema\": \"omega.final-footprint-certificate\""
         )
-            && executable_regions.contains("\"certificate_format_version\": 68")
+            && executable_regions.contains("\"certificate_format_version\": 69")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
             && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")
