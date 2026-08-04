@@ -80,4 +80,8 @@ pub use read::{
     encode_runtime_text_line_read_fixed_array_syscall, encode_runtime_text_line_read_import,
     encode_runtime_text_line_read_syscall,
 };
-pub use write::{encode_runtime_text_literal_segment_write, encode_runtime_text_literal_write};
+pub use write::{
+    encode_runtime_text_literal_segment_write, encode_runtime_text_literal_write,
+    runtime_text_literal_segment_write_additional_machine_state,
+    runtime_text_literal_segment_write_register_writes,
+};

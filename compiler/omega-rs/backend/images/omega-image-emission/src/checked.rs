@@ -1853,6 +1853,31 @@ fn validate_compiler_function_instruction_boundaries(
                             },
                         )
                     }
+                    omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyTextLiteralSegmentWrite {
+                        buffer_symbol,
+                        byte_offset,
+                        literal,
+                    } => (
+                        None,
+                        match architecture {
+                            Architecture::X86_64 => {
+                                omega_isa_x86_64::encode_runtime_text_literal_segment_write(
+                                    byte_offset,
+                                    &literal,
+                                )?
+                            }
+                            Architecture::Aarch64 => {
+                                omega_isa_aarch64::encode_runtime_text_literal_segment_write(
+                                    byte_offset,
+                                    &literal,
+                                )?
+                            }
+                        },
+                        31u8,
+                        CompilerInstructionRelocationRecipe::RuntimeTextLiteral {
+                            buffer_symbol,
+                        },
+                    ),
                     omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyPlaceBinaryWrite {
                         target,
                         byte_size,
@@ -3568,6 +3593,21 @@ fn compiler_instruction_footprint(
                 registers,
                 additional_state,
             )
+        }
+        CompilerInstructionValidationKind::CompilerBodyTextLiteralSegmentWrite { .. } => {
+            match architecture {
+                Architecture::X86_64 => (
+                    BoundaryFootprintFragmentOrigin::CompilerBodyTextAssemblyWrite,
+                    omega_isa_x86_64::runtime_text_literal_segment_write_register_writes(),
+                    omega_isa_x86_64::runtime_text_literal_segment_write_additional_machine_state(),
+                ),
+                Architecture::Aarch64 => (
+                    BoundaryFootprintFragmentOrigin::CompilerBodyTextAssemblyWrite,
+                    omega_isa_aarch64::runtime_text_literal_segment_write_register_writes(),
+                    omega_isa_aarch64::runtime_text_literal_segment_write_additional_machine_state(
+                    ),
+                ),
+            }
         }
         CompilerInstructionValidationKind::CompilerBodyStorageConvertWrite { source, .. } => {
             match architecture {

@@ -7524,6 +7524,14 @@ pub fn runtime_text_literal_segment_write_width(literal: &str) -> usize {
     10 + literal.len() * 8
 }
 
+pub fn runtime_text_literal_segment_write_register_writes() -> RegisterSet {
+    RegisterSet::new([MachineRegister::X86R15])
+}
+
+pub fn runtime_text_literal_segment_write_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::empty()
+}
+
 pub fn encode_runtime_text_literal_segment_write(
     byte_offset: usize,
     literal: &str,

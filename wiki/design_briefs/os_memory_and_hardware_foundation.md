@@ -1085,14 +1085,16 @@ literal appends on both targets share that fragment and retain their exact
 literal, buffer identity, target place, encoder, and relocation set. Stored-
 source appends share it for direct/pointee x86 targets and direct, pointee, or
 frame-indexed AArch64 targets, with exact source storage and mixed
-buffer/source/target relocations. Legacy segmented text-buffer operations
-remain outside the partial proof.
+buffer/source/target relocations. Segmented literal writes retain their exact
+buffer symbol, byte offset, literal, encoder, and sole data relocation under
+the same text-assembly fragment; segmented stored-suffix operations remain
+outside the partial proof.
 Place-copy selection retains its separate `compiler_body_place_copy` evidence
 only for
 the `Ordinary` role; final validation regenerates the same place-copy bytes,
 checks the storage, pointer-slot, and index relocations, and requires the target
 scratch union to match. Other otherwise-general binary targets, AArch64
-composed-place conversion shapes, legacy segmented text-buffer operations, and calls remain
+composed-place conversion shapes, segmented stored-suffix operations, and calls remain
 outside the partial proof. The pointee-pair selector resolves
 both reference operands before flat storage, so the source remains a
 dereference rather than being mistaken for pointer-slot contents.
