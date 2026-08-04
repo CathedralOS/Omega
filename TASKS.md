@@ -132,11 +132,15 @@ composite claim-frontier work remain.
   can recompose the exact parent lineage. Remaining integration is for concrete
   target startup providers to feed their emitted image/layout geometry into the
   handoff and allocate their later frames/task stacks from the returned pool.
-  Cathedral's current exported UEFI `Main::run(handle, table)` is not such a
-  provider: no selected target-entry trait/schema inherits
-  `ProgramStorageEntry` yet. That is a target-package implementation dependency,
-  not a language-design blocker; do not substitute name recognition for the
-  missing schema.
+  Cathedral now declares `UefiApplication: ProgramStorageEntry`, so the target
+  package owns the exact inherited semantic schema without a look-alike root
+  domain. Its current exported UEFI `Main::run(handle, table)` remains the
+  boot-verified raw firmware callable, not yet the selected storage provider.
+  Remaining implementation is Build entry-schema selection plus the generated
+  stub/geometry bridge that binds emitted image and initial-storage geometry to
+  the inherited positions before forwarding the firmware invocation. This is
+  not a language-design blocker; do not substitute name recognition or pretend
+  firmware supplied `Extent` parameters.
 
 - `Task<T>` plus the interrupt mask guard and acknowledgement token are now
   ordinary linear data. The interrupt carriers expose the compact
