@@ -1111,7 +1111,7 @@ relocation, and data relocation now consume that complete plan. Their former
 manual `+8`/`+12` stack accounting and trailing-mode operation classifier are
 retired; the operation key only selects the concrete adapter subcall.
 
-Final footprint certificate format v69 now retains an exact
+Final footprint certificate format v70 now retains an exact
 function-to-instruction partition in the encoded carrier. Checked image
 emission replays every contiguous function
 and instruction boundary over relocated final bytes, rejects gaps, overlaps,
@@ -1144,8 +1144,13 @@ The first value-result subset covers Linux syscalls whose parameters are
 immediate integers or byte lengths. Final replay uses the same plan-selected
 parameter and result registers, validates the sole result-storage relocation,
 and adds AArch64's offset-sensitive X16[/X17] post-call store scratch to a
-separate StatePlan fragment. Storage/data operands, composite syscall adapters,
-and imported calls remain separate unfinished classes.
+separate StatePlan fragment. Other storage/data operands, composite syscall
+adapters, and imported calls remain separate unfinished classes. No-result
+syscalls may now also load scalar arguments from runtime frame or machine
+storage. Checked replay regenerates each load, requires its exact storage-symbol
+relocation, and matches the plan-owned ordinary-clobber/control leaf under a
+dedicated origin. Address, text/data, result-plus-storage, composite, and
+imported calls remain unfinished.
 The replay boundary is the compiler-authored prefix, not the entire executable
 `.text` section. Format-owned import-thunk tails appended by Mach-O or PE stay
 outside compiler-function enumeration and are validated by their separate

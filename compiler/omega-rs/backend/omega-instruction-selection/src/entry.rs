@@ -1031,6 +1031,100 @@ pub fn derive_boundary_compiler_body_outbound_syscall_footprint(
     Ok(evidence)
 }
 
+/// Derive no-result outbound syscall leaves that load one or more scalar
+/// arguments from runtime storage. Their marshallers use only the normalized
+/// syscall plan's ordinary-clobber set; exact storage relocations are retained
+/// later beside the encoded instruction.
+pub fn derive_boundary_compiler_body_outbound_syscall_storage_arguments_footprint(
+    boundary: &ValidatedBoundaryEntryPlan,
+    input: &crate::InstructionSelectionInput<'_>,
+    operands: &psi_arena::Arena<omega_abstract_operations::InstructionOperand>,
+    instructions: &[omega_abstract_operations::AbstractOperation],
+) -> Result<StateFootprintEvidence, PlanDiagnostic> {
+    use omega_abstract_operations::{AbstractOperationKind, InstructionOperandKind};
+    use omega_calling_conventions::{EntryControl, HostBindingMechanism};
+
+    let mut registers = Vec::new();
+    let mut has_syscall = false;
+    for instruction in instructions {
+        let AbstractOperationKind::HostOperation {
+            operation_ordinal,
+            operands: operand_span,
+        } = &instruction.kind
+        else {
+            continue;
+        };
+        let Some((_, host_call)) = input.host_calls.calls.iter().find(|(_, host_call)| {
+            host_call.source_key == instruction.source_key
+                && host_call.statement_index == instruction.source_statement
+        }) else {
+            continue;
+        };
+        let Some(operation) = input
+            .host_calls
+            .operations
+            .span(host_call.operations)
+            .and_then(|operations| operations.get(usize::from(*operation_ordinal)))
+        else {
+            continue;
+        };
+        let Some((_, binding)) = input
+            .host_abi
+            .bindings
+            .iter()
+            .find(|(_, binding)| binding.operation_key == operation.operation_key)
+        else {
+            continue;
+        };
+        let Some(arguments) = operands.span(*operand_span) else {
+            continue;
+        };
+        let has_storage = arguments.iter().any(|operand| {
+            matches!(
+                operand.kind,
+                InstructionOperandKind::RuntimeScalarInteger { .. }
+            )
+        });
+        if !matches!(binding.mechanism, HostBindingMechanism::Syscall { .. })
+            || operation.operation_key.uses_linux_timespec_result()
+            || operation.operation_key.uses_linux_timespec_argument()
+            || binding.call_plan().result.is_some()
+            || binding.call_plan().parameters.len() != arguments.len()
+            || !matches!(
+                binding.call_plan().entry_control,
+                EntryControl::SupervisorCall { .. }
+            )
+            || !has_storage
+            || !arguments.iter().all(|operand| {
+                matches!(
+                    operand.kind,
+                    InstructionOperandKind::ImmediateInteger(_)
+                        | InstructionOperandKind::ByteLength(_)
+                        | InstructionOperandKind::RuntimeScalarInteger { .. }
+                )
+            })
+        {
+            continue;
+        }
+        has_syscall = true;
+        registers.extend_from_slice(binding.call_plan().ordinary_clobbers.as_slice());
+    }
+    let evidence = StateFootprintEvidence::new(
+        RegisterSet::new(registers),
+        if has_syscall {
+            MachineStateSet::new([
+                MachineState::Flags,
+                MachineState::InstructionPointer,
+                MachineState::ControlState,
+            ])
+        } else {
+            MachineStateSet::empty()
+        },
+    );
+    omega_calling_conventions::validate_outbound_call_footprint(boundary, &evidence)?;
+    Ok(evidence)
+}
+
 /// Derive the first result-bearing outbound syscall leaf. This deliberately
 /// covers only a runtime-scalar destination followed by immediate/byte-length
 /// parameters; relocatable parameters and composite adapters retain separate

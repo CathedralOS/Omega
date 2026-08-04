@@ -882,7 +882,7 @@ proves complete region coverage, and composes admitted leaves under their
 separate provenance. Do not add a second whole-image decoder/admission path.
 
 The existing single final-region artifact now carries the domain-separated
-`omega.final-footprint-certificate` schema, format version 69, and a certificate
+`omega.final-footprint-certificate` schema, format version 70, and a certificate
 fingerprint over its final placement binding, compiler-text derivation, and
 complete region inventory. Its explicit completeness flags remain false until
 compiler-body footprint decoding and admitted-leaf evidence land. The envelope
@@ -948,8 +948,14 @@ the enclosing boundary ceiling. Result-bearing Linux syscalls with only
 immediate/byte-length parameters now form a second exact leaf: replay consumes
 the plan-selected parameter and result registers, requires the sole
 result-storage relocation, and adds the AArch64 X16[/X17] store-address scratch
-to dedicated `CompilerBodyOutboundSyscallResult` evidence. Storage/data
-operands, composites, and imports remain incomplete. The final validator now also
+to dedicated `CompilerBodyOutboundSyscallResult` evidence. Other storage/data
+operand classes remain separate. No-result calls may now load scalar arguments
+from runtime frame or machine storage: final replay derives every argument's
+exact relocation site, rejects any extra record, and matches the plan-owned
+scratch and control leaf to
+`CompilerBodyOutboundSyscallStorageArguments`. Address, text/data,
+result-plus-storage, composite, and imported calls remain incomplete. The final
+validator now also
 replays register-, stack-, and indirect-pointer entry argument copies plus the
 entry `args` slice-descriptor write. Each row retains its normalized ABI/storage
 recipe, requires the exact runtime-frame relocation site even when a stack-held

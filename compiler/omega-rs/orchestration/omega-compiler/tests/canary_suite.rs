@@ -778,17 +778,15 @@ fn external_leaf_syscall_reaches_linux_x64_backend() {
         footprints.contains("\"origin\": \"compiler_body_outbound_syscall_result\""),
         "value-returning syscall leaf must retain its result-store footprint"
     );
+    assert!(
+        footprints.contains("\"origin\": \"compiler_body_outbound_syscall_storage_arguments\""),
+        "runtime-scalar syscall arguments must retain their storage-relocation footprint"
+    );
     let elf = fs::read(build_dir.join("omega-program"))
         .expect("external-leaf syscall ELF should be emitted");
     let exit_sequence = [
         0x48, 0xb8, 0x3c, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0f, 0x05,
     ];
-    let exit_argument = [0x48, 0xbf, 0x46, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
-    assert!(
-        elf.windows(exit_argument.len())
-            .any(|window| window == exit_argument),
-        "normalized x86-64 syscall plan must place code 70 in rdi"
-    );
     assert!(
         elf.windows(exit_sequence.len())
             .any(|window| window == exit_sequence),
@@ -820,14 +818,11 @@ fn external_leaf_syscall_reaches_linux_x64_backend() {
         arm_footprints.contains("\"origin\": \"compiler_body_outbound_syscall_result\""),
         "AArch64 value-returning syscall leaf must retain its result-store footprint"
     );
-    let arm_exit_sequence = [0xa8, 0x0b, 0x80, 0xd2, 0x01, 0x00, 0x00, 0xd4];
-    let arm_exit_argument = 0xd280_08c0u32.to_le_bytes();
     assert!(
-        arm_elf
-            .windows(arm_exit_argument.len())
-            .any(|window| window == arm_exit_argument),
-        "normalized AArch64 syscall plan must place code 70 in x0"
+        arm_footprints.contains("\"origin\": \"compiler_body_outbound_syscall_storage_arguments\""),
+        "AArch64 runtime-scalar syscall arguments must retain their storage-relocation footprint"
     );
+    let arm_exit_sequence = [0xa8, 0x0b, 0x80, 0xd2, 0x01, 0x00, 0x00, 0xd4];
     assert!(
         arm_elf
             .windows(arm_exit_sequence.len())
@@ -1139,7 +1134,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         executable_regions.contains(
             "\"certificate_schema\": \"omega.final-footprint-certificate\""
         )
-            && executable_regions.contains("\"certificate_format_version\": 69")
+            && executable_regions.contains("\"certificate_format_version\": 70")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
             && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")

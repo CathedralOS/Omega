@@ -157,9 +157,8 @@ pub fn emit_checked_executable_image(
 enum CompilerInstructionRelocationRecipe {
     None,
     NoRelocations,
-    OutboundSyscallResult {
-        storage_region: omega_target_operations::RuntimeStorageRegion,
-        address_site: usize,
+    OutboundSyscallStorage {
+        address_sites: Vec<(usize, omega_target_operations::RuntimeStorageRegion)>,
     },
     StaticStorage {
         storage_region: omega_target_operations::RuntimeStorageRegion,
@@ -270,6 +269,49 @@ fn aarch64_outbound_syscall_operand(
     })
 }
 
+fn outbound_syscall_argument_storage_sites(
+    architecture: Architecture,
+    arguments: &[omega_target_operations::InstructionOperand],
+) -> Result<Vec<(usize, omega_target_operations::RuntimeStorageRegion)>, Diagnostic> {
+    use omega_target_operations::InstructionOperandLike;
+
+    let aarch64_arguments = (architecture == Architecture::Aarch64)
+        .then(|| {
+            arguments
+                .iter()
+                .map(aarch64_outbound_syscall_operand)
+                .collect::<Result<Vec<_>, _>>()
+        })
+        .transpose()?;
+    arguments
+        .iter()
+        .enumerate()
+        .filter_map(|(index, operand)| {
+            operand.runtime_scalar_integer().map(|(region, _, _)| {
+                let site = match architecture {
+                    Architecture::X86_64 => omega_isa_x86_64::syscall_data_relocation_byte_offset(
+                        arguments, index,
+                    )
+                    .checked_sub(2)
+                    .ok_or_else(|| {
+                        Diagnostic::error(
+                            "x86 outbound syscall argument relocation precedes its address opcode",
+                        )
+                    })?,
+                    Architecture::Aarch64 => aarch64_arguments
+                        .as_ref()
+                        .expect("AArch64 operands were retained")
+                        .iter()
+                        .take(index)
+                        .map(omega_isa_aarch64::operand_width)
+                        .sum(),
+                };
+                Ok((site, region))
+            })
+        })
+        .collect()
+}
+
 fn encode_simple_outbound_syscall(
     architecture: Architecture,
     operands: &[omega_target_operations::InstructionOperand],
@@ -278,7 +320,7 @@ fn encode_simple_outbound_syscall(
 ) -> Result<
     (
         Vec<u8>,
-        Option<(omega_target_operations::RuntimeStorageRegion, usize)>,
+        Vec<(usize, omega_target_operations::RuntimeStorageRegion)>,
     ),
     Diagnostic,
 > {
@@ -356,6 +398,7 @@ fn encode_simple_outbound_syscall(
         })
         .collect::<Result<Vec<_>, _>>()?;
     if !has_result {
+        let address_sites = outbound_syscall_argument_storage_sites(architecture, operands)?;
         let bytes = match architecture {
             Architecture::X86_64 => omega_isa_x86_64::encode_syscall_sequence(
                 operands,
@@ -378,10 +421,10 @@ fn encode_simple_outbound_syscall(
                 )?
             }
         };
-        return Ok((bytes, None));
+        return Ok((bytes, address_sites));
     }
 
-    let Some((result, _)) = operands.split_first() else {
+    let Some((result, arguments)) = operands.split_first() else {
         return Err(Diagnostic::error(
             "final result-bearing outbound syscall has no result operand",
         ));
@@ -441,7 +484,9 @@ fn encode_simple_outbound_syscall(
         })?,
         Architecture::Aarch64 => result_site,
     };
-    Ok((bytes, Some((result_region, address_site))))
+    let mut address_sites = outbound_syscall_argument_storage_sites(architecture, arguments)?;
+    address_sites.push((address_site, result_region));
+    Ok((bytes, address_sites))
 }
 
 #[derive(Clone, Copy)]
@@ -1669,13 +1714,13 @@ fn validate_compiler_function_instruction_boundaries(
                         number,
                         plan,
                     } => {
-                        let (bytes, result) = encode_simple_outbound_syscall(
+                        let (bytes, address_sites) = encode_simple_outbound_syscall(
                             architecture,
                             &operands,
                             number,
                             &plan,
                         )?;
-                        if result.is_some() {
+                        if !address_sites.is_empty() {
                             return Err(Diagnostic::error(
                                 "no-result outbound syscall replay unexpectedly produced a result relocation",
                             ));
@@ -1687,29 +1732,53 @@ fn validate_compiler_function_instruction_boundaries(
                             CompilerInstructionRelocationRecipe::NoRelocations,
                         )
                     }
-                    omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyOutboundSyscallResult {
+                    omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyOutboundSyscallStorageArguments {
                         operands,
                         number,
                         plan,
                     } => {
-                        let (bytes, result) = encode_simple_outbound_syscall(
+                        let (bytes, address_sites) = encode_simple_outbound_syscall(
                             architecture,
                             &operands,
                             number,
                             &plan,
                         )?;
-                        let Some((storage_region, address_site)) = result else {
+                        if address_sites.is_empty() {
+                            return Err(Diagnostic::error(
+                                "storage-argument outbound syscall replay lost its operand relocations",
+                            ));
+                        }
+                        (
+                            None,
+                            bytes,
+                            37u8,
+                            CompilerInstructionRelocationRecipe::OutboundSyscallStorage {
+                                address_sites,
+                            },
+                        )
+                    }
+                    omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyOutboundSyscallResult {
+                        operands,
+                        number,
+                        plan,
+                    } => {
+                        let (bytes, address_sites) = encode_simple_outbound_syscall(
+                            architecture,
+                            &operands,
+                            number,
+                            &plan,
+                        )?;
+                        if address_sites.len() != 1 {
                             return Err(Diagnostic::error(
                                 "result-bearing outbound syscall replay lost its result relocation",
                             ));
-                        };
+                        }
                         (
                             None,
                             bytes,
                             36u8,
-                            CompilerInstructionRelocationRecipe::OutboundSyscallResult {
-                                storage_region,
-                                address_site,
+                            CompilerInstructionRelocationRecipe::OutboundSyscallStorage {
+                                address_sites,
                             },
                         )
                     }
@@ -2995,25 +3064,26 @@ fn validate_compiler_function_instruction_boundaries(
                             && encoded_instruction_bytes == expected_bytes
                             && final_instruction_bytes == expected_bytes
                     }
-                    CompilerInstructionRelocationRecipe::OutboundSyscallResult {
-                        storage_region,
-                        address_site,
+                    CompilerInstructionRelocationRecipe::OutboundSyscallStorage {
+                        address_sites,
                     } => {
-                        validate_compiler_storage_relocation(
+                        validate_compiler_data_address_relocations(
                             architecture,
                             object,
                             relocations,
                             instruction.selected_instruction_index,
                             instruction_byte_offset,
-                            address_site,
-                            storage_region,
+                            &address_sites,
                         )?;
                         encoded_instruction_bytes == expected_bytes
                             && compiler_instruction_non_relocation_bits_match(
                                 architecture,
                                 &expected_bytes,
                                 final_instruction_bytes,
-                                &[address_site],
+                                &address_sites
+                                    .iter()
+                                    .map(|(site, _)| *site)
+                                    .collect::<Vec<_>>(),
                             )
                     }
                     CompilerInstructionRelocationRecipe::StaticStorage {
@@ -4206,6 +4276,18 @@ fn compiler_instruction_footprint(
                 MachineState::ControlState,
             ]),
         ),
+        CompilerInstructionValidationKind::CompilerBodyOutboundSyscallStorageArguments {
+            plan,
+            ..
+        } => (
+            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallStorageArguments,
+            plan.ordinary_clobbers,
+            MachineStateSet::new([
+                MachineState::Flags,
+                MachineState::InstructionPointer,
+                MachineState::ControlState,
+            ]),
+        ),
         CompilerInstructionValidationKind::CompilerBodyOutboundSyscallResult {
             operands,
             plan,
@@ -4669,6 +4751,7 @@ fn validate_compiler_body_specification_footprints(
                 | BoundaryFootprintFragmentOrigin::CompilerBodyConstantHostResult
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscall
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallResult
+                | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallStorageArguments
                 | BoundaryFootprintFragmentOrigin::CompilerBodyStorageBitFieldWrite
                 | BoundaryFootprintFragmentOrigin::CompilerBodyPlaceBoundedBufferWrite
                 | BoundaryFootprintFragmentOrigin::CompilerBodyPlaceStringWrite
@@ -4755,6 +4838,10 @@ fn validate_compiler_body_specification_footprints(
         (
             21u8,
             BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallResult,
+        ),
+        (
+            22u8,
+            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallStorageArguments,
         ),
     ] {
         let evidence_rows = derived
