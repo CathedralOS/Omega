@@ -243,38 +243,73 @@ enum CompilerInstructionRelocationRecipe {
 fn aarch64_outbound_syscall_operand(
     operand: &omega_target_operations::InstructionOperand,
 ) -> Result<omega_isa_aarch64::Aarch64CallOperand, Diagnostic> {
-    use omega_target_operations::{InstructionOperandKind, InstructionOperandLike};
+    use omega_target_operations::InstructionOperandLike;
 
-    Ok(match operand.kind {
-        InstructionOperandKind::RuntimeScalarInteger {
+    Ok(if operand.data_address().is_some() {
+        omega_isa_aarch64::Aarch64CallOperand::DataAddress
+    } else if let Some((_, byte_offset)) = operand.runtime_string_pointer() {
+        omega_isa_aarch64::Aarch64CallOperand::RuntimeStringPointer {
+            byte_offset,
+            is_bounded_buffer: operand.runtime_string_is_bounded_buffer(),
+        }
+    } else if let Some((_, byte_offset)) = operand.runtime_string_length() {
+        omega_isa_aarch64::Aarch64CallOperand::RuntimeStringLength {
+            byte_offset,
+            is_bounded_buffer: operand.runtime_string_is_bounded_buffer(),
+        }
+    } else if let Some((_, byte_offset)) = operand.runtime_pointee_string_pointer() {
+        omega_isa_aarch64::Aarch64CallOperand::RuntimePointeeStringPointer { byte_offset }
+    } else if let Some((_, byte_offset)) = operand.runtime_pointee_string_length() {
+        omega_isa_aarch64::Aarch64CallOperand::RuntimePointeeStringLength { byte_offset }
+    } else if let Some((_, byte_offset, byte_count)) = operand.runtime_scalar_integer() {
+        omega_isa_aarch64::Aarch64CallOperand::RuntimeScalarInteger {
             byte_offset,
             byte_count,
-            ..
-        } => omega_isa_aarch64::Aarch64CallOperand::RuntimeScalarInteger {
-            byte_offset,
-            byte_count,
-        },
-        InstructionOperandKind::ImmediateInteger(value) => {
-            omega_isa_aarch64::Aarch64CallOperand::ImmediateInteger(value)
         }
-        InstructionOperandKind::ByteLength(value) => {
-            omega_isa_aarch64::Aarch64CallOperand::ByteLength(value)
-        }
-        _ if operand.data_address().is_some() => omega_isa_aarch64::Aarch64CallOperand::DataAddress,
-        _ => {
-            return Err(Diagnostic::error(
-                "final simple outbound syscall replay retained a relocatable parameter",
-            ));
-        }
+    } else if let Some((_, byte_offset)) = operand.runtime_storage_address() {
+        omega_isa_aarch64::Aarch64CallOperand::RuntimeStorageAddress { byte_offset }
+    } else if let Some(value) = operand.immediate_integer() {
+        omega_isa_aarch64::Aarch64CallOperand::ImmediateInteger(value)
+    } else if let Some(value) = operand.byte_length() {
+        omega_isa_aarch64::Aarch64CallOperand::ByteLength(value)
+    } else {
+        return Err(Diagnostic::error(
+            "final outbound syscall replay retained an unsupported parameter",
+        ));
     })
+}
+
+fn outbound_syscall_operand_storage_region(
+    operand: &omega_target_operations::InstructionOperand,
+) -> Option<omega_target_operations::RuntimeStorageRegion> {
+    use omega_target_operations::InstructionOperandLike;
+
+    operand
+        .runtime_string_pointer()
+        .map(|(region, _)| region)
+        .or_else(|| operand.runtime_string_length().map(|(region, _)| region))
+        .or_else(|| {
+            operand
+                .runtime_pointee_string_pointer()
+                .map(|(region, _)| region)
+        })
+        .or_else(|| {
+            operand
+                .runtime_pointee_string_length()
+                .map(|(region, _)| region)
+        })
+        .or_else(|| {
+            operand
+                .runtime_scalar_integer()
+                .map(|(region, _, _)| region)
+        })
+        .or_else(|| operand.runtime_storage_address().map(|(region, _)| region))
 }
 
 fn outbound_syscall_argument_storage_sites(
     architecture: Architecture,
     arguments: &[omega_target_operations::InstructionOperand],
 ) -> Result<Vec<(usize, omega_target_operations::RuntimeStorageRegion)>, Diagnostic> {
-    use omega_target_operations::InstructionOperandLike;
-
     let aarch64_arguments = (architecture == Architecture::Aarch64)
         .then(|| {
             arguments
@@ -287,7 +322,7 @@ fn outbound_syscall_argument_storage_sites(
         .iter()
         .enumerate()
         .filter_map(|(index, operand)| {
-            operand.runtime_scalar_integer().map(|(region, _, _)| {
+            outbound_syscall_operand_storage_region(operand).map(|region| {
                 let site = match architecture {
                     Architecture::X86_64 => omega_isa_x86_64::syscall_data_relocation_byte_offset(
                         arguments, index,
@@ -10060,8 +10095,8 @@ mod tests {
         compiler_instruction_non_relocation_bits_match, compiler_place_convert_write_address_sites,
         compiler_place_copy_address_sites, compiler_place_integer_write_address_sites,
         compiler_place_value_address_sites, compiler_runtime_value_compare_address_sites,
-        emit_checked_executable_image, validate_checked_instruction_bytes,
-        validate_compiler_data_address_relocations,
+        emit_checked_executable_image, outbound_syscall_argument_storage_sites,
+        validate_checked_instruction_bytes, validate_compiler_data_address_relocations,
         validate_compiler_function_instruction_boundaries,
         validate_compiler_runtime_text_relocations, validate_executable_region_enumeration,
         validate_final_text_relocation_envelope,
@@ -10074,6 +10109,91 @@ mod tests {
     };
     use omega_target::NativeTarget;
     use psi_arena::Handle;
+
+    #[test]
+    fn outbound_syscall_storage_sites_cover_runtime_descriptors_and_addresses() {
+        use omega_target_operations::{
+            InstructionOperand, InstructionOperandKind, RuntimeStorageRegion,
+        };
+
+        let operands = vec![
+            InstructionOperand {
+                kind: InstructionOperandKind::ImmediateInteger(7),
+            },
+            InstructionOperand {
+                kind: InstructionOperandKind::RuntimeStringPointer {
+                    region: RuntimeStorageRegion::RuntimeFrame,
+                    byte_offset: 16,
+                    is_bounded_buffer: false,
+                },
+            },
+            InstructionOperand {
+                kind: InstructionOperandKind::RuntimePointeeStringLength {
+                    region: RuntimeStorageRegion::Machine,
+                    byte_offset: 24,
+                },
+            },
+            InstructionOperand {
+                kind: InstructionOperandKind::RuntimeStorageAddress {
+                    region: RuntimeStorageRegion::RuntimeFrame,
+                    byte_offset: 32,
+                },
+            },
+        ];
+
+        let x86_sites =
+            outbound_syscall_argument_storage_sites(omega_target::Architecture::X86_64, &operands)
+                .expect("x86 descriptor/address sites");
+        assert_eq!(
+            x86_sites,
+            vec![
+                (
+                    omega_isa_x86_64::syscall_data_relocation_byte_offset(&operands, 1) - 2,
+                    RuntimeStorageRegion::RuntimeFrame,
+                ),
+                (
+                    omega_isa_x86_64::syscall_data_relocation_byte_offset(&operands, 2) - 2,
+                    RuntimeStorageRegion::Machine,
+                ),
+                (
+                    omega_isa_x86_64::syscall_data_relocation_byte_offset(&operands, 3) - 2,
+                    RuntimeStorageRegion::RuntimeFrame,
+                ),
+            ]
+        );
+
+        let aarch64_operands = operands
+            .iter()
+            .map(super::aarch64_outbound_syscall_operand)
+            .collect::<Result<Vec<_>, _>>()
+            .expect("AArch64 descriptor/address operands");
+        let aarch64_sites =
+            outbound_syscall_argument_storage_sites(omega_target::Architecture::Aarch64, &operands)
+                .expect("AArch64 descriptor/address sites");
+        assert_eq!(
+            aarch64_sites,
+            vec![
+                (
+                    omega_isa_aarch64::operand_width(&aarch64_operands[0]),
+                    RuntimeStorageRegion::RuntimeFrame,
+                ),
+                (
+                    aarch64_operands[..2]
+                        .iter()
+                        .map(omega_isa_aarch64::operand_width)
+                        .sum(),
+                    RuntimeStorageRegion::Machine,
+                ),
+                (
+                    aarch64_operands[..3]
+                        .iter()
+                        .map(omega_isa_aarch64::operand_width)
+                        .sum(),
+                    RuntimeStorageRegion::RuntimeFrame,
+                ),
+            ]
+        );
+    }
 
     #[test]
     fn rejects_native_image_when_encoded_text_size_differs_from_plan() {

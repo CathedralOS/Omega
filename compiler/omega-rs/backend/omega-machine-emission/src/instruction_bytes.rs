@@ -152,6 +152,33 @@ pub(crate) fn emit_function_bytes(
     Ok(encoded_instructions)
 }
 
+fn assigned_outbound_syscall_storage_argument_is_closed(
+    architecture: omega_target::Architecture,
+    operand: &omega_assigned_target_operations::InstructionOperand,
+) -> bool {
+    use omega_assigned_target_operations::InstructionOperandKind;
+
+    match operand.kind {
+        InstructionOperandKind::RuntimeStringPointer {
+            byte_offset,
+            is_bounded_buffer: true,
+            ..
+        } => {
+            architecture == omega_target::Architecture::X86_64
+                || byte_offset
+                    .checked_add(8)
+                    .is_some_and(|content_offset| content_offset <= 4095)
+        }
+        InstructionOperandKind::RuntimeStringPointer { .. }
+        | InstructionOperandKind::RuntimeStringLength { .. }
+        | InstructionOperandKind::RuntimePointeeStringPointer { .. }
+        | InstructionOperandKind::RuntimePointeeStringLength { .. }
+        | InstructionOperandKind::RuntimeScalarInteger { .. }
+        | InstructionOperandKind::RuntimeStorageAddress { .. } => true,
+        _ => false,
+    }
+}
+
 fn compiler_instruction_validation_kind(
     emission_context: MachineEmissionContext<'_>,
     laid_out_instructions: &[layout::LaidOutMachineInstruction],
@@ -562,16 +589,19 @@ fn compiler_instruction_validation_kind(
                     return Ok(None);
                 }
                 if arguments.iter().any(|operand| {
-                    matches!(
-                        operand.kind,
-                        omega_assigned_target_operations::InstructionOperandKind::RuntimeScalarInteger { .. }
+                    assigned_outbound_syscall_storage_argument_is_closed(
+                        emission_context.target.architecture,
+                        operand,
                     )
                 }) && arguments.iter().all(|operand| {
                     matches!(
                         operand.kind,
-                        omega_assigned_target_operations::InstructionOperandKind::ImmediateInteger(_)
-                            | omega_assigned_target_operations::InstructionOperandKind::ByteLength(_)
-                            | omega_assigned_target_operations::InstructionOperandKind::RuntimeScalarInteger { .. }
+                        omega_assigned_target_operations::InstructionOperandKind::ImmediateInteger(
+                            _
+                        ) | omega_assigned_target_operations::InstructionOperandKind::ByteLength(_)
+                    ) || assigned_outbound_syscall_storage_argument_is_closed(
+                        emission_context.target.architecture,
+                        operand,
                     )
                 }) {
                     Some(
@@ -582,13 +612,13 @@ fn compiler_instruction_validation_kind(
                         },
                     )
                 } else if arguments.iter().all(|operand| {
-                        matches!(
-                            operand.kind,
-                            omega_assigned_target_operations::InstructionOperandKind::ImmediateInteger(
-                                _
-                            ) | omega_assigned_target_operations::InstructionOperandKind::ByteLength(_)
-                        )
-                    }) {
+                    matches!(
+                        operand.kind,
+                        omega_assigned_target_operations::InstructionOperandKind::ImmediateInteger(
+                            _
+                        ) | omega_assigned_target_operations::InstructionOperandKind::ByteLength(_)
+                    )
+                }) {
                     Some(
                         CompilerInstructionValidationKind::CompilerBodyOutboundSyscallResult {
                             operands: operands.to_vec(),
@@ -600,16 +630,18 @@ fn compiler_instruction_validation_kind(
                     None
                 }
             } else if operands.iter().any(|operand| {
-                matches!(
-                    operand.kind,
-                    omega_assigned_target_operations::InstructionOperandKind::RuntimeScalarInteger { .. }
+                assigned_outbound_syscall_storage_argument_is_closed(
+                    emission_context.target.architecture,
+                    operand,
                 )
             }) && operands.iter().all(|operand| {
                 matches!(
                     operand.kind,
                     omega_assigned_target_operations::InstructionOperandKind::ImmediateInteger(_)
                         | omega_assigned_target_operations::InstructionOperandKind::ByteLength(_)
-                        | omega_assigned_target_operations::InstructionOperandKind::RuntimeScalarInteger { .. }
+                ) || assigned_outbound_syscall_storage_argument_is_closed(
+                    emission_context.target.architecture,
+                    operand,
                 )
             }) {
                 Some(
