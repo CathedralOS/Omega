@@ -949,6 +949,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("traits/runtime_dyn_two_impl_dispatch_exit", 70),
     ("traits/runtime_dyn_two_impl_dispatch_swapped_exit", 70),
     ("traits/runtime_generic_trait_default_exit", 70),
+    ("traits/trait_generic_bound_static_dispatch", 1),
     ("traits/runtime_inherited_trait_default_exit", 70),
     ("traits/runtime_ref_param_method_dispatch_exit", 70),
     ("traits/runtime_trait_default_dispatch_exit", 70),
