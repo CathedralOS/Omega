@@ -1,5 +1,13 @@
 use psi_arena::HandleSpan;
 
+/// Fixed compiler-owned instruction programs whose final encodings can be
+/// replayed directly from the target specification.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CompilerInstructionValidationKind {
+    FunctionEnter,
+    FunctionReturn,
+}
+
 /// The only registers the x86 checked-assembly operand evaluator may target.
 /// This is retained as semantic validation input rather than rediscovered from
 /// arbitrary final bytes.
@@ -144,6 +152,7 @@ pub enum CheckedInstructionValidationKind {
 pub struct EncodedMachineInstruction {
     pub selected_instruction_index: u32,
     pub bytes: HandleSpan<u8>,
+    pub compiler_validation_kind: Option<CompilerInstructionValidationKind>,
     pub checked_validation_kind: Option<CheckedInstructionValidationKind>,
     /// Semantic loader checks known independently from the privileged-opcode
     /// envelope. `None` entries are unused; complex operand trees remain

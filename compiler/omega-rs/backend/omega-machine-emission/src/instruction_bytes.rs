@@ -7,7 +7,8 @@ use omega_assigned_target_operations::{
 };
 use omega_machine_bytes::{
     CheckedInstructionValidationKind, CheckedOperandLoaderKind, CheckedOperandLoaderRegister,
-    CheckedOperandLoaderValidation, EncodedMachineCode, EncodedMachineInstruction,
+    CheckedOperandLoaderValidation, CompilerInstructionValidationKind, EncodedMachineCode,
+    EncodedMachineInstruction,
 };
 use omega_machine_instructions::{MachineInstruction, MachineInstructionPlan};
 use omega_target_operations::RuntimeValueOperandSource;
@@ -74,6 +75,7 @@ pub(crate) fn emit_function_bytes(
             let instruction = encoded_code.instructions.insert(EncodedMachineInstruction {
                 selected_instruction_index: machine_instruction.selected_instruction_index,
                 bytes: HandleSpan::empty(),
+                compiler_validation_kind: None,
                 checked_validation_kind: None,
                 checked_operand_loaders: [None, None],
             });
@@ -117,6 +119,8 @@ pub(crate) fn emit_function_bytes(
         }
         let checked_validation_kind =
             checked_instruction_validation_kind(emission_context, &machine_instruction.source_kind);
+        let compiler_validation_kind =
+            compiler_instruction_validation_kind(&machine_instruction.source_kind);
         let checked_operand_loaders =
             checked_operand_loaders(emission_context, &machine_instruction.source_kind);
         if machine_instruction
@@ -132,6 +136,7 @@ pub(crate) fn emit_function_bytes(
         let instruction = encoded_code.instructions.insert(EncodedMachineInstruction {
             selected_instruction_index: machine_instruction.selected_instruction_index,
             bytes: byte_span,
+            compiler_validation_kind,
             checked_validation_kind,
             checked_operand_loaders,
         });
@@ -139,6 +144,20 @@ pub(crate) fn emit_function_bytes(
     }
 
     Ok(encoded_instructions)
+}
+
+fn compiler_instruction_validation_kind(
+    kind: &SelectedInstructionKind,
+) -> Option<CompilerInstructionValidationKind> {
+    match kind {
+        SelectedInstructionKind::EnterFunction => {
+            Some(CompilerInstructionValidationKind::FunctionEnter)
+        }
+        SelectedInstructionKind::LeaveFunction => {
+            Some(CompilerInstructionValidationKind::FunctionReturn)
+        }
+        _ => None,
+    }
 }
 
 fn checked_operand_loader(

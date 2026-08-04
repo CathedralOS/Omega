@@ -1127,13 +1127,13 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         executable_regions.contains(
             "\"certificate_schema\": \"omega.final-footprint-certificate\""
         )
-            && executable_regions.contains("\"certificate_format_version\": 2")
+            && executable_regions.contains("\"certificate_format_version\": 3")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
             && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")
             && executable_regions.contains("\"origin\": \"compiler_function\"")
             && executable_regions.contains(
-                "\"final_byte_validated_classes\": [\"compiler_function_relocation_envelope\", \"compiler_entry_call_return_mechanics\""
+                "\"final_byte_validated_classes\": [\"compiler_function_relocation_envelope\", \"compiler_function_call_return_mechanics\""
             )
             && executable_regions.contains("\"enumeration_complete\": false")
             && executable_regions.contains("\"region_enumeration_complete\": true")
@@ -1148,6 +1148,8 @@ fn contract_canary_visualizes_flow_contract_summaries() {
             && executable_regions.contains("\"compiler_function_validation\": {")
             && executable_regions.contains("\"function_count\": 1")
             && executable_regions.contains("\"instruction_count\": ")
+            && executable_regions.contains("\"fixed_mechanics_instruction_count\": 2")
+            && executable_regions.contains("\"fixed_mechanics_validation_fingerprint\": \"0x")
             && executable_regions.contains("\"compiler_function_instruction_enumeration\"")
             && executable_regions.contains("\"relocation_envelope_fingerprint\": \"0x")
             && executable_regions.contains("\"derivation_fingerprint\": \"0x")
