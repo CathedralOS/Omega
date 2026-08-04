@@ -650,6 +650,27 @@ pub fn encode_place_address_write(
     Ok((bytes, sites))
 }
 
+/// Exact register writes of the place-address materializer. The source place
+/// walks in r15, its runtime indices use r11/r10 by ordinal, and r14 stages the
+/// runtime-frame base for the pointer-slot store.
+pub fn place_address_write_register_writes(source: &Place) -> RegisterSet {
+    let mut registers = vec![MachineRegister::X86R14, MachineRegister::X86R15];
+    let indices = source.scaled_index_regions().count();
+    if indices > 0 {
+        registers.push(MachineRegister::X86R11);
+    }
+    if indices > 1 {
+        registers.push(MachineRegister::X86R10);
+    }
+    RegisterSet::new(registers)
+}
+
+pub fn place_address_write_additional_machine_state() -> MachineStateSet {
+    // The address payload always receives the residual displacement through
+    // an ADD, even when that displacement is zero.
+    MachineStateSet::new([MachineState::Flags])
+}
+
 /// The COMPARE-family materializer entry (task #131, the wiki's
 /// guards-consume-Places step): load the LEFT operand through its place
 /// (walked in r14, the CopyPlaces source discipline) into r10, the RIGHT

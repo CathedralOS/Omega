@@ -845,6 +845,39 @@ pub fn derive_boundary_compiler_body_place_integer_write_footprint<'instruction>
     Ok(evidence)
 }
 
+/// Derive the exact scratch and machine-state footprint of compiler-body
+/// address writes. These operations materialize the address of one canonical
+/// `Place` and store it into a runtime-frame pointer slot.
+pub fn derive_boundary_compiler_body_place_address_write_footprint<'instruction>(
+    boundary: &ValidatedBoundaryEntryPlan,
+    instructions: impl IntoIterator<Item = &'instruction SelectedInstructionKind>,
+) -> Result<StateFootprintEvidence, PlanDiagnostic> {
+    let architecture = boundary.plan().call.policy.architecture();
+    let mut registers = Vec::new();
+    let mut additional_state = MachineStateSet::empty();
+    for instruction in instructions {
+        let SelectedInstructionKind::WritePlaceAddress {
+            source,
+            target_offset,
+        } = instruction
+        else {
+            continue;
+        };
+        let Ok(clobbers) =
+            crate::write_place_address_register_writes(architecture, source, *target_offset)
+        else {
+            continue;
+        };
+        registers.extend_from_slice(clobbers.as_slice());
+        additional_state = additional_state.union(
+            crate::write_place_address_additional_machine_state(architecture),
+        );
+    }
+    let evidence = StateFootprintEvidence::new(RegisterSet::new(registers), additional_state);
+    validate_state_footprint(boundary, &evidence)?;
+    Ok(evidence)
+}
+
 /// Derive the closed encoder-family footprint for retained compiler-body binary
 /// writes. The retained operand arena is the one byte emission consumes, so
 /// nested evaluator stack/control-state needs cannot drift from this evidence.
@@ -3202,6 +3235,106 @@ mod tests {
                 MachineRegister::Aarch64X(21),
                 MachineRegister::Aarch64X(26),
             ]
+        );
+    }
+
+    #[test]
+    fn compiler_body_x86_place_address_tracks_walk_indices_and_flags() {
+        let boundary = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::SystemVAMD64,
+            &CallSignature {
+                parameters: Vec::new(),
+                result: None,
+            },
+        )
+        .expect("SysV boundary");
+        let source = omega_abstract_operations::Place::at(
+            omega_abstract_operations::RuntimeStorageRegion::Machine,
+            16,
+        )
+        .with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+            index_region: omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+            index_offset: 32,
+            index_byte_size: 8,
+            element_byte_size: 24,
+        })
+        .and_then(|place| {
+            place.with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+                index_region: omega_abstract_operations::RuntimeStorageRegion::Machine,
+                index_offset: 48,
+                index_byte_size: 8,
+                element_byte_size: 8,
+            })
+        })
+        .expect("double-indexed source");
+        let instruction = SelectedInstructionKind::WritePlaceAddress {
+            source,
+            target_offset: 64,
+        };
+
+        let evidence =
+            derive_boundary_compiler_body_place_address_write_footprint(&boundary, [&instruction])
+                .expect("x86 place-address evidence");
+
+        assert_eq!(
+            evidence.registers().as_slice(),
+            &[
+                MachineRegister::X86R10,
+                MachineRegister::X86R11,
+                MachineRegister::X86R14,
+                MachineRegister::X86R15,
+            ]
+        );
+        assert_eq!(
+            evidence.machine_state(),
+            MachineStateSet::new([MachineState::GeneralRegisters, MachineState::Flags])
+        );
+    }
+
+    #[test]
+    fn compiler_body_aarch64_place_address_tracks_machine_index_and_store_scratch() {
+        let boundary = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::Aapcs64,
+            &CallSignature {
+                parameters: Vec::new(),
+                result: None,
+            },
+        )
+        .expect("AAPCS64 boundary");
+        let source = omega_abstract_operations::Place::at(
+            omega_abstract_operations::RuntimeStorageRegion::Machine,
+            16,
+        )
+        .with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+            index_region: omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+            index_offset: 32,
+            index_byte_size: 8,
+            element_byte_size: 24,
+        })
+        .expect("machine-indexed source");
+        let instruction = SelectedInstructionKind::WritePlaceAddress {
+            source,
+            target_offset: 3,
+        };
+
+        let evidence =
+            derive_boundary_compiler_body_place_address_write_footprint(&boundary, [&instruction])
+                .expect("aarch64 place-address evidence");
+
+        assert_eq!(
+            evidence.registers().as_slice(),
+            &[
+                MachineRegister::Aarch64X(9),
+                MachineRegister::Aarch64X(16),
+                MachineRegister::Aarch64X(17),
+                MachineRegister::Aarch64X(19),
+                MachineRegister::Aarch64X(20),
+                MachineRegister::Aarch64X(26),
+            ]
+        );
+        assert_eq!(
+            evidence.machine_state(),
+            MachineStateSet::new([MachineState::GeneralRegisters])
         );
     }
 

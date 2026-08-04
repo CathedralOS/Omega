@@ -1127,7 +1127,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         executable_regions.contains(
             "\"certificate_schema\": \"omega.final-footprint-certificate\""
         )
-            && executable_regions.contains("\"certificate_format_version\": 55")
+            && executable_regions.contains("\"certificate_format_version\": 56")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
             && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")
@@ -2702,6 +2702,77 @@ fn compiler_body_text_stored_suffix_footprints_reach_artifacts() {
         );
         let _ = fs::remove_dir_all(&scratch);
     }
+}
+
+#[test]
+fn compiler_body_place_address_footprints_reach_artifacts() {
+    let canary = pass_canary("recast/runtime_record_view_exit");
+    for (target, expected_register) in [
+        ("linux_x64", "\"X86R14\""),
+        ("linux_arm64", "\"Aarch64X(21)\""),
+    ] {
+        let scratch = std::env::temp_dir().join(format!(
+            "omega-compiler-body-place-address-footprint-{target}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&scratch);
+        let source = scratch.join("src");
+        let output = scratch.join("out");
+        fs::create_dir_all(&source).expect("create compiler-body place-address source directory");
+        fs::copy(canary.join("main.omg"), source.join("main.omg"))
+            .expect("copy compiler-body place-address canary");
+        fs::write(
+            source.join("build.omg"),
+            format!("target {target} {{\n}}\n"),
+        )
+        .expect("write compiler-body place-address target");
+        compile(CompileOptions {
+            root_path: source.join("main.omg"),
+            build_dir: Some(output.clone()),
+            target_name: Some(target.into()),
+            write_output: true,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!("compiler-body place-address write should compile for {target}: {diagnostics:?}")
+        });
+        let footprints = fs::read_to_string(output.join("08_boundary_footprints.json"))
+            .expect("compiler-body place-address evidence should be written");
+        let target_operations = fs::read_to_string(output.join("09_target_operations.html"))
+            .expect("compiler-body place-address target operations should be written");
+        assert!(
+            target_operations.contains("WritePlaceAddress"),
+            "{target} canary must exercise a place-address write"
+        );
+        assert!(
+            footprints.contains("\"origin\": \"compiler_body_place_address_write\"")
+                && footprints.contains(expected_register)
+                && footprints.contains("\"enumeration_complete\": false"),
+            "{target} artifact must retain place-address evidence without claiming completeness"
+        );
+        let _ = fs::remove_dir_all(&scratch);
+    }
+}
+
+#[test]
+fn runtime_record_view_place_address_canary_runs() {
+    let canary = pass_canary("recast/runtime_record_view_exit");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-record-view-place-address-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime record-view place-address canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime record-view place-address canary should run");
+    assert_eq!(output.status.code(), Some(70));
+    let _ = fs::remove_dir_all(&build_dir);
 }
 
 #[test]

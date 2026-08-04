@@ -171,6 +171,10 @@ enum CompilerInstructionRelocationRecipe {
     },
     PlaceValue(omega_target_operations::Place),
     PlaceIntegerWrite(omega_target_operations::Place),
+    PlaceAddressWrite {
+        source: omega_target_operations::Place,
+        target_offset: usize,
+    },
     PlaceBoundedBufferWrite {
         target: omega_target_operations::Place,
         literal: std::sync::Arc<str>,
@@ -1393,6 +1397,18 @@ fn validate_compiler_function_instruction_boundaries(
                             CompilerInstructionRelocationRecipe::PlaceIntegerWrite(target),
                         )
                     }
+                    omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyPlaceAddressWrite {
+                        source,
+                        target_offset,
+                    } => (
+                        None,
+                        encode_compiler_place_address_write(architecture, &source, target_offset)?,
+                        33u8,
+                        CompilerInstructionRelocationRecipe::PlaceAddressWrite {
+                            source,
+                            target_offset,
+                        },
+                    ),
                     omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyStorageBitFieldWrite {
                         region,
                         base_byte_offset,
@@ -2368,6 +2384,34 @@ fn validate_compiler_function_instruction_boundaries(
                             architecture,
                             place,
                             kind_for_relocations,
+                        )?;
+                        validate_compiler_data_address_relocations(
+                            architecture,
+                            object,
+                            relocations,
+                            instruction.selected_instruction_index,
+                            instruction_byte_offset,
+                            &address_sites,
+                        )?;
+                        encoded_instruction_bytes == expected_bytes
+                            && compiler_instruction_non_relocation_bits_match(
+                                architecture,
+                                &expected_bytes,
+                                final_instruction_bytes,
+                                &address_sites
+                                    .iter()
+                                    .map(|(offset, _)| *offset)
+                                    .collect::<Vec<_>>(),
+                            )
+                    }
+                    CompilerInstructionRelocationRecipe::PlaceAddressWrite {
+                        source,
+                        target_offset,
+                    } => {
+                        let address_sites = compiler_place_address_write_address_sites(
+                            architecture,
+                            source,
+                            target_offset,
                         )?;
                         validate_compiler_data_address_relocations(
                             architecture,
@@ -3394,6 +3438,22 @@ fn compiler_instruction_footprint(
                 MachineStateSet::empty(),
             )
         }
+        CompilerInstructionValidationKind::CompilerBodyPlaceAddressWrite {
+            source,
+            target_offset,
+        } => (
+            BoundaryFootprintFragmentOrigin::CompilerBodyPlaceAddressWrite,
+            compiler_place_address_write_register_writes(architecture, &source, target_offset)
+                .ok()?,
+            match architecture {
+                Architecture::X86_64 => {
+                    omega_isa_x86_64::place_address_write_additional_machine_state()
+                }
+                Architecture::Aarch64 => {
+                    omega_isa_aarch64::runtime_place_address_write_additional_machine_state()
+                }
+            },
+        ),
         CompilerInstructionValidationKind::CompilerBodyPlaceBinaryWrite {
             target,
             left,
@@ -3780,6 +3840,7 @@ fn validate_compiler_body_specification_footprints(
                 | BoundaryFootprintFragmentOrigin::ExitIndirectResultCopy
                 | BoundaryFootprintFragmentOrigin::CompilerBodyPlaceCopy
                 | BoundaryFootprintFragmentOrigin::CompilerBodyPlaceIntegerWrite
+                | BoundaryFootprintFragmentOrigin::CompilerBodyPlaceAddressWrite
                 | BoundaryFootprintFragmentOrigin::CompilerBodyStorageBitFieldWrite
                 | BoundaryFootprintFragmentOrigin::CompilerBodyPlaceBoundedBufferWrite
                 | BoundaryFootprintFragmentOrigin::CompilerBodyPlaceStringWrite
@@ -3850,6 +3911,10 @@ fn validate_compiler_body_specification_footprints(
         (
             17u8,
             BoundaryFootprintFragmentOrigin::CompilerBodyTextAssemblyWrite,
+        ),
+        (
+            18u8,
+            BoundaryFootprintFragmentOrigin::CompilerBodyPlaceAddressWrite,
         ),
     ] {
         let evidence_rows = derived
@@ -4650,6 +4715,132 @@ fn compiler_body_place_integer_write_shape(
             field_byte_offset: *field_byte_offset,
         }),
         _ => Ok(CompilerBodyPlaceIntegerWriteShape::General),
+    }
+}
+
+fn encode_compiler_place_address_write(
+    architecture: Architecture,
+    source: &omega_target_operations::Place,
+    target_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::X86_64 => omega_isa_x86_64::encode_place_address_write(source, target_offset)
+            .map(|(bytes, _)| bytes),
+        Architecture::Aarch64 => match compiler_body_place_integer_write_shape(source)? {
+            CompilerBodyPlaceIntegerWriteShape::Direct { byte_offset } => {
+                omega_isa_aarch64::encode_runtime_storage_address_to_runtime_frame_write(
+                    byte_offset,
+                    target_offset,
+                )
+            }
+            CompilerBodyPlaceIntegerWriteShape::Pointee {
+                pointer_byte_offset,
+                field_byte_offset,
+            } => omega_isa_aarch64::encode_runtime_pointee_address_to_runtime_frame_write(
+                pointer_byte_offset,
+                field_byte_offset,
+                target_offset,
+            ),
+            CompilerBodyPlaceIntegerWriteShape::FrameIndexed {
+                descriptor_offset,
+                index_region,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+            } => omega_isa_aarch64::encode_runtime_frame_indexed_address_to_runtime_frame_write(
+                index_region,
+                descriptor_offset,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+                target_offset,
+            ),
+            CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed {
+                base_byte_offset,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+            } => {
+                omega_isa_aarch64::encode_runtime_frame_base_indexed_address_to_runtime_frame_write(
+                    base_byte_offset,
+                    index_offset,
+                    index_byte_size,
+                    element_byte_size,
+                    field_byte_offset,
+                    target_offset,
+                )
+            }
+            CompilerBodyPlaceIntegerWriteShape::MachineIndexed {
+                base_byte_offset,
+                index_region,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+            } => omega_isa_aarch64::encode_runtime_machine_indexed_address_to_runtime_frame_write(
+                base_byte_offset,
+                index_region,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+                target_offset,
+            ),
+            CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed { .. }
+            | CompilerBodyPlaceIntegerWriteShape::General => Err(Diagnostic::error(
+                "final aarch64 place-address row retained an unsupported source shape",
+            )),
+        },
+    }
+}
+
+fn compiler_place_address_write_register_writes(
+    architecture: Architecture,
+    source: &omega_target_operations::Place,
+    target_offset: usize,
+) -> Result<omega_calling_conventions::RegisterSet, Diagnostic> {
+    match architecture {
+        Architecture::X86_64 => Ok(omega_isa_x86_64::place_address_write_register_writes(source)),
+        Architecture::Aarch64 => match compiler_body_place_integer_write_shape(source)? {
+            CompilerBodyPlaceIntegerWriteShape::Direct { byte_offset } => Ok(
+                omega_isa_aarch64::runtime_storage_address_to_runtime_frame_write_clobbers(
+                    byte_offset,
+                    target_offset,
+                ),
+            ),
+            CompilerBodyPlaceIntegerWriteShape::Pointee {
+                pointer_byte_offset,
+                field_byte_offset,
+            } => Ok(
+                omega_isa_aarch64::runtime_pointee_address_to_runtime_frame_write_clobbers(
+                    pointer_byte_offset,
+                    field_byte_offset,
+                    target_offset,
+                ),
+            ),
+            CompilerBodyPlaceIntegerWriteShape::FrameIndexed {
+                index_region, ..
+            } => Ok(
+                omega_isa_aarch64::runtime_frame_indexed_address_to_runtime_frame_write_clobbers(
+                    index_region,
+                ),
+            ),
+            CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. } => Ok(
+                omega_isa_aarch64::runtime_frame_base_indexed_address_to_runtime_frame_write_clobbers(),
+            ),
+            CompilerBodyPlaceIntegerWriteShape::MachineIndexed { .. } => Ok(
+                omega_isa_aarch64::runtime_machine_indexed_address_to_runtime_frame_write_clobbers(
+                    target_offset,
+                ),
+            ),
+            CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed { .. }
+            | CompilerBodyPlaceIntegerWriteShape::General => Err(Diagnostic::error(
+                "final aarch64 place-address footprint retained an unsupported source shape",
+            )),
+        },
     }
 }
 
@@ -5631,6 +5822,103 @@ fn compiler_place_integer_write_address_sites(
             }
             Ok(sites)
         }
+    }
+}
+
+fn compiler_place_address_write_address_sites(
+    architecture: Architecture,
+    source: omega_target_operations::Place,
+    target_offset: usize,
+) -> Result<Vec<(usize, omega_target_operations::RuntimeStorageRegion)>, Diagnostic> {
+    match architecture {
+        Architecture::X86_64 => {
+            let (bytes, sites) =
+                omega_isa_x86_64::encode_place_address_write(&source, target_offset)?;
+            let mut address_sites = sites
+                .iter()
+                .map(|(offset, side)| {
+                    let region = match side {
+                        omega_isa_x86_64::PlaceCopySide::Target => source.region,
+                        omega_isa_x86_64::PlaceCopySide::TargetIndex => source
+                            .scaled_index_region()
+                            .ok_or_else(|| Diagnostic::error("place-address index relocation has no retained index step"))?,
+                        omega_isa_x86_64::PlaceCopySide::TargetIndex2 => source
+                            .scaled_index_regions()
+                            .nth(1)
+                            .ok_or_else(|| Diagnostic::error("place-address second index relocation has no retained index step"))?,
+                        _ => return Err(Diagnostic::error("place-address recipe retained an invalid source-side relocation site")),
+                    };
+                    Ok((offset, region))
+                })
+                .collect::<Result<Vec<_>, Diagnostic>>()?;
+            address_sites.push((
+                bytes.len().checked_sub(17).ok_or_else(|| {
+                    Diagnostic::error("place-address encoder omitted its target frame store")
+                })?,
+                omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+            ));
+            Ok(address_sites)
+        }
+        Architecture::Aarch64 => match compiler_body_place_integer_write_shape(&source)? {
+            CompilerBodyPlaceIntegerWriteShape::Direct { byte_offset } => Ok(vec![
+                (0, source.region),
+                (
+                    omega_isa_aarch64::runtime_storage_address_to_runtime_frame_target_frame_offset(
+                        byte_offset,
+                    ),
+                    omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                ),
+            ]),
+            CompilerBodyPlaceIntegerWriteShape::Pointee { .. }
+            | CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. } => Ok(vec![(
+                0,
+                omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+            )]),
+            CompilerBodyPlaceIntegerWriteShape::FrameIndexed { index_region, .. } => {
+                let mut sites = vec![(
+                    0,
+                    omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                )];
+                if index_region == omega_target_operations::RuntimeStorageRegion::Machine {
+                    sites.push((32, omega_target_operations::RuntimeStorageRegion::Machine));
+                }
+                Ok(sites)
+            }
+            CompilerBodyPlaceIntegerWriteShape::MachineIndexed {
+                base_byte_offset,
+                index_region,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+            } => {
+                let mut sites = vec![(0, omega_target_operations::RuntimeStorageRegion::Machine)];
+                if index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
+                    sites.push((
+                            omega_isa_aarch64::runtime_storage_copy_from_runtime_machine_indexed_runtime_frame_address_offset(
+                                base_byte_offset,
+                            ),
+                            omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                        ));
+                }
+                sites.push((
+                        omega_isa_aarch64::runtime_storage_copy_to_runtime_machine_indexed_source_address_offset(
+                            base_byte_offset,
+                            index_region,
+                            index_offset,
+                            index_byte_size,
+                            element_byte_size,
+                            field_byte_offset,
+                        ),
+                        omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                    ));
+                Ok(sites)
+            }
+            CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed { .. }
+            | CompilerBodyPlaceIntegerWriteShape::General => Err(Diagnostic::error(
+                "final aarch64 place-address recipe retained an unsupported source",
+            )),
+        },
     }
 }
 

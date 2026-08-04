@@ -2652,6 +2652,17 @@ pub fn encode_runtime_storage_address_to_runtime_frame_write(
     Ok(bytes)
 }
 
+pub fn runtime_storage_address_to_runtime_frame_write_clobbers(
+    source_offset: usize,
+    target_offset: usize,
+) -> RegisterSet {
+    let mut registers = vec![MachineRegister::Aarch64X(16), MachineRegister::Aarch64X(17)];
+    if source_offset > 4095 || target_offset > 4095 {
+        registers.push(MachineRegister::Aarch64X(19));
+    }
+    RegisterSet::new(registers)
+}
+
 pub fn encode_runtime_pointee_address_to_runtime_frame_write(
     pointer_byte_offset: usize,
     field_byte_offset: usize,
@@ -2676,6 +2687,22 @@ pub fn encode_runtime_pointee_address_to_runtime_frame_write(
     append_add_constant_to_x_register(&mut bytes, 17, field_byte_offset)?;
     append_store_x_to_x_offset(&mut bytes, 17, 20, target_offset)?;
     Ok(bytes)
+}
+
+pub fn runtime_pointee_address_to_runtime_frame_write_clobbers(
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+) -> RegisterSet {
+    let mut registers = vec![
+        MachineRegister::Aarch64X(16),
+        MachineRegister::Aarch64X(17),
+        MachineRegister::Aarch64X(20),
+    ];
+    if pointer_byte_offset > 4095 || field_byte_offset > 4095 || target_offset > 4095 {
+        registers.push(MachineRegister::Aarch64X(19));
+    }
+    RegisterSet::new(registers)
 }
 
 pub fn encode_runtime_frame_indexed_address_to_runtime_frame_write(
@@ -2707,6 +2734,23 @@ pub fn encode_runtime_frame_indexed_address_to_runtime_frame_write(
     )?;
     append_store_x_to_x_offset(&mut bytes, 16, 20, target_offset)?;
     Ok(bytes)
+}
+
+pub fn runtime_frame_indexed_address_to_runtime_frame_write_clobbers(
+    index_region: omega_target_operations::RuntimeStorageRegion,
+) -> RegisterSet {
+    let mut registers = vec![
+        MachineRegister::Aarch64X(16),
+        MachineRegister::Aarch64X(17),
+        MachineRegister::Aarch64X(19),
+        MachineRegister::Aarch64X(20),
+        MachineRegister::Aarch64X(21),
+        MachineRegister::Aarch64X(26),
+    ];
+    if index_region == omega_target_operations::RuntimeStorageRegion::Machine {
+        registers.push(MachineRegister::Aarch64X(15));
+    }
+    RegisterSet::new(registers)
 }
 
 pub fn encode_runtime_frame_fixed_indexed_address_to_runtime_frame_write(
@@ -2767,6 +2811,16 @@ pub fn encode_runtime_frame_base_indexed_address_to_runtime_frame_write(
     )?;
     append_store_x_to_x_offset(&mut bytes, 16, 20, target_offset)?;
     Ok(bytes)
+}
+
+pub fn runtime_frame_base_indexed_address_to_runtime_frame_write_clobbers() -> RegisterSet {
+    RegisterSet::new([
+        MachineRegister::Aarch64X(16),
+        MachineRegister::Aarch64X(17),
+        MachineRegister::Aarch64X(19),
+        MachineRegister::Aarch64X(20),
+        MachineRegister::Aarch64X(26),
+    ])
 }
 
 pub fn encode_runtime_storage_copy(
@@ -3022,6 +3076,26 @@ pub fn encode_runtime_machine_indexed_address_to_runtime_frame_write(
         )
     );
     Ok(bytes)
+}
+
+pub fn runtime_machine_indexed_address_to_runtime_frame_write_clobbers(
+    target_offset: usize,
+) -> RegisterSet {
+    let mut registers = vec![
+        MachineRegister::Aarch64X(16),
+        MachineRegister::Aarch64X(17),
+        MachineRegister::Aarch64X(19),
+        MachineRegister::Aarch64X(20),
+        MachineRegister::Aarch64X(26),
+    ];
+    if !target_offset.is_multiple_of(8) || target_offset / 8 > 4095 {
+        registers.push(MachineRegister::Aarch64X(9));
+    }
+    RegisterSet::new(registers)
+}
+
+pub fn runtime_place_address_write_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::empty()
 }
 
 pub fn encode_runtime_machine_indexed_integer_write(

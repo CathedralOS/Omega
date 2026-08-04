@@ -882,7 +882,7 @@ proves complete region coverage, and composes admitted leaves under their
 separate provenance. Do not add a second whole-image decoder/admission path.
 
 The existing single final-region artifact now carries the domain-separated
-`omega.final-footprint-certificate` schema, format version 55, and a certificate
+`omega.final-footprint-certificate` schema, format version 56, and a certificate
 fingerprint over its final placement binding, compiler-text derivation, and
 complete region inventory. Its explicit completeness flags remain false until
 compiler-body footprint decoding and admitted-leaf evidence land. The envelope
@@ -1001,6 +1001,11 @@ retaining the exact buffer symbol, byte offset, literal, target encoder, and
 sole data-object relocation. Segmented stored-suffix appends now retain their
 exact buffer and source/target storage identities, offsets, length delta,
 target encoder, mixed relocation set, and the same footprint fragment.
+Compiler-body place-address writes now retain their canonical source `Place`
+and target runtime-frame slot. Final validation replays the exact target
+address materializer, independently derives every source, index, and target-
+frame relocation site, and requires its clobber union to equal dedicated
+`CompilerBodyPlaceAddressWrite` evidence.
 String-descriptor writes now
 replay all x86 targets and the direct, pointee, frame-indexed, and frame-indexed
 machine-storage AArch64 shapes, binding the exact rodata and storage/index

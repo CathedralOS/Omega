@@ -107,6 +107,10 @@ pub enum CompilerInstructionValidationKind {
         value: i64,
         byte_size: usize,
     },
+    CompilerBodyPlaceAddressWrite {
+        source: Place,
+        target_offset: usize,
+    },
     CompilerBodyStorageBitFieldWrite {
         region: RuntimeStorageRegion,
         base_byte_offset: usize,
