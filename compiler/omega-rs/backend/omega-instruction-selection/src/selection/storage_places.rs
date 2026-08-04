@@ -1417,13 +1417,18 @@ pub(super) fn classify_scalar_value_type_in_table(
                 .unwrap_or(PrimitiveType::I64),
         ),
         ExpressionNode::Boolean(_) => Some(PrimitiveType::Bool),
-        // An arithmetic sub-expression (a folded `let c = a + b` inlined into a
-        // later cast `c as i32`) has the type of its operands. Classify from a
-        // resolvable operand: a float operand makes the whole binary float (its
-        // width is the float operand's), otherwise the operand's integer type. This
-        // lets a convert see through a binary source to pick single vs double
-        // precision and the source width.
+        // A comparison or logical conjunction/disjunction always produces bool,
+        // independently of its operands. This matters recursively: the left side
+        // of `(float_compare && float_compare)` is itself a binary expression and
+        // must not make the outer `&&` look like a float operation. Arithmetic and
+        // bitwise sub-expressions instead retain the type of their operands. This
+        // lets a convert see through an arithmetic source to pick single vs double
+        // precision and the source width without leaking operand type through a
+        // bool-producing node.
         ExpressionNode::Binary(binary) => {
+            if binary_operator_result_is_bool(binary.operator) {
+                return Some(PrimitiveType::Bool);
+            }
             let left = classify_scalar_value_type_in_table(
                 input,
                 dispatch_index,
@@ -1473,6 +1478,20 @@ pub(super) fn classify_scalar_value_type_in_table(
             if crate::selection::runtime_dispatch::writes::mutation::builtin_runtime_unary_call_operator_in_table(
                 input, call,
             )
+            .is_some_and(
+                crate::selection::runtime_dispatch::writes::mutation::float_unary_result_is_bool,
+            ) =>
+        {
+            Some(PrimitiveType::Bool)
+        }
+        // Float square root preserves its operand format. `FloatClassify`
+        // also reaches this arm because its native operand-width metadata must
+        // retain the source format; its aggregate result layout is resolved by
+        // the write target rather than this scalar helper.
+        ExpressionNode::Call(call)
+            if crate::selection::runtime_dispatch::writes::mutation::builtin_runtime_unary_call_operator_in_table(
+                input, call,
+            )
             .is_some() =>
         {
             classify_scalar_value_type_in_table(
@@ -1506,6 +1525,22 @@ pub(super) fn classify_scalar_value_type_in_table(
         }
         _ => None,
     }
+}
+
+fn binary_operator_result_is_bool(operator: psi_checked_trees::expression::BinaryOperator) -> bool {
+    use psi_checked_trees::expression::BinaryOperator;
+
+    matches!(
+        operator,
+        BinaryOperator::And
+            | BinaryOperator::Or
+            | BinaryOperator::Equal
+            | BinaryOperator::NotEqual
+            | BinaryOperator::Less
+            | BinaryOperator::LessOrEqual
+            | BinaryOperator::Greater
+            | BinaryOperator::GreaterOrEqual
+    )
 }
 
 fn primitive_type_for_landed_integer(
@@ -3103,8 +3138,15 @@ fn slot_matches_table_path(
     slot: &omega_runtime_storage::RuntimeFrameSlot,
     path: &StorageNamePath<'_>,
 ) -> bool {
-    slot_matches_root(slot.symbol, path.head_symbol())
-        || path.member(0).is_some_and(|name| *name == slot.name)
+    let root_symbol = path.head_symbol();
+    if root_symbol.is_valid() {
+        // A resolved symbol is the authoritative identity. Falling back to
+        // the spelling as an OR condition lets a same-named local in another
+        // inline callee win the dispatch-wide fallback (for example the f64
+        // classifier's `class` slot answering an f32 classifier guard).
+        return slot_matches_root(slot.symbol, root_symbol);
+    }
+    path.member(0).is_some_and(|name| *name == slot.name)
 }
 
 fn slot_matches_root(slot_symbol: SymbolHandle, root_symbol: SymbolHandle) -> bool {
@@ -3297,6 +3339,28 @@ fn find_runtime_frame_slot_for_path<'plan>(
                         && matches_path(slot))
                     .then_some(slot)
                 })
+        })
+        .or_else(|| {
+            // Inline branch tables can lose the resolved symbol on a callee
+            // local name. Before the outer-scope name-only fallback, accept a
+            // same-machine slot only when it is unique in this dispatch. This
+            // preserves the callee scope without guessing between two locals
+            // of the same spelling in different states of one machine.
+            let mut matches = input
+                .runtime_storage
+                .frame_slots
+                .iter()
+                .filter_map(|(_, slot)| {
+                    (slot.dispatch_index == dispatch_index
+                        && slot.source_key.machine == source_key.machine
+                        && matches_path(slot))
+                    .then_some(slot)
+                });
+            let first = matches.next();
+            match (first, matches.next()) {
+                (Some(slot), None) => Some(slot),
+                _ => None,
+            }
         })
         .or_else(|| {
             // Last resort: a slot owned by an OUTER call scope whose source_key
@@ -4068,10 +4132,41 @@ fn primitive_layout(
 
 #[cfg(test)]
 mod tests {
+    use psi_checked_trees::expression::BinaryOperator;
     use psi_checked_trees::types::PrimitiveType;
     use psi_numerics::literals::LandedIntegerType;
 
-    use super::primitive_type_for_landed_integer;
+    use super::{binary_operator_result_is_bool, primitive_type_for_landed_integer};
+
+    #[test]
+    fn comparison_and_logical_binary_results_are_boolean() {
+        for operator in [
+            BinaryOperator::And,
+            BinaryOperator::Or,
+            BinaryOperator::Equal,
+            BinaryOperator::NotEqual,
+            BinaryOperator::Less,
+            BinaryOperator::LessOrEqual,
+            BinaryOperator::Greater,
+            BinaryOperator::GreaterOrEqual,
+        ] {
+            assert!(binary_operator_result_is_bool(operator), "{operator:?}");
+        }
+        for operator in [
+            BinaryOperator::Add,
+            BinaryOperator::BitwiseAnd,
+            BinaryOperator::BitwiseOr,
+            BinaryOperator::BitwiseXor,
+            BinaryOperator::Divide,
+            BinaryOperator::Modulo,
+            BinaryOperator::Multiply,
+            BinaryOperator::ShiftLeft,
+            BinaryOperator::ShiftRight,
+            BinaryOperator::Subtract,
+        ] {
+            assert!(!binary_operator_result_is_bool(operator), "{operator:?}");
+        }
+    }
 
     #[test]
     fn landed_integer_classification_preserves_width_and_signedness() {

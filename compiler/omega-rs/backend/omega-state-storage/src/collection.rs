@@ -15,7 +15,7 @@ use psi_checked_trees::statement::{
     StatementNode, StatementTable, TransitionGuardNode, TransitionTargetNode,
 };
 use psi_checked_trees::types::{TypeReferenceHandle, TypeReferenceNode};
-use psi_symbols::SymbolHandle;
+use psi_symbols::{SymbolHandle, SymbolKind};
 use std::sync::Arc;
 
 pub fn build_state_storage_plan(
@@ -621,6 +621,7 @@ fn local_data_requires_storage(
     if (expression_contains_call(expressions, initial_value)
         || initializer_is_runtime_indexed_read(expressions, initial_value))
         && local_or_bare_copy_used_as_arithmetic_operand(
+            program,
             expressions,
             statements,
             local_statement_index,
@@ -909,12 +910,13 @@ fn initializer_is_recast(
 }
 
 /// Whether the local -- or any BARE-COPY of it (`let c = t;`, transitively) --
-/// is used as an arithmetic/comparison/bitwise/cast operand after its
-/// declaration. The direct scan alone misses the copy chain: `let t = arr[i];
-/// let c = t; let b = c > 5` folded c -> t -> arr[i] into the fenced direct
-/// form and silently read false. Bare-Name copies are matched by NAME (a bare
-/// local use carries no valid symbol at this stage).
+/// is used as an arithmetic/comparison/bitwise/cast or compiler-builtin value
+/// operand after its declaration. The direct scan alone misses the copy chain:
+/// `let t = arr[i]; let c = t; let b = c > 5` folded c -> t -> arr[i] into the
+/// fenced direct form and silently read false. Bare-Name copies are matched by
+/// NAME (a bare local use carries no valid symbol at this stage).
 fn local_or_bare_copy_used_as_arithmetic_operand(
+    program: &CheckedTrees,
     expressions: &psi_checked_trees::expression::ExpressionTable,
     statements: &[StatementNode],
     local_statement_index: usize,
@@ -939,7 +941,13 @@ fn local_or_bare_copy_used_as_arithmetic_operand(
         .skip(local_statement_index + 1)
         .any(|statement| {
             aliases.iter().any(|(symbol, name)| {
-                statement_uses_symbol_as_arithmetic_operand(expressions, statement, *symbol, name)
+                statement_uses_symbol_as_arithmetic_operand(
+                    program,
+                    expressions,
+                    statement,
+                    *symbol,
+                    name,
+                )
             })
         })
 }
@@ -1828,6 +1836,7 @@ fn expression_is_symbol(
 /// consumer position where a slot-less call-result local cannot be substituted,
 /// so its presence (with a call initializer) forces the slot to be kept.
 fn expression_uses_symbol_as_arithmetic_operand(
+    program: &CheckedTrees,
     expressions: &psi_checked_trees::expression::ExpressionTable,
     expression: ExpressionHandle,
     symbol: SymbolHandle,
@@ -1837,7 +1846,13 @@ fn expression_uses_symbol_as_arithmetic_operand(
         return false;
     }
     let recurse = |handle| {
-        expression_uses_symbol_as_arithmetic_operand(expressions, handle, symbol, local_name)
+        expression_uses_symbol_as_arithmetic_operand(
+            program,
+            expressions,
+            handle,
+            symbol,
+            local_name,
+        )
     };
     match expressions.expression(expression) {
         ExpressionNode::Atomic(atomic) => recurse(atomic.value),
@@ -1863,7 +1878,23 @@ fn expression_uses_symbol_as_arithmetic_operand(
         ExpressionNode::Indexed(indexed) => recurse(indexed.collection) || recurse(indexed.index),
         ExpressionNode::Range(range) => recurse(range.start) || recurse(range.end),
         ExpressionNode::Call(call) => {
-            (call.receiver.is_valid() && recurse(call.receiver))
+            // Compiler-known value calls are operators from the runtime-value
+            // selector's perspective. A call-initialized local is deliberately
+            // NOT substituted back into later expressions (single-evaluation
+            // boundary), so using it directly as such an operand requires its
+            // own materialized slot just like a binary/cast operand. Ordinary
+            // machine-call arguments retain their established substitution path.
+            let builtin_consumes_symbol = call.target_symbol.is_valid()
+                && program.symbols.get(call.target_symbol).kind == SymbolKind::BuiltinFunction
+                && expressions
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .copied()
+                    .any(|argument| {
+                        expression_is_symbol(expressions, argument, symbol, local_name)
+                    });
+            builtin_consumes_symbol
+                || (call.receiver.is_valid() && recurse(call.receiver))
                 || expressions
                     .expression_handles(call.arguments)
                     .iter()
@@ -1892,6 +1923,7 @@ fn expression_uses_symbol_as_arithmetic_operand(
 /// local initializer, an assignment value, a terminal expression, or a call
 /// argument).
 fn statement_uses_symbol_as_arithmetic_operand(
+    program: &CheckedTrees,
     expressions: &psi_checked_trees::expression::ExpressionTable,
     statement: &StatementNode,
     symbol: SymbolHandle,
@@ -1900,18 +1932,21 @@ fn statement_uses_symbol_as_arithmetic_operand(
     match statement {
         StatementNode::AssemblyFact(_) => false,
         StatementNode::LocalData(local_data) => expression_uses_symbol_as_arithmetic_operand(
+            program,
             expressions,
             local_data.initial_value,
             symbol,
             local_name,
         ),
         StatementNode::Assignment(assignment) => expression_uses_symbol_as_arithmetic_operand(
+            program,
             expressions,
             assignment.value,
             symbol,
             local_name,
         ),
         StatementNode::Expression(expression) => expression_uses_symbol_as_arithmetic_operand(
+            program,
             expressions,
             *expression,
             symbol,
@@ -1923,6 +1958,7 @@ fn statement_uses_symbol_as_arithmetic_operand(
             .copied()
             .any(|argument| {
                 expression_uses_symbol_as_arithmetic_operand(
+                    program,
                     expressions,
                     argument,
                     symbol,

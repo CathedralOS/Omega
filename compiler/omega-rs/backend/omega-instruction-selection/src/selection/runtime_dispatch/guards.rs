@@ -436,10 +436,18 @@ fn select_runtime_dispatch_expression_guard_in_table_once(
         return None;
     }
 
+    // A copied inline-branch guard is authored in the callee. Resolve every
+    // path-bearing guard form against that state first; caller bindings remain
+    // available through the storage resolver's explicit outer-scope fallback.
+    // Mixing caller scope for bare-bool/text guards with callee scope for
+    // binary storage guards lets an unrelated same-named inline local answer
+    // only part of one callee's transition.
+    let guard_source_key = callee_key.unwrap_or(source_key);
+
     if let Some(guard) = runtime_boolean_condition_guard_in_table(
         input,
         dispatch_index,
-        source_key,
+        guard_source_key,
         statement_index,
         expressions,
         guard,
@@ -448,9 +456,13 @@ fn select_runtime_dispatch_expression_guard_in_table_once(
         return Some(guard);
     }
 
-    if let Some(literal_guard) =
-        runtime_text_literal_guard_in_table(input, dispatch_index, source_key, expressions, guard)
-    {
+    if let Some(literal_guard) = runtime_text_literal_guard_in_table(
+        input,
+        dispatch_index,
+        guard_source_key,
+        expressions,
+        guard,
+    ) {
         return Some(SelectedInstructionKind::CompareRuntimeTextLiteral {
             buffer: literal_guard.buffer,
             literal: literal_guard.literal,
@@ -460,7 +472,7 @@ fn select_runtime_dispatch_expression_guard_in_table_once(
     if let Some(selected) = runtime_text_equals_literal_guard_in_table(
         input,
         dispatch_index,
-        source_key,
+        guard_source_key,
         expressions,
         guard,
         runtime_value_operands,
@@ -471,7 +483,7 @@ fn select_runtime_dispatch_expression_guard_in_table_once(
     if let Some(selected) = runtime_text_equals_place_guard_in_table(
         input,
         dispatch_index,
-        source_key,
+        guard_source_key,
         expressions,
         guard,
         runtime_value_operands,
@@ -479,12 +491,12 @@ fn select_runtime_dispatch_expression_guard_in_table_once(
         return Some(selected);
     }
 
-    runtime_text_storage_guard_in_table(input, dispatch_index, source_key, expressions, guard)
+    runtime_text_storage_guard_in_table(input, dispatch_index, guard_source_key, expressions, guard)
         .or_else(|| {
             runtime_value_guard_in_table(
                 input,
                 dispatch_index,
-                source_key,
+                guard_source_key,
                 statement_index,
                 expressions,
                 guard,
@@ -1444,10 +1456,15 @@ pub(super) fn runtime_storage_guard_in_table(
             operand,
         )
     };
+    // Expansion guards originate in the callee. Prefer that state/machine as
+    // the frame-slot scope; caller bindings still fall through the resolver's
+    // outer-scope lookup. Using the caller as the primary scope lets a later
+    // same-named local from another inline callee answer this guard.
+    let guard_source_key = callee_key.unwrap_or(source_key);
     let left = resolve_runtime_storage_place_in_table(
         input,
         dispatch_index,
-        source_key,
+        guard_source_key,
         expressions,
         binary.left,
     )
@@ -1455,7 +1472,7 @@ pub(super) fn runtime_storage_guard_in_table(
     let right = resolve_runtime_storage_place_in_table(
         input,
         dispatch_index,
-        source_key,
+        guard_source_key,
         expressions,
         binary.right,
     )
