@@ -26,6 +26,7 @@ use psi_checked_trees::expression::{
 };
 use psi_checked_trees::statement::StatementNode;
 use psi_checked_trees::types::PrimitiveType;
+use psi_checked_trees::{CheckedValueOrigin, CheckedValueStatementRole};
 
 use super::super::static_values::{
     RuntimeStaticValues, resolve_runtime_static_float_value_in_table,
@@ -815,7 +816,7 @@ pub(crate) fn select_runtime_stored_integer_projection_write_in_table(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn select_runtime_total_stored_integer_mutation_write_in_table(
+pub(crate) fn select_runtime_stored_integer_mutation_write_in_table(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     target_source_key: StateKey,
@@ -834,7 +835,18 @@ pub(crate) fn select_runtime_total_stored_integer_mutation_write_in_table(
         expressions,
         target_expression,
     )?;
-    if !projection.write_is_total {
+    if !projection.write_is_total
+        && !stored_integer_write_value_is_proved_fit(
+            input,
+            value_source_key,
+            statement_index,
+            expressions,
+            value_expression,
+            static_values,
+            projection.stored_byte_count,
+            projection.interpretation,
+        )
+    {
         return None;
     }
     let source_primitive = classify_scalar_value_type_in_table(
@@ -892,6 +904,89 @@ pub(crate) fn select_runtime_total_stored_integer_mutation_write_in_table(
                 trapping: false,
                 saturating: false,
             }
+        }
+    })
+}
+
+/// Admit a non-total `IntegerAt` mutation only from proof material Psi has
+/// already checked. An exact compile-time integer is its own witness. A runtime
+/// value must carry a checked declaration range at this exact assignment site,
+/// and that complete range must fit the physical encoding. Unknown, flow-only,
+/// or unbounded values remain rejected; Omega never invents a qualification.
+#[allow(clippy::too_many_arguments)]
+fn stored_integer_write_value_is_proved_fit(
+    input: &InstructionSelectionInput<'_>,
+    source_key: StateKey,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    value_expression: ExpressionHandle,
+    static_values: &RuntimeStaticValues,
+    stored_byte_count: usize,
+    interpretation: psi_layout_plans::IntegerInterpretation,
+) -> bool {
+    let Some((stored_minimum, stored_maximum)) =
+        stored_integer_range(stored_byte_count, interpretation)
+    else {
+        return false;
+    };
+
+    if let Some(value) = resolve_runtime_static_integer_value_in_table(
+        input,
+        expressions,
+        value_expression,
+        static_values,
+    ) {
+        let value = i128::from(value);
+        return value >= stored_minimum && value <= stored_maximum;
+    }
+
+    let declared_type = input
+        .program
+        .facts
+        .values
+        .values
+        .iter()
+        .find_map(|(_, value)| match value.origin {
+            CheckedValueOrigin::StateStatement {
+                machine_symbol,
+                state_symbol,
+                statement_index: value_statement_index,
+                role: CheckedValueStatementRole::AssignmentValue,
+            } if machine_symbol == source_key.machine
+                && state_symbol == source_key.state
+                && value_statement_index == statement_index =>
+            {
+                value
+                    .type_reference
+                    .is_valid()
+                    .then_some(value.type_reference)
+            }
+            _ => None,
+        });
+    let Some(range) = declared_type.and_then(|type_reference| {
+        psi_checked_trees::wire::scalar_representation_range(input.program, type_reference)
+    }) else {
+        return false;
+    };
+    i128::from(range.minimum) >= stored_minimum && i128::from(range.maximum) <= stored_maximum
+}
+
+fn stored_integer_range(
+    stored_byte_count: usize,
+    interpretation: psi_layout_plans::IntegerInterpretation,
+) -> Option<(i128, i128)> {
+    let bit_count = stored_byte_count.checked_mul(8)?;
+    if !(1..=64).contains(&bit_count) {
+        return None;
+    }
+    Some(match interpretation {
+        psi_layout_plans::IntegerInterpretation::Signed => {
+            let magnitude = 1_i128.checked_shl(u32::try_from(bit_count - 1).ok()?)?;
+            (-magnitude, magnitude - 1)
+        }
+        psi_layout_plans::IntegerInterpretation::Unsigned => {
+            let cardinality = 1_i128.checked_shl(u32::try_from(bit_count).ok()?)?;
+            (0, cardinality - 1)
         }
     })
 }

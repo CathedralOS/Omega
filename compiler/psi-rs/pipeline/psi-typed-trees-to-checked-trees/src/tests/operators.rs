@@ -335,6 +335,7 @@ fn binary_resolution_matches_the_complete_operand_tuple() {
     value_roots.append(psi_checked_trees::CheckedValueFact {
         expression: binary,
         origin,
+        ..Default::default()
     });
 
     let facts = build_operator_facts(
@@ -796,10 +797,12 @@ fn records_operator_uses_per_semantic_origin() {
     value_roots.append(psi_checked_trees::CheckedValueFact {
         expression: indexed,
         origin: first_origin,
+        ..Default::default()
     });
     value_roots.append(psi_checked_trees::CheckedValueFact {
         expression: indexed,
         origin: second_origin,
+        ..Default::default()
     });
     let values = psi_checked_trees::CheckedValueFacts::with_roots(value_roots);
 
@@ -966,6 +969,7 @@ fn narrows_index_operator_candidates_by_receiver_type() {
     value_roots.append(psi_checked_trees::CheckedValueFact {
         expression: indexed,
         origin,
+        ..Default::default()
     });
 
     let values = psi_checked_trees::CheckedValueFacts::with_roots(value_roots);
@@ -1165,6 +1169,7 @@ fn narrows_index_operator_candidates_by_complete_operand_tuple() {
     value_roots.append(psi_checked_trees::CheckedValueFact {
         expression: indexed,
         origin,
+        ..Default::default()
     });
 
     let values = psi_checked_trees::CheckedValueFacts::with_roots(value_roots);
@@ -1198,6 +1203,7 @@ fn checked_values_for(
         value_roots.append(psi_checked_trees::CheckedValueFact {
             expression,
             origin: Default::default(),
+            ..Default::default()
         });
     }
     psi_checked_trees::CheckedValueFacts::with_roots(value_roots)

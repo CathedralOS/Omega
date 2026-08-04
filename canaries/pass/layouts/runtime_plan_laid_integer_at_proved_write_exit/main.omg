@@ -1,0 +1,64 @@
+// The semantic field admits every i64, so its signed-byte encoding is not
+// total. This concrete write is nevertheless safe because the source carries
+// a checked declaration range wholly contained by signed 8-bit storage.
+use omega::language::std::console;
+
+data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
+data SchemaField {
+    key: u64;
+    size: u64 [0..=4096];
+    align: u64 [1..=16];
+    number: i64;
+    kind: FieldKind;
+}
+data Schema { fields: [SchemaField; 32]; field_count: u64 [0..=32]; }
+data IntegerInterpretation { case Signed; case Unsigned; }
+data FieldPlan {
+    case IntegerAt(offset: u64, stored_width: u64, interpretation: IntegerInterpretation);
+}
+data FieldEntry { key: u64; placement: FieldPlan; }
+data Plan {
+    entries: [FieldEntry; 64];
+    entry_count: u64;
+    size_fixed: u64;
+    size_is_dynamic: bool;
+    align: u64;
+}
+
+data SignedByte { entries: [FieldEntry; 64]; }
+machine SignedByte::plan(&mut self, schema: Schema) -> Plan {
+    self.entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::IntegerAt {
+            offset: 0,
+            stored_width: 8,
+            interpretation: IntegerInterpretation::Signed,
+        },
+    };
+    Plan {
+        entries: self.entries,
+        entry_count: 1,
+        size_fixed: 1,
+        size_is_dynamic: false,
+        align: 1,
+    }
+}
+
+data PortableByte { value: i64; }
+data Main {
+    console: Console;
+    packed: SignedByte<PortableByte>;
+    source: i64 [-128..=127];
+}
+
+machine Main::main(&mut self) {
+    self.source = -9;
+    self.packed.value = self.source;
+    transition self.packed.value == -9 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(72); }
+    state bad(&mut self) { self.console.exit_process(73); }
+}

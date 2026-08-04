@@ -4,7 +4,7 @@ use psi_typed_trees::TypedTrees;
 use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-pub(super) fn expression_type_reference_for_origin(
+pub(crate) fn expression_type_reference_for_origin(
     program: &TypedTrees,
     expression: ExpressionHandle,
     origin: CheckedValueOrigin,
@@ -68,18 +68,18 @@ fn expression_type_reference_in_state(
             indexed.collection,
         )
         .and_then(|collection| indexed_element_type_reference(program, collection)),
+        ExpressionNode::Cast(cast) => Some(cast.target_type),
+        ExpressionNode::ZeroValue(type_reference) => Some(*type_reference),
         ExpressionNode::ArrayLiteral(_)
         | ExpressionNode::Binary(_)
         | ExpressionNode::Boolean(_)
         | ExpressionNode::Call(_)
-        | ExpressionNode::Cast(_)
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Range(_)
         | ExpressionNode::String(_)
         | ExpressionNode::StructLiteral(_)
-        | ExpressionNode::Unary(_)
-        | ExpressionNode::ZeroValue(_) => None,
+        | ExpressionNode::Unary(_) => None,
     }
 }
 

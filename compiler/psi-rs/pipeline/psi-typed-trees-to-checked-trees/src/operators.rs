@@ -18,7 +18,7 @@ use psi_typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 mod receiver;
 mod selection;
 
-use receiver::expression_type_reference_for_origin;
+pub(crate) use receiver::expression_type_reference_for_origin;
 pub(crate) use selection::select_pending_domain_operator_meanings;
 
 pub(crate) fn build_operator_facts(
