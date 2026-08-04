@@ -2928,23 +2928,29 @@ pub(crate) fn check_law_conformance(
     conformance_alias: Option<&str>,
     trait_definition: &TraitDefinition,
     requirement: &StateSignature,
+    explicit_trait_arguments: &[psi_typed_trees::types::TypeReferenceHandle],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     // The declared law conjuncts (Equal binaries; And-chains split;
     // `result`-mentioning conjuncts are functional specs, not laws -- they
     // stay outside this check, exactly like the suggestion path).
     let mut law_conjuncts: Vec<ExpressionHandle> = Vec::new();
+    let mut proposition_laws = Vec::new();
     for contract in program.state_signature_contracts(requirement) {
         if contract.kind != SignatureContractKind::Ensures {
             continue;
         }
         for fact in program.proof_facts.span_or_empty(contract.facts) {
-            if let ProofFact::Expression(expression) = fact {
-                collect_equality_conjuncts(program, *expression, &mut law_conjuncts);
+            match fact {
+                ProofFact::Expression(expression) => {
+                    collect_equality_conjuncts(program, *expression, &mut law_conjuncts);
+                }
+                ProofFact::Proposition(application) => proposition_laws.push(application),
+                ProofFact::Membership(_) => {}
             }
         }
     }
-    if law_conjuncts.is_empty() {
+    if law_conjuncts.is_empty() && proposition_laws.is_empty() {
         return; // an OP requirement, not a law
     }
 
@@ -2962,6 +2968,31 @@ pub(crate) fn check_law_conformance(
         .iter()
         .map(|parameter| parameter.name.as_str().to_owned())
         .collect();
+
+    let mut proven_propositions = Vec::new();
+    for contract in program.machine_contracts(machine) {
+        if contract.kind != SignatureContractKind::Ensures {
+            continue;
+        }
+        for fact in program.proof_facts.span_or_empty(contract.facts) {
+            if let ProofFact::Proposition(application) = fact {
+                proven_propositions.push(application);
+            }
+        }
+    }
+    check_proposition_law_conformance(
+        program,
+        machine,
+        trait_definition,
+        requirement,
+        explicit_trait_arguments,
+        &proposition_laws,
+        &proven_propositions,
+        diagnostics,
+    );
+    if law_conjuncts.is_empty() {
+        return;
+    }
 
     // The CARRIER is the satisfier's first entry parameter type (law
     // requirements are Self-shaped; the signature check already bound Self
@@ -3089,6 +3120,104 @@ pub(crate) fn check_law_conformance(
                 requirement.name,
                 display_structural_term(&law_left),
                 display_structural_term(&law_right),
+            )));
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn check_proposition_law_conformance(
+    program: &TypedTrees,
+    machine: &Machine,
+    trait_definition: &TraitDefinition,
+    requirement: &StateSignature,
+    explicit_trait_arguments: &[psi_typed_trees::types::TypeReferenceHandle],
+    proposition_laws: &[&psi_typed_trees::proposition::PropositionApplication],
+    proven_propositions: &[&psi_typed_trees::proposition::PropositionApplication],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if proposition_laws.is_empty() {
+        return;
+    }
+    let Some(entry_state) = program.machine_states(machine).first() else {
+        return;
+    };
+    let substitutions = program
+        .state_signature_parameters(requirement)
+        .iter()
+        .zip(program.state_parameters(entry_state))
+        .map(|(required, actual)| {
+            (
+                required.symbol,
+                required.name.as_str().to_owned(),
+                actual.name.as_str().to_owned(),
+            )
+        })
+        .collect::<Vec<_>>();
+    let trait_parameters = program.trait_type_parameters(trait_definition);
+
+    for law in proposition_laws {
+        let mut instantiated = (*law).clone();
+        if program.symbols.get(law.proposition).kind
+            == psi_symbols::SymbolKind::PropositionParameter
+        {
+            let Some(parameter_index) = trait_parameters
+                .iter()
+                .position(|parameter| parameter.symbol == law.proposition)
+            else {
+                continue;
+            };
+            let Some(argument) = explicit_trait_arguments.get(parameter_index) else {
+                continue;
+            };
+            let psi_typed_trees::types::TypeReferenceNode::Named { symbol, name } =
+                program.type_reference_table.type_reference(*argument)
+            else {
+                continue;
+            };
+            instantiated.proposition = *symbol;
+            instantiated.name = name.clone();
+        }
+        let binder_labels = instantiated
+            .binder_arguments
+            .iter()
+            .map(|argument| {
+                argument
+                    .path
+                    .iter()
+                    .map(|member| member.as_str())
+                    .collect::<Vec<_>>()
+                    .join("::")
+            })
+            .collect::<Vec<_>>();
+        let argument_labels = program
+            .expression_table
+            .expression_handles(instantiated.arguments)
+            .iter()
+            .map(|argument| {
+                program.render_proof_expression_with_parameters(*argument, &substitutions)
+            })
+            .collect::<Vec<_>>();
+        let Some(expected) = program
+            .normalize_proposition_application_with_labels(
+                &instantiated,
+                &binder_labels,
+                &argument_labels,
+            )
+            .map(|formula| formula.identity_label())
+        else {
+            continue;
+        };
+        let matched = proven_propositions.iter().any(|proven| {
+            program
+                .normalize_proposition_application(proven)
+                .map(|formula| formula.identity_label())
+                .is_some_and(|actual| actual == expected)
+        });
+        if !matched {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` satisfies `{}::{}` but proves no ensures matching proposition law `{expected}` after trait-family substitution",
+                machine.name, trait_definition.name, requirement.name,
             )));
         }
     }

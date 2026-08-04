@@ -1680,9 +1680,13 @@ and allocation handles expose no compiler-owned stack/control storage.
      carrier must instantiate one fresh ordered copy of the carrier's complete
      static-parameter telescope per representative, with matching binder kind,
      const type, and exact binder use; accidental index reuse rejects.
-     Proposition-law conformance substitution, type/const proposition call
-     arguments, selected witness evidence, and terminal-Psi identity remain in
-     this rung;
+     Nullary proposition-law conformance slice landed 2026-08-03: a
+     single-requirement proof conformance substitutes the selected concrete
+     proposition family into the trait law and requires an exact normalized
+     proven `ensures`; proving another proposition no longer passes merely
+     because proposition facts sit outside the legacy equality-law matcher.
+     Indexed-law binder synthesis, type/const proposition call arguments,
+     selected witness evidence, and terminal-Psi identity remain in this rung;
   2. add the proof stratum to selected-conformance projection and permit
      by-value `dyn` only when the complete normalized value has no runtime
      carrier;
