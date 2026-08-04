@@ -160,7 +160,10 @@ the clean Omega lowering and native C-ABI lane. The v17 Boolean-equality slice
 round-trips, verifies, charges one operation, and interprets equality between
 two defined Boolean operands. Its checked-source canary compares a parameter
 with `false`; clean Omega lowering folds that literal comparison to the existing
-canonical Boolean target forms and agrees with native C-ABI execution. The v3 wrapping slice
+canonical Boolean target forms and agrees with native C-ABI execution. A second
+checked-source canary compares two runtime Boolean parameters; recursive target
+and assigned Boolean expressions preserve both ABI inputs and emit canonical
+equality results on AArch64 and x86-64. The v3 wrapping slice
 round-trips, verifies,
 meters, lowers, emits,
 and executes `u8` 200+100 as 44. The v4 saturating slice traverses the

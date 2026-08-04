@@ -73,6 +73,13 @@ pub enum TerminalTargetOperation {
         parameter_index: usize,
         location: TerminalScalarParameterLocation,
     },
+    /// Return a runtime Boolean expression lowered from terminal-Psi logical
+    /// operations. Every node produces a canonical zero/one Boolean.
+    ReturnBooleanExpression {
+        psi_edge: EdgeId,
+        source_value: ValueId,
+        expression: TerminalTargetBooleanExpression,
+    },
     /// Return a runtime integer expression lowered from exact-width terminal
     /// Psi operations. Every node has the enclosing result's integer type.
     ReturnIntegerExpression {
@@ -99,6 +106,28 @@ pub enum TerminalTargetOperation {
         condition_location: TerminalScalarParameterLocation,
         when_true: TerminalTargetConditionalBooleanArm,
         when_false: TerminalTargetConditionalBooleanArm,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TerminalTargetBooleanExpression {
+    Immediate {
+        source_value: ValueId,
+        value: bool,
+    },
+    Parameter {
+        source_value: ValueId,
+        parameter_index: usize,
+        location: TerminalScalarParameterLocation,
+    },
+    Not {
+        psi_operation: OperationId,
+        operand: Box<TerminalTargetBooleanExpression>,
+    },
+    Equal {
+        psi_operation: OperationId,
+        left: Box<TerminalTargetBooleanExpression>,
+        right: Box<TerminalTargetBooleanExpression>,
     },
 }
 

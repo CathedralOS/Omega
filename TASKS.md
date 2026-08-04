@@ -1347,10 +1347,11 @@ improvements do not change public identity.
   frozen. A checked-source canary compares a runtime parameter with `false`,
   round-trips and verifies the terminal module, and agrees with native C-ABI
   execution after clean Omega lowering folds the literal comparison to the
-  existing canonical Boolean target forms. This eager operation does not model
-  short-circuit `&&`/`||`; those require control lowering. Native equality
-  between two runtime Boolean expressions remains target-expression
-  implementation work, not a language-design blocker. The
+  existing canonical Boolean target forms. A second canary compares two runtime
+  Boolean parameters through recursive target/assigned Boolean expressions;
+  AArch64 and x86-64 emission preserve both ABI inputs and return canonical
+  zero/one equality results. This eager operation does not model short-circuit
+  `&&`/`||`; those require control lowering. The
   initial vocabulary now has canonical semantic bytes and a domain-separated
   semantic fingerprint as well: decoding rejects alternate encodings, invalid
   modules, and trailing data, while a golden identity test freezes the format.

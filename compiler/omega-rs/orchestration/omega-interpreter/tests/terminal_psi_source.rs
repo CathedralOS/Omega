@@ -34,7 +34,8 @@ use omega_terminal_image_emission::{
 use omega_terminal_machine_emission::emit_machine_code;
 use omega_terminal_psi_to_abstract_operations::lower_verified_module;
 use omega_terminal_target_operations::{
-    TerminalTargetIntegerControl, TerminalTargetIntegerExpression, TerminalTargetOperation,
+    TerminalTargetBooleanExpression, TerminalTargetIntegerControl, TerminalTargetIntegerExpression,
+    TerminalTargetOperation,
 };
 use omega_terminal_target_operations_to_assigned_target_operations::assign_registers;
 use psi_checked_trees_to_terminal::{LoweringError, lower_machine};
@@ -546,7 +547,7 @@ fn checked_source_conditional_survives_frontend_drop() {
         &AdmissionProfile::default(),
     )
     .expect("source conditional should verify after frontend drop");
-    assert_eq!(semantic_module.semantic_version.get(), 16);
+    assert_eq!(semantic_module.semantic_version, SemanticVersion::CURRENT);
     let fixed = derive_fixed_entry_fuel(&verified, semantic_module.entry)
         .expect("source conditional should have an exact maximum fuel bound");
     assert_eq!(fixed.ceiling_units(), 5);
@@ -1074,6 +1075,77 @@ fn checked_source_boolean_equality_round_trips_and_reaches_native_code() {
         run_host_machine_code_with_bool(entry.bytes(&object_artifact), true),
         0
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn checked_source_runtime_boolean_equality_reaches_native_code() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("runtime Boolean-equality source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_boolean_equal_runtime")
+        .expect("runtime Boolean equality should lower");
+    drop(checked);
+
+    let semantic_bytes = encode_module(&lowered.semantic_module)
+        .expect("runtime Boolean equality should encode canonically");
+    let semantic_module =
+        decode_module(&semantic_bytes).expect("runtime Boolean equality should decode");
+    let verified = verify_module(
+        &semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("runtime Boolean equality should verify");
+    let fuel = derive_fixed_entry_fuel(&verified, semantic_module.entry)
+        .expect("runtime Boolean equality should have fixed fuel");
+    assert_eq!(fuel.ceiling_units(), 2);
+    for (left, right, expected) in [
+        (false, false, true),
+        (false, true, false),
+        (true, false, false),
+        (true, true, true),
+    ] {
+        let measured = interpret_terminal_measured(
+            &verified,
+            &[
+                TerminalScalarValue::Boolean(left),
+                TerminalScalarValue::Boolean(right),
+            ],
+        )
+        .expect("runtime Boolean equality should interpret");
+        assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+        assert_eq!(measured.usage().total_units(), 2);
+    }
+
+    let abstract_operations = lower_verified_module(&verified)
+        .expect("runtime Boolean equality should cross the Omega boundary");
+    let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
+        .expect("runtime Boolean equality should select for the host");
+    assert!(matches!(
+        &target_operations.functions[0].operation,
+        TerminalTargetOperation::ReturnBooleanExpression {
+            expression: TerminalTargetBooleanExpression::Equal { .. },
+            ..
+        }
+    ));
+    let assigned = assign_registers(&target_operations)
+        .expect("runtime Boolean expression homes should assign");
+    let machine_code = emit_machine_code(&assigned).expect("runtime Boolean equality should emit");
+    let object_artifact = build_terminal_object_artifact(&machine_code)
+        .expect("runtime Boolean equality should form an object");
+    let entry = object_artifact.entry_function();
+    assert_eq!(entry.provenance.operations.len(), 1);
+    for (left, right, expected) in [
+        (false, false, 1),
+        (false, true, 0),
+        (true, false, 0),
+        (true, true, 1),
+    ] {
+        assert_eq!(
+            run_host_machine_code_with_two_bools(entry.bytes(&object_artifact), left, right,),
+            expected
+        );
+    }
 }
 
 #[cfg(unix)]
@@ -1751,6 +1823,51 @@ fn run_host_machine_code_with_bool(bytes: &[u8], value: bool) -> i32 {
         .expect("execute terminal Boolean-not canary")
         .code()
         .expect("terminal Boolean-not canary exited normally")
+}
+
+#[cfg(unix)]
+fn run_host_machine_code_with_two_bools(bytes: &[u8], left: bool, right: bool) -> i32 {
+    let directory = fresh_scratch_directory("omega-terminal-boolean-equality");
+    let _cleanup = ScratchDirectory(directory.clone());
+    let assembly_path = directory.join("entry.s");
+    let driver_path = directory.join("driver.c");
+    let executable_path = directory.join("entry");
+    let bytes = bytes
+        .iter()
+        .map(|byte| format!("0x{byte:02x}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let assembly = if cfg!(target_os = "macos") {
+        format!(".text\n.globl _terminal_entry\n.p2align 2\n_terminal_entry:\n.byte {bytes}\n")
+    } else {
+        format!(
+            ".text\n.globl terminal_entry\n.type terminal_entry,@function\nterminal_entry:\n.byte {bytes}\n.size terminal_entry, .-terminal_entry\n.section .note.GNU-stack,\"\",@progbits\n"
+        )
+    };
+    let driver = format!(
+        "#include <stdbool.h>\nextern bool terminal_entry(bool, bool);\nint main(void) {{ return terminal_entry({}, {}); }}\n",
+        if left { "true" } else { "false" },
+        if right { "true" } else { "false" },
+    );
+    std::fs::write(&assembly_path, assembly).expect("write Boolean-equality assembly harness");
+    std::fs::write(&driver_path, driver).expect("write Boolean-equality C harness");
+    let link = Command::new("cc")
+        .arg(&assembly_path)
+        .arg(&driver_path)
+        .arg("-o")
+        .arg(&executable_path)
+        .output()
+        .expect("invoke host C linker driver");
+    assert!(
+        link.status.success(),
+        "host linker rejected Boolean-equality machine code:\n{}",
+        String::from_utf8_lossy(&link.stderr)
+    );
+    Command::new(&executable_path)
+        .status()
+        .expect("execute terminal Boolean-equality canary")
+        .code()
+        .expect("terminal Boolean-equality canary exited normally")
 }
 
 #[cfg(unix)]

@@ -7,16 +7,16 @@ use std::collections::BTreeMap;
 
 use omega_target::Architecture;
 use omega_terminal_assigned_target_operations::{
-    TerminalAssignedBooleanControl, TerminalAssignedConditionalBooleanArm,
-    TerminalAssignedConditionalIntegerArm, TerminalAssignedFunction,
-    TerminalAssignedIntegerControl, TerminalAssignedIntegerExpression, TerminalAssignedOperation,
-    TerminalAssignedOperationPlan, TerminalAssignedScalarLocation, TerminalEntryRegisterSpill,
-    TerminalExpressionFrame,
+    TerminalAssignedBooleanControl, TerminalAssignedBooleanExpression,
+    TerminalAssignedConditionalBooleanArm, TerminalAssignedConditionalIntegerArm,
+    TerminalAssignedFunction, TerminalAssignedIntegerControl, TerminalAssignedIntegerExpression,
+    TerminalAssignedOperation, TerminalAssignedOperationPlan, TerminalAssignedScalarLocation,
+    TerminalEntryRegisterSpill, TerminalExpressionFrame,
 };
 use omega_terminal_target_operations::{
     MachineRegister, TerminalScalarParameterLocation, TerminalTargetBooleanControl,
-    TerminalTargetFunction, TerminalTargetIntegerControl, TerminalTargetIntegerExpression,
-    TerminalTargetOperation, TerminalTargetOperationPlan,
+    TerminalTargetBooleanExpression, TerminalTargetFunction, TerminalTargetIntegerControl,
+    TerminalTargetIntegerExpression, TerminalTargetOperation, TerminalTargetOperationPlan,
 };
 use psi_core::{MachineId, OperationId, ValueId};
 
@@ -102,6 +102,21 @@ fn assign_function(
             parameter_index: *parameter_index,
             location: assign_direct_location(*source_value, *location, architecture)?,
         },
+        TerminalTargetOperation::ReturnBooleanExpression {
+            psi_edge,
+            source_value,
+            expression,
+        } => {
+            let locations = boolean_expression_parameter_locations(expression)?;
+            let (frame, assigned_locations) =
+                assign_expression_locations(architecture, &locations)?;
+            TerminalAssignedOperation::ReturnBooleanExpression {
+                psi_edge: *psi_edge,
+                source_value: *source_value,
+                frame,
+                expression: assign_boolean_expression(expression, &assigned_locations)?,
+            }
+        }
         TerminalTargetOperation::ReturnIntegerExpression {
             psi_edge,
             source_value,
@@ -505,6 +520,51 @@ fn assign_expression(
     }
 }
 
+fn assign_boolean_expression(
+    expression: &TerminalTargetBooleanExpression,
+    locations: &BTreeMap<usize, TerminalAssignedScalarLocation>,
+) -> Result<TerminalAssignedBooleanExpression, AssignmentError> {
+    match expression {
+        TerminalTargetBooleanExpression::Immediate {
+            source_value,
+            value,
+        } => Ok(TerminalAssignedBooleanExpression::Immediate {
+            source_value: *source_value,
+            value: *value,
+        }),
+        TerminalTargetBooleanExpression::Parameter {
+            source_value,
+            parameter_index,
+            ..
+        } => Ok(TerminalAssignedBooleanExpression::Parameter {
+            source_value: *source_value,
+            parameter_index: *parameter_index,
+            location: *locations.get(parameter_index).ok_or(
+                AssignmentError::ExpressionParameterAssignmentMissing {
+                    value: *source_value,
+                    parameter_index: *parameter_index,
+                },
+            )?,
+        }),
+        TerminalTargetBooleanExpression::Not {
+            psi_operation,
+            operand,
+        } => Ok(TerminalAssignedBooleanExpression::Not {
+            psi_operation: *psi_operation,
+            operand: Box::new(assign_boolean_expression(operand, locations)?),
+        }),
+        TerminalTargetBooleanExpression::Equal {
+            psi_operation,
+            left,
+            right,
+        } => Ok(TerminalAssignedBooleanExpression::Equal {
+            psi_operation: *psi_operation,
+            left: Box::new(assign_boolean_expression(left, locations)?),
+            right: Box::new(assign_boolean_expression(right, locations)?),
+        }),
+    }
+}
+
 fn expression_parameter_locations(
     expression: &TerminalTargetIntegerExpression,
 ) -> Result<BTreeMap<usize, (ValueId, TerminalScalarParameterLocation)>, AssignmentError> {
@@ -542,6 +602,47 @@ fn expression_parameter_locations(
         }
         Ok(())
     }
+    let mut locations = BTreeMap::new();
+    collect(expression, &mut locations)?;
+    Ok(locations)
+}
+
+fn boolean_expression_parameter_locations(
+    expression: &TerminalTargetBooleanExpression,
+) -> Result<BTreeMap<usize, (ValueId, TerminalScalarParameterLocation)>, AssignmentError> {
+    fn collect(
+        expression: &TerminalTargetBooleanExpression,
+        locations: &mut BTreeMap<usize, (ValueId, TerminalScalarParameterLocation)>,
+    ) -> Result<(), AssignmentError> {
+        match expression {
+            TerminalTargetBooleanExpression::Immediate { .. } => {}
+            TerminalTargetBooleanExpression::Parameter {
+                source_value,
+                parameter_index,
+                location,
+            } => {
+                if let Some((_, established)) = locations.get(parameter_index) {
+                    if established != location {
+                        return Err(AssignmentError::ExpressionParameterLocationConflict {
+                            value: *source_value,
+                            parameter_index: *parameter_index,
+                        });
+                    }
+                } else {
+                    locations.insert(*parameter_index, (*source_value, *location));
+                }
+            }
+            TerminalTargetBooleanExpression::Not { operand, .. } => {
+                collect(operand, locations)?;
+            }
+            TerminalTargetBooleanExpression::Equal { left, right, .. } => {
+                collect(left, locations)?;
+                collect(right, locations)?;
+            }
+        }
+        Ok(())
+    }
+
     let mut locations = BTreeMap::new();
     collect(expression, &mut locations)?;
     Ok(locations)
