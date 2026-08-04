@@ -1061,7 +1061,7 @@ relocation-envelope fingerprints plus their composed derivation identity. The
 boundary/placement binding includes that derivation identity, so a valid final
 inventory cannot be paired with evidence from a different encoded-to-final
 derivation. The single emitted artifact is now self-described as
-`omega.final-footprint-certificate` format v14, with a domain-separated
+`omega.final-footprint-certificate` format v15, with a domain-separated
 certificate fingerprint over its final placement binding, compiler-text
 derivation, and region inventory. It remains explicitly incomplete evidence,
 not an admission certificate, until the missing footprint classes close. The
@@ -1080,6 +1080,10 @@ after patching and relocation. PE `jmp [rip+disp32]` carries an
 instruction-pointer-only footprint; Mach-O `ADRP/LDR/BR X16` carries X16 plus
 instruction-pointer effects. Opcode mutations reject before placement, and the
 attached per-region evidence participates in the inventory fingerprint.
+Compiler-function and checked-instruction replay consume only the exact
+compiler-authored `.text` prefix. Appended import-thunk tails therefore cannot
+be mistaken for unenumerated compiler instructions and remain covered solely
+by these separate format-owned validators.
 The inventory explicitly lists relaxation products, veneers, generated stubs,
 and admitted leaves as missing classes, so this new post-layout seam cannot
 accidentally promote the partial evidence to a complete certificate.

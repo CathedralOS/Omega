@@ -39,10 +39,12 @@ pub fn emit_checked_executable_image(
             &emitted_output.final_text_bytes,
             relocations,
         )?;
+        let final_compiler_text_bytes =
+            &emitted_output.final_text_bytes[..encoded_text_bytes.len()];
         let compiler_function_validation = validate_compiler_function_instruction_boundaries(
             architecture,
             encoded_machine_code,
-            &emitted_output.final_text_bytes,
+            final_compiler_text_bytes,
             object,
             relocations,
             encoded_machine_semantics,
@@ -51,7 +53,7 @@ pub fn emit_checked_executable_image(
             validate_checked_instruction_bytes(
                 architecture,
                 encoded_machine_code,
-                &emitted_output.final_text_bytes,
+                final_compiler_text_bytes,
                 relocations,
             )?;
         compiler_text_validation.checked_instruction_validation_count =
@@ -190,9 +192,12 @@ fn validate_compiler_function_instruction_boundaries(
     semantics: &omega_machine_bytes::EncodedMachineSemanticSummary,
 ) -> Result<CompilerFunctionValidationEvidence, Diagnostic> {
     if code.byte_count != final_text_bytes.len() || code.bytes.len() != final_text_bytes.len() {
-        return Err(Diagnostic::error(
-            "compiler function enumeration does not cover the complete final compiler text",
-        ));
+        return Err(Diagnostic::error(format!(
+            "compiler function enumeration does not cover the complete final compiler text: encoded count {}, retained byte arena {}, final compiler prefix {}",
+            code.byte_count,
+            code.bytes.len(),
+            final_text_bytes.len(),
+        )));
     }
 
     let mut fingerprint = 0xcbf2_9ce4_8422_2325u64;
