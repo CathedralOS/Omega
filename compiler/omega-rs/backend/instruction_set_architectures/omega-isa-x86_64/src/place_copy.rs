@@ -763,6 +763,12 @@ pub fn copy_places_from_machine_indexed_clobbers(byte_count: usize) -> RegisterS
     copy_places_from_indexed_clobbers(byte_count)
 }
 
+/// Exact scratch footprint of a direct-storage value written into a
+/// machine-inline-array element.
+pub fn copy_places_to_machine_indexed_clobbers(byte_count: usize) -> RegisterSet {
+    copy_places_from_indexed_clobbers(byte_count)
+}
+
 /// Exact scratch footprint of a direct place-pair copy. Both address bases are
 /// materialized unconditionally; non-empty copies stage chunks through rax.
 pub fn copy_places_direct_clobbers(byte_count: usize) -> RegisterSet {
@@ -1141,6 +1147,18 @@ mod tests {
         );
         assert_eq!(
             copy_places_from_machine_indexed_clobbers(8),
+            copy_places_from_indexed_clobbers(8)
+        );
+    }
+
+    #[test]
+    fn to_machine_indexed_clobbers_match_the_one_index_place_walk() {
+        assert_eq!(
+            copy_places_to_machine_indexed_clobbers(0),
+            copy_places_from_indexed_clobbers(0)
+        );
+        assert_eq!(
+            copy_places_to_machine_indexed_clobbers(8),
             copy_places_from_indexed_clobbers(8)
         );
     }
