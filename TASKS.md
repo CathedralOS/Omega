@@ -1203,8 +1203,11 @@ improvements do not change public identity.
   contributing operation and edge. A compile-known nested conditional inside
   either arm now folds to only its selected successor, including scalar-typed
   Boolean or integer edge bindings, while the outer runtime branch remains
-  executable. Runtime-nested conditionals and general CFG programs still fail
-  closed.
+  executable. Runtime-nested acyclic conditionals now lower as recursive
+  target and assigned control, with each integer-returning leaf independently
+  framed and emitted on x86-64 and AArch64. Conditional tests preserve all ABI
+  inputs before leaf evaluation, including an AArch64 condition outside `x0`.
+  Entry jump prefixes, loops, and general block programs still fail closed.
   Because the
   legacy exit prover cannot establish ordinary `result == literal` contracts,
   this bootstrap canary preserves a closed typed `requires`/`ensures` fact and

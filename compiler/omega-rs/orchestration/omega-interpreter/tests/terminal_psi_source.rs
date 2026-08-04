@@ -33,7 +33,9 @@ use omega_terminal_image_emission::{
 };
 use omega_terminal_machine_emission::emit_machine_code;
 use omega_terminal_psi_to_abstract_operations::lower_verified_module;
-use omega_terminal_target_operations::{TerminalTargetIntegerExpression, TerminalTargetOperation};
+use omega_terminal_target_operations::{
+    TerminalTargetIntegerControl, TerminalTargetIntegerExpression, TerminalTargetOperation,
+};
 use omega_terminal_target_operations_to_assigned_target_operations::assign_registers;
 use psi_checked_trees_to_terminal::{LoweringError, lower_machine};
 use psi_core::{
@@ -555,7 +557,7 @@ fn checked_source_conditional_survives_frontend_drop() {
     assert_eq!(when_false.bindings.len(), 2);
     let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
         .expect("computed source conditional should lower for the host");
-    let TerminalTargetOperation::ReturnIntegerConditionalExpressions {
+    let TerminalTargetOperation::ReturnIntegerConditionalControl {
         when_true,
         when_false,
         ..
@@ -563,12 +565,26 @@ fn checked_source_conditional_survives_frontend_drop() {
     else {
         panic!("target plan must retain both computed conditional expressions")
     };
+    let TerminalTargetIntegerControl::Return {
+        expression: true_expression,
+        ..
+    } = when_true.control.as_ref()
+    else {
+        panic!("true source arm must return")
+    };
     assert!(matches!(
-        &when_true.expression,
+        true_expression,
         TerminalTargetIntegerExpression::WrappingAdd { .. }
     ));
+    let TerminalTargetIntegerControl::Return {
+        expression: false_expression,
+        ..
+    } = when_false.control.as_ref()
+    else {
+        panic!("false source arm must return")
+    };
     assert!(matches!(
-        &when_false.expression,
+        false_expression,
         TerminalTargetIntegerExpression::WrappingAdd { left, .. }
             if matches!(
                 left.as_ref(),

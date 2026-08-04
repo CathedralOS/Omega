@@ -7,13 +7,15 @@ use std::collections::BTreeMap;
 
 use omega_target::Architecture;
 use omega_terminal_assigned_target_operations::{
-    TerminalAssignedConditionalIntegerExpression, TerminalAssignedFunction,
-    TerminalAssignedIntegerExpression, TerminalAssignedOperation, TerminalAssignedOperationPlan,
-    TerminalAssignedScalarLocation, TerminalEntryRegisterSpill, TerminalExpressionFrame,
+    TerminalAssignedConditionalIntegerArm, TerminalAssignedFunction,
+    TerminalAssignedIntegerControl, TerminalAssignedIntegerExpression, TerminalAssignedOperation,
+    TerminalAssignedOperationPlan, TerminalAssignedScalarLocation, TerminalEntryRegisterSpill,
+    TerminalExpressionFrame,
 };
 use omega_terminal_target_operations::{
     MachineRegister, TerminalScalarParameterLocation, TerminalTargetFunction,
-    TerminalTargetIntegerExpression, TerminalTargetOperation, TerminalTargetOperationPlan,
+    TerminalTargetIntegerControl, TerminalTargetIntegerExpression, TerminalTargetOperation,
+    TerminalTargetOperationPlan,
 };
 use psi_core::{MachineId, OperationId, ValueId};
 
@@ -105,44 +107,80 @@ fn assign_function(
                 expression: assign_expression(expression, &assigned_locations)?,
             }
         }
-        TerminalTargetOperation::ReturnIntegerConditionalExpressions {
+        TerminalTargetOperation::ReturnIntegerConditionalControl {
             condition_source,
             condition_parameter_index,
             condition_location,
             scalar_type,
             when_true,
             when_false,
-        } => {
-            let assign_arm = |arm: &omega_terminal_target_operations::TerminalTargetConditionalIntegerExpression| {
-                let locations = expression_parameter_locations(&arm.expression)?;
-                let (frame, assigned_locations) =
-                    assign_expression_locations(architecture, &locations)?;
-                Ok(TerminalAssignedConditionalIntegerExpression {
-                    psi_edge: arm.psi_edge,
-                    psi_return_edge: arm.psi_return_edge,
-                    source_value: arm.source_value,
-                    frame,
-                    expression: assign_expression(&arm.expression, &assigned_locations)?,
-                })
-            };
-            TerminalAssignedOperation::ReturnIntegerConditionalExpressions {
-                condition_source: *condition_source,
-                condition_parameter_index: *condition_parameter_index,
-                condition_location: assign_direct_location(
-                    *condition_source,
-                    *condition_location,
-                    architecture,
-                )?,
-                scalar_type: *scalar_type,
-                when_true: assign_arm(when_true)?,
-                when_false: assign_arm(when_false)?,
-            }
-        }
+        } => TerminalAssignedOperation::ReturnIntegerConditionalControl {
+            condition_source: *condition_source,
+            condition_parameter_index: *condition_parameter_index,
+            condition_location: assign_direct_location(
+                *condition_source,
+                *condition_location,
+                architecture,
+            )?,
+            scalar_type: *scalar_type,
+            when_true: assign_control_arm(when_true, architecture)?,
+            when_false: assign_control_arm(when_false, architecture)?,
+        },
     };
     Ok(TerminalAssignedFunction {
         machine: function.machine,
         provenance: function.provenance.clone(),
         operation,
+    })
+}
+
+fn assign_control_arm(
+    arm: &omega_terminal_target_operations::TerminalTargetConditionalIntegerArm,
+    architecture: Architecture,
+) -> Result<TerminalAssignedConditionalIntegerArm, AssignmentError> {
+    Ok(TerminalAssignedConditionalIntegerArm {
+        psi_edge: arm.psi_edge,
+        control: Box::new(assign_integer_control(&arm.control, architecture)?),
+    })
+}
+
+fn assign_integer_control(
+    control: &TerminalTargetIntegerControl,
+    architecture: Architecture,
+) -> Result<TerminalAssignedIntegerControl, AssignmentError> {
+    Ok(match control {
+        TerminalTargetIntegerControl::Return {
+            psi_return_edge,
+            source_value,
+            expression,
+        } => {
+            let locations = expression_parameter_locations(expression)?;
+            let (frame, assigned_locations) =
+                assign_expression_locations(architecture, &locations)?;
+            TerminalAssignedIntegerControl::Return {
+                psi_return_edge: *psi_return_edge,
+                source_value: *source_value,
+                frame,
+                expression: assign_expression(expression, &assigned_locations)?,
+            }
+        }
+        TerminalTargetIntegerControl::Conditional {
+            condition_source,
+            condition_parameter_index,
+            condition_location,
+            when_true,
+            when_false,
+        } => TerminalAssignedIntegerControl::Conditional {
+            condition_source: *condition_source,
+            condition_parameter_index: *condition_parameter_index,
+            condition_location: assign_direct_location(
+                *condition_source,
+                *condition_location,
+                architecture,
+            )?,
+            when_true: assign_control_arm(when_true, architecture)?,
+            when_false: assign_control_arm(when_false, architecture)?,
+        },
     })
 }
 

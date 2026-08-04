@@ -5,7 +5,9 @@ use omega_terminal_abstract_operations_to_target_operations::lower_to_target_ope
 use omega_terminal_assigned_target_operations::TerminalAssignedOperation;
 use omega_terminal_machine_emission::emit_machine_code;
 use omega_terminal_psi_to_abstract_operations::lower_verified_module;
-use omega_terminal_target_operations::{TerminalTargetIntegerExpression, TerminalTargetOperation};
+use omega_terminal_target_operations::{
+    TerminalTargetIntegerControl, TerminalTargetIntegerExpression, TerminalTargetOperation,
+};
 use omega_terminal_target_operations_to_assigned_target_operations::assign_registers;
 use psi_core::{
     BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
@@ -129,7 +131,7 @@ fn v13_conditional_round_trips_executes_and_lowers_both_ordered_successors() {
     assert_eq!(when_false.bindings[0].argument, ValueId::new(3).unwrap());
     let target_plan = lower_to_target_operations(&abstract_plan, NativeTarget::host())
         .expect("direct-binding conditional should lower for the host");
-    let TerminalTargetOperation::ReturnIntegerConditionalExpressions {
+    let TerminalTargetOperation::ReturnIntegerConditionalControl {
         condition_source,
         when_true,
         when_false,
@@ -140,13 +142,21 @@ fn v13_conditional_round_trips_executes_and_lowers_both_ordered_successors() {
     };
     assert_eq!(*condition_source, ValueId::new(1).unwrap());
     assert_eq!(when_true.psi_edge, true_edge);
-    assert_eq!(when_true.psi_return_edge, EdgeId::new(3).unwrap());
     assert_eq!(when_false.psi_edge, false_edge);
-    assert_eq!(when_false.psi_return_edge, EdgeId::new(4).unwrap());
+    assert!(matches!(
+        when_true.control.as_ref(),
+        TerminalTargetIntegerControl::Return { psi_return_edge, .. }
+            if *psi_return_edge == EdgeId::new(3).unwrap()
+    ));
+    assert!(matches!(
+        when_false.control.as_ref(),
+        TerminalTargetIntegerControl::Return { psi_return_edge, .. }
+            if *psi_return_edge == EdgeId::new(4).unwrap()
+    ));
     let assigned = assign_registers(&target_plan).expect("conditional homes assign");
     assert!(matches!(
         assigned.functions[0].operation,
-        TerminalAssignedOperation::ReturnIntegerConditionalExpressions { .. }
+        TerminalAssignedOperation::ReturnIntegerConditionalControl { .. }
     ));
     let machine_code = emit_machine_code(&assigned).expect("conditional machine code emits");
     assert!(!machine_code.functions[0].bytes.is_empty());
@@ -241,7 +251,7 @@ fn conditional_arms_lower_through_computed_jumps_to_a_shared_tail() {
             EdgeId::new(5).unwrap(),
         ]
     );
-    let TerminalTargetOperation::ReturnIntegerConditionalExpressions {
+    let TerminalTargetOperation::ReturnIntegerConditionalControl {
         when_true,
         when_false,
         ..
@@ -249,13 +259,27 @@ fn conditional_arms_lower_through_computed_jumps_to_a_shared_tail() {
     else {
         panic!("shared-tail graph must retain its runtime conditional")
     };
+    let TerminalTargetIntegerControl::Return {
+        expression: true_expression,
+        ..
+    } = when_true.control.as_ref()
+    else {
+        panic!("true shared-tail arm must return")
+    };
     assert!(matches!(
-        &when_true.expression,
+        true_expression,
         TerminalTargetIntegerExpression::WrappingAdd { left, .. }
             if matches!(left.as_ref(), TerminalTargetIntegerExpression::WrappingAdd { .. })
     ));
+    let TerminalTargetIntegerControl::Return {
+        expression: false_expression,
+        ..
+    } = when_false.control.as_ref()
+    else {
+        panic!("false shared-tail arm must return")
+    };
     assert!(matches!(
-        &when_false.expression,
+        false_expression,
         TerminalTargetIntegerExpression::WrappingAdd { left, .. }
             if matches!(left.as_ref(), TerminalTargetIntegerExpression::WrappingMultiply { .. })
     ));
@@ -322,7 +346,7 @@ fn compile_known_nested_conditional_folds_inside_a_runtime_arm() {
             EdgeId::new(6).unwrap(),
         ]
     );
-    let TerminalTargetOperation::ReturnIntegerConditionalExpressions {
+    let TerminalTargetOperation::ReturnIntegerConditionalControl {
         when_true,
         when_false,
         ..
@@ -331,21 +355,29 @@ fn compile_known_nested_conditional_folds_inside_a_runtime_arm() {
         panic!("outer runtime conditional must remain")
     };
     assert_eq!(when_true.psi_edge, EdgeId::new(1).unwrap());
-    assert_eq!(when_true.psi_return_edge, EdgeId::new(6).unwrap());
     assert!(matches!(
-        when_true.expression,
-        TerminalTargetIntegerExpression::WrappingAdd { .. }
+        when_true.control.as_ref(),
+        TerminalTargetIntegerControl::Return {
+            psi_return_edge,
+            expression: TerminalTargetIntegerExpression::WrappingAdd { .. },
+            ..
+        } if *psi_return_edge == EdgeId::new(6).unwrap()
     ));
     assert_eq!(when_false.psi_edge, EdgeId::new(2).unwrap());
-    assert_eq!(when_false.psi_return_edge, EdgeId::new(5).unwrap());
+    assert!(matches!(
+        when_false.control.as_ref(),
+        TerminalTargetIntegerControl::Return { psi_return_edge, .. }
+            if *psi_return_edge == EdgeId::new(5).unwrap()
+    ));
     let assigned = assign_registers(&target_plan).expect("folded nested arms assign");
     let machine_code = emit_machine_code(&assigned).expect("folded nested arms emit");
     assert!(!machine_code.functions[0].bytes.is_empty());
 }
 
 #[test]
-fn runtime_nested_conditional_still_requires_general_block_lowering() {
+fn runtime_nested_conditional_lowers_as_recursive_target_control() {
     let mut module = nested_constant_conditional_module();
+    module.machines[0].parameters.swap(0, 1);
     module.machines[0].parameters.push(ValueDeclaration {
         id: ValueId::new(11).unwrap(),
         scalar_type: ScalarType::Boolean,
@@ -362,15 +394,97 @@ fn runtime_nested_conditional_still_requires_general_block_lowering() {
         &AdmissionProfile::default(),
     )
     .expect("runtime nested conditional verifies as terminal Psi");
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    for (outer, inner, expected, fuel) in
+        [(true, true, 6, 4), (true, false, 9, 4), (false, true, 4, 2)]
+    {
+        let measured = interpret_terminal_measured(
+            &verified,
+            &[
+                TerminalScalarValue::Integer {
+                    scalar_type: integer,
+                    value: IntegerValue::Unsigned(3),
+                },
+                TerminalScalarValue::Boolean(outer),
+                TerminalScalarValue::Integer {
+                    scalar_type: integer,
+                    value: IntegerValue::Unsigned(4),
+                },
+                TerminalScalarValue::Boolean(inner),
+            ],
+        )
+        .expect("selected runtime-nested path executes");
+        assert_eq!(measured.usage().total_units(), fuel);
+        assert_eq!(
+            measured.value(),
+            TerminalScalarValue::Integer {
+                scalar_type: integer,
+                value: IntegerValue::Unsigned(expected),
+            }
+        );
+    }
     let abstract_plan = lower_verified_module(&verified).expect("lower nested requirements");
+    let target_plan = lower_to_target_operations(&abstract_plan, NativeTarget::host())
+        .expect("runtime-nested conditional lowers");
+    let TerminalTargetOperation::ReturnIntegerConditionalControl {
+        when_true,
+        when_false,
+        ..
+    } = &target_plan.functions[0].operation
+    else {
+        panic!("outer conditional must remain")
+    };
     assert!(matches!(
-        lower_to_target_operations(&abstract_plan, NativeTarget::host()),
-        Err(
-            omega_terminal_abstract_operations_to_target_operations::LoweringError::ConditionalControlFlowRequiresBlockLowering(
-                machine
-            )
-        ) if machine == MachineId::new(1).unwrap()
+        when_true.control.as_ref(),
+        TerminalTargetIntegerControl::Conditional {
+            condition_source,
+            when_true: nested_true,
+            when_false: nested_false,
+            ..
+        } if *condition_source == ValueId::new(11).unwrap()
+            && nested_true.psi_edge == EdgeId::new(3).unwrap()
+            && nested_false.psi_edge == EdgeId::new(4).unwrap()
     ));
+    assert!(matches!(
+        when_false.control.as_ref(),
+        TerminalTargetIntegerControl::Return { psi_return_edge, .. }
+            if *psi_return_edge == EdgeId::new(5).unwrap()
+    ));
+    assert_eq!(
+        target_plan.functions[0].provenance.operations,
+        [OperationId::new(2).unwrap(), OperationId::new(3).unwrap()]
+    );
+    assert_eq!(
+        target_plan.functions[0].provenance.edges,
+        (1..=7)
+            .map(|raw| EdgeId::new(raw).unwrap())
+            .collect::<Vec<_>>()
+    );
+    let assigned = assign_registers(&target_plan).expect("recursive conditionals assign");
+    let machine_code = emit_machine_code(&assigned).expect("recursive conditionals emit");
+    assert!(!machine_code.functions[0].bytes.is_empty());
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_plan = lower_to_target_operations(&abstract_plan, target)
+            .expect("recursive conditionals lower for each architecture");
+        let assigned = assign_registers(&target_plan)
+            .expect("recursive conditional homes assign for each architecture");
+        let emitted = emit_machine_code(&assigned)
+            .expect("recursive conditional machine code emits for each architecture");
+        assert!(!emitted.functions[0].bytes.is_empty());
+    }
+    #[cfg(unix)]
+    for (outer, inner, expected) in [(true, true, 6), (true, false, 9), (false, true, 4)] {
+        assert_eq!(
+            run_host_runtime_nested_conditional(
+                &machine_code.functions[0].bytes,
+                3,
+                outer,
+                4,
+                inner,
+            ),
+            expected
+        );
+    }
 }
 
 #[test]
@@ -713,3 +827,92 @@ fn nested_constant_conditional_module() -> TerminalModule {
         }],
     }
 }
+
+#[cfg(unix)]
+static NEXT_SCRATCH_DIRECTORY: AtomicU64 = AtomicU64::new(0);
+
+#[cfg(unix)]
+fn run_host_runtime_nested_conditional(
+    bytes: &[u8],
+    first: u8,
+    outer: bool,
+    third: u8,
+    inner: bool,
+) -> i32 {
+    let directory = fresh_scratch_directory("omega-terminal-runtime-nested");
+    let _cleanup = ScratchDirectory(directory.clone());
+    let assembly_path = directory.join("entry.s");
+    let driver_path = directory.join("driver.c");
+    let executable_path = directory.join("entry");
+    let bytes = bytes
+        .iter()
+        .map(|byte| format!("0x{byte:02x}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let assembly = if cfg!(target_os = "macos") {
+        format!(".text\n.globl _terminal_entry\n.p2align 2\n_terminal_entry:\n.byte {bytes}\n")
+    } else {
+        format!(
+            ".text\n.globl terminal_entry\n.type terminal_entry,@function\nterminal_entry:\n.byte {bytes}\n.size terminal_entry, .-terminal_entry\n.section .note.GNU-stack,\"\",@progbits\n"
+        )
+    };
+    let driver = format!(
+        "#include <stdbool.h>\n#include <stdint.h>\n\
+extern uint8_t terminal_entry(uint8_t, bool, uint8_t, bool);\n\
+int main(void) {{ return terminal_entry({first}, {}, {third}, {}); }}\n",
+        if outer { "true" } else { "false" },
+        if inner { "true" } else { "false" },
+    );
+    std::fs::write(&assembly_path, assembly).expect("write runtime-nested assembly harness");
+    std::fs::write(&driver_path, driver).expect("write runtime-nested C harness");
+    let link = Command::new("cc")
+        .arg(&assembly_path)
+        .arg(&driver_path)
+        .arg("-o")
+        .arg(&executable_path)
+        .output()
+        .expect("invoke host C linker driver");
+    assert!(
+        link.status.success(),
+        "host linker rejected runtime-nested terminal machine code:\n{}",
+        String::from_utf8_lossy(&link.stderr)
+    );
+    Command::new(&executable_path)
+        .status()
+        .expect("execute runtime-nested terminal canary")
+        .code()
+        .expect("runtime-nested terminal canary exited normally")
+}
+
+#[cfg(unix)]
+fn fresh_scratch_directory(prefix: &str) -> PathBuf {
+    let nonce = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .expect("wall clock after epoch")
+        .as_nanos();
+    let sequence = NEXT_SCRATCH_DIRECTORY.fetch_add(1, Ordering::Relaxed);
+    let directory = std::env::temp_dir().join(format!(
+        "{prefix}-{}-{nonce}-{sequence}",
+        std::process::id()
+    ));
+    std::fs::create_dir(&directory).expect("create unique terminal test directory");
+    directory
+}
+
+#[cfg(unix)]
+struct ScratchDirectory(PathBuf);
+
+#[cfg(unix)]
+impl Drop for ScratchDirectory {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+#[cfg(unix)]
+use std::path::PathBuf;
+#[cfg(unix)]
+use std::process::Command;
+#[cfg(unix)]
+use std::sync::atomic::{AtomicU64, Ordering};
+#[cfg(unix)]
+use std::time::SystemTime;
