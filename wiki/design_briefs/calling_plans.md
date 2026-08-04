@@ -1178,16 +1178,15 @@ Direct-target binary writes, exact-integer writes through a frame-held pointer,
 and runtime-indexed writes through a frame-held descriptor retain their
 complete checked recipe and roots into the canonical runtime-value operand
 arena; runtime-indexed writes into an inline frame array and exact-integer
-writes into a runtime-indexed inline machine array are included too, including
-the optional cross-region frame-index relocation.
+writes into single- and double-runtime-indexed inline machine arrays are
+included too, including cross-region index-base relocations.
 Final validation regenerates the evaluator/store bytes, walks nested operand
 relocations, and matches the closed target may-write ceiling to the separately
 retained `CompilerBodyPlaceBinaryWrite` fragment.
 Final validation replays the exact target encoder
 and relocation set and matches the derived scratch union to the
 respective retained `CompilerBodyPlaceCopy` or
-`CompilerBodyPlaceIntegerWrite` fragment. Double-indexed and otherwise-general
-binary targets,
+`CompilerBodyPlaceIntegerWrite` fragment. Otherwise-general binary targets,
 conversion/string/bit-field writes, and calls remain unreplayed. Pointee-pair
 selection resolves both reference
 operands before flat storage so the source pointer is never copied as field
