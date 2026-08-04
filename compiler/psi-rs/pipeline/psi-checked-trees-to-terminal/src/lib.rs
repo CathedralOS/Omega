@@ -1808,19 +1808,31 @@ fn lower_boolean_expression(
                 )?),
             })
         }
-        ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::Equal => {
+        ExpressionNode::Binary(binary)
+            if matches!(
+                binary.operator,
+                BinaryOperator::Equal | BinaryOperator::NotEqual
+            ) =>
+        {
             if let Some(operator_use) = checked.facts.operators.expression_use(expression)
                 && operator_use.status != CheckedOperatorResolutionStatus::BuiltinFallback
             {
-                return unsupported("terminal Boolean equality must use the builtin operator");
+                return unsupported("terminal Boolean comparison must use the builtin operator");
             }
-            Ok(LoweredBooleanReturnExpression::Equal {
+            let equality = LoweredBooleanReturnExpression::Equal {
                 left: Box::new(lower_boolean_expression(checked, binary.left, parameters)?),
                 right: Box::new(lower_boolean_expression(checked, binary.right, parameters)?),
+            };
+            Ok(if binary.operator == BinaryOperator::NotEqual {
+                LoweredBooleanReturnExpression::Not {
+                    operand: Box::new(equality),
+                }
+            } else {
+                equality
             })
         }
         _ => unsupported(
-            "Boolean terminal expressions require a literal, declared parameter, logical not, or builtin equality",
+            "Boolean terminal expressions require a literal, declared parameter, logical not, or builtin equality/inequality",
         ),
     }
 }

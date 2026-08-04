@@ -51,8 +51,9 @@ verified module object and rejects out-of-range integer arguments before
 execution.
 
 The first Psi-owned checked-tree producer, `psi-checked-trees-to-terminal`,
-lowers four exact closed-contract source forms: a Boolean literal or exact
-named parameter from ordinary Boolean parameters; a recursively nested
+lowers four exact closed-contract source forms: a recursively nested Boolean
+expression over literals, exact named parameters, builtin negation, and builtin
+equality/inequality from ordinary Boolean parameters; a recursively nested
 expression over exact parameter/literal operands using builtin
 wrapping/saturating add, subtract, or multiply from a nonempty sequence of
 ordinary primitive-integer parameters; or an

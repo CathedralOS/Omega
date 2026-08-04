@@ -1167,9 +1167,10 @@ improvements do not change public identity.
   parameters, including none, and an exact literal, named parameter, or
   recursively nested parameter/literal expression using builtin
   add/subtract/multiply in a settled arithmetic domain. A third exact form
-  lowers a Boolean literal or one exact named parameter from ordinary Boolean
-  parameters, either directly or through a nonempty linear sequence of
-  unconditional one-parameter Boolean state bindings. Optional compile-known
+  lowers a recursively nested Boolean expression over literals, exact named
+  parameters, builtin negation, and builtin equality/inequality, either
+  directly or through a nonempty linear sequence of unconditional one-parameter
+  Boolean state bindings. Optional compile-known
   propagation also requires its result to match the closed reflexive contract.
   A fourth exact form lowers an ordered positive-Boolean/fallback conditional.
   Each arm binds an ordered sequence of already-defined integer entry
@@ -1350,7 +1351,10 @@ improvements do not change public identity.
   existing canonical Boolean target forms. A second canary compares two runtime
   Boolean parameters through recursive target/assigned Boolean expressions;
   AArch64 and x86-64 emission preserve both ABI inputs and return canonical
-  zero/one equality results. This eager operation does not model short-circuit
+  zero/one equality results. Builtin Boolean `!=` canonically composes the same
+  equality operation with `BooleanNot`, verifies and meters both semantic
+  sites, and exercises nested target/assigned Boolean emission without adding a
+  redundant terminal opcode. This eager operation does not model short-circuit
   `&&`/`||`; those require control lowering. The
   initial vocabulary now has canonical semantic bytes and a domain-separated
   semantic fingerprint as well: decoding rejects alternate encodings, invalid

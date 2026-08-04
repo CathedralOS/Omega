@@ -1150,6 +1150,88 @@ fn checked_source_runtime_boolean_equality_reaches_native_code() {
 
 #[cfg(unix)]
 #[test]
+fn checked_source_runtime_boolean_inequality_reuses_terminal_primitives() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("runtime Boolean-inequality source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_boolean_not_equal_runtime")
+        .expect("runtime Boolean inequality should lower");
+    drop(checked);
+
+    let operations = &lowered.semantic_module.machines[0].blocks[0].operations;
+    assert_eq!(operations.len(), 2);
+    assert!(matches!(
+        operations[0].kind,
+        OperationKind::BooleanEqual { .. }
+    ));
+    assert!(matches!(
+        operations[1].kind,
+        OperationKind::BooleanNot { .. }
+    ));
+    let semantic_bytes = encode_module(&lowered.semantic_module)
+        .expect("runtime Boolean inequality should encode canonically");
+    let semantic_module =
+        decode_module(&semantic_bytes).expect("runtime Boolean inequality should decode");
+    let verified = verify_module(
+        &semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("runtime Boolean inequality should verify");
+    let fuel = derive_fixed_entry_fuel(&verified, semantic_module.entry)
+        .expect("runtime Boolean inequality should have fixed fuel");
+    assert_eq!(fuel.ceiling_units(), 3);
+    for (left, right, expected) in [
+        (false, false, false),
+        (false, true, true),
+        (true, false, true),
+        (true, true, false),
+    ] {
+        let measured = interpret_terminal_measured(
+            &verified,
+            &[
+                TerminalScalarValue::Boolean(left),
+                TerminalScalarValue::Boolean(right),
+            ],
+        )
+        .expect("runtime Boolean inequality should interpret");
+        assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+        assert_eq!(measured.usage().total_units(), 3);
+    }
+
+    let abstract_operations = lower_verified_module(&verified)
+        .expect("runtime Boolean inequality should cross the Omega boundary");
+    let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
+        .expect("runtime Boolean inequality should select for the host");
+    assert!(matches!(
+        &target_operations.functions[0].operation,
+        TerminalTargetOperation::ReturnBooleanExpression {
+            expression: TerminalTargetBooleanExpression::Not { operand, .. },
+            ..
+        } if matches!(operand.as_ref(), TerminalTargetBooleanExpression::Equal { .. })
+    ));
+    let assigned = assign_registers(&target_operations)
+        .expect("runtime Boolean inequality homes should assign");
+    let machine_code =
+        emit_machine_code(&assigned).expect("runtime Boolean inequality should emit");
+    let object_artifact = build_terminal_object_artifact(&machine_code)
+        .expect("runtime Boolean inequality should form an object");
+    let entry = object_artifact.entry_function();
+    assert_eq!(entry.provenance.operations.len(), 2);
+    for (left, right, expected) in [
+        (false, false, 0),
+        (false, true, 1),
+        (true, false, 1),
+        (true, true, 0),
+    ] {
+        assert_eq!(
+            run_host_machine_code_with_two_bools(entry.bytes(&object_artifact), left, right),
+            expected
+        );
+    }
+}
+
+#[cfg(unix)]
+#[test]
 fn source_booleans_reach_constant_and_stack_parameter_machine_code() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("terminal-Psi Boolean source canary should compile");

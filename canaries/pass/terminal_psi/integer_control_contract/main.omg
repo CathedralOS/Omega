@@ -331,6 +331,13 @@ ensures true == true
     left == right
 }
 
+machine terminal_boolean_not_equal_runtime(left: bool, right: bool) -> bool
+requires true == true
+ensures true == true
+{
+    left != right
+}
+
 machine terminal_ninth_boolean(
     first: bool,
     second: bool,
