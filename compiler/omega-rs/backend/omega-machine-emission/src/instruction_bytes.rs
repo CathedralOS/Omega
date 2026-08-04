@@ -401,6 +401,7 @@ fn compiler_instruction_validation_kind(
             omega_instruction_selection::classify_copy_places_shape(source, target),
             omega_instruction_selection::CopyPlacesShape::Direct { .. }
                 | omega_instruction_selection::CopyPlacesShape::ToPointee { .. }
+                | omega_instruction_selection::CopyPlacesShape::FromPointee { .. }
         ) =>
         {
             Some(CompilerInstructionValidationKind::CompilerBodyPlaceCopy {
