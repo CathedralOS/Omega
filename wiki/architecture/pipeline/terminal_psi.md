@@ -41,9 +41,9 @@ sum-case segments to structural content paths; v12 adds exact authored-
 partition substitution witnesses; v13 adds one structural Boolean conditional
 with ordered true/false successors; v14 adds canonical machine-local
 entry-claim bindings independently of output equality; v15 adds total Boolean
-logical negation; and current v16 adds canonical nominal proposition
-declarations and normalized application identities. None of v9-v14 or v16 adds an
-executable operation. The conditional is control vocabulary rather than an
+logical negation; v16 adds canonical nominal proposition declarations and
+normalized application identities; and current v17 adds total Boolean
+equality. None of v9-v14 or v16 adds an executable operation. The conditional is control vocabulary rather than an
 operation, and an entry-claim binding is identity metadata rather than a
 proposition.
 `psi-terminal-verifier` rejects malformed identities, types, contract scopes,
@@ -522,25 +522,27 @@ canonical identity-preserving claim reshuffles; version 11 adds stable sum-case
 content-path segments; version 12 adds exact authored-partition substitution
 rows; version 13 adds the ordered Boolean conditional terminator; version 14
 adds canonical machine-local entry-claim bindings without asserting an output
-equality; version 15 adds total `BooleanNot` operations and scalar terms; and
-current version 16 adds self-contained nominal proposition declarations and
-normalized applications without adding an operation.
+equality; version 15 adds total `BooleanNot` operations and scalar terms;
+version 16 adds self-contained nominal proposition declarations and normalized
+applications without adding an operation; and current version 17 adds total
+`BooleanEqual` operations and recursive scalar terms.
 The arithmetic operations require two already defined operands of the exact
 result integer type and have distinct canonical recursive proposition terms for
-their exact logical results. Validation and execution continue to accept valid
-v1 through v15 modules under their original meaning, while an older module
+their exact logical results. Boolean equality requires two already defined
+Boolean operands and reconstructs their exact equality result. Validation and
+execution continue to accept valid v1 through v16 modules under their original meaning, while an older module
 cannot claim a later operation, control form, or evidence row.
-`migrate_module_to_current` is an explicit validated older-to-v16 translation.
+`migrate_module_to_current` is an explicit validated older-to-v17 translation.
 For v10-v13 content rows it derives the new entry bindings from the already
 validated reshuffles and remaps claim references into dense machine-local IDs;
 it otherwise preserves the graph and obligations. Migration creates new
 canonical bytes and a new semantic fingerprint. An unchanged proof bundle
 retains its separate bytes and identity but is verified again against the
-migrated module. Golden tests retain the archived v1 through v14 fingerprints
-and independently freeze the current v16 fingerprint, v10 identity-reshuffle
+migrated module. Golden tests retain archived v1 through v16 identities and
+independently freeze the current v17 fingerprint, v10 identity-reshuffle
 fixture, v11 sum-case fixture, v12 partition-composition fixture, v14
-entry-claim fixture, v15 Boolean-negation fixture, and v16 proposition-vocabulary
-fixture. The archived v14 and v15 current fixtures retain their original identities.
+entry-claim fixture, v15 Boolean-negation fixture, v16 proposition-vocabulary
+fixture, and v17 Boolean-equality fixture.
 
 The same codec gives proof bundles their own canonical `PSIPRF` bytes and golden
 fingerprint. Proof format v1 remains the minimal frozen encoding for the
@@ -550,8 +552,9 @@ adds the recursive wrapping-subtract scalar term; format v5 adds the recursive
 saturating-subtract scalar term; format v6 adds the recursive wrapping-multiply
 scalar term; format v7 adds the recursive saturating-multiply scalar term;
 format v8 adds content-conservation propositions and field/fixed-index
-structural-place terms; format v9 adds sum-case path segments; and format v10
-adds recursive Boolean-negation terms. The encoder
+structural-place terms; format v9 adds sum-case path segments; format v10 adds
+recursive Boolean-negation terms; and format v11 adds recursive Boolean-equality
+terms. The encoder
 selects the minimal format needed by a carried proof tree, and the
 decoder rejects a bundle encoded with a newer format than its proof tree needs.
 Evidence entries are strictly ordered by `ObligationId`; the
@@ -723,7 +726,7 @@ generic installation ladder. Migrating the Cathedral hard-root graph remains.
    proof bytes and role-separated semantic/proof/install/debug manifest hashes
    are also live. Semantic migration is exercised: archived v1 and v2 bytes
    retain their identities and migrate explicitly into separately fingerprinted
-   current-v16 modules; archived v3 wrapping-add, v4 saturating-add, v5
+   current-v17 modules; archived v3 wrapping-add, v4 saturating-add, v5
    wrapping-subtract, v6 saturating-subtract, and v7 wrapping-multiply
    identities plus the v8 saturating-multiply identity are frozen as well. Typed
    installation records, the canonical typed debug/source-map schema, and

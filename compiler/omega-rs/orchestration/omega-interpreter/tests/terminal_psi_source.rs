@@ -959,7 +959,7 @@ fn checked_source_boolean_not_round_trips_and_reaches_native_code() {
 
     assert_eq!(
         lowered.semantic_module.semantic_version,
-        SemanticVersion::V16
+        SemanticVersion::CURRENT
     );
     assert!(matches!(
         lowered.semantic_module.machines[0].blocks[0].operations[0].kind,
@@ -1001,6 +1001,71 @@ fn checked_source_boolean_not_round_trips_and_reaches_native_code() {
         build_terminal_object_artifact(&machine_code).expect("Boolean not should form an object");
     let entry = object_artifact.entry_function();
     assert_eq!(entry.provenance.operations.len(), 1);
+    assert_eq!(
+        run_host_machine_code_with_bool(entry.bytes(&object_artifact), false),
+        1
+    );
+    assert_eq!(
+        run_host_machine_code_with_bool(entry.bytes(&object_artifact), true),
+        0
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn checked_source_boolean_equality_round_trips_and_reaches_native_code() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("terminal-Psi Boolean-equality source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_boolean_equal_false")
+        .expect("Boolean equality should lower");
+    drop(checked);
+
+    assert_eq!(
+        lowered.semantic_module.semantic_version,
+        SemanticVersion::V17
+    );
+    assert!(
+        lowered.semantic_module.machines[0].blocks[0]
+            .operations
+            .iter()
+            .any(|operation| matches!(operation.kind, OperationKind::BooleanEqual { .. }))
+    );
+    let semantic_bytes = encode_module(&lowered.semantic_module)
+        .expect("Boolean-equality terminal Psi should encode canonically");
+    let semantic_module =
+        decode_module(&semantic_bytes).expect("Boolean-equality terminal Psi should decode");
+    let verified = verify_module(
+        &semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("Boolean-equality terminal Psi should verify");
+    let fuel = derive_fixed_entry_fuel(&verified, semantic_module.entry)
+        .expect("Boolean equality should have fixed fuel");
+    assert_eq!(fuel.ceiling_units(), 3);
+    for (input, expected) in [(false, true), (true, false)] {
+        let measured =
+            interpret_terminal_measured(&verified, &[TerminalScalarValue::Boolean(input)])
+                .expect("Boolean equality should interpret");
+        assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+        assert_eq!(measured.usage().total_units(), 3);
+    }
+
+    let abstract_operations = lower_verified_module(&verified)
+        .expect("Boolean equality should cross the source-independent Omega boundary");
+    let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
+        .expect("Boolean equality against false should select for the host");
+    assert!(matches!(
+        target_operations.functions[0].operation,
+        TerminalTargetOperation::ReturnBooleanNotParameter { .. }
+    ));
+    let assigned = assign_registers(&target_operations)
+        .expect("Boolean-equality parameter home should assign");
+    let machine_code = emit_machine_code(&assigned).expect("Boolean equality should emit");
+    let object_artifact = build_terminal_object_artifact(&machine_code)
+        .expect("Boolean equality should form an object");
+    let entry = object_artifact.entry_function();
+    assert_eq!(entry.provenance.operations.len(), 2);
     assert_eq!(
         run_host_machine_code_with_bool(entry.bytes(&object_artifact), false),
         1

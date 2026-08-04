@@ -104,7 +104,9 @@ Semantic v5 and proof format v4 add recursive wrapping-subtract vocabulary;
 semantic v6 and proof format v5 add recursive saturating-subtract vocabulary;
 semantic v7 and proof format v6 add recursive wrapping-multiply vocabulary;
 semantic v8 and proof format v7 add recursive saturating-multiply vocabulary;
-semantic v15 and proof format v10 add recursive Boolean-negation vocabulary,
+semantic v15 and proof format v10 add recursive Boolean-negation vocabulary;
+semantic v16 adds proposition declarations without executable vocabulary; and
+semantic v17 plus proof format v11 add recursive Boolean-equality vocabulary,
 without changing fuel schedule v1. Parameter-fed canaries
 round-trip, verify, cost two units, and agree with native execution: wrapping
 `u8` computes 5-10 = 251, while signed `i64` saturating subtraction reaches
@@ -120,8 +122,9 @@ recursive saturating-add terms, minimal format v4 adds recursive wrapping-subtra
 terms, minimal format v5 adds recursive saturating-subtract terms, and minimal
 format v6 adds recursive wrapping-multiply terms, minimal format v7 adds
 recursive saturating-multiply terms, minimal format v8 adds content-conservation
-terms, minimal format v9 adds sum-case structural paths, and minimal format v10
-adds recursive Boolean-negation terms. The proof section has its own
+terms, minimal format v9 adds sum-case structural paths, minimal format v10 adds
+recursive Boolean-negation terms, and minimal format v11 adds recursive
+Boolean-equality terms. The proof section has its own
 golden fingerprint, and a role-separated manifest binds semantic, proof,
 installation, and debug sections without folding replaceable evidence into
 program identity. The clean terminal lane owns a semantic-identity-bound object
@@ -149,11 +152,15 @@ Semantic v1 integer, v2 Boolean, v3 wrapping-add, v4 saturating-add, v5
 wrapping-subtract, v6 saturating-subtract, v7 wrapping-multiply, v8
 saturating-multiply, v9 content, v10 reshuffle, v11 case-path, v12 partition,
 v13 conditional, and v14 entry-claim modules retain their frozen bytes and
-execution semantics; explicit migration produces a new current-v16 fingerprint
+execution semantics; explicit migration produces a new current-v17 fingerprint
 and derives dense entry bindings from any validated archived reshuffles. The
 v15 Boolean-negation slice round-trips, verifies, costs one operation plus one
 return edge, interprets, and returns the complemented canonical Boolean through
-the clean Omega lowering and native C-ABI lane. The v3 wrapping slice
+the clean Omega lowering and native C-ABI lane. The v17 Boolean-equality slice
+round-trips, verifies, charges one operation, and interprets equality between
+two defined Boolean operands. Its checked-source canary compares a parameter
+with `false`; clean Omega lowering folds that literal comparison to the existing
+canonical Boolean target forms and agrees with native C-ABI execution. The v3 wrapping slice
 round-trips, verifies,
 meters, lowers, emits,
 and executes `u8` 200+100 as 44. The v4 saturating slice traverses the

@@ -89,6 +89,10 @@ enum LoweredBooleanReturnExpression {
     Not {
         operand: Box<LoweredBooleanReturnExpression>,
     },
+    Equal {
+        left: Box<LoweredBooleanReturnExpression>,
+        right: Box<LoweredBooleanReturnExpression>,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1804,8 +1808,19 @@ fn lower_boolean_expression(
                 )?),
             })
         }
+        ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::Equal => {
+            if let Some(operator_use) = checked.facts.operators.expression_use(expression)
+                && operator_use.status != CheckedOperatorResolutionStatus::BuiltinFallback
+            {
+                return unsupported("terminal Boolean equality must use the builtin operator");
+            }
+            Ok(LoweredBooleanReturnExpression::Equal {
+                left: Box::new(lower_boolean_expression(checked, binary.left, parameters)?),
+                right: Box::new(lower_boolean_expression(checked, binary.right, parameters)?),
+            })
+        }
         _ => unsupported(
-            "Boolean terminal expressions require a literal, declared parameter, or logical not",
+            "Boolean terminal expressions require a literal, declared parameter, logical not, or builtin equality",
         ),
     }
 }
@@ -1847,6 +1862,10 @@ fn evaluate_boolean_expression(
         LoweredBooleanReturnExpression::Not { operand } => {
             Some(!evaluate_boolean_expression(operand, parameters)?)
         }
+        LoweredBooleanReturnExpression::Equal { left, right } => Some(
+            evaluate_boolean_expression(left, parameters)?
+                == evaluate_boolean_expression(right, parameters)?,
+        ),
     }
 }
 
@@ -2761,6 +2780,28 @@ fn emit_boolean_expression(
                     scalar_type: ScalarType::Boolean,
                 },
                 kind: OperationKind::BooleanNot { operand },
+            });
+            id
+        }
+        LoweredBooleanReturnExpression::Equal { left, right } => {
+            let left = emit_boolean_expression(left, parameters, next_value_identity, operations);
+            let right = emit_boolean_expression(right, parameters, next_value_identity, operations);
+            let id = value_id(*next_value_identity);
+            *next_value_identity = next_value_identity
+                .checked_add(1)
+                .expect("generated value identity advances after Boolean equality");
+            operations.push(Operation {
+                id: operation_id(
+                    u64::try_from(operations.len())
+                        .expect("operation count fits a semantic identity")
+                        .checked_add(1)
+                        .expect("operation identity is nonzero"),
+                ),
+                result: ValueDeclaration {
+                    id,
+                    scalar_type: ScalarType::Boolean,
+                },
+                kind: OperationKind::BooleanEqual { left, right },
             });
             id
         }

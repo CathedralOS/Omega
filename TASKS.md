@@ -1145,8 +1145,9 @@ improvements do not change public identity.
   proof-only structural-place/content-conservation propositions, v10 canonical
   identity-preserving claim reshuffles, v11 stable sum-case content paths, and
   v12 exact authored-partition substitution rows, v13 structural Boolean
-  conditional edges, v14 independent entry-claim bindings, and current-v15
-  total Boolean logical negation; the
+  conditional edges, v14 independent entry-claim bindings, v15 total Boolean
+  logical negation, v16 nominal proposition declarations/applications, and
+  current-v17 total Boolean equality; the
   executable slice retains unconditional
   jump/return edges plus the ordered conditional,
   bodyful contracts, verifier-reconstructed semantic axioms, exhaustive proof-
@@ -1338,6 +1339,18 @@ improvements do not change public identity.
   round-trips, verifies, costs one operation plus one return edge, and returns
   the complemented canonical Boolean through real C ABI execution; exact
   AArch64 and x86-64 encodings are pinned independently. The
+  next Boolean slice is live in v17: builtin `==` over two Boolean operands
+  lowers to total `BooleanEqual` operations and exact recursive proposition
+  terms, reconstructs its semantic axiom, costs one schedule-v1 unit, and
+  interprets directly. Canonical semantic v17 and minimal proof format v11 have
+  distinct golden identities while archived semantic v1-v16 identities remain
+  frozen. A checked-source canary compares a runtime parameter with `false`,
+  round-trips and verifies the terminal module, and agrees with native C-ABI
+  execution after clean Omega lowering folds the literal comparison to the
+  existing canonical Boolean target forms. This eager operation does not model
+  short-circuit `&&`/`||`; those require control lowering. Native equality
+  between two runtime Boolean expressions remains target-expression
+  implementation work, not a language-design blocker. The
   initial vocabulary now has canonical semantic bytes and a domain-separated
   semantic fingerprint as well: decoding rejects alternate encodings, invalid
   modules, and trailing data, while a golden identity test freezes the format.
@@ -1351,8 +1364,8 @@ improvements do not change public identity.
   wrapping-multiply scalar terms; minimal format v7 adds recursive
   saturating-multiply scalar terms; minimal format v8 adds content-conservation
   propositions and their structural-place terms; minimal format v9 adds
-  sum-case structural paths; and minimal format v10 adds recursive Boolean-not
-  terms. All reject over-deep or
+  sum-case structural paths; minimal format v10 adds recursive Boolean-not
+  terms; and minimal format v11 adds recursive Boolean-equality terms. All reject over-deep or
   unnecessarily newer encodings. A role-domain-separated
   manifest binds semantic,
   proof, optional installation, and optional debug section identities; proof,
@@ -1369,9 +1382,10 @@ improvements do not change public identity.
   claim reshuffles; v11 adds stable sum-case content-path segments; v12 adds
   exact authored-partition substitution rows; v13 adds structural Boolean
   conditional control; v14 adds independent dense entry-claim bindings;
-  current v15 adds total `BooleanNot`; and explicit validated migration
-  preserves an older semantic graph while producing a new v15 fingerprint.
-  Archived v1 through v14 identities
+  v15 adds total `BooleanNot`; v16 adds proposition declarations and normalized
+  applications; current v17 adds total `BooleanEqual`; and explicit validated
+  migration preserves an older semantic graph while producing a new v17 fingerprint.
+  Archived v1 through v16 identities
   remain frozen. The clean
   lane now also constructs an owned, semantic-identity-bound object artifact
   with canonical function spans and retained Psi provenance, emits the Omega
@@ -1712,7 +1726,7 @@ and allocation handles expose no compiler-owned stack/control storage.
      checked-source producer expands transparent aliases to their nominal
      endpoint, omits alias declarations, assigns dense deterministic IDs, and
      emits no frontend arena handle; codec, verifier, migration, and archived
-     v1-v15 compatibility are covered;
+     v1-v16 compatibility are covered;
   2. **DESIGN BLOCKED (`OWNER_QUESTIONS.md` Q1):** add the proof stratum to
      selected-conformance projection and permit by-value `dyn` only when the
      complete normalized value has no runtime carrier. The carrierless runtime

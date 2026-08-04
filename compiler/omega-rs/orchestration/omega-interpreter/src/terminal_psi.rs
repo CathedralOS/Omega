@@ -181,6 +181,31 @@ impl<'module> TerminalExecution<'module> {
                         self.values
                             .insert(operation.result.id, TerminalScalarValue::Boolean(!value));
                     }
+                    OperationKind::BooleanEqual { left, right } => {
+                        if operation.result.scalar_type != ScalarType::Boolean {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        let TerminalScalarValue::Boolean(left) = self
+                            .values
+                            .get(&left)
+                            .copied()
+                            .ok_or(TerminalInterpretError::VerifiedValueMissing(left))?
+                        else {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        };
+                        let TerminalScalarValue::Boolean(right) = self
+                            .values
+                            .get(&right)
+                            .copied()
+                            .ok_or(TerminalInterpretError::VerifiedValueMissing(right))?
+                        else {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        };
+                        self.values.insert(
+                            operation.result.id,
+                            TerminalScalarValue::Boolean(left == right),
+                        );
+                    }
                     OperationKind::WrappingIntegerAdd { left, right } => {
                         let ScalarType::Integer(scalar_type) = operation.result.scalar_type else {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);

@@ -156,6 +156,23 @@ fn lower_function(
                 insert_value(&mut values, *result, negate_boolean(operand, *result)?)?;
                 provenance.operations.push(*psi_operation);
             }
+            TerminalAbstractOperation::BooleanEqual {
+                psi_operation,
+                result,
+                left,
+                right,
+            } => {
+                let left = values
+                    .get(left)
+                    .cloned()
+                    .ok_or(LoweringError::UnknownValue(*left))?;
+                let right = values
+                    .get(right)
+                    .cloned()
+                    .ok_or(LoweringError::UnknownValue(*right))?;
+                insert_value(&mut values, *result, equal_boolean(left, right, *result)?)?;
+                provenance.operations.push(*psi_operation);
+            }
             TerminalAbstractOperation::WrappingIntegerAdd {
                 psi_operation,
                 result,
@@ -1633,6 +1650,23 @@ fn negate_boolean(value: KnownScalar, result: ValueId) -> Result<KnownScalar, Lo
     }
 }
 
+fn equal_boolean(
+    left: KnownScalar,
+    right: KnownScalar,
+    result: ValueId,
+) -> Result<KnownScalar, LoweringError> {
+    match (left, right) {
+        (KnownScalar::Boolean(left), KnownScalar::Boolean(right)) => {
+            Ok(KnownScalar::Boolean(left == right))
+        }
+        (value, KnownScalar::Boolean(true)) | (KnownScalar::Boolean(true), value) => Ok(value),
+        (value, KnownScalar::Boolean(false)) | (KnownScalar::Boolean(false), value) => {
+            negate_boolean(value, result)
+        }
+        _ => Err(LoweringError::UnsupportedRuntimeBooleanEquality(result)),
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum KnownInteger {
     Immediate(IntegerValue),
@@ -1679,6 +1713,7 @@ fn conditional_provenance(
             TerminalAbstractOperation::IntegerConstant { psi_operation, .. }
             | TerminalAbstractOperation::BooleanConstant { psi_operation, .. }
             | TerminalAbstractOperation::BooleanNot { psi_operation, .. }
+            | TerminalAbstractOperation::BooleanEqual { psi_operation, .. }
             | TerminalAbstractOperation::WrappingIntegerAdd { psi_operation, .. }
             | TerminalAbstractOperation::SaturatingIntegerAdd { psi_operation, .. }
             | TerminalAbstractOperation::WrappingIntegerSubtract { psi_operation, .. }
@@ -1734,6 +1769,7 @@ pub enum LoweringError {
     DuplicateValue(ValueId),
     UnknownValue(ValueId),
     ValueTypeMismatch(ValueId),
+    UnsupportedRuntimeBooleanEquality(ValueId),
     IntegerConstantHasNonIntegerType(ValueId),
     IntegerConstantOutsideType(ValueId),
     WrappingAddOperandTypeMismatch(ValueId),

@@ -317,6 +317,13 @@ ensures false == false
     !value
 }
 
+machine terminal_boolean_equal_false(value: bool) -> bool
+requires false == false
+ensures false == false
+{
+    value == false
+}
+
 machine terminal_ninth_boolean(
     first: bool,
     second: bool,

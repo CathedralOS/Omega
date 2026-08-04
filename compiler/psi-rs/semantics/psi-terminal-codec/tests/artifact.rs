@@ -54,11 +54,50 @@ fn proof_bundle_has_stable_canonical_bytes_and_an_independent_identity() {
         Err(ProofCodecError::TrailingBytes(1))
     );
     let mut future = bytes;
-    future[8..10].copy_from_slice(&11_u16.to_le_bytes());
+    future[8..10].copy_from_slice(&12_u16.to_le_bytes());
     assert_eq!(
         decode_proof_bundle(&future),
-        Err(ProofCodecError::UnsupportedFormatVersion(11))
+        Err(ProofCodecError::UnsupportedFormatVersion(12))
     );
+}
+
+#[test]
+fn proof_format_v11_canonically_encodes_boolean_equality() {
+    let equality =
+        ScalarTerm::boolean_equal(ScalarTerm::boolean(false), ScalarTerm::boolean(true)).unwrap();
+    let goal = Proposition::Equal(equality.clone(), equality);
+    let proof = ProofNode {
+        conclusion: goal.clone(),
+        rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
+    };
+    let bundle = ProofBundle {
+        evidence: vec![ObligationEvidence {
+            obligation: obligation_id(101),
+            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                identity: evidence_id(101),
+                proof_system_version: ProofSystemVersion::CURRENT,
+                proof: proof.clone(),
+            }),
+        }],
+    };
+
+    psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
+        .expect("reflexive Boolean-equality certificate");
+    let bytes = encode_proof_bundle(&bundle).expect("proof v11 bytes");
+    assert_eq!(&bytes[8..10], &11_u16.to_le_bytes());
+    assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
+    assert_eq!(
+        proof_bundle_fingerprint(&bundle).unwrap().to_string(),
+        "ee2cd0db2d7c0f49168062bc753431dab3ee7859efba38c21505fc85547d9aff"
+    );
+
+    let mut old_version = bytes;
+    old_version[8..10].copy_from_slice(&10_u16.to_le_bytes());
+    assert!(matches!(
+        decode_proof_bundle(&old_version),
+        Err(ProofCodecError::InvalidTag("ScalarTerm", 11))
+            | Err(ProofCodecError::NonCanonicalEncoding)
+    ));
 }
 
 #[test]
