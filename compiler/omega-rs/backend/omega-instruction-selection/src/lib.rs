@@ -10,6 +10,7 @@ pub use entry::{
     DerivedBoundaryEntryParameterStorage, DerivedBoundaryEntryStorage, DerivedBoundaryExit,
     derive_boundary_call_return_mechanics_footprint,
     derive_boundary_compiler_body_place_binary_write_footprint,
+    derive_boundary_compiler_body_place_bounded_buffer_write_footprint,
     derive_boundary_compiler_body_place_copy_footprint,
     derive_boundary_compiler_body_place_integer_write_footprint,
     derive_boundary_compiler_body_storage_bit_field_write_footprint,

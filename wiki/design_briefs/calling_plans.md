@@ -1193,8 +1193,11 @@ Final validation replays the exact target encoder
 and relocation set and matches the derived scratch union to the
 respective retained `CompilerBodyPlaceCopy` or
 `CompilerBodyPlaceIntegerWrite` fragment. Other otherwise-general binary
-targets, other AArch64 composed-place conversion shapes, string writes, and
-calls remain unreplayed. Immediate compact bit-field writes retain their exact
+targets, other AArch64 composed-place conversion shapes, string-descriptor and
+text-assembly writes, and calls remain unreplayed. Immediate bounded-buffer
+literal writes replay all x86 place targets plus direct and pointee AArch64
+targets, including the exact target, literal, relocation walk, and separate
+`CompilerBodyPlaceBoundedBufferWrite` footprint. Immediate compact bit-field writes retain their exact
 storage region, base offset, fragment layout, and value, replay the target
 encoder and destination relocation, and match a separate
 `CompilerBodyStorageBitFieldWrite` fragment. Pointee-pair

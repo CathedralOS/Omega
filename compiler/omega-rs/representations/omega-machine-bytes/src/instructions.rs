@@ -113,6 +113,10 @@ pub enum CompilerInstructionValidationKind {
         fragments: Vec<omega_target_operations::RuntimeBitFieldFragment>,
         value: i64,
     },
+    CompilerBodyPlaceBoundedBufferWrite {
+        target: Place,
+        literal: Arc<str>,
+    },
     CompilerBodyPlaceBinaryWrite {
         target: Place,
         byte_size: usize,
