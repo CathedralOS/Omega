@@ -1396,6 +1396,17 @@ pub fn encode_runtime_machine_integer_write(
     Ok(bytes)
 }
 
+/// Exact scratch footprint of a direct immediate integer write. x16 owns the
+/// relocated destination address, x17 materializes the value, and a large
+/// destination offset uses the shared x19 constant-address scratch.
+pub fn runtime_machine_integer_write_clobbers(byte_offset: usize) -> RegisterSet {
+    let mut registers = vec![MachineRegister::Aarch64X(16), MachineRegister::Aarch64X(17)];
+    if byte_offset > 4095 {
+        registers.push(MachineRegister::Aarch64X(19));
+    }
+    RegisterSet::new(registers)
+}
+
 fn bit_width_mask(width: u16) -> Result<u64, Diagnostic> {
     match width {
         1..=63 => Ok((1_u64 << width) - 1),

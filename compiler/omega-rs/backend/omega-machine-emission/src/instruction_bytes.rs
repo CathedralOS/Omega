@@ -449,6 +449,26 @@ fn compiler_instruction_validation_kind(
                 byte_count: *byte_count,
             })
         }
+        SelectedInstructionKind::WritePlaceInteger {
+            target,
+            value,
+            byte_size,
+        } if matches!(
+            omega_instruction_selection::classify_write_place_shape(target),
+            omega_instruction_selection::WritePlaceShape::Direct { .. }
+        ) =>
+        {
+            Some(
+                CompilerInstructionValidationKind::CompilerBodyPlaceIntegerWrite {
+                    storage_region: target.region,
+                    byte_offset: target
+                        .const_offset()
+                        .expect("direct write-place shape has one constant offset"),
+                    value: *value,
+                    byte_size: *byte_size,
+                },
+            )
+        }
         SelectedInstructionKind::SetDispatchState { dispatch_index } => {
             Some(CompilerInstructionValidationKind::DispatchStateWrite {
                 dispatch_index: *dispatch_index,

@@ -1178,6 +1178,40 @@ fn validate_compiler_function_instruction_boundaries(
                             },
                         )
                     }
+                    omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyPlaceIntegerWrite {
+                        storage_region,
+                        byte_offset,
+                        value,
+                        byte_size,
+                    } => (
+                        None,
+                        match architecture {
+                            Architecture::X86_64 => {
+                                let target = omega_target_operations::Place::at(
+                                    storage_region,
+                                    byte_offset,
+                                );
+                                omega_isa_x86_64::encode_place_integer_write(
+                                    &target,
+                                    value,
+                                    byte_size,
+                                )?
+                                .0
+                            }
+                            Architecture::Aarch64 => {
+                                omega_isa_aarch64::encode_runtime_machine_integer_write(
+                                    byte_offset,
+                                    byte_size,
+                                    value,
+                                )?
+                            }
+                        },
+                        22u8,
+                        CompilerInstructionRelocationRecipe::StaticStorage {
+                            storage_region,
+                            address_site: 0,
+                        },
+                    ),
                     omega_machine_bytes::CompilerInstructionValidationKind::DispatchStateWrite {
                         dispatch_index,
                         case_leave_byte_distance,
@@ -1903,6 +1937,18 @@ fn compiler_instruction_footprint(
                 MachineStateSet::empty(),
             )
         }
+        CompilerInstructionValidationKind::CompilerBodyPlaceIntegerWrite {
+            byte_offset, ..
+        } => (
+            BoundaryFootprintFragmentOrigin::CompilerBodyPlaceIntegerWrite,
+            match architecture {
+                Architecture::X86_64 => omega_isa_x86_64::direct_place_integer_write_clobbers(),
+                Architecture::Aarch64 => {
+                    omega_isa_aarch64::runtime_machine_integer_write_clobbers(byte_offset)
+                }
+            },
+            MachineStateSet::empty(),
+        ),
         CompilerInstructionValidationKind::DispatchStateWrite { .. } => (
             BoundaryFootprintFragmentOrigin::DispatchScaffold,
             match architecture {
@@ -1950,6 +1996,7 @@ fn validate_compiler_body_specification_footprints(
                 | BoundaryFootprintFragmentOrigin::EntrySliceDescriptor
                 | BoundaryFootprintFragmentOrigin::ExitIndirectResultCopy
                 | BoundaryFootprintFragmentOrigin::CompilerBodyPlaceCopy
+                | BoundaryFootprintFragmentOrigin::CompilerBodyPlaceIntegerWrite
         )
     });
     let boundary_contract_fingerprint = if !has_body_rows {
@@ -1987,6 +2034,10 @@ fn validate_compiler_body_specification_footprints(
         (8u8, BoundaryFootprintFragmentOrigin::EntrySliceDescriptor),
         (9u8, BoundaryFootprintFragmentOrigin::ExitIndirectResultCopy),
         (10u8, BoundaryFootprintFragmentOrigin::CompilerBodyPlaceCopy),
+        (
+            11u8,
+            BoundaryFootprintFragmentOrigin::CompilerBodyPlaceIntegerWrite,
+        ),
     ] {
         let evidence_rows = derived
             .iter()

@@ -754,6 +754,40 @@ pub fn derive_boundary_compiler_body_place_copy_footprint<'instruction>(
     Ok(evidence)
 }
 
+/// Derive the exact scratch footprint of direct compiler-body immediate
+/// integer writes. Other place shapes remain separate until their retained
+/// target encoder publishes and tests an exact clobber contract.
+pub fn derive_boundary_compiler_body_place_integer_write_footprint<'instruction>(
+    boundary: &ValidatedBoundaryEntryPlan,
+    instructions: impl IntoIterator<Item = &'instruction SelectedInstructionKind>,
+) -> Result<StateFootprintEvidence, PlanDiagnostic> {
+    let architecture = boundary.plan().call.policy.architecture();
+    let mut registers = Vec::new();
+    for instruction in instructions {
+        let SelectedInstructionKind::WritePlaceInteger { target, .. } = instruction else {
+            continue;
+        };
+        let crate::WritePlaceShape::Direct { byte_offset } =
+            crate::classify_write_place_shape(target)
+        else {
+            continue;
+        };
+        let clobbers = match architecture {
+            omega_target::Architecture::X86_64 => {
+                omega_isa_x86_64::direct_place_integer_write_clobbers()
+            }
+            omega_target::Architecture::Aarch64 => {
+                omega_isa_aarch64::runtime_machine_integer_write_clobbers(byte_offset)
+            }
+        };
+        registers.extend_from_slice(clobbers.as_slice());
+    }
+    let evidence =
+        StateFootprintEvidence::new(RegisterSet::new(registers), MachineStateSet::empty());
+    validate_state_footprint(boundary, &evidence)?;
+    Ok(evidence)
+}
+
 /// Derive result placement and exit control for a compiler-owned entry stub.
 /// This consumes the complete plan so result lowering cannot accidentally
 /// accept placements from a carrier whose state obligations are invalid.
@@ -2580,6 +2614,37 @@ mod tests {
                 MachineRegister::X86R11,
                 MachineRegister::X86R14,
                 MachineRegister::X86R15,
+            ]
+        );
+    }
+
+    #[test]
+    fn compiler_body_direct_integer_write_tracks_large_aarch64_offset_scratch() {
+        let boundary = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::Aapcs64,
+            &CallSignature {
+                parameters: Vec::new(),
+                result: None,
+            },
+        )
+        .expect("AAPCS64 boundary");
+        let instruction = SelectedInstructionKind::WritePlaceInteger {
+            target: omega_abstract_operations::Place::at(
+                omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+                5000,
+            ),
+            value: 7,
+            byte_size: 4,
+        };
+        let evidence =
+            derive_boundary_compiler_body_place_integer_write_footprint(&boundary, [&instruction])
+                .expect("ordinary direct integer-write evidence");
+        assert_eq!(
+            evidence.registers().as_slice(),
+            &[
+                MachineRegister::Aarch64X(16),
+                MachineRegister::Aarch64X(17),
+                MachineRegister::Aarch64X(19),
             ]
         );
     }

@@ -300,6 +300,13 @@ pub fn encode_place_integer_write(
     Ok((bytes, sites))
 }
 
+/// Exact register writes of a direct place integer write: r15 materializes
+/// the destination base and rax carries the immediate value into the sized
+/// store.
+pub fn direct_place_integer_write_clobbers() -> RegisterSet {
+    RegisterSet::new([MachineRegister::X86Rax, MachineRegister::X86R15])
+}
+
 /// The BINARY-write materializer entry (Binary rung 1a): evaluate
 /// `left OP right` under the arithmetic domain and store the result into a
 /// place-shaped target. The target address materializes through the SAME
@@ -1101,6 +1108,14 @@ mod tests {
                 MachineRegister::X86R14,
                 MachineRegister::X86R15,
             ]
+        );
+    }
+
+    #[test]
+    fn direct_integer_write_clobbers_cover_base_and_value() {
+        assert_eq!(
+            direct_place_integer_write_clobbers().as_slice(),
+            &[MachineRegister::X86Rax, MachineRegister::X86R15]
         );
     }
 
