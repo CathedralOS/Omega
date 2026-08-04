@@ -1170,7 +1170,9 @@ improvements do not change public identity.
   Each arm binds an ordered sequence of already-defined integer entry
   parameters to exactly typed branch parameters, then returns a recursively
   nested landed-literal/parameter add/subtract/multiply expression in a settled
-  Wrapping or Saturating domain.
+  Wrapping or Saturating domain. A fifth exact form lowers the same ordered
+  conditional shape for ordinary Boolean entry/branch parameters and literal
+  or parameter Boolean returns.
   It emits the module and
   proof bundle separately; real-source canaries cover all six versioned integer
   policy operations in constant-fed and runtime-fed forms, Boolean literal,
@@ -1217,6 +1219,9 @@ improvements do not change public identity.
   ABI-parameter leaves and execute natively on both architectures. Cyclic
   semantics, reusable native block layout, and operations beyond the current
   scalar terminal vocabulary still fail closed.
+  The real-source Boolean conditional crosses that complete verified, metered,
+  interpreted, assigned, and native-emitted lane after the Psi frontend is
+  dropped.
   Because the
   legacy exit prover cannot establish ordinary `result == literal` contracts,
   this bootstrap canary preserves a closed typed `requires`/`ensures` fact and

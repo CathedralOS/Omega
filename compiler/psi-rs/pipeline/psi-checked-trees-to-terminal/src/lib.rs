@@ -1008,18 +1008,151 @@ fn lower_selected_machine(
             _ => lower_direct_parameter_machine(checked, machine, entry_state),
         };
     }
+    if states.len() == 3 && entry_has_ordered_boolean_conditional(checked, &states[0]) {
+        return match checked.primitive_type_reference(states[0].return_type) {
+            Some(PrimitiveType::Bool) => {
+                lower_boolean_conditional_machine(checked, machine, states)
+            }
+            _ => lower_integer_conditional_machine(checked, machine, states),
+        };
+    }
     if states.len() >= 2
         && checked.primitive_type_reference(states[0].return_type) == Some(PrimitiveType::Bool)
     {
         return lower_boolean_state_chain(checked, machine, states);
     }
-    if states.len() == 3 && entry_has_ordered_boolean_conditional(checked, &states[0]) {
-        return lower_integer_conditional_machine(checked, machine, states);
-    }
     if states.len() >= 2 {
         return lower_integer_state_chain(checked, machine, states);
     }
     unsupported("machine must contain at least one state")
+}
+
+fn lower_boolean_conditional_machine(
+    checked: &CheckedTrees,
+    machine: &psi_checked_trees::machine::Machine,
+    states: &[psi_checked_trees::state::State],
+) -> Result<LoweredTerminalPsi, LoweringError> {
+    let [entry, when_true_state, when_false_state] = states else {
+        unreachable!("conditional source shape requires exactly three states")
+    };
+    if states
+        .iter()
+        .any(|state| !checked.state_contracts(state).is_empty())
+    {
+        return unsupported("conditional state contracts are not supported");
+    }
+    let entry_parameters = checked.state_parameters(entry);
+    if entry_parameters.iter().any(|parameter| {
+        parameter.is_self
+            || parameter.is_const
+            || parameter.is_mutable
+            || checked.primitive_type_reference(parameter.type_reference)
+                != Some(PrimitiveType::Bool)
+    }) {
+        return unsupported("Boolean conditional parameters must be ordinary Boolean values");
+    }
+    let statements = checked.statement_table.statements(entry.statement_nodes);
+    let [
+        StatementNode::Transition(when_true),
+        StatementNode::Transition(when_false),
+    ] = statements
+    else {
+        unreachable!("conditional source shape was selected above")
+    };
+    let TransitionGuardNode::When(condition) = when_true.guard else {
+        unreachable!("conditional source shape requires a guarded first arm")
+    };
+    if when_true.continuation.is_valid() || when_false.continuation.is_valid() {
+        return unsupported("conditional transitions cannot carry continuations");
+    }
+    let condition = lower_positive_boolean_guard(checked, condition, entry_parameters)?;
+
+    let mut branch_parameter_counts = Vec::with_capacity(2);
+    let mut branch_expressions = Vec::with_capacity(2);
+    for state in [when_true_state, when_false_state] {
+        if checked.primitive_type_reference(state.return_type) != Some(PrimitiveType::Bool) {
+            return unsupported("Boolean conditional branch results must remain Boolean");
+        }
+        let parameters = checked.state_parameters(state);
+        if parameters.iter().any(|parameter| {
+            parameter.is_self
+                || parameter.is_const
+                || parameter.is_mutable
+                || checked.primitive_type_reference(parameter.type_reference)
+                    != Some(PrimitiveType::Bool)
+        }) {
+            return unsupported(
+                "Boolean conditional branch parameters must be ordinary Boolean values",
+            );
+        }
+        let [StatementNode::Expression(return_expression)] =
+            checked.statement_table.statements(state.statement_nodes)
+        else {
+            return unsupported("Boolean conditional branch must contain one value expression");
+        };
+        branch_parameter_counts.push(parameters.len());
+        branch_expressions.push(lower_boolean_expression(
+            checked,
+            *return_expression,
+            parameters,
+        )?);
+    }
+
+    let branch_arguments = |transition: &psi_checked_trees::statement::TableTransition,
+                            expected_state: &psi_checked_trees::state::State,
+                            expected_count: usize|
+     -> Result<Vec<usize>, LoweringError> {
+        let TransitionTargetNode::Named { path, arguments } =
+            checked.statement_table.transition_target(transition.target)
+        else {
+            return unsupported("conditional successors must target named states");
+        };
+        if path.symbol != expected_state.symbol {
+            return unsupported("conditional successors must follow declared true/false order");
+        }
+        let arguments = checked.statement_table.expression_handles(*arguments);
+        if arguments.len() != expected_count {
+            return unsupported(
+                "conditional successor bindings must match the target parameter count",
+            );
+        }
+        arguments
+            .iter()
+            .map(|argument| {
+                let ExpressionNode::Name(path) = checked.expression_table.expression(*argument)
+                else {
+                    return unsupported(
+                        "Boolean conditional bindings require already-defined parameters",
+                    );
+                };
+                direct_parameter_position(checked, path, entry_parameters)
+            })
+            .collect()
+    };
+    let when_true_arguments =
+        branch_arguments(when_true, when_true_state, branch_parameter_counts[0])?;
+    let when_false_arguments =
+        branch_arguments(when_false, when_false_state, branch_parameter_counts[1])?;
+    let [when_true_expression, when_false_expression]: [LoweredBooleanReturnExpression; 2] =
+        branch_expressions
+            .try_into()
+            .expect("two Boolean branches each lower one expression");
+    let contract_value = validate_boolean_contract(checked, machine, None)?;
+    let (identity_reshuffles, partition_compositions) =
+        lower_content_evidence(checked, machine, entry)?;
+    Ok(build_boolean_conditional_module(
+        entry_parameters.len(),
+        condition,
+        when_true_arguments,
+        when_false_arguments,
+        branch_parameter_counts[0],
+        branch_parameter_counts[1],
+        when_true_expression,
+        when_false_expression,
+        contract_value,
+        identity_reshuffles,
+        partition_compositions,
+    ))
 }
 
 fn entry_has_ordered_boolean_conditional(
@@ -2255,6 +2388,159 @@ fn build_boolean_module(
                         value: returned,
                     },
                 }],
+                contract: MachineContract {
+                    id: contract_id(1),
+                    requires: vec![goal.clone()],
+                    ensures: vec![ContractClause {
+                        obligation,
+                        proposition: goal,
+                    }],
+                },
+            }],
+        },
+        proof_bundle: ProofBundle {
+            evidence: vec![ObligationEvidence {
+                obligation,
+                route: EvidenceRoute::KernelDerived(PrimitiveJudgment::ReflexiveEquality),
+            }],
+        },
+        debug_map: None,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_boolean_conditional_module(
+    parameter_count: usize,
+    condition: LoweredBooleanReturnExpression,
+    when_true_arguments: Vec<usize>,
+    when_false_arguments: Vec<usize>,
+    when_true_parameter_count: usize,
+    when_false_parameter_count: usize,
+    when_true_expression: LoweredBooleanReturnExpression,
+    when_false_expression: LoweredBooleanReturnExpression,
+    contract_value: bool,
+    identity_reshuffles: LoweredContentIdentityReshuffles,
+    partition_compositions: LoweredContentPartitionCompositions,
+) -> LoweredTerminalPsi {
+    fn allocate_boolean_parameters(count: usize, next: &mut u64) -> Vec<ValueDeclaration> {
+        (0..count)
+            .map(|_| {
+                let parameter = ValueDeclaration {
+                    id: value_id(*next),
+                    scalar_type: ScalarType::Boolean,
+                };
+                *next = next
+                    .checked_add(1)
+                    .expect("Boolean parameter identities advance");
+                parameter
+            })
+            .collect()
+    }
+    let mut next_value_identity = 1_u64;
+    let parameters = allocate_boolean_parameters(parameter_count, &mut next_value_identity);
+    let mut all_operations = Vec::new();
+    let condition = emit_boolean_expression(
+        &condition,
+        &parameters,
+        &mut next_value_identity,
+        &mut all_operations,
+    );
+    let entry_operation_end = all_operations.len();
+    let true_parameters =
+        allocate_boolean_parameters(when_true_parameter_count, &mut next_value_identity);
+    let false_parameters =
+        allocate_boolean_parameters(when_false_parameter_count, &mut next_value_identity);
+    let true_operation_start = all_operations.len();
+    let true_value = emit_boolean_expression(
+        &when_true_expression,
+        &true_parameters,
+        &mut next_value_identity,
+        &mut all_operations,
+    );
+    let true_operation_end = all_operations.len();
+    let false_value = emit_boolean_expression(
+        &when_false_expression,
+        &false_parameters,
+        &mut next_value_identity,
+        &mut all_operations,
+    );
+    let result = ValueDeclaration {
+        id: value_id(next_value_identity),
+        scalar_type: ScalarType::Boolean,
+    };
+    let literal = ScalarTerm::boolean(contract_value);
+    let goal = Proposition::Equal(literal.clone(), literal);
+    let obligation = obligation_id(1);
+    let mut structural_places = identity_reshuffles
+        .structural_places
+        .into_iter()
+        .map(|place| (place.id, place.kind))
+        .collect::<BTreeMap<_, _>>();
+    for place in partition_compositions.structural_places {
+        merge_content_place_declaration(&mut structural_places, place)
+            .expect("checked lowering rejects conflicting structural places");
+    }
+    LoweredTerminalPsi {
+        semantic_module: TerminalModule {
+            semantic_version: SemanticVersion::CURRENT,
+            entry: machine_id(1),
+            machines: vec![TerminalMachine {
+                id: machine_id(1),
+                parameters: parameters.clone(),
+                result,
+                structural_places: structural_places
+                    .into_iter()
+                    .map(|(id, kind)| StructuralPlaceDeclaration { id, kind })
+                    .collect(),
+                content_entry_claims: identity_reshuffles.entry_claims,
+                content_identity_reshuffles: identity_reshuffles.reshuffles,
+                content_partition_compositions: partition_compositions.compositions,
+                entry: block_id(1),
+                blocks: vec![
+                    Block {
+                        id: block_id(1),
+                        parameters: Vec::new(),
+                        operations: all_operations[..entry_operation_end].to_vec(),
+                        terminator: Terminator::Conditional {
+                            condition,
+                            when_true: SuccessorEdge {
+                                edge: edge_id(1),
+                                target: block_id(2),
+                                arguments: when_true_arguments
+                                    .iter()
+                                    .map(|position| parameters[*position].id)
+                                    .collect(),
+                            },
+                            when_false: SuccessorEdge {
+                                edge: edge_id(2),
+                                target: block_id(3),
+                                arguments: when_false_arguments
+                                    .iter()
+                                    .map(|position| parameters[*position].id)
+                                    .collect(),
+                            },
+                        },
+                    },
+                    Block {
+                        id: block_id(2),
+                        parameters: true_parameters,
+                        operations: all_operations[true_operation_start..true_operation_end]
+                            .to_vec(),
+                        terminator: Terminator::Return {
+                            edge: edge_id(3),
+                            value: true_value,
+                        },
+                    },
+                    Block {
+                        id: block_id(3),
+                        parameters: false_parameters,
+                        operations: all_operations[true_operation_end..].to_vec(),
+                        terminator: Terminator::Return {
+                            edge: edge_id(4),
+                            value: false_value,
+                        },
+                    },
+                ],
                 contract: MachineContract {
                     id: contract_id(1),
                     requires: vec![goal.clone()],

@@ -685,6 +685,63 @@ fn checked_source_literal_conditional_emits_only_its_selected_arm() {
     );
 }
 
+#[test]
+fn checked_source_boolean_conditional_reaches_native_control() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("terminal-Psi Boolean conditional source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_boolean_conditional")
+        .expect("Boolean source conditional should lower");
+    drop(checked);
+
+    let verified = verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("Boolean source conditional should verify after frontend drop");
+    let fixed = derive_fixed_entry_fuel(&verified, MachineId::new(1).unwrap())
+        .expect("Boolean source conditional should have an exact fuel bound");
+    assert_eq!(fixed.ceiling_units(), 2);
+    for (condition, expected) in [(true, true), (false, false)] {
+        let measured = interpret_terminal_measured(
+            &verified,
+            &[
+                TerminalScalarValue::Boolean(condition),
+                TerminalScalarValue::Boolean(true),
+                TerminalScalarValue::Boolean(false),
+            ],
+        )
+        .expect("Boolean source conditional should interpret");
+        assert_eq!(measured.usage().total_units(), 2);
+        assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+    }
+
+    let abstract_operations = lower_verified_module(&verified)
+        .expect("Boolean source conditional should cross the Omega boundary");
+    let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
+        .expect("Boolean source conditional should lower for the host");
+    assert!(matches!(
+        target_operations.functions[0].operation,
+        TerminalTargetOperation::ReturnBooleanConditionalControl { .. }
+    ));
+    let assigned = assign_registers(&target_operations)
+        .expect("Boolean source conditional parameter homes should assign");
+    let machine_code =
+        emit_machine_code(&assigned).expect("Boolean source conditional machine code should emit");
+    #[cfg(unix)]
+    for (condition, expected) in [(true, 1), (false, 0)] {
+        assert_eq!(
+            run_host_machine_code_with_conditional_u8(
+                &machine_code.functions[0].bytes,
+                condition,
+                1,
+                0,
+            ),
+            expected
+        );
+    }
+}
+
 #[cfg(unix)]
 #[test]
 fn source_closed_integer_chain_matches_emitted_host_machine_code() {

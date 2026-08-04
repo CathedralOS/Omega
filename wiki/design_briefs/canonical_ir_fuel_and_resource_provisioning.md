@@ -56,7 +56,9 @@ ordinary primitive-integer parameters; or an
 integer-constant/unconditional-jump whose return is the matching literal or a
 builtin parameter-plus-literal wrapping/saturating add, subtract, or multiply;
 or one ordered positive-Boolean/fallback conditional whose two successors bind
-already-defined integer entry parameters to direct-return branch states.
+already-defined integer entry parameters to direct-return branch states; the
+same ordered form supports ordinary Boolean entry/branch parameters with
+literal or parameter Boolean returns.
 It emits the semantic module and proof bundle separately and fails closed on
 all other shapes. Its canaries drop the frontend trees before terminal
 verification and interpretation; ninth-parameter `bool` and `u8` machines
@@ -163,6 +165,10 @@ the same recursive control with canonical immediate or ABI-parameter leaves
 and emit on both architectures. Cyclic semantics, reusable native block
 layout, and operations beyond the current scalar terminal vocabulary remain
 fail-closed.
+The Psi checked-source producer exercises both integer- and Boolean-result
+conditional forms; the Boolean canary survives frontend disposal and agrees
+across verification, fixed fuel, interpretation, assignment, and native
+execution.
 `psi-terminal-fuel` defines schedule v1 as one unit per executed terminal
 operation and one unit per taken terminal edge. The verified interpreter returns
 exact schedule-keyed usage attributed to stable operation/edge identities; a
