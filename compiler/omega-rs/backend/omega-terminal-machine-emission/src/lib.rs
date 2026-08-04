@@ -5,6 +5,7 @@
 
 use omega_target::Architecture;
 use omega_terminal_assigned_target_operations::{
+    TerminalAssignedBooleanControl, TerminalAssignedConditionalBooleanArm,
     TerminalAssignedConditionalIntegerArm, TerminalAssignedFunction,
     TerminalAssignedIntegerControl, TerminalAssignedIntegerExpression, TerminalAssignedOperation,
     TerminalAssignedOperationPlan, TerminalAssignedScalarLocation, TerminalExpressionFrame,
@@ -124,6 +125,26 @@ fn emit_function(
                 when_false,
             )?,
         },
+        TerminalAssignedOperation::ReturnBooleanConditionalControl {
+            condition_source,
+            condition_location,
+            when_true,
+            when_false,
+            ..
+        } => match architecture {
+            Architecture::Aarch64 => emit_aarch64_conditional_boolean_control(
+                *condition_source,
+                *condition_location,
+                when_true,
+                when_false,
+            )?,
+            Architecture::X86_64 => emit_x86_64_conditional_boolean_control(
+                *condition_source,
+                *condition_location,
+                when_true,
+                when_false,
+            )?,
+        },
     };
     Ok(TerminalMachineCodeFunction {
         machine: function.machine,
@@ -185,6 +206,55 @@ fn emit_x86_64_integer_control(
     }
 }
 
+fn emit_x86_64_conditional_boolean_control(
+    condition_source: ValueId,
+    condition_location: TerminalAssignedScalarLocation,
+    when_true: &TerminalAssignedConditionalBooleanArm,
+    when_false: &TerminalAssignedConditionalBooleanArm,
+) -> Result<Vec<u8>, EmissionError> {
+    let mut bytes = emit_x86_64_parameter_return(condition_source, false, condition_location)?;
+    if bytes.pop() != Some(0xc3) {
+        return Err(EmissionError::ConditionalBranchEncodingInvalid);
+    }
+    bytes.extend_from_slice(&[0x85, 0xc0]); // test eax, eax
+    let true_bytes = emit_x86_64_boolean_control(&when_true.control)?;
+    let false_bytes = emit_x86_64_boolean_control(&when_false.control)?;
+    let displacement = i32::try_from(true_bytes.len())
+        .map_err(|_| EmissionError::ConditionalBranchDistanceNotEncodable)?;
+    bytes.extend_from_slice(&[0x0f, 0x84]); // jz false arm
+    bytes.extend_from_slice(&displacement.to_le_bytes());
+    bytes.extend_from_slice(&true_bytes);
+    bytes.extend_from_slice(&false_bytes);
+    Ok(bytes)
+}
+
+fn emit_x86_64_boolean_control(
+    control: &TerminalAssignedBooleanControl,
+) -> Result<Vec<u8>, EmissionError> {
+    match control {
+        TerminalAssignedBooleanControl::ReturnImmediate { value, .. } => {
+            Ok(emit_x86_64_boolean_return(*value))
+        }
+        TerminalAssignedBooleanControl::ReturnParameter {
+            source_value,
+            location,
+            ..
+        } => emit_x86_64_parameter_return(*source_value, false, *location),
+        TerminalAssignedBooleanControl::Conditional {
+            condition_source,
+            condition_location,
+            when_true,
+            when_false,
+            ..
+        } => emit_x86_64_conditional_boolean_control(
+            *condition_source,
+            *condition_location,
+            when_true,
+            when_false,
+        ),
+    }
+}
+
 fn emit_aarch64_conditional_integer_control(
     condition_source: ValueId,
     condition_location: TerminalAssignedScalarLocation,
@@ -235,6 +305,58 @@ fn emit_aarch64_integer_control(
             *condition_source,
             *condition_location,
             scalar_type,
+            when_true,
+            when_false,
+        ),
+    }
+}
+
+fn emit_aarch64_conditional_boolean_control(
+    condition_source: ValueId,
+    condition_location: TerminalAssignedScalarLocation,
+    when_true: &TerminalAssignedConditionalBooleanArm,
+    when_false: &TerminalAssignedConditionalBooleanArm,
+) -> Result<Vec<u8>, EmissionError> {
+    let (mut bytes, condition_register) =
+        emit_aarch64_condition_load(condition_source, condition_location)?;
+    let true_bytes = emit_aarch64_boolean_control(&when_true.control)?;
+    let false_bytes = emit_aarch64_boolean_control(&when_false.control)?;
+    let branch_words = true_bytes
+        .len()
+        .checked_div(4)
+        .and_then(|words| words.checked_add(1))
+        .ok_or(EmissionError::ConditionalBranchDistanceNotEncodable)?;
+    if branch_words > 0x3ffff {
+        return Err(EmissionError::ConditionalBranchDistanceNotEncodable);
+    }
+    let cbz = 0x3400_0000_u32 | ((branch_words as u32) << 5) | u32::from(condition_register);
+    bytes.extend_from_slice(&cbz.to_le_bytes());
+    bytes.extend_from_slice(&true_bytes);
+    bytes.extend_from_slice(&false_bytes);
+    Ok(bytes)
+}
+
+fn emit_aarch64_boolean_control(
+    control: &TerminalAssignedBooleanControl,
+) -> Result<Vec<u8>, EmissionError> {
+    match control {
+        TerminalAssignedBooleanControl::ReturnImmediate { value, .. } => {
+            Ok(emit_aarch64_boolean_return(*value))
+        }
+        TerminalAssignedBooleanControl::ReturnParameter {
+            source_value,
+            location,
+            ..
+        } => emit_aarch64_parameter_return(*source_value, false, *location),
+        TerminalAssignedBooleanControl::Conditional {
+            condition_source,
+            condition_location,
+            when_true,
+            when_false,
+            ..
+        } => emit_aarch64_conditional_boolean_control(
+            *condition_source,
+            *condition_location,
             when_true,
             when_false,
         ),

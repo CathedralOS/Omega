@@ -84,6 +84,43 @@ pub enum TerminalTargetOperation {
         when_true: TerminalTargetConditionalIntegerArm,
         when_false: TerminalTargetConditionalIntegerArm,
     },
+    /// Execute an acyclic conditional-control tree whose leaves return
+    /// canonical Boolean values.
+    ReturnBooleanConditionalControl {
+        condition_source: ValueId,
+        condition_parameter_index: usize,
+        condition_location: TerminalScalarParameterLocation,
+        when_true: TerminalTargetConditionalBooleanArm,
+        when_false: TerminalTargetConditionalBooleanArm,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalTargetConditionalBooleanArm {
+    pub psi_edge: EdgeId,
+    pub control: Box<TerminalTargetBooleanControl>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TerminalTargetBooleanControl {
+    ReturnImmediate {
+        psi_return_edge: EdgeId,
+        source_value: ValueId,
+        value: bool,
+    },
+    ReturnParameter {
+        psi_return_edge: EdgeId,
+        source_value: ValueId,
+        parameter_index: usize,
+        location: TerminalScalarParameterLocation,
+    },
+    Conditional {
+        condition_source: ValueId,
+        condition_parameter_index: usize,
+        condition_location: TerminalScalarParameterLocation,
+        when_true: TerminalTargetConditionalBooleanArm,
+        when_false: TerminalTargetConditionalBooleanArm,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

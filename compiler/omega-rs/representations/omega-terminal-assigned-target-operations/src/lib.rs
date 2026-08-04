@@ -64,6 +64,41 @@ pub enum TerminalAssignedOperation {
         when_true: TerminalAssignedConditionalIntegerArm,
         when_false: TerminalAssignedConditionalIntegerArm,
     },
+    ReturnBooleanConditionalControl {
+        condition_source: ValueId,
+        condition_parameter_index: usize,
+        condition_location: TerminalAssignedScalarLocation,
+        when_true: TerminalAssignedConditionalBooleanArm,
+        when_false: TerminalAssignedConditionalBooleanArm,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalAssignedConditionalBooleanArm {
+    pub psi_edge: EdgeId,
+    pub control: Box<TerminalAssignedBooleanControl>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TerminalAssignedBooleanControl {
+    ReturnImmediate {
+        psi_return_edge: EdgeId,
+        source_value: ValueId,
+        value: bool,
+    },
+    ReturnParameter {
+        psi_return_edge: EdgeId,
+        source_value: ValueId,
+        parameter_index: usize,
+        location: TerminalAssignedScalarLocation,
+    },
+    Conditional {
+        condition_source: ValueId,
+        condition_parameter_index: usize,
+        condition_location: TerminalAssignedScalarLocation,
+        when_true: TerminalAssignedConditionalBooleanArm,
+        when_false: TerminalAssignedConditionalBooleanArm,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

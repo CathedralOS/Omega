@@ -7,15 +7,16 @@ use std::collections::BTreeMap;
 
 use omega_target::Architecture;
 use omega_terminal_assigned_target_operations::{
+    TerminalAssignedBooleanControl, TerminalAssignedConditionalBooleanArm,
     TerminalAssignedConditionalIntegerArm, TerminalAssignedFunction,
     TerminalAssignedIntegerControl, TerminalAssignedIntegerExpression, TerminalAssignedOperation,
     TerminalAssignedOperationPlan, TerminalAssignedScalarLocation, TerminalEntryRegisterSpill,
     TerminalExpressionFrame,
 };
 use omega_terminal_target_operations::{
-    MachineRegister, TerminalScalarParameterLocation, TerminalTargetFunction,
-    TerminalTargetIntegerControl, TerminalTargetIntegerExpression, TerminalTargetOperation,
-    TerminalTargetOperationPlan,
+    MachineRegister, TerminalScalarParameterLocation, TerminalTargetBooleanControl,
+    TerminalTargetFunction, TerminalTargetIntegerControl, TerminalTargetIntegerExpression,
+    TerminalTargetOperation, TerminalTargetOperationPlan,
 };
 use psi_core::{MachineId, OperationId, ValueId};
 
@@ -126,11 +127,83 @@ fn assign_function(
             when_true: assign_control_arm(when_true, architecture)?,
             when_false: assign_control_arm(when_false, architecture)?,
         },
+        TerminalTargetOperation::ReturnBooleanConditionalControl {
+            condition_source,
+            condition_parameter_index,
+            condition_location,
+            when_true,
+            when_false,
+        } => TerminalAssignedOperation::ReturnBooleanConditionalControl {
+            condition_source: *condition_source,
+            condition_parameter_index: *condition_parameter_index,
+            condition_location: assign_direct_location(
+                *condition_source,
+                *condition_location,
+                architecture,
+            )?,
+            when_true: assign_boolean_control_arm(when_true, architecture)?,
+            when_false: assign_boolean_control_arm(when_false, architecture)?,
+        },
     };
     Ok(TerminalAssignedFunction {
         machine: function.machine,
         provenance: function.provenance.clone(),
         operation,
+    })
+}
+
+fn assign_boolean_control_arm(
+    arm: &omega_terminal_target_operations::TerminalTargetConditionalBooleanArm,
+    architecture: Architecture,
+) -> Result<TerminalAssignedConditionalBooleanArm, AssignmentError> {
+    Ok(TerminalAssignedConditionalBooleanArm {
+        psi_edge: arm.psi_edge,
+        control: Box::new(assign_boolean_control(&arm.control, architecture)?),
+    })
+}
+
+fn assign_boolean_control(
+    control: &TerminalTargetBooleanControl,
+    architecture: Architecture,
+) -> Result<TerminalAssignedBooleanControl, AssignmentError> {
+    Ok(match control {
+        TerminalTargetBooleanControl::ReturnImmediate {
+            psi_return_edge,
+            source_value,
+            value,
+        } => TerminalAssignedBooleanControl::ReturnImmediate {
+            psi_return_edge: *psi_return_edge,
+            source_value: *source_value,
+            value: *value,
+        },
+        TerminalTargetBooleanControl::ReturnParameter {
+            psi_return_edge,
+            source_value,
+            parameter_index,
+            location,
+        } => TerminalAssignedBooleanControl::ReturnParameter {
+            psi_return_edge: *psi_return_edge,
+            source_value: *source_value,
+            parameter_index: *parameter_index,
+            location: assign_direct_location(*source_value, *location, architecture)?,
+        },
+        TerminalTargetBooleanControl::Conditional {
+            condition_source,
+            condition_parameter_index,
+            condition_location,
+            when_true,
+            when_false,
+        } => TerminalAssignedBooleanControl::Conditional {
+            condition_source: *condition_source,
+            condition_parameter_index: *condition_parameter_index,
+            condition_location: assign_direct_location(
+                *condition_source,
+                *condition_location,
+                architecture,
+            )?,
+            when_true: assign_boolean_control_arm(when_true, architecture)?,
+            when_false: assign_boolean_control_arm(when_false, architecture)?,
+        },
     })
 }
 
