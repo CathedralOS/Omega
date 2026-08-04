@@ -95,6 +95,35 @@ fn checked_source_survives_frontend_drop_as_verified_terminal_psi() {
     let lowered = lower_machine(&checked, "terminal_constant")
         .expect("accepted source slice should lower to terminal Psi");
 
+    assert_eq!(lowered.semantic_module.proposition_declarations.len(), 2);
+    assert_eq!(lowered.semantic_module.proposition_applications.len(), 1);
+    let relation = lowered
+        .semantic_module
+        .proposition_declarations
+        .iter()
+        .find(|declaration| declaration.name == "terminal_relation")
+        .expect("primitive proposition should retain terminal identity");
+    assert_eq!(relation.binders.len(), 3);
+    assert!(matches!(
+        relation.evidence,
+        psi_terminal::PropositionEvidence::FactOnly
+    ));
+    let witness = lowered
+        .semantic_module
+        .proposition_declarations
+        .iter()
+        .find(|declaration| declaration.name == "terminal_witness")
+        .expect("witness-bearing proposition should retain terminal identity");
+    assert!(matches!(
+        &witness.evidence,
+        psi_terminal::PropositionEvidence::Witness { evidence_type }
+            if evidence_type == "dyn TerminalEvidence"
+    ));
+    let application = &lowered.semantic_module.proposition_applications[0];
+    assert_eq!(application.declaration, relation.id);
+    assert_eq!(application.binder_arguments.len(), 3);
+    assert_eq!(application.arguments, ["7"]);
+
     drop(checked);
 
     let canonical_bytes = encode_module(&lowered.semantic_module)
@@ -517,7 +546,7 @@ fn checked_source_conditional_survives_frontend_drop() {
         &AdmissionProfile::default(),
     )
     .expect("source conditional should verify after frontend drop");
-    assert_eq!(semantic_module.semantic_version.get(), 15);
+    assert_eq!(semantic_module.semantic_version.get(), 16);
     let fixed = derive_fixed_entry_fuel(&verified, semantic_module.entry)
         .expect("source conditional should have an exact maximum fuel bound");
     assert_eq!(fixed.ceiling_units(), 5);
@@ -930,7 +959,7 @@ fn checked_source_boolean_not_round_trips_and_reaches_native_code() {
 
     assert_eq!(
         lowered.semantic_module.semantic_version,
-        SemanticVersion::V15
+        SemanticVersion::V16
     );
     assert!(matches!(
         lowered.semantic_module.machines[0].blocks[0].operations[0].kind,

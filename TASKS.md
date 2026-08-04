@@ -1698,8 +1698,21 @@ and allocation handles expose no compiler-owned stack/control storage.
      only as its family identity, and reconstructs the concrete proposition's
      binder labels from the proof machine's representative types before exact
      normalized-law matching. Missing, reused, or swapped representative
-     packs reject. Selected witness evidence and terminal-Psi identity remain
-     in this rung;
+     packs reject. **SELECTED-WITNESS-EVIDENCE — DESIGN BLOCKED
+     (`OWNER_QUESTIONS.md` Q1):** a witness-bearing proposition fixes its
+     carrierless evidence interface, but selecting and reopening one concrete
+     evidence term requires the unresolved complete requirement-to-satisfier
+     map for a named conformance. The current owned-`dyn` surface also has no
+     carrierless evidence constructor/open form; do not infer a witness from
+     same-named machines or retain only the proof-irrelevant proposition.
+     Terminal-Psi identity slice landed 2026-08-03: semantic v16 owns
+     canonical nominal proposition declarations, ordered type/const/machine
+     binder telescopes, value-parameter type identities, fact-only versus
+     witness-bearing classification, and normalized application rows. The
+     checked-source producer expands transparent aliases to their nominal
+     endpoint, omits alias declarations, assigns dense deterministic IDs, and
+     emits no frontend arena handle; codec, verifier, migration, and archived
+     v1-v15 compatibility are covered;
   2. add the proof stratum to selected-conformance projection and permit
      by-value `dyn` only when the complete normalized value has no runtime
      carrier;

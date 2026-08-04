@@ -27,6 +27,8 @@ use psi_core::{
 /// Version 14 adds canonical machine-local entry-claim bindings independently
 /// of one-to-one output equalities.
 /// Version 15 adds total Boolean logical negation.
+/// Version 16 adds self-contained nominal proposition declarations and
+/// normalized application identities. Transparent aliases remain absent.
 /// Older bytes retain their original meaning and identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SemanticVersion(NonZeroU16);
@@ -47,7 +49,8 @@ impl SemanticVersion {
     pub const V13: Self = Self(NonZeroU16::new(13).expect("thirteen is nonzero"));
     pub const V14: Self = Self(NonZeroU16::new(14).expect("fourteen is nonzero"));
     pub const V15: Self = Self(NonZeroU16::new(15).expect("fifteen is nonzero"));
-    pub const CURRENT: Self = Self::V15;
+    pub const V16: Self = Self(NonZeroU16::new(16).expect("sixteen is nonzero"));
+    pub const CURRENT: Self = Self::V16;
 
     pub fn new(raw: u16) -> Option<Self> {
         NonZeroU16::new(raw).map(Self)
@@ -68,7 +71,61 @@ pub struct ValueDeclaration {
 pub struct TerminalModule {
     pub semantic_version: SemanticVersion,
     pub entry: MachineId,
+    /// Nominal proof-formula vocabulary, strictly ordered by `id`.
+    /// Transparent aliases never receive a declaration row.
+    pub proposition_declarations: Vec<PropositionDeclaration>,
+    /// Normalized applications retained without frontend arena handles.
+    pub proposition_applications: Vec<PropositionApplicationIdentity>,
     pub machines: Vec<TerminalMachine>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct PropositionDeclaration {
+    pub id: psi_core::PropositionId,
+    pub name: String,
+    pub binders: Vec<PropositionBinderDeclaration>,
+    pub parameter_types: Vec<String>,
+    pub evidence: PropositionEvidence,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct PropositionBinderDeclaration {
+    pub name: String,
+    pub kind: PropositionBinderKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum PropositionBinderKind {
+    Type,
+    Const { type_identity: String },
+    Machine,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum PropositionEvidence {
+    FactOnly,
+    Witness { evidence_type: String },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct PropositionApplicationIdentity {
+    pub id: psi_core::PropositionId,
+    pub declaration: psi_core::PropositionId,
+    pub binder_arguments: Vec<PropositionBinderArgumentIdentity>,
+    pub arguments: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct PropositionBinderArgumentIdentity {
+    pub kind: PropositionBinderArgumentKind,
+    pub identity: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum PropositionBinderArgumentKind {
+    Type,
+    Const,
+    Machine,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

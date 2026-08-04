@@ -36,8 +36,10 @@ use psi_core::{
 use psi_terminal::{
     Block, ClaimContentProjection, ContentEntryClaim, ContentIdentityReshuffle,
     ContentPartitionComposition, ContentPlaceSubstitution, ContractClause, MachineContract,
-    Operation, OperationKind, SemanticVersion, StructuralPlaceDeclaration, SuccessorEdge,
-    TerminalMachine, TerminalModule, Terminator, ValueDeclaration,
+    Operation, OperationKind, PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
+    PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
+    PropositionDeclaration, PropositionEvidence, SemanticVersion, StructuralPlaceDeclaration,
+    SuccessorEdge, TerminalMachine, TerminalModule, Terminator, ValueDeclaration,
 };
 use psi_terminal_verifier::{ModuleError, validate_module};
 use sha2::{Digest, Sha256};
@@ -149,6 +151,52 @@ fn fingerprint_bytes(bytes: &[u8]) -> SemanticFingerprint {
 }
 
 fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
+    if module.semantic_version < SemanticVersion::V16
+        && (!module.proposition_declarations.is_empty()
+            || !module.proposition_applications.is_empty())
+    {
+        return Err(CodecError::PropositionVocabularyRequiresV16);
+    }
+    if !strictly_increasing(module.proposition_declarations.iter().cloned().map(
+        |mut declaration| {
+            declaration.id = PropositionId::new(1).expect("one is nonzero");
+            declaration
+        },
+    )) {
+        return Err(CodecError::NonCanonicalOrder(
+            "proposition declarations by semantic identity",
+        ));
+    }
+    if !strictly_increasing(
+        module
+            .proposition_declarations
+            .iter()
+            .map(|declaration| declaration.id),
+    ) {
+        return Err(CodecError::NonCanonicalOrder(
+            "proposition declarations by PropositionId",
+        ));
+    }
+    if !strictly_increasing(module.proposition_applications.iter().cloned().map(
+        |mut application| {
+            application.id = PropositionId::new(1).expect("one is nonzero");
+            application
+        },
+    )) {
+        return Err(CodecError::NonCanonicalOrder(
+            "proposition applications by semantic identity",
+        ));
+    }
+    if !strictly_increasing(
+        module
+            .proposition_applications
+            .iter()
+            .map(|application| application.id),
+    ) {
+        return Err(CodecError::NonCanonicalOrder(
+            "proposition applications by PropositionId",
+        ));
+    }
     if !strictly_increasing(module.machines.iter().map(|machine| machine.id)) {
         return Err(CodecError::NonCanonicalOrder("machines by MachineId"));
     }
@@ -352,11 +400,87 @@ fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
     writer.u16(FORMAT_VERSION);
     writer.u16(module.semantic_version.get());
     writer.id(module.entry);
+    if module.semantic_version >= SemanticVersion::V16 {
+        writer.len(
+            "proposition declarations",
+            module.proposition_declarations.len(),
+        )?;
+        for declaration in &module.proposition_declarations {
+            encode_proposition_declaration(&mut writer, declaration)?;
+        }
+        writer.len(
+            "proposition applications",
+            module.proposition_applications.len(),
+        )?;
+        for application in &module.proposition_applications {
+            encode_proposition_application(&mut writer, application)?;
+        }
+    }
     writer.len("machines", module.machines.len())?;
     for machine in &module.machines {
         encode_machine(&mut writer, module.semantic_version, machine)?;
     }
     Ok(writer.finish())
+}
+
+fn encode_proposition_declaration(
+    writer: &mut Writer,
+    declaration: &PropositionDeclaration,
+) -> Result<(), CodecError> {
+    writer.id(declaration.id);
+    writer.string("proposition name", &declaration.name)?;
+    writer.len("proposition binders", declaration.binders.len())?;
+    for binder in &declaration.binders {
+        writer.string("proposition binder name", &binder.name)?;
+        match &binder.kind {
+            PropositionBinderKind::Type => writer.u8(1),
+            PropositionBinderKind::Const { type_identity } => {
+                writer.u8(2);
+                writer.string("proposition const binder type", type_identity)?;
+            }
+            PropositionBinderKind::Machine => writer.u8(3),
+        }
+    }
+    writer.len(
+        "proposition parameter types",
+        declaration.parameter_types.len(),
+    )?;
+    for parameter_type in &declaration.parameter_types {
+        writer.string("proposition parameter type", parameter_type)?;
+    }
+    match &declaration.evidence {
+        PropositionEvidence::FactOnly => writer.u8(1),
+        PropositionEvidence::Witness { evidence_type } => {
+            writer.u8(2);
+            writer.string("proposition evidence type", evidence_type)?;
+        }
+    }
+    Ok(())
+}
+
+fn encode_proposition_application(
+    writer: &mut Writer,
+    application: &PropositionApplicationIdentity,
+) -> Result<(), CodecError> {
+    writer.id(application.id);
+    writer.id(application.declaration);
+    writer.len(
+        "proposition binder arguments",
+        application.binder_arguments.len(),
+    )?;
+    for argument in &application.binder_arguments {
+        writer.u8(match argument.kind {
+            PropositionBinderArgumentKind::Type => 1,
+            PropositionBinderArgumentKind::Const => 2,
+            PropositionBinderArgumentKind::Machine => 3,
+        });
+        writer.string("proposition binder argument", &argument.identity)?;
+    }
+    writer.len("proposition arguments", application.arguments.len())?;
+    for argument in &application.arguments {
+        writer.string("proposition argument", argument)?;
+    }
+    Ok(())
 }
 
 fn encode_machine(
@@ -861,6 +985,26 @@ fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModule, CodecEr
     let semantic_version =
         SemanticVersion::new(semantic_version_raw).ok_or(CodecError::ZeroSemanticVersion)?;
     let entry = reader.id("MachineId")?;
+    let proposition_declarations = if semantic_version >= SemanticVersion::V16 {
+        let count = reader.count()?;
+        let mut declarations = Vec::with_capacity(count as usize);
+        for _ in 0..count {
+            declarations.push(decode_proposition_declaration(reader)?);
+        }
+        declarations
+    } else {
+        Vec::new()
+    };
+    let proposition_applications = if semantic_version >= SemanticVersion::V16 {
+        let count = reader.count()?;
+        let mut applications = Vec::with_capacity(count as usize);
+        for _ in 0..count {
+            applications.push(decode_proposition_application(reader)?);
+        }
+        applications
+    } else {
+        Vec::new()
+    };
     let machine_count = reader.count()?;
     let mut machines = Vec::new();
     for _ in 0..machine_count {
@@ -869,7 +1013,83 @@ fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModule, CodecEr
     Ok(TerminalModule {
         semantic_version,
         entry,
+        proposition_declarations,
+        proposition_applications,
         machines,
+    })
+}
+
+fn decode_proposition_declaration(
+    reader: &mut Reader<'_>,
+) -> Result<PropositionDeclaration, CodecError> {
+    let id = reader.id("PropositionId")?;
+    let name = reader.string("proposition name")?;
+    let binder_count = reader.count()?;
+    let mut binders = Vec::with_capacity(binder_count as usize);
+    for _ in 0..binder_count {
+        let name = reader.string("proposition binder name")?;
+        let kind = match reader.u8()? {
+            1 => PropositionBinderKind::Type,
+            2 => PropositionBinderKind::Const {
+                type_identity: reader.string("proposition const binder type")?,
+            },
+            3 => PropositionBinderKind::Machine,
+            tag => return Err(CodecError::InvalidTag("PropositionBinderKind", tag)),
+        };
+        binders.push(PropositionBinderDeclaration { name, kind });
+    }
+    let parameter_count = reader.count()?;
+    let mut parameter_types = Vec::with_capacity(parameter_count as usize);
+    for _ in 0..parameter_count {
+        parameter_types.push(reader.string("proposition parameter type")?);
+    }
+    let evidence = match reader.u8()? {
+        1 => PropositionEvidence::FactOnly,
+        2 => PropositionEvidence::Witness {
+            evidence_type: reader.string("proposition evidence type")?,
+        },
+        tag => return Err(CodecError::InvalidTag("PropositionEvidence", tag)),
+    };
+    Ok(PropositionDeclaration {
+        id,
+        name,
+        binders,
+        parameter_types,
+        evidence,
+    })
+}
+
+fn decode_proposition_application(
+    reader: &mut Reader<'_>,
+) -> Result<PropositionApplicationIdentity, CodecError> {
+    let id = reader.id("PropositionId")?;
+    let declaration = reader.id("PropositionId")?;
+    let binder_count = reader.count()?;
+    let mut binder_arguments = Vec::with_capacity(binder_count as usize);
+    for _ in 0..binder_count {
+        let kind = match reader.u8()? {
+            1 => PropositionBinderArgumentKind::Type,
+            2 => PropositionBinderArgumentKind::Const,
+            3 => PropositionBinderArgumentKind::Machine,
+            tag => {
+                return Err(CodecError::InvalidTag("PropositionBinderArgumentKind", tag));
+            }
+        };
+        binder_arguments.push(PropositionBinderArgumentIdentity {
+            kind,
+            identity: reader.string("proposition binder argument")?,
+        });
+    }
+    let argument_count = reader.count()?;
+    let mut arguments = Vec::with_capacity(argument_count as usize);
+    for _ in 0..argument_count {
+        arguments.push(reader.string("proposition argument")?);
+    }
+    Ok(PropositionApplicationIdentity {
+        id,
+        declaration,
+        binder_arguments,
+        arguments,
     })
 }
 
@@ -1511,6 +1731,7 @@ pub enum CodecError {
     CollectionTooLong(&'static str),
     NonCanonicalOrder(&'static str),
     NonCanonicalEncoding,
+    PropositionVocabularyRequiresV16,
     NestedConjunction,
     PropositionNestingTooDeep,
     ScalarTermNestingTooDeep,

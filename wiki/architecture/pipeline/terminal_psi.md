@@ -40,8 +40,9 @@ canonical identity-preserving claim reshuffles; v11 adds distinct stable
 sum-case segments to structural content paths; v12 adds exact authored-
 partition substitution witnesses; v13 adds one structural Boolean conditional
 with ordered true/false successors; v14 adds canonical machine-local
-entry-claim bindings independently of output equality; and current v15 adds
-total Boolean logical negation. None of v9-v14 adds an
+entry-claim bindings independently of output equality; v15 adds total Boolean
+logical negation; and current v16 adds canonical nominal proposition
+declarations and normalized application identities. None of v9-v14 or v16 adds an
 executable operation. The conditional is control vocabulary rather than an
 operation, and an entry-claim binding is identity metadata rather than a
 proposition.
@@ -521,24 +522,25 @@ canonical identity-preserving claim reshuffles; version 11 adds stable sum-case
 content-path segments; version 12 adds exact authored-partition substitution
 rows; version 13 adds the ordered Boolean conditional terminator; version 14
 adds canonical machine-local entry-claim bindings without asserting an output
-equality; and current version 15 adds total `BooleanNot` operations and scalar
-terms.
+equality; version 15 adds total `BooleanNot` operations and scalar terms; and
+current version 16 adds self-contained nominal proposition declarations and
+normalized applications without adding an operation.
 The arithmetic operations require two already defined operands of the exact
 result integer type and have distinct canonical recursive proposition terms for
 their exact logical results. Validation and execution continue to accept valid
-v1 through v13 modules under their original meaning, while an older module
+v1 through v15 modules under their original meaning, while an older module
 cannot claim a later operation, control form, or evidence row.
-`migrate_module_to_current` is an explicit validated older-to-v15 translation.
+`migrate_module_to_current` is an explicit validated older-to-v16 translation.
 For v10-v13 content rows it derives the new entry bindings from the already
 validated reshuffles and remaps claim references into dense machine-local IDs;
 it otherwise preserves the graph and obligations. Migration creates new
 canonical bytes and a new semantic fingerprint. An unchanged proof bundle
 retains its separate bytes and identity but is verified again against the
 migrated module. Golden tests retain the archived v1 through v14 fingerprints
-and independently freeze the current v15 fingerprint, v10 identity-reshuffle
+and independently freeze the current v16 fingerprint, v10 identity-reshuffle
 fixture, v11 sum-case fixture, v12 partition-composition fixture, v14
-entry-claim fixture, and v15 Boolean-negation fixture. The archived v14 current
-fixture also retains its original identity.
+entry-claim fixture, v15 Boolean-negation fixture, and v16 proposition-vocabulary
+fixture. The archived v14 and v15 current fixtures retain their original identities.
 
 The same codec gives proof bundles their own canonical `PSIPRF` bytes and golden
 fingerprint. Proof format v1 remains the minimal frozen encoding for the
@@ -721,7 +723,7 @@ generic installation ladder. Migrating the Cathedral hard-root graph remains.
    proof bytes and role-separated semantic/proof/install/debug manifest hashes
    are also live. Semantic migration is exercised: archived v1 and v2 bytes
    retain their identities and migrate explicitly into separately fingerprinted
-   current-v15 modules; archived v3 wrapping-add, v4 saturating-add, v5
+   current-v16 modules; archived v3 wrapping-add, v4 saturating-add, v5
    wrapping-subtract, v6 saturating-subtract, and v7 wrapping-multiply
    identities plus the v8 saturating-multiply identity are frozen as well. Typed
    installation records, the canonical typed debug/source-map schema, and

@@ -4,10 +4,11 @@ use psi_core::{
     BlockId, ClaimId, ContentAlgebra, ContentConservation, ContentPlaceSegment,
     ContentProjectionIdentity, ContentStructuralPlace, ContentTerm, ContractId, EdgeId, MachineId,
     ObligationId, OperationId, PlaceId, Proposition, PropositionContext, PropositionError,
-    ScalarTerm, ScalarType, StructuralPlaceKind, ValueId,
+    PropositionId, ScalarTerm, ScalarType, StructuralPlaceKind, ValueId,
 };
 use psi_terminal::{
-    ContentPartitionComposition, OperationKind, SemanticVersion, TerminalMachine, TerminalModule,
+    ContentPartitionComposition, OperationKind, PropositionBinderArgumentKind,
+    PropositionBinderKind, PropositionEvidence, SemanticVersion, TerminalMachine, TerminalModule,
     Terminator,
 };
 
@@ -60,6 +61,7 @@ pub fn validate_module(
             | SemanticVersion::V13
             | SemanticVersion::V14
             | SemanticVersion::V15
+            | SemanticVersion::V16
     ) {
         return Err(ModuleError::UnsupportedSemanticVersion(
             module.semantic_version,
@@ -68,6 +70,8 @@ pub fn validate_module(
     if module.machines.is_empty() {
         return Err(ModuleError::EmptyModule);
     }
+
+    validate_proposition_vocabulary(module)?;
 
     let mut registry = IdRegistry::default();
     for machine in &module.machines {
@@ -88,6 +92,126 @@ pub fn validate_module(
     }
 
     Ok(ValidatedTerminalModule { module })
+}
+
+fn validate_proposition_vocabulary(module: &TerminalModule) -> Result<(), ModuleError> {
+    if module.semantic_version < SemanticVersion::V16
+        && (!module.proposition_declarations.is_empty()
+            || !module.proposition_applications.is_empty())
+    {
+        return Err(ModuleError::PropositionVocabularyRequiresSemanticVersion {
+            required: SemanticVersion::V16,
+            actual: module.semantic_version,
+        });
+    }
+    let mut declarations = BTreeMap::new();
+    let mut declaration_names = BTreeSet::new();
+    for (index, declaration) in module.proposition_declarations.iter().enumerate() {
+        let expected = PropositionId::new(
+            u64::try_from(index)
+                .expect("proposition declaration count fits u64")
+                .checked_add(1)
+                .expect("one-based proposition identity fits u64"),
+        )
+        .expect("one-based proposition identity is nonzero");
+        if declaration.id != expected {
+            return Err(ModuleError::NonDensePropositionDeclaration {
+                expected,
+                actual: declaration.id,
+            });
+        }
+        if declarations.insert(declaration.id, declaration).is_some() {
+            return Err(ModuleError::DuplicatePropositionDeclaration(declaration.id));
+        }
+        if declaration.name.is_empty() {
+            return Err(ModuleError::EmptyPropositionIdentity);
+        }
+        if !declaration_names.insert(declaration.name.as_str()) {
+            return Err(ModuleError::DuplicatePropositionName(
+                declaration.name.clone(),
+            ));
+        }
+        let mut binder_names = BTreeSet::new();
+        for binder in &declaration.binders {
+            if binder.name.is_empty() || !binder_names.insert(binder.name.as_str()) {
+                return Err(ModuleError::InvalidPropositionBinder(declaration.id));
+            }
+            if matches!(
+                &binder.kind,
+                PropositionBinderKind::Const { type_identity } if type_identity.is_empty()
+            ) {
+                return Err(ModuleError::InvalidPropositionBinder(declaration.id));
+            }
+        }
+        if declaration.parameter_types.iter().any(String::is_empty)
+            || matches!(
+                &declaration.evidence,
+                PropositionEvidence::Witness { evidence_type } if evidence_type.is_empty()
+            )
+        {
+            return Err(ModuleError::EmptyPropositionIdentity);
+        }
+    }
+
+    let mut applications = BTreeSet::new();
+    for (index, application) in module.proposition_applications.iter().enumerate() {
+        let expected = PropositionId::new(
+            u64::try_from(index)
+                .expect("proposition application count fits u64")
+                .checked_add(1)
+                .expect("one-based proposition identity fits u64"),
+        )
+        .expect("one-based proposition identity is nonzero");
+        if application.id != expected {
+            return Err(ModuleError::NonDensePropositionApplication {
+                expected,
+                actual: application.id,
+            });
+        }
+        if !applications.insert(application.id) {
+            return Err(ModuleError::DuplicatePropositionApplication(application.id));
+        }
+        let Some(declaration) = declarations.get(&application.declaration) else {
+            return Err(ModuleError::UnknownPropositionDeclaration(
+                application.declaration,
+            ));
+        };
+        if application.binder_arguments.len() != declaration.binders.len()
+            || application.arguments.len() != declaration.parameter_types.len()
+        {
+            return Err(ModuleError::PropositionApplicationArityMismatch(
+                application.id,
+            ));
+        }
+        for (argument, binder) in application
+            .binder_arguments
+            .iter()
+            .zip(&declaration.binders)
+        {
+            let kind_matches = matches!(
+                (&argument.kind, &binder.kind),
+                (
+                    PropositionBinderArgumentKind::Type,
+                    PropositionBinderKind::Type
+                ) | (
+                    PropositionBinderArgumentKind::Const,
+                    PropositionBinderKind::Const { .. }
+                ) | (
+                    PropositionBinderArgumentKind::Machine,
+                    PropositionBinderKind::Machine
+                )
+            );
+            if !kind_matches || argument.identity.is_empty() {
+                return Err(ModuleError::PropositionApplicationBinderMismatch(
+                    application.id,
+                ));
+            }
+        }
+        if application.arguments.iter().any(String::is_empty) {
+            return Err(ModuleError::EmptyPropositionIdentity);
+        }
+    }
+    Ok(())
 }
 
 #[derive(Default)]
@@ -1624,6 +1748,26 @@ pub enum ContractClauseKind {
 pub enum ModuleError {
     UnsupportedSemanticVersion(SemanticVersion),
     EmptyModule,
+    PropositionVocabularyRequiresSemanticVersion {
+        required: SemanticVersion,
+        actual: SemanticVersion,
+    },
+    DuplicatePropositionDeclaration(PropositionId),
+    DuplicatePropositionApplication(PropositionId),
+    NonDensePropositionDeclaration {
+        expected: PropositionId,
+        actual: PropositionId,
+    },
+    NonDensePropositionApplication {
+        expected: PropositionId,
+        actual: PropositionId,
+    },
+    DuplicatePropositionName(String),
+    UnknownPropositionDeclaration(PropositionId),
+    InvalidPropositionBinder(PropositionId),
+    PropositionApplicationArityMismatch(PropositionId),
+    PropositionApplicationBinderMismatch(PropositionId),
+    EmptyPropositionIdentity,
     DuplicateMachine(MachineId),
     DuplicateBlock(BlockId),
     DuplicateContract(ContractId),

@@ -1,6 +1,25 @@
 // Source-to-terminal-Psi canary. The Psi-owned producer lowers these checked
 // machines to self-contained semantic modules plus proofs; verification and
 // execution then proceed after all frontend trees are dropped.
+trait TerminalEvidence {
+    machine observe(value: i32) ensures value == value;
+}
+
+proposition terminal_relation<T, const Limit: u32, machine Generator>(value: T);
+
+proposition terminal_relation_alias<T, const Limit: u32, machine Generator>(value: T) =
+    terminal_relation<T, Limit, Generator>(value);
+
+proposition terminal_witness(value: i32) {
+    dyn TerminalEvidence;
+}
+
+machine terminal_proposition_forward()
+requires terminal_relation_alias<i32, 7, terminal_constant>(7i32)
+ensures terminal_relation_alias<i32, 7, terminal_constant>(7i32)
+{
+}
+
 machine terminal_constant() -> i32
 requires 7i32 == 7i32
 ensures 7i32 == 7i32

@@ -23,7 +23,7 @@ use psi_core::{
     ContentPlaceSegment, ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace,
     ContentTerm, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId,
     ObligationId, OperationId, PlaceId, Proposition, PropositionContext, PropositionError,
-    ScalarTerm, ScalarType, StructuralPlaceKind, ValueId,
+    PropositionId, ScalarTerm, ScalarType, StructuralPlaceKind, ValueId,
 };
 use psi_language_semantics::PermissionClaimIdentity;
 use psi_language_semantics::content::{
@@ -39,8 +39,10 @@ use psi_proof_kernel::{EvidenceRoute, PrimitiveJudgment};
 use psi_terminal::{
     Block, ClaimContentProjection, ContentEntryClaim, ContentIdentityReshuffle,
     ContentPartitionComposition, ContentPlaceSubstitution, ContractClause, MachineContract,
-    Operation, OperationKind, SemanticVersion, StructuralPlaceDeclaration, SuccessorEdge,
-    TerminalMachine, TerminalModule, Terminator, ValueDeclaration,
+    Operation, OperationKind, PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
+    PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
+    PropositionDeclaration, PropositionEvidence, SemanticVersion, StructuralPlaceDeclaration,
+    SuccessorEdge, TerminalMachine, TerminalModule, Terminator, ValueDeclaration,
 };
 use psi_terminal_codec::{
     DebugFileId, DebugSite, DebugSourceFile, DebugSourceOrigin, DebugSourceSpan, DebugSubject,
@@ -982,8 +984,139 @@ pub fn lower_machine(
         return Err(LoweringError::AmbiguousMachineName(machine_name.to_owned()));
     }
     let mut lowered = lower_selected_machine(checked, machine)?;
+    let (declarations, applications) = lower_proposition_vocabulary(checked);
+    lowered.semantic_module.proposition_declarations = declarations;
+    lowered.semantic_module.proposition_applications = applications;
     lowered.debug_map = Some(build_debug_map(checked, machine, &lowered.semantic_module)?);
     Ok(lowered)
+}
+
+fn lower_proposition_vocabulary(
+    checked: &CheckedTrees,
+) -> (
+    Vec<PropositionDeclaration>,
+    Vec<PropositionApplicationIdentity>,
+) {
+    let placeholder = proposition_id(1);
+    let mut declarations = checked
+        .propositions()
+        .iter()
+        .filter_map(|declaration| {
+            let evidence = match declaration.body {
+                psi_typed_trees::proposition::PropositionBody::Primitive => {
+                    PropositionEvidence::FactOnly
+                }
+                psi_typed_trees::proposition::PropositionBody::Witness { evidence } => {
+                    PropositionEvidence::Witness {
+                        evidence_type: checked.display_type_reference(evidence),
+                    }
+                }
+                psi_typed_trees::proposition::PropositionBody::Transparent { .. } => return None,
+            };
+            let binders = checked
+                .proposition_binders(declaration)
+                .iter()
+                .map(|binder| PropositionBinderDeclaration {
+                    name: binder.name.as_str().to_owned(),
+                    kind: match binder.kind {
+                        psi_typed_trees::proposition::PropositionBinderKind::Type => {
+                            PropositionBinderKind::Type
+                        }
+                        psi_typed_trees::proposition::PropositionBinderKind::Const {
+                            type_reference,
+                        } => PropositionBinderKind::Const {
+                            type_identity: checked.display_type_reference(type_reference),
+                        },
+                        psi_typed_trees::proposition::PropositionBinderKind::Machine => {
+                            PropositionBinderKind::Machine
+                        }
+                    },
+                })
+                .collect();
+            let parameter_types = checked
+                .proposition_parameters(declaration)
+                .iter()
+                .map(|parameter| checked.display_type_reference(parameter.type_reference))
+                .collect();
+            Some((
+                declaration.symbol,
+                PropositionDeclaration {
+                    id: placeholder,
+                    name: declaration.name.as_str().to_owned(),
+                    binders,
+                    parameter_types,
+                    evidence,
+                },
+            ))
+        })
+        .collect::<Vec<_>>();
+    declarations.sort_by(|left, right| left.1.cmp(&right.1));
+    for (index, (_, declaration)) in declarations.iter_mut().enumerate() {
+        declaration.id = proposition_id(
+            u64::try_from(index)
+                .expect("proposition declaration count fits u64")
+                .checked_add(1)
+                .expect("one-based proposition identity fits u64"),
+        );
+    }
+    let declaration_ids = declarations
+        .iter()
+        .map(|(symbol, declaration)| (*symbol, declaration.id))
+        .collect::<Vec<_>>();
+
+    let mut applications = checked
+        .proof_facts
+        .iter()
+        .filter_map(|(_, fact)| {
+            let ProofFact::Proposition(application) = fact else {
+                return None;
+            };
+            let normalized = checked.normalize_nominal_proposition_application(application)?;
+            let declaration = declaration_ids
+                .iter()
+                .find_map(|(symbol, id)| (*symbol == normalized.declaration).then_some(*id))?;
+            Some(PropositionApplicationIdentity {
+                id: placeholder,
+                declaration,
+                binder_arguments: normalized
+                    .binder_arguments
+                    .into_iter()
+                    .map(|argument| PropositionBinderArgumentIdentity {
+                        kind: match argument.kind {
+                            psi_typed_trees::proposition::PropositionBinderArgumentKind::Type => {
+                                PropositionBinderArgumentKind::Type
+                            }
+                            psi_typed_trees::proposition::PropositionBinderArgumentKind::Const => {
+                                PropositionBinderArgumentKind::Const
+                            }
+                            psi_typed_trees::proposition::PropositionBinderArgumentKind::Machine => {
+                                PropositionBinderArgumentKind::Machine
+                            }
+                        },
+                        identity: argument.identity,
+                    })
+                    .collect(),
+                arguments: normalized.arguments,
+            })
+        })
+        .collect::<Vec<_>>();
+    applications.sort();
+    applications.dedup();
+    for (index, application) in applications.iter_mut().enumerate() {
+        application.id = proposition_id(
+            u64::try_from(index)
+                .expect("proposition application count fits u64")
+                .checked_add(1)
+                .expect("one-based proposition identity fits u64"),
+        );
+    }
+    (
+        declarations
+            .into_iter()
+            .map(|(_, declaration)| declaration)
+            .collect(),
+        applications,
+    )
 }
 
 fn lower_selected_machine(
@@ -2255,6 +2388,8 @@ fn build_integer_conditional_module(
         semantic_module: TerminalModule {
             semantic_version: SemanticVersion::CURRENT,
             entry: machine_id(1),
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
             machines: vec![TerminalMachine {
                 id: machine_id(1),
                 parameters: parameters.clone(),
@@ -2378,6 +2513,8 @@ fn build_boolean_module(
         semantic_module: TerminalModule {
             semantic_version: SemanticVersion::CURRENT,
             entry: machine_id(1),
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
             machines: vec![TerminalMachine {
                 id: machine_id(1),
                 parameters,
@@ -2498,6 +2635,8 @@ fn build_boolean_conditional_module(
         semantic_module: TerminalModule {
             semantic_version: SemanticVersion::CURRENT,
             entry: machine_id(1),
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
             machines: vec![TerminalMachine {
                 id: machine_id(1),
                 parameters: parameters.clone(),
@@ -2745,6 +2884,8 @@ fn build_boolean_state_chain_module(
         semantic_module: TerminalModule {
             semantic_version: SemanticVersion::CURRENT,
             entry: machine_id(1),
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
             machines: vec![TerminalMachine {
                 id: machine_id(1),
                 parameters: terminal_parameters,
@@ -2835,6 +2976,8 @@ fn build_direct_parameter_module(
         semantic_module: TerminalModule {
             semantic_version: SemanticVersion::CURRENT,
             entry: machine_id(1),
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
             machines: vec![TerminalMachine {
                 id: machine_id(1),
                 parameters: terminal_parameters,
@@ -3082,6 +3225,8 @@ fn build_integer_state_chain_module(
         semantic_module: TerminalModule {
             semantic_version: SemanticVersion::CURRENT,
             entry: machine_id(1),
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
             machines: vec![TerminalMachine {
                 id: machine_id(1),
                 parameters: terminal_parameters,
@@ -3402,6 +3547,7 @@ id_constructor!(operation_id, OperationId);
 id_constructor!(edge_id, EdgeId);
 id_constructor!(contract_id, ContractId);
 id_constructor!(obligation_id, ObligationId);
+id_constructor!(proposition_id, PropositionId);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoweringError {

@@ -29,11 +29,12 @@ no standalone whole-trait edge is declared. Which binding model is canonical?
 
 The choice fixes completeness checking, default-member inclusion, overload
 selection, whether two named conformances may deliberately share a satisfier,
-third-party conformance coherence, and the exact per-requirement adapter rows
-stored in a local dynamic table. Checked selection may retain the stable edge
-identity, but Psi and Omega must not emit requirement adapters or a table by
-guessing satisfiers from matching state names until this association is
-settled.
+third-party conformance coherence, the exact per-requirement adapter rows
+stored in a local dynamic table, and the carrierless proof projection retained
+by a witness-bearing proposition. Checked selection may retain the stable edge
+identity, but Psi and Omega must not emit requirement adapters, a runtime
+table, or an opaque selected-evidence term by guessing satisfiers from matching
+state names until this association is settled.
 
 ## Q2 — What is the complete-contract surface for abnormal non-return?
 

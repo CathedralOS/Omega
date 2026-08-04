@@ -31,8 +31,10 @@ conservation, v10 adds identity-preserving claim reshuffles, v11 adds stable
 sum-case content-path segments, v12 adds exact authored-partition substitution
 rows, and v13 adds structural Boolean conditional control without adding an
 executable operation. V14 adds independent dense entry-claim bindings without
-adding an executable operation or proposition. Current v15 adds total Boolean
-logical negation as an operation and proposition term. The verifier
+adding an executable operation or proposition. V15 adds total Boolean logical
+negation as an operation and proposition term. Current v16 adds canonical
+nominal proposition declarations and normalized application identity without
+adding an executable operation. The verifier
 reconstructs operation, edge-binding, and return-binding axioms guaranteed on
 every return path, rejects
 unreachable fact sources and out-of-scope contract
@@ -147,7 +149,7 @@ Semantic v1 integer, v2 Boolean, v3 wrapping-add, v4 saturating-add, v5
 wrapping-subtract, v6 saturating-subtract, v7 wrapping-multiply, v8
 saturating-multiply, v9 content, v10 reshuffle, v11 case-path, v12 partition,
 v13 conditional, and v14 entry-claim modules retain their frozen bytes and
-execution semantics; explicit migration produces a new current-v15 fingerprint
+execution semantics; explicit migration produces a new current-v16 fingerprint
 and derives dense entry bindings from any validated archived reshuffles. The
 v15 Boolean-negation slice round-trips, verifies, costs one operation plus one
 return edge, interprets, and returns the complemented canonical Boolean through

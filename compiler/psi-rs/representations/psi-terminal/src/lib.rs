@@ -10,8 +10,10 @@
 //! integer multiplication, v9 adds proof-only structural-place content
 //! conservation, v10 adds identity-preserving claim reshuffles, v11 adds
 //! stable sum-case structural paths, v12 adds exact authored partition
-//! substitutions, v13 adds ordered structural conditional edges, and current
-//! v14 adds independent machine-local entry-claim bindings.
+//! substitutions, v13 adds ordered structural conditional edges, v14 adds
+//! independent machine-local entry-claim bindings, v15 adds Boolean logical
+//! negation, and current v16 adds nominal proposition declarations and
+//! normalized application identities.
 //! This small executable slice
 //! exercises values, control, bodyful contracts, and one width-relative
 //! arithmetic policy plus Boolean control without pretending that other
