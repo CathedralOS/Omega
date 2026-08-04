@@ -5,7 +5,7 @@ use omega_terminal_abstract_operations_to_target_operations::lower_to_target_ope
 use omega_terminal_assigned_target_operations::TerminalAssignedOperation;
 use omega_terminal_machine_emission::emit_machine_code;
 use omega_terminal_psi_to_abstract_operations::lower_verified_module;
-use omega_terminal_target_operations::TerminalTargetOperation;
+use omega_terminal_target_operations::{TerminalTargetIntegerExpression, TerminalTargetOperation};
 use omega_terminal_target_operations_to_assigned_target_operations::assign_registers;
 use psi_core::{
     BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
@@ -180,6 +180,91 @@ fn conditional_fixed_bound_uses_the_maximum_path_not_the_sum() {
 }
 
 #[test]
+fn conditional_arms_lower_through_computed_jumps_to_a_shared_tail() {
+    let module = conditional_shared_tail_module();
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("acyclic shared-tail conditional verifies");
+    let fixed = derive_fixed_entry_fuel(&verified, MachineId::new(1).unwrap())
+        .expect("shared-tail conditional has a fixed bound");
+    assert_eq!(fixed.ceiling_units(), 5);
+
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    for (condition, expected) in [(true, 12), (false, 32)] {
+        let measured = interpret_terminal_measured(
+            &verified,
+            &[
+                TerminalScalarValue::Boolean(condition),
+                TerminalScalarValue::Integer {
+                    scalar_type: integer,
+                    value: IntegerValue::Unsigned(3),
+                },
+                TerminalScalarValue::Integer {
+                    scalar_type: integer,
+                    value: IntegerValue::Unsigned(4),
+                },
+            ],
+        )
+        .expect("selected shared-tail path executes");
+        assert_eq!(measured.usage().total_units(), 5);
+        assert_eq!(
+            measured.value(),
+            TerminalScalarValue::Integer {
+                scalar_type: integer,
+                value: IntegerValue::Unsigned(expected),
+            }
+        );
+    }
+
+    let abstract_plan = lower_verified_module(&verified).expect("lower shared-tail requirements");
+    let target_plan = lower_to_target_operations(&abstract_plan, NativeTarget::host())
+        .expect("acyclic arm chains should lower for the host");
+    let function = &target_plan.functions[0];
+    assert_eq!(
+        function.provenance.operations,
+        [
+            OperationId::new(1).unwrap(),
+            OperationId::new(2).unwrap(),
+            OperationId::new(3).unwrap(),
+        ]
+    );
+    assert_eq!(
+        function.provenance.edges,
+        [
+            EdgeId::new(1).unwrap(),
+            EdgeId::new(2).unwrap(),
+            EdgeId::new(3).unwrap(),
+            EdgeId::new(4).unwrap(),
+            EdgeId::new(5).unwrap(),
+        ]
+    );
+    let TerminalTargetOperation::ReturnIntegerConditionalExpressions {
+        when_true,
+        when_false,
+        ..
+    } = &function.operation
+    else {
+        panic!("shared-tail graph must retain its runtime conditional")
+    };
+    assert!(matches!(
+        &when_true.expression,
+        TerminalTargetIntegerExpression::WrappingAdd { left, .. }
+            if matches!(left.as_ref(), TerminalTargetIntegerExpression::WrappingAdd { .. })
+    ));
+    assert!(matches!(
+        &when_false.expression,
+        TerminalTargetIntegerExpression::WrappingAdd { left, .. }
+            if matches!(left.as_ref(), TerminalTargetIntegerExpression::WrappingMultiply { .. })
+    ));
+    let assigned = assign_registers(&target_plan).expect("shared-tail expressions assign");
+    let machine_code = emit_machine_code(&assigned).expect("shared-tail expressions emit");
+    assert!(!machine_code.functions[0].bytes.is_empty());
+}
+
+#[test]
 fn conditional_requires_semantic_v13() {
     let module = conditional_module(SemanticVersion::V12);
     assert!(matches!(
@@ -291,6 +376,108 @@ fn conditional_module(semantic_version: SemanticVersion) -> TerminalModule {
                     terminator: Terminator::Return {
                         edge: EdgeId::new(4).unwrap(),
                         value: ValueId::new(6).unwrap(),
+                    },
+                },
+            ],
+            contract: MachineContract {
+                id: ContractId::new(1).unwrap(),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+            },
+        }],
+    }
+}
+
+fn conditional_shared_tail_module() -> TerminalModule {
+    let integer_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 terminal type");
+    let integer = ScalarType::Integer(integer_type);
+    let declaration = |raw, scalar_type| ValueDeclaration {
+        id: ValueId::new(raw).expect("nonzero value"),
+        scalar_type,
+    };
+    TerminalModule {
+        semantic_version: SemanticVersion::CURRENT,
+        entry: MachineId::new(1).unwrap(),
+        machines: vec![TerminalMachine {
+            id: MachineId::new(1).unwrap(),
+            parameters: vec![
+                declaration(1, ScalarType::Boolean),
+                declaration(2, integer),
+                declaration(3, integer),
+            ],
+            result: declaration(10, integer),
+            structural_places: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: BlockId::new(1).unwrap(),
+            blocks: vec![
+                Block {
+                    id: BlockId::new(1).unwrap(),
+                    parameters: Vec::new(),
+                    operations: Vec::new(),
+                    terminator: Terminator::Conditional {
+                        condition: ValueId::new(1).unwrap(),
+                        when_true: SuccessorEdge {
+                            edge: EdgeId::new(1).unwrap(),
+                            target: BlockId::new(2).unwrap(),
+                            arguments: vec![ValueId::new(2).unwrap()],
+                        },
+                        when_false: SuccessorEdge {
+                            edge: EdgeId::new(2).unwrap(),
+                            target: BlockId::new(3).unwrap(),
+                            arguments: vec![ValueId::new(3).unwrap()],
+                        },
+                    },
+                },
+                Block {
+                    id: BlockId::new(2).unwrap(),
+                    parameters: vec![declaration(4, integer)],
+                    operations: vec![Operation {
+                        id: OperationId::new(1).unwrap(),
+                        result: declaration(6, integer),
+                        kind: OperationKind::WrappingIntegerAdd {
+                            left: ValueId::new(4).unwrap(),
+                            right: ValueId::new(4).unwrap(),
+                        },
+                    }],
+                    terminator: Terminator::Jump {
+                        edge: EdgeId::new(3).unwrap(),
+                        target: BlockId::new(4).unwrap(),
+                        arguments: vec![ValueId::new(6).unwrap()],
+                    },
+                },
+                Block {
+                    id: BlockId::new(3).unwrap(),
+                    parameters: vec![declaration(5, integer)],
+                    operations: vec![Operation {
+                        id: OperationId::new(2).unwrap(),
+                        result: declaration(7, integer),
+                        kind: OperationKind::WrappingIntegerMultiply {
+                            left: ValueId::new(5).unwrap(),
+                            right: ValueId::new(5).unwrap(),
+                        },
+                    }],
+                    terminator: Terminator::Jump {
+                        edge: EdgeId::new(4).unwrap(),
+                        target: BlockId::new(4).unwrap(),
+                        arguments: vec![ValueId::new(7).unwrap()],
+                    },
+                },
+                Block {
+                    id: BlockId::new(4).unwrap(),
+                    parameters: vec![declaration(8, integer)],
+                    operations: vec![Operation {
+                        id: OperationId::new(3).unwrap(),
+                        result: declaration(9, integer),
+                        kind: OperationKind::WrappingIntegerAdd {
+                            left: ValueId::new(8).unwrap(),
+                            right: ValueId::new(8).unwrap(),
+                        },
+                    }],
+                    terminator: Terminator::Return {
+                        edge: EdgeId::new(5).unwrap(),
+                        value: ValueId::new(9).unwrap(),
                     },
                 },
             ],

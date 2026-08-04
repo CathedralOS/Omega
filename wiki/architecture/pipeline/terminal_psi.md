@@ -135,7 +135,11 @@ exact arm during Omega target lowering: only that arm's operations, structural
 edge, and return edge reach emitted provenance, while terminal interpretation
 still validates and meters the original two-successor graph. The computed
 two-binding canary paths and the literal-selector canary each have a five-unit
-fixed-work certificate.
+fixed-work certificate. The target continuation also follows each successor
+through an acyclic chain of unconditional blocks, substitutes computed jump
+bindings, and permits both arms to converge on one shared tail. Shared
+operations and edges appear once in canonical provenance. Nested conditionals
+and cyclic target programs remain fail-closed pending the general block form.
 Constant-fed wrapping add and the Boolean literal reach emitted host machine
 code; direct ninth `bool` and `u8` returns cross the host incoming-stack ABI;
 and runtime wrapping add
@@ -188,7 +192,11 @@ saturating addition plus wrapping and saturating subtraction and wrapping and
 saturating multiplication lower to recursive, exact-width
 target expressions. For the exact conditional form, a Boolean ABI parameter
 retains both emitted arms, while a compile-known Boolean constant selects one
-arm and omits the unreachable arm from target bytes and provenance.
+arm and omits the unreachable arm from target bytes and provenance. Each arm
+may now cross an acyclic sequence of computed unconditional bindings before
+return, including convergence on a shared tail; target lowering reduces each
+path to its exact runtime expression without erasing terminal operation or edge
+identity.
 `omega-terminal-target-operations-to-assigned-target-operations` is the next
 explicit boundary. Its first correctness-oriented rung validates every selected
 parameter register against the target, freezes repeated parameter locations,

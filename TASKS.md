@@ -1194,7 +1194,10 @@ improvements do not change public identity.
   arm's operations and two edges in emitted provenance. The target/native
   continuation remains deliberately exact: runtime Boolean selection between
   two integer expressions is live, with each branch independently assigned and
-  emitted; general CFG programs fail closed.
+  emitted. Each arm may traverse acyclic computed unconditional bindings and
+  converge on a shared tail; provenance canonically retains every unique
+  contributing operation and edge. Nested conditionals and general CFG
+  programs still fail closed.
   Because the
   legacy exit prover cannot establish ordinary `result == literal` contracts,
   this bootstrap canary preserves a closed typed `requires`/`ensures` fact and
