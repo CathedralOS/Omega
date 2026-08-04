@@ -1,6 +1,6 @@
 # Law-Bearing Relations, Evidence, And Quotients
 
-Current design as of 2026-07-27. This brief resolves the former law-bearing
+Current design as of 2026-08-03. This brief resolves the former law-bearing
 relations and quotients owner question. It
 supersedes the current quotient pilot's executable-`bool` relation and
 suffix-based discovery of `_reflexive`, `_symmetric`, `_transitive`, and
@@ -71,15 +71,61 @@ runtime-dependent carrier such as a vector indexed by a runtime value.
 
 A proposition family states a fact depending on representative values:
 
-```text
-RatEquivalent(p, q)
-ConvergesTogether(a, b)
+```omega
+proposition rat_equivalent(left: Rat, right: Rat);
+
+proposition converges_together<machine Left, machine Right>(
+    left: CauchySeq<Left>,
+    right: CauchySeq<Right>
+) {
+    ConvergenceEvidence<Left, Right>;
+}
 ```
 
 Its truth is inhabitance by checked proof evidence, not the result of running
 a `bool` machine. An arbitrary pair of generator machines cannot in general
 be tested for convergence, but a package may exhibit a modulus and prove its
 universal law.
+
+`proposition` is a proof-formula declaration and generic binder kind. It has
+no result, runtime value, layout, operation contract, lowering, or executable
+body. A primitive fact-only declaration ends with `;`. A witness-bearing
+declaration contains exactly one canonical carrierless evidence interface in
+braces. The owner thereby fixes both introduction and elimination: every
+establishing conformance supplies that interface, and eliminating the
+proposition reopens the exact retained evidence term.
+
+An ordinary checked proof machine may establish either form through its
+`ensures`. For a witness-bearing proposition the proof must also supply the
+declared evidence. Relation-law contracts that already name the proposition
+establish their applications by ordinary entailment; they need no separate
+authorization route.
+
+A transparent logical definition uses `=`:
+
+```omega
+proposition cauchy<machine Sequence>(value: CauchySeq<Sequence>) =
+    converges_together<Sequence, Sequence>(value, value);
+```
+
+It expands before normalization and has no independent semantic identity. It
+inherits the expanded proposition's requirements, trust class,
+fact-or-witness classification, and evidence interface. Only its source name
+survives for diagnostics and debug maps.
+
+Proposition parameters state their kind and application signature explicitly:
+
+```omega
+trait Reflexive<C, proposition Relation>
+where
+    proposition Relation(left: C, right: C);
+```
+
+A `bool` machine application remains a valid contract fact: in a fact position,
+bare `decision(a, b)` and `decision(a, b) == true` normalize identically. It may
+back a transparent proposition definition when its proof expression is total
+and otherwise fact-position eligible. Primitive propositions cover facts for
+which no decision procedure exists.
 
 The existential package reuses selected-conformance projection. One
 requirement projection has two strata:
@@ -111,9 +157,10 @@ unknown size and cleanup. Carrierless convergence evidence has neither an
 instance nor slots, so by-value `dyn` is proof-only and erases without
 allocation, size/alignment metadata, or cleanup.
 
-Published mathematical APIs name transparent proposition aliases such as
-`Cauchy(S)` and `ConvergesTogether(a, b)`. The underlying carrierless `dyn`
-is mechanism, not user-facing mathematical vocabulary.
+Published mathematical APIs expose proposition names such as
+`ConvergesTogether(a, b)` and transparent conveniences such as `Cauchy(s)`.
+The underlying carrierless selected conformance is mechanism, not user-facing
+mathematical vocabulary.
 
 ## Relation-property hierarchy
 
@@ -160,6 +207,12 @@ Several proofs may satisfy the same property. Home-satisfier resolution selects
 one when unique; ambiguity uses the ordinary named-conformance selection.
 Changing the proof conformance does not change the nominal relation or quotient
 identity.
+
+Fact-only versus witness-bearing classification does change proposition
+identity, because it changes what a consumer may eliminate. Primitive
+proposition symbols, binders, and that classification are fingerprinted in
+terminal Psi. Transparent definitions are expanded and remain only in source
+and debug metadata.
 
 ## Quotient formation
 
@@ -276,16 +329,22 @@ conformances.
 
 Acceptance requires:
 
-1. an arbitrary convergence relation cannot be decided or admitted as `true`;
+1. primitive and witness-bearing proposition declarations retain their exact
+   binder telescopes and classification, while transparent definitions expand
+   without acquiring an identity;
 2. carrierless evidence owns no runtime words and opens to stable opaque
    symbols;
-3. different family indices may relate, while a different carrier family
+3. a proof of a witness-bearing proposition without its evidence rejects;
+4. a literally bodyless ordinary theorem machine rejects, an explicit boundary
+   axiom is reported as admitted, and an equivalence depending on it cannot
+   license `%`;
+5. different family indices may relate, while a different carrier family
    rejects;
-4. quotient formation requires explicit reflexive, symmetric, and transitive
+6. quotient formation requires explicit reflexive, symmetric, and transitive
    conformances through `Equivalence`;
-5. a total respecting operation lifts;
-6. a partial operation rejects unless equivalent representatives agree on its
+7. a total respecting operation lifts;
+8. a partial operation rejects unless equivalent representatives agree on its
    precondition;
-7. an operation whose result depends on representative choice rejects; and
-8. no compiler rule mentions `Rat`, `Real`, Cauchy sequences, moduli, or
+9. an operation whose result depends on representative choice rejects; and
+10. no compiler rule mentions `Rat`, `Real`, Cauchy sequences, moduli, or
    convergence.

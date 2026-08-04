@@ -5,7 +5,7 @@ belongs in the relevant chapter or frozen design brief, not here. Immediate
 owner decisions belong in the repository-root `OWNER_QUESTIONS.md`;
 engineering work belongs in `TASKS.md`.
 
-Last pruned: 2026-08-02.
+Last pruned: 2026-08-03.
 
 ## Reach, resources, and progress
 
@@ -76,6 +76,11 @@ Last pruned: 2026-08-02.
   bounds, inferred bounds, or named approximation policies.
 - Extend sequence-wide text proofs beyond validate-once plus preservation
   lemmas when richer inductive invariants have a concrete customer.
+- Expose proposition-expression implication, conjunction, and falsehood only
+  when a source theorem needs to compose them as values of the proof logic.
+  The proof kernel already checks those forms; ordinary `requires`/`ensures`
+  clauses and Boolean facts cover the current proposition-family and decider
+  customers without a second surface.
 
 ## Core surface and types
 

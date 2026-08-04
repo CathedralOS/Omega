@@ -319,6 +319,26 @@ ahead of quotient implementation and lives in
 [chapter 10](chapter_10_compile_time_proofs.md) and the
 [law-bearing relation brief](../design_briefs/law_bearing_relations_and_quotients.md).
 
+A generic proof formula uses a proposition parameter and an explicit family
+signature:
+
+```omega
+trait Symmetric<C, proposition Relation>
+where
+    proposition Relation(left: C, right: C);
+```
+
+Substitution must provide a proposition family with that binder telescope and
+representative-value signature. A resultless machine signature remains an
+operation constraint:
+
+```omega
+where
+    machine Visit(item: &T);
+```
+
+It requires an executable procedure and does not introduce a proof formula.
+
 ## Where Clauses
 
 `where` clauses describe requirements on generic parameters.

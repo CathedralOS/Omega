@@ -1,9 +1,9 @@
 # Chapter 10: Compile-Time Proofs
 
-Compile-time proofs are not a second programming language.
-
-They are ordinary machines whose contracts are checked as evidence. If a
-machine is used only to establish facts, it emits no runtime code.
+Compile-time proofs are not a second programming language. A `proposition`
+declares a proof formula. Ordinary machines establish and consume those
+formulas through their contracts; a machine used only to establish facts emits
+no runtime code.
 
 The basic shape is:
 
@@ -14,6 +14,85 @@ requires + body facts -> ensures
 If the checker can prove that implication, the machine is a proof artifact. If
 it cannot, the contract is only an unchecked promise and must be rejected or
 treated as an explicit boundary.
+
+## Proposition declarations
+
+`proposition` is the declaration category for a proof formula. It has no
+runtime result, value position, layout, effects, work attribution, termination
+contract, or executable body. Proposition applications appear wherever an
+ordinary contract fact may appear:
+
+| Declaration | Meaning |
+|---|---|
+| `machine` | named, contracted computation or transition system |
+| `proposition` | proof formula |
+| `domain` | qualification of one carrier |
+| `trait` | requirement and evidence interface |
+
+```omega
+proposition rat_equivalent(left: Rat, right: Rat);
+
+machine preserve_equivalence(left: Rat, right: Rat)
+requires
+    rat_equivalent(left, right)
+ensures
+    rat_equivalent(right, left)
+{
+    ...
+}
+```
+
+A primitive fact-only proposition ends with `;`. A witness-bearing proposition
+names its one canonical carrierless evidence interface in braces:
+
+```omega
+proposition converges_together<machine Left, machine Right>(
+    left: CauchySeq<Left>,
+    right: CauchySeq<Right>
+) {
+    ConvergenceEvidence<Left, Right>;
+}
+```
+
+The brace entry is an owner-authorized evidence interface, not an executable
+statement. Any selected conformance used to establish the proposition must
+supply that interface. Eliminating the proposition reopens the exact retained
+evidence term, so a convergence proof can recover its opaque modulus and law.
+Different conformances may carry different witnesses without changing the
+proposition's nominal identity.
+
+A transparent proposition definition uses `=`:
+
+```omega
+proposition cauchy<machine Sequence>(value: CauchySeq<Sequence>) =
+    converges_together<Sequence, Sequence>(value, value);
+```
+
+The right side is an existing proof expression and must be eligible in a fact
+position. The alias expands before semantic normalization, creates no new
+proposition identity, and inherits the expansion's requirements, trust,
+fact-or-witness classification, and evidence interface. Its source name remains
+available for diagnostics and debug maps.
+
+Generic proposition parameters use the same category explicitly:
+
+```omega
+trait Reflexive<C, proposition Relation>
+where
+    proposition Relation(left: C, right: C);
+```
+
+This is distinct from a resultless operation requirement such as
+`where machine Visit(item: &T);`, which describes an executable procedure.
+Applications of either a `bool`-returning machine or a proposition are facts in
+`requires` and `ensures`; the proposition form additionally permits facts with
+no decision procedure. A bare Boolean expression in a fact position means that
+it is `true`, so `decides(a, b)` and `decides(a, b) == true` normalize to the
+same fact. No Boolean-to-proposition bridge operation is required.
+
+Fact-only versus witness-bearing is part of normalized proposition identity.
+Transparent aliases do not enter fingerprinted terminal Psi; primitive
+proposition symbols, their binders, and their evidence classification do.
 
 ## Machines As Proofs
 
@@ -220,9 +299,11 @@ ConvergenceEvidence<A, B>
 `- close_after(...)                    checked universal law
 ```
 
-The mathematical name `ConvergesTogether(a, b)` is a transparent proposition
-alias; ordinary signatures do not expose the underlying carrierless `dyn`.
-Because the entire dynamic value has no runtime carrier, this exact by-value
+The mathematical name `ConvergesTogether(a, b)` is a witness-bearing
+proposition whose declaration names the carrierless evidence interface.
+Ordinary signatures do not expose the underlying selected conformance.
+Convenience names such as `Cauchy(s)` may be transparent proposition aliases.
+Because the entire evidence value has no runtime carrier, this exact by-value
 owned-`dyn` case needs no storage owner, table, allocation, or cleanup. Merely
 having no runtime table slots would not suffice for an ordinary runtime
 instance.
@@ -273,6 +354,14 @@ cannot admit either an equivalence or respect conformance for a checked
 quotient. Both require checked proof machines. A false quotient equality
 propagates by substitution without the containment boundary available to an
 admitted resource claim.
+
+A literally bodyless free machine is not a theorem. Checked theorem machines
+have bodies, including an empty `{ }` body when their conclusions follow from
+entry facts. An accepted axiom is an explicit bodyless `boundary machine` and
+retains admitted provenance. A proof machine that ensures a witness-bearing
+proposition must supply its declared evidence; the formula cannot be retained
+without the witness that its eliminators require. An `Equivalence` or `Respects`
+conformance depending on admitted evidence never licenses `%`.
 
 ## Proof Views
 

@@ -222,7 +222,7 @@ Rejected today:
 - Proof views (`Seq`/`Bag`/`Range`) are documented and parse, but have no
   lowering or semantics; `Sorted` and friends do not exist.
 - `Real` quotient semantics and the float approximation architecture are
-  settled, but their proof-side Prop-family/index-telescope, signed-Rat,
+  settled, but their proof-side `proposition`-family/index-telescope, signed-Rat,
   `FloatMeaning`, executable operation semantics, and quotient implementation
   remain. Current float contract facts still have only bounded-type interval
   checks.
