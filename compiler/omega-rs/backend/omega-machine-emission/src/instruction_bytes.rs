@@ -558,24 +558,47 @@ fn compiler_instruction_validation_kind(
                         result.kind,
                         omega_assigned_target_operations::InstructionOperandKind::RuntimeScalarInteger { .. }
                     )
-                    || !arguments.iter().all(|operand| {
+                {
+                    return Ok(None);
+                }
+                if arguments.iter().any(|operand| {
+                    matches!(
+                        operand.kind,
+                        omega_assigned_target_operations::InstructionOperandKind::RuntimeScalarInteger { .. }
+                    )
+                }) && arguments.iter().all(|operand| {
+                    matches!(
+                        operand.kind,
+                        omega_assigned_target_operations::InstructionOperandKind::ImmediateInteger(_)
+                            | omega_assigned_target_operations::InstructionOperandKind::ByteLength(_)
+                            | omega_assigned_target_operations::InstructionOperandKind::RuntimeScalarInteger { .. }
+                    )
+                }) {
+                    Some(
+                        CompilerInstructionValidationKind::CompilerBodyOutboundSyscallResultStorageArguments {
+                            operands: operands.to_vec(),
+                            number: *number,
+                            plan: binding.call_plan().clone(),
+                        },
+                    )
+                } else if arguments.iter().all(|operand| {
                         matches!(
                             operand.kind,
                             omega_assigned_target_operations::InstructionOperandKind::ImmediateInteger(
                                 _
                             ) | omega_assigned_target_operations::InstructionOperandKind::ByteLength(_)
                         )
-                    })
-                {
-                    return Ok(None);
+                    }) {
+                    Some(
+                        CompilerInstructionValidationKind::CompilerBodyOutboundSyscallResult {
+                            operands: operands.to_vec(),
+                            number: *number,
+                            plan: binding.call_plan().clone(),
+                        },
+                    )
+                } else {
+                    None
                 }
-                Some(
-                    CompilerInstructionValidationKind::CompilerBodyOutboundSyscallResult {
-                        operands: operands.to_vec(),
-                        number: *number,
-                        plan: binding.call_plan().clone(),
-                    },
-                )
             } else if operands.iter().any(|operand| {
                 matches!(
                     operand.kind,
