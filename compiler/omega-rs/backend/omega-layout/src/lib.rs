@@ -194,6 +194,7 @@ pub struct StoredIntegerLayout {
     pub field: SymbolHandle,
     pub stored_width_bits: u16,
     pub interpretation: psi_layout_plans::IntegerInterpretation,
+    pub write_is_total: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

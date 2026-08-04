@@ -301,7 +301,7 @@ pub(crate) fn compute_plan_laid_layouts(
                     .iter()
                     .filter_map(|member| match member {
                         psi_typed_trees::data::DataMember::Field(field) => {
-                            Some(field.name.as_str().to_owned())
+                            Some((field.name.as_str().to_owned(), field.type_reference))
                         }
                         psi_typed_trees::data::DataMember::Variant(_) => None,
                     })
@@ -313,7 +313,7 @@ pub(crate) fn compute_plan_laid_layouts(
         let mut offsets = vec![None; field_count];
         let mut bit_fields = Vec::<PlanLaidBitField>::new();
         let mut integer_fields = Vec::<PlanLaidIntegerField>::new();
-        for (field_index, field_name) in schema_fields.iter().enumerate() {
+        for (field_index, (field_name, field_type)) in schema_fields.iter().enumerate() {
             let field_entries = report
                 .entries
                 .iter()
@@ -355,6 +355,12 @@ pub(crate) fn compute_plan_laid_layouts(
                             ))]
                         })?,
                         interpretation,
+                        write_is_total: stored_integer_write_is_total(
+                            typed,
+                            *field_type,
+                            stored_width,
+                            interpretation,
+                        ),
                     });
                 }
                 entries
@@ -456,4 +462,38 @@ pub(crate) fn compute_plan_laid_layouts(
 
     typed.plan_laid_layouts = layouts;
     Ok(())
+}
+
+fn stored_integer_write_is_total(
+    typed: &TypedTrees,
+    field_type: psi_typed_trees::types::TypeReferenceHandle,
+    stored_width: u64,
+    interpretation: psi_layout_plans::IntegerInterpretation,
+) -> bool {
+    let Some(primitive) = typed.primitive_type_reference(field_type) else {
+        return false;
+    };
+    let (admitted_minimum, admitted_maximum) = if let Some(range) =
+        psi_typed_trees::wire::scalar_representation_range(typed, field_type)
+    {
+        (i128::from(range.minimum), i128::from(range.maximum))
+    } else {
+        let width = primitive.scalar_byte_size().unwrap_or(0) * 8;
+        if width == 0 {
+            return false;
+        }
+        if primitive.is_signed_integer() {
+            (-(1i128 << (width - 1)), (1i128 << (width - 1)) - 1)
+        } else {
+            (0, (1i128 << width) - 1)
+        }
+    };
+    let (stored_minimum, stored_maximum) = match interpretation {
+        psi_layout_plans::IntegerInterpretation::Signed => (
+            -(1i128 << (stored_width - 1)),
+            (1i128 << (stored_width - 1)) - 1,
+        ),
+        psi_layout_plans::IntegerInterpretation::Unsigned => (0, (1i128 << stored_width) - 1),
+    };
+    admitted_minimum >= stored_minimum && admitted_maximum <= stored_maximum
 }

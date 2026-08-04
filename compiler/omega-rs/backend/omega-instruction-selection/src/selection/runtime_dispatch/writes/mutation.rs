@@ -15,6 +15,7 @@ pub(in crate::selection::runtime_dispatch) use value_operands::{
     binary_value_operand_byte_width, binary_value_operands_are_float,
     resolve_runtime_stored_integer_operand_in_table,
     select_runtime_stored_integer_projection_write_in_table,
+    select_runtime_total_stored_integer_mutation_write_in_table,
 };
 
 use crate::InstructionSelectionInput;

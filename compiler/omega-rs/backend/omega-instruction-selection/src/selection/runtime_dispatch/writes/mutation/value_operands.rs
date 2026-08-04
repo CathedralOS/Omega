@@ -814,6 +814,88 @@ pub(crate) fn select_runtime_stored_integer_projection_write_in_table(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn select_runtime_total_stored_integer_mutation_write_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    target_source_key: StateKey,
+    value_source_key: StateKey,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    target_expression: ExpressionHandle,
+    value_expression: ExpressionHandle,
+    static_values: &RuntimeStaticValues,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+) -> Option<omega_abstract_operations::SelectedInstructionKind> {
+    let projection = resolve_runtime_stored_integer_projection_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        expressions,
+        target_expression,
+    )?;
+    if !projection.write_is_total {
+        return None;
+    }
+    let source_primitive = classify_scalar_value_type_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        value_expression,
+    )?;
+    let source_byte_size = convert_scalar_byte_size(source_primitive)?;
+    if source_byte_size != projection.carrier_byte_count {
+        return None;
+    }
+    let source = resolve_runtime_value_operand_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        statement_index,
+        expressions,
+        value_expression,
+        static_values,
+        runtime_value_operands,
+    )?;
+    let target_signed = matches!(
+        projection.interpretation,
+        psi_layout_plans::IntegerInterpretation::Signed
+    );
+    Some(match projection.source {
+        RuntimeStoredIntegerSource::Direct {
+            region,
+            byte_offset,
+        } => omega_abstract_operations::SelectedInstructionKind::WriteRuntimeStorageConvert {
+            target_region: region,
+            target_offset: byte_offset,
+            target_byte_size: projection.stored_byte_count,
+            source,
+            source_byte_size,
+            source_is_float: false,
+            target_is_float: false,
+            source_signed: source_primitive.is_signed_integer(),
+            target_signed,
+            trapping: false,
+            saturating: false,
+        },
+        ref target_source => {
+            omega_abstract_operations::SelectedInstructionKind::WritePlaceConvert {
+                target: target_source.as_place()?,
+                target_byte_size: projection.stored_byte_count,
+                source,
+                source_byte_size,
+                source_is_float: false,
+                target_is_float: false,
+                source_signed: source_primitive.is_signed_integer(),
+                target_signed,
+                trapping: false,
+                saturating: false,
+            }
+        }
+    })
+}
+
 /// Reify a selected named multiply-then-add or fused-multiply-add compiler call
 /// as one ternary runtime operand. Its unnameable, format-specific builtin
 /// symbol survives
