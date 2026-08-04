@@ -882,7 +882,7 @@ proves complete region coverage, and composes admitted leaves under their
 separate provenance. Do not add a second whole-image decoder/admission path.
 
 The existing single final-region artifact now carries the domain-separated
-`omega.final-footprint-certificate` schema, format version 37, and a certificate
+`omega.final-footprint-certificate` schema, format version 38, and a certificate
 fingerprint over its final placement binding, compiler-text derivation, and
 complete region inventory. Its explicit completeness flags remain false until
 compiler-body footprint decoding and admitted-leaf evidence land. The envelope
@@ -967,12 +967,13 @@ immediate writes into single- and double-indexed inline machine arrays are
 included as well. The x86 general place materializer replays the remaining
 otherwise-unclassified immediate integer-write paths with exact index-depth
 scratch and relocation sites.
-Direct-target binary writes now retain the exact operator, width, float mode,
-arithmetic policy, signedness, and roots into the canonical runtime-value
-operand arena. Final validation regenerates the complete evaluator/store
-program, recursively derives every operand relocation, and requires the
-target's closed may-write ceiling to equal the retained
-`CompilerBodyPlaceBinaryWrite` fragment. Indirect/indexed binary targets,
+Direct-target binary writes and exact-integer writes through a frame-held
+pointer now retain the exact operator, width, float mode, arithmetic policy,
+signedness, and roots into the canonical runtime-value operand arena. Final
+validation regenerates the complete evaluator/store program, recursively
+derives every operand relocation, and requires the target's closed may-write
+ceiling to equal the retained `CompilerBodyPlaceBinaryWrite` fragment. Indexed
+binary targets,
 conversion/string/bit-field writes, and calls remain incomplete. Pointee-pair
 selection now resolves both reference operands before the flat-storage fallback,
 preventing the source pointer bits from being copied as field data. The final

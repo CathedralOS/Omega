@@ -1174,15 +1174,16 @@ Runtime-indexed immediate writes into single- and double-indexed inline machine
 arrays are included too. The x86 general place materializer replays the
 remaining otherwise-unclassified immediate integer-write paths with exact
 index-depth scratch and relocation sites.
-Direct-target binary writes retain their complete checked recipe and roots
-into the canonical runtime-value operand arena; final validation regenerates
-the evaluator/store bytes, walks nested operand relocations, and matches the
-closed target may-write ceiling to the separately retained
-`CompilerBodyPlaceBinaryWrite` fragment.
+Direct-target binary writes and exact-integer writes through a frame-held
+pointer retain their complete checked recipe and roots into the canonical
+runtime-value operand arena; final validation regenerates the evaluator/store
+bytes, walks nested operand relocations, and matches the closed target
+may-write ceiling to the separately retained `CompilerBodyPlaceBinaryWrite`
+fragment.
 Final validation replays the exact target encoder
 and relocation set and matches the derived scratch union to the
 respective retained `CompilerBodyPlaceCopy` or
-`CompilerBodyPlaceIntegerWrite` fragment. Indirect/indexed binary targets,
+`CompilerBodyPlaceIntegerWrite` fragment. Indexed binary targets,
 conversion/string/bit-field writes, and calls remain unreplayed. Pointee-pair
 selection resolves both reference
 operands before flat storage so the source pointer is never copied as field
