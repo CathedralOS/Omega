@@ -61,6 +61,12 @@ fn lower_proposition_binders(
                 }
             }
             syntax::item::TypeParameterKind::Machine { .. } => PropositionBinderKind::Machine,
+            syntax::item::TypeParameterKind::Proposition { .. } => {
+                return Err(Diagnostic::error(format!(
+                    "proposition declaration binder `{}` cannot itself be a generic proposition parameter; generic proposition signatures belong to trait abstraction surfaces",
+                    binder.name.as_str()
+                )));
+            }
         };
         lowered.push(PropositionBinder {
             symbol: SymbolHandle::invalid(),

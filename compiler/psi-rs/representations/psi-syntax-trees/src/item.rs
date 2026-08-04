@@ -598,6 +598,17 @@ pub enum TypeParameterKind {
     /// inferred from uses or instantiations. `None` exists only while the
     /// parser is between `<machine M>` and its declaration-site validation.
     Machine { contract: Option<StateSignature> },
+    /// A proof-formula parameter with a mandatory declaration-site
+    /// application signature. It is never an executable callable.
+    Proposition {
+        contract: Option<PropositionParameterSignature>,
+    },
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PropositionParameterSignature {
+    pub name: Identifier,
+    pub parameters: HandleSpan<StateParameterHandle>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

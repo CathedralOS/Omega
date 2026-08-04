@@ -82,6 +82,58 @@ fn proposition_declarations_reject_runtime_or_ambiguous_body_shapes() {
 }
 
 #[test]
+fn parses_trait_proposition_parameter_with_authored_signature() {
+    let source = r#"
+        trait Reflexive<C, proposition Relation>
+        where proposition Relation(left: C, right: C);
+        {
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("proposition parameter should parse");
+    let trait_definitions = parsed
+        .root_items()
+        .filter_map(|item| match item {
+            psi_syntax_trees::item::Item::Trait(definition) => Some(definition),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [trait_definition] = trait_definitions.as_slice() else {
+        panic!("one trait expected");
+    };
+    let parameters = parsed
+        .items
+        .type_parameters(trait_definition.type_parameters);
+    let psi_syntax_trees::item::TypeParameterKind::Proposition {
+        contract: Some(contract),
+    } = &parameters[1].kind
+    else {
+        panic!("Relation should retain a proposition signature");
+    };
+    assert_eq!(contract.name.as_str(), "Relation");
+    assert_eq!(parsed.items.state_parameters(contract.parameters).len(), 2);
+    let snapshot = parsed.snapshot_json().expect("snapshot should succeed");
+    assert!(snapshot.contains("\"kind\":\"proposition\""));
+    assert!(snapshot.contains("\"proposition_contract\""));
+}
+
+#[test]
+fn trait_proposition_parameter_requires_authored_signature() {
+    let tokens = Lexer::new("trait Reflexive<C, proposition Relation> {}")
+        .tokenize()
+        .expect("tokenize should succeed");
+    let diagnostic = parse_syntax_trees(&tokens)
+        .expect_err("a proposition parameter without its signature must reject");
+    assert!(
+        diagnostic
+            .message
+            .contains("requires an authored declaration-site signature")
+    );
+}
+
+#[test]
 fn parses_stable_identities_through_the_full_u64_range() {
     let source = r#"
         data MaximumIdentity {

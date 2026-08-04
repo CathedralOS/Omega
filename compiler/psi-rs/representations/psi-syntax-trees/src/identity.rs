@@ -730,6 +730,14 @@ fn count_type_parameter_kind(
                 count_state_signature(syntax_trees, contract, counts);
             }
         }
+        crate::item::TypeParameterKind::Proposition { contract } => {
+            if let Some(contract) = contract {
+                count_identifier(&contract.name, counts);
+                for parameter in syntax_trees.items.state_parameters(contract.parameters) {
+                    count_state_parameter(syntax_trees, *parameter, counts);
+                }
+            }
+        }
     }
 }
 

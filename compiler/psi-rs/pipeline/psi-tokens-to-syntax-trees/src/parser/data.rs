@@ -763,20 +763,28 @@ pub(super) fn parse_type_parameters<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, ParsedGenericParameters> {
-    parse_type_parameters_in(syntax_trees, input, false)
+    parse_type_parameters_in(syntax_trees, input, false, false)
+}
+
+pub(super) fn parse_proposition_type_parameters<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, ParsedGenericParameters> {
+    parse_type_parameters_in(syntax_trees, input, false, true)
 }
 
 pub(super) fn parse_machine_type_parameters<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, ParsedGenericParameters> {
-    parse_type_parameters_in(syntax_trees, input, true)
+    parse_type_parameters_in(syntax_trees, input, true, false)
 }
 
 fn parse_type_parameters_in<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     mut input: Input<'tokens, 'source>,
     allow_machine_parameters: bool,
+    allow_proposition_parameters: bool,
 ) -> ParseResult<'tokens, 'source, ParsedGenericParameters> {
     if !input.at_punctuation(PunctuationKind::Less) {
         return Ok((ParsedGenericParameters::default(), input));
@@ -858,6 +866,19 @@ fn parse_type_parameters_in<'tokens, 'source>(
             let input = input.take_keyword(psi_tokens::KeywordKind::Machine, "machine")?;
             let (name, input) = input.take_identifier()?;
             (name, TypeParameterKind::Machine { contract: None }, input)
+        } else if input.at_contextual("proposition") {
+            if !allow_proposition_parameters {
+                return Err(input.error_here(
+                    "`<proposition Relation>` is currently legal only on a trait declaration",
+                ));
+            }
+            let input = input.take_contextual("proposition")?;
+            let (name, input) = input.take_identifier()?;
+            (
+                name,
+                TypeParameterKind::Proposition { contract: None },
+                input,
+            )
         } else {
             let (name, input) = input.take_identifier()?;
             (name, TypeParameterKind::Type, input)
@@ -895,6 +916,13 @@ fn parse_type_parameters_in<'tokens, 'source>(
         {
             return Err(input.error_here(
                 "a machine parameter takes its callable contract in a mandatory `where machine M(...) -> Result` clause, not property brackets",
+            ));
+        }
+        if matches!(kind, TypeParameterKind::Proposition { .. })
+            && input.at_punctuation(PunctuationKind::LeftBracket)
+        {
+            return Err(input.error_here(
+                "a proposition parameter takes its signature in a mandatory `where proposition Name(...)` clause, not property brackets",
             ));
         }
         let bounds = if input.at_punctuation(PunctuationKind::LeftBracket) {
