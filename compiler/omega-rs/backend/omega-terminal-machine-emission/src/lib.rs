@@ -164,6 +164,26 @@ fn emit_function(
                 when_false,
             )?,
         },
+        TerminalAssignedOperation::ReturnBooleanExpressionConditionalControl {
+            condition_frame,
+            condition,
+            when_true,
+            when_false,
+            ..
+        } => match architecture {
+            Architecture::Aarch64 => emit_aarch64_conditional_boolean_expression_control(
+                condition_frame,
+                condition,
+                when_true,
+                when_false,
+            )?,
+            Architecture::X86_64 => emit_x86_64_conditional_boolean_expression_control(
+                condition_frame,
+                condition,
+                when_true,
+                when_false,
+            )?,
+        },
     };
     Ok(TerminalMachineCodeFunction {
         machine: function.machine,
@@ -247,6 +267,25 @@ fn emit_x86_64_conditional_boolean_control(
     Ok(bytes)
 }
 
+fn emit_x86_64_conditional_boolean_expression_control(
+    condition_frame: &TerminalExpressionFrame,
+    condition: &TerminalAssignedBooleanExpression,
+    when_true: &TerminalAssignedConditionalBooleanArm,
+    when_false: &TerminalAssignedConditionalBooleanArm,
+) -> Result<Vec<u8>, EmissionError> {
+    let mut bytes = emit_x86_64_boolean_expression_value(condition_frame, condition)?;
+    bytes.extend_from_slice(&[0x85, 0xc0]); // test eax, eax
+    let true_bytes = emit_x86_64_boolean_control(&when_true.control)?;
+    let false_bytes = emit_x86_64_boolean_control(&when_false.control)?;
+    let displacement = i32::try_from(true_bytes.len())
+        .map_err(|_| EmissionError::ConditionalBranchDistanceNotEncodable)?;
+    bytes.extend_from_slice(&[0x0f, 0x84]); // jz false arm
+    bytes.extend_from_slice(&displacement.to_le_bytes());
+    bytes.extend_from_slice(&true_bytes);
+    bytes.extend_from_slice(&false_bytes);
+    Ok(bytes)
+}
+
 fn emit_x86_64_boolean_control(
     control: &TerminalAssignedBooleanControl,
 ) -> Result<Vec<u8>, EmissionError> {
@@ -264,6 +303,9 @@ fn emit_x86_64_boolean_control(
             location,
             ..
         } => emit_x86_64_boolean_not_parameter_return(*source_value, *location),
+        TerminalAssignedBooleanControl::ReturnExpression {
+            frame, expression, ..
+        } => emit_x86_64_boolean_expression(frame, expression),
         TerminalAssignedBooleanControl::Conditional {
             condition_source,
             condition_location,
@@ -273,6 +315,18 @@ fn emit_x86_64_boolean_control(
         } => emit_x86_64_conditional_boolean_control(
             *condition_source,
             *condition_location,
+            when_true,
+            when_false,
+        ),
+        TerminalAssignedBooleanControl::ConditionalExpression {
+            condition_frame,
+            condition,
+            when_true,
+            when_false,
+            ..
+        } => emit_x86_64_conditional_boolean_expression_control(
+            condition_frame,
+            condition,
             when_true,
             when_false,
         ),
@@ -360,6 +414,30 @@ fn emit_aarch64_conditional_boolean_control(
     Ok(bytes)
 }
 
+fn emit_aarch64_conditional_boolean_expression_control(
+    condition_frame: &TerminalExpressionFrame,
+    condition: &TerminalAssignedBooleanExpression,
+    when_true: &TerminalAssignedConditionalBooleanArm,
+    when_false: &TerminalAssignedConditionalBooleanArm,
+) -> Result<Vec<u8>, EmissionError> {
+    let mut bytes = emit_aarch64_boolean_expression_value(condition_frame, condition)?;
+    let true_bytes = emit_aarch64_boolean_control(&when_true.control)?;
+    let false_bytes = emit_aarch64_boolean_control(&when_false.control)?;
+    let branch_words = true_bytes
+        .len()
+        .checked_div(4)
+        .and_then(|words| words.checked_add(1))
+        .ok_or(EmissionError::ConditionalBranchDistanceNotEncodable)?;
+    if branch_words > 0x3ffff {
+        return Err(EmissionError::ConditionalBranchDistanceNotEncodable);
+    }
+    let cbz = 0x3400_0000_u32 | ((branch_words as u32) << 5); // cbz w0, false
+    bytes.extend_from_slice(&cbz.to_le_bytes());
+    bytes.extend_from_slice(&true_bytes);
+    bytes.extend_from_slice(&false_bytes);
+    Ok(bytes)
+}
+
 fn emit_aarch64_boolean_control(
     control: &TerminalAssignedBooleanControl,
 ) -> Result<Vec<u8>, EmissionError> {
@@ -377,6 +455,9 @@ fn emit_aarch64_boolean_control(
             location,
             ..
         } => emit_aarch64_boolean_not_parameter_return(*source_value, *location),
+        TerminalAssignedBooleanControl::ReturnExpression {
+            frame, expression, ..
+        } => emit_aarch64_boolean_expression(frame, expression),
         TerminalAssignedBooleanControl::Conditional {
             condition_source,
             condition_location,
@@ -386,6 +467,18 @@ fn emit_aarch64_boolean_control(
         } => emit_aarch64_conditional_boolean_control(
             *condition_source,
             *condition_location,
+            when_true,
+            when_false,
+        ),
+        TerminalAssignedBooleanControl::ConditionalExpression {
+            condition_frame,
+            condition,
+            when_true,
+            when_false,
+            ..
+        } => emit_aarch64_conditional_boolean_expression_control(
+            condition_frame,
+            condition,
             when_true,
             when_false,
         ),
@@ -655,6 +748,15 @@ fn emit_x86_64_boolean_expression(
     frame: &TerminalExpressionFrame,
     expression: &TerminalAssignedBooleanExpression,
 ) -> Result<Vec<u8>, EmissionError> {
+    let mut bytes = emit_x86_64_boolean_expression_value(frame, expression)?;
+    bytes.push(0xc3); // ret
+    Ok(bytes)
+}
+
+fn emit_x86_64_boolean_expression_value(
+    frame: &TerminalExpressionFrame,
+    expression: &TerminalAssignedBooleanExpression,
+) -> Result<Vec<u8>, EmissionError> {
     if frame.byte_size == 0 && !frame.register_spills.is_empty() {
         return Err(EmissionError::AssignedFrameSizeMismatch);
     }
@@ -676,7 +778,6 @@ fn emit_x86_64_boolean_expression(
     if frame.byte_size != 0 {
         emit_x86_64_adjust_sp(&mut bytes, frame.byte_size, true);
     }
-    bytes.push(0xc3); // ret
     Ok(bytes)
 }
 
@@ -1061,6 +1162,15 @@ fn emit_aarch64_boolean_expression(
     frame: &TerminalExpressionFrame,
     expression: &TerminalAssignedBooleanExpression,
 ) -> Result<Vec<u8>, EmissionError> {
+    let mut bytes = emit_aarch64_boolean_expression_value(frame, expression)?;
+    bytes.extend_from_slice(&0xd65f_03c0_u32.to_le_bytes()); // ret x30
+    Ok(bytes)
+}
+
+fn emit_aarch64_boolean_expression_value(
+    frame: &TerminalExpressionFrame,
+    expression: &TerminalAssignedBooleanExpression,
+) -> Result<Vec<u8>, EmissionError> {
     if frame.byte_size == 0 && !frame.register_spills.is_empty() {
         return Err(EmissionError::AssignedFrameSizeMismatch);
     }
@@ -1080,7 +1190,6 @@ fn emit_aarch64_boolean_expression(
     if frame.byte_size != 0 {
         emit_aarch64_adjust_sp(&mut instructions, frame.byte_size, true)?;
     }
-    instructions.push(0xd65f_03c0); // ret x30
     Ok(instructions
         .into_iter()
         .flat_map(u32::to_le_bytes)
@@ -1578,7 +1687,8 @@ mod tests {
     use super::*;
     use omega_target::NativeTarget;
     use omega_terminal_target_operations::{
-        TerminalPsiProvenance, TerminalScalarParameterLocation, TerminalTargetBooleanExpression,
+        TerminalPsiProvenance, TerminalScalarParameterLocation, TerminalTargetBooleanControl,
+        TerminalTargetBooleanExpression, TerminalTargetConditionalBooleanArm,
         TerminalTargetConditionalIntegerArm, TerminalTargetFunction, TerminalTargetIntegerControl,
         TerminalTargetIntegerExpression, TerminalTargetOperation, TerminalTargetOperationPlan,
     };
@@ -1755,6 +1865,35 @@ mod tests {
                 0x9100_43ff, // add sp, sp, #16
                 0xd65f_03c0, // ret
             ]
+        );
+    }
+
+    #[test]
+    fn emits_boolean_expression_conditions_for_both_architectures() {
+        let x86 = emit_machine_code(&boolean_expression_conditional_plan(
+            NativeTarget::linux_x64(),
+            MachineRegister::X86Rdi,
+            MachineRegister::X86Rsi,
+        ))
+        .unwrap();
+        assert!(
+            x86.functions[0]
+                .bytes
+                .windows(8)
+                .any(|window| window == [0x0f, 0xb6, 0xc0, 0x85, 0xc0, 0x0f, 0x84, 6])
+        );
+
+        let aarch64 = emit_machine_code(&boolean_expression_conditional_plan(
+            NativeTarget::linux_arm64(),
+            MachineRegister::Aarch64X(0),
+            MachineRegister::Aarch64X(1),
+        ))
+        .unwrap();
+        let instructions = aarch64_instructions(&aarch64.functions[0].bytes);
+        assert!(
+            instructions
+                .windows(3)
+                .any(|window| window == [0x1a9f_17e0, 0x9100_43ff, 0x3400_0060])
         );
     }
 
@@ -2440,6 +2579,48 @@ mod tests {
                             location: TerminalScalarParameterLocation::Register(right_register),
                         }),
                     },
+                },
+            }],
+        }
+    }
+
+    fn boolean_expression_conditional_plan(
+        target: NativeTarget,
+        left_register: MachineRegister,
+        right_register: MachineRegister,
+    ) -> TerminalTargetOperationPlan {
+        let arm = |edge, return_edge, value| TerminalTargetConditionalBooleanArm {
+            psi_edge: EdgeId::new(edge).expect("control edge"),
+            control: Box::new(TerminalTargetBooleanControl::ReturnImmediate {
+                psi_return_edge: EdgeId::new(return_edge).expect("return edge"),
+                source_value: ValueId::new(if value { 4 } else { 5 }).expect("leaf value"),
+                value,
+            }),
+        };
+        TerminalTargetOperationPlan {
+            terminal_psi: identity(),
+            target,
+            entry: MachineId::new(1).expect("machine"),
+            functions: vec![TerminalTargetFunction {
+                machine: MachineId::new(1).expect("machine"),
+                provenance: TerminalPsiProvenance::default(),
+                operation: TerminalTargetOperation::ReturnBooleanExpressionConditionalControl {
+                    condition_source: ValueId::new(3).expect("condition"),
+                    condition: TerminalTargetBooleanExpression::Equal {
+                        psi_operation: OperationId::new(1).expect("operation"),
+                        left: Box::new(TerminalTargetBooleanExpression::Parameter {
+                            source_value: ValueId::new(1).expect("left"),
+                            parameter_index: 0,
+                            location: TerminalScalarParameterLocation::Register(left_register),
+                        }),
+                        right: Box::new(TerminalTargetBooleanExpression::Parameter {
+                            source_value: ValueId::new(2).expect("right"),
+                            parameter_index: 1,
+                            location: TerminalScalarParameterLocation::Register(right_register),
+                        }),
+                    },
+                    when_true: arm(1, 3, true),
+                    when_false: arm(2, 4, false),
                 },
             }],
         }

@@ -818,8 +818,8 @@ fn lower_boolean_block(
                 })
             }
             KnownScalar::BooleanRuntime(expression) => {
-                let (parameter_index, location, invert) =
-                    direct_boolean_condition(expression, *condition)?;
+                let direct = direct_boolean_condition(expression.clone(), *condition);
+                let invert = matches!(direct, Ok((_, _, true)));
                 let (selected_true, selected_false) = if invert {
                     (when_false, when_true)
                 } else {
@@ -831,14 +831,28 @@ fn lower_boolean_block(
                 operations.extend(lowered_false.operations);
                 let mut edges = lowered_true.edges;
                 edges.extend(lowered_false.edges);
+                let control = match direct {
+                    Ok((parameter_index, location, _)) => {
+                        TerminalTargetBooleanControl::Conditional {
+                            condition_source: *condition,
+                            condition_parameter_index: parameter_index,
+                            condition_location: location,
+                            when_true: lowered_true.arm,
+                            when_false: lowered_false.arm,
+                        }
+                    }
+                    Err(LoweringError::UnsupportedRuntimeBooleanCondition(_)) => {
+                        TerminalTargetBooleanControl::ConditionalExpression {
+                            condition_source: *condition,
+                            condition: expression,
+                            when_true: lowered_true.arm,
+                            when_false: lowered_false.arm,
+                        }
+                    }
+                    Err(error) => return Err(error),
+                };
                 Ok(LoweredBooleanControl {
-                    control: TerminalTargetBooleanControl::Conditional {
-                        condition_source: *condition,
-                        condition_parameter_index: parameter_index,
-                        condition_location: location,
-                        when_true: lowered_true.arm,
-                        when_false: lowered_false.arm,
-                    },
+                    control,
                     operations,
                     edges,
                 })
@@ -871,22 +885,31 @@ fn lower_boolean_block(
                     }
                 }
                 KnownScalar::BooleanRuntime(expression) => {
-                    let (parameter_index, location, invert) =
-                        direct_boolean_condition(expression, *value)?;
-                    if invert {
-                        TerminalTargetBooleanControl::ReturnNotParameter {
-                            psi_return_edge: *psi_edge,
-                            source_value: *value,
-                            parameter_index,
-                            location,
+                    match direct_boolean_condition(expression.clone(), *value) {
+                        Ok((parameter_index, location, invert)) if invert => {
+                            TerminalTargetBooleanControl::ReturnNotParameter {
+                                psi_return_edge: *psi_edge,
+                                source_value: *value,
+                                parameter_index,
+                                location,
+                            }
                         }
-                    } else {
-                        TerminalTargetBooleanControl::ReturnParameter {
-                            psi_return_edge: *psi_edge,
-                            source_value: *value,
-                            parameter_index,
-                            location,
+                        Ok((parameter_index, location, _)) => {
+                            TerminalTargetBooleanControl::ReturnParameter {
+                                psi_return_edge: *psi_edge,
+                                source_value: *value,
+                                parameter_index,
+                                location,
+                            }
                         }
+                        Err(LoweringError::UnsupportedRuntimeBooleanCondition(_)) => {
+                            TerminalTargetBooleanControl::ReturnExpression {
+                                psi_return_edge: *psi_edge,
+                                source_value: *value,
+                                expression,
+                            }
+                        }
+                        Err(error) => return Err(error),
                     }
                 }
                 KnownScalar::Integer { .. } => {
@@ -940,6 +963,15 @@ fn target_operation_from_boolean_control(
             parameter_index,
             location,
         },
+        TerminalTargetBooleanControl::ReturnExpression {
+            psi_return_edge,
+            source_value,
+            expression,
+        } => TerminalTargetOperation::ReturnBooleanExpression {
+            psi_edge: psi_return_edge,
+            source_value,
+            expression,
+        },
         TerminalTargetBooleanControl::Conditional {
             condition_source,
             condition_parameter_index,
@@ -950,6 +982,17 @@ fn target_operation_from_boolean_control(
             condition_source,
             condition_parameter_index,
             condition_location,
+            when_true,
+            when_false,
+        },
+        TerminalTargetBooleanControl::ConditionalExpression {
+            condition_source,
+            condition,
+            when_true,
+            when_false,
+        } => TerminalTargetOperation::ReturnBooleanExpressionConditionalControl {
+            condition_source,
+            condition,
             when_true,
             when_false,
         },

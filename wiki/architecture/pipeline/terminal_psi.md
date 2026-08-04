@@ -202,13 +202,17 @@ saturating multiplication lower to recursive, exact-width
 target expressions. Runtime Boolean equality lowers to a recursive Boolean
 target expression with canonical immediate/parameter, negation, and equality
 nodes; assigned AArch64 and x86-64 emission preserves both inputs and produces
-canonical zero/one results. For the exact conditional form, a Boolean ABI parameter
-retains both emitted arms, while a compile-known Boolean constant selects one
-arm and omits the unreachable arm from target bytes and provenance. Each arm
-may now cross an acyclic sequence of computed unconditional bindings before
-return, including convergence on a shared tail; target lowering reduces each
-path to its exact runtime expression without erasing terminal operation or edge
-identity.
+canonical zero/one results. Recursive Boolean expressions may also serve as
+target control conditions and return leaves; assignment gives each expression
+its own frame, and emission tears that frame down before entering either arm.
+This lets short-circuit terminal trees branch on nested equality expressions
+without introducing eager Boolean opcodes. For the exact conditional form, a
+Boolean ABI parameter retains both emitted arms, while a compile-known Boolean
+constant selects one arm and omits the unreachable arm from target bytes and
+provenance. Each arm may now cross an acyclic sequence of computed
+unconditional bindings before return, including convergence on a shared tail;
+target lowering reduces each path to its exact runtime expression without
+erasing terminal operation or edge identity.
 `omega-terminal-target-operations-to-assigned-target-operations` is the next
 explicit boundary. Its first correctness-oriented rung validates every selected
 parameter register against the target, freezes repeated parameter locations,

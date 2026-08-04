@@ -170,6 +170,23 @@ fn assign_function(
             when_true: assign_boolean_control_arm(when_true, architecture)?,
             when_false: assign_boolean_control_arm(when_false, architecture)?,
         },
+        TerminalTargetOperation::ReturnBooleanExpressionConditionalControl {
+            condition_source,
+            condition,
+            when_true,
+            when_false,
+        } => {
+            let locations = boolean_expression_parameter_locations(condition)?;
+            let (condition_frame, assigned_locations) =
+                assign_expression_locations(architecture, &locations)?;
+            TerminalAssignedOperation::ReturnBooleanExpressionConditionalControl {
+                condition_source: *condition_source,
+                condition_frame,
+                condition: assign_boolean_expression(condition, &assigned_locations)?,
+                when_true: assign_boolean_control_arm(when_true, architecture)?,
+                when_false: assign_boolean_control_arm(when_false, architecture)?,
+            }
+        }
     };
     Ok(TerminalAssignedFunction {
         machine: function.machine,
@@ -224,6 +241,21 @@ fn assign_boolean_control(
             parameter_index: *parameter_index,
             location: assign_direct_location(*source_value, *location, architecture)?,
         },
+        TerminalTargetBooleanControl::ReturnExpression {
+            psi_return_edge,
+            source_value,
+            expression,
+        } => {
+            let locations = boolean_expression_parameter_locations(expression)?;
+            let (frame, assigned_locations) =
+                assign_expression_locations(architecture, &locations)?;
+            TerminalAssignedBooleanControl::ReturnExpression {
+                psi_return_edge: *psi_return_edge,
+                source_value: *source_value,
+                frame,
+                expression: assign_boolean_expression(expression, &assigned_locations)?,
+            }
+        }
         TerminalTargetBooleanControl::Conditional {
             condition_source,
             condition_parameter_index,
@@ -241,6 +273,23 @@ fn assign_boolean_control(
             when_true: assign_boolean_control_arm(when_true, architecture)?,
             when_false: assign_boolean_control_arm(when_false, architecture)?,
         },
+        TerminalTargetBooleanControl::ConditionalExpression {
+            condition_source,
+            condition,
+            when_true,
+            when_false,
+        } => {
+            let locations = boolean_expression_parameter_locations(condition)?;
+            let (condition_frame, assigned_locations) =
+                assign_expression_locations(architecture, &locations)?;
+            TerminalAssignedBooleanControl::ConditionalExpression {
+                condition_source: *condition_source,
+                condition_frame,
+                condition: assign_boolean_expression(condition, &assigned_locations)?,
+                when_true: assign_boolean_control_arm(when_true, architecture)?,
+                when_false: assign_boolean_control_arm(when_false, architecture)?,
+            }
+        }
     })
 }
 
