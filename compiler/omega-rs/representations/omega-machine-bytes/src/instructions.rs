@@ -117,6 +117,11 @@ pub enum CompilerInstructionValidationKind {
         target: Place,
         literal: Arc<str>,
     },
+    CompilerBodyPlaceStringWrite {
+        target: Place,
+        data_symbol: Arc<str>,
+        byte_length: usize,
+    },
     CompilerBodyPlaceBinaryWrite {
         target: Place,
         byte_size: usize,

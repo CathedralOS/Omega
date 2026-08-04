@@ -1124,6 +1124,13 @@ pub fn runtime_frame_indexed_string_write_width(
         + 4
 }
 
+pub fn runtime_frame_indexed_string_data_address_offset(
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> usize {
+    runtime_frame_index_setup_width(element_byte_size, field_byte_offset)
+}
+
 pub fn runtime_machine_indexed_string_write_width(
     base_byte_offset: usize,
     element_byte_size: usize,

@@ -504,6 +504,30 @@ fn compiler_instruction_validation_kind(
                 },
             )
         }
+        SelectedInstructionKind::WritePlaceString {
+            target,
+            data,
+            byte_length,
+        } if emission_context.target.architecture == omega_target::Architecture::X86_64
+            || matches!(
+                omega_instruction_selection::classify_write_place_shape(target),
+                omega_instruction_selection::WritePlaceShape::Direct { .. }
+                    | omega_instruction_selection::WritePlaceShape::Pointee { .. }
+                    | omega_instruction_selection::WritePlaceShape::FrameIndexed { .. }
+                    | omega_instruction_selection::WritePlaceShape::MachineIndexed {
+                        index_region: omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                        ..
+                    }
+            ) =>
+        {
+            Some(
+                CompilerInstructionValidationKind::CompilerBodyPlaceStringWrite {
+                    target: *target,
+                    data_symbol: Arc::clone(&emission_context.data.objects.get(*data).symbol),
+                    byte_length: *byte_length,
+                },
+            )
+        }
         SelectedInstructionKind::WritePlaceBinary {
             target,
             byte_size,

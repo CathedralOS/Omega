@@ -2617,6 +2617,24 @@ pub fn encode_runtime_machine_indexed_string_write(
     Ok(bytes)
 }
 
+/// Closed may-write ceiling of the retained string-descriptor write shapes.
+/// It unions the direct/pointee offset scratches with the frame- and
+/// machine-indexed address recipe while x17 carries data and length.
+pub fn place_string_write_register_write_ceiling() -> RegisterSet {
+    RegisterSet::new([
+        MachineRegister::Aarch64X(15),
+        MachineRegister::Aarch64X(16),
+        MachineRegister::Aarch64X(17),
+        MachineRegister::Aarch64X(19),
+        MachineRegister::Aarch64X(20),
+        MachineRegister::Aarch64X(26),
+    ])
+}
+
+pub const fn place_string_write_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::empty()
+}
+
 pub fn encode_runtime_storage_address_to_runtime_frame_write(
     source_offset: usize,
     target_offset: usize,

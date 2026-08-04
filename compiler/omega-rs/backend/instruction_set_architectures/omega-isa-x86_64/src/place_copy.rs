@@ -483,6 +483,19 @@ pub fn encode_place_string_write(
     Ok((bytes, sites))
 }
 
+/// Register writes of the place-shaped string-descriptor materializer. r14
+/// carries the relocated data object, r15 owns the target, rax carries the
+/// length, and indexed targets use the normal r11/r10 walk discipline.
+pub fn place_string_write_register_writes(target: &Place) -> RegisterSet {
+    let mut registers = place_integer_write_clobbers(target).as_slice().to_vec();
+    registers.push(MachineRegister::X86R14);
+    RegisterSet::new(registers)
+}
+
+pub fn place_string_write_additional_machine_state(target: &Place) -> MachineStateSet {
+    place_bounded_buffer_write_additional_machine_state(target)
+}
+
 /// The BOUNDED-BUFFER materializer entry (Text rung 1e): write a string
 /// literal into an owned `[u8; N]` carrier at a place-shaped target -- the
 /// len word at [r15 + residual], then the content bytes as IMMEDIATES at

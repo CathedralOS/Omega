@@ -13,6 +13,7 @@ pub use entry::{
     derive_boundary_compiler_body_place_bounded_buffer_write_footprint,
     derive_boundary_compiler_body_place_copy_footprint,
     derive_boundary_compiler_body_place_integer_write_footprint,
+    derive_boundary_compiler_body_place_string_write_footprint,
     derive_boundary_compiler_body_storage_bit_field_write_footprint,
     derive_boundary_compiler_body_storage_convert_write_footprint,
     derive_boundary_dispatch_scaffold_footprint, derive_boundary_entry_slice_descriptor_footprint,
