@@ -25,6 +25,29 @@ pub(in crate::selection) enum RuntimeStoredIntegerSource {
         pointer_byte_offset: usize,
         field_byte_offset: usize,
     },
+    FrameIndexed {
+        descriptor_offset: usize,
+        index_region: RuntimeStorageRegion,
+        index_offset: usize,
+        index_byte_size: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+    },
+    FrameBaseIndexed {
+        base_byte_offset: usize,
+        index_offset: usize,
+        index_byte_size: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+    },
+    MachineIndexed {
+        base_byte_offset: usize,
+        index_region: RuntimeStorageRegion,
+        index_offset: usize,
+        index_byte_size: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+    },
 }
 
 /// One `IntegerAt` projection after layout resolution. The source width and

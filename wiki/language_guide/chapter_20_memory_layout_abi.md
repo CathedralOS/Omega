@@ -627,9 +627,11 @@ widths through 64 bits and rejects any encoding whose complete stored range
 does not fit the declared semantic carrier. The validated offset, stored width,
 and interpretation survive through typed plan-laid and concrete backend layout
 records. Direct owned and reference-backed projection loads the physical width
-and sign- or zero-extends into the semantic carrier. Indexed projection and
-proved-fit mutation remain implementation work and fail closed; ordinary
-scalar consumers do not make `IntegerAt` interchangeable with ordinary `At`.
+and sign- or zero-extends into the semantic carrier. Runtime-indexed projection
+uses the same decode after ordinary descriptor, inline-frame, machine-owned, or
+reference-backed address calculation. Proved-fit mutation remains
+implementation work and fails closed; ordinary scalar consumers do not make
+`IntegerAt` interchangeable with ordinary `At`.
 Encodability alone does not authorize a transfer: sub-unit mutation must also
 have a legal implementation. Stable exclusive storage may use one bounded
 read-patch-write sequence. External storage requires a whole-container or
