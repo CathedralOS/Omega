@@ -1053,7 +1053,10 @@ machine-array write-side mirror, and the machine-inline `arr[i] = arr[j]` pair
 are covered too. The x86 general place materializer also replays every
 remaining otherwise-unclassified `CopyPlaces` path with scratch derived from
 the retained places' exact index depths.
-Selection retains their separate `compiler_body_place_copy` evidence only for
+Direct-place immediate integer writes also retain a separate ordinary-body
+fragment and replay exact value, width, storage relocation, and target scratch.
+Place-copy selection retains its separate `compiler_body_place_copy` evidence
+only for
 the `Ordinary` role; final validation regenerates the same place-copy bytes,
 checks the storage, pointer-slot, and index relocations, and requires the target
 scratch union to match. Other ordinary copy/write shapes

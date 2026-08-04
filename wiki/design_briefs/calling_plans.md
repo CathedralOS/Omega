@@ -1166,6 +1166,8 @@ hidden-result copies, and the machine-array write-side mirror plus the
 machine-inline `arr[i] = arr[j]` pair are included. The x86 general place
 materializer also replays every remaining otherwise-unclassified `CopyPlaces`
 path with scratch derived from each retained place's exact index depth.
+Direct-place immediate integer writes also retain a separate ordinary-body
+fragment and replay exact value, width, storage relocation, and target scratch.
 Final validation replays the exact target encoder
 and relocation set and matches the derived scratch union to the
 retained `CompilerBodyPlaceCopy` fragment. Other ordinary copy/write shapes and

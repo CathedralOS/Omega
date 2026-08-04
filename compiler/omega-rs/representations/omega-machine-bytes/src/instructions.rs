@@ -102,6 +102,12 @@ pub enum CompilerInstructionValidationKind {
         target: omega_target_operations::Place,
         byte_count: usize,
     },
+    CompilerBodyPlaceIntegerWrite {
+        storage_region: RuntimeStorageRegion,
+        byte_offset: usize,
+        value: i64,
+        byte_size: usize,
+    },
     DispatchStateWrite {
         dispatch_index: u32,
         case_leave_byte_distance: isize,
