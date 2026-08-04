@@ -186,14 +186,7 @@ fn proposition_labels(
                         .iter()
                         .find(|(symbol, _, _)| *symbol == argument.symbol)
                         .map(|(_, _, label)| label.clone())
-                        .unwrap_or_else(|| {
-                            argument
-                                .path
-                                .iter()
-                                .map(|member| member.as_str())
-                                .collect::<Vec<_>>()
-                                .join("::")
-                        })
+                        .unwrap_or_else(|| argument.display_name())
                 })
                 .collect::<Vec<_>>();
             let argument_labels = program

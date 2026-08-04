@@ -2049,7 +2049,9 @@ fn copy_signature_contract(
                             .iter()
                             .map(|argument| {
                                 psi_typed_trees::proposition::PropositionBinderArgument {
+                                    kind: argument.kind,
                                     path: argument.path.clone(),
+                                    const_literal: argument.const_literal.clone(),
                                     symbol: remapped_symbol(argument.symbol, symbols),
                                 }
                             })

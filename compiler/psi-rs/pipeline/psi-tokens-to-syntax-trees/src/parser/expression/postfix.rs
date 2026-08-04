@@ -702,22 +702,32 @@ fn try_parse_static_machine_arguments<'tokens, 'source>(
     let mut cursor = input.take_punctuation(PunctuationKind::Less, "<")?;
     let mut arguments = Vec::new();
     loop {
-        let Ok((first, rest)) = cursor.take_identifier() else {
-            return Ok(None);
-        };
-        cursor = rest;
-        let mut path = vec![first];
-        while cursor.at_punctuation(PunctuationKind::ColonColon) {
-            let after_separator = cursor.take_punctuation(PunctuationKind::ColonColon, "::")?;
-            let Ok((member, rest)) = after_separator.take_identifier() else {
+        if cursor.at_integer() {
+            let (literal, rest) = cursor.take_integer_literal()?;
+            arguments.push(StaticMachineArgument {
+                path: Box::default(),
+                const_literal: Some(literal),
+            });
+            cursor = rest;
+        } else {
+            let Ok((first, rest)) = cursor.take_identifier() else {
                 return Ok(None);
             };
-            path.push(member);
             cursor = rest;
+            let mut path = vec![first];
+            while cursor.at_punctuation(PunctuationKind::ColonColon) {
+                let after_separator = cursor.take_punctuation(PunctuationKind::ColonColon, "::")?;
+                let Ok((member, rest)) = after_separator.take_identifier() else {
+                    return Ok(None);
+                };
+                path.push(member);
+                cursor = rest;
+            }
+            arguments.push(StaticMachineArgument {
+                path: path.into_boxed_slice(),
+                const_literal: None,
+            });
         }
-        arguments.push(StaticMachineArgument {
-            path: path.into_boxed_slice(),
-        });
 
         if cursor.at_punctuation(PunctuationKind::Comma) {
             cursor = cursor.take_punctuation(PunctuationKind::Comma, ",")?;

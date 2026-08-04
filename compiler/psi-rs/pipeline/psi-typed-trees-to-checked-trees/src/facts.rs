@@ -999,14 +999,7 @@ fn encode_proposition_application_canonical(
     let binder_labels = application
         .binder_arguments
         .iter()
-        .map(|binder| {
-            binder
-                .path
-                .iter()
-                .map(|member| member.as_str())
-                .collect::<Vec<_>>()
-                .join("::")
-        })
+        .map(|binder| binder.display_name())
         .collect::<Vec<_>>();
     let argument_labels = program
         .expression_table

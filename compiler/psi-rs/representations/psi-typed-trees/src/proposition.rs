@@ -64,8 +64,23 @@ pub struct PropositionApplication {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PropositionBinderArgument {
+    pub kind: PropositionBinderArgumentKind,
     pub path: Box<[Identifier]>,
+    pub const_literal: Option<psi_numerics::literals::IntegerLiteral>,
     pub symbol: SymbolHandle,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PropositionBinderArgumentKind {
+    Type,
+    Const,
+    Machine,
+}
+
+impl PropositionBinderArgument {
+    pub fn display_name(&self) -> String {
+        display_binder_argument(self)
+    }
 }
 
 /// The proof formula after transparent proposition aliases have been expanded.
@@ -294,6 +309,9 @@ fn canonical_application_label(name: &str, binders: &[String], arguments: &[Stri
 }
 
 fn display_binder_argument(argument: &PropositionBinderArgument) -> String {
+    if let Some(literal) = &argument.const_literal {
+        return literal.text().to_owned();
+    }
     argument
         .path
         .iter()

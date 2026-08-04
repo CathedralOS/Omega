@@ -44,6 +44,13 @@ pub struct IdentifierSnapshot {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(untagged)]
+pub enum StaticArgumentSnapshot {
+    Path(Vec<IdentifierSnapshot>),
+    Const(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ItemSnapshot {
     Capability {
@@ -411,7 +418,7 @@ pub enum StatementSnapshot {
     Call {
         receiver: Vec<IdentifierSnapshot>,
         target: IdentifierSnapshot,
-        machine_arguments: Vec<Vec<IdentifierSnapshot>>,
+        machine_arguments: Vec<StaticArgumentSnapshot>,
         arguments: Vec<ExpressionSnapshot>,
         acknowledgement_synthesized: bool,
         acknowledges_suspend: bool,
@@ -555,7 +562,7 @@ pub enum ExpressionSnapshot {
     Call {
         receiver: Option<Box<ExpressionSnapshot>>,
         target: IdentifierSnapshot,
-        machine_arguments: Vec<Vec<IdentifierSnapshot>>,
+        machine_arguments: Vec<StaticArgumentSnapshot>,
         arguments: Vec<ExpressionSnapshot>,
         acknowledgement_synthesized: bool,
         acknowledges_suspend: bool,
@@ -1412,7 +1419,7 @@ fn snapshot_statement(syntax_trees: &SyntaxTrees, statement: &StatementNode) -> 
             machine_arguments: call
                 .machine_arguments
                 .iter()
-                .map(|argument| snapshot_identifier_slice(&argument.path))
+                .map(snapshot_static_argument)
                 .collect(),
             arguments: syntax_trees
                 .statements
@@ -1720,7 +1727,7 @@ fn snapshot_call_expression(
         machine_arguments: call
             .machine_arguments
             .iter()
-            .map(|argument| snapshot_identifier_slice(&argument.path))
+            .map(snapshot_static_argument)
             .collect(),
         arguments: syntax_trees
             .expressions
@@ -1733,6 +1740,15 @@ fn snapshot_call_expression(
         acknowledges_suspend: call.operational_acknowledgement.acknowledges_suspend,
         acknowledges_block: call.operational_acknowledgement.acknowledges_block,
     }
+}
+
+fn snapshot_static_argument(
+    argument: &crate::expression::StaticMachineArgument,
+) -> StaticArgumentSnapshot {
+    argument.const_literal.as_ref().map_or_else(
+        || StaticArgumentSnapshot::Path(snapshot_identifier_slice(&argument.path)),
+        |literal| StaticArgumentSnapshot::Const(literal.text().to_owned()),
+    )
 }
 
 fn snapshot_struct_field(

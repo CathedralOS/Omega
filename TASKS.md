@@ -1685,8 +1685,14 @@ and allocation handles expose no compiler-owned stack/control storage.
      proposition family into the trait law and requires an exact normalized
      proven `ensures`; proving another proposition no longer passes merely
      because proposition facts sit outside the legacy equality-law matcher.
-     Indexed-law binder synthesis, type/const proposition call arguments,
-     selected witness evidence, and terminal-Psi identity remain in this rung;
+     Type/const application slice landed 2026-08-03: proposition calls retain
+     category-tagged type, const, and machine arguments; named types, bounded
+     integer const literals, and same-typed lexical forwarding resolve against
+     the authored telescope, enter normalized identity and snapshots, survive
+     monomorphization, and instantiate generic proposition value signatures.
+     Cross-category, wrong-width/wrong-type const, and concrete value-signature
+     mismatches reject. Indexed-law binder synthesis, selected witness
+     evidence, and terminal-Psi identity remain in this rung;
   2. add the proof stratum to selected-conformance projection and permit
      by-value `dyn` only when the complete normalized value has no runtime
      carrier;

@@ -212,3 +212,40 @@ pub(in crate::symbols) fn resolve_static_machine_argument_symbol(
         .join("::");
     call_target_for_attached_data(symbols, &owner, target.as_str())
 }
+
+/// Resolve a proof-static proposition-family binder argument. Unlike an
+/// executable call's machine selection, proposition arguments may name a
+/// lexical type/const binder, a concrete type, or a machine identity. The
+/// proposition declaration's typed telescope performs the final category
+/// check.
+pub(in crate::symbols) fn resolve_proposition_binder_argument_symbol(
+    symbols: &SymbolTable,
+    scope_symbol: SymbolHandle,
+    path: &[psi_symbol_resolved_trees::name::DiagnosticName],
+) -> SymbolHandle {
+    let [target] = path else {
+        return resolve_static_machine_argument_symbol(symbols, scope_symbol, path);
+    };
+    let lexical = child_symbol_by_kinds(
+        symbols,
+        scope_symbol,
+        &[
+            SymbolKind::TypeParameter,
+            SymbolKind::MachineParameter,
+            SymbolKind::PropositionMachineParameter,
+        ],
+        target.as_str(),
+    );
+    if lexical.is_valid() {
+        return lexical;
+    }
+    let concrete_type = top_level_symbol_by_kinds(
+        symbols,
+        &[SymbolKind::BuiltinType, SymbolKind::Data],
+        target.as_str(),
+    );
+    if concrete_type.is_valid() {
+        return concrete_type;
+    }
+    resolve_static_machine_argument_symbol(symbols, scope_symbol, path)
+}

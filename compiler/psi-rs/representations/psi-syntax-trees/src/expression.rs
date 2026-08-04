@@ -271,7 +271,12 @@ pub struct TableCallExpression {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StaticMachineArgument {
+    /// Historical storage name: proposition calls also use this record for
+    /// type and const arguments, classified by the target's static telescope.
     pub path: Box<[Identifier]>,
+    /// Integer const argument. `Some` makes `path` empty; the target's binder
+    /// kind determines whether the static argument is legal.
+    pub const_literal: Option<psi_numerics::literals::IntegerLiteral>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
