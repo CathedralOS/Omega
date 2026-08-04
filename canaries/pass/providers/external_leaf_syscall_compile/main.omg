@@ -31,12 +31,13 @@ linux_arm64 machine exit_leaf(code: i32)
     satisfies RawProcess::exit
     via Binding::Syscall(93);
 
-data Main { process: RawProcess; pid: i64; pgid: i64; exit_code: i32; }
+data Main { process: RawProcess; pid: i64; pgid_zero: i64; pgid: i64; exit_code: i32; }
 machine Main::main(&mut self) {
     self.exit_code = 70;
     self.pid = self.process.process_id();
-    self.pgid = self.process.process_group(0);
-    transition self.pid > 0 && self.pgid >= 0 { true -> good() _ -> bad() }
+    self.pgid_zero = self.process.process_group(0);
+    self.pgid = self.process.process_group(self.pid);
+    transition self.pid > 0 && self.pgid_zero >= 0 && self.pgid >= 0 { true -> good() _ -> bad() }
     state good(&mut self) { self.process.exit(self.exit_code); }
     state bad(&mut self) { self.process.exit(71); }
 }

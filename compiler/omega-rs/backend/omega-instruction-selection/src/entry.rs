@@ -1136,6 +1136,41 @@ pub fn derive_boundary_compiler_body_outbound_syscall_result_footprint(
     operands: &psi_arena::Arena<omega_abstract_operations::InstructionOperand>,
     instructions: &[omega_abstract_operations::AbstractOperation],
 ) -> Result<StateFootprintEvidence, PlanDiagnostic> {
+    derive_boundary_compiler_body_outbound_syscall_result_footprint_for_arguments(
+        boundary,
+        input,
+        operands,
+        instructions,
+        false,
+    )
+}
+
+/// Derive result-bearing outbound syscalls whose ordinary parameters include
+/// one or more runtime-storage scalars. The plan still owns the syscall
+/// marshaller; AArch64's post-call destination materializer contributes its
+/// offset-sensitive x16/x17 scratch separately.
+pub fn derive_boundary_compiler_body_outbound_syscall_result_storage_arguments_footprint(
+    boundary: &ValidatedBoundaryEntryPlan,
+    input: &crate::InstructionSelectionInput<'_>,
+    operands: &psi_arena::Arena<omega_abstract_operations::InstructionOperand>,
+    instructions: &[omega_abstract_operations::AbstractOperation],
+) -> Result<StateFootprintEvidence, PlanDiagnostic> {
+    derive_boundary_compiler_body_outbound_syscall_result_footprint_for_arguments(
+        boundary,
+        input,
+        operands,
+        instructions,
+        true,
+    )
+}
+
+fn derive_boundary_compiler_body_outbound_syscall_result_footprint_for_arguments(
+    boundary: &ValidatedBoundaryEntryPlan,
+    input: &crate::InstructionSelectionInput<'_>,
+    operands: &psi_arena::Arena<omega_abstract_operations::InstructionOperand>,
+    instructions: &[omega_abstract_operations::AbstractOperation],
+    requires_storage_argument: bool,
+) -> Result<StateFootprintEvidence, PlanDiagnostic> {
     use omega_abstract_operations::{AbstractOperationKind, InstructionOperandKind};
     use omega_calling_conventions::{EntryControl, HostBindingMechanism};
 
@@ -1185,6 +1220,12 @@ pub fn derive_boundary_compiler_body_outbound_syscall_result_footprint(
         else {
             continue;
         };
+        let has_storage_argument = arguments.iter().any(|operand| {
+            matches!(
+                operand.kind,
+                InstructionOperandKind::RuntimeScalarInteger { .. }
+            )
+        });
         if !matches!(binding.mechanism, HostBindingMechanism::Syscall { .. })
             || operation.operation_key.uses_linux_timespec_result()
             || operation.operation_key.uses_linux_timespec_argument()
@@ -1194,11 +1235,13 @@ pub fn derive_boundary_compiler_body_outbound_syscall_result_footprint(
                 binding.call_plan().entry_control,
                 EntryControl::SupervisorCall { .. }
             )
+            || has_storage_argument != requires_storage_argument
             || !arguments.iter().all(|operand| {
                 matches!(
                     operand.kind,
                     InstructionOperandKind::ImmediateInteger(_)
                         | InstructionOperandKind::ByteLength(_)
+                        | InstructionOperandKind::RuntimeScalarInteger { .. }
                 )
             })
         {

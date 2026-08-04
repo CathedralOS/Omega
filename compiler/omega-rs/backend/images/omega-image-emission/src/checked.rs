@@ -1782,6 +1782,31 @@ fn validate_compiler_function_instruction_boundaries(
                             },
                         )
                     }
+                    omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyOutboundSyscallResultStorageArguments {
+                        operands,
+                        number,
+                        plan,
+                    } => {
+                        let (bytes, address_sites) = encode_simple_outbound_syscall(
+                            architecture,
+                            &operands,
+                            number,
+                            &plan,
+                        )?;
+                        if address_sites.len() < 2 {
+                            return Err(Diagnostic::error(
+                                "result-bearing storage-argument syscall replay lost a relocation",
+                            ));
+                        }
+                        (
+                            None,
+                            bytes,
+                            38u8,
+                            CompilerInstructionRelocationRecipe::OutboundSyscallStorage {
+                                address_sites,
+                            },
+                        )
+                    }
                     omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyStorageBitFieldWrite {
                         region,
                         base_byte_offset,
@@ -4319,6 +4344,37 @@ fn compiler_instruction_footprint(
                 ]),
             )
         }
+        CompilerInstructionValidationKind::CompilerBodyOutboundSyscallResultStorageArguments {
+            operands,
+            plan,
+            ..
+        } => {
+            let (_, result_offset, result_byte_size) = operands
+                .first()
+                .and_then(InstructionOperandLike::runtime_scalar_integer)?;
+            let result_store = match architecture {
+                Architecture::X86_64 => RegisterSet::default(),
+                Architecture::Aarch64 => omega_isa_aarch64::constant_host_result_clobbers(
+                    result_offset,
+                    result_byte_size,
+                ),
+            };
+            (
+                BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallResultStorageArguments,
+                RegisterSet::new(
+                    plan.ordinary_clobbers
+                        .as_slice()
+                        .iter()
+                        .copied()
+                        .chain(result_store.as_slice().iter().copied()),
+                ),
+                MachineStateSet::new([
+                    MachineState::Flags,
+                    MachineState::InstructionPointer,
+                    MachineState::ControlState,
+                ]),
+            )
+        }
         CompilerInstructionValidationKind::CompilerBodyPlaceBinaryWrite {
             target,
             left,
@@ -4751,6 +4807,7 @@ fn validate_compiler_body_specification_footprints(
                 | BoundaryFootprintFragmentOrigin::CompilerBodyConstantHostResult
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscall
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallResult
+                | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallResultStorageArguments
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallStorageArguments
                 | BoundaryFootprintFragmentOrigin::CompilerBodyStorageBitFieldWrite
                 | BoundaryFootprintFragmentOrigin::CompilerBodyPlaceBoundedBufferWrite
@@ -4842,6 +4899,10 @@ fn validate_compiler_body_specification_footprints(
         (
             22u8,
             BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallStorageArguments,
+        ),
+        (
+            23u8,
+            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallResultStorageArguments,
         ),
     ] {
         let evidence_rows = derived

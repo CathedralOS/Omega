@@ -1139,7 +1139,7 @@ relocation-envelope fingerprints plus their composed derivation identity. The
 boundary/placement binding includes that derivation identity, so a valid final
 inventory cannot be paired with evidence from a different encoded-to-final
 derivation. The single emitted artifact is now self-described as
-`omega.final-footprint-certificate` format v70, with a domain-separated
+`omega.final-footprint-certificate` format v71, with a domain-separated
 certificate fingerprint over its final placement binding, compiler-text
 derivation, and region inventory. It remains explicitly incomplete evidence,
 not an admission certificate, until the missing footprint classes close. The
@@ -1154,11 +1154,13 @@ flags/instruction-pointer/control-state leaf under a dedicated origin. A
 value-result companion with immediate/byte-length parameters now replays the
 plan-selected parameter/result registers and exact result-region relocation,
 including AArch64's offset-sensitive X16[/X17] store-address scratch under its
-own origin. No-result syscalls may additionally load scalar arguments from runtime frame or
-machine storage. Each load's exact storage relocation is replayed, and its
-plan-owned ordinary-clobber/control footprint is retained under a separate
-origin. Address, text/data, result-plus-storage, composite, and imported calls
-remain outside this subset.
+own origin. No-result syscalls may additionally load scalar arguments from
+runtime frame or machine storage. Each load's exact storage relocation is
+replayed, and its plan-owned ordinary-clobber/control footprint is retained
+under a separate origin. Address, text/data, composite, and imported calls
+remain outside this subset. Result-bearing syscalls may now combine the scalar
+argument relocation set with the exact result-region relocation and AArch64's
+offset-sensitive result-store scratch under a separate origin.
 The
 envelope now exists as a typed `omega-image` object with a closed class
 vocabulary and normalized coverage rows; its identity is replayed before the
