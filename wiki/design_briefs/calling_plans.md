@@ -1111,7 +1111,7 @@ relocation, and data relocation now consume that complete plan. Their former
 manual `+8`/`+12` stack accounting and trailing-mode operation classifier are
 retired; the operation key only selects the concrete adapter subcall.
 
-Final footprint certificate format v22 now retains an exact
+Final footprint certificate format v23 now retains an exact
 function-to-instruction partition in the encoded carrier. Checked image
 emission replays every contiguous function
 and instruction boundary over relocated final bytes, rejects gaps, overlaps,
@@ -1158,9 +1158,10 @@ subset. Single runtime-indexed sources with frame-held descriptor/index slots
 and a direct frame or machine target are included too, along with their
 direct-frame-source to frame-indexed-target mirror and frame-indexed-source to
 frame-held-pointee form. Runtime-indexed reads from inline frame arrays into
-direct frame storage are included too. Their `Ordinary` role remains distinct
-from hidden-result copies; final validation replays the exact target encoder
-and relocation set and matches the derived scratch union to the
+direct frame storage and from inline machine arrays into direct frame or
+machine storage are included too. Their `Ordinary` role remains distinct from
+hidden-result copies; final validation replays the exact target encoder and
+relocation set and matches the derived scratch union to the
 retained `CompilerBodyPlaceCopy` fragment. Other ordinary copy/write shapes and
 calls remain unreplayed. Pointee-pair selection resolves both reference
 operands before flat storage so the source pointer is never copied as field

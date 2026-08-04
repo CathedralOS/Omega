@@ -756,6 +756,13 @@ pub fn copy_places_from_frame_base_indexed_clobbers(byte_count: usize) -> Regist
     copy_places_from_indexed_clobbers(byte_count)
 }
 
+/// Exact scratch footprint of a machine-inline-array element read into direct
+/// storage. The generic materializer again performs one indexed source walk
+/// followed by the direct target address.
+pub fn copy_places_from_machine_indexed_clobbers(byte_count: usize) -> RegisterSet {
+    copy_places_from_indexed_clobbers(byte_count)
+}
+
 /// Exact scratch footprint of a direct place-pair copy. Both address bases are
 /// materialized unconditionally; non-empty copies stage chunks through rax.
 pub fn copy_places_direct_clobbers(byte_count: usize) -> RegisterSet {
@@ -1122,6 +1129,18 @@ mod tests {
         );
         assert_eq!(
             copy_places_from_frame_base_indexed_clobbers(8),
+            copy_places_from_indexed_clobbers(8)
+        );
+    }
+
+    #[test]
+    fn machine_indexed_clobbers_match_the_one_index_place_walk() {
+        assert_eq!(
+            copy_places_from_machine_indexed_clobbers(0),
+            copy_places_from_indexed_clobbers(0)
+        );
+        assert_eq!(
+            copy_places_from_machine_indexed_clobbers(8),
             copy_places_from_indexed_clobbers(8)
         );
     }
