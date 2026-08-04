@@ -122,6 +122,11 @@ pub enum CompilerInstructionValidationKind {
         number: u32,
         plan: omega_calling_conventions::CallPlan,
     },
+    CompilerBodyOutboundSyscallResult {
+        operands: Vec<omega_target_operations::InstructionOperand>,
+        number: u32,
+        plan: omega_calling_conventions::CallPlan,
+    },
     CompilerBodyStorageBitFieldWrite {
         region: RuntimeStorageRegion,
         base_byte_offset: usize,

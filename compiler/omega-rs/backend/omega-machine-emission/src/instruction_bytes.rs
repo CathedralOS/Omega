@@ -540,7 +540,6 @@ fn compiler_instruction_validation_kind(
             };
             if operation_key.uses_linux_timespec_result()
                 || operation_key.uses_linux_timespec_argument()
-                || binding.call_plan().result.is_some()
             {
                 return Ok(None);
             }
@@ -550,8 +549,35 @@ fn compiler_instruction_validation_kind(
                 .ok_or_else(|| {
                     Diagnostic::error("compiler outbound syscall lost its assigned operand span")
                 })?;
-            if operands.is_empty()
-                || !operands.iter().all(|operand| {
+            if binding.call_plan().result.is_some() {
+                let Some((result, arguments)) = operands.split_first() else {
+                    return Ok(None);
+                };
+                if binding.call_plan().parameters.len() != arguments.len()
+                    || !matches!(
+                        result.kind,
+                        omega_assigned_target_operations::InstructionOperandKind::RuntimeScalarInteger { .. }
+                    )
+                    || !arguments.iter().all(|operand| {
+                        matches!(
+                            operand.kind,
+                            omega_assigned_target_operations::InstructionOperandKind::ImmediateInteger(
+                                _
+                            ) | omega_assigned_target_operations::InstructionOperandKind::ByteLength(_)
+                        )
+                    })
+                {
+                    return Ok(None);
+                }
+                Some(
+                    CompilerInstructionValidationKind::CompilerBodyOutboundSyscallResult {
+                        operands: operands.to_vec(),
+                        number: *number,
+                        plan: binding.call_plan().clone(),
+                    },
+                )
+            } else if !operands.is_empty()
+                && operands.iter().all(|operand| {
                     matches!(
                         operand.kind,
                         omega_assigned_target_operations::InstructionOperandKind::ImmediateInteger(
@@ -560,15 +586,16 @@ fn compiler_instruction_validation_kind(
                     )
                 })
             {
-                return Ok(None);
+                Some(
+                    CompilerInstructionValidationKind::CompilerBodyOutboundSyscall {
+                        operands: operands.to_vec(),
+                        number: *number,
+                        plan: binding.call_plan().clone(),
+                    },
+                )
+            } else {
+                None
             }
-            Some(
-                CompilerInstructionValidationKind::CompilerBodyOutboundSyscall {
-                    operands: operands.to_vec(),
-                    number: *number,
-                    plan: binding.call_plan().clone(),
-                },
-            )
         }
         SelectedInstructionKind::WriteStorageBitField {
             region,

@@ -1031,6 +1031,110 @@ pub fn derive_boundary_compiler_body_outbound_syscall_footprint(
     Ok(evidence)
 }
 
+/// Derive the first result-bearing outbound syscall leaf. This deliberately
+/// covers only a runtime-scalar destination followed by immediate/byte-length
+/// parameters; relocatable parameters and composite adapters retain separate
+/// footprint classes. AArch64's post-call store owns x16 and, for a large or
+/// unscaled destination offset, x17 in addition to the syscall plan ceiling.
+pub fn derive_boundary_compiler_body_outbound_syscall_result_footprint(
+    boundary: &ValidatedBoundaryEntryPlan,
+    input: &crate::InstructionSelectionInput<'_>,
+    operands: &psi_arena::Arena<omega_abstract_operations::InstructionOperand>,
+    instructions: &[omega_abstract_operations::AbstractOperation],
+) -> Result<StateFootprintEvidence, PlanDiagnostic> {
+    use omega_abstract_operations::{AbstractOperationKind, InstructionOperandKind};
+    use omega_calling_conventions::{EntryControl, HostBindingMechanism};
+
+    let mut registers = Vec::new();
+    let mut has_syscall = false;
+    for instruction in instructions {
+        let AbstractOperationKind::HostOperation {
+            operation_ordinal,
+            operands: operand_span,
+        } = &instruction.kind
+        else {
+            continue;
+        };
+        let Some((_, host_call)) = input.host_calls.calls.iter().find(|(_, host_call)| {
+            host_call.source_key == instruction.source_key
+                && host_call.statement_index == instruction.source_statement
+        }) else {
+            continue;
+        };
+        let Some(operation) = input
+            .host_calls
+            .operations
+            .span(host_call.operations)
+            .and_then(|operations| operations.get(usize::from(*operation_ordinal)))
+        else {
+            continue;
+        };
+        let Some((_, binding)) = input
+            .host_abi
+            .bindings
+            .iter()
+            .find(|(_, binding)| binding.operation_key == operation.operation_key)
+        else {
+            continue;
+        };
+        let Some(call_operands) = operands.span(*operand_span) else {
+            continue;
+        };
+        let Some((result, arguments)) = call_operands.split_first() else {
+            continue;
+        };
+        let InstructionOperandKind::RuntimeScalarInteger {
+            byte_offset,
+            byte_count,
+            ..
+        } = &result.kind
+        else {
+            continue;
+        };
+        if !matches!(binding.mechanism, HostBindingMechanism::Syscall { .. })
+            || operation.operation_key.uses_linux_timespec_result()
+            || operation.operation_key.uses_linux_timespec_argument()
+            || binding.call_plan().result.is_none()
+            || binding.call_plan().parameters.len() != arguments.len()
+            || !matches!(
+                binding.call_plan().entry_control,
+                EntryControl::SupervisorCall { .. }
+            )
+            || !arguments.iter().all(|operand| {
+                matches!(
+                    operand.kind,
+                    InstructionOperandKind::ImmediateInteger(_)
+                        | InstructionOperandKind::ByteLength(_)
+                )
+            })
+        {
+            continue;
+        }
+        has_syscall = true;
+        registers.extend_from_slice(binding.call_plan().ordinary_clobbers.as_slice());
+        if input.target.architecture == omega_target::Architecture::Aarch64 {
+            registers.extend_from_slice(
+                omega_isa_aarch64::constant_host_result_clobbers(*byte_offset, *byte_count)
+                    .as_slice(),
+            );
+        }
+    }
+    let evidence = StateFootprintEvidence::new(
+        RegisterSet::new(registers),
+        if has_syscall {
+            MachineStateSet::new([
+                MachineState::Flags,
+                MachineState::InstructionPointer,
+                MachineState::ControlState,
+            ])
+        } else {
+            MachineStateSet::empty()
+        },
+    );
+    omega_calling_conventions::validate_outbound_call_footprint(boundary, &evidence)?;
+    Ok(evidence)
+}
+
 /// Derive the closed encoder-family footprint for retained compiler-body binary
 /// writes. The retained operand arena is the one byte emission consumes, so
 /// nested evaluator stack/control-state needs cannot drift from this evidence.
