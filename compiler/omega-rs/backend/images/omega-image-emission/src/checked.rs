@@ -183,6 +183,19 @@ enum CompilerInstructionRelocationRecipe {
     },
 }
 
+#[derive(Clone, Copy)]
+enum CompilerBodyPlaceCopyShape {
+    Direct {
+        source_offset: usize,
+        target_offset: usize,
+    },
+    ToPointee {
+        source_offset: usize,
+        pointer_byte_offset: usize,
+        field_byte_offset: usize,
+    },
+}
+
 fn validate_compiler_function_instruction_boundaries(
     architecture: Architecture,
     code: &omega_machine_bytes::EncodedMachineCode,
@@ -767,8 +780,7 @@ fn validate_compiler_function_instruction_boundaries(
                         target,
                         byte_count,
                     } => {
-                        let (source_offset, pointer_byte_offset, field_byte_offset) =
-                            compiler_place_copy_to_pointee_offsets(&source, &target)?;
+                        let shape = compiler_body_place_copy_shape(&source, &target)?;
                         (
                             None,
                             match architecture {
@@ -778,12 +790,26 @@ fn validate_compiler_function_instruction_boundaries(
                                     byte_count,
                                 )?
                                 .0,
-                                Architecture::Aarch64 => omega_isa_aarch64::encode_runtime_storage_copy_to_runtime_pointee(
-                                    source_offset,
-                                    pointer_byte_offset,
-                                    field_byte_offset,
-                                    byte_count,
-                                )?,
+                                Architecture::Aarch64 => match shape {
+                                    CompilerBodyPlaceCopyShape::Direct {
+                                        source_offset,
+                                        target_offset,
+                                    } => omega_isa_aarch64::encode_runtime_storage_copy(
+                                        source_offset,
+                                        target_offset,
+                                        byte_count,
+                                    )?,
+                                    CompilerBodyPlaceCopyShape::ToPointee {
+                                        source_offset,
+                                        pointer_byte_offset,
+                                        field_byte_offset,
+                                    } => omega_isa_aarch64::encode_runtime_storage_copy_to_runtime_pointee(
+                                        source_offset,
+                                        pointer_byte_offset,
+                                        field_byte_offset,
+                                        byte_count,
+                                    )?,
+                                },
                             },
                             21u8,
                             CompilerInstructionRelocationRecipe::PlaceCopy {
@@ -1372,25 +1398,40 @@ fn compiler_instruction_footprint(
             target,
             byte_count,
         } => {
-            let Ok((source_offset, pointer_byte_offset, field_byte_offset)) =
-                compiler_place_copy_to_pointee_offsets(&source, &target)
-            else {
+            let Ok(shape) = compiler_body_place_copy_shape(&source, &target) else {
                 return None;
             };
             (
                 BoundaryFootprintFragmentOrigin::CompilerBodyPlaceCopy,
                 match architecture {
-                    Architecture::X86_64 => {
-                        omega_isa_x86_64::copy_places_to_pointee_clobbers(byte_count)
-                    }
-                    Architecture::Aarch64 => {
-                        omega_isa_aarch64::runtime_storage_copy_to_runtime_pointee_clobbers(
+                    Architecture::X86_64 => match shape {
+                        CompilerBodyPlaceCopyShape::Direct { .. } => {
+                            omega_isa_x86_64::copy_places_direct_clobbers(byte_count)
+                        }
+                        CompilerBodyPlaceCopyShape::ToPointee { .. } => {
+                            omega_isa_x86_64::copy_places_to_pointee_clobbers(byte_count)
+                        }
+                    },
+                    Architecture::Aarch64 => match shape {
+                        CompilerBodyPlaceCopyShape::Direct {
+                            source_offset,
+                            target_offset,
+                        } => omega_isa_aarch64::runtime_storage_copy_clobbers(
+                            source_offset,
+                            target_offset,
+                            byte_count,
+                        ),
+                        CompilerBodyPlaceCopyShape::ToPointee {
+                            source_offset,
+                            pointer_byte_offset,
+                            field_byte_offset,
+                        } => omega_isa_aarch64::runtime_storage_copy_to_runtime_pointee_clobbers(
                             source_offset,
                             pointer_byte_offset,
                             field_byte_offset,
                             byte_count,
-                        )
-                    }
+                        ),
+                    },
                 },
                 MachineStateSet::empty(),
             )
@@ -1723,10 +1764,31 @@ fn compiler_place_copy_address_sites(
                 .collect()
         }
         Architecture::Aarch64 => {
-            compiler_place_copy_to_pointee_offsets(&source, &target)?;
+            compiler_body_place_copy_shape(&source, &target)?;
             Ok(vec![(0, source.region), (8, target.region)])
         }
     }
+}
+
+fn compiler_body_place_copy_shape(
+    source: &omega_target_operations::Place,
+    target: &omega_target_operations::Place,
+) -> Result<CompilerBodyPlaceCopyShape, Diagnostic> {
+    if let (Some(source_offset), Some(target_offset)) =
+        (source.const_offset(), target.const_offset())
+    {
+        return Ok(CompilerBodyPlaceCopyShape::Direct {
+            source_offset,
+            target_offset,
+        });
+    }
+    let (source_offset, pointer_byte_offset, field_byte_offset) =
+        compiler_place_copy_to_pointee_offsets(source, target)?;
+    Ok(CompilerBodyPlaceCopyShape::ToPointee {
+        source_offset,
+        pointer_byte_offset,
+        field_byte_offset,
+    })
 }
 
 fn compiler_place_copy_to_pointee_offsets(

@@ -2653,6 +2653,31 @@ pub fn encode_runtime_storage_copy(
     Ok(bytes)
 }
 
+/// Exact scratch footprint of the direct runtime-storage copy encoder above.
+/// x16/x17 hold the two bases, x26 stages non-empty chunks, x19 materializes
+/// large base/chunk offsets, and x20 is the target-side large chunk scratch.
+pub fn runtime_storage_copy_clobbers(
+    source_offset: usize,
+    target_offset: usize,
+    byte_count: usize,
+) -> RegisterSet {
+    let mut registers = vec![MachineRegister::Aarch64X(16), MachineRegister::Aarch64X(17)];
+    if byte_count > 0 {
+        registers.push(MachineRegister::Aarch64X(26));
+    }
+    if source_offset > 4095 || target_offset > 4095 {
+        registers.push(MachineRegister::Aarch64X(19));
+    }
+    for_each_runtime_copy_chunk(0, 0, byte_count, |offset, chunk_size| {
+        if !data_offset_encodable(offset, chunk_size) {
+            registers.extend([MachineRegister::Aarch64X(19), MachineRegister::Aarch64X(20)]);
+        }
+        Ok(())
+    })
+    .expect("runtime copy chunk partition is total");
+    RegisterSet::new(registers)
+}
+
 pub fn encode_runtime_frame_indexed_integer_write(
     descriptor_offset: usize,
     index_offset: usize,
@@ -7099,6 +7124,33 @@ mod tests {
     use super::super::primitives::encode_movk;
     use super::super::widths;
     use super::*;
+
+    #[test]
+    fn direct_copy_clobbers_track_base_data_and_large_offset_scratch() {
+        assert_eq!(
+            runtime_storage_copy_clobbers(0, 0, 0).as_slice(),
+            &[MachineRegister::Aarch64X(16), MachineRegister::Aarch64X(17),]
+        );
+        assert_eq!(
+            runtime_storage_copy_clobbers(4096, 0, 8).as_slice(),
+            &[
+                MachineRegister::Aarch64X(16),
+                MachineRegister::Aarch64X(17),
+                MachineRegister::Aarch64X(19),
+                MachineRegister::Aarch64X(26),
+            ]
+        );
+        assert_eq!(
+            runtime_storage_copy_clobbers(0, 0, 32_776).as_slice(),
+            &[
+                MachineRegister::Aarch64X(16),
+                MachineRegister::Aarch64X(17),
+                MachineRegister::Aarch64X(19),
+                MachineRegister::Aarch64X(20),
+                MachineRegister::Aarch64X(26),
+            ]
+        );
+    }
 
     #[test]
     fn bounded_buffer_literal_write_rebases_large_machine_offsets() {

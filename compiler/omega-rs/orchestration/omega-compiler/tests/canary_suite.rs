@@ -1127,7 +1127,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         executable_regions.contains(
             "\"certificate_schema\": \"omega.final-footprint-certificate\""
         )
-            && executable_regions.contains("\"certificate_format_version\": 15")
+            && executable_regions.contains("\"certificate_format_version\": 16")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
             && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")
@@ -1343,13 +1343,13 @@ fn place_guard_footprints_reach_x86_and_aarch64_artifacts() {
 }
 
 #[test]
-fn compiler_body_pointee_copy_footprints_reach_x86_and_aarch64_artifacts() {
+fn compiler_body_place_copy_footprints_reach_x86_and_aarch64_artifacts() {
     let canary = pass_canary("calls/runtime_value_call_through_alias_in_dispatch_exit");
     for (target, expected_registers) in [
         ("linux_x64", "[\"X86Rax\", \"X86R14\", \"X86R15\"]"),
         (
             "linux_arm64",
-            "[\"Aarch64X(16)\", \"Aarch64X(17)\", \"Aarch64X(20)\"]",
+            "[\"Aarch64X(16)\", \"Aarch64X(17)\", \"Aarch64X(20)\", \"Aarch64X(26)\"]",
         ),
     ] {
         let scratch = std::env::temp_dir().join(format!(
@@ -1389,7 +1389,7 @@ fn compiler_body_pointee_copy_footprints_reach_x86_and_aarch64_artifacts() {
             footprints.contains("\"origin\": \"compiler_body_place_copy\"")
                 && footprints.contains(expected_registers)
                 && footprints.contains("\"enumeration_complete\": false"),
-            "{target} artifact must retain the ordinary pointee-copy footprint without claiming completeness"
+            "{target} artifact must retain the ordinary direct/pointee-copy footprint without claiming completeness"
         );
         let _ = fs::remove_dir_all(&scratch);
     }

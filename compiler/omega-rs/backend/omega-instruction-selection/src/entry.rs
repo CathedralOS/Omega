@@ -538,9 +538,10 @@ pub fn derive_boundary_exit_indirect_result_copy_footprint<'instruction>(
 }
 
 /// Derive the target scratch footprint for the currently admitted ordinary
-/// compiler-body place-copy subset. Only direct-storage to pointee copies are
-/// included; every other `CopyPlaces` shape remains outside this partial
-/// evidence until its encoder publishes the corresponding clobber contract.
+/// compiler-body place-copy subset. Direct storage pairs and direct-storage to
+/// pointee copies are included; every other `CopyPlaces` shape remains outside
+/// this partial evidence until its encoder publishes the corresponding
+/// clobber contract.
 pub fn derive_boundary_compiler_body_place_copy_footprint<'instruction>(
     boundary: &ValidatedBoundaryEntryPlan,
     instructions: impl IntoIterator<Item = &'instruction SelectedInstructionKind>,
@@ -557,26 +558,41 @@ pub fn derive_boundary_compiler_body_place_copy_footprint<'instruction>(
         else {
             continue;
         };
-        let crate::CopyPlacesShape::ToPointee {
-            source_offset,
-            pointer_byte_offset,
-            field_byte_offset,
-        } = crate::classify_copy_places_shape(source, target)
-        else {
-            continue;
-        };
-        let clobbers = match architecture {
-            omega_target::Architecture::X86_64 => {
+        let clobbers = match (
+            architecture,
+            crate::classify_copy_places_shape(source, target),
+        ) {
+            (omega_target::Architecture::X86_64, crate::CopyPlacesShape::Direct { .. }) => {
+                omega_isa_x86_64::copy_places_direct_clobbers(*byte_count)
+            }
+            (
+                omega_target::Architecture::Aarch64,
+                crate::CopyPlacesShape::Direct {
+                    source_offset,
+                    target_offset,
+                },
+            ) => omega_isa_aarch64::runtime_storage_copy_clobbers(
+                source_offset,
+                target_offset,
+                *byte_count,
+            ),
+            (omega_target::Architecture::X86_64, crate::CopyPlacesShape::ToPointee { .. }) => {
                 omega_isa_x86_64::copy_places_to_pointee_clobbers(*byte_count)
             }
-            omega_target::Architecture::Aarch64 => {
-                omega_isa_aarch64::runtime_storage_copy_to_runtime_pointee_clobbers(
+            (
+                omega_target::Architecture::Aarch64,
+                crate::CopyPlacesShape::ToPointee {
                     source_offset,
                     pointer_byte_offset,
                     field_byte_offset,
-                    *byte_count,
-                )
-            }
+                },
+            ) => omega_isa_aarch64::runtime_storage_copy_to_runtime_pointee_clobbers(
+                source_offset,
+                pointer_byte_offset,
+                field_byte_offset,
+                *byte_count,
+            ),
+            _ => continue,
         };
         registers.extend_from_slice(clobbers.as_slice());
     }
@@ -1821,6 +1837,44 @@ mod tests {
                 MachineRegister::X86Rax,
                 MachineRegister::X86R14,
                 MachineRegister::X86R15,
+            ]
+        );
+    }
+
+    #[test]
+    fn compiler_body_direct_copy_footprint_uses_exact_encoder_clobbers() {
+        let boundary = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::Aapcs64,
+            &CallSignature {
+                parameters: Vec::new(),
+                result: None,
+            },
+        )
+        .expect("AAPCS64 boundary");
+        let instruction = SelectedInstructionKind::CopyPlaces {
+            source: omega_abstract_operations::Place::at(
+                omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+                4096,
+            ),
+            target: omega_abstract_operations::Place::at(
+                omega_abstract_operations::RuntimeStorageRegion::Machine,
+                32,
+            ),
+            byte_count: 8,
+            role: omega_abstract_operations::CopyPlacesRole::Ordinary,
+        };
+
+        let evidence =
+            derive_boundary_compiler_body_place_copy_footprint(&boundary, [&instruction])
+                .expect("ordinary direct-copy evidence");
+
+        assert_eq!(
+            evidence.registers().as_slice(),
+            &[
+                MachineRegister::Aarch64X(16),
+                MachineRegister::Aarch64X(17),
+                MachineRegister::Aarch64X(19),
+                MachineRegister::Aarch64X(26),
             ]
         );
     }

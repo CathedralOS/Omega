@@ -882,7 +882,7 @@ proves complete region coverage, and composes admitted leaves under their
 separate provenance. Do not add a second whole-image decoder/admission path.
 
 The existing single final-region artifact now carries the domain-separated
-`omega.final-footprint-certificate` schema, format version 15, and a certificate
+`omega.final-footprint-certificate` schema, format version 16, and a certificate
 fingerprint over its final placement binding, compiler-text derivation, and
 complete region inventory. Its explicit completeness flags remain false until
 compiler-body footprint decoding and admitted-leaf evidence land. The envelope
@@ -942,12 +942,13 @@ ordinary pointee copy cannot acquire ABI evidence by matching the same shape;
 validation regenerates the exact place-copy program and relocation set and
 requires its clobber union to equal `ExitIndirectResultCopy`. The final
 validator now also
-replays the first ordinary compiler-body write subset: direct-storage
-`CopyPlaces` operations targeting a frame-held pointee. Their explicit
-`Ordinary` role prevents overlap with the indirect-result fragment; the exact
-place-copy bytes, source/pointer relocations, and target scratch union must
-equal the retained `CompilerBodyPlaceCopy` evidence. Other ordinary copy/write
-shapes and calls remain incomplete. The final validator now also
+replays the first ordinary compiler-body write subset: direct storage-pair
+`CopyPlaces` operations and direct-storage copies targeting a frame-held
+pointee. Their explicit `Ordinary` role prevents overlap with the
+indirect-result fragment; the exact place-copy bytes, storage/pointer
+relocations, and target scratch union must equal the retained
+`CompilerBodyPlaceCopy` evidence. Other ordinary copy/write shapes and calls
+remain incomplete. The final validator now also
 re-derives the dispatch/static-guard register and machine-state unions from
 those successfully replayed rows, requires exact equality with their earlier
 `StatePlan`-validated semantic fragments (including the complete place-guard
