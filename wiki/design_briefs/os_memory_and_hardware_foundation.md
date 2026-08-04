@@ -1090,7 +1090,9 @@ row binds their exact storage region, base offset, fragment layout, value,
 target encoder, destination relocation, and dedicated state-footprint fragment.
 Immediate bounded-buffer literal writes are also inside the proof for all x86
 place targets and direct/pointee AArch64 targets, including their target,
-literal, relocation walk, and dedicated footprint fragment.
+literal, relocation walk, and dedicated footprint fragment. Literal appends
+into those carriers share the fragment with a separately replayed encoder and
+relocation recipe.
 String-descriptor writes are inside the proof for all x86 targets and the
 direct, pointee, frame-indexed, and frame-indexed machine-storage AArch64
 shapes, with exact rodata and storage/index relocation identity.
