@@ -1058,6 +1058,15 @@ fn abstract_outbound_syscall_storage_argument_is_closed(
     }
 }
 
+fn abstract_outbound_syscall_data_argument_is_closed(
+    operand: &omega_abstract_operations::InstructionOperand,
+) -> bool {
+    matches!(
+        operand.kind,
+        omega_abstract_operations::InstructionOperandKind::DataAddress { .. }
+    )
+}
+
 /// Derive no-result outbound syscall leaves that marshal one or more values,
 /// descriptor fields, or addresses from runtime storage. Their marshallers use
 /// only the normalized syscall plan's ordinary-clobber set; exact storage
@@ -1067,6 +1076,41 @@ pub fn derive_boundary_compiler_body_outbound_syscall_storage_arguments_footprin
     input: &crate::InstructionSelectionInput<'_>,
     operands: &psi_arena::Arena<omega_abstract_operations::InstructionOperand>,
     instructions: &[omega_abstract_operations::AbstractOperation],
+) -> Result<StateFootprintEvidence, PlanDiagnostic> {
+    derive_boundary_compiler_body_outbound_syscall_relocatable_arguments_footprint(
+        boundary,
+        input,
+        operands,
+        instructions,
+        false,
+    )
+}
+
+/// Derive no-result outbound syscall leaves with at least one exact static
+/// data-object address. Other parameters may be immediate or use the already
+/// closed runtime-storage forms; the final validator retains both relocation
+/// target classes independently.
+pub fn derive_boundary_compiler_body_outbound_syscall_data_arguments_footprint(
+    boundary: &ValidatedBoundaryEntryPlan,
+    input: &crate::InstructionSelectionInput<'_>,
+    operands: &psi_arena::Arena<omega_abstract_operations::InstructionOperand>,
+    instructions: &[omega_abstract_operations::AbstractOperation],
+) -> Result<StateFootprintEvidence, PlanDiagnostic> {
+    derive_boundary_compiler_body_outbound_syscall_relocatable_arguments_footprint(
+        boundary,
+        input,
+        operands,
+        instructions,
+        true,
+    )
+}
+
+fn derive_boundary_compiler_body_outbound_syscall_relocatable_arguments_footprint(
+    boundary: &ValidatedBoundaryEntryPlan,
+    input: &crate::InstructionSelectionInput<'_>,
+    operands: &psi_arena::Arena<omega_abstract_operations::InstructionOperand>,
+    instructions: &[omega_abstract_operations::AbstractOperation],
+    requires_data_argument: bool,
 ) -> Result<StateFootprintEvidence, PlanDiagnostic> {
     use omega_abstract_operations::{AbstractOperationKind, InstructionOperandKind};
     use omega_calling_conventions::{EntryControl, HostBindingMechanism};
@@ -1109,6 +1153,9 @@ pub fn derive_boundary_compiler_body_outbound_syscall_storage_arguments_footprin
         let has_storage = arguments.iter().any(|operand| {
             abstract_outbound_syscall_storage_argument_is_closed(input.target.architecture, operand)
         });
+        let has_data = arguments
+            .iter()
+            .any(abstract_outbound_syscall_data_argument_is_closed);
         if !matches!(binding.mechanism, HostBindingMechanism::Syscall { .. })
             || operation.operation_key.uses_linux_timespec_result()
             || operation.operation_key.uses_linux_timespec_argument()
@@ -1118,7 +1165,11 @@ pub fn derive_boundary_compiler_body_outbound_syscall_storage_arguments_footprin
                 binding.call_plan().entry_control,
                 EntryControl::SupervisorCall { .. }
             )
-            || !has_storage
+            || if requires_data_argument {
+                !has_data
+            } else {
+                !has_storage || has_data
+            }
             || !arguments.iter().all(|operand| {
                 matches!(
                     operand.kind,
@@ -1127,7 +1178,7 @@ pub fn derive_boundary_compiler_body_outbound_syscall_storage_arguments_footprin
                 ) || abstract_outbound_syscall_storage_argument_is_closed(
                     input.target.architecture,
                     operand,
-                )
+                ) || abstract_outbound_syscall_data_argument_is_closed(operand)
             })
         {
             continue;
@@ -1167,14 +1218,14 @@ pub fn derive_boundary_compiler_body_outbound_syscall_result_footprint(
         input,
         operands,
         instructions,
-        false,
+        OutboundSyscallResultArgumentClass::Immediate,
     )
 }
 
 /// Derive result-bearing outbound syscalls whose ordinary parameters include
-/// one or more runtime-storage scalars. The plan still owns the syscall
-/// marshaller; AArch64's post-call destination materializer contributes its
-/// offset-sensitive x16/x17 scratch separately.
+/// one or more of the closed runtime-storage forms. The plan still owns the
+/// syscall marshaller; AArch64's post-call destination materializer contributes
+/// its offset-sensitive x16/x17 scratch separately.
 pub fn derive_boundary_compiler_body_outbound_syscall_result_storage_arguments_footprint(
     boundary: &ValidatedBoundaryEntryPlan,
     input: &crate::InstructionSelectionInput<'_>,
@@ -1186,8 +1237,33 @@ pub fn derive_boundary_compiler_body_outbound_syscall_result_storage_arguments_f
         input,
         operands,
         instructions,
-        true,
+        OutboundSyscallResultArgumentClass::Storage,
     )
+}
+
+/// Derive result-bearing outbound syscall leaves with at least one exact
+/// static data-object address and any otherwise-closed runtime-storage or
+/// immediate parameters.
+pub fn derive_boundary_compiler_body_outbound_syscall_result_data_arguments_footprint(
+    boundary: &ValidatedBoundaryEntryPlan,
+    input: &crate::InstructionSelectionInput<'_>,
+    operands: &psi_arena::Arena<omega_abstract_operations::InstructionOperand>,
+    instructions: &[omega_abstract_operations::AbstractOperation],
+) -> Result<StateFootprintEvidence, PlanDiagnostic> {
+    derive_boundary_compiler_body_outbound_syscall_result_footprint_for_arguments(
+        boundary,
+        input,
+        operands,
+        instructions,
+        OutboundSyscallResultArgumentClass::Data,
+    )
+}
+
+#[derive(Clone, Copy)]
+enum OutboundSyscallResultArgumentClass {
+    Immediate,
+    Storage,
+    Data,
 }
 
 fn derive_boundary_compiler_body_outbound_syscall_result_footprint_for_arguments(
@@ -1195,7 +1271,7 @@ fn derive_boundary_compiler_body_outbound_syscall_result_footprint_for_arguments
     input: &crate::InstructionSelectionInput<'_>,
     operands: &psi_arena::Arena<omega_abstract_operations::InstructionOperand>,
     instructions: &[omega_abstract_operations::AbstractOperation],
-    requires_storage_argument: bool,
+    argument_class: OutboundSyscallResultArgumentClass,
 ) -> Result<StateFootprintEvidence, PlanDiagnostic> {
     use omega_abstract_operations::{AbstractOperationKind, InstructionOperandKind};
     use omega_calling_conventions::{EntryControl, HostBindingMechanism};
@@ -1249,6 +1325,9 @@ fn derive_boundary_compiler_body_outbound_syscall_result_footprint_for_arguments
         let has_storage_argument = arguments.iter().any(|operand| {
             abstract_outbound_syscall_storage_argument_is_closed(input.target.architecture, operand)
         });
+        let has_data_argument = arguments
+            .iter()
+            .any(abstract_outbound_syscall_data_argument_is_closed);
         if !matches!(binding.mechanism, HostBindingMechanism::Syscall { .. })
             || operation.operation_key.uses_linux_timespec_result()
             || operation.operation_key.uses_linux_timespec_argument()
@@ -1258,7 +1337,15 @@ fn derive_boundary_compiler_body_outbound_syscall_result_footprint_for_arguments
                 binding.call_plan().entry_control,
                 EntryControl::SupervisorCall { .. }
             )
-            || has_storage_argument != requires_storage_argument
+            || !match argument_class {
+                OutboundSyscallResultArgumentClass::Immediate => {
+                    !has_storage_argument && !has_data_argument
+                }
+                OutboundSyscallResultArgumentClass::Storage => {
+                    has_storage_argument && !has_data_argument
+                }
+                OutboundSyscallResultArgumentClass::Data => has_data_argument,
+            }
             || !arguments.iter().all(|operand| {
                 matches!(
                     operand.kind,
@@ -1267,7 +1354,7 @@ fn derive_boundary_compiler_body_outbound_syscall_result_footprint_for_arguments
                 ) || abstract_outbound_syscall_storage_argument_is_closed(
                     input.target.architecture,
                     operand,
-                )
+                ) || abstract_outbound_syscall_data_argument_is_closed(operand)
             })
         {
             continue;
@@ -2037,6 +2124,11 @@ mod tests {
                 is_bounded_buffer: true,
             },
         };
+        let data_address = InstructionOperand {
+            kind: InstructionOperandKind::DataAddress {
+                data: psi_arena::Handle::invalid(),
+            },
+        };
 
         for operand in [&runtime_address, &descriptor_length] {
             assert!(abstract_outbound_syscall_storage_argument_is_closed(
@@ -2059,6 +2151,13 @@ mod tests {
         assert!(abstract_outbound_syscall_storage_argument_is_closed(
             omega_target::Architecture::X86_64,
             &bounded_beyond_aarch64_limit,
+        ));
+        assert!(abstract_outbound_syscall_data_argument_is_closed(
+            &data_address,
+        ));
+        assert!(!abstract_outbound_syscall_storage_argument_is_closed(
+            omega_target::Architecture::X86_64,
+            &data_address,
         ));
     }
 

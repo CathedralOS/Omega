@@ -1144,7 +1144,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         executable_regions.contains(
             "\"certificate_schema\": \"omega.final-footprint-certificate\""
         )
-            && executable_regions.contains("\"certificate_format_version\": 72")
+            && executable_regions.contains("\"certificate_format_version\": 73")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
             && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")
@@ -5320,6 +5320,11 @@ fn cross_linux_value_syscalls_compile_on_both_architectures() {
                 "\"origin\": \"compiler_body_outbound_syscall_result_storage_arguments\""
             ),
             "{target} value syscalls with runtime buffer/address arguments must retain their certified outbound-call footprint"
+        );
+        assert!(
+            footprints
+                .contains("\"origin\": \"compiler_body_outbound_syscall_result_data_arguments\""),
+            "{target} result-bearing literal-backed syscalls must retain their exact data-object argument footprint"
         );
         let expected_size = if target == "linux_x64" { 144 } else { 128 };
         assert!(

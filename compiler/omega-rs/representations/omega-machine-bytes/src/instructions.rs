@@ -122,8 +122,20 @@ pub enum CompilerInstructionValidationKind {
         number: u32,
         plan: omega_calling_conventions::CallPlan,
     },
+    CompilerBodyOutboundSyscallDataArguments {
+        operands: Vec<omega_target_operations::InstructionOperand>,
+        data_symbols: Vec<Arc<str>>,
+        number: u32,
+        plan: omega_calling_conventions::CallPlan,
+    },
     CompilerBodyOutboundSyscallResult {
         operands: Vec<omega_target_operations::InstructionOperand>,
+        number: u32,
+        plan: omega_calling_conventions::CallPlan,
+    },
+    CompilerBodyOutboundSyscallResultDataArguments {
+        operands: Vec<omega_target_operations::InstructionOperand>,
+        data_symbols: Vec<Arc<str>>,
         number: u32,
         plan: omega_calling_conventions::CallPlan,
     },
