@@ -1129,6 +1129,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         )
             && executable_regions.contains("\"certificate_format_version\": 1")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
+            && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")
             && executable_regions.contains("\"origin\": \"compiler_function\"")
             && executable_regions.contains(
