@@ -1028,7 +1028,10 @@ pub struct TableCallExpression {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StaticMachineArgument {
+    /// Historical storage name shared by type/const/machine proposition
+    /// arguments; the typed target telescope validates the category.
     pub path: Box<[DiagnosticName]>,
+    pub const_literal: Option<psi_numerics::literals::IntegerLiteral>,
     /// Entry-state symbol of the selected concrete machine.
     pub symbol: SymbolHandle,
 }

@@ -68,6 +68,40 @@ fn parses_primitive_witness_and_transparent_proposition_declarations() {
 }
 
 #[test]
+fn parses_type_and_integer_const_proposition_arguments() {
+    let source = r#"
+        proposition indexed<T, const N: i32>();
+        proposition selected() = indexed<i32, 7>();
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("static proposition arguments should parse");
+    let call = parsed
+        .expressions
+        .iter_expressions()
+        .find_map(|(_, expression)| match expression {
+            ExpressionNode::Call(call) if call.target.as_str() == "indexed" => Some(call),
+            _ => None,
+        })
+        .expect("transparent proposition should contain the indexed application");
+
+    assert_eq!(call.machine_arguments.len(), 2);
+    assert_eq!(call.machine_arguments[0].path[0].as_str(), "i32");
+    assert_eq!(
+        call.machine_arguments[1]
+            .const_literal
+            .as_ref()
+            .map(|literal| literal.text()),
+        Some("7")
+    );
+    assert_eq!(call.display_name(&parsed.expressions), "indexed<i32, 7>()");
+    let snapshot = parsed.snapshot_json().expect("syntax should snapshot");
+    assert!(snapshot.contains("\"machine_arguments\":[[{\"text\":\"i32\""));
+    assert!(snapshot.contains(",\"7\"]"));
+}
+
+#[test]
 fn proposition_declarations_reject_runtime_or_ambiguous_body_shapes() {
     for source in [
         "proposition bad(value: i32) -> bool;",

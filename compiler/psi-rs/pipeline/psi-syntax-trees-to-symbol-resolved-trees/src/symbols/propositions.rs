@@ -5,7 +5,7 @@ use psi_symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use super::lookup::{child_symbol_by_kinds, top_level_symbol_by_kinds};
 use super::targets::{
-    resolve_free_machine_entry_state_symbol, resolve_static_machine_argument_symbol,
+    resolve_free_machine_entry_state_symbol, resolve_proposition_binder_argument_symbol,
 };
 
 pub(super) fn assign_proposition_expression_symbols(
@@ -93,26 +93,11 @@ fn assign_expression_symbols(
             if let ExpressionNode::Call(call) = expressions.expression_mut(expression) {
                 call.target_symbol = target_symbol;
                 for argument in &mut call.machine_arguments {
-                    let local = argument
-                        .path
-                        .last()
-                        .map_or_else(SymbolHandle::invalid, |name| {
-                            child_symbol_by_kinds(
-                                symbols,
-                                proposition_symbol,
-                                &[SymbolKind::PropositionMachineParameter],
-                                name.as_str(),
-                            )
-                        });
-                    argument.symbol = if local.is_valid() {
-                        local
-                    } else {
-                        resolve_static_machine_argument_symbol(
-                            symbols,
-                            proposition_symbol,
-                            &argument.path,
-                        )
-                    };
+                    argument.symbol = resolve_proposition_binder_argument_symbol(
+                        symbols,
+                        proposition_symbol,
+                        &argument.path,
+                    );
                 }
             }
         }

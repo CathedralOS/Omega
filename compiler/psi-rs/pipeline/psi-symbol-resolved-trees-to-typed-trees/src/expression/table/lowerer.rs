@@ -204,6 +204,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                                         .map(lower_name)
                                         .collect::<Vec<_>>()
                                         .into_boxed_slice(),
+                                    const_literal: argument.const_literal.clone(),
                                     symbol: argument.symbol,
                                 })
                                 .collect::<Vec<_>>()

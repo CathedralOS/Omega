@@ -3181,14 +3181,7 @@ fn check_proposition_law_conformance(
         let binder_labels = instantiated
             .binder_arguments
             .iter()
-            .map(|argument| {
-                argument
-                    .path
-                    .iter()
-                    .map(|member| member.as_str())
-                    .collect::<Vec<_>>()
-                    .join("::")
-            })
+            .map(|argument| argument.display_name())
             .collect::<Vec<_>>();
         let argument_labels = program
             .expression_table

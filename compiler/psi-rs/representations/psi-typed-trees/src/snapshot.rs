@@ -16,6 +16,13 @@ use crate::trait_definition::TraitDefinition;
 use crate::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 use serde::Serialize;
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(untagged)]
+pub enum StaticArgumentSnapshot {
+    Path(Vec<String>),
+    Const(String),
+}
+
 #[cfg(test)]
 mod tests;
 
@@ -322,7 +329,7 @@ fn proposition_formula_application_snapshot(
         binder_arguments: application
             .binder_arguments
             .iter()
-            .map(|argument| argument.path.iter().map(ToString::to_string).collect())
+            .map(|argument| vec![argument.display_name()])
             .collect(),
         arguments: program
             .expression_table
@@ -590,7 +597,7 @@ pub enum StatementSnapshot {
     Call {
         receiver: Option<Vec<String>>,
         target: String,
-        machine_arguments: Vec<Vec<String>>,
+        machine_arguments: Vec<StaticArgumentSnapshot>,
         arguments: Vec<ExpressionSnapshot>,
         acknowledgement_synthesized: bool,
         acknowledges_suspend: bool,
@@ -670,7 +677,7 @@ pub enum ExpressionSnapshot {
     Call {
         receiver: Option<Box<ExpressionSnapshot>>,
         target: String,
-        machine_arguments: Vec<Vec<String>>,
+        machine_arguments: Vec<StaticArgumentSnapshot>,
         arguments: Vec<ExpressionSnapshot>,
         acknowledgement_synthesized: bool,
         acknowledges_suspend: bool,
@@ -969,7 +976,7 @@ fn domain_fact_snapshots(
                 binder_arguments: application
                     .binder_arguments
                     .iter()
-                    .map(|argument| argument.path.iter().map(ToString::to_string).collect())
+                    .map(|argument| vec![argument.display_name()])
                     .collect(),
                 arguments: program
                     .expression_table
@@ -1305,7 +1312,7 @@ fn contract_fact_snapshots(
                 binder_arguments: application
                     .binder_arguments
                     .iter()
-                    .map(|argument| argument.path.iter().map(ToString::to_string).collect())
+                    .map(|argument| vec![argument.display_name()])
                     .collect(),
                 arguments: program
                     .expression_table
@@ -1351,7 +1358,7 @@ fn statement_snapshot(program: &TypedTrees, statement: &StatementNode) -> Statem
             machine_arguments: call
                 .machine_arguments
                 .iter()
-                .map(|argument| path_snapshot(&argument.path))
+                .map(snapshot_static_argument)
                 .collect(),
             arguments: statement_expression_span_snapshot(program, call.arguments),
             acknowledgement_synthesized: call.operational_acknowledgement.origin
@@ -1465,7 +1472,7 @@ fn expression_snapshot(program: &TypedTrees, expression: ExpressionHandle) -> Ex
             machine_arguments: call
                 .machine_arguments
                 .iter()
-                .map(|argument| path_snapshot(&argument.path))
+                .map(snapshot_static_argument)
                 .collect(),
             arguments: expression_span_snapshot(program, call.arguments),
             acknowledgement_synthesized: call.operational_acknowledgement.origin
@@ -1535,6 +1542,15 @@ fn expression_snapshot(program: &TypedTrees, expression: ExpressionHandle) -> Ex
             type_reference: Box::new(type_reference_snapshot(program, *type_reference)),
         },
     }
+}
+
+fn snapshot_static_argument(
+    argument: &crate::expression::StaticMachineArgument,
+) -> StaticArgumentSnapshot {
+    argument.const_literal.as_ref().map_or_else(
+        || StaticArgumentSnapshot::Path(path_snapshot(&argument.path)),
+        |literal| StaticArgumentSnapshot::Const(literal.text().to_owned()),
+    )
 }
 
 fn expression_span_snapshot(

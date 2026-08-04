@@ -261,6 +261,17 @@ impl TypeReferenceTable {
         self.type_references.len()
     }
 
+    pub fn find_named_type_reference(&self, symbol: SymbolHandle) -> Option<TypeReferenceHandle> {
+        self.type_references
+            .iter()
+            .find_map(|(handle, type_reference)| match type_reference {
+                TypeReferenceNode::Named {
+                    symbol: candidate, ..
+                } if *candidate == symbol => Some(handle),
+                _ => None,
+            })
+    }
+
     pub fn constraint_count(&self) -> usize {
         self.constraints.len()
     }

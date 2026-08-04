@@ -4,6 +4,7 @@ mod assembly;
 mod indexing;
 mod instantiation;
 mod proof_obligations;
+mod propositions;
 mod qualification_evidence;
 
 fn parse_typed_trees(source: &str) -> psi_typed_trees::TypedTrees {

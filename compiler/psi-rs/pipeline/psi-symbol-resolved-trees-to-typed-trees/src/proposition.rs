@@ -153,24 +153,92 @@ pub(crate) fn lower_proposition_application(
             call.machine_arguments.len()
         )));
     }
+    let mut typed_binder_arguments = Vec::with_capacity(binders.len());
     for (binder, argument) in binders.iter().zip(&call.machine_arguments) {
-        if !matches!(
-            binder.kind,
-            resolved::proposition::PropositionBinderKind::Machine
-        ) {
-            return Err(Diagnostic::error(format!(
-                "proposition `{}` binder `{}` is not a machine index; type/const proposition arguments are not implemented yet",
-                call.target.as_str(),
-                binder.name.as_str()
-            )));
-        }
-        if !argument.symbol.is_valid() {
-            return Err(Diagnostic::error(format!(
-                "proposition `{}` received an unresolved machine-index argument for binder `{}`",
-                call.target.as_str(),
-                binder.name.as_str()
-            )));
-        }
+        let (kind, symbol) = match &binder.kind {
+            resolved::proposition::PropositionBinderKind::Type => {
+                if argument.const_literal.is_some() {
+                    return Err(Diagnostic::error(format!(
+                        "proposition `{}` type binder `{}` received a const literal",
+                        call.target.as_str(),
+                        binder.name.as_str()
+                    )));
+                }
+                let symbol = resolve_proposition_static_path(lowerer, argument);
+                if classify_proposition_static_symbol(lowerer, symbol)
+                    != Some(typed::proposition::PropositionBinderArgumentKind::Type)
+                {
+                    return Err(Diagnostic::error(format!(
+                        "proposition `{}` type binder `{}` received a non-type argument",
+                        call.target.as_str(),
+                        binder.name.as_str()
+                    )));
+                }
+                (
+                    typed::proposition::PropositionBinderArgumentKind::Type,
+                    symbol,
+                )
+            }
+            resolved::proposition::PropositionBinderKind::Const { type_reference } => {
+                let symbol = resolve_proposition_static_path(lowerer, argument);
+                if let Some(literal) = &argument.const_literal {
+                    validate_const_literal_argument(
+                        call.target.as_str(),
+                        binder.name.as_str(),
+                        type_reference,
+                        literal,
+                    )?;
+                } else if classify_proposition_static_symbol(lowerer, symbol)
+                    != Some(typed::proposition::PropositionBinderArgumentKind::Const)
+                {
+                    return Err(Diagnostic::error(format!(
+                        "proposition `{}` const binder `{}` received a non-const argument",
+                        call.target.as_str(),
+                        binder.name.as_str()
+                    )));
+                } else if !proposition_const_symbol_type(lowerer, symbol)
+                    .is_some_and(|actual| proposition_const_types_match(type_reference, actual))
+                {
+                    return Err(Diagnostic::error(format!(
+                        "proposition `{}` const binder `{}` received a const argument with a different declared type",
+                        call.target.as_str(),
+                        binder.name.as_str()
+                    )));
+                }
+                (
+                    typed::proposition::PropositionBinderArgumentKind::Const,
+                    symbol,
+                )
+            }
+            resolved::proposition::PropositionBinderKind::Machine => {
+                let symbol = resolve_proposition_static_path(lowerer, argument);
+                if argument.const_literal.is_some()
+                    || classify_proposition_static_symbol(lowerer, symbol)
+                        != Some(typed::proposition::PropositionBinderArgumentKind::Machine)
+                {
+                    return Err(Diagnostic::error(format!(
+                        "proposition `{}` machine binder `{}` received a non-machine argument",
+                        call.target.as_str(),
+                        binder.name.as_str()
+                    )));
+                }
+                (
+                    typed::proposition::PropositionBinderArgumentKind::Machine,
+                    symbol,
+                )
+            }
+        };
+        typed_binder_arguments.push(typed::proposition::PropositionBinderArgument {
+            kind,
+            path: argument
+                .path
+                .iter()
+                .map(crate::name::lower_name)
+                .collect::<Vec<_>>()
+                .into_boxed_slice(),
+            const_literal: argument.const_literal.clone(),
+            symbol,
+        });
     }
     let parameters = if let Some(declaration) = declaration {
         lowerer
@@ -216,20 +284,195 @@ pub(crate) fn lower_proposition_application(
     Ok(typed::proposition::PropositionApplication {
         proposition: call.target_symbol,
         name: crate::name::lower_name(&call.target),
-        binder_arguments: call
-            .machine_arguments
-            .iter()
-            .map(|argument| typed::proposition::PropositionBinderArgument {
-                path: argument
-                    .path
-                    .iter()
-                    .map(crate::name::lower_name)
-                    .collect::<Vec<_>>()
-                    .into_boxed_slice(),
-                symbol: argument.symbol,
-            })
-            .collect::<Vec<_>>()
-            .into_boxed_slice(),
+        binder_arguments: typed_binder_arguments.into_boxed_slice(),
         arguments,
+    })
+}
+
+fn resolve_proposition_static_path(
+    lowerer: &Lowerer,
+    argument: &resolved::expression::StaticMachineArgument,
+) -> psi_symbols::SymbolHandle {
+    if argument.symbol.is_valid() {
+        return argument.symbol;
+    }
+    lowerer
+        .source_trees
+        .symbols
+        .find_descendant_by_path(
+            lowerer.source_trees.symbols.root(),
+            argument.path.iter().map(|member| member.as_str()),
+        )
+        .unwrap_or_else(psi_symbols::SymbolHandle::invalid)
+}
+
+fn classify_proposition_static_symbol(
+    lowerer: &Lowerer,
+    symbol: psi_symbols::SymbolHandle,
+) -> Option<typed::proposition::PropositionBinderArgumentKind> {
+    if !symbol.is_valid() {
+        return None;
+    }
+    match lowerer.source_trees.symbols.get(symbol).kind {
+        psi_symbols::SymbolKind::BuiltinType | psi_symbols::SymbolKind::Data => {
+            Some(typed::proposition::PropositionBinderArgumentKind::Type)
+        }
+        psi_symbols::SymbolKind::State
+        | psi_symbols::SymbolKind::MachineParameter
+        | psi_symbols::SymbolKind::PropositionMachineParameter => {
+            Some(typed::proposition::PropositionBinderArgumentKind::Machine)
+        }
+        psi_symbols::SymbolKind::TypeParameter => lowerer
+            .source_trees
+            .tables
+            .declarations
+            .proposition_binders
+            .iter()
+            .map(|(_, binder)| binder)
+            .find(|binder| binder.symbol == symbol)
+            .map(|binder| match binder.kind {
+                resolved::proposition::PropositionBinderKind::Type => {
+                    typed::proposition::PropositionBinderArgumentKind::Type
+                }
+                resolved::proposition::PropositionBinderKind::Const { .. } => {
+                    typed::proposition::PropositionBinderArgumentKind::Const
+                }
+                resolved::proposition::PropositionBinderKind::Machine => {
+                    typed::proposition::PropositionBinderArgumentKind::Machine
+                }
+            })
+            .or_else(|| {
+                lowerer
+                    .source_trees
+                    .tables
+                    .declarations
+                    .data_type_parameters
+                    .iter()
+                    .map(|(_, parameter)| parameter)
+                    .find(|parameter| parameter.symbol == symbol)
+                    .and_then(|parameter| match parameter.kind {
+                        resolved::data::TypeParameterKind::Type => {
+                            Some(typed::proposition::PropositionBinderArgumentKind::Type)
+                        }
+                        resolved::data::TypeParameterKind::Const { .. } => {
+                            Some(typed::proposition::PropositionBinderArgumentKind::Const)
+                        }
+                        resolved::data::TypeParameterKind::Machine { .. } => {
+                            Some(typed::proposition::PropositionBinderArgumentKind::Machine)
+                        }
+                        resolved::data::TypeParameterKind::Proposition { .. } => None,
+                    })
+            }),
+        _ => None,
+    }
+}
+
+fn validate_const_literal_argument(
+    proposition: &str,
+    binder: &str,
+    type_reference: &resolved::types::TypeReference,
+    literal: &psi_numerics::literals::IntegerLiteral,
+) -> Result<(), Diagnostic> {
+    let Some(primitive) = type_reference.primitive_type() else {
+        return Err(Diagnostic::error(format!(
+            "proposition `{proposition}` const binder `{binder}` has a non-primitive type and cannot receive integer literal `{}`",
+            literal.text()
+        )));
+    };
+    if !primitive.accepts_integer_literal() || !integer_literal_fits(literal, primitive) {
+        return Err(Diagnostic::error(format!(
+            "proposition `{proposition}` const binder `{binder}` cannot receive integer literal `{}` as `{}`",
+            literal.text(),
+            primitive.name()
+        )));
+    }
+    Ok(())
+}
+
+fn proposition_const_symbol_type<'a>(
+    lowerer: &'a Lowerer,
+    symbol: psi_symbols::SymbolHandle,
+) -> Option<&'a resolved::types::TypeReference> {
+    lowerer
+        .source_trees
+        .tables
+        .declarations
+        .proposition_binders
+        .iter()
+        .map(|(_, binder)| binder)
+        .find(|binder| binder.symbol == symbol)
+        .and_then(|binder| match &binder.kind {
+            resolved::proposition::PropositionBinderKind::Const { type_reference } => {
+                Some(type_reference)
+            }
+            resolved::proposition::PropositionBinderKind::Type
+            | resolved::proposition::PropositionBinderKind::Machine => None,
+        })
+        .or_else(|| {
+            lowerer
+                .source_trees
+                .tables
+                .declarations
+                .data_type_parameters
+                .iter()
+                .map(|(_, parameter)| parameter)
+                .find(|parameter| parameter.symbol == symbol)
+                .and_then(|parameter| match &parameter.kind {
+                    resolved::data::TypeParameterKind::Const { type_reference } => {
+                        Some(type_reference)
+                    }
+                    resolved::data::TypeParameterKind::Type
+                    | resolved::data::TypeParameterKind::Machine { .. }
+                    | resolved::data::TypeParameterKind::Proposition { .. } => None,
+                })
+        })
+}
+
+fn proposition_const_types_match(
+    expected: &resolved::types::TypeReference,
+    actual: &resolved::types::TypeReference,
+) -> bool {
+    match (expected.primitive_type(), actual.primitive_type()) {
+        (Some(expected), Some(actual)) => expected == actual,
+        _ => match (expected, actual) {
+            (
+                resolved::types::TypeReference::Named {
+                    symbol: expected, ..
+                },
+                resolved::types::TypeReference::Named { symbol: actual, .. },
+            ) => expected == actual,
+            _ => expected == actual,
+        },
+    }
+}
+
+fn integer_literal_fits(
+    literal: &psi_numerics::literals::IntegerLiteral,
+    primitive: resolved::types::PrimitiveType,
+) -> bool {
+    use resolved::types::PrimitiveType;
+    let signed_width = match primitive {
+        PrimitiveType::I8 => Some(8),
+        PrimitiveType::I16 => Some(16),
+        PrimitiveType::I32 => Some(32),
+        PrimitiveType::I64 => Some(64),
+        _ => None,
+    };
+    if let Some(width) = signed_width {
+        return literal.value_i64().is_some_and(|value| {
+            width == 64 || (-(1i64 << (width - 1))..=(1i64 << (width - 1)) - 1).contains(&value)
+        });
+    }
+    let unsigned_width = match primitive {
+        PrimitiveType::U8 => Some(8),
+        PrimitiveType::U16 => Some(16),
+        PrimitiveType::U32 => Some(32),
+        PrimitiveType::U64 | PrimitiveType::Addr => Some(64),
+        _ => None,
+    };
+    unsigned_width.is_some_and(|width| {
+        literal
+            .value_u64()
+            .is_some_and(|value| width == 64 || value <= (1u64 << width) - 1)
     })
 }

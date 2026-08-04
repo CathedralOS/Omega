@@ -193,22 +193,238 @@ pub(crate) fn validate_proof_facts(
                     .zip(parameters)
                     .enumerate()
                 {
-                    if !crate::expression_types::argument_matches_type_reference_handle(
-                        program,
-                        *argument,
-                        parameter.type_reference,
-                    ) {
+                    let instantiated_type = declaration.map(|declaration| {
+                        proposition_parameter_instantiation(
+                            program,
+                            declaration,
+                            application,
+                            parameter.type_reference,
+                        )
+                    });
+                    let instantiated_type = instantiated_type.unwrap_or(
+                        PropositionParameterInstantiation::Unchanged(parameter.type_reference),
+                    );
+                    let matches = match instantiated_type {
+                        PropositionParameterInstantiation::Unchanged(expected_type) => {
+                            crate::expression_types::argument_matches_type_reference_handle(
+                                program,
+                                *argument,
+                                expected_type,
+                            )
+                        }
+                        PropositionParameterInstantiation::Selected(selected) => {
+                            argument_matches_selected_proposition_type(
+                                program, *argument, selected, owner,
+                            )
+                        }
+                        PropositionParameterInstantiation::Invalid => false,
+                    };
+                    if !matches {
+                        let expected_name = match instantiated_type {
+                            PropositionParameterInstantiation::Unchanged(expected_type) => {
+                                program.display_type_reference(expected_type)
+                            }
+                            PropositionParameterInstantiation::Selected(selected) => {
+                                selected.display_name()
+                            }
+                            PropositionParameterInstantiation::Invalid => {
+                                "<invalid proposition binder argument>".to_owned()
+                            }
+                        };
                         diagnostics.push(Diagnostic::error(format!(
                             "{owner} proposition `{}` argument {} does not match parameter `{}` type `{}`",
                             application.name.as_str(),
                             index + 1,
                             parameter.name.as_str(),
-                            program.display_type_reference(parameter.type_reference),
+                            expected_name,
                         )));
                     }
                 }
             }
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum PropositionParameterInstantiation<'application> {
+    Unchanged(psi_typed_trees::types::TypeReferenceHandle),
+    Selected(&'application psi_typed_trees::proposition::PropositionBinderArgument),
+    Invalid,
+}
+
+fn proposition_parameter_instantiation<'application>(
+    program: &TypedTrees,
+    declaration: &psi_typed_trees::proposition::PropositionDefinition,
+    application: &'application psi_typed_trees::proposition::PropositionApplication,
+    parameter_type: psi_typed_trees::types::TypeReferenceHandle,
+) -> PropositionParameterInstantiation<'application> {
+    let psi_typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
+        program.type_reference_table.type_reference(parameter_type)
+    else {
+        return PropositionParameterInstantiation::Unchanged(parameter_type);
+    };
+    let Some((binder_index, _)) = program
+        .proposition_binders(declaration)
+        .iter()
+        .enumerate()
+        .find(|(_, binder)| {
+            binder.symbol == *symbol
+                && matches!(
+                    binder.kind,
+                    psi_typed_trees::proposition::PropositionBinderKind::Type
+                )
+        })
+    else {
+        return PropositionParameterInstantiation::Unchanged(parameter_type);
+    };
+    let Some(selected) = application.binder_arguments.get(binder_index) else {
+        return PropositionParameterInstantiation::Invalid;
+    };
+    if !matches!(
+        selected.kind,
+        psi_typed_trees::proposition::PropositionBinderArgumentKind::Type
+    ) {
+        return PropositionParameterInstantiation::Invalid;
+    }
+    PropositionParameterInstantiation::Selected(selected)
+}
+
+fn argument_matches_selected_proposition_type(
+    program: &TypedTrees,
+    argument: ExpressionHandle,
+    selected: &psi_typed_trees::proposition::PropositionBinderArgument,
+    owner: ProofFactOwner<'_>,
+) -> bool {
+    if let Some(actual) = proof_argument_declared_type(program, argument, owner) {
+        if let (Some(actual), Some(selected)) = (
+            program.type_reference_table.primitive_type(actual),
+            psi_typed_trees::types::PrimitiveType::from_name(&selected.display_name()),
+        ) {
+            return actual == selected;
+        }
+        return program.type_reference_table.type_symbol(actual) == selected.symbol;
+    }
+    let selected_name = selected.display_name();
+    if let Some(primitive) = psi_typed_trees::types::PrimitiveType::from_name(&selected_name) {
+        return match program.expression_table.expression(argument) {
+            ExpressionNode::Boolean(_) => primitive == psi_typed_trees::types::PrimitiveType::Bool,
+            ExpressionNode::Float(_) => primitive.accepts_float_literal(),
+            ExpressionNode::Integer(_) => primitive.accepts_integer_literal(),
+            ExpressionNode::Mutable(inner) => {
+                argument_matches_selected_proposition_type(program, *inner, selected, owner)
+            }
+            _ => false,
+        };
+    }
+    program
+        .type_reference_table
+        .find_named_type_reference(selected.symbol)
+        .is_some_and(|expected| {
+            crate::expression_types::argument_matches_type_reference_handle(
+                program, argument, expected,
+            )
+        })
+}
+
+fn proof_argument_declared_type(
+    program: &TypedTrees,
+    argument: ExpressionHandle,
+    owner: ProofFactOwner<'_>,
+) -> Option<psi_typed_trees::types::TypeReferenceHandle> {
+    if let Some(member_name) = self_member_name(program, argument)
+        && let Some(machine_name) = proof_fact_machine_name(owner)
+        && let Some(attached_data) = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == machine_name)
+            .and_then(|machine| machine.attached_data.as_ref())
+        && let Some(definition) = program
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.name == *attached_data)
+        && let Some(type_reference) =
+            program
+                .data_members(definition)
+                .iter()
+                .find_map(|field| match field {
+                    psi_typed_trees::data::DataMember::Field(field)
+                        if field.name.as_str() == member_name =>
+                    {
+                        Some(field.type_reference)
+                    }
+                    _ => None,
+                })
+    {
+        return Some(type_reference);
+    }
+    let symbol = match program.expression_table.expression(argument) {
+        ExpressionNode::Mutable(inner) => {
+            return proof_argument_declared_type(program, *inner, owner);
+        }
+        ExpressionNode::Name(path) => path.symbol,
+        ExpressionNode::Member(member) => member.member_symbol,
+        _ => return None,
+    };
+    if !symbol.is_valid() {
+        return None;
+    }
+    program
+        .state_parameters
+        .iter()
+        .map(|(_, parameter)| parameter)
+        .find(|parameter| parameter.symbol == symbol)
+        .map(|parameter| parameter.type_reference)
+        .or_else(|| {
+            program.data_definitions().iter().find_map(|definition| {
+                program
+                    .data_members(definition)
+                    .iter()
+                    .find_map(|member| match member {
+                        psi_typed_trees::data::DataMember::Field(field)
+                            if field.symbol == symbol =>
+                        {
+                            Some(field.type_reference)
+                        }
+                        _ => None,
+                    })
+            })
+        })
+}
+
+fn proof_fact_machine_name(owner: ProofFactOwner<'_>) -> Option<&str> {
+    match owner {
+        ProofFactOwner::MachineContract { machine, .. } => Some(machine),
+        ProofFactOwner::StateSignatureContract {
+            owner: StateSignatureOwner::Machine(machine),
+            ..
+        } => Some(machine),
+        ProofFactOwner::DataDefaultDomain(_)
+        | ProofFactOwner::Domain(_)
+        | ProofFactOwner::TraitInvariant { .. }
+        | ProofFactOwner::StateSignatureContract { .. } => None,
+    }
+}
+
+fn self_member_name(program: &TypedTrees, expression: ExpressionHandle) -> Option<&str> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Member(member) => {
+            let ExpressionNode::Name(path) = program.expression_table.expression(member.receiver)
+            else {
+                return None;
+            };
+            matches!(
+                program.expression_table.name_path_members(path.members),
+                [name] if name.as_str() == "self"
+            )
+            .then_some(member.member.as_str())
+        }
+        ExpressionNode::Name(path) => {
+            match program.expression_table.name_path_members(path.members) {
+                [root, member] if root.as_str() == "self" => Some(member.as_str()),
+                _ => None,
+            }
+        }
+        _ => None,
     }
 }
 

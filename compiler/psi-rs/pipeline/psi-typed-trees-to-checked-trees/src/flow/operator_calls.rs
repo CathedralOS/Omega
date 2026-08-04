@@ -347,14 +347,7 @@ pub(super) fn append_operator_statement_ensures(
                     let binder_labels = application
                         .binder_arguments
                         .iter()
-                        .map(|argument| {
-                            argument
-                                .path
-                                .iter()
-                                .map(|member| member.as_str())
-                                .collect::<Vec<_>>()
-                                .join("::")
-                        })
+                        .map(|argument| argument.display_name())
                         .collect::<Vec<_>>();
                     let argument_labels = program
                         .expression_table

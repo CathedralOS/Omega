@@ -88,6 +88,150 @@ fn proposition_declarations_and_fact_applications_remain_distinct_when_typed() {
 }
 
 #[test]
+fn proposition_type_and_const_arguments_retain_categories_and_identity() {
+    let source = r#"
+        proposition indexed<T, const N: i32>();
+        proposition forwarded<T, const N: i32>() = indexed<T, N>();
+
+        machine use_selected()
+        requires forwarded<i32, 7>()
+        {
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved_program = lower_syntax_trees(&syntax_trees).expect("resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved_program).expect("typing should succeed");
+
+    let [contract] = typed.machine_contracts(&typed.machines()[0]) else {
+        panic!("machine should retain its proposition requirement");
+    };
+    let [psi_typed_trees::domain::ProofFact::Proposition(application)] =
+        typed.proof_facts.span_or_empty(contract.facts)
+    else {
+        panic!("requires should retain the proposition application");
+    };
+    assert!(matches!(
+        application.binder_arguments[0].kind,
+        psi_typed_trees::proposition::PropositionBinderArgumentKind::Type
+    ));
+    assert!(matches!(
+        application.binder_arguments[1].kind,
+        psi_typed_trees::proposition::PropositionBinderArgumentKind::Const
+    ));
+    assert_eq!(application.binder_arguments[0].display_name(), "i32");
+    assert_eq!(application.binder_arguments[1].display_name(), "7");
+    let normalized = typed
+        .normalize_proposition_application(application)
+        .expect("transparent application should normalize");
+    assert_eq!(
+        normalized.identity_label(),
+        "proposition:fact:indexed<i32,7>()"
+    );
+}
+
+#[test]
+fn proposition_static_arguments_reject_wrong_binder_categories_and_const_types() {
+    for (source, expected) in [
+        (
+            r#"
+                proposition indexed<T, const N: i32>();
+                machine wrong() requires indexed<7, i32>() {}
+            "#,
+            "type binder `T` received a const literal",
+        ),
+        (
+            r#"
+                proposition indexed<const N: bool>();
+                machine wrong() requires indexed<1>() {}
+            "#,
+            "cannot receive integer literal `1` as `bool`",
+        ),
+    ] {
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let resolved_program =
+            lower_syntax_trees(&syntax_trees).expect("resolution should succeed");
+        let diagnostic = lower_symbol_resolved_trees(&resolved_program)
+            .expect_err("wrong proposition binder category must reject");
+        assert!(
+            diagnostic.message.contains(expected),
+            "unexpected diagnostic: {}",
+            diagnostic.message
+        );
+    }
+}
+
+#[test]
+fn proposition_type_and_const_arguments_forward_through_machine_binders() {
+    let source = r#"
+        proposition indexed<T, const N: i32>();
+
+        machine forward<T, const N: i32>()
+        requires indexed<T, N>()
+        {
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved_program = lower_syntax_trees(&syntax_trees).expect("resolution should succeed");
+    let [resolved_contract] =
+        resolved_program.machine_contracts(&resolved_program.roots.machines[0])
+    else {
+        panic!("machine should retain one resolved contract");
+    };
+    let [psi_symbol_resolved_trees::domain::ProofFact::Expression(resolved_application)] =
+        resolved_program.proof_facts(resolved_contract.facts)
+    else {
+        panic!("requires should retain one resolved expression fact");
+    };
+    let psi_symbol_resolved_trees::expression::ExpressionNode::Call(resolved_call) =
+        resolved_program
+            .tables
+            .bodies
+            .expressions
+            .expression(*resolved_application)
+    else {
+        panic!("resolved fact should remain the indexed application");
+    };
+    assert!(
+        resolved_call.machine_arguments[0].symbol.is_valid(),
+        "forwarded type argument should resolve"
+    );
+    assert!(
+        resolved_call.machine_arguments[1].symbol.is_valid(),
+        "forwarded const argument should resolve"
+    );
+    let typed = lower_symbol_resolved_trees(&resolved_program).expect("typing should succeed");
+
+    let machine = &typed.machines()[0];
+    let parameters = typed.machine_type_parameters(machine);
+    let [contract] = typed.machine_contracts(machine) else {
+        panic!("generic machine should retain its proposition requirement");
+    };
+    let [psi_typed_trees::domain::ProofFact::Proposition(application)] =
+        typed.proof_facts.span_or_empty(contract.facts)
+    else {
+        panic!("requires should retain the proposition application");
+    };
+    assert_eq!(application.binder_arguments[0].symbol, parameters[0].symbol);
+    assert_eq!(application.binder_arguments[1].symbol, parameters[1].symbol);
+    assert_eq!(
+        typed
+            .normalize_proposition_application(application)
+            .expect("generic application should normalize")
+            .identity_label(),
+        "proposition:fact:indexed<T,N>()"
+    );
+}
+
+#[test]
 fn proposition_application_rejects_in_runtime_value_position() {
     let source = r#"
         proposition related(left: i32, right: i32);

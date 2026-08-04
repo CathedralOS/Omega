@@ -15,6 +15,13 @@ use crate::wire::{WireMember, WireSchema};
 use psi_arena::HandleSpan;
 use serde::Serialize;
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(untagged)]
+pub enum StaticArgumentSnapshot {
+    Path(Vec<String>),
+    Const(String),
+}
+
 #[cfg(test)]
 mod tests;
 
@@ -491,7 +498,7 @@ pub enum StatementSnapshot {
     Call {
         receiver: Option<Vec<String>>,
         target: String,
-        machine_arguments: Vec<Vec<String>>,
+        machine_arguments: Vec<StaticArgumentSnapshot>,
         arguments: Vec<ExpressionSnapshot>,
         acknowledgement_synthesized: bool,
         acknowledges_suspend: bool,
@@ -562,7 +569,7 @@ pub enum ExpressionSnapshot {
     Call {
         receiver: Option<Box<ExpressionSnapshot>>,
         target: String,
-        machine_arguments: Vec<Vec<String>>,
+        machine_arguments: Vec<StaticArgumentSnapshot>,
         arguments: Vec<ExpressionSnapshot>,
         acknowledgement_synthesized: bool,
         acknowledges_suspend: bool,
@@ -1217,7 +1224,7 @@ fn statement_snapshot(program: &SymbolResolvedTrees, statement: &Statement) -> S
             machine_arguments: call
                 .machine_arguments
                 .iter()
-                .map(|argument| diagnostic_name_span_snapshot(&argument.path))
+                .map(snapshot_static_argument)
                 .collect(),
             arguments: program
                 .tables
@@ -1355,7 +1362,7 @@ fn table_expression_snapshot(
             machine_arguments: call
                 .machine_arguments
                 .iter()
-                .map(|argument| diagnostic_name_span_snapshot(&argument.path))
+                .map(snapshot_static_argument)
                 .collect(),
             arguments: table
                 .expression_handles(call.arguments)
@@ -1435,6 +1442,15 @@ fn table_expression_snapshot(
             )),
         },
     }
+}
+
+fn snapshot_static_argument(
+    argument: &crate::expression::StaticMachineArgument,
+) -> StaticArgumentSnapshot {
+    argument.const_literal.as_ref().map_or_else(
+        || StaticArgumentSnapshot::Path(diagnostic_name_span_snapshot(&argument.path)),
+        |literal| StaticArgumentSnapshot::Const(literal.text().to_owned()),
+    )
 }
 
 fn type_reference_snapshot(

@@ -113,7 +113,12 @@ impl TableCallExpression {
                 "<{}>",
                 self.machine_arguments
                     .iter()
-                    .map(|argument| display_name_path(&argument.path, "::"))
+                    .map(|argument| {
+                        argument.const_literal.as_ref().map_or_else(
+                            || display_name_path(&argument.path, "::"),
+                            |literal| literal.text().to_owned(),
+                        )
+                    })
                     .collect::<Vec<_>>()
                     .join(", ")
             )

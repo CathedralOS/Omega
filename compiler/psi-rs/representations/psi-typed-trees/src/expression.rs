@@ -1926,7 +1926,10 @@ pub struct TableCallExpression {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StaticMachineArgument {
+    /// Historical storage name shared by type/const/machine proposition
+    /// arguments; proposition proof facts retain their final category.
     pub path: Box<[Identifier]>,
+    pub const_literal: Option<psi_numerics::literals::IntegerLiteral>,
     /// Entry-state symbol of the selected concrete machine.
     pub symbol: SymbolHandle,
 }

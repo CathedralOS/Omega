@@ -1,9 +1,11 @@
 use psi_symbol_resolved_trees::SymbolResolvedTrees;
-use psi_symbols::{SymbolHandle, SymbolTable};
+use psi_symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use super::expression_paths::resolve_expression_table_call_target_symbol;
 use super::scope::MachineScope;
-use super::targets::resolve_static_machine_argument_symbol;
+use super::targets::{
+    resolve_proposition_binder_argument_symbol, resolve_static_machine_argument_symbol,
+};
 
 /// Resolve call targets and static machine arguments inside ordinary
 /// machine/state contract facts. Contract expressions share the callable's
@@ -261,11 +263,23 @@ fn assign_contract_call_symbols(
             if let ExpressionNode::Call(call) = expression_table.expression_mut(expression) {
                 call.target_symbol = target_symbol;
                 for argument in &mut call.machine_arguments {
-                    argument.symbol = resolve_static_machine_argument_symbol(
-                        symbols,
-                        machine.symbol,
-                        &argument.path,
-                    );
+                    argument.symbol = if target_symbol.is_valid()
+                        && matches!(
+                            symbols.get(target_symbol).kind,
+                            SymbolKind::Proposition | SymbolKind::PropositionParameter
+                        ) {
+                        resolve_proposition_binder_argument_symbol(
+                            symbols,
+                            machine.symbol,
+                            &argument.path,
+                        )
+                    } else {
+                        resolve_static_machine_argument_symbol(
+                            symbols,
+                            machine.symbol,
+                            &argument.path,
+                        )
+                    };
                 }
             }
         }
