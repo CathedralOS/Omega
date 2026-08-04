@@ -1127,7 +1127,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         executable_regions.contains(
             "\"certificate_schema\": \"omega.final-footprint-certificate\""
         )
-            && executable_regions.contains("\"certificate_format_version\": 48")
+            && executable_regions.contains("\"certificate_format_version\": 49")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
             && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")
@@ -2467,6 +2467,52 @@ machine Main::main(&mut self) {
                 && footprints.contains("\"X86R14\"")
                 && footprints.contains("\"enumeration_complete\": false"),
             "linux_x64 artifact must retain the general binary-write footprint for {case_name} without claiming completeness"
+        );
+        let _ = fs::remove_dir_all(&scratch);
+    }
+}
+
+#[test]
+fn compiler_body_bounded_buffer_literal_append_footprints_reach_artifacts() {
+    let canary = pass_canary("text/runtime_bounded_carrier_concat_exit");
+    for (target, expected_register) in [
+        ("linux_x64", "\"X86Rdi\""),
+        ("linux_arm64", "\"Aarch64X(14)\""),
+    ] {
+        let scratch = std::env::temp_dir().join(format!(
+            "omega-compiler-body-bounded-buffer-literal-append-footprint-{target}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&scratch);
+        let source = scratch.join("src");
+        let output = scratch.join("out");
+        fs::create_dir_all(&source)
+            .expect("create compiler-body bounded-buffer literal-append source directory");
+        fs::copy(canary.join("main.omg"), source.join("main.omg"))
+            .expect("copy compiler-body bounded-buffer literal-append canary");
+        fs::write(
+            source.join("build.omg"),
+            format!("target {target} {{\n}}\n"),
+        )
+        .expect("write compiler-body bounded-buffer literal-append target");
+        compile(CompileOptions {
+            root_path: source.join("main.omg"),
+            build_dir: Some(output.clone()),
+            target_name: Some(target.into()),
+            write_output: true,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "compiler-body bounded-buffer literal appends should compile for {target}: {diagnostics:?}"
+            )
+        });
+        let footprints = fs::read_to_string(output.join("08_boundary_footprints.json"))
+            .expect("compiler-body bounded-buffer literal-append evidence should be written");
+        assert!(
+            footprints.contains("\"origin\": \"compiler_body_place_bounded_buffer_write\"")
+                && footprints.contains(expected_register)
+                && footprints.contains("\"enumeration_complete\": false"),
+            "{target} artifact must retain the bounded-buffer literal-append footprint without claiming completeness"
         );
         let _ = fs::remove_dir_all(&scratch);
     }

@@ -600,6 +600,16 @@ pub fn encode_place_bounded_buffer_literal_append(
     Ok((bytes, sites))
 }
 
+pub fn place_bounded_buffer_literal_append_register_writes(target: &Place) -> RegisterSet {
+    let mut registers = place_integer_write_clobbers(target).as_slice().to_vec();
+    registers.push(MachineRegister::X86Rdi);
+    RegisterSet::new(registers)
+}
+
+pub fn place_bounded_buffer_literal_append_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::new([MachineState::Flags])
+}
+
 /// The ADDRESS-family materializer entry (task #131): compute the address
 /// OF a place-shaped source and store that POINTER into the runtime-frame
 /// slot at `target_offset`. The source address rides the standard walk into

@@ -1200,7 +1200,9 @@ AArch64 shapes, including exact rodata and storage/index relocations plus a
 separate `CompilerBodyPlaceStringWrite` footprint. Immediate bounded-buffer
 literal writes replay all x86 place targets plus direct and pointee AArch64
 targets, including the exact target, literal, relocation walk, and separate
-`CompilerBodyPlaceBoundedBufferWrite` footprint. Immediate compact bit-field writes retain their exact
+`CompilerBodyPlaceBoundedBufferWrite` footprint. Literal appends into those
+owned carriers share the fragment while retaining their distinct exact encoder
+and relocation recipe. Immediate compact bit-field writes retain their exact
 storage region, base offset, fragment layout, and value, replay the target
 encoder and destination relocation, and match a separate
 `CompilerBodyStorageBitFieldWrite` fragment. Pointee-pair

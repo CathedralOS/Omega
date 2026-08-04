@@ -1,3 +1,4 @@
+use omega_calling_conventions::{MachineRegister, MachineStateSet, RegisterSet};
 use omega_target_operations::{Place, PlaceStep};
 use psi_diagnostics::Diagnostic;
 
@@ -109,4 +110,18 @@ pub fn encode_place_bounded_buffer_literal_append(
     bytes.extend(encode_add_x_immediate(15, 15, literal.len())?);
     bytes.extend(encode_store_x_to_x(15, 16, target_offset)?);
     Ok((bytes, sites))
+}
+
+pub fn place_bounded_buffer_literal_append_register_write_ceiling() -> RegisterSet {
+    RegisterSet::new([
+        MachineRegister::Aarch64X(13),
+        MachineRegister::Aarch64X(14),
+        MachineRegister::Aarch64X(15),
+        MachineRegister::Aarch64X(16),
+        MachineRegister::Aarch64X(17),
+    ])
+}
+
+pub const fn place_bounded_buffer_literal_append_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::empty()
 }

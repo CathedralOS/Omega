@@ -504,6 +504,21 @@ fn compiler_instruction_validation_kind(
                 },
             )
         }
+        SelectedInstructionKind::AppendPlaceBoundedBufferLiteral { target, literal }
+            if emission_context.target.architecture == omega_target::Architecture::X86_64
+                || matches!(
+                    omega_instruction_selection::classify_write_place_shape(target),
+                    omega_instruction_selection::WritePlaceShape::Direct { .. }
+                        | omega_instruction_selection::WritePlaceShape::Pointee { .. }
+                ) =>
+        {
+            Some(
+                CompilerInstructionValidationKind::CompilerBodyPlaceBoundedBufferLiteralAppend {
+                    target: *target,
+                    literal: Arc::clone(literal),
+                },
+            )
+        }
         SelectedInstructionKind::WritePlaceString {
             target,
             data,
