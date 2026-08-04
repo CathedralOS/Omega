@@ -1170,7 +1170,8 @@ Direct-place immediate integer writes, writes through a frame-held pointer or
 indexed descriptor, and runtime-indexed writes into inline frame arrays also
 retain a separate ordinary-body fragment and replay exact target `Place`,
 value, width, every storage/index relocation, and target scratch.
-Runtime-indexed immediate writes into inline machine arrays are included too.
+Runtime-indexed immediate writes into single- and double-indexed inline machine
+arrays are included too.
 Final validation replays the exact target encoder
 and relocation set and matches the derived scratch union to the
 respective retained `CompilerBodyPlaceCopy` or
