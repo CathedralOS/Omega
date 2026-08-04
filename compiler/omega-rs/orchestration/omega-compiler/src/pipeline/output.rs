@@ -10,6 +10,7 @@ use psi_diagnostics::Diagnostic;
 
 const FINAL_FOOTPRINT_CERTIFICATE_SCHEMA: &str = "omega.final-footprint-certificate";
 const FINAL_FOOTPRINT_CERTIFICATE_FORMAT_VERSION: u32 = 1;
+const FINAL_FOOTPRINT_CERTIFICATE_COVERAGE_V1: &str = "enumeration_complete=false;region_enumeration_complete=true;footprint_enumeration_complete=false;covered=compiler_functions,import_thunks;absent=relaxation_products,veneers,generated_stubs;validated=compiler_function_relocation_envelope,compiler_entry_call_return_mechanics,catalog_checked_assembly,import_thunks;missing=compiler_function_body_footprint_decoding,admitted_leaves";
 
 pub(super) fn write_output(
     options: &CompileOptions,
@@ -148,8 +149,9 @@ fn write_executable_region_inventory(
         compiler_text_validation.derivation_fingerprint,
         inventory.inventory_fingerprint,
     );
+    let coverage_fingerprint = final_footprint_coverage_fingerprint();
     let mut json = format!(
-        "{{\n  \"certificate_schema\": \"{FINAL_FOOTPRINT_CERTIFICATE_SCHEMA}\",\n  \"certificate_format_version\": {FINAL_FOOTPRINT_CERTIFICATE_FORMAT_VERSION},\n  \"certificate_fingerprint\": \"0x{certificate_fingerprint:016x}\",\n  \"placement_stage\": \"final_image\",\n  \"enumeration_complete\": false,\n  \"region_enumeration_complete\": true,\n  \"footprint_enumeration_complete\": false,\n  \"covered_classes\": [\"compiler_functions\", \"import_thunks\"],\n  \"absent_by_construction_classes\": [\"relaxation_products\", \"veneers\", \"generated_stubs\"],\n  \"final_byte_validated_classes\": [\"compiler_function_relocation_envelope\", \"compiler_entry_call_return_mechanics\", \"catalog_checked_assembly\", \"import_thunks\"],\n  \"missing_classes\": [\"compiler_function_body_footprint_decoding\", \"admitted_leaves\"],\n",
+        "{{\n  \"certificate_schema\": \"{FINAL_FOOTPRINT_CERTIFICATE_SCHEMA}\",\n  \"certificate_format_version\": {FINAL_FOOTPRINT_CERTIFICATE_FORMAT_VERSION},\n  \"certificate_fingerprint\": \"0x{certificate_fingerprint:016x}\",\n  \"coverage_fingerprint\": \"0x{coverage_fingerprint:016x}\",\n  \"placement_stage\": \"final_image\",\n  \"enumeration_complete\": false,\n  \"region_enumeration_complete\": true,\n  \"footprint_enumeration_complete\": false,\n  \"covered_classes\": [\"compiler_functions\", \"import_thunks\"],\n  \"absent_by_construction_classes\": [\"relaxation_products\", \"veneers\", \"generated_stubs\"],\n  \"final_byte_validated_classes\": [\"compiler_function_relocation_envelope\", \"compiler_entry_call_return_mechanics\", \"catalog_checked_assembly\", \"import_thunks\"],\n  \"missing_classes\": [\"compiler_function_body_footprint_decoding\", \"admitted_leaves\"],\n",
     );
     json.push_str("  \"boundary_contract_fingerprint\": ");
     if let Some(fingerprint) = footprints.boundary_contract_fingerprint {
@@ -259,11 +261,26 @@ fn final_footprint_certificate_fingerprint(
         .iter()
         .copied()
         .chain(FINAL_FOOTPRINT_CERTIFICATE_FORMAT_VERSION.to_le_bytes())
+        .chain(
+            FINAL_FOOTPRINT_CERTIFICATE_COVERAGE_V1
+                .as_bytes()
+                .iter()
+                .copied(),
+        )
         .chain(boundary_placement_binding_fingerprint.to_le_bytes())
         .chain(compiler_text_derivation_fingerprint.to_le_bytes())
         .chain(inventory_fingerprint.to_le_bytes())
     {
         hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    hash
+}
+
+fn final_footprint_coverage_fingerprint() -> u64 {
+    let mut hash = 0xcbf2_9ce4_8422_2325u64;
+    for byte in FINAL_FOOTPRINT_CERTIFICATE_COVERAGE_V1.as_bytes() {
+        hash ^= u64::from(*byte);
         hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
     }
     hash
@@ -275,7 +292,10 @@ fn io_diagnostic(error: std::io::Error) -> Vec<Diagnostic> {
 
 #[cfg(test)]
 mod executable_region_inventory_tests {
-    use super::{boundary_placement_binding_fingerprint, final_footprint_certificate_fingerprint};
+    use super::{
+        boundary_placement_binding_fingerprint, final_footprint_certificate_fingerprint,
+        final_footprint_coverage_fingerprint,
+    };
 
     #[test]
     fn placement_binding_changes_with_contract_evidence_or_final_inventory() {
@@ -308,6 +328,7 @@ mod executable_region_inventory_tests {
         assert_ne!(baseline, final_footprint_certificate_fingerprint(4, 2, 3));
         assert_ne!(baseline, final_footprint_certificate_fingerprint(1, 4, 3));
         assert_ne!(baseline, final_footprint_certificate_fingerprint(1, 2, 4));
+        assert_ne!(final_footprint_coverage_fingerprint(), 0);
     }
 }
 
