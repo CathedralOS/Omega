@@ -16,7 +16,7 @@ use omega_terminal_abstract_operations::{
 };
 use omega_terminal_target_operations::{
     TerminalPsiProvenance, TerminalScalarParameterLocation,
-    TerminalTargetConditionalIntegerParameter, TerminalTargetFunction,
+    TerminalTargetConditionalIntegerExpression, TerminalTargetFunction,
     TerminalTargetIntegerExpression, TerminalTargetOperation, TerminalTargetOperationPlan,
 };
 use psi_core::{IntegerType, IntegerValue, MachineId, ScalarType, ValueId};
@@ -100,7 +100,7 @@ fn lower_function(
         .iter()
         .any(|operation| matches!(operation, TerminalAbstractOperation::Conditional { .. }))
     {
-        return lower_direct_parameter_conditional(function, &values);
+        return lower_integer_conditional(function, &values);
     }
 
     for operation in &function.operations {
@@ -599,7 +599,7 @@ fn lower_function(
     })
 }
 
-fn lower_direct_parameter_conditional(
+fn lower_integer_conditional(
     function: &TerminalAbstractFunction,
     values: &BTreeMap<ValueId, KnownScalar>,
 ) -> Result<TerminalTargetFunction, LoweringError> {
@@ -642,8 +642,13 @@ fn lower_direct_parameter_conditional(
         ));
     };
 
-    let lower_arm = |successor: &omega_terminal_abstract_operations::TerminalAbstractSuccessor|
-     -> Result<TerminalTargetConditionalIntegerParameter, LoweringError> {
+    let lower_arm = |successor: &omega_terminal_abstract_operations::TerminalAbstractSuccessor| -> Result<
+        (
+            TerminalTargetConditionalIntegerExpression,
+            Vec<psi_core::OperationId>,
+        ),
+        LoweringError,
+    > {
         let Some((entry_index, block_entry)) = function
             .block_entries
             .iter()
@@ -658,12 +663,16 @@ fn lower_direct_parameter_conditional(
             .block_entries
             .get(entry_index + 1)
             .map_or(function.operations.len(), |next| next.operation_offset);
-        let [TerminalAbstractOperation::Return {
-            psi_edge: psi_return_edge,
-            result,
-            value,
-            scalar_type,
-        }] = &function.operations[block_entry.operation_offset..block_end]
+        let operations = &function.operations[block_entry.operation_offset..block_end];
+        let Some((
+            TerminalAbstractOperation::Return {
+                psi_edge: psi_return_edge,
+                result,
+                value,
+                scalar_type,
+            },
+            body,
+        )) = operations.split_last()
         else {
             return Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(
                 function.machine,
@@ -676,7 +685,6 @@ fn lower_direct_parameter_conditional(
         };
         if *result != function.result.value
             || *scalar_type != function.result.scalar_type
-            || *value != binding.parameter
             || binding.scalar_type != function.result.scalar_type
         {
             return Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(
@@ -684,39 +692,79 @@ fn lower_direct_parameter_conditional(
             ));
         }
         let KnownScalar::Integer {
-            scalar_type,
+            scalar_type: argument_type,
             value:
                 KnownInteger::Runtime(TerminalTargetIntegerExpression::Parameter {
-                    source_value,
                     parameter_index,
                     location,
+                    ..
                 }),
         } = values
             .get(&binding.argument)
             .ok_or(LoweringError::UnknownValue(binding.argument))?
         else {
-            return Err(LoweringError::ConditionalArmMustReturnRuntimeParameter(
+            return Err(LoweringError::ConditionalArmMustBindRuntimeParameter(
                 successor.psi_edge,
             ));
         };
-        if *scalar_type != result_type || *source_value != binding.argument {
+        if *argument_type != result_type {
             return Err(LoweringError::ValueTypeMismatch(binding.argument));
         }
-        Ok(TerminalTargetConditionalIntegerParameter {
-            psi_edge: successor.psi_edge,
-            psi_return_edge: *psi_return_edge,
-            source_value: *value,
-            argument_value: binding.argument,
-            parameter_index: *parameter_index,
-            location: *location,
-        })
+        let mut arm_values = BTreeMap::new();
+        insert_value(
+            &mut arm_values,
+            binding.parameter,
+            KnownScalar::Integer {
+                scalar_type: result_type,
+                value: KnownInteger::Runtime(TerminalTargetIntegerExpression::Parameter {
+                    source_value: binding.parameter,
+                    parameter_index: *parameter_index,
+                    location: *location,
+                }),
+            },
+        )?;
+        let mut operations_provenance = Vec::new();
+        for operation in body {
+            if !lower_conditional_integer_operation(
+                operation,
+                &mut arm_values,
+                &mut operations_provenance,
+            )? {
+                return Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(
+                    function.machine,
+                ));
+            }
+        }
+        let KnownScalar::Integer {
+            scalar_type: returned_type,
+            value: returned,
+        } = arm_values
+            .get(value)
+            .cloned()
+            .ok_or(LoweringError::UnknownValue(*value))?
+        else {
+            return Err(LoweringError::ValueTypeMismatch(*value));
+        };
+        if returned_type != result_type {
+            return Err(LoweringError::ValueTypeMismatch(*value));
+        }
+        Ok((
+            TerminalTargetConditionalIntegerExpression {
+                psi_edge: successor.psi_edge,
+                psi_return_edge: *psi_return_edge,
+                source_value: *value,
+                expression: returned.into_expression(*value),
+            },
+            operations_provenance,
+        ))
     };
-    let when_true = lower_arm(when_true)?;
-    let when_false = lower_arm(when_false)?;
+    let (when_true, mut true_operations) = lower_arm(when_true)?;
+    let (when_false, false_operations) = lower_arm(when_false)?;
+    true_operations.extend(false_operations);
     Ok(TerminalTargetFunction {
         machine: function.machine,
         provenance: TerminalPsiProvenance {
-            operations: Vec::new(),
+            operations: true_operations,
             edges: vec![
                 when_true.psi_edge,
                 when_false.psi_edge,
@@ -724,7 +772,7 @@ fn lower_direct_parameter_conditional(
                 when_false.psi_return_edge,
             ],
         },
-        operation: TerminalTargetOperation::ReturnIntegerConditionalParameters {
+        operation: TerminalTargetOperation::ReturnIntegerConditionalExpressions {
             condition_source: *condition,
             condition_parameter_index: *condition_parameter_index,
             condition_location: *condition_location,
@@ -733,6 +781,275 @@ fn lower_direct_parameter_conditional(
             when_false,
         },
     })
+}
+
+fn lower_conditional_integer_operation(
+    operation: &TerminalAbstractOperation,
+    values: &mut BTreeMap<ValueId, KnownScalar>,
+    provenance: &mut Vec<psi_core::OperationId>,
+) -> Result<bool, LoweringError> {
+    let (psi_operation, result, scalar_type, value) = match operation {
+        TerminalAbstractOperation::IntegerConstant {
+            psi_operation,
+            result,
+            scalar_type,
+            value,
+        } => {
+            let ScalarType::Integer(integer_type) = scalar_type else {
+                return Err(LoweringError::IntegerConstantHasNonIntegerType(*result));
+            };
+            if !integer_type.admits(*value) {
+                return Err(LoweringError::IntegerConstantOutsideType(*result));
+            }
+            (
+                *psi_operation,
+                *result,
+                *integer_type,
+                KnownInteger::Immediate(*value),
+            )
+        }
+        TerminalAbstractOperation::WrappingIntegerAdd {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => (
+            *psi_operation,
+            *result,
+            *scalar_type,
+            lower_conditional_integer_binary(
+                values,
+                *result,
+                *scalar_type,
+                *left,
+                *right,
+                IntegerBinaryKind::WrappingAdd,
+                *psi_operation,
+            )?,
+        ),
+        TerminalAbstractOperation::SaturatingIntegerAdd {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => (
+            *psi_operation,
+            *result,
+            *scalar_type,
+            lower_conditional_integer_binary(
+                values,
+                *result,
+                *scalar_type,
+                *left,
+                *right,
+                IntegerBinaryKind::SaturatingAdd,
+                *psi_operation,
+            )?,
+        ),
+        TerminalAbstractOperation::WrappingIntegerSubtract {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => (
+            *psi_operation,
+            *result,
+            *scalar_type,
+            lower_conditional_integer_binary(
+                values,
+                *result,
+                *scalar_type,
+                *left,
+                *right,
+                IntegerBinaryKind::WrappingSubtract,
+                *psi_operation,
+            )?,
+        ),
+        TerminalAbstractOperation::SaturatingIntegerSubtract {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => (
+            *psi_operation,
+            *result,
+            *scalar_type,
+            lower_conditional_integer_binary(
+                values,
+                *result,
+                *scalar_type,
+                *left,
+                *right,
+                IntegerBinaryKind::SaturatingSubtract,
+                *psi_operation,
+            )?,
+        ),
+        TerminalAbstractOperation::WrappingIntegerMultiply {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => (
+            *psi_operation,
+            *result,
+            *scalar_type,
+            lower_conditional_integer_binary(
+                values,
+                *result,
+                *scalar_type,
+                *left,
+                *right,
+                IntegerBinaryKind::WrappingMultiply,
+                *psi_operation,
+            )?,
+        ),
+        TerminalAbstractOperation::SaturatingIntegerMultiply {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => (
+            *psi_operation,
+            *result,
+            *scalar_type,
+            lower_conditional_integer_binary(
+                values,
+                *result,
+                *scalar_type,
+                *left,
+                *right,
+                IntegerBinaryKind::SaturatingMultiply,
+                *psi_operation,
+            )?,
+        ),
+        _ => return Ok(false),
+    };
+    insert_value(values, result, KnownScalar::Integer { scalar_type, value })?;
+    provenance.push(psi_operation);
+    Ok(true)
+}
+
+#[derive(Clone, Copy)]
+enum IntegerBinaryKind {
+    WrappingAdd,
+    SaturatingAdd,
+    WrappingSubtract,
+    SaturatingSubtract,
+    WrappingMultiply,
+    SaturatingMultiply,
+}
+
+fn lower_conditional_integer_binary(
+    values: &BTreeMap<ValueId, KnownScalar>,
+    result: ValueId,
+    scalar_type: IntegerType,
+    left_id: ValueId,
+    right_id: ValueId,
+    kind: IntegerBinaryKind,
+    psi_operation: psi_core::OperationId,
+) -> Result<KnownInteger, LoweringError> {
+    let operand = |id| match values.get(&id).cloned() {
+        Some(KnownScalar::Integer {
+            scalar_type: operand_type,
+            value,
+        }) if operand_type == scalar_type => Ok(value),
+        Some(_) => Err(kind.mismatch(result)),
+        None => Err(LoweringError::UnknownValue(id)),
+    };
+    let left = operand(left_id)?;
+    let right = operand(right_id)?;
+    Ok(match (left, right) {
+        (KnownInteger::Immediate(left), KnownInteger::Immediate(right)) => KnownInteger::Immediate(
+            kind.fold(scalar_type, left, right)
+                .ok_or(kind.mismatch(result))?,
+        ),
+        (left, right) => KnownInteger::Runtime(kind.expression(
+            psi_operation,
+            left.into_expression(left_id),
+            right.into_expression(right_id),
+        )),
+    })
+}
+
+impl IntegerBinaryKind {
+    fn mismatch(self, result: ValueId) -> LoweringError {
+        match self {
+            Self::WrappingAdd => LoweringError::WrappingAddOperandTypeMismatch(result),
+            Self::SaturatingAdd => LoweringError::SaturatingAddOperandTypeMismatch(result),
+            Self::WrappingSubtract => LoweringError::WrappingSubtractOperandTypeMismatch(result),
+            Self::SaturatingSubtract => {
+                LoweringError::SaturatingSubtractOperandTypeMismatch(result)
+            }
+            Self::WrappingMultiply => LoweringError::WrappingMultiplyOperandTypeMismatch(result),
+            Self::SaturatingMultiply => {
+                LoweringError::SaturatingMultiplyOperandTypeMismatch(result)
+            }
+        }
+    }
+
+    fn fold(
+        self,
+        scalar_type: IntegerType,
+        left: IntegerValue,
+        right: IntegerValue,
+    ) -> Option<IntegerValue> {
+        match self {
+            Self::WrappingAdd => scalar_type.wrapping_add(left, right),
+            Self::SaturatingAdd => scalar_type.saturating_add(left, right),
+            Self::WrappingSubtract => scalar_type.wrapping_sub(left, right),
+            Self::SaturatingSubtract => scalar_type.saturating_sub(left, right),
+            Self::WrappingMultiply => scalar_type.wrapping_mul(left, right),
+            Self::SaturatingMultiply => scalar_type.saturating_mul(left, right),
+        }
+    }
+
+    fn expression(
+        self,
+        psi_operation: psi_core::OperationId,
+        left: TerminalTargetIntegerExpression,
+        right: TerminalTargetIntegerExpression,
+    ) -> TerminalTargetIntegerExpression {
+        let left = Box::new(left);
+        let right = Box::new(right);
+        match self {
+            Self::WrappingAdd => TerminalTargetIntegerExpression::WrappingAdd {
+                psi_operation,
+                left,
+                right,
+            },
+            Self::SaturatingAdd => TerminalTargetIntegerExpression::SaturatingAdd {
+                psi_operation,
+                left,
+                right,
+            },
+            Self::WrappingSubtract => TerminalTargetIntegerExpression::WrappingSubtract {
+                psi_operation,
+                left,
+                right,
+            },
+            Self::SaturatingSubtract => TerminalTargetIntegerExpression::SaturatingSubtract {
+                psi_operation,
+                left,
+                right,
+            },
+            Self::WrappingMultiply => TerminalTargetIntegerExpression::WrappingMultiply {
+                psi_operation,
+                left,
+                right,
+            },
+            Self::SaturatingMultiply => TerminalTargetIntegerExpression::SaturatingMultiply {
+                psi_operation,
+                left,
+                right,
+            },
+        }
+    }
 }
 
 fn scalar_shape(
@@ -844,7 +1161,7 @@ pub enum LoweringError {
     FunctionResultMismatch(MachineId),
     ConditionalControlFlowRequiresBlockLowering(MachineId),
     ConditionalConditionMustBeRuntimeParameter(ValueId),
-    ConditionalArmMustReturnRuntimeParameter(psi_core::EdgeId),
+    ConditionalArmMustBindRuntimeParameter(psi_core::EdgeId),
     DuplicateValue(ValueId),
     UnknownValue(ValueId),
     ValueTypeMismatch(ValueId),

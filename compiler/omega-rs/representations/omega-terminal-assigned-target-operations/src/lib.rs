@@ -56,24 +56,23 @@ pub enum TerminalAssignedOperation {
         frame: TerminalExpressionFrame,
         expression: TerminalAssignedIntegerExpression,
     },
-    ReturnIntegerConditionalParameters {
+    ReturnIntegerConditionalExpressions {
         condition_source: ValueId,
         condition_parameter_index: usize,
         condition_location: TerminalAssignedScalarLocation,
         scalar_type: IntegerType,
-        when_true: TerminalAssignedConditionalIntegerParameter,
-        when_false: TerminalAssignedConditionalIntegerParameter,
+        when_true: TerminalAssignedConditionalIntegerExpression,
+        when_false: TerminalAssignedConditionalIntegerExpression,
     },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct TerminalAssignedConditionalIntegerParameter {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalAssignedConditionalIntegerExpression {
     pub psi_edge: EdgeId,
     pub psi_return_edge: EdgeId,
     pub source_value: ValueId,
-    pub argument_value: ValueId,
-    pub parameter_index: usize,
-    pub location: TerminalAssignedScalarLocation,
+    pub frame: TerminalExpressionFrame,
+    pub expression: TerminalAssignedIntegerExpression,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

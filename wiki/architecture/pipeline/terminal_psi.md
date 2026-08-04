@@ -61,12 +61,13 @@ value use; proof reconstruction retains only facts common to every return
 path. The canonical codec round-trips both ordered successors, the interpreter
 executes and charges only the selected edge, and Omega's source-independent
 abstract plan retains canonical block entries and both successor records.
-The checked-source producer lowers one exact direct-binding conditional form.
+The checked-source producer lowers one exact conditional form whose branch
+states may compute integer expressions from their bound parameter and landed
+literals using the already-versioned arithmetic operations.
 The restricted fixed-work checker derives its maximum acyclic branch bound.
 That same three-block form now crosses target assignment and emits x86-64 and
-AArch64 code when a runtime Boolean selects between two direct integer
-parameter returns. General block programs and branch-local computation remain
-implementation work and fail closed.
+AArch64 code when a runtime Boolean selects between the two integer
+expressions. General block programs remain implementation work and fail closed.
 
 The checked-frontend migration also keeps the ownership firewall explicit:
 `psi-checked-trees` now owns the target-neutral checked representation and
@@ -110,8 +111,10 @@ domains. The conditional integer form has one entry plus two branch states. Its
 first arm is the positive pattern of one Boolean entry parameter or literal,
 its second arm is the unconditional fallback, and each successor binds one
 already-defined integer entry parameter to a one-parameter branch state that
-returns it directly. This preserves source ordering without speculatively
-computing branch-local work. All four forms require a matching closed
+returns a recursively nested parameter/literal add/subtract/multiply expression
+in a settled Wrapping or Saturating domain. This preserves source ordering and
+keeps each branch's computation local to its selected path. All four forms
+require a matching closed
 `requires`/`ensures` pair. The producer rejects all other checked-tree shapes,
 including selected domain-owned operator meanings. The source canary lowers
 all six versioned integer-policy operations in both constant-fed and
@@ -123,8 +126,10 @@ integer direct return, discards
 The source conditional likewise survives frontend disposal, selects both arms,
 charges only the taken edge, crosses Omega's abstract boundary with both
 successors intact, and executes both selections through emitted host machine
-code. Its fixed-work certificate is two units. Target lowering accepts only
-this direct-parameter shape; computed branch-local work remains fail-closed.
+code. Target lowering accepts only this three-block shape, retaining each
+branch expression and its operation provenance through independent assigned
+frames and native emission. The computed canary paths each have a four-unit
+fixed-work certificate.
 Constant-fed wrapping add and the Boolean literal reach emitted host machine
 code; direct ninth `bool` and `u8` returns cross the host incoming-stack ABI;
 and runtime wrapping add
@@ -242,9 +247,8 @@ and obligation subjects point to the exact authored `ensures` fact site rather
 than the enclosing machine declaration. The real-source
 canary encodes and manifests the debug section,
 drops checked trees, and decodes it against the reconstructed semantic module.
-General target/native conditional block lowering, the remaining arithmetic-
-policy variants, general register assignment, build-time fuel migration, and
-native fuel metering remain next.
+General target/native CFG lowering, general register assignment, build-time
+fuel migration, and native fuel metering remain next.
 The v5 wrapping-subtract canary independently round-trips, verifies,
 costs one operation plus one return edge, lowers, and executes parameter-fed
 `u8` 5-10 as 251 through a real C ABI call.

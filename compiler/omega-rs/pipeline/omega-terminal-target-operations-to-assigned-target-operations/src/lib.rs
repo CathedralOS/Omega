@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 
 use omega_target::Architecture;
 use omega_terminal_assigned_target_operations::{
-    TerminalAssignedConditionalIntegerParameter, TerminalAssignedFunction,
+    TerminalAssignedConditionalIntegerExpression, TerminalAssignedFunction,
     TerminalAssignedIntegerExpression, TerminalAssignedOperation, TerminalAssignedOperationPlan,
     TerminalAssignedScalarLocation, TerminalEntryRegisterSpill, TerminalExpressionFrame,
 };
@@ -105,7 +105,7 @@ fn assign_function(
                 expression: assign_expression(expression, &assigned_locations)?,
             }
         }
-        TerminalTargetOperation::ReturnIntegerConditionalParameters {
+        TerminalTargetOperation::ReturnIntegerConditionalExpressions {
             condition_source,
             condition_parameter_index,
             condition_location,
@@ -113,21 +113,19 @@ fn assign_function(
             when_true,
             when_false,
         } => {
-            let assign_arm = |arm: &omega_terminal_target_operations::TerminalTargetConditionalIntegerParameter| {
-                Ok(TerminalAssignedConditionalIntegerParameter {
+            let assign_arm = |arm: &omega_terminal_target_operations::TerminalTargetConditionalIntegerExpression| {
+                let locations = expression_parameter_locations(&arm.expression)?;
+                let (frame, assigned_locations) =
+                    assign_expression_locations(architecture, &locations)?;
+                Ok(TerminalAssignedConditionalIntegerExpression {
                     psi_edge: arm.psi_edge,
                     psi_return_edge: arm.psi_return_edge,
                     source_value: arm.source_value,
-                    argument_value: arm.argument_value,
-                    parameter_index: arm.parameter_index,
-                    location: assign_direct_location(
-                        arm.argument_value,
-                        arm.location,
-                        architecture,
-                    )?,
+                    frame,
+                    expression: assign_expression(&arm.expression, &assigned_locations)?,
                 })
             };
-            TerminalAssignedOperation::ReturnIntegerConditionalParameters {
+            TerminalAssignedOperation::ReturnIntegerConditionalExpressions {
                 condition_source: *condition_source,
                 condition_parameter_index: *condition_parameter_index,
                 condition_location: assign_direct_location(
