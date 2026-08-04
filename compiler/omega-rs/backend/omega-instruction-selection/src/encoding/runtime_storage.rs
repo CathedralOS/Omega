@@ -1828,8 +1828,8 @@ pub fn x86_64_encode_write_place_string_with_sites(
 }
 
 /// Text rung 2a: the place-shaped bounded-buffer literal write. x86_64 rides
-/// the materializer; aarch64 decomposes to the retained carrier encoders
-/// (direct + pointee, the only shapes the retired kinds spelled).
+/// the materializer; aarch64 decomposes to retained carrier encoders for every
+/// classified place shape.
 pub fn encode_write_place_bounded_buffer(
     architecture: Architecture,
     target: &omega_target_operations::Place,
@@ -1851,10 +1851,94 @@ pub fn encode_write_place_bounded_buffer(
                 field_byte_offset,
                 literal,
             ),
+            WritePlaceShape::FrameIndexed {
+                descriptor_offset,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+            } => aarch64::encode_runtime_frame_indexed_bounded_buffer_write(
+                descriptor_offset,
+                omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+                literal,
+            ),
+            WritePlaceShape::FrameIndexedByRegion {
+                descriptor_offset,
+                index_region,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+            } => aarch64::encode_runtime_frame_indexed_bounded_buffer_write(
+                descriptor_offset,
+                index_region,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+                literal,
+            ),
+            WritePlaceShape::FrameBaseIndexed {
+                base_byte_offset,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+            } => aarch64::encode_runtime_frame_base_indexed_bounded_buffer_write(
+                base_byte_offset,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+                literal,
+            ),
+            WritePlaceShape::MachineIndexed {
+                base_byte_offset,
+                index_region,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+            } => aarch64::encode_runtime_machine_indexed_bounded_buffer_write(
+                base_byte_offset,
+                index_region,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+                literal,
+            ),
+            WritePlaceShape::MachineDoubleIndexed {
+                base_byte_offset,
+                outer_index_region,
+                outer_index_offset,
+                outer_index_byte_size,
+                outer_stride,
+                inner_index_region,
+                inner_index_offset,
+                inner_index_byte_size,
+                inner_stride,
+                field_byte_offset,
+            } => aarch64::encode_runtime_machine_double_indexed_bounded_buffer_write(
+                base_byte_offset,
+                outer_index_offset,
+                outer_index_region,
+                outer_index_byte_size,
+                outer_stride,
+                inner_index_offset,
+                inner_index_region,
+                inner_index_byte_size,
+                inner_stride,
+                field_byte_offset,
+                literal,
+            ),
             _ => Err(Diagnostic::error(
-                "WritePlaceBoundedBuffer on aarch64 serves direct and pointee place \
-                 shapes only until the aarch64 place materializer lands; this shape \
-                 refuses loudly",
+                "WritePlaceBoundedBuffer on aarch64 serves every classified place shape; \
+                 unsupported general paths refuse loudly until the aarch64 place materializer lands",
             )),
         },
     }

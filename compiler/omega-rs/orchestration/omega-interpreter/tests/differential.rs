@@ -902,8 +902,16 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("text/runtime_local_struct_string_field_concat_exit", 188),
     ("text/runtime_lookup_struct_field_concat_exit", 190),
     (
+        "text/runtime_machine_owned_double_indexed_bounded_carrier_literal_exit",
+        87,
+    ),
+    (
         "text/runtime_machine_owned_double_indexed_string_field_concat_exit",
         83,
+    ),
+    (
+        "text/runtime_machine_owned_indexed_bounded_carrier_literal_exit",
+        85,
     ),
     (
         "text/runtime_machine_owned_indexed_string_field_concat_exit",

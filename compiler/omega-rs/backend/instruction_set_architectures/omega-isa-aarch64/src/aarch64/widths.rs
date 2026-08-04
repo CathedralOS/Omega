@@ -1114,6 +1114,70 @@ fn bounded_buffer_literal_bytes_width(literal: &str) -> usize {
         .sum::<usize>()
 }
 
+fn bounded_buffer_literal_tail_width(literal: &str) -> usize {
+    unsigned_immediate_width(literal.len() as u64) + 4 + bounded_buffer_literal_bytes_width(literal)
+}
+
+pub fn runtime_frame_indexed_bounded_buffer_write_width(
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    literal: &str,
+) -> usize {
+    runtime_frame_indexed_string_data_address_offset_with_index_region(
+        index_region,
+        element_byte_size,
+        field_byte_offset,
+    ) + bounded_buffer_literal_tail_width(literal)
+}
+
+pub fn runtime_frame_base_indexed_bounded_buffer_write_width(
+    base_byte_offset: usize,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    literal: &str,
+) -> usize {
+    runtime_frame_base_indexed_string_data_address_offset(
+        base_byte_offset,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+    ) + bounded_buffer_literal_tail_width(literal)
+}
+
+pub fn runtime_machine_indexed_bounded_buffer_write_width(
+    base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    literal: &str,
+) -> usize {
+    runtime_machine_indexed_string_data_address_offset_with_index_region(
+        base_byte_offset,
+        index_region,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+    ) + bounded_buffer_literal_tail_width(literal)
+}
+
+pub fn runtime_machine_double_indexed_bounded_buffer_write_width(
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    literal: &str,
+) -> usize {
+    runtime_machine_double_indexed_string_data_address_offset(
+        outer_index_region,
+        inner_index_region,
+    ) + bounded_buffer_literal_tail_width(literal)
+}
+
 /// Width of the owned-carrier write through a stored pointer (see
 /// `runtime_storage::encode_runtime_pointee_bounded_buffer_write`): frame-base
 /// `adrp`+`add` (8), the pointer load with its optional offset add, the optional

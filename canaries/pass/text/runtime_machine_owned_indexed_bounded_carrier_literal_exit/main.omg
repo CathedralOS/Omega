@@ -1,0 +1,35 @@
+domain [u8]::Utf8
+requires
+    valid_utf8(self);
+domain [u8; 8]::Utf8
+requires
+    valid_utf8(self);
+use omega::language::std::console;
+
+data Room {
+    label: [u8; 8] in Utf8;
+}
+
+data Main {
+    console: Console;
+    rooms: [Room; 2];
+    index: u64 [0..=1];
+}
+
+machine Main::main(&mut self) {
+    self.index = 1;
+    self.rooms[self.index].label = "Gate";
+
+    transition self.rooms[1].label == "Gate" {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(85);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(86);
+    }
+}

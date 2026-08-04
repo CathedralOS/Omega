@@ -2594,15 +2594,212 @@ pub fn encode_runtime_pointee_bounded_buffer_write(
     Ok(bytes)
 }
 
-/// Closed may-write ceiling shared by the direct and pointee immediate
-/// bounded-buffer encoders. x16 owns the destination, x17 carries length and
-/// bytes, while x15/x19 cover their respective large-offset recipes.
+fn append_bounded_buffer_literal_at_x16(
+    bytes: &mut Vec<u8>,
+    literal: &str,
+) -> Result<(), Diagnostic> {
+    append_unsigned_immediate(bytes, 17, literal.len() as u64);
+    bytes.extend(encode_store_x_to_x(17, 16, 0)?);
+    for (index, byte) in literal.as_bytes().iter().enumerate() {
+        append_unsigned_immediate(bytes, 17, u64::from(*byte));
+        bytes.extend(encode_store_byte_w_to_x(17, 16, 8 + index)?);
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_frame_indexed_bounded_buffer_write(
+    descriptor_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    literal: &str,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(
+        super::widths::runtime_frame_indexed_bounded_buffer_write_width(
+            index_region,
+            element_byte_size,
+            field_byte_offset,
+            literal,
+        ),
+    );
+    append_runtime_frame_index_target_address_with_index_region(
+        &mut bytes,
+        16,
+        index_region,
+        descriptor_offset,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+        17,
+        26,
+    )?;
+    append_bounded_buffer_literal_at_x16(&mut bytes, literal)?;
+    debug_assert_eq!(
+        bytes.len(),
+        super::widths::runtime_frame_indexed_bounded_buffer_write_width(
+            index_region,
+            element_byte_size,
+            field_byte_offset,
+            literal,
+        )
+    );
+    Ok(bytes)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_frame_base_indexed_bounded_buffer_write(
+    base_byte_offset: usize,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    literal: &str,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(
+        super::widths::runtime_frame_base_indexed_bounded_buffer_write_width(
+            base_byte_offset,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+            literal,
+        ),
+    );
+    append_runtime_frame_base_index_target_address(
+        &mut bytes,
+        16,
+        base_byte_offset,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+        17,
+        26,
+    )?;
+    append_bounded_buffer_literal_at_x16(&mut bytes, literal)?;
+    debug_assert_eq!(
+        bytes.len(),
+        super::widths::runtime_frame_base_indexed_bounded_buffer_write_width(
+            base_byte_offset,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+            literal,
+        )
+    );
+    Ok(bytes)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_machine_indexed_bounded_buffer_write(
+    base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    literal: &str,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(
+        super::widths::runtime_machine_indexed_bounded_buffer_write_width(
+            base_byte_offset,
+            index_region,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+            literal,
+        ),
+    );
+    append_runtime_machine_index_target_address(
+        &mut bytes,
+        base_byte_offset,
+        index_region,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+    )?;
+    append_bounded_buffer_literal_at_x16(&mut bytes, literal)?;
+    debug_assert_eq!(
+        bytes.len(),
+        super::widths::runtime_machine_indexed_bounded_buffer_write_width(
+            base_byte_offset,
+            index_region,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+            literal,
+        )
+    );
+    Ok(bytes)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_machine_double_indexed_bounded_buffer_write(
+    base_byte_offset: usize,
+    outer_index_offset: usize,
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    outer_index_byte_size: usize,
+    outer_stride: usize,
+    inner_index_offset: usize,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_byte_size: usize,
+    inner_stride: usize,
+    field_byte_offset: usize,
+    literal: &str,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(
+        super::widths::runtime_machine_double_indexed_bounded_buffer_write_width(
+            outer_index_region,
+            inner_index_region,
+            literal,
+        ),
+    );
+    let (outer_base, inner_base) =
+        append_double_index_bases(&mut bytes, outer_index_region, inner_index_region);
+    append_double_index_address_math(
+        &mut bytes,
+        outer_base,
+        outer_index_offset,
+        outer_index_byte_size,
+        outer_stride,
+        inner_base,
+        inner_index_offset,
+        inner_index_byte_size,
+        inner_stride,
+        base_byte_offset + field_byte_offset,
+    )?;
+    append_bounded_buffer_literal_at_x16(&mut bytes, literal)?;
+    debug_assert_eq!(
+        bytes.len(),
+        super::widths::runtime_machine_double_indexed_bounded_buffer_write_width(
+            outer_index_region,
+            inner_index_region,
+            literal,
+        )
+    );
+    Ok(bytes)
+}
+
+/// Closed may-write ceiling shared by every classified immediate bounded-buffer
+/// encoder. x16 owns the destination and x17 carries length/bytes; the other
+/// registers cover the fixed indexed and large-offset address recipes.
 pub fn place_bounded_buffer_write_register_write_ceiling() -> RegisterSet {
     RegisterSet::new([
+        MachineRegister::Aarch64X(14),
         MachineRegister::Aarch64X(15),
         MachineRegister::Aarch64X(16),
         MachineRegister::Aarch64X(17),
         MachineRegister::Aarch64X(19),
+        MachineRegister::Aarch64X(20),
+        MachineRegister::Aarch64X(26),
     ])
 }
 
@@ -8185,6 +8382,96 @@ mod tests {
             bytes.len(),
             widths::runtime_machine_bounded_buffer_write_width(5072, "torch")
         );
+    }
+
+    #[test]
+    fn indexed_bounded_buffer_writes_match_their_widths() {
+        let frame = omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
+        let machine = omega_target_operations::RuntimeStorageRegion::Machine;
+        for index_region in [frame, machine] {
+            let frame_indexed = encode_runtime_frame_indexed_bounded_buffer_write(
+                24,
+                index_region,
+                8,
+                8,
+                16,
+                0,
+                "Gate",
+            )
+            .expect("frame-indexed bounded-buffer write");
+            assert_eq!(
+                frame_indexed.len(),
+                super::super::widths::runtime_frame_indexed_bounded_buffer_write_width(
+                    index_region,
+                    16,
+                    0,
+                    "Gate",
+                )
+            );
+
+            let machine_indexed = encode_runtime_machine_indexed_bounded_buffer_write(
+                24,
+                index_region,
+                8,
+                8,
+                16,
+                0,
+                "Gate",
+            )
+            .expect("machine-indexed bounded-buffer write");
+            assert_eq!(
+                machine_indexed.len(),
+                super::super::widths::runtime_machine_indexed_bounded_buffer_write_width(
+                    24,
+                    index_region,
+                    8,
+                    8,
+                    16,
+                    0,
+                    "Gate",
+                )
+            );
+        }
+
+        let frame_base =
+            encode_runtime_frame_base_indexed_bounded_buffer_write(24, 8, 8, 16, 0, "Gate")
+                .expect("frame-base-indexed bounded-buffer write");
+        assert_eq!(
+            frame_base.len(),
+            super::super::widths::runtime_frame_base_indexed_bounded_buffer_write_width(
+                24, 8, 8, 16, 0, "Gate",
+            )
+        );
+
+        for (outer_region, inner_region) in [
+            (machine, machine),
+            (frame, machine),
+            (machine, frame),
+            (frame, frame),
+        ] {
+            let double = encode_runtime_machine_double_indexed_bounded_buffer_write(
+                24,
+                8,
+                outer_region,
+                8,
+                32,
+                16,
+                inner_region,
+                8,
+                16,
+                0,
+                "Gate",
+            )
+            .expect("double-indexed bounded-buffer write");
+            assert_eq!(
+                double.len(),
+                super::super::widths::runtime_machine_double_indexed_bounded_buffer_write_width(
+                    outer_region,
+                    inner_region,
+                    "Gate",
+                )
+            );
+        }
     }
 
     #[test]

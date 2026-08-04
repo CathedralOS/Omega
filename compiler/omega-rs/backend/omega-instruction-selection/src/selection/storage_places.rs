@@ -1494,7 +1494,7 @@ fn bounded_byte_buffer_indexed_place(
         type_descriptor: element_descriptor.clone(),
         layout: element_layout,
     };
-    let (field_byte_offset, field_layout) = resolve_indexed_target_suffix_layout_in_table(
+    let (field_byte_offset, field_layout, _) = resolve_indexed_target_suffix_layout_in_table(
         input,
         &root_field,
         expressions,
@@ -2394,13 +2394,14 @@ pub(super) fn resolve_runtime_frame_indexed_target_in_table(
         type_descriptor: element_descriptor.clone(),
         layout: element_layout,
     };
-    let (field_byte_offset, field_layout) = resolve_indexed_target_suffix_layout_in_table(
-        input,
-        &root_field,
-        expressions,
-        indexed.suffix_root,
-        indexed.boundary,
-    )?;
+    let (field_byte_offset, field_layout, field_descriptor) =
+        resolve_indexed_target_suffix_layout_in_table(
+            input,
+            &root_field,
+            expressions,
+            indexed.suffix_root,
+            indexed.boundary,
+        )?;
 
     Some(RuntimeFrameIndexedTarget {
         descriptor_offset: descriptor_place.byte_offset,
@@ -2410,6 +2411,7 @@ pub(super) fn resolve_runtime_frame_indexed_target_in_table(
         element_byte_size: element_layout.size,
         field_byte_offset,
         byte_count: field_layout.size,
+        is_bounded_byte_buffer: descriptor_is_bounded_byte_buffer(&field_descriptor),
     })
 }
 
@@ -2492,13 +2494,14 @@ fn resolve_runtime_pointee_indexed_target_from_path(
         type_descriptor: element_descriptor.clone(),
         layout: element_layout,
     };
-    let (element_field_offset, field_layout) = resolve_indexed_target_suffix_layout_in_table(
-        input,
-        &element_root,
-        expressions,
-        indexed.suffix_root,
-        indexed.boundary,
-    )?;
+    let (element_field_offset, field_layout, field_descriptor) =
+        resolve_indexed_target_suffix_layout_in_table(
+            input,
+            &element_root,
+            expressions,
+            indexed.suffix_root,
+            indexed.boundary,
+        )?;
     let index_place = resolve_runtime_storage_place_in_table(
         input,
         dispatch_index,
@@ -2516,6 +2519,7 @@ fn resolve_runtime_pointee_indexed_target_from_path(
             .byte_offset()
             .checked_add(element_field_offset)?,
         byte_count: field_layout.size,
+        is_bounded_byte_buffer: descriptor_is_bounded_byte_buffer(&field_descriptor),
     })
 }
 
@@ -2721,13 +2725,14 @@ pub(super) fn resolve_runtime_frame_indexed_target_near_slot_in_table(
         type_descriptor: element_descriptor.clone(),
         layout: element_layout,
     };
-    let (field_byte_offset, field_layout) = resolve_indexed_target_suffix_layout_in_table(
-        input,
-        &root_field,
-        expressions,
-        indexed.suffix_root,
-        indexed.boundary,
-    )?;
+    let (field_byte_offset, field_layout, field_descriptor) =
+        resolve_indexed_target_suffix_layout_in_table(
+            input,
+            &root_field,
+            expressions,
+            indexed.suffix_root,
+            indexed.boundary,
+        )?;
 
     Some(RuntimeFrameIndexedTarget {
         descriptor_offset: collection_slot.byte_offset,
@@ -2737,6 +2742,7 @@ pub(super) fn resolve_runtime_frame_indexed_target_near_slot_in_table(
         element_byte_size: element_layout.size,
         field_byte_offset,
         byte_count: field_layout.size,
+        is_bounded_byte_buffer: descriptor_is_bounded_byte_buffer(&field_descriptor),
     })
 }
 
@@ -2874,13 +2880,14 @@ pub(super) fn resolve_runtime_frame_base_indexed_target_in_table(
         type_descriptor: element_descriptor.clone(),
         layout: element_layout,
     };
-    let (field_byte_offset, field_layout) = resolve_indexed_target_suffix_layout_in_table(
-        input,
-        &root_field,
-        expressions,
-        indexed.suffix_root,
-        indexed.boundary,
-    )?;
+    let (field_byte_offset, field_layout, field_descriptor) =
+        resolve_indexed_target_suffix_layout_in_table(
+            input,
+            &root_field,
+            expressions,
+            indexed.suffix_root,
+            indexed.boundary,
+        )?;
 
     Some(RuntimeFrameBaseIndexedTarget {
         base_byte_offset: collection_slot.byte_offset + array_prefix_offset,
@@ -2889,6 +2896,7 @@ pub(super) fn resolve_runtime_frame_base_indexed_target_in_table(
         element_byte_size: element_layout.size,
         field_byte_offset,
         byte_count: field_layout.size,
+        is_bounded_byte_buffer: descriptor_is_bounded_byte_buffer(&field_descriptor),
     })
 }
 
@@ -2994,6 +3002,7 @@ pub(super) struct RuntimeMachineIndexedTarget {
     pub(super) element_byte_size: usize,
     pub(super) field_byte_offset: usize,
     pub(super) byte_count: usize,
+    pub(super) is_bounded_byte_buffer: bool,
 }
 
 /// The BOTH-RUNTIME nested element `grid[i][j]`: outer = the ROW index (`i`,
@@ -3013,6 +3022,7 @@ pub(super) struct RuntimeMachineDoubleIndexedTarget {
     pub(super) inner_stride: usize,
     pub(super) field_byte_offset: usize,
     pub(super) byte_count: usize,
+    pub(super) is_bounded_byte_buffer: bool,
 }
 
 /// Resolve `grid[i][j]` -- a machine-owned 2D fixed array read with BOTH
@@ -3142,13 +3152,14 @@ pub(super) fn resolve_runtime_machine_double_indexed_source_in_table(
         type_descriptor: element_type.clone(),
         layout: element_layout,
     };
-    let (suffix_offset, leaf_layout) = resolve_indexed_target_suffix_layout_in_table(
-        input,
-        &element_field,
-        expressions,
-        expression,
-        outer,
-    )?;
+    let (suffix_offset, leaf_layout, leaf_descriptor) =
+        resolve_indexed_target_suffix_layout_in_table(
+            input,
+            &element_field,
+            expressions,
+            expression,
+            outer,
+        )?;
 
     let outer_place = resolve_runtime_storage_place_in_table(
         input,
@@ -3185,6 +3196,7 @@ pub(super) fn resolve_runtime_machine_double_indexed_source_in_table(
         inner_stride: element_layout.size,
         field_byte_offset: between_offset + suffix_offset,
         byte_count: leaf_layout.size,
+        is_bounded_byte_buffer: descriptor_is_bounded_byte_buffer(&leaf_descriptor),
     })
 }
 
@@ -3244,13 +3256,14 @@ pub(super) fn resolve_runtime_machine_indexed_target_in_table(
         type_descriptor: element_descriptor.clone(),
         layout: element_layout,
     };
-    let (field_byte_offset, field_layout) = resolve_indexed_target_suffix_layout_in_table(
-        input,
-        &root_field,
-        expressions,
-        indexed.suffix_root,
-        indexed.boundary,
-    )?;
+    let (field_byte_offset, field_layout, field_descriptor) =
+        resolve_indexed_target_suffix_layout_in_table(
+            input,
+            &root_field,
+            expressions,
+            indexed.suffix_root,
+            indexed.boundary,
+        )?;
 
     // A carrier (`[u8;N]` BoundedByteBuffer) stores its inline bytes AFTER a
     // leading `len` word, so a runtime index must address past that prefix --
@@ -3271,6 +3284,7 @@ pub(super) fn resolve_runtime_machine_indexed_target_in_table(
         element_byte_size: element_layout.size,
         field_byte_offset,
         byte_count: field_layout.size,
+        is_bounded_byte_buffer: descriptor_is_bounded_byte_buffer(&field_descriptor),
     })
 }
 
@@ -3630,7 +3644,7 @@ pub(super) fn resolve_runtime_pointee_fixed_indexed_target_in_table(
         type_descriptor: element_descriptor.clone(),
         layout: element_layout,
     };
-    let (field_byte_offset, field_layout) = resolve_indexed_target_suffix_layout_in_table(
+    let (field_byte_offset, field_layout, _) = resolve_indexed_target_suffix_layout_in_table(
         input,
         &root_field,
         expressions,
@@ -3993,7 +4007,7 @@ fn resolve_runtime_fixed_indexed_place_in_table(
             type_descriptor: element_descriptor.clone(),
             layout: element_layout,
         };
-        let (field_byte_offset, field_layout) = resolve_indexed_target_suffix_layout_in_table(
+        let (field_byte_offset, field_layout, _) = resolve_indexed_target_suffix_layout_in_table(
             input,
             &root_field,
             expressions,
@@ -4066,7 +4080,7 @@ fn resolve_runtime_fixed_indexed_place_in_table(
         type_descriptor: element_descriptor.clone(),
         layout: element_layout,
     };
-    let (field_byte_offset, field_layout) = resolve_indexed_target_suffix_layout_in_table(
+    let (field_byte_offset, field_layout, _) = resolve_indexed_target_suffix_layout_in_table(
         input,
         &root_field,
         expressions,
@@ -4135,7 +4149,7 @@ pub(super) fn resolve_runtime_frame_fixed_indexed_target_in_table(
         type_descriptor: element_descriptor.clone(),
         layout: element_layout,
     };
-    let (field_byte_offset, field_layout) = resolve_indexed_target_suffix_layout_in_table(
+    let (field_byte_offset, field_layout, _) = resolve_indexed_target_suffix_layout_in_table(
         input,
         &root_field,
         expressions,
@@ -4428,7 +4442,7 @@ fn resolve_indexed_target_suffix_layout_in_table(
     expressions: &ExpressionTable,
     expression: ExpressionHandle,
     boundary: ExpressionHandle,
-) -> Option<(usize, TypeLayout)> {
+) -> Option<(usize, TypeLayout, TypeLayoutDescriptor)> {
     let cursor = NestedFieldLayoutCursor::from_root(root_field);
     let cursor = resolve_indexed_target_suffix_cursor_in_table(
         &input.layouts,
@@ -4437,7 +4451,11 @@ fn resolve_indexed_target_suffix_layout_in_table(
         expression,
         boundary,
     )?;
-    Some((cursor.byte_offset(), cursor.layout()))
+    Some((
+        cursor.byte_offset(),
+        cursor.layout(),
+        cursor.type_descriptor().clone(),
+    ))
 }
 
 /// Walk the suffix of an indexed place (`.field` / `[const]` steps ABOVE the

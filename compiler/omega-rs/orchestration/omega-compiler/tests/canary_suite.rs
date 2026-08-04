@@ -1127,7 +1127,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         executable_regions.contains(
             "\"certificate_schema\": \"omega.final-footprint-certificate\""
         )
-            && executable_regions.contains("\"certificate_format_version\": 63")
+            && executable_regions.contains("\"certificate_format_version\": 64")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
             && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")
@@ -2866,7 +2866,8 @@ fn compiler_body_string_write_footprints_reach_x86_and_aarch64_artifacts() {
 
 #[test]
 fn compiler_body_bounded_buffer_write_footprints_reach_x86_and_aarch64_artifacts() {
-    let canary = pass_canary("text/runtime_bounded_carrier_write_read_exit");
+    let canary =
+        pass_canary("text/runtime_machine_owned_double_indexed_bounded_carrier_literal_exit");
     for (target, expected_register) in [
         ("linux_x64", "\"X86Rax\""),
         ("linux_arm64", "\"Aarch64X(17)\""),
@@ -28485,6 +28486,73 @@ fn runtime_machine_owned_indexed_string_field_concat_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_machine_owned_indexed_bounded_carrier_literal_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_machine_owned_indexed_bounded_carrier_literal_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-machine-owned-indexed-bounded-carrier-literal-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime machine-owned indexed bounded-carrier literal canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime machine-owned indexed bounded-carrier literal canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(85),
+        "expected indexed owned-carrier literal assignment to write inline bytes and exit 85, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_machine_owned_double_indexed_bounded_carrier_literal_exit_canary_runs() {
+    let canary =
+        pass_canary("text/runtime_machine_owned_double_indexed_bounded_carrier_literal_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-machine-owned-double-indexed-bounded-carrier-literal-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime machine-owned double-indexed bounded-carrier literal canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime machine-owned double-indexed bounded-carrier literal canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(87),
+        "expected double-indexed owned-carrier literal assignment to write inline bytes and exit 87, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_machine_owned_double_indexed_string_field_concat_exit_canary_runs() {
     let canary = pass_canary("text/runtime_machine_owned_double_indexed_string_field_concat_exit");
     let main_path = canary.join("main.omg");
@@ -45559,6 +45627,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "text/runtime_string_append_in_place_exit",
     "text/runtime_string_field_concat_exit",
     "text/runtime_machine_owned_indexed_string_field_concat_exit",
+    "text/runtime_machine_owned_indexed_bounded_carrier_literal_exit",
+    "text/runtime_machine_owned_double_indexed_bounded_carrier_literal_exit",
     "text/runtime_machine_owned_double_indexed_string_field_concat_exit",
     "text/runtime_slice_alias_indexed_string_field_concat_exit",
     "text/runtime_slice_indexed_string_guard_exit",

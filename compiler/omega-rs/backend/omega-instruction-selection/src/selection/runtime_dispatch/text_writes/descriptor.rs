@@ -1,14 +1,114 @@
 use crate::InstructionSelectionInput;
 use crate::selection::instruction_sink::SelectedInstructionSink;
 use crate::selection::storage_places::{
-    resolve_runtime_frame_indexed_target, resolve_runtime_machine_double_indexed_source,
-    resolve_runtime_machine_indexed_target_in_table, resolve_runtime_storage_place,
-    resolve_runtime_storage_place_is_bounded_byte_buffer,
+    resolve_runtime_frame_base_indexed_target, resolve_runtime_frame_indexed_target,
+    resolve_runtime_machine_double_indexed_source, resolve_runtime_machine_indexed_target,
+    resolve_runtime_machine_indexed_target_in_table, resolve_runtime_pointee_slot_offset,
+    resolve_runtime_storage_place, resolve_runtime_storage_place_is_bounded_byte_buffer,
 };
 use omega_abstract_operations::SelectedInstruction;
 use omega_abstract_operations::TargetDataObjectHandle;
 use omega_control_flow::StateKey;
 use psi_checked_trees::expression::Expression;
+
+#[allow(clippy::too_many_arguments)]
+fn resolve_bounded_buffer_target_place(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    source_machine: &str,
+    source_state: &str,
+    expression: &Expression,
+) -> Option<omega_abstract_operations::Place> {
+    let direct_is_bounded = resolve_runtime_storage_place_is_bounded_byte_buffer(
+        input,
+        dispatch_index,
+        source_key,
+        expression,
+    );
+    if let Some(target) =
+        resolve_runtime_pointee_slot_offset(input, dispatch_index, source_key, expression)
+        && direct_is_bounded
+    {
+        return Some(crate::selection::runtime_dispatch::text_place_pointee(
+            target.pointer_byte_offset,
+            target.field_byte_offset,
+        ));
+    }
+    if let Some(target) =
+        resolve_runtime_frame_indexed_target(input, dispatch_index, source_key, expression)
+        && target.is_bounded_byte_buffer
+    {
+        return Some(crate::selection::runtime_dispatch::indexed_place(
+            target.descriptor_offset,
+            target.index_region,
+            target.index_offset,
+            target.index_byte_size,
+            target.element_byte_size,
+            target.field_byte_offset,
+        ));
+    }
+    if let Some(target) =
+        resolve_runtime_frame_base_indexed_target(input, dispatch_index, source_key, expression)
+        && target.is_bounded_byte_buffer
+    {
+        return Some(
+            crate::selection::runtime_dispatch::frame_base_indexed_place(
+                target.base_byte_offset,
+                target.index_offset,
+                target.index_byte_size,
+                target.element_byte_size,
+                target.field_byte_offset,
+            ),
+        );
+    }
+    if let Some(target) =
+        resolve_runtime_machine_double_indexed_source(input, dispatch_index, source_key, expression)
+        && target.is_bounded_byte_buffer
+    {
+        return Some(crate::selection::runtime_dispatch::double_indexed_place(
+            omega_abstract_operations::RuntimeStorageRegion::Machine,
+            target.base_byte_offset,
+            target.outer_index_region,
+            target.outer_index_offset,
+            target.outer_index_byte_size,
+            target.outer_stride,
+            target.inner_index_region,
+            target.inner_index_offset,
+            target.inner_index_byte_size,
+            target.inner_stride,
+            target.field_byte_offset,
+        ));
+    }
+    if let Some(target) =
+        resolve_runtime_machine_indexed_target(input, dispatch_index, source_key, expression)
+        && target.is_bounded_byte_buffer
+    {
+        return Some(crate::selection::runtime_dispatch::machine_indexed_place(
+            target.base_byte_offset,
+            target.index_region,
+            target.index_offset,
+            target.index_byte_size,
+            target.element_byte_size,
+            target.field_byte_offset,
+        ));
+    }
+    if !direct_is_bounded {
+        return None;
+    }
+    let target = resolve_runtime_storage_place(
+        input,
+        dispatch_index,
+        source_key,
+        source_machine,
+        source_state,
+        expression,
+    )?;
+    Some(omega_abstract_operations::Place::at(
+        target.region,
+        target.byte_offset,
+    ))
+}
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::selection) fn select_runtime_string_descriptor_write(
@@ -23,6 +123,25 @@ pub(in crate::selection) fn select_runtime_string_descriptor_write(
     value: &str,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
+    if let Some(target) = resolve_bounded_buffer_target_place(
+        input,
+        dispatch_index,
+        target_source_key,
+        source_machine,
+        source_state,
+        resolved_target,
+    ) {
+        selected_instructions.push(SelectedInstruction {
+            kind: omega_abstract_operations::SelectedInstructionKind::WritePlaceBoundedBuffer {
+                target,
+                literal: std::sync::Arc::from(value),
+            },
+            source_key: literal_source_key,
+            source_statement: statement_index,
+        });
+        return;
+    }
+
     let data = string_literal_data_object(input, literal_source_key, statement_index, value);
     if !data.is_valid() {
         return;
@@ -117,43 +236,6 @@ pub(in crate::selection) fn select_runtime_string_descriptor_write(
     ) else {
         return;
     };
-
-    // An owned `[u8; N]` bounded byte carrier OWNS its bytes: emit the carrier
-    // write (store `len` + copy the literal inline) instead of a `{ptr,len}`
-    // descriptor that aliases rodata. The carrier is machine-resident unless it is
-    // a `let`-local struct's field (`room.label`), which is frame-resident -- write
-    // it off the runtime frame base. Without the frame case a 16-byte carrier
-    // (`[u8; 8]`) matched the descriptor-size check below and was written as a
-    // `{ptr, len}` String descriptor into the frame (a garbage carrier).
-    if matches!(
-        target_place.region,
-        omega_abstract_operations::RuntimeStorageRegion::Machine
-            | omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame
-    ) && resolve_runtime_storage_place_is_bounded_byte_buffer(
-        input,
-        dispatch_index,
-        target_source_key,
-        resolved_target,
-    ) {
-        let target_in_frame = matches!(
-            target_place.region,
-            omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame
-        );
-        selected_instructions.push(SelectedInstruction {
-            kind: crate::selection::runtime_dispatch::write_place_bounded_buffer_direct(
-                if target_in_frame {
-                    omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame
-                } else {
-                    omega_abstract_operations::RuntimeStorageRegion::Machine
-                },
-                target_place.byte_offset,
-                std::sync::Arc::from(value),
-            ),
-            source_key: literal_source_key,
-            source_statement: statement_index,
-        });
-        return;
-    }
 
     if target_place.byte_count != input.runtime_abi.string_descriptor_size() {
         return;

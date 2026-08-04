@@ -998,11 +998,16 @@ pub fn derive_boundary_compiler_body_place_bounded_buffer_write_footprint<'instr
             }
             _ => continue,
         };
+        let target_shape = crate::classify_write_place_shape(target);
         let supported = architecture == omega_target::Architecture::X86_64
-            || (matches!(
-                crate::classify_write_place_shape(target),
-                crate::WritePlaceShape::Direct { .. } | crate::WritePlaceShape::Pointee { .. }
-            ) && source.map_or(true, |source| {
+            || ((if append_kind == 0 {
+                !matches!(target_shape, crate::WritePlaceShape::Unsupported)
+            } else {
+                matches!(
+                    target_shape,
+                    crate::WritePlaceShape::Direct { .. } | crate::WritePlaceShape::Pointee { .. }
+                )
+            }) && source.map_or(true, |source| {
                 matches!(
                     crate::classify_write_place_shape(source),
                     crate::WritePlaceShape::Direct { .. } | crate::WritePlaceShape::Pointee { .. }
