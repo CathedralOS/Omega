@@ -30,7 +30,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.semantic_version, SemanticVersion::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "b11e8ba98262fcdabafac23a4941aa11c18b1293e53758957d839345c01c4fcc"
+        "fedc2a183932f90079e8547d0ae975c2dc1ea6f7854621644625df102ba250bb"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -85,8 +85,8 @@ fn v10_identity_reshuffle_has_stable_canonical_bytes() {
 
     let mut sparse = module;
     sparse.machines[0].content_identity_reshuffles[0].claim = claim_id(9);
-    let migrated = migrate_module_to_current(&sparse).expect("v10 reshuffle migrates to v14");
-    assert_eq!(migrated.semantic_version, SemanticVersion::V14);
+    let migrated = migrate_module_to_current(&sparse).expect("v10 reshuffle migrates to current");
+    assert_eq!(migrated.semantic_version, SemanticVersion::CURRENT);
     assert_eq!(migrated.machines[0].content_entry_claims.len(), 1);
     assert_eq!(
         migrated.machines[0].content_entry_claims[0].claim,
@@ -95,6 +95,36 @@ fn v10_identity_reshuffle_has_stable_canonical_bytes() {
     assert_eq!(
         migrated.machines[0].content_identity_reshuffles[0].claim,
         claim_id(1)
+    );
+}
+
+#[test]
+fn v15_boolean_not_has_stable_canonical_bytes() {
+    let mut module = boolean_fixture(SemanticVersion::V15);
+    module.machines[0].parameters = vec![ValueDeclaration {
+        id: value_id(12),
+        scalar_type: ScalarType::Boolean,
+    }];
+    module.machines[0].blocks[0].operations[0].kind = OperationKind::BooleanNot {
+        operand: value_id(12),
+    };
+    let bytes = encode_module(&module).expect("v15 Boolean-not module should encode");
+
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
+    assert_eq!(
+        semantic_fingerprint(&module).unwrap().to_string(),
+        "feff8da3d27a1a60d4c54377641f9da883286964dfd40e1304bd88788b78ce8b"
+    );
+}
+
+#[test]
+fn archived_v14_current_fixture_keeps_its_identity() {
+    let mut module = fixture();
+    module.semantic_version = SemanticVersion::V14;
+    assert_eq!(
+        semantic_fingerprint(&module).unwrap().to_string(),
+        "b11e8ba98262fcdabafac23a4941aa11c18b1293e53758957d839345c01c4fcc"
     );
 }
 

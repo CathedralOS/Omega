@@ -59,6 +59,7 @@ pub fn validate_module(
             | SemanticVersion::V12
             | SemanticVersion::V13
             | SemanticVersion::V14
+            | SemanticVersion::V15
     ) {
         return Err(ModuleError::UnsupportedSemanticVersion(
             module.semantic_version,
@@ -230,6 +231,18 @@ fn validate_machine(
                         return Err(ModuleError::BooleanConstantRequiresBooleanResult(
                             operation.id,
                         ));
+                    }
+                }
+                OperationKind::BooleanNot { .. } => {
+                    if semantic_version < SemanticVersion::V15 {
+                        return Err(ModuleError::OperationRequiresSemanticVersion {
+                            operation: operation.id,
+                            required: SemanticVersion::V15,
+                            actual: semantic_version,
+                        });
+                    }
+                    if operation.result.scalar_type != ScalarType::Boolean {
+                        return Err(ModuleError::BooleanNotRequiresBooleanResult(operation.id));
                     }
                 }
                 OperationKind::WrappingIntegerAdd { .. } => {
@@ -1043,6 +1056,17 @@ fn validate_term_semantic_version(
     clause: ContractClauseKind,
 ) -> Result<(), ModuleError> {
     match term {
+        ScalarTerm::BooleanNot { operand } => {
+            if semantic_version < SemanticVersion::V15 {
+                return Err(ModuleError::PropositionRequiresSemanticVersion {
+                    contract,
+                    clause,
+                    required: SemanticVersion::V15,
+                    actual: semantic_version,
+                });
+            }
+            validate_term_semantic_version(operand, semantic_version, contract, clause)
+        }
         ScalarTerm::WrappingIntegerAdd { left, right, .. } => {
             if semantic_version < SemanticVersion::V3 {
                 return Err(ModuleError::PropositionRequiresSemanticVersion {
@@ -1174,6 +1198,9 @@ fn validate_term_scope(
         | ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
             validate_term_scope(left, allowed, contract, clause)?;
             validate_term_scope(right, allowed, contract, clause)?;
+        }
+        ScalarTerm::BooleanNot { operand } => {
+            validate_term_scope(operand, allowed, contract, clause)?;
         }
         ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => {}
     }
@@ -1386,6 +1413,18 @@ fn validate_operation_operands(
     value_types: &BTreeMap<ValueId, ScalarType>,
     defined: &BTreeSet<ValueId>,
 ) -> Result<(), ModuleError> {
+    if let OperationKind::BooleanNot { operand } = operation.kind {
+        require_defined(operand, value_types, defined)?;
+        let actual = value_types[&operand];
+        if actual != ScalarType::Boolean {
+            return Err(ModuleError::BooleanNotOperandTypeMismatch {
+                operation: operation.id,
+                operand,
+                actual,
+            });
+        }
+        return Ok(());
+    }
     let Some((left, right, arithmetic)) = (match operation.kind {
         OperationKind::WrappingIntegerAdd { left, right } => {
             Some((left, right, ArithmeticOperandKind::WrappingAdd))
@@ -1405,7 +1444,9 @@ fn validate_operation_operands(
         OperationKind::SaturatingIntegerMultiply { left, right } => {
             Some((left, right, ArithmeticOperandKind::SaturatingMultiply))
         }
-        OperationKind::IntegerConstant { .. } | OperationKind::BooleanConstant { .. } => None,
+        OperationKind::IntegerConstant { .. }
+        | OperationKind::BooleanConstant { .. }
+        | OperationKind::BooleanNot { .. } => None,
     }) else {
         return Ok(());
     };
@@ -1695,6 +1736,12 @@ pub enum ModuleError {
     IntegerConstantRequiresIntegerResult(OperationId),
     IntegerConstantOutsideResultType(OperationId),
     BooleanConstantRequiresBooleanResult(OperationId),
+    BooleanNotRequiresBooleanResult(OperationId),
+    BooleanNotOperandTypeMismatch {
+        operation: OperationId,
+        operand: ValueId,
+        actual: ScalarType,
+    },
     WrappingIntegerAddRequiresIntegerResult(OperationId),
     SaturatingIntegerAddRequiresIntegerResult(OperationId),
     WrappingIntegerSubtractRequiresIntegerResult(OperationId),

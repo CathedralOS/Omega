@@ -144,6 +144,18 @@ fn lower_function(
                 insert_value(&mut values, *result, KnownScalar::Boolean(*value))?;
                 provenance.operations.push(*psi_operation);
             }
+            TerminalAbstractOperation::BooleanNot {
+                psi_operation,
+                result,
+                operand,
+            } => {
+                let operand = values
+                    .get(operand)
+                    .cloned()
+                    .ok_or(LoweringError::UnknownValue(*operand))?;
+                insert_value(&mut values, *result, negate_boolean(operand, *result)?)?;
+                provenance.operations.push(*psi_operation);
+            }
             TerminalAbstractOperation::WrappingIntegerAdd {
                 psi_operation,
                 result,
@@ -593,6 +605,15 @@ fn lower_function(
                         parameter_index,
                         location,
                     },
+                    KnownScalar::BooleanNotParameter {
+                        parameter_index,
+                        location,
+                    } => TerminalTargetOperation::ReturnBooleanNotParameter {
+                        psi_edge: *psi_edge,
+                        source_value: *value,
+                        parameter_index,
+                        location,
+                    },
                 });
             }
         }
@@ -772,6 +793,28 @@ fn lower_boolean_block(
                     edges,
                 })
             }
+            KnownScalar::BooleanNotParameter {
+                parameter_index,
+                location,
+            } => {
+                let inverted_true = lower_boolean_arm(function, &values, when_false, &visited)?;
+                let inverted_false = lower_boolean_arm(function, &values, when_true, &visited)?;
+                operations.extend(inverted_true.operations);
+                operations.extend(inverted_false.operations);
+                let mut edges = inverted_true.edges;
+                edges.extend(inverted_false.edges);
+                Ok(LoweredBooleanControl {
+                    control: TerminalTargetBooleanControl::Conditional {
+                        condition_source: *condition,
+                        condition_parameter_index: parameter_index,
+                        condition_location: location,
+                        when_true: inverted_true.arm,
+                        when_false: inverted_false.arm,
+                    },
+                    operations,
+                    edges,
+                })
+            }
             KnownScalar::Integer { .. } => {
                 Err(LoweringError::ConditionalConditionMustBeBoolean(*condition))
             }
@@ -803,6 +846,15 @@ fn lower_boolean_block(
                     parameter_index,
                     location,
                 } => TerminalTargetBooleanControl::ReturnParameter {
+                    psi_return_edge: *psi_edge,
+                    source_value: *value,
+                    parameter_index,
+                    location,
+                },
+                KnownScalar::BooleanNotParameter {
+                    parameter_index,
+                    location,
+                } => TerminalTargetBooleanControl::ReturnNotParameter {
                     psi_return_edge: *psi_edge,
                     source_value: *value,
                     parameter_index,
@@ -843,6 +895,17 @@ fn target_operation_from_boolean_control(
             parameter_index,
             location,
         } => TerminalTargetOperation::ReturnBooleanParameter {
+            psi_edge: psi_return_edge,
+            source_value,
+            parameter_index,
+            location,
+        },
+        TerminalTargetBooleanControl::ReturnNotParameter {
+            psi_return_edge,
+            source_value,
+            parameter_index,
+            location,
+        } => TerminalTargetOperation::ReturnBooleanNotParameter {
             psi_edge: psi_return_edge,
             source_value,
             parameter_index,
@@ -1008,6 +1071,30 @@ fn lower_conditional_block(
                     edges,
                 })
             }
+            KnownScalar::BooleanNotParameter {
+                parameter_index,
+                location,
+            } => {
+                let inverted_true =
+                    lower_conditional_arm(function, result_type, &values, when_false, &visited)?;
+                let inverted_false =
+                    lower_conditional_arm(function, result_type, &values, when_true, &visited)?;
+                operations.extend(inverted_true.operations);
+                operations.extend(inverted_false.operations);
+                let mut edges = inverted_true.edges;
+                edges.extend(inverted_false.edges);
+                Ok(LoweredIntegerControl {
+                    control: TerminalTargetIntegerControl::Conditional {
+                        condition_source: *condition,
+                        condition_parameter_index: parameter_index,
+                        condition_location: location,
+                        when_true: inverted_true.arm,
+                        when_false: inverted_false.arm,
+                    },
+                    operations,
+                    edges,
+                })
+            }
             KnownScalar::Integer { .. } => {
                 Err(LoweringError::ConditionalConditionMustBeBoolean(*condition))
             }
@@ -1144,6 +1231,20 @@ fn lower_conditional_scalar_operation(
     } = operation
     {
         insert_value(values, *result, KnownScalar::Boolean(*value))?;
+        provenance.push(*psi_operation);
+        return Ok(true);
+    }
+    if let TerminalAbstractOperation::BooleanNot {
+        psi_operation,
+        result,
+        operand,
+    } = operation
+    {
+        let operand = values
+            .get(operand)
+            .cloned()
+            .ok_or(LoweringError::UnknownValue(*operand))?;
+        insert_value(values, *result, negate_boolean(operand, *result)?)?;
         provenance.push(*psi_operation);
         return Ok(true);
     }
@@ -1482,6 +1583,10 @@ enum KnownScalar {
         parameter_index: usize,
         location: TerminalScalarParameterLocation,
     },
+    BooleanNotParameter {
+        parameter_index: usize,
+        location: TerminalScalarParameterLocation,
+    },
 }
 
 impl KnownScalar {
@@ -1490,6 +1595,7 @@ impl KnownScalar {
             Self::Boolean(_) => ScalarType::Boolean,
             Self::Integer { scalar_type, .. } => ScalarType::Integer(*scalar_type),
             Self::BooleanParameter { .. } => ScalarType::Boolean,
+            Self::BooleanNotParameter { .. } => ScalarType::Boolean,
         }
     }
 
@@ -1499,8 +1605,31 @@ impl KnownScalar {
                 scalar_type,
                 value: value.rebind_direct_parameter(source_value),
             },
-            value @ (Self::Boolean(_) | Self::BooleanParameter { .. }) => value,
+            value @ (Self::Boolean(_)
+            | Self::BooleanParameter { .. }
+            | Self::BooleanNotParameter { .. }) => value,
         }
+    }
+}
+
+fn negate_boolean(value: KnownScalar, result: ValueId) -> Result<KnownScalar, LoweringError> {
+    match value {
+        KnownScalar::Boolean(value) => Ok(KnownScalar::Boolean(!value)),
+        KnownScalar::BooleanParameter {
+            parameter_index,
+            location,
+        } => Ok(KnownScalar::BooleanNotParameter {
+            parameter_index,
+            location,
+        }),
+        KnownScalar::BooleanNotParameter {
+            parameter_index,
+            location,
+        } => Ok(KnownScalar::BooleanParameter {
+            parameter_index,
+            location,
+        }),
+        KnownScalar::Integer { .. } => Err(LoweringError::ValueTypeMismatch(result)),
     }
 }
 
@@ -1549,6 +1678,7 @@ fn conditional_provenance(
         let psi_operation = match operation {
             TerminalAbstractOperation::IntegerConstant { psi_operation, .. }
             | TerminalAbstractOperation::BooleanConstant { psi_operation, .. }
+            | TerminalAbstractOperation::BooleanNot { psi_operation, .. }
             | TerminalAbstractOperation::WrappingIntegerAdd { psi_operation, .. }
             | TerminalAbstractOperation::SaturatingIntegerAdd { psi_operation, .. }
             | TerminalAbstractOperation::WrappingIntegerSubtract { psi_operation, .. }

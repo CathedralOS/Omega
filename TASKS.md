@@ -1145,7 +1145,8 @@ improvements do not change public identity.
   proof-only structural-place/content-conservation propositions, v10 canonical
   identity-preserving claim reshuffles, v11 stable sum-case content paths, and
   v12 exact authored-partition substitution rows, v13 structural Boolean
-  conditional edges, and current-v14 independent entry-claim bindings; the
+  conditional edges, v14 independent entry-claim bindings, and current-v15
+  total Boolean logical negation; the
   executable slice retains unconditional
   jump/return edges plus the ordered conditional,
   bodyful contracts, verifier-reconstructed semantic axioms, exhaustive proof-
@@ -1326,7 +1327,17 @@ improvements do not change public identity.
   while older identities remain frozen. A parameter-fed signed `i64` canary
   round-trips, verifies, costs one operation plus one return edge, and agrees
   with real C ABI execution across positive overflow, negative overflow,
-  `MIN * -1`, and an ordinary negative product. The
+  `MIN * -1`, and an ordinary negative product. The first unary Boolean slice
+  is live in v15: builtin `!` lowers to total `BooleanNot` operations and exact
+  recursive proposition terms, rejects custom operator resolution and
+  non-Boolean operands/results, reconstructs its semantic axiom, costs one
+  schedule-v1 unit, interprets directly, and lowers through the clean Omega
+  abstract/target/assigned stages. Canonical semantic v15 and minimal proof
+  format v10 have distinct golden identities while archived semantic v1-v14
+  and proof v1-v9 identities remain frozen. A real checked-source canary
+  round-trips, verifies, costs one operation plus one return edge, and returns
+  the complemented canonical Boolean through real C ABI execution; exact
+  AArch64 and x86-64 encodings are pinned independently. The
   initial vocabulary now has canonical semantic bytes and a domain-separated
   semantic fingerprint as well: decoding rejects alternate encodings, invalid
   modules, and trailing data, while a golden identity test freezes the format.
@@ -1339,7 +1350,9 @@ improvements do not change public identity.
   recursive saturating-subtract scalar terms; minimal format v6 adds recursive
   wrapping-multiply scalar terms; minimal format v7 adds recursive
   saturating-multiply scalar terms; minimal format v8 adds content-conservation
-  propositions and their structural-place terms; all reject over-deep or
+  propositions and their structural-place terms; minimal format v9 adds
+  sum-case structural paths; and minimal format v10 adds recursive Boolean-not
+  terms. All reject over-deep or
   unnecessarily newer encodings. A role-domain-separated
   manifest binds semantic,
   proof, optional installation, and optional debug section identities; proof,
@@ -1355,9 +1368,10 @@ improvements do not change public identity.
   content-conservation propositions; v10 adds canonical identity-preserving
   claim reshuffles; v11 adds stable sum-case content-path segments; v12 adds
   exact authored-partition substitution rows; v13 adds structural Boolean
-  conditional control; current v14 adds independent dense entry-claim
-  bindings; and explicit validated migration preserves an older semantic graph
-  while producing a new v14 fingerprint. Archived v1 through v13 identities
+  conditional control; v14 adds independent dense entry-claim bindings;
+  current v15 adds total `BooleanNot`; and explicit validated migration
+  preserves an older semantic graph while producing a new v15 fingerprint.
+  Archived v1 through v14 identities
   remain frozen. The clean
   lane now also constructs an owned, semantic-identity-bound object artifact
   with canonical function spans and retained Psi provenance, emits the Omega

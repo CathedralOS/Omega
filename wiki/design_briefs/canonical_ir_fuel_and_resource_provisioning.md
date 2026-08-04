@@ -30,8 +30,9 @@ contracts. Semantic v9 adds proof-only structural places and content
 conservation, v10 adds identity-preserving claim reshuffles, v11 adds stable
 sum-case content-path segments, v12 adds exact authored-partition substitution
 rows, and v13 adds structural Boolean conditional control without adding an
-executable operation. Current v14 adds independent dense entry-claim bindings
-without adding an executable operation or proposition. The verifier
+executable operation. V14 adds independent dense entry-claim bindings without
+adding an executable operation or proposition. Current v15 adds total Boolean
+logical negation as an operation and proposition term. The verifier
 reconstructs operation, edge-binding, and return-binding axioms guaranteed on
 every return path, rejects
 unreachable fact sources and out-of-scope contract
@@ -100,8 +101,9 @@ non-scalar homes remain implementation work.
 Semantic v5 and proof format v4 add recursive wrapping-subtract vocabulary;
 semantic v6 and proof format v5 add recursive saturating-subtract vocabulary;
 semantic v7 and proof format v6 add recursive wrapping-multiply vocabulary;
-semantic v8 and proof format v7 add recursive saturating-multiply
-vocabulary without changing fuel schedule v1. Parameter-fed canaries
+semantic v8 and proof format v7 add recursive saturating-multiply vocabulary;
+semantic v15 and proof format v10 add recursive Boolean-negation vocabulary,
+without changing fuel schedule v1. Parameter-fed canaries
 round-trip, verify, cost two units, and agree with native execution: wrapping
 `u8` computes 5-10 = 251, while signed `i64` saturating subtraction reaches
 both bounds and wrapping `u8` multiplication computes 20*13 = 4.
@@ -116,7 +118,8 @@ recursive saturating-add terms, minimal format v4 adds recursive wrapping-subtra
 terms, minimal format v5 adds recursive saturating-subtract terms, and minimal
 format v6 adds recursive wrapping-multiply terms, minimal format v7 adds
 recursive saturating-multiply terms, minimal format v8 adds content-conservation
-terms, and minimal format v9 adds sum-case structural paths. The proof section has its own
+terms, minimal format v9 adds sum-case structural paths, and minimal format v10
+adds recursive Boolean-negation terms. The proof section has its own
 golden fingerprint, and a role-separated manifest binds semantic, proof,
 installation, and debug sections without folding replaceable evidence into
 program identity. The clean terminal lane owns a semantic-identity-bound object
@@ -143,9 +146,12 @@ register assignment remains on the legacy backend.
 Semantic v1 integer, v2 Boolean, v3 wrapping-add, v4 saturating-add, v5
 wrapping-subtract, v6 saturating-subtract, v7 wrapping-multiply, v8
 saturating-multiply, v9 content, v10 reshuffle, v11 case-path, v12 partition,
-and v13 conditional modules retain their frozen bytes and execution semantics;
-explicit migration produces a new current-v14 fingerprint and derives dense
-entry bindings from any validated archived reshuffles. The v3 wrapping slice
+v13 conditional, and v14 entry-claim modules retain their frozen bytes and
+execution semantics; explicit migration produces a new current-v15 fingerprint
+and derives dense entry bindings from any validated archived reshuffles. The
+v15 Boolean-negation slice round-trips, verifies, costs one operation plus one
+return edge, interprets, and returns the complemented canonical Boolean through
+the clean Omega lowering and native C-ABI lane. The v3 wrapping slice
 round-trips, verifies,
 meters, lowers, emits,
 and executes `u8` 200+100 as 44. The v4 saturating slice traverses the

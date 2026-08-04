@@ -13,7 +13,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use psi_checked_trees::{
     CheckedOperatorResolutionStatus, CheckedTrees, ContentIdentityReshuffleFact,
     ContentPartitionCompositionFact,
-    expression::{BinaryOperator, ExpressionNode},
+    expression::{BinaryOperator, ExpressionNode, UnaryOperator},
     signature::SignatureContractKind,
     statement::{StatementNode, TransitionGuardNode, TransitionTargetNode},
     types::PrimitiveType,
@@ -76,10 +76,17 @@ enum LoweredDirectExpression {
     },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum LoweredBooleanReturnExpression {
-    Constant { value: bool },
-    Parameter { position: usize },
+    Constant {
+        value: bool,
+    },
+    Parameter {
+        position: usize,
+    },
+    Not {
+        operand: Box<LoweredBooleanReturnExpression>,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1650,7 +1657,23 @@ fn lower_boolean_expression(
         ExpressionNode::Name(path) => Ok(LoweredBooleanReturnExpression::Parameter {
             position: direct_parameter_position(checked, path, parameters)?,
         }),
-        _ => unsupported("Boolean terminal expressions require a literal or declared parameter"),
+        ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
+            if let Some(operator_use) = checked.facts.operators.expression_use(expression)
+                && operator_use.status != CheckedOperatorResolutionStatus::BuiltinFallback
+            {
+                return unsupported("terminal Boolean negation must use the builtin operator");
+            }
+            Ok(LoweredBooleanReturnExpression::Not {
+                operand: Box::new(lower_boolean_expression(
+                    checked,
+                    unary.operand,
+                    parameters,
+                )?),
+            })
+        }
+        _ => unsupported(
+            "Boolean terminal expressions require a literal, declared parameter, or logical not",
+        ),
     }
 }
 
@@ -1687,6 +1710,9 @@ fn evaluate_boolean_expression(
         LoweredBooleanReturnExpression::Constant { value } => Some(*value),
         LoweredBooleanReturnExpression::Parameter { position } => {
             parameters.get(*position).copied().flatten()
+        }
+        LoweredBooleanReturnExpression::Not { operand } => {
+            Some(!evaluate_boolean_expression(operand, parameters)?)
         }
     }
 }
@@ -2329,24 +2355,12 @@ fn build_boolean_module(
         .checked_add(1)
         .expect("generated identities follow the parameter identities");
     let mut operations = Vec::new();
-    let returned = match return_expression {
-        LoweredBooleanReturnExpression::Constant { value } => {
-            let id = value_id(next_value_identity);
-            next_value_identity = next_value_identity
-                .checked_add(1)
-                .expect("machine result identity follows the Boolean constant");
-            operations.push(Operation {
-                id: operation_id(1),
-                result: ValueDeclaration {
-                    id,
-                    scalar_type: ScalarType::Boolean,
-                },
-                kind: OperationKind::BooleanConstant { value },
-            });
-            id
-        }
-        LoweredBooleanReturnExpression::Parameter { position } => parameters[position].id,
-    };
+    let returned = emit_boolean_expression(
+        &return_expression,
+        &parameters,
+        &mut next_value_identity,
+        &mut operations,
+    );
     let result_id = value_id(next_value_identity);
     let literal = ScalarTerm::boolean(contract_value);
     let goal = Proposition::Equal(literal.clone(), literal);
@@ -2589,6 +2603,28 @@ fn emit_boolean_expression(
             id
         }
         LoweredBooleanReturnExpression::Parameter { position } => parameters[*position].id,
+        LoweredBooleanReturnExpression::Not { operand } => {
+            let operand =
+                emit_boolean_expression(operand, parameters, next_value_identity, operations);
+            let id = value_id(*next_value_identity);
+            *next_value_identity = next_value_identity
+                .checked_add(1)
+                .expect("generated value identity advances after Boolean negation");
+            operations.push(Operation {
+                id: operation_id(
+                    u64::try_from(operations.len())
+                        .expect("operation count fits a semantic identity")
+                        .checked_add(1)
+                        .expect("operation identity is nonzero"),
+                ),
+                result: ValueDeclaration {
+                    id,
+                    scalar_type: ScalarType::Boolean,
+                },
+                kind: OperationKind::BooleanNot { operand },
+            });
+            id
+        }
     }
 }
 
@@ -3337,6 +3373,10 @@ fn collect_source_operation_spans(
         ExpressionNode::Binary(binary) => {
             collect_source_operation_spans(checked, binary.left, spans);
             collect_source_operation_spans(checked, binary.right, spans);
+            spans.push(checked.expression_table.source_span(expression));
+        }
+        ExpressionNode::Unary(unary) => {
+            collect_source_operation_spans(checked, unary.operand, spans);
             spans.push(checked.expression_table.source_span(expression));
         }
         _ => {}

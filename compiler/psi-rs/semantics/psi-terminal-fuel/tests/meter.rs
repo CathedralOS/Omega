@@ -25,6 +25,13 @@ fn current_vocabulary_has_explicit_v1_costs_and_attribution() {
         1,
         "adding the v2 Boolean operation must not leave its v1-schedule cost implicit"
     );
+    assert_eq!(
+        TerminalFuelSchedule::V1.operation_units(&OperationKind::BooleanNot {
+            operand: value_id(1),
+        }),
+        1,
+        "Boolean logical not has one explicit v1-schedule unit"
+    );
     let operation = operation();
     let jump = Terminator::Jump {
         edge: edge_id(1),

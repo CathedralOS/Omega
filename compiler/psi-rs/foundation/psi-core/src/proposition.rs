@@ -269,6 +269,9 @@ pub enum ScalarTerm {
         scalar_type: ScalarType,
     },
     Boolean(bool),
+    BooleanNot {
+        operand: Box<ScalarTerm>,
+    },
     Integer {
         scalar_type: IntegerType,
         value: IntegerValue,
@@ -312,6 +315,17 @@ impl ScalarTerm {
 
     pub const fn boolean(value: bool) -> Self {
         Self::Boolean(value)
+    }
+
+    pub fn boolean_not(operand: ScalarTerm) -> Result<Self, PropositionError> {
+        if operand.scalar_type() != ScalarType::Boolean {
+            return Err(PropositionError::BooleanNotTypeMismatch(
+                operand.scalar_type(),
+            ));
+        }
+        Ok(Self::BooleanNot {
+            operand: Box::new(operand),
+        })
     }
 
     pub fn integer(
@@ -447,7 +461,7 @@ impl ScalarTerm {
     pub fn scalar_type(&self) -> ScalarType {
         match self {
             Self::Value { scalar_type, .. } => *scalar_type,
-            Self::Boolean(_) => ScalarType::Boolean,
+            Self::Boolean(_) | Self::BooleanNot { .. } => ScalarType::Boolean,
             Self::Integer { scalar_type, .. }
             | Self::WrappingIntegerAdd { scalar_type, .. }
             | Self::SaturatingIntegerAdd { scalar_type, .. }
@@ -539,9 +553,26 @@ impl ScalarTerm {
         }
     }
 
+    pub fn boolean_value(&self) -> Option<bool> {
+        match self {
+            Self::Boolean(value) => Some(*value),
+            Self::BooleanNot { operand } => Some(!operand.boolean_value()?),
+            _ => None,
+        }
+    }
+
     pub fn validate(&self) -> Result<(), PropositionError> {
         match self {
             Self::Value { .. } | Self::Boolean(_) => Ok(()),
+            Self::BooleanNot { operand } => {
+                operand.validate()?;
+                if operand.scalar_type() != ScalarType::Boolean {
+                    return Err(PropositionError::BooleanNotTypeMismatch(
+                        operand.scalar_type(),
+                    ));
+                }
+                Ok(())
+            }
             Self::Integer { scalar_type, value } => {
                 if scalar_type.admits(*value) {
                     Ok(())
@@ -843,6 +874,7 @@ impl PropositionContext {
                 self.validate_term(left)?;
                 self.validate_term(right)?;
             }
+            ScalarTerm::BooleanNot { operand } => self.validate_term(operand)?,
             ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => {}
         }
         Ok(())
@@ -885,6 +917,7 @@ pub enum PropositionError {
         left: ScalarType,
         right: ScalarType,
     },
+    BooleanNotTypeMismatch(ScalarType),
     WrappingIntegerAddTypeMismatch {
         expected: ScalarType,
         left: ScalarType,
@@ -977,6 +1010,25 @@ mod tests {
                 .validate()
                 .expect_err("booleans are unordered"),
             PropositionError::OrderedComparisonRequiresIntegers(ScalarType::Boolean)
+        );
+    }
+
+    #[test]
+    fn boolean_not_is_typed_and_reduces_closed_terms() {
+        let negated = ScalarTerm::boolean_not(ScalarTerm::boolean(false)).unwrap();
+        assert_eq!(negated.scalar_type(), ScalarType::Boolean);
+        assert_eq!(negated.boolean_value(), Some(true));
+        assert_eq!(
+            ScalarTerm::boolean_not(
+                ScalarTerm::integer(
+                    IntegerType::new(IntegerSign::Unsigned, 8).expect("u8"),
+                    IntegerValue::Unsigned(1),
+                )
+                .unwrap(),
+            ),
+            Err(PropositionError::BooleanNotTypeMismatch(
+                ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).expect("u8"))
+            ))
         );
     }
 

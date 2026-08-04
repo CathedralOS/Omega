@@ -85,6 +85,18 @@ fn emit_function(
             }
             Architecture::X86_64 => emit_x86_64_parameter_return(*source_value, false, *location)?,
         },
+        TerminalAssignedOperation::ReturnBooleanNotParameter {
+            source_value,
+            location,
+            ..
+        } => match architecture {
+            Architecture::Aarch64 => {
+                emit_aarch64_boolean_not_parameter_return(*source_value, *location)?
+            }
+            Architecture::X86_64 => {
+                emit_x86_64_boolean_not_parameter_return(*source_value, *location)?
+            }
+        },
         TerminalAssignedOperation::ReturnIntegerExpression {
             source_value,
             scalar_type,
@@ -240,6 +252,11 @@ fn emit_x86_64_boolean_control(
             location,
             ..
         } => emit_x86_64_parameter_return(*source_value, false, *location),
+        TerminalAssignedBooleanControl::ReturnNotParameter {
+            source_value,
+            location,
+            ..
+        } => emit_x86_64_boolean_not_parameter_return(*source_value, *location),
         TerminalAssignedBooleanControl::Conditional {
             condition_source,
             condition_location,
@@ -348,6 +365,11 @@ fn emit_aarch64_boolean_control(
             location,
             ..
         } => emit_aarch64_parameter_return(*source_value, false, *location),
+        TerminalAssignedBooleanControl::ReturnNotParameter {
+            source_value,
+            location,
+            ..
+        } => emit_aarch64_boolean_not_parameter_return(*source_value, *location),
         TerminalAssignedBooleanControl::Conditional {
             condition_source,
             condition_location,
@@ -361,6 +383,33 @@ fn emit_aarch64_boolean_control(
             when_false,
         ),
     }
+}
+
+fn emit_x86_64_boolean_not_parameter_return(
+    source: ValueId,
+    location: TerminalAssignedScalarLocation,
+) -> Result<Vec<u8>, EmissionError> {
+    let mut bytes = emit_x86_64_parameter_return(source, false, location)?;
+    if bytes.pop() != Some(0xc3) {
+        return Err(EmissionError::BooleanNotEncodingInvalid);
+    }
+    bytes.extend_from_slice(&[0x83, 0xf0, 0x01]); // xor eax, 1
+    bytes.push(0xc3); // ret
+    Ok(bytes)
+}
+
+fn emit_aarch64_boolean_not_parameter_return(
+    source: ValueId,
+    location: TerminalAssignedScalarLocation,
+) -> Result<Vec<u8>, EmissionError> {
+    let mut bytes = emit_aarch64_parameter_return(source, false, location)?;
+    if bytes.len() < 4 || bytes[bytes.len() - 4..] != 0xd65f_03c0_u32.to_le_bytes() {
+        return Err(EmissionError::BooleanNotEncodingInvalid);
+    }
+    bytes.truncate(bytes.len() - 4);
+    bytes.extend_from_slice(&0x5200_0000_u32.to_le_bytes()); // eor w0, w0, #1
+    bytes.extend_from_slice(&0xd65f_03c0_u32.to_le_bytes()); // ret
+    Ok(bytes)
 }
 
 fn emit_aarch64_condition_load(
@@ -1273,6 +1322,7 @@ pub enum EmissionError {
     AssignedFrameSizeMismatch,
     ConditionalBranchDistanceNotEncodable,
     ConditionalBranchEncodingInvalid,
+    BooleanNotEncodingInvalid,
     EntryFunctionMissing(MachineId),
 }
 
@@ -1589,6 +1639,41 @@ mod tests {
         assert_eq!(
             emit_machine_code(&plan).unwrap().functions[0].bytes,
             [0x89, 0xf8, 0xc3]
+        );
+    }
+
+    #[test]
+    fn emits_boolean_not_parameter_returns_for_both_architectures() {
+        let mut x86 = parameter_plan(
+            NativeTarget::linux_x64(),
+            TerminalScalarParameterLocation::Register(MachineRegister::X86Rdi),
+            false,
+        );
+        x86.functions[0].operation = TerminalTargetOperation::ReturnBooleanNotParameter {
+            psi_edge: EdgeId::new(1).expect("edge"),
+            source_value: ValueId::new(1).expect("value"),
+            parameter_index: 0,
+            location: TerminalScalarParameterLocation::Register(MachineRegister::X86Rdi),
+        };
+        assert_eq!(
+            emit_machine_code(&x86).unwrap().functions[0].bytes,
+            [0x89, 0xf8, 0x83, 0xf0, 0x01, 0xc3]
+        );
+
+        let mut aarch64 = parameter_plan(
+            NativeTarget::linux_arm64(),
+            TerminalScalarParameterLocation::Register(MachineRegister::Aarch64X(0)),
+            false,
+        );
+        aarch64.functions[0].operation = TerminalTargetOperation::ReturnBooleanNotParameter {
+            psi_edge: EdgeId::new(1).expect("edge"),
+            source_value: ValueId::new(1).expect("value"),
+            parameter_index: 0,
+            location: TerminalScalarParameterLocation::Register(MachineRegister::Aarch64X(0)),
+        };
+        assert_eq!(
+            aarch64_instructions(&emit_machine_code(&aarch64).unwrap().functions[0].bytes),
+            [0x5200_0000, 0xd65f_03c0]
         );
     }
 

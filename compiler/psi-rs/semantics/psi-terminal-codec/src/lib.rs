@@ -509,6 +509,10 @@ fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), CodecError> {
                 writer.u8(2);
                 writer.u8(u8::from(value));
             }
+            OperationKind::BooleanNot { operand } => {
+                writer.u8(9);
+                writer.id(operand);
+            }
             OperationKind::WrappingIntegerAdd { left, right } => {
                 writer.u8(3);
                 writer.id(left);
@@ -747,6 +751,10 @@ fn encode_scalar_term(
         ScalarTerm::Boolean(value) => {
             writer.u8(2);
             writer.u8(u8::from(*value));
+        }
+        ScalarTerm::BooleanNot { operand } => {
+            writer.u8(10);
+            encode_scalar_term(writer, operand, depth + 1)?;
         }
         ScalarTerm::Integer { scalar_type, value } => {
             writer.u8(3);
@@ -1076,6 +1084,9 @@ fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError> {
                 left: reader.id("ValueId")?,
                 right: reader.id("ValueId")?,
             },
+            9 => OperationKind::BooleanNot {
+                operand: reader.id("ValueId")?,
+            },
             tag => return Err(CodecError::InvalidTag("OperationKind", tag)),
         };
         operations.push(Operation {
@@ -1329,6 +1340,8 @@ fn decode_scalar_term(reader: &mut Reader<'_>, depth: usize) -> Result<ScalarTer
             ScalarTerm::saturating_integer_multiply(scalar_type, left, right)
                 .map_err(CodecError::MalformedProposition)?
         }
+        10 => ScalarTerm::boolean_not(decode_scalar_term(reader, depth + 1)?)
+            .map_err(CodecError::MalformedProposition)?,
         tag => return Err(CodecError::InvalidTag("ScalarTerm", tag)),
     })
 }
