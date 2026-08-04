@@ -8261,6 +8261,21 @@ pub fn encode_runtime_storage_bit_field_write(
     Ok(bytes)
 }
 
+/// Closed may-write ceiling of the immediate bit-field read/modify/write
+/// encoder. r15 owns the relocated base, r11 stages each container, and rax
+/// materializes the clear/insert masks.
+pub fn runtime_storage_bit_field_write_register_write_ceiling() -> RegisterSet {
+    RegisterSet::new([
+        MachineRegister::X86Rax,
+        MachineRegister::X86R11,
+        MachineRegister::X86R15,
+    ])
+}
+
+pub fn runtime_storage_bit_field_write_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::new([MachineState::Flags])
+}
+
 fn runtime_bit_field_operand_width(
     fragments: &[omega_target_operations::RuntimeBitFieldFragment],
 ) -> Result<usize, Diagnostic> {

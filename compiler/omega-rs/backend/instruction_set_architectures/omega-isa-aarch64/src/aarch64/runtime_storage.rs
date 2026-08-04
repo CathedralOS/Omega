@@ -1564,6 +1564,23 @@ pub fn encode_runtime_storage_bit_field_write(
     Ok(bytes)
 }
 
+/// Closed may-write ceiling of the immediate bit-field read/modify/write
+/// encoder. x16 owns the relocated base, x17 stages each container, x20
+/// materializes masks, and x19/x26 cover the shared large-offset recipe.
+pub fn runtime_storage_bit_field_write_register_write_ceiling() -> RegisterSet {
+    RegisterSet::new([
+        MachineRegister::Aarch64X(16),
+        MachineRegister::Aarch64X(17),
+        MachineRegister::Aarch64X(19),
+        MachineRegister::Aarch64X(20),
+        MachineRegister::Aarch64X(26),
+    ])
+}
+
+pub const fn runtime_storage_bit_field_write_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::empty()
+}
+
 pub fn encode_runtime_pointee_integer_write(
     pointer_byte_offset: usize,
     field_byte_offset: usize,

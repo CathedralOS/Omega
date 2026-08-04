@@ -476,6 +476,19 @@ fn compiler_instruction_validation_kind(
                 },
             )
         }
+        SelectedInstructionKind::WriteStorageBitField {
+            region,
+            base_byte_offset,
+            fragments,
+            value,
+        } => Some(
+            CompilerInstructionValidationKind::CompilerBodyStorageBitFieldWrite {
+                region: *region,
+                base_byte_offset: *base_byte_offset,
+                fragments: fragments.clone(),
+                value: *value,
+            },
+        ),
         SelectedInstructionKind::WritePlaceBinary {
             target,
             byte_size,
