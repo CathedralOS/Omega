@@ -1127,7 +1127,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         executable_regions.contains(
             "\"certificate_schema\": \"omega.final-footprint-certificate\""
         )
-            && executable_regions.contains("\"certificate_format_version\": 42")
+            && executable_regions.contains("\"certificate_format_version\": 43")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
             && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")
@@ -2411,6 +2411,61 @@ fn compiler_body_machine_double_indexed_binary_write_footprints_reach_x86_and_aa
                 && footprints.contains(expected_register)
                 && footprints.contains("\"enumeration_complete\": false"),
             "{target} artifact must retain the machine-double-indexed binary-write footprint without claiming completeness"
+        );
+        let _ = fs::remove_dir_all(&scratch);
+    }
+}
+
+#[test]
+fn compiler_body_general_x86_binary_write_footprints_reach_artifacts() {
+    for (case_name, source_text) in [(
+        "frame-indexed-by-region",
+        r#"use omega::language::std::console;
+data Counter { n: i32 in Wrapping; }
+data Room { exits: [Counter; 3]; }
+data Main { console: Console; index: u64 [0..=2]; }
+machine Main::main(&mut self) {
+    self.index = 1;
+    let room: Room = Room { exits: [Counter { n: 10 }, Counter { n: 20 }, Counter { n: 30 }] };
+    let exits: &mut [Counter] = room.exits.as_mut_slice();
+    exits[self.index].n = exits[self.index].n + 1;
+    transition room.exits[1].n == 21 { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
+"#,
+    )] {
+        let scratch = std::env::temp_dir().join(format!(
+            "omega-compiler-body-general-x86-binary-write-footprint-{case_name}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&scratch);
+        let source = scratch.join("src");
+        let output = scratch.join("out");
+        fs::create_dir_all(&source)
+            .expect("create compiler-body general x86 binary-write source directory");
+        fs::write(source.join("main.omg"), source_text)
+            .expect("write compiler-body general x86 binary-write source");
+        fs::write(source.join("build.omg"), "target linux_x64 {\n}\n")
+            .expect("write compiler-body general x86 binary-write target");
+        compile(CompileOptions {
+            root_path: source.join("main.omg"),
+            build_dir: Some(output.clone()),
+            target_name: Some("linux_x64".into()),
+            write_output: true,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "compiler-body general x86 binary writes in {case_name} should compile: {diagnostics:?}"
+            )
+        });
+        let footprints = fs::read_to_string(output.join("08_boundary_footprints.json"))
+            .expect("compiler-body general x86 binary-write footprint evidence should be written");
+        assert!(
+            footprints.contains("\"origin\": \"compiler_body_place_binary_write\"")
+                && footprints.contains("\"X86R14\"")
+                && footprints.contains("\"enumeration_complete\": false"),
+            "linux_x64 artifact must retain the general binary-write footprint for {case_name} without claiming completeness"
         );
         let _ = fs::remove_dir_all(&scratch);
     }
