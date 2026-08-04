@@ -21,6 +21,7 @@ mod operator_adapter_dispatch;
 mod output;
 mod placed_views;
 mod plan_laid;
+mod program_storage_entry;
 mod project;
 mod provider_approval;
 mod provider_plans;
@@ -46,6 +47,11 @@ pub use compiler::{compile, compile_with_policy};
 pub use layout_plans::{
     IntegerInterpretation, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,
     compute_layout_plan,
+};
+pub use program_storage_entry::{
+    InstalledProgramStorageRoots, ProgramStorageEntryDiagnostic, ProgramStorageEntryParameter,
+    ProgramStorageEntryPlanBinding, ProgramStorageRootInput, ProgramStorageRootInstallationError,
+    bind_program_storage_entry_plan, install_program_storage_entry_roots,
 };
 pub use provider_plans::{
     AdmittedExternalRootEntryFactHandoff, SelectedExternalRootEntryFactBinding,

@@ -64,8 +64,11 @@ stubs refine its plan and ABI without replacing its identity.
 installation introduces the matching parameters. Core therefore never depends
 on a UEFI/Cathedral domain, and the compiler never recognizes target-friendly
 names as storage authority. The source requirement and qualified-position
-identity are live; installation still needs to validate `Granted`'s `no_wrap`
-predicate before it may import either complete fact.
+identity are live. Installation now requires an exact selected calling-plan
+fingerprint and generated ABI capture for each semantic position, validates
+both `Granted::no_wrap` obligations before consuming either admitted grant,
+and returns both grants intact on rejection. Deriving sections/statics and
+allocated storage as conserved subextents remains.
 
 ## Facts, authority, reach, and trust remain separate
 

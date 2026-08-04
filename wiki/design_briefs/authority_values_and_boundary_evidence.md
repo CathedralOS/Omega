@@ -444,9 +444,12 @@ it as an alternative route. Target entry traits inherit that exact requirement
 and may refine its selected plan; they do not replace its semantic identity or
 declare look-alike root domains. Those exact semantic parameter positions are
 the portable keys by which the compiler derives image sections, statics, and
-initial stack/storage subextents after installation. The declaration and
-position identities are live; installation must still discharge `Granted`'s
-`no_wrap` predicate before importing either complete qualified fact.
+initial stack/storage subextents after installation. The installation bridge
+now joins the selected schema's requirement and calling-plan fingerprint to the
+generated captures for positions 0 and 1. Both runtime geometries must satisfy
+`Granted`'s `no_wrap` predicate before either admitted grant is consumed; a
+rejected handoff returns both grants without importing a complete qualified
+fact. Section/static and allocated-storage subextent derivation remains.
 
 The admitted root is a scoped hypothesis import, not a proof that external
 reality equals the compiler model. A selected provider states the exact

@@ -258,6 +258,8 @@ pub fn qualification_evidence_manifest_json(
         }
         json.push_str(",\n      \"domain\": ");
         push_json_string(&mut json, &claim.domain);
+        json.push_str(",\n      \"predicate_body\": ");
+        push_json_string(&mut json, claim.predicate_body.as_str());
         json.push_str(",\n      \"effective_carry\": ");
         push_carry_policy_json(&mut json, claim.effective_carry);
         json.push_str(",\n      \"provider_plan\": ");
