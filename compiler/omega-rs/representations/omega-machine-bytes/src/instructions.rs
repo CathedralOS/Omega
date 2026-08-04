@@ -107,6 +107,12 @@ pub enum CompilerInstructionValidationKind {
         value: i64,
         byte_size: usize,
     },
+    CompilerBodyStorageBitFieldWrite {
+        region: RuntimeStorageRegion,
+        base_byte_offset: usize,
+        fragments: Vec<omega_target_operations::RuntimeBitFieldFragment>,
+        value: i64,
+    },
     CompilerBodyPlaceBinaryWrite {
         target: Place,
         byte_size: usize,

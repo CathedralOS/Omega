@@ -111,6 +111,9 @@ pub fn boundary_footprint_fragments_json(plan: &EncodedMachinePlan) -> String {
                 omega_abstract_operations::BoundaryFootprintFragmentOrigin::CompilerBodyPlaceIntegerWrite => {
                     "compiler_body_place_integer_write"
                 }
+                omega_abstract_operations::BoundaryFootprintFragmentOrigin::CompilerBodyStorageBitFieldWrite => {
+                    "compiler_body_storage_bit_field_write"
+                }
                 omega_abstract_operations::BoundaryFootprintFragmentOrigin::CompilerBodyPlaceBinaryWrite => {
                     "compiler_body_place_binary_write"
                 }

@@ -1358,6 +1358,31 @@ fn validate_compiler_function_instruction_boundaries(
                             CompilerInstructionRelocationRecipe::PlaceIntegerWrite(target),
                         )
                     }
+                    omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyStorageBitFieldWrite {
+                        region,
+                        base_byte_offset,
+                        fragments,
+                        value,
+                    } => (
+                        None,
+                        match architecture {
+                            Architecture::X86_64 => omega_isa_x86_64::encode_runtime_storage_bit_field_write(
+                                base_byte_offset,
+                                &fragments,
+                                value,
+                            )?,
+                            Architecture::Aarch64 => omega_isa_aarch64::encode_runtime_storage_bit_field_write(
+                                base_byte_offset,
+                                &fragments,
+                                value,
+                            )?,
+                        },
+                        23u8,
+                        CompilerInstructionRelocationRecipe::StaticStorage {
+                            storage_region: region,
+                            address_site: 0,
+                        },
+                    ),
                     omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyPlaceBinaryWrite {
                         target,
                         byte_size,
@@ -2583,6 +2608,20 @@ fn compiler_instruction_footprint(
                 ),
             }
         }
+        CompilerInstructionValidationKind::CompilerBodyStorageBitFieldWrite { .. } => {
+            match architecture {
+                Architecture::X86_64 => (
+                    BoundaryFootprintFragmentOrigin::CompilerBodyStorageBitFieldWrite,
+                    omega_isa_x86_64::runtime_storage_bit_field_write_register_write_ceiling(),
+                    omega_isa_x86_64::runtime_storage_bit_field_write_additional_machine_state(),
+                ),
+                Architecture::Aarch64 => (
+                    BoundaryFootprintFragmentOrigin::CompilerBodyStorageBitFieldWrite,
+                    omega_isa_aarch64::runtime_storage_bit_field_write_register_write_ceiling(),
+                    omega_isa_aarch64::runtime_storage_bit_field_write_additional_machine_state(),
+                ),
+            }
+        }
         CompilerInstructionValidationKind::CompilerBodyStorageConvertWrite { source, .. } => {
             match architecture {
                 Architecture::X86_64 => (
@@ -2671,6 +2710,7 @@ fn validate_compiler_body_specification_footprints(
                 | BoundaryFootprintFragmentOrigin::ExitIndirectResultCopy
                 | BoundaryFootprintFragmentOrigin::CompilerBodyPlaceCopy
                 | BoundaryFootprintFragmentOrigin::CompilerBodyPlaceIntegerWrite
+                | BoundaryFootprintFragmentOrigin::CompilerBodyStorageBitFieldWrite
                 | BoundaryFootprintFragmentOrigin::CompilerBodyPlaceBinaryWrite
                 | BoundaryFootprintFragmentOrigin::CompilerBodyStorageConvertWrite
         )
@@ -2721,6 +2761,10 @@ fn validate_compiler_body_specification_footprints(
         (
             13u8,
             BoundaryFootprintFragmentOrigin::CompilerBodyStorageConvertWrite,
+        ),
+        (
+            14u8,
+            BoundaryFootprintFragmentOrigin::CompilerBodyStorageBitFieldWrite,
         ),
     ] {
         let evidence_rows = derived

@@ -911,6 +911,40 @@ pub fn derive_boundary_compiler_body_place_binary_write_footprint<'instruction>(
     Ok(evidence)
 }
 
+/// Derive the closed encoder-family footprint for retained compiler-body
+/// immediate bit-field writes.
+pub fn derive_boundary_compiler_body_storage_bit_field_write_footprint<'instruction>(
+    boundary: &ValidatedBoundaryEntryPlan,
+    instructions: impl IntoIterator<Item = &'instruction SelectedInstructionKind>,
+) -> Result<StateFootprintEvidence, PlanDiagnostic> {
+    let architecture = boundary.plan().call.policy.architecture();
+    let mut registers = Vec::new();
+    let mut additional_state = MachineStateSet::empty();
+    for instruction in instructions {
+        if !matches!(
+            instruction,
+            SelectedInstructionKind::WriteStorageBitField { .. }
+        ) {
+            continue;
+        }
+        let (writes, state) = match architecture {
+            omega_target::Architecture::X86_64 => (
+                omega_isa_x86_64::runtime_storage_bit_field_write_register_write_ceiling(),
+                omega_isa_x86_64::runtime_storage_bit_field_write_additional_machine_state(),
+            ),
+            omega_target::Architecture::Aarch64 => (
+                omega_isa_aarch64::runtime_storage_bit_field_write_register_write_ceiling(),
+                omega_isa_aarch64::runtime_storage_bit_field_write_additional_machine_state(),
+            ),
+        };
+        registers.extend_from_slice(writes.as_slice());
+        additional_state = additional_state.union(state);
+    }
+    let evidence = StateFootprintEvidence::new(RegisterSet::new(registers), additional_state);
+    validate_state_footprint(boundary, &evidence)?;
+    Ok(evidence)
+}
+
 /// Derive the closed encoder-family footprint for direct compiler-body
 /// conversion writes from the same operand arena consumed by emission.
 pub fn derive_boundary_compiler_body_storage_convert_write_footprint<'instruction>(
