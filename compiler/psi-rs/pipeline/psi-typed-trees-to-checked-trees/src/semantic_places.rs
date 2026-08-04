@@ -36,6 +36,7 @@ pub(crate) fn instantiate_call_contract_place(
                 return FactPlace::Place(place);
             }
         }
+        psi_typed_trees::domain::ProofFact::Proposition(_) => {}
     }
 
     let original_place = contract_fact_place(program, facts, contract);

@@ -168,6 +168,17 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     )))
             }
             resolved::expression::ExpressionNode::Call(call) => {
+                if let Some(program) = self.program
+                    && call.target_symbol.is_valid()
+                    && program.symbols.get(call.target_symbol).kind
+                        == psi_symbols::SymbolKind::Proposition
+                {
+                    return Err(Diagnostic::error(if self.fact_position {
+                        "a proposition application must be the complete fact in this implementation slice"
+                    } else {
+                        "a proposition application is proof-only and cannot appear in a runtime value expression"
+                    }));
+                }
                 if let Some(lowered) = self.try_lower_synthesized_equatable_call(call)? {
                     return Ok(lowered);
                 }

@@ -1,5 +1,5 @@
 use crate::{
-    data, domain, expression, invariant, machine, measure, name, signature, snapshot,
+    data, domain, expression, invariant, machine, measure, name, proposition, signature, snapshot,
     trait_definition, types, wire,
 };
 use psi_arena::{Arena, HandleSpan};
@@ -205,6 +205,8 @@ pub struct TypedTreeTables {
     pub data_payload_fields: Arena<data::DataField>,
     pub domain_definitions: Arena<domain::DomainDefinition>,
     pub proof_facts: Arena<domain::ProofFact>,
+    pub propositions: Arena<proposition::PropositionDefinition>,
+    pub proposition_binders: Arena<proposition::PropositionBinder>,
     pub domain_path_members: Arena<crate::name::Identifier>,
     pub operator_path_members: Arena<crate::name::Identifier>,
     pub invariant_definitions: Arena<invariant::InvariantDefinition>,
@@ -239,6 +241,7 @@ pub struct TypedTreeRoots {
     pub machines: HandleSpan<machine::Machine>,
     pub measures: HandleSpan<measure::MeasureDefinition>,
     pub operators: HandleSpan<crate::operator::OperatorDefinition>,
+    pub propositions: HandleSpan<proposition::PropositionDefinition>,
     pub traits: HandleSpan<trait_definition::TraitDefinition>,
     pub data_conformances: HandleSpan<trait_definition::DataConformance>,
     pub wire_schemas: HandleSpan<wire::WireSchema>,
@@ -260,6 +263,7 @@ impl TypedTreeRoots {
             machines,
             measures: HandleSpan::default(),
             operators,
+            propositions: HandleSpan::default(),
             traits,
             data_conformances: HandleSpan::default(),
             wire_schemas: HandleSpan::default(),
@@ -433,6 +437,56 @@ impl TypedTrees {
 
     pub fn proof_facts(&self, domain: &domain::DomainDefinition) -> &[domain::ProofFact] {
         self.proof_facts.span_or_empty(domain.facts)
+    }
+
+    pub fn push_proposition(&mut self, proposition: proposition::PropositionDefinition) {
+        self.tables
+            .propositions
+            .append_to_span(&mut self.roots.propositions, proposition);
+    }
+
+    pub fn propositions(&self) -> &[proposition::PropositionDefinition] {
+        self.tables
+            .propositions
+            .span_or_empty(self.roots.propositions)
+    }
+
+    pub fn proposition_binders(
+        &self,
+        proposition: &proposition::PropositionDefinition,
+    ) -> &[proposition::PropositionBinder] {
+        self.tables
+            .proposition_binders
+            .span_or_empty(proposition.binders)
+    }
+
+    pub fn push_proposition_binder(
+        &mut self,
+        proposition: &mut proposition::PropositionDefinition,
+        binder: proposition::PropositionBinder,
+    ) {
+        self.tables
+            .proposition_binders
+            .append_to_span(&mut proposition.binders, binder);
+    }
+
+    pub fn proposition_parameters(
+        &self,
+        proposition: &proposition::PropositionDefinition,
+    ) -> &[signature::StateParameter] {
+        self.tables
+            .state_parameters
+            .span_or_empty(proposition.parameters)
+    }
+
+    pub fn push_proposition_parameter(
+        &mut self,
+        proposition: &mut proposition::PropositionDefinition,
+        parameter: signature::StateParameter,
+    ) {
+        self.tables
+            .state_parameters
+            .append_to_span(&mut proposition.parameters, parameter);
     }
 
     pub fn domain_path_members(

@@ -9,6 +9,14 @@ pub(super) fn lower_call_statement(
     lowerer: &mut Lowerer,
     call: &resolved::statement::TableCall,
 ) -> Result<typed::statement::TableCall, Diagnostic> {
+    if call.target_symbol.is_valid()
+        && lowerer.source_trees.symbols.get(call.target_symbol).kind
+            == psi_symbols::SymbolKind::Proposition
+    {
+        return Err(Diagnostic::error(
+            "a proposition application is proof-only and cannot appear as an executable call statement",
+        ));
+    }
     let arguments = lower_statement_argument_span(lowerer, call.arguments)?;
 
     Ok(typed::statement::TableCall {

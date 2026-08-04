@@ -23,6 +23,14 @@ pub(super) fn seed_machine_requires(
                 psi_typed_trees::domain::ProofFact::Membership(membership) => {
                     seed_index_proofs_from_expression(program, facts, membership.value);
                 }
+                psi_typed_trees::domain::ProofFact::Proposition(application) => {
+                    for argument in program
+                        .expression_table
+                        .expression_handles(application.arguments)
+                    {
+                        seed_index_proofs_from_expression(program, facts, *argument);
+                    }
+                }
             }
         }
     }

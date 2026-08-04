@@ -196,6 +196,7 @@ fn closed_domain_argument_identity(
 pub enum ProofFact {
     Expression(crate::expression::ExpressionHandle),
     Membership(ProofMembershipFact),
+    Proposition(crate::proposition::PropositionApplication),
 }
 
 impl Default for ProofFact {
@@ -283,6 +284,7 @@ pub fn declared_domain_implies(
                 inner(program, membership.domain_symbol, target_domain, visited)
             }
             ProofFact::Expression(_) => false,
+            ProofFact::Proposition(_) => false,
         })
     }
 

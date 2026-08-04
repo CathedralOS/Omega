@@ -6,6 +6,9 @@ use crate::invariant::InvariantDefinition;
 use crate::machine::{Machine, OwnedData};
 use crate::name::Identifier;
 use crate::operator::OperatorDefinition;
+use crate::proposition::{
+    PropositionBinderKind, PropositionBody, PropositionDefinition, PropositionFormula,
+};
 use crate::signature::{StateParameter, StateSignature};
 use crate::state::State;
 use crate::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
@@ -51,6 +54,11 @@ impl TypedTreesSnapshot {
                     .iter()
                     .map(|operator| operator_snapshot(program, operator))
                     .collect(),
+                propositions: program
+                    .propositions()
+                    .iter()
+                    .map(|proposition| proposition_snapshot(program, proposition))
+                    .collect(),
                 traits: program
                     .traits()
                     .iter()
@@ -70,6 +78,8 @@ impl TypedTreesSnapshot {
                 invariant_definition_count: program.invariant_definitions.len(),
                 machine_count: program.machines.len(),
                 operator_count: program.operators.len(),
+                proposition_count: program.propositions.len(),
+                proposition_binder_count: program.proposition_binders.len(),
                 machine_owned_data_count: program.machine_owned_data.len(),
                 machine_state_count: program.machine_states.len(),
                 state_parameter_count: program.state_parameters.len(),
@@ -102,6 +112,7 @@ pub struct TypedRootsSnapshot {
     pub invariant_definitions: Vec<InvariantDefinitionSnapshot>,
     pub machines: Vec<MachineSnapshot>,
     pub operators: Vec<OperatorDefinitionSnapshot>,
+    pub propositions: Vec<PropositionSnapshot>,
     pub traits: Vec<TraitSnapshot>,
     pub wire_schemas: Vec<WireSchemaSnapshot>,
 }
@@ -140,6 +151,8 @@ pub struct TypedTableSnapshot {
     pub invariant_definition_count: usize,
     pub machine_count: usize,
     pub operator_count: usize,
+    pub proposition_count: usize,
+    pub proposition_binder_count: usize,
     pub machine_owned_data_count: usize,
     pub machine_state_count: usize,
     pub state_parameter_count: usize,
@@ -203,6 +216,120 @@ fn operator_snapshot(
             .len(),
         spelling: operator.spelling.map(|spelling| spelling.symbol()),
         token_count: operator.token_count,
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct PropositionSnapshot {
+    pub has_symbol: bool,
+    pub name: String,
+    pub binders: Vec<PropositionBinderSnapshot>,
+    pub parameters: Vec<StateParameterSnapshot>,
+    pub body: PropositionBodySnapshot,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct PropositionBinderSnapshot {
+    pub has_symbol: bool,
+    pub name: String,
+    pub kind: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub const_type: Option<TypeReferenceSnapshot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum PropositionBodySnapshot {
+    Primitive,
+    Witness { evidence: TypeReferenceSnapshot },
+    Transparent { formula: PropositionFormulaSnapshot },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum PropositionFormulaSnapshot {
+    Application {
+        proposition_symbol: u32,
+        name: String,
+        binder_arguments: Vec<Vec<String>>,
+        arguments: Vec<ExpressionSnapshot>,
+    },
+    BooleanExpression {
+        expression: ExpressionSnapshot,
+    },
+}
+
+fn proposition_snapshot(
+    program: &TypedTrees,
+    proposition: &PropositionDefinition,
+) -> PropositionSnapshot {
+    PropositionSnapshot {
+        has_symbol: proposition.symbol.is_valid(),
+        name: proposition.name.to_string(),
+        binders: program
+            .proposition_binders(proposition)
+            .iter()
+            .map(|binder| {
+                let (kind, const_type) = match binder.kind {
+                    PropositionBinderKind::Type => ("type", None),
+                    PropositionBinderKind::Const { type_reference } => (
+                        "const",
+                        Some(type_reference_snapshot(program, type_reference)),
+                    ),
+                    PropositionBinderKind::Machine => ("machine", None),
+                };
+                PropositionBinderSnapshot {
+                    has_symbol: binder.symbol.is_valid(),
+                    name: binder.name.to_string(),
+                    kind,
+                    const_type,
+                }
+            })
+            .collect(),
+        parameters: program
+            .proposition_parameters(proposition)
+            .iter()
+            .map(|parameter| state_parameter_snapshot(program, parameter))
+            .collect(),
+        body: match &proposition.body {
+            PropositionBody::Primitive => PropositionBodySnapshot::Primitive,
+            PropositionBody::Witness { evidence } => PropositionBodySnapshot::Witness {
+                evidence: type_reference_snapshot(program, *evidence),
+            },
+            PropositionBody::Transparent { proposition } => PropositionBodySnapshot::Transparent {
+                formula: match proposition {
+                    PropositionFormula::Application(application) => {
+                        proposition_formula_application_snapshot(program, application)
+                    }
+                    PropositionFormula::BooleanExpression(expression) => {
+                        PropositionFormulaSnapshot::BooleanExpression {
+                            expression: expression_snapshot(program, *expression),
+                        }
+                    }
+                },
+            },
+        },
+    }
+}
+
+fn proposition_formula_application_snapshot(
+    program: &TypedTrees,
+    application: &crate::proposition::PropositionApplication,
+) -> PropositionFormulaSnapshot {
+    PropositionFormulaSnapshot::Application {
+        proposition_symbol: application.proposition.arena_index(),
+        name: application.name.to_string(),
+        binder_arguments: application
+            .binder_arguments
+            .iter()
+            .map(|argument| argument.path.iter().map(ToString::to_string).collect())
+            .collect(),
+        arguments: program
+            .expression_table
+            .expression_handles(application.arguments)
+            .iter()
+            .map(|argument| expression_snapshot(program, *argument))
+            .collect(),
     }
 }
 
@@ -309,6 +436,12 @@ pub enum ProofFactSnapshot {
         value: ExpressionSnapshot,
         domain: Vec<String>,
         domain_symbol: u32,
+    },
+    Proposition {
+        proposition_symbol: u32,
+        name: String,
+        binder_arguments: Vec<Vec<String>>,
+        arguments: Vec<ExpressionSnapshot>,
     },
 }
 
@@ -828,6 +961,21 @@ fn domain_fact_snapshots(
                     .collect(),
                 domain_symbol: membership.domain_symbol.arena_index(),
             },
+            ProofFact::Proposition(application) => ProofFactSnapshot::Proposition {
+                proposition_symbol: application.proposition.arena_index(),
+                name: application.name.to_string(),
+                binder_arguments: application
+                    .binder_arguments
+                    .iter()
+                    .map(|argument| argument.path.iter().map(ToString::to_string).collect())
+                    .collect(),
+                arguments: program
+                    .expression_table
+                    .expression_handles(application.arguments)
+                    .iter()
+                    .map(|argument| expression_snapshot(program, *argument))
+                    .collect(),
+            },
         })
         .collect()
 }
@@ -1148,6 +1296,21 @@ fn contract_fact_snapshots(
                     .map(ToString::to_string)
                     .collect(),
                 domain_symbol: membership.domain_symbol.arena_index(),
+            },
+            ProofFact::Proposition(application) => ProofFactSnapshot::Proposition {
+                proposition_symbol: application.proposition.arena_index(),
+                name: application.name.to_string(),
+                binder_arguments: application
+                    .binder_arguments
+                    .iter()
+                    .map(|argument| argument.path.iter().map(ToString::to_string).collect())
+                    .collect(),
+                arguments: program
+                    .expression_table
+                    .expression_handles(application.arguments)
+                    .iter()
+                    .map(|argument| expression_snapshot(program, *argument))
+                    .collect(),
             },
         })
         .collect()

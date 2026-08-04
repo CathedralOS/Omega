@@ -252,6 +252,15 @@ fn build_contract_plans(
                                 contract_bytes.push(b':');
                             }
                         }
+                        psi_typed_trees::domain::ProofFact::Proposition(application) => {
+                            contract_bytes.push(3);
+                            encode_proposition_application_canonical(
+                                program,
+                                application,
+                                &parameter_names,
+                                &mut contract_bytes,
+                            );
+                        }
                     }
                     state_contracts.push(contract_bytes);
                 }
@@ -312,6 +321,15 @@ fn build_contract_plans(
                             encoded.extend(member.as_str().as_bytes());
                             encoded.push(b':');
                         }
+                    }
+                    psi_typed_trees::domain::ProofFact::Proposition(application) => {
+                        encoded.push(3);
+                        encode_proposition_application_canonical(
+                            program,
+                            application,
+                            &parameter_names,
+                            &mut encoded,
+                        );
                     }
                 }
                 canonical_facts.push(encoded);
@@ -970,6 +988,31 @@ fn encode_expression_canonical(
             out.push(0);
         }
     }
+}
+
+fn encode_proposition_application_canonical(
+    program: &TypedTrees,
+    application: &psi_typed_trees::proposition::PropositionApplication,
+    parameter_names: &[String],
+    out: &mut Vec<u8>,
+) {
+    out.extend(application.name.as_str().as_bytes());
+    out.push(0);
+    for binder in &application.binder_arguments {
+        for member in &binder.path {
+            out.extend(member.as_str().as_bytes());
+            out.push(b':');
+        }
+        out.push(0);
+    }
+    out.push(0xfd);
+    for argument in program
+        .expression_table
+        .expression_handles(application.arguments)
+    {
+        encode_expression_canonical(program, *argument, parameter_names, out);
+    }
+    out.push(0xfc);
 }
 
 fn encode_contract_expression_canonical(

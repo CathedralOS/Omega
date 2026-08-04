@@ -28,6 +28,7 @@ pub(crate) fn domain_proves_expression_label(
                 candidate_label,
             )
         }
+        psi_typed_trees::domain::ProofFact::Proposition(_) => false,
     })
 }
 

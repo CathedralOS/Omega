@@ -311,6 +311,7 @@ fn signature_selects_domain(
                         .is_some_and(|domain| domain.semantic_roles.denotation_dimension.is_some())
             }
             ProofFact::Expression(_) => false,
+            ProofFact::Proposition(_) => false,
         })
 }
 

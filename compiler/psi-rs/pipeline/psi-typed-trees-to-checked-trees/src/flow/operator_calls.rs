@@ -342,6 +342,23 @@ pub(super) fn append_operator_statement_ensures(
                         }
                     }
                 }
+                psi_typed_trees::domain::ProofFact::Proposition(application) => {
+                    let place = semantic.append_symbol_place(application.proposition);
+                    let fact = semantic.append_fact(Fact {
+                        place: FactPlace::Place(place),
+                        point,
+                        origin: FactOrigin::OperatorEnsures {
+                            operator_symbol: operator.symbol,
+                        },
+                        evidence: QualificationEvidence::default(),
+                        payload: FactPayload::ContractPropositionApplication {
+                            kind: semantic_contract_fact_kind(ContractProofFactKind::Ensures),
+                            fact: fact_handle,
+                            proposition: application.proposition,
+                        },
+                    });
+                    semantic.append_ref(&mut refs, fact);
+                }
             }
         }
     }

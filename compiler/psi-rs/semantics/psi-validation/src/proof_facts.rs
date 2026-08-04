@@ -104,6 +104,19 @@ pub(crate) fn validate_proof_facts(
                     domain_path_label(program, membership.domain)
                 )));
             }
+            ProofFact::Proposition(application) => {
+                if !application.proposition.is_valid()
+                    || !program
+                        .propositions()
+                        .iter()
+                        .any(|proposition| proposition.symbol == application.proposition)
+                {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "{owner} references an unknown proposition `{}`",
+                        application.name.as_str()
+                    )));
+                }
+            }
         }
     }
 }

@@ -135,6 +135,51 @@ pub fn count_identity_storage(typed_trees: &TypedTrees) -> IdentityStorageCounts
         }
     }
 
+    for proposition in typed_trees.propositions() {
+        count_declaration_name(&proposition.name, &mut counts);
+        for binder in typed_trees.proposition_binders(proposition) {
+            count_declaration_name(&binder.name, &mut counts);
+            if let crate::proposition::PropositionBinderKind::Const { type_reference } = binder.kind
+            {
+                count_type_reference_handle(
+                    &typed_trees.type_reference_table,
+                    type_reference,
+                    &mut counts,
+                );
+            }
+        }
+        for parameter in typed_trees.proposition_parameters(proposition) {
+            count_declaration_name(&parameter.name, &mut counts);
+            count_type_reference_handle(
+                &typed_trees.type_reference_table,
+                parameter.type_reference,
+                &mut counts,
+            );
+        }
+        match &proposition.body {
+            crate::proposition::PropositionBody::Primitive => {}
+            crate::proposition::PropositionBody::Witness { evidence } => {
+                count_type_reference_handle(
+                    &typed_trees.type_reference_table,
+                    *evidence,
+                    &mut counts,
+                );
+            }
+            crate::proposition::PropositionBody::Transparent { proposition } => match proposition {
+                crate::proposition::PropositionFormula::Application(application) => {
+                    count_proposition_application(typed_trees, application, &mut counts)
+                }
+                crate::proposition::PropositionFormula::BooleanExpression(expression) => {
+                    count_expression_handle(
+                        &typed_trees.expression_table,
+                        *expression,
+                        &mut counts,
+                    );
+                }
+            },
+        }
+    }
+
     for machine in typed_trees.machines() {
         count_declaration_name(&machine.name, &mut counts);
         for parameter in typed_trees.machine_type_parameters(machine) {
@@ -298,6 +343,28 @@ fn count_proof_fact(
                 count_declaration_name(member, counts);
             }
         }
+        ProofFact::Proposition(application) => {
+            count_proposition_application(typed_trees, application, counts);
+        }
+    }
+}
+
+fn count_proposition_application(
+    typed_trees: &TypedTrees,
+    application: &crate::proposition::PropositionApplication,
+    counts: &mut IdentityStorageCounts,
+) {
+    count_declaration_name(&application.name, counts);
+    for binder in &application.binder_arguments {
+        for member in &binder.path {
+            count_declaration_name(member, counts);
+        }
+    }
+    for argument in typed_trees
+        .expression_table
+        .expression_handles(application.arguments)
+    {
+        count_expression_handle(&typed_trees.expression_table, *argument, counts);
     }
 }
 

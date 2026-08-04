@@ -18,6 +18,9 @@ pub(crate) fn contract_fact_place(
             contract_expression_place(program, facts, contract, membership.value)
                 .unwrap_or_else(|| facts.append_place_from_expression(program, membership.value)),
         ),
+        psi_typed_trees::domain::ProofFact::Proposition(application) => {
+            FactPlace::Place(facts.append_symbol_place(application.proposition))
+        }
     }
 }
 
