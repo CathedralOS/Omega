@@ -1189,9 +1189,12 @@ improvements do not change public identity.
   only its selected edge charged, retains both successors through the Omega
   abstract boundary, and reaches emitted host machine code for both arms. Its
   two-binding branch-local arithmetic paths each have a five-unit fixed-work
-  certificate. The target/native continuation remains deliberately exact:
-  runtime Boolean selection between two integer expressions is live, with each
-  branch independently assigned and emitted; general CFG programs fail closed.
+  certificate. A Boolean-literal selector now keeps the verified two-successor
+  terminal graph but folds at Omega target lowering, retaining only the selected
+  arm's operations and two edges in emitted provenance. The target/native
+  continuation remains deliberately exact: runtime Boolean selection between
+  two integer expressions is live, with each branch independently assigned and
+  emitted; general CFG programs fail closed.
   Because the
   legacy exit prover cannot establish ordinary `result == literal` contracts,
   this bootstrap canary preserves a closed typed `requires`/`ensures` fact and

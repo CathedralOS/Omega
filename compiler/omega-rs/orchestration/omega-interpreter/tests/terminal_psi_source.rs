@@ -599,6 +599,78 @@ fn checked_source_conditional_survives_frontend_drop() {
 
 #[cfg(unix)]
 #[test]
+fn checked_source_literal_conditional_emits_only_its_selected_arm() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("terminal-Psi literal conditional source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_literal_conditional")
+        .expect("literal source conditional should lower");
+    drop(checked);
+
+    let verified = verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("literal source conditional should verify");
+    let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let measured = interpret_terminal_measured(
+        &verified,
+        &[TerminalScalarValue::Integer {
+            scalar_type: u8_type,
+            value: IntegerValue::Unsigned(17),
+        }],
+    )
+    .expect("literal conditional should interpret");
+    assert_eq!(measured.usage().total_units(), 5);
+    assert!(
+        measured
+            .usage()
+            .at(FuelChargeSite::Edge(EdgeId::new(1).unwrap()))
+            .is_some()
+    );
+    assert_eq!(
+        measured
+            .usage()
+            .at(FuelChargeSite::Edge(EdgeId::new(2).unwrap())),
+        None
+    );
+    assert_eq!(
+        measured.value(),
+        TerminalScalarValue::Integer {
+            scalar_type: u8_type,
+            value: IntegerValue::Unsigned(20),
+        }
+    );
+
+    let abstract_operations = lower_verified_module(&verified)
+        .expect("literal conditional should cross the Omega abstract boundary");
+    let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
+        .expect("literal conditional should select its known arm");
+    let function = &target_operations.functions[0];
+    assert_eq!(
+        function.provenance.edges,
+        [EdgeId::new(1).unwrap(), EdgeId::new(3).unwrap()]
+    );
+    assert!(matches!(
+        function.operation,
+        TerminalTargetOperation::ReturnIntegerExpression {
+            psi_edge,
+            expression: TerminalTargetIntegerExpression::WrappingAdd { .. },
+            ..
+        } if psi_edge == EdgeId::new(3).unwrap()
+    ));
+    let assigned = assign_registers(&target_operations)
+        .expect("literal conditional parameter homes should assign");
+    let machine_code =
+        emit_machine_code(&assigned).expect("literal conditional machine code should emit");
+    assert_eq!(
+        run_host_machine_code_with_nine_u8(&machine_code.functions[0].bytes, 17, 0, 0),
+        20
+    );
+}
+
+#[cfg(unix)]
+#[test]
 fn source_closed_integer_chain_matches_emitted_host_machine_code() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("terminal-Psi closed integer-chain canary should compile");

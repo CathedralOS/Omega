@@ -221,6 +221,18 @@ ensures 17u8 == 17u8
     }
 }
 
+machine terminal_literal_conditional(value: u8 in Wrapping) -> u8 in Wrapping
+requires 20u8 == 20u8
+ensures 20u8 == 20u8
+{
+    transition true {
+        true -> selected_true(value)
+        _ -> selected_false(value)
+    }
+    state selected_true(value: u8 in Wrapping) -> u8 in Wrapping { value + 3u8 }
+    state selected_false(value: u8 in Wrapping) -> u8 in Wrapping { value * 2u8 }
+}
+
 machine terminal_runtime_saturating_add(value: u8 in Saturating) -> u8 in Saturating
 requires 255u8 == 255u8
 ensures 255u8 == 255u8

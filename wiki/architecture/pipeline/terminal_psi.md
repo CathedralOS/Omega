@@ -130,7 +130,11 @@ charges only the taken edge, crosses Omega's abstract boundary with both
 successors intact, and executes both selections through emitted host machine
 code. Target lowering accepts only this three-block shape, retaining each
 branch expression and its operation provenance through independent assigned
-frames and native emission. The computed two-binding canary paths each have a five-unit
+frames and native emission. A compile-known Boolean literal now selects its
+exact arm during Omega target lowering: only that arm's operations, structural
+edge, and return edge reach emitted provenance, while terminal interpretation
+still validates and meters the original two-successor graph. The computed
+two-binding canary paths and the literal-selector canary each have a five-unit
 fixed-work certificate.
 Constant-fed wrapping add and the Boolean literal reach emitted host machine
 code; direct ninth `bool` and `u8` returns cross the host incoming-stack ABI;
@@ -182,7 +186,9 @@ AMD64, or Microsoft x64 register/incoming-stack locations for runtime scalar
 parameters. Direct parameter returns stay explicit; parameter-fed wrapping and
 saturating addition plus wrapping and saturating subtraction and wrapping and
 saturating multiplication lower to recursive, exact-width
-target expressions.
+target expressions. For the exact conditional form, a Boolean ABI parameter
+retains both emitted arms, while a compile-known Boolean constant selects one
+arm and omits the unreachable arm from target bytes and provenance.
 `omega-terminal-target-operations-to-assigned-target-operations` is the next
 explicit boundary. Its first correctness-oriented rung validates every selected
 parameter register against the target, freezes repeated parameter locations,
