@@ -1095,9 +1095,53 @@ fn lower_integer_conditional_machine(
         return unsupported("conditional guard parameter must be Boolean");
     }
 
-    let branch_argument = |transition: &psi_checked_trees::statement::TableTransition,
-                           expected_state: &psi_checked_trees::state::State|
-     -> Result<usize, LoweringError> {
+    let mut branch_expressions = Vec::with_capacity(2);
+    let mut branch_parameter_types = Vec::with_capacity(2);
+    for state in [when_true_state, when_false_state] {
+        if integer_scalar_type(checked.primitive_type_reference(state.return_type).ok_or(
+            LoweringError::Unsupported("conditional branch result must be a primitive integer"),
+        )?)? != result_type
+        {
+            return unsupported("conditional branch result types must match exactly");
+        }
+        let parameters = checked.state_parameters(state);
+        if parameters
+            .iter()
+            .any(|parameter| parameter.is_self || parameter.is_const || parameter.is_mutable)
+        {
+            return unsupported("qualified conditional branch parameters are not supported");
+        }
+        let state_parameter_types = parameters
+            .iter()
+            .map(|parameter| {
+                integer_scalar_type(
+                    checked
+                        .primitive_type_reference(parameter.type_reference)
+                        .ok_or(LoweringError::Unsupported(
+                            "conditional branch parameters must be primitive integers",
+                        ))?,
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let [StatementNode::Expression(return_expression)] =
+            checked.statement_table.statements(state.statement_nodes)
+        else {
+            return unsupported("conditional branch state must contain one integer expression");
+        };
+        let (expression, _) = lower_direct_return_expression(
+            checked,
+            *return_expression,
+            parameters,
+            &state_parameter_types,
+            result_type,
+        )?;
+        branch_parameter_types.push(state_parameter_types);
+        branch_expressions.push(expression);
+    }
+    let branch_arguments = |transition: &psi_checked_trees::statement::TableTransition,
+                            expected_state: &psi_checked_trees::state::State,
+                            expected_types: &[ScalarType]|
+     -> Result<Vec<usize>, LoweringError> {
         let TransitionTargetNode::Named { path, arguments } =
             checked.statement_table.transition_target(transition.target)
         else {
@@ -1106,62 +1150,37 @@ fn lower_integer_conditional_machine(
         if path.symbol != expected_state.symbol {
             return unsupported("conditional successors must follow declared true/false order");
         }
-        let [argument] = checked.statement_table.expression_handles(*arguments) else {
-            return unsupported("each conditional successor must bind exactly one value");
-        };
-        let ExpressionNode::Name(path) = checked.expression_table.expression(*argument) else {
+        let arguments = checked.statement_table.expression_handles(*arguments);
+        if arguments.len() != expected_types.len() {
             return unsupported(
-                "conditional successor bindings currently require an already-defined parameter",
+                "conditional successor bindings must match the target parameter count",
             );
-        };
-        let position = direct_parameter_position(checked, path, entry_parameters)?;
-        if parameter_types[position] != result_type {
-            return unsupported("conditional successor argument must match the result type");
         }
-        Ok(position)
+        arguments
+                .iter()
+                .zip(expected_types)
+                .map(|(argument, expected_type)| {
+                    let ExpressionNode::Name(path) =
+                        checked.expression_table.expression(*argument)
+                    else {
+                        return unsupported(
+                            "conditional successor bindings currently require already-defined parameters",
+                        );
+                    };
+                    let position = direct_parameter_position(checked, path, entry_parameters)?;
+                    if parameter_types[position] != *expected_type {
+                        return unsupported(
+                            "conditional successor argument must match its target parameter type",
+                        );
+                    }
+                    Ok(position)
+                })
+                .collect()
     };
-    let when_true_argument = branch_argument(when_true, when_true_state)?;
-    let when_false_argument = branch_argument(when_false, when_false_state)?;
-
-    let mut branch_expressions = Vec::with_capacity(2);
-    for state in [when_true_state, when_false_state] {
-        if integer_scalar_type(checked.primitive_type_reference(state.return_type).ok_or(
-            LoweringError::Unsupported("conditional branch result must be a primitive integer"),
-        )?)? != result_type
-        {
-            return unsupported("conditional branch result types must match exactly");
-        }
-        let [parameter] = checked.state_parameters(state) else {
-            return unsupported("each conditional branch state must bind exactly one parameter");
-        };
-        if parameter.is_self || parameter.is_const || parameter.is_mutable {
-            return unsupported("qualified conditional branch parameters are not supported");
-        }
-        if integer_scalar_type(
-            checked
-                .primitive_type_reference(parameter.type_reference)
-                .ok_or(LoweringError::Unsupported(
-                    "conditional branch parameter must be a primitive integer",
-                ))?,
-        )? != result_type
-        {
-            return unsupported("conditional branch parameter must match the result type");
-        }
-        let [StatementNode::Expression(return_expression)] =
-            checked.statement_table.statements(state.statement_nodes)
-        else {
-            return unsupported("conditional branch state must contain one integer expression");
-        };
-        let parameter_types = [result_type];
-        let (expression, _) = lower_direct_return_expression(
-            checked,
-            *return_expression,
-            std::slice::from_ref(parameter),
-            &parameter_types,
-            result_type,
-        )?;
-        branch_expressions.push(expression);
-    }
+    let when_true_arguments =
+        branch_arguments(when_true, when_true_state, &branch_parameter_types[0])?;
+    let when_false_arguments =
+        branch_arguments(when_false, when_false_state, &branch_parameter_types[1])?;
     let [when_true_expression, when_false_expression]: [LoweredDirectExpression; 2] =
         branch_expressions
             .try_into()
@@ -1173,8 +1192,10 @@ fn lower_integer_conditional_machine(
     Ok(build_integer_conditional_module(
         &parameter_types,
         condition,
-        when_true_argument,
-        when_false_argument,
+        when_true_arguments,
+        when_false_arguments,
+        branch_parameter_types[0].clone(),
+        branch_parameter_types[1].clone(),
         when_true_expression,
         when_false_expression,
         result_type,
@@ -1980,8 +2001,10 @@ fn integer_value(
 fn build_integer_conditional_module(
     parameter_types: &[ScalarType],
     condition: LoweredBooleanReturnExpression,
-    when_true_argument: usize,
-    when_false_argument: usize,
+    when_true_arguments: Vec<usize>,
+    when_false_arguments: Vec<usize>,
+    when_true_parameter_types: Vec<ScalarType>,
+    when_false_parameter_types: Vec<ScalarType>,
     when_true_expression: LoweredDirectExpression,
     when_false_expression: LoweredDirectExpression,
     result_type: ScalarType,
@@ -2014,24 +2037,27 @@ fn build_integer_conditional_module(
         &mut all_operations,
     );
     let entry_operation_end = all_operations.len();
-    let true_parameter = ValueDeclaration {
-        id: value_id(next_value_identity),
-        scalar_type: result_type,
+    let mut allocate_parameters = |types: &[ScalarType]| {
+        types
+            .iter()
+            .map(|scalar_type| {
+                let parameter = ValueDeclaration {
+                    id: value_id(next_value_identity),
+                    scalar_type: *scalar_type,
+                };
+                next_value_identity = next_value_identity
+                    .checked_add(1)
+                    .expect("branch parameter identities advance");
+                parameter
+            })
+            .collect::<Vec<_>>()
     };
-    next_value_identity = next_value_identity
-        .checked_add(1)
-        .expect("false branch parameter follows true branch parameter");
-    let false_parameter = ValueDeclaration {
-        id: value_id(next_value_identity),
-        scalar_type: result_type,
-    };
-    next_value_identity = next_value_identity
-        .checked_add(1)
-        .expect("branch expressions follow branch parameters");
+    let true_parameters = allocate_parameters(&when_true_parameter_types);
+    let false_parameters = allocate_parameters(&when_false_parameter_types);
     let true_operation_start = all_operations.len();
     let true_value = emit_direct_expression(
         &when_true_expression,
-        std::slice::from_ref(&true_parameter),
+        &true_parameters,
         result_type,
         &mut next_value_identity,
         &mut all_operations,
@@ -2039,7 +2065,7 @@ fn build_integer_conditional_module(
     let true_operation_end = all_operations.len();
     let false_value = emit_direct_expression(
         &when_false_expression,
-        std::slice::from_ref(&false_parameter),
+        &false_parameters,
         result_type,
         &mut next_value_identity,
         &mut all_operations,
@@ -2092,18 +2118,24 @@ fn build_integer_conditional_module(
                             when_true: SuccessorEdge {
                                 edge: edge_id(1),
                                 target: block_id(2),
-                                arguments: vec![parameters[when_true_argument].id],
+                                arguments: when_true_arguments
+                                    .iter()
+                                    .map(|position| parameters[*position].id)
+                                    .collect(),
                             },
                             when_false: SuccessorEdge {
                                 edge: edge_id(2),
                                 target: block_id(3),
-                                arguments: vec![parameters[when_false_argument].id],
+                                arguments: when_false_arguments
+                                    .iter()
+                                    .map(|position| parameters[*position].id)
+                                    .collect(),
                             },
                         },
                     },
                     Block {
                         id: block_id(2),
-                        parameters: vec![true_parameter],
+                        parameters: true_parameters,
                         operations: all_operations[true_operation_start..true_operation_end]
                             .to_vec(),
                         terminator: Terminator::Return {
@@ -2113,7 +2145,7 @@ fn build_integer_conditional_module(
                     },
                     Block {
                         id: block_id(3),
-                        parameters: vec![false_parameter],
+                        parameters: false_parameters,
                         operations: all_operations[true_operation_end..].to_vec(),
                         terminator: Terminator::Return {
                             edge: edge_id(4),

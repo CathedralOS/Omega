@@ -210,11 +210,15 @@ requires 17u8 == 17u8
 ensures 17u8 == 17u8
 {
     transition condition {
-        true -> selected_true(when_true)
-        _ -> selected_false(when_false)
+        true -> selected_true(when_true, when_false)
+        _ -> selected_false(when_false, when_true)
     }
-    state selected_true(value: u8 in Wrapping) -> u8 in Wrapping { value + 3u8 }
-    state selected_false(value: u8 in Wrapping) -> u8 in Wrapping { value * 2u8 }
+    state selected_true(value: u8 in Wrapping, adjustment: u8 in Wrapping) -> u8 in Wrapping {
+        value + adjustment + 3u8
+    }
+    state selected_false(value: u8 in Wrapping, factor: u8 in Wrapping) -> u8 in Wrapping {
+        value * factor + 2u8
+    }
 }
 
 machine terminal_runtime_saturating_add(value: u8 in Saturating) -> u8 in Saturating
