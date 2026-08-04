@@ -6290,6 +6290,10 @@ mod x86_import_plan_tests {
 
         encode_host_call_sequence_no_plan(CallingPolicy::SystemVAMD64, key, &operands)
             .expect("constant materialization does not apply a calling policy");
+        assert_eq!(
+            constant_host_result_clobbers().as_slice(),
+            &[MachineRegister::X86Rax, MachineRegister::X86R15]
+        );
     }
 
     #[test]
@@ -6623,6 +6627,11 @@ pub fn encode_constant_result<T: InstructionOperandLike>(
     bytes.extend(disp32(byte_offset)?.to_le_bytes());
     debug_assert_eq!(bytes.len(), CONSTANT_RESULT_WIDTH);
     Ok(bytes)
+}
+
+/// Exact register footprint of the no-call constant-result sequence.
+pub fn constant_host_result_clobbers() -> RegisterSet {
+    RegisterSet::new([MachineRegister::X86Rax, MachineRegister::X86R15])
 }
 
 /// Relocation sites for `encode_constant_result`: only the result region base

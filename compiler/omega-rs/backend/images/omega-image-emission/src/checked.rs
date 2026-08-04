@@ -1409,6 +1409,53 @@ fn validate_compiler_function_instruction_boundaries(
                             target_offset,
                         },
                     ),
+                    omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyConstantHostResult {
+                        result_region,
+                        result_offset,
+                        result_byte_size,
+                        value,
+                    } => {
+                        (
+                            None,
+                            match architecture {
+                                Architecture::Aarch64 => {
+                                    omega_isa_aarch64::encode_host_call_sequence_constant_result_from_operands(
+                                        [
+                                            omega_isa_aarch64::Aarch64CallOperand::RuntimeScalarInteger {
+                                                byte_offset: result_offset,
+                                                byte_count: result_byte_size,
+                                            },
+                                            omega_isa_aarch64::Aarch64CallOperand::ImmediateInteger(value),
+                                        ]
+                                        .into_iter(),
+                                    )?
+                                }
+                                Architecture::X86_64 => {
+                                    let operands = [
+                                        omega_target_operations::InstructionOperand {
+                                            kind: omega_target_operations::InstructionOperandKind::RuntimeScalarInteger {
+                                                region: result_region,
+                                                byte_offset: result_offset,
+                                                byte_count: result_byte_size,
+                                            },
+                                        },
+                                        omega_target_operations::InstructionOperand {
+                                            kind: omega_target_operations::InstructionOperandKind::ImmediateInteger(value),
+                                        },
+                                    ];
+                                    omega_isa_x86_64::encode_constant_result(&operands)?
+                                }
+                            },
+                            34u8,
+                            CompilerInstructionRelocationRecipe::StaticStorage {
+                                storage_region: result_region,
+                                address_site: match architecture {
+                                    Architecture::Aarch64 => 16,
+                                    Architecture::X86_64 => 10,
+                                },
+                            },
+                        )
+                    }
                     omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyStorageBitFieldWrite {
                         region,
                         base_byte_offset,
@@ -3844,6 +3891,21 @@ fn compiler_instruction_footprint(
                 }
             },
         ),
+        CompilerInstructionValidationKind::CompilerBodyConstantHostResult {
+            result_offset,
+            result_byte_size,
+            ..
+        } => (
+            BoundaryFootprintFragmentOrigin::CompilerBodyConstantHostResult,
+            match architecture {
+                Architecture::X86_64 => omega_isa_x86_64::constant_host_result_clobbers(),
+                Architecture::Aarch64 => omega_isa_aarch64::constant_host_result_clobbers(
+                    result_offset,
+                    result_byte_size,
+                ),
+            },
+            MachineStateSet::empty(),
+        ),
         CompilerInstructionValidationKind::CompilerBodyPlaceBinaryWrite {
             target,
             left,
@@ -4273,6 +4335,7 @@ fn validate_compiler_body_specification_footprints(
                 | BoundaryFootprintFragmentOrigin::CompilerBodyPlaceCopy
                 | BoundaryFootprintFragmentOrigin::CompilerBodyPlaceIntegerWrite
                 | BoundaryFootprintFragmentOrigin::CompilerBodyPlaceAddressWrite
+                | BoundaryFootprintFragmentOrigin::CompilerBodyConstantHostResult
                 | BoundaryFootprintFragmentOrigin::CompilerBodyStorageBitFieldWrite
                 | BoundaryFootprintFragmentOrigin::CompilerBodyPlaceBoundedBufferWrite
                 | BoundaryFootprintFragmentOrigin::CompilerBodyPlaceStringWrite
@@ -4347,6 +4410,10 @@ fn validate_compiler_body_specification_footprints(
         (
             18u8,
             BoundaryFootprintFragmentOrigin::CompilerBodyPlaceAddressWrite,
+        ),
+        (
+            19u8,
+            BoundaryFootprintFragmentOrigin::CompilerBodyConstantHostResult,
         ),
     ] {
         let evidence_rows = derived

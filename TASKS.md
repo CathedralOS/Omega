@@ -882,7 +882,7 @@ proves complete region coverage, and composes admitted leaves under their
 separate provenance. Do not add a second whole-image decoder/admission path.
 
 The existing single final-region artifact now carries the domain-separated
-`omega.final-footprint-certificate` schema, format version 66, and a certificate
+`omega.final-footprint-certificate` schema, format version 67, and a certificate
 fingerprint over its final placement binding, compiler-text derivation, and
 complete region inventory. Its explicit completeness flags remain false until
 compiler-body footprint decoding and admitted-leaf evidence land. The envelope
@@ -930,7 +930,13 @@ ceiling with operand-sensitive stack/control state. Direct exit-result
 materialization now replays immediate writes and
 storage-to-result-register loads, including exact storage relocations, and
 requires their derived clobber union to equal the retained
-`ExitResultRegisters` fragment. The final validator now also
+`ExitResultRegisters` fragment. Compiler-materialized per-target host constants
+now replay as non-boundary body
+rows. It regenerates their exact immediate/store program, requires the sole
+fixed result-region relocation, and matches the x86-64 RAX/R15 or
+offset-sensitive AArch64 X0/X16[/X17] clobber set to a dedicated StatePlan
+fragment without inventing a `CallPlan` or boundary control transfer. The final
+validator now also
 replays register-, stack-, and indirect-pointer entry argument copies plus the
 entry `args` slice-descriptor write. Each row retains its normalized ABI/storage
 recipe, requires the exact runtime-frame relocation site even when a stack-held
