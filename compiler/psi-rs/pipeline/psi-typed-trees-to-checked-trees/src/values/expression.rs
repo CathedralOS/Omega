@@ -1,7 +1,7 @@
 use super::*;
 use psi_typed_trees::expression::ExpressionNode;
 
-impl ValueFactBuilder<'_> {
+impl ValueFactBuilder<'_, '_> {
     pub(super) fn collect_expression_children(&mut self, expression: ExpressionHandle) {
         match self.program.expression_table.expression(expression) {
             ExpressionNode::Atomic(atomic) => {

@@ -434,12 +434,13 @@ signed/unsigned decode. The portable filesystem stat record uses wide semantic
 carriers while the Darwin, Linux x86-64, Linux AArch64, and Windows policies own
 their physical integer widths; both Linux kernel layouts cross-validate through
 their native fstat plans. Concrete proved-fit mutation now admits exact
-compile-time integers and runtime assignment values whose Psi-checked declared
-range wholly fits the stored encoding. The checked value fact retains the
-use-site type reference; Omega consumes that validated declaration and keeps
-unconstrained values fail-closed. Flow-refined proof results still need a
-durable checked fact before stable-guard-only writes can lower. Ordinary scalar
-resolution, mutable recasts, and by-value boundary
+compile-time integers and runtime assignment values whose Psi-proved inclusive
+range wholly fits the stored encoding. Every resolvable assignment receives a
+range-analysis row without creating a new language obligation. The checked
+value fact retains its use-site type reference and BigInt discharge interval,
+including stable incoming guards and boundary witnesses; Omega consumes that
+fact and keeps unproved values fail-closed. Ordinary scalar resolution, mutable
+recasts, and by-value boundary
 classification reject rather than treating `IntegerAt` as `At` or truncating
 through the scalar materializer.
 The admitted `compact_binary` realization now derives bounded repeated framing

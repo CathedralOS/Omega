@@ -2108,13 +2108,14 @@ ordinary code never receives a raw executable address.
   guards also reselect the stored projection and compare its widened semantic
   value rather than reading the carrier width from raw storage. Concrete
   proved-fit mutation is now live for exact compile-time integers and runtime
-  assignment values whose Psi-checked declared range wholly fits the stored
-  encoding; checked values retain their use-site type reference so Omega
-  consumes the validated declaration rather than reconstructing a range from
-  layout shape. An unconstrained runtime value remains fail-closed. Remaining
-  mutation work is serializing flow-refined (for example stable-guard) range
-  discharge into checked facts. Read-only interpreter record views now perform
-  the same stored-width decode. The portable filesystem stat record
+  assignment values whose Psi-proved inclusive range wholly fits the stored
+  encoding. Every resolvable assignment participates in range analysis without
+  becoming a new language obligation; checked values retain both their use-site
+  type reference and the BigInt discharge interval, including stable incoming
+  guards and boundary witnesses. Omega consumes only that checked fact rather
+  than reconstructing proof from layout shape. An unconstrained runtime value
+  remains fail-closed. Read-only interpreter record views now perform the same
+  stored-width decode. The portable filesystem stat record
   has wide semantic carriers, while Darwin, Linux x86-64, Linux AArch64, and
   Windows target policies retain their physical widths; both Linux kernel
   layouts validate through the cross-target fstat canary. Native Linux runtime

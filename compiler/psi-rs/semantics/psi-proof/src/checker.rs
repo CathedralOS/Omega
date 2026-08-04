@@ -1000,6 +1000,29 @@ fn guarded_integer_range_for_assignment(
     Some(range)
 }
 
+/// The integer range Psi proves for one assignment value after applying its
+/// declared constraints, stable incoming guard, and retained boundary witness
+/// facts. The proof plan carries every assignment site, not only sites whose
+/// semantic destination is itself constrained. Returning `None` means Psi has
+/// no bounded fact to publish; later lowering must remain fail-closed.
+pub fn proved_assignment_integer_range(
+    proof_plan: &ProofPlan<'_>,
+    machine_symbol: psi_symbols::SymbolHandle,
+    state_symbol: psi_symbols::SymbolHandle,
+    statement_index: usize,
+) -> Option<crate::obligations::IntegerRange> {
+    let obligation = proof_plan
+        .assignment_value_ranges
+        .iter()
+        .map(|(_, obligation)| obligation)
+        .find(|obligation| {
+            obligation.machine_symbol == machine_symbol
+                && obligation.state_symbol == state_symbol
+                && obligation.statement_index == statement_index
+        })?;
+    guarded_integer_range_for_assignment(proof_plan, obligation)
+}
+
 /// Whether an operand place's DECLARED primitive is unsigned (its type
 /// floor is 0) -- lets an ensures upper witness pair with the natural
 /// lower bound.

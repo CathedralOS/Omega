@@ -5,6 +5,14 @@ use psi_typed_trees::types::TypeReferenceHandle;
 
 pub type CheckedValueHandle = Handle<CheckedValueFact>;
 
+/// A checker-established inclusive integer interval for one value at its exact
+/// use site. Big integers preserve the full `u64` proof domain.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedIntegerRange {
+    pub minimum: psi_numerics::bignum::BigInt,
+    pub maximum: psi_numerics::bignum::BigInt,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CheckedValueOrigin {
     MachineDecrease {
@@ -57,6 +65,9 @@ pub struct CheckedValueFact {
     /// Later lowering may consume validated declaration facts through this
     /// handle; it must never reconstruct a stronger type from storage shape.
     pub type_reference: TypeReferenceHandle,
+    /// The range discharged by Psi for this value in its origin context,
+    /// including stable flow guards and retained boundary witnesses.
+    pub integer_range: Option<CheckedIntegerRange>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

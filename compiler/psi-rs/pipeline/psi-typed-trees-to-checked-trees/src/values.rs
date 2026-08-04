@@ -1,6 +1,8 @@
 use psi_checked_trees::{
-    CheckedValueFact, CheckedValueFacts, CheckedValueOrigin, CheckedValueStatementRole,
+    CheckedIntegerRange, CheckedValueFact, CheckedValueFacts, CheckedValueOrigin,
+    CheckedValueStatementRole,
 };
+use psi_proof::obligations::ProofPlan;
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::expression::ExpressionHandle;
@@ -9,9 +11,13 @@ mod expression;
 mod statement;
 mod transition;
 
-pub(crate) fn build_value_facts(program: &TypedTrees) -> CheckedValueFacts {
+pub(crate) fn build_value_facts(
+    program: &TypedTrees,
+    proof_plan: &ProofPlan<'_>,
+) -> CheckedValueFacts {
     let mut builder = ValueFactBuilder {
         program,
+        proof_plan,
         facts: CheckedValueFacts::default(),
     };
 
@@ -58,12 +64,13 @@ pub(crate) fn build_value_facts(program: &TypedTrees) -> CheckedValueFacts {
     builder.facts
 }
 
-pub(super) struct ValueFactBuilder<'program> {
+pub(super) struct ValueFactBuilder<'program, 'plan> {
     pub(super) program: &'program TypedTrees,
+    pub(super) proof_plan: &'plan ProofPlan<'program>,
     pub(super) facts: CheckedValueFacts,
 }
 
-impl ValueFactBuilder<'_> {
+impl ValueFactBuilder<'_, '_> {
     pub(super) fn collect_statement_expression(
         &mut self,
         machine_symbol: SymbolHandle,
@@ -98,10 +105,29 @@ impl ValueFactBuilder<'_> {
             origin,
         )
         .unwrap_or_else(psi_typed_trees::types::TypeReferenceHandle::invalid);
+        let integer_range = match origin {
+            CheckedValueOrigin::StateStatement {
+                machine_symbol,
+                state_symbol,
+                statement_index,
+                role: CheckedValueStatementRole::AssignmentValue,
+            } => psi_proof::checker::proved_assignment_integer_range(
+                self.proof_plan,
+                machine_symbol,
+                state_symbol,
+                statement_index,
+            )
+            .map(|range| CheckedIntegerRange {
+                minimum: range.minimum,
+                maximum: range.maximum,
+            }),
+            _ => None,
+        };
         self.facts.values.insert(CheckedValueFact {
             expression,
             origin,
             type_reference,
+            integer_range,
         });
 
         self.collect_expression_children(expression);
