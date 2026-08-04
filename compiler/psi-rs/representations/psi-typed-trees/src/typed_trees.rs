@@ -183,6 +183,9 @@ pub struct PlanLaidIntegerField {
     pub field_index: usize,
     pub stored_width_bits: u16,
     pub interpretation: psi_layout_plans::IntegerInterpretation,
+    /// Every value admitted by the semantic field type has an encoding at the
+    /// stored width. Mutation may truncate only when this validated fact holds.
+    pub write_is_total: bool,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

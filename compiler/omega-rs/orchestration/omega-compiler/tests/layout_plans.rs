@@ -506,6 +506,44 @@ machine Main::main(&mut self) { }
             .stored_width_bits,
         32
     );
+    assert!(
+        !layouts
+            .stored_integer(fields[0].symbol)
+            .expect("signed stored integer metadata")
+            .write_is_total
+    );
+    assert!(
+        !layouts
+            .stored_integer(fields[1].symbol)
+            .expect("unsigned stored integer metadata")
+            .write_is_total
+    );
+}
+
+#[test]
+fn integer_at_retains_total_write_evidence_for_a_bounded_carrier() {
+    let canary = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(
+        "../../../../canaries/pass/layouts/runtime_plan_laid_integer_at_total_write_exit/main.omg",
+    );
+    let checked = compile_to_checked(&canary, None).expect("total-write canary should typecheck");
+    let target = NativeTarget::from_omega_target_name(None).expect("host target");
+    let layouts = build_layout_plan(&checked, target).expect("stored integer layout should build");
+    let layout = layouts
+        .data_layouts
+        .iter()
+        .map(|(_, layout)| layout)
+        .find(|layout| layout.name.as_str() == "SignedByte<PortableByte>")
+        .expect("bounded stored integer layout");
+    let DataShape::Record { fields } = layout.shape else {
+        panic!("bounded stored integer should remain a record")
+    };
+    let field = &layouts.fields.span_or_empty(fields)[0];
+    assert!(
+        layouts
+            .stored_integer(field.symbol)
+            .expect("stored integer metadata")
+            .write_is_total
+    );
 }
 
 #[test]

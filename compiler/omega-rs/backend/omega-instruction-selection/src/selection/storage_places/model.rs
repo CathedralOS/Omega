@@ -60,6 +60,70 @@ pub(in crate::selection) struct RuntimeStoredIntegerProjection {
     pub(in crate::selection) carrier_byte_count: usize,
     pub(in crate::selection) interpretation: psi_layout_plans::IntegerInterpretation,
     pub(in crate::selection) carrier_signed: bool,
+    pub(in crate::selection) write_is_total: bool,
+}
+
+impl RuntimeStoredIntegerSource {
+    pub(in crate::selection) fn as_place(&self) -> Option<omega_abstract_operations::Place> {
+        use omega_abstract_operations::{Place, PlaceStep};
+        match *self {
+            Self::Direct {
+                region,
+                byte_offset,
+            } => Some(Place::at(region, byte_offset)),
+            Self::Pointee {
+                pointer_byte_offset,
+                field_byte_offset,
+            } => Place::at(RuntimeStorageRegion::RuntimeFrame, pointer_byte_offset)
+                .with_step(PlaceStep::Deref)?
+                .with_step(PlaceStep::ConstOffset(field_byte_offset)),
+            Self::FrameIndexed {
+                descriptor_offset,
+                index_region,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+            } => Place::at(RuntimeStorageRegion::RuntimeFrame, descriptor_offset)
+                .with_step(PlaceStep::Deref)?
+                .with_step(PlaceStep::ScaledIndex {
+                    index_region,
+                    index_offset,
+                    index_byte_size,
+                    element_byte_size,
+                })?
+                .with_step(PlaceStep::ConstOffset(field_byte_offset)),
+            Self::FrameBaseIndexed {
+                base_byte_offset,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+            } => Place::at(RuntimeStorageRegion::RuntimeFrame, base_byte_offset)
+                .with_step(PlaceStep::ScaledIndex {
+                    index_region: RuntimeStorageRegion::RuntimeFrame,
+                    index_offset,
+                    index_byte_size,
+                    element_byte_size,
+                })?
+                .with_step(PlaceStep::ConstOffset(field_byte_offset)),
+            Self::MachineIndexed {
+                base_byte_offset,
+                index_region,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+            } => Place::at(RuntimeStorageRegion::Machine, base_byte_offset)
+                .with_step(PlaceStep::ScaledIndex {
+                    index_region,
+                    index_offset,
+                    index_byte_size,
+                    element_byte_size,
+                })?
+                .with_step(PlaceStep::ConstOffset(field_byte_offset)),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

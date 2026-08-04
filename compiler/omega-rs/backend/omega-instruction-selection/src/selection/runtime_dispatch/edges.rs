@@ -12,7 +12,7 @@ use crate::selection::storage_places::{
     resolve_runtime_bit_field_place_in_table, resolve_runtime_frame_indexed_target_in_table,
     resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_is_signed_in_table,
     resolve_runtime_storage_place_in_table, resolve_runtime_storage_primitive_type_in_table,
-    static_integer_value,
+    resolve_runtime_stored_integer_projection_in_table, static_integer_value,
 };
 use omega_control_flow::StateKey;
 use omega_runtime_dispatch_loop::{RuntimeDispatchLoopAction, RuntimeDispatchLoopEdge};
@@ -162,6 +162,52 @@ fn guard_contains_bit_field_operand(
     )
     .is_some()
         || resolve_runtime_bit_field_place_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            binary.right,
+        )
+        .is_some()
+}
+
+/// Whether a conjunction contains a plan-laid `IntegerAt` operand. The flat
+/// guard model sees the semantic carrier width, while the physical field may
+/// be narrower and require sign/zero extension before comparison.
+fn guard_contains_stored_integer_operand(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    guard: ExpressionHandle,
+) -> bool {
+    let ExpressionNode::Binary(binary) = expressions.expression(guard) else {
+        return false;
+    };
+    if binary.operator == BinaryOperator::And {
+        return guard_contains_stored_integer_operand(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            binary.left,
+        ) || guard_contains_stored_integer_operand(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            binary.right,
+        );
+    }
+    resolve_runtime_stored_integer_projection_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        binary.left,
+    )
+    .is_some()
+        || resolve_runtime_stored_integer_projection_in_table(
             input,
             dispatch_index,
             source_key,
@@ -1584,7 +1630,19 @@ fn select_dispatch_guard_instructions(
             &input.state_guards.expressions,
             edge.guard_expression,
         );
-    if !guard_can_emit_directly(edge) || has_pointee_operand || has_bit_field_operand {
+    let has_stored_integer_operand = edge.guard_has_expression
+        && guard_contains_stored_integer_operand(
+            input,
+            source_dispatch_index,
+            source_key,
+            &input.state_guards.expressions,
+            edge.guard_expression,
+        );
+    if !guard_can_emit_directly(edge)
+        || has_pointee_operand
+        || has_bit_field_operand
+        || has_stored_integer_operand
+    {
         let clauses = lower_guard_conjunction(
             input.state_guards,
             input.layouts,
@@ -1624,6 +1682,7 @@ fn select_dispatch_guard_instructions(
                 && (has_unresolved_runtime_compare
                     || has_pointee_operand
                     || has_bit_field_operand
+                    || has_stored_integer_operand
                     || clauses
                         .iter()
                         .any(|clause| clause.byte_size == string_descriptor_size))
@@ -1700,7 +1759,11 @@ fn select_dispatch_guard_instructions(
         }
     }
 
-    if !guard_can_emit_directly(edge) || has_pointee_operand {
+    if !guard_can_emit_directly(edge)
+        || has_pointee_operand
+        || has_bit_field_operand
+        || has_stored_integer_operand
+    {
         if edge.guard_has_expression {
             let guards = select_runtime_dispatch_expression_guard_conjuncts_in_table(
                 input,

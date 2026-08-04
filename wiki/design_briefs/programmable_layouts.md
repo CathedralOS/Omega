@@ -424,10 +424,15 @@ the concrete Omega layout as field-keyed stored-width metadata. Direct owned
 and reference-backed plan-laid projection now loads exactly that width and
 sign- or zero-extends according to the retained interpretation. Runtime-indexed
 projection keeps descriptor, inline-frame, machine-owned, or reference-backed
-address geometry while applying the same exact-width decode. Proved-fit
-mutation is still outstanding; ordinary scalar resolution, mutable recasts,
-interpreter record views, and by-value boundary classification reject rather
-than treating `IntegerAt` as `At` or truncating through the scalar materializer.
+address geometry while applying the same exact-width decode. Plan construction
+derives and retains total-write evidence when the field's complete admitted
+semantic range fits the stored encoding. Direct stable-owned mutation consumes
+that evidence to write exactly the physical width, and direct guards consume
+the decoded projection instead of comparing the semantic carrier width against
+raw storage. Concrete proved-fit mutation is still outstanding; ordinary
+scalar resolution, mutable recasts, interpreter record views, and by-value
+boundary classification reject rather than treating `IntegerAt` as `At` or
+truncating through the scalar materializer.
 The admitted `compact_binary` realization now derives bounded repeated framing
 from carrier semantics: `[T; N]` contributes exactly `N` elements and
 `FixedVec<T, N>` contributes its intrinsic live length up to `N`; the retired

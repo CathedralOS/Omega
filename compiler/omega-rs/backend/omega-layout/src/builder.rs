@@ -402,6 +402,7 @@ impl<'program> LayoutBuilder<'program> {
                     field: field.symbol,
                     stored_width_bits: integer_field.stored_width_bits,
                     interpretation: integer_field.interpretation,
+                    write_is_total: integer_field.write_is_total,
                 });
             }
 

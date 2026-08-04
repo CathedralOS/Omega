@@ -629,9 +629,13 @@ and interpretation survive through typed plan-laid and concrete backend layout
 records. Direct owned and reference-backed projection loads the physical width
 and sign- or zero-extends into the semantic carrier. Runtime-indexed projection
 uses the same decode after ordinary descriptor, inline-frame, machine-owned, or
-reference-backed address calculation. Proved-fit mutation remains
-implementation work and fails closed; ordinary scalar consumers do not make
-`IntegerAt` interchangeable with ordinary `At`.
+reference-backed address calculation. The compiler also retains whether the
+field's admitted semantic range is wholly encodable at the stored width. A
+direct write into stable owned storage may narrow on that total-write evidence,
+and direct guards compare the widened semantic projection rather than the raw
+neighboring carrier bytes. Concrete proved-fit writes remain implementation
+work and fail closed; ordinary scalar consumers do not make `IntegerAt`
+interchangeable with ordinary `At`.
 Encodability alone does not authorize a transfer: sub-unit mutation must also
 have a legal implementation. Stable exclusive storage may use one bounded
 read-patch-write sequence. External storage requires a whole-container or

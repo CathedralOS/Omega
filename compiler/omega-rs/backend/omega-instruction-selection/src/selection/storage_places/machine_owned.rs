@@ -213,6 +213,7 @@ pub(in crate::selection) fn resolve_machine_owned_stored_integer_in_table(
         carrier_byte_count: cursor.layout().size,
         interpretation: stored.interpretation,
         carrier_signed: carrier.is_signed_integer(),
+        write_is_total: stored.write_is_total,
     })
 }
 
