@@ -1497,6 +1497,68 @@ pub fn encode_write_place_address(
     }
 }
 
+pub fn write_place_address_register_writes(
+    architecture: Architecture,
+    source: &omega_target_operations::Place,
+    target_offset: usize,
+) -> Result<omega_calling_conventions::RegisterSet, Diagnostic> {
+    match architecture {
+        Architecture::X86_64 => Ok(x86_64::place_address_write_register_writes(source)),
+        Architecture::Aarch64 => match classify_write_place_shape(source) {
+            WritePlaceShape::Direct { byte_offset } => Ok(
+                aarch64::runtime_storage_address_to_runtime_frame_write_clobbers(
+                    byte_offset,
+                    target_offset,
+                ),
+            ),
+            WritePlaceShape::Pointee {
+                pointer_byte_offset,
+                field_byte_offset,
+            } => Ok(
+                aarch64::runtime_pointee_address_to_runtime_frame_write_clobbers(
+                    pointer_byte_offset,
+                    field_byte_offset,
+                    target_offset,
+                ),
+            ),
+            WritePlaceShape::FrameIndexed { .. } => Ok(
+                aarch64::runtime_frame_indexed_address_to_runtime_frame_write_clobbers(
+                    omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                ),
+            ),
+            WritePlaceShape::FrameBaseIndexed { .. } => {
+                Ok(aarch64::runtime_frame_base_indexed_address_to_runtime_frame_write_clobbers())
+            }
+            WritePlaceShape::MachineIndexed { .. } => Ok(
+                aarch64::runtime_machine_indexed_address_to_runtime_frame_write_clobbers(
+                    target_offset,
+                ),
+            ),
+            _ => {
+                if let Some((_, index_region, ..)) = place_frame_deref_indexed_path(source) {
+                    return Ok(
+                        aarch64::runtime_frame_indexed_address_to_runtime_frame_write_clobbers(
+                            index_region,
+                        ),
+                    );
+                }
+                Err(Diagnostic::error(
+                    "WritePlaceAddress footprint does not cover a shape its aarch64 encoder refuses",
+                ))
+            }
+        },
+    }
+}
+
+pub fn write_place_address_additional_machine_state(
+    architecture: Architecture,
+) -> omega_calling_conventions::MachineStateSet {
+    match architecture {
+        Architecture::X86_64 => x86_64::place_address_write_additional_machine_state(),
+        Architecture::Aarch64 => aarch64::runtime_place_address_write_additional_machine_state(),
+    }
+}
+
 /// One source of truth: the encoder's output length.
 pub fn write_place_address_width(
     architecture: Architecture,

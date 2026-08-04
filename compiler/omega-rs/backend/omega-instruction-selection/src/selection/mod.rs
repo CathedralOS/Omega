@@ -1,5 +1,6 @@
 use crate::{
     InstructionSelectionInput, derive_boundary_call_return_mechanics_footprint,
+    derive_boundary_compiler_body_place_address_write_footprint,
     derive_boundary_compiler_body_place_binary_write_footprint,
     derive_boundary_compiler_body_place_bounded_buffer_write_footprint,
     derive_boundary_compiler_body_place_copy_footprint,
@@ -418,6 +419,21 @@ fn retain_exit_footprints(
             },
         )
         .expect("retained compiler-body integer-write footprint must name the entry boundary contract");
+    }
+    let evidence = derive_boundary_compiler_body_place_address_write_footprint(
+        boundary,
+        instructions.iter().map(|instruction| &instruction.kind),
+    )
+    .expect("selected compiler-body address writes must fit the validated entry state ceiling");
+    if !evidence.registers().as_slice().is_empty() {
+        plan.retain_validated_fragment(
+            boundary,
+            omega_abstract_operations::BoundaryFootprintFragment {
+                origin: omega_abstract_operations::BoundaryFootprintFragmentOrigin::CompilerBodyPlaceAddressWrite,
+                evidence,
+            },
+        )
+        .expect("retained compiler-body address-write footprint must name the entry boundary contract");
     }
     let evidence = derive_boundary_compiler_body_storage_bit_field_write_footprint(
         boundary,

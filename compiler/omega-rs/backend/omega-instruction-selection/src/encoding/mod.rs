@@ -74,6 +74,7 @@ pub use runtime_storage::{
     encode_write_place_bounded_buffer, encode_write_place_convert, encode_write_place_integer,
     encode_write_place_string, place_binary_index_base_positions, place_binary_operand_start_width,
     place_compare_width, place_frame_deref_indexed_path, place_value_compare_width,
+    write_place_address_additional_machine_state, write_place_address_register_writes,
     write_place_address_width, write_place_binary_width, write_place_bounded_buffer_width,
     write_place_convert_width, write_place_integer_width, write_place_string_width,
     x86_64_encode_append_place_bounded_buffer_literal_with_sites,

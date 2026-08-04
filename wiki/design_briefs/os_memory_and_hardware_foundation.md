@@ -1090,6 +1090,10 @@ buffer symbol, byte offset, literal, encoder, and sole data relocation under
 the same text-assembly fragment. Segmented stored-suffix appends retain the
 exact buffer and source/target storage identities, offsets, length delta,
 encoder, and mixed relocation set under that fragment too.
+Compiler-body place-address writes retain their canonical source `Place` and
+target runtime-frame slot. Final validation replays the exact target address
+materializer, independently derives every source, index, and target-frame
+relocation, and matches dedicated `CompilerBodyPlaceAddressWrite` evidence.
 Place-copy selection retains its separate `compiler_body_place_copy` evidence
 only for
 the `Ordinary` role; final validation regenerates the same place-copy bytes,
@@ -1128,7 +1132,7 @@ relocation-envelope fingerprints plus their composed derivation identity. The
 boundary/placement binding includes that derivation identity, so a valid final
 inventory cannot be paired with evidence from a different encoded-to-final
 derivation. The single emitted artifact is now self-described as
-`omega.final-footprint-certificate` format v55, with a domain-separated
+`omega.final-footprint-certificate` format v56, with a domain-separated
 certificate fingerprint over its final placement binding, compiler-text
 derivation, and region inventory. It remains explicitly incomplete evidence,
 not an admission certificate, until the missing footprint classes close. The

@@ -476,6 +476,15 @@ fn compiler_instruction_validation_kind(
                 },
             )
         }
+        SelectedInstructionKind::WritePlaceAddress {
+            source,
+            target_offset,
+        } => Some(
+            CompilerInstructionValidationKind::CompilerBodyPlaceAddressWrite {
+                source: *source,
+                target_offset: *target_offset,
+            },
+        ),
         SelectedInstructionKind::WriteStorageBitField {
             region,
             base_byte_offset,
