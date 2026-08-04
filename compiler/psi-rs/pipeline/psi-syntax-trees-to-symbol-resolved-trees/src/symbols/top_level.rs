@@ -81,6 +81,7 @@ pub(super) fn assign_machine_parameter_signature_symbols(
     for parameter in data_type_parameters.span_mut_or_empty(contract.type_parameters) {
         let kind = match parameter.kind {
             TypeParameterKind::Machine { .. } => SymbolKind::MachineParameter,
+            TypeParameterKind::Proposition { .. } => SymbolKind::PropositionParameter,
             _ => SymbolKind::TypeParameter,
         };
         parameter.symbol = next_child_of_kind(&mut children, symbols, kind);
@@ -123,6 +124,19 @@ pub(super) fn assign_machine_parameter_signature_symbols(
                 );
                 TypeParameterKind::Machine { contract }
             }
+            TypeParameterKind::Proposition { mut contract } => {
+                assign_proposition_parameter_signature_symbols(
+                    symbols,
+                    state_parameters,
+                    child_type_references,
+                    type_constraints,
+                    &mut contract,
+                    parameter_symbol,
+                    &local_type_parameters,
+                    self_symbol,
+                );
+                TypeParameterKind::Proposition { contract }
+            }
         };
         data_type_parameters.span_mut_or_empty(contract.type_parameters)[index].kind =
             resolved_kind;
@@ -147,6 +161,31 @@ pub(super) fn assign_machine_parameter_signature_symbols(
             &local_type_parameters,
             self_symbol,
             return_type,
+        );
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn assign_proposition_parameter_signature_symbols(
+    symbols: &SymbolTable,
+    state_parameters: &mut Arena<psi_symbol_resolved_trees::signature::StateParameter>,
+    child_type_references: &mut Arena<psi_symbol_resolved_trees::types::TypeReference>,
+    type_constraints: &Arena<psi_symbol_resolved_trees::types::TypeConstraint>,
+    contract: &mut psi_symbol_resolved_trees::data::PropositionParameterSignature,
+    owner_symbol: SymbolHandle,
+    inherited_type_parameters: &[psi_symbol_resolved_trees::data::TypeParameter],
+    self_symbol: SymbolHandle,
+) {
+    let mut children = symbols.child_handles(owner_symbol).into_iter().flatten();
+    for parameter in state_parameters.span_mut_or_empty(contract.parameters) {
+        parameter.symbol = next_child_of_kind(&mut children, symbols, SymbolKind::Parameter);
+        crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_self_type_and_constraints(
+            symbols,
+            child_type_references,
+            type_constraints,
+            inherited_type_parameters,
+            self_symbol,
+            &mut parameter.type_reference,
         );
     }
 }

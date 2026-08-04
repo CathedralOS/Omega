@@ -386,6 +386,18 @@ fn count_type_parameter(
                 }
             }
         }
+        crate::data::TypeParameterKind::Proposition { contract } => {
+            count_declaration_name(&contract.name, counts);
+            for contract_parameter in program.state_parameters(contract.parameters) {
+                count_declaration_name(&contract_parameter.name, counts);
+                count_type_reference(
+                    &contract_parameter.type_reference,
+                    child_type_references,
+                    expression_table,
+                    counts,
+                );
+            }
+        }
     }
 }
 

@@ -7,6 +7,66 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 #[test]
+fn proposition_parameter_signatures_receive_distinct_symbols() {
+    let source = r#"
+        trait Reflexive<C, proposition Relation>
+        where proposition Relation(left: C, right: C);
+        {
+            machine prove(value: C) ensures Relation(value, value);
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let program = lower_syntax_trees(&syntax_trees).expect("resolution should succeed");
+
+    let trait_definition = &program.traits[0];
+    let [carrier, relation] = program.trait_type_parameters(trait_definition) else {
+        panic!("trait should retain its carrier and proposition parameters");
+    };
+    assert_eq!(
+        program.symbols.get(relation.symbol).kind,
+        psi_symbols::SymbolKind::PropositionParameter
+    );
+    let psi_symbol_resolved_trees::data::TypeParameterKind::Proposition { contract } =
+        &relation.kind
+    else {
+        panic!("Relation should retain a proposition signature");
+    };
+    let [left, right] = program.state_parameters(contract.parameters) else {
+        panic!("Relation should retain two value parameters");
+    };
+    assert!(left.symbol.is_valid() && right.symbol.is_valid());
+    for parameter in [left, right] {
+        let psi_symbol_resolved_trees::types::TypeReference::Named { symbol, .. } =
+            &parameter.type_reference
+        else {
+            panic!("relation parameter should retain C");
+        };
+        assert_eq!(*symbol, carrier.symbol);
+    }
+
+    let [signature] = program.trait_machine_signatures(trait_definition.machines) else {
+        panic!("trait should retain one proof signature");
+    };
+    let [contract] = program.signature_contracts(signature.contracts) else {
+        panic!("proof signature should retain one ensures contract");
+    };
+    let [psi_symbol_resolved_trees::domain::ProofFact::Expression(expression)] =
+        program.proof_facts(contract.facts)
+    else {
+        panic!("resolved proof fact should remain an expression");
+    };
+    let psi_symbol_resolved_trees::expression::ExpressionNode::Call(call) =
+        program.tables.bodies.expressions.expression(*expression)
+    else {
+        panic!("ensures should remain a proposition-family call");
+    };
+    assert_eq!(call.target_symbol, relation.symbol);
+}
+
+#[test]
 fn proposition_declarations_resolve_as_a_distinct_proof_category() {
     let source = r#"
         proposition related(left: i32, right: i32);

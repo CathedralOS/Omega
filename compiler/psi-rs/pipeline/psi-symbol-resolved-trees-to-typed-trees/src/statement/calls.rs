@@ -10,8 +10,10 @@ pub(super) fn lower_call_statement(
     call: &resolved::statement::TableCall,
 ) -> Result<typed::statement::TableCall, Diagnostic> {
     if call.target_symbol.is_valid()
-        && lowerer.source_trees.symbols.get(call.target_symbol).kind
-            == psi_symbols::SymbolKind::Proposition
+        && matches!(
+            lowerer.source_trees.symbols.get(call.target_symbol).kind,
+            psi_symbols::SymbolKind::Proposition | psi_symbols::SymbolKind::PropositionParameter
+        )
     {
         return Err(Diagnostic::error(
             "a proposition application is proof-only and cannot appear as an executable call statement",

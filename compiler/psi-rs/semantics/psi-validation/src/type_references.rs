@@ -472,6 +472,12 @@ fn validate_type_reference_handle_with_context(
                                 diagnostics,
                             );
                         }
+                        TypeParameterKind::Proposition { .. } => {
+                            diagnostics.push(Diagnostic::error(format!(
+                                "proposition parameter `{}` of `{base_name}` requires a proposition-family argument, not a type-reference argument",
+                                parameter.name
+                            )));
+                        }
                         TypeParameterKind::Type => {
                             if machine_argument_name(program, *argument, type_parameter_scope)
                                 .is_some()

@@ -170,8 +170,11 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             resolved::expression::ExpressionNode::Call(call) => {
                 if let Some(program) = self.program
                     && call.target_symbol.is_valid()
-                    && program.symbols.get(call.target_symbol).kind
-                        == psi_symbols::SymbolKind::Proposition
+                    && matches!(
+                        program.symbols.get(call.target_symbol).kind,
+                        psi_symbols::SymbolKind::Proposition
+                            | psi_symbols::SymbolKind::PropositionParameter
+                    )
                 {
                     return Err(Diagnostic::error(if self.fact_position {
                         "a proposition application must be the complete fact in this implementation slice"

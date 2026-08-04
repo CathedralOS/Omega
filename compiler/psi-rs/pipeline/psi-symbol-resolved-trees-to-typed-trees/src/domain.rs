@@ -192,8 +192,11 @@ pub(crate) fn lower_proof_facts(
                     .expressions
                     .expression(*expression)
                     && call.target_symbol.is_valid()
-                    && lowerer.source_trees.symbols.get(call.target_symbol).kind
-                        == psi_symbols::SymbolKind::Proposition
+                    && matches!(
+                        lowerer.source_trees.symbols.get(call.target_symbol).kind,
+                        psi_symbols::SymbolKind::Proposition
+                            | psi_symbols::SymbolKind::PropositionParameter
+                    )
                 {
                     let application =
                         crate::proposition::lower_proposition_application(lowerer, call)?;

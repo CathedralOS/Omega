@@ -193,6 +193,42 @@ fn proposition_application_rejects_wrong_value_argument_type() {
 }
 
 #[test]
+fn generic_proposition_parameter_validates_its_authored_application_signature() {
+    let typed = typed_program_from_source(
+        r#"
+        trait Reflexive<C, proposition Relation>
+        where proposition Relation(left: C, right: C);
+        {
+            machine prove(value: C) ensures Relation(value, value);
+        }
+        "#,
+    );
+
+    validate_program(&typed)
+        .expect("a generic proposition fact should validate against its authored signature");
+}
+
+#[test]
+fn generic_proposition_parameter_rejects_wrong_value_argument_type() {
+    let typed = typed_program_from_source(
+        r#"
+        trait Reflexive<C, proposition Relation>
+        where proposition Relation(left: C, right: C);
+        {
+            machine bad(value: C) ensures Relation(value, true);
+        }
+        "#,
+    );
+
+    let diagnostics = validate_program(&typed)
+        .expect_err("a generic proposition argument must match its authored parameter type");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains("argument 2 does not match")
+            && diagnostic.message.contains("parameter `right` type `C`")
+    }));
+}
+
+#[test]
 fn local_dynamic_value_rejects_boundary_trait() {
     let typed = typed_program_from_source(
         r#"
