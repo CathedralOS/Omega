@@ -179,6 +179,23 @@ fn assigned_outbound_syscall_storage_argument_is_closed(
     }
 }
 
+fn assigned_outbound_syscall_data_argument_is_closed(
+    operand: &omega_assigned_target_operations::InstructionOperand,
+) -> bool {
+    operand.data_address().is_some()
+}
+
+fn assigned_outbound_syscall_data_symbols(
+    emission_context: MachineEmissionContext<'_>,
+    arguments: &[omega_assigned_target_operations::InstructionOperand],
+) -> Vec<Arc<str>> {
+    arguments
+        .iter()
+        .filter_map(InstructionOperandLike::data_address)
+        .map(|data| Arc::clone(&emission_context.data.objects.get(data).symbol))
+        .collect()
+}
+
 fn compiler_instruction_validation_kind(
     emission_context: MachineEmissionContext<'_>,
     laid_out_instructions: &[layout::LaidOutMachineInstruction],
@@ -588,7 +605,33 @@ fn compiler_instruction_validation_kind(
                 {
                     return Ok(None);
                 }
-                if arguments.iter().any(|operand| {
+                if arguments
+                    .iter()
+                    .any(assigned_outbound_syscall_data_argument_is_closed)
+                    && arguments.iter().all(|operand| {
+                        matches!(
+                            operand.kind,
+                            omega_assigned_target_operations::InstructionOperandKind::ImmediateInteger(
+                                _
+                            ) | omega_assigned_target_operations::InstructionOperandKind::ByteLength(_)
+                        ) || assigned_outbound_syscall_storage_argument_is_closed(
+                            emission_context.target.architecture,
+                            operand,
+                        ) || assigned_outbound_syscall_data_argument_is_closed(operand)
+                    })
+                {
+                    Some(
+                        CompilerInstructionValidationKind::CompilerBodyOutboundSyscallResultDataArguments {
+                            operands: operands.to_vec(),
+                            data_symbols: assigned_outbound_syscall_data_symbols(
+                                emission_context,
+                                arguments,
+                            ),
+                            number: *number,
+                            plan: binding.call_plan().clone(),
+                        },
+                    )
+                } else if arguments.iter().any(|operand| {
                     assigned_outbound_syscall_storage_argument_is_closed(
                         emission_context.target.architecture,
                         operand,
@@ -629,6 +672,32 @@ fn compiler_instruction_validation_kind(
                 } else {
                     None
                 }
+            } else if operands
+                .iter()
+                .any(assigned_outbound_syscall_data_argument_is_closed)
+                && operands.iter().all(|operand| {
+                    matches!(
+                        operand.kind,
+                        omega_assigned_target_operations::InstructionOperandKind::ImmediateInteger(
+                            _
+                        ) | omega_assigned_target_operations::InstructionOperandKind::ByteLength(_)
+                    ) || assigned_outbound_syscall_storage_argument_is_closed(
+                        emission_context.target.architecture,
+                        operand,
+                    ) || assigned_outbound_syscall_data_argument_is_closed(operand)
+                })
+            {
+                Some(
+                    CompilerInstructionValidationKind::CompilerBodyOutboundSyscallDataArguments {
+                        operands: operands.to_vec(),
+                        data_symbols: assigned_outbound_syscall_data_symbols(
+                            emission_context,
+                            operands,
+                        ),
+                        number: *number,
+                        plan: binding.call_plan().clone(),
+                    },
+                )
             } else if operands.iter().any(|operand| {
                 assigned_outbound_syscall_storage_argument_is_closed(
                     emission_context.target.architecture,

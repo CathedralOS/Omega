@@ -1111,7 +1111,7 @@ relocation, and data relocation now consume that complete plan. Their former
 manual `+8`/`+12` stack accounting and trailing-mode operation classifier are
 retired; the operation key only selects the concrete adapter subcall.
 
-Final footprint certificate format v72 now retains an exact
+Final footprint certificate format v73 now retains an exact
 function-to-instruction partition in the encoded carrier. Checked image
 emission replays every contiguous function
 and instruction boundary over relocated final bytes, rejects gaps, overlaps,
@@ -1153,10 +1153,14 @@ symbol relocation, and matches the plan-owned ordinary-clobber/control leaf
 under a dedicated origin. AArch64 inline bounded-buffer pointers are admitted
 only when their content offset fits the encoder's closed immediate-address
 form; x86-64 retains its full supported offset range. Static data-object
-addresses, composite adapters, and imported calls remain unfinished. Result-
-bearing syscalls may combine the same runtime-storage argument relocation set
-with the exact result-region relocation and AArch64's offset-sensitive result-
-store scratch under a distinct origin.
+addresses now use distinct no-result/result-bearing origins. Machine evidence
+retains each exact data symbol, final replay permits otherwise-closed immediate
+or runtime-storage parameters beside it, and admission requires the complete
+mixed data-symbol/storage-root relocation set. Composite adapters and imported
+calls remain unfinished. Result-bearing runtime-storage-only syscalls continue
+to combine their argument relocation set with the exact result-region
+relocation and AArch64's offset-sensitive result-store scratch under a distinct
+origin.
 The replay boundary is the compiler-authored prefix, not the entire executable
 `.text` section. Format-owned import-thunk tails appended by Mach-O or PE stay
 outside compiler-function enumeration and are validated by their separate

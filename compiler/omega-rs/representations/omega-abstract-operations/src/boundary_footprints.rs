@@ -18,7 +18,9 @@ pub enum BoundaryFootprintFragmentOrigin {
     CompilerBodyPlaceAddressWrite,
     CompilerBodyConstantHostResult,
     CompilerBodyOutboundSyscall,
+    CompilerBodyOutboundSyscallDataArguments,
     CompilerBodyOutboundSyscallResult,
+    CompilerBodyOutboundSyscallResultDataArguments,
     CompilerBodyOutboundSyscallResultStorageArguments,
     CompilerBodyOutboundSyscallStorageArguments,
     CompilerBodyStorageBitFieldWrite,
@@ -68,7 +70,9 @@ impl BoundaryFootprintPlan {
                 validate_call_return_mechanics_footprint(boundary, &fragment.evidence)?
             }
             BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscall
+            | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallDataArguments
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallResult
+            | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallResultDataArguments
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallResultStorageArguments
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallStorageArguments => {
                 validate_outbound_call_footprint(boundary, &fragment.evidence)?
@@ -238,11 +242,34 @@ mod tests {
             .retain_validated_fragment(
                 &boundary,
                 BoundaryFootprintFragment {
+                    origin:
+                        BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallDataArguments,
+                    evidence: control_evidence(),
+                },
+            )
+            .expect("data-argument outbound calls may use their prescribed control state");
+
+        outbound
+            .retain_validated_fragment(
+                &boundary,
+                BoundaryFootprintFragment {
                     origin: BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallResult,
                     evidence: control_evidence(),
                 },
             )
             .expect("result-bearing outbound calls may use their prescribed control state");
+
+        outbound
+            .retain_validated_fragment(
+                &boundary,
+                BoundaryFootprintFragment {
+                    origin: BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallResultDataArguments,
+                    evidence: control_evidence(),
+                },
+            )
+            .expect(
+                "result-bearing data-argument outbound calls may use prescribed control state",
+            );
 
         outbound
             .retain_validated_fragment(

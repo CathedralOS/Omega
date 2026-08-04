@@ -882,7 +882,7 @@ proves complete region coverage, and composes admitted leaves under their
 separate provenance. Do not add a second whole-image decoder/admission path.
 
 The existing single final-region artifact now carries the domain-separated
-`omega.final-footprint-certificate` schema, format version 72, and a certificate
+`omega.final-footprint-certificate` schema, format version 73, and a certificate
 fingerprint over its final placement binding, compiler-text derivation, and
 complete region inventory. Its explicit completeness flags remain false until
 compiler-body footprint decoding and admitted-leaf evidence land. The envelope
@@ -957,10 +957,16 @@ and matches the plan-owned scratch and control leaf to
 `CompilerBodyOutboundSyscallStorageArguments`. The AArch64 inline bounded-
 buffer pointer subset is closed only while its content offset fits the
 encoder's immediate-address form; x86-64 accepts the full encoder-supported
-offset range. Static data-object addresses, composite adapters, and imported
-calls remain incomplete. Result-bearing calls may combine those same runtime-
-storage argument relocations with the exact result-region relocation and
-offset-sensitive result-store scratch under
+offset range. Static data-object addresses now form their own no-result and
+result-bearing classes. The encoded carrier retains the exact symbol for every
+data-address operand; final replay permits otherwise-closed immediate or
+runtime-storage parameters in the same call, regenerates the complete mixed
+marshaller, and requires the exact data-symbol/storage-root relocation set
+under `CompilerBodyOutboundSyscallDataArguments` or
+`CompilerBodyOutboundSyscallResultDataArguments`. Composite adapters and
+imported calls remain incomplete. Result-bearing runtime-storage-only calls
+continue to combine their argument relocations with the exact result-region
+relocation and offset-sensitive result-store scratch under
 `CompilerBodyOutboundSyscallResultStorageArguments`. The final validator now
 also
 replays register-, stack-, and indirect-pointer entry argument copies plus the
