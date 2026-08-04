@@ -817,6 +817,21 @@ pub fn derive_boundary_compiler_body_place_integer_write_footprint<'instruction>
             (omega_target::Architecture::X86_64, crate::WritePlaceShape::MachineIndexed { .. }) => {
                 omega_isa_x86_64::place_integer_write_clobbers(target)
             }
+            (
+                omega_target::Architecture::Aarch64,
+                crate::WritePlaceShape::MachineDoubleIndexed {
+                    outer_index_region,
+                    inner_index_region,
+                    ..
+                },
+            ) => omega_isa_aarch64::runtime_machine_double_indexed_integer_write_clobbers(
+                outer_index_region,
+                inner_index_region,
+            ),
+            (
+                omega_target::Architecture::X86_64,
+                crate::WritePlaceShape::MachineDoubleIndexed { .. },
+            ) => omega_isa_x86_64::place_integer_write_clobbers(target),
             _ => continue,
         };
         registers.extend_from_slice(clobbers.as_slice());

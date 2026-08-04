@@ -343,6 +343,18 @@ enum CompilerBodyPlaceIntegerWriteShape {
         element_byte_size: usize,
         field_byte_offset: usize,
     },
+    MachineDoubleIndexed {
+        base_byte_offset: usize,
+        outer_index_region: omega_target_operations::RuntimeStorageRegion,
+        outer_index_offset: usize,
+        outer_index_byte_size: usize,
+        outer_stride: usize,
+        inner_index_region: omega_target_operations::RuntimeStorageRegion,
+        inner_index_offset: usize,
+        inner_index_byte_size: usize,
+        inner_stride: usize,
+        field_byte_offset: usize,
+    },
 }
 
 fn validate_compiler_function_instruction_boundaries(
@@ -1296,6 +1308,31 @@ fn validate_compiler_function_instruction_boundaries(
                                     byte_size,
                                     value,
                                 )?,
+                                CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed {
+                                    base_byte_offset,
+                                    outer_index_region,
+                                    outer_index_offset,
+                                    outer_index_byte_size,
+                                    outer_stride,
+                                    inner_index_region,
+                                    inner_index_offset,
+                                    inner_index_byte_size,
+                                    inner_stride,
+                                    field_byte_offset,
+                                } => omega_isa_aarch64::encode_runtime_machine_double_indexed_integer_write(
+                                    base_byte_offset,
+                                    outer_index_offset,
+                                    outer_index_region,
+                                    outer_index_byte_size,
+                                    outer_stride,
+                                    inner_index_offset,
+                                    inner_index_region,
+                                    inner_index_byte_size,
+                                    inner_stride,
+                                    field_byte_offset,
+                                    byte_size,
+                                    value,
+                                )?,
                             },
                             },
                             22u8,
@@ -2081,6 +2118,16 @@ fn compiler_instruction_footprint(
                         }
                         CompilerBodyPlaceIntegerWriteShape::MachineIndexed { .. } => {
                             omega_isa_aarch64::runtime_machine_indexed_integer_write_clobbers()
+                        }
+                        CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed {
+                            outer_index_region,
+                            inner_index_region,
+                            ..
+                        } => {
+                            omega_isa_aarch64::runtime_machine_double_indexed_integer_write_clobbers(
+                                outer_index_region,
+                                inner_index_region,
+                            )
                         }
                     },
                 },
@@ -2892,6 +2939,33 @@ fn compiler_body_place_integer_write_shape(
             field_byte_offset,
         });
     }
+    if target.region == omega_target_operations::RuntimeStorageRegion::Machine
+        && let Ok((
+            base_byte_offset,
+            outer_index_region,
+            outer_index_offset,
+            outer_index_byte_size,
+            outer_stride,
+            inner_index_region,
+            inner_index_offset,
+            inner_index_byte_size,
+            inner_stride,
+            field_byte_offset,
+        )) = compiler_machine_double_indexed_place_offsets(target)
+    {
+        return Ok(CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed {
+            base_byte_offset,
+            outer_index_region,
+            outer_index_offset,
+            outer_index_byte_size,
+            outer_stride,
+            inner_index_region,
+            inner_index_offset,
+            inner_index_byte_size,
+            inner_stride,
+            field_byte_offset,
+        });
+    }
     if target.region != omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
         return Err(Diagnostic::error(
             "final indexed or pointee integer-write root is not the runtime frame",
@@ -3443,6 +3517,85 @@ fn compiler_single_direct_indexed_place_offsets(
     ))
 }
 
+#[allow(clippy::type_complexity)]
+fn compiler_machine_double_indexed_place_offsets(
+    place: &omega_target_operations::Place,
+) -> Result<
+    (
+        usize,
+        omega_target_operations::RuntimeStorageRegion,
+        usize,
+        usize,
+        usize,
+        omega_target_operations::RuntimeStorageRegion,
+        usize,
+        usize,
+        usize,
+        usize,
+    ),
+    Diagnostic,
+> {
+    if place.region != omega_target_operations::RuntimeStorageRegion::Machine {
+        return Err(Diagnostic::error(
+            "final double-indexed integer-write target is not machine storage",
+        ));
+    }
+    let mut base_byte_offset = 0usize;
+    let mut field_byte_offset = 0usize;
+    let mut indices = Vec::new();
+    for step in place.steps() {
+        match step {
+            omega_target_operations::PlaceStep::ConstOffset(offset) if indices.is_empty() => {
+                base_byte_offset = base_byte_offset.checked_add(*offset).ok_or_else(|| {
+                    Diagnostic::error("final double-indexed place base offset overflows")
+                })?;
+            }
+            omega_target_operations::PlaceStep::ConstOffset(offset) => {
+                field_byte_offset = field_byte_offset.checked_add(*offset).ok_or_else(|| {
+                    Diagnostic::error("final double-indexed place field offset overflows")
+                })?;
+            }
+            omega_target_operations::PlaceStep::ScaledIndex {
+                index_region,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+            } if indices.len() < 2 => indices.push((
+                *index_region,
+                *index_offset,
+                *index_byte_size,
+                *element_byte_size,
+            )),
+            _ => {
+                return Err(Diagnostic::error(
+                    "final integer-write target is not doubly indexed inline machine storage",
+                ));
+            }
+        }
+    }
+    let [
+        (outer_region, outer_offset, outer_size, outer_stride),
+        (inner_region, inner_offset, inner_size, inner_stride),
+    ] = indices.as_slice()
+    else {
+        return Err(Diagnostic::error(
+            "final double-indexed integer-write target does not have two indices",
+        ));
+    };
+    Ok((
+        base_byte_offset,
+        *outer_region,
+        *outer_offset,
+        *outer_size,
+        *outer_stride,
+        *inner_region,
+        *inner_offset,
+        *inner_size,
+        *inner_stride,
+        field_byte_offset,
+    ))
+}
+
 fn compiler_place_copy_indexed_to_pointee_offsets(
     source: &omega_target_operations::Place,
     target: &omega_target_operations::Place,
@@ -3835,6 +3988,21 @@ fn compiler_place_integer_write_address_sites(
                         base_byte_offset,
                     ),
                     index_region,
+                ));
+            }
+            if let CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed {
+                outer_index_region,
+                inner_index_region,
+                ..
+            } = shape
+                && (outer_index_region
+                    == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+                    || inner_index_region
+                        == omega_target_operations::RuntimeStorageRegion::RuntimeFrame)
+            {
+                sites.push((
+                    omega_isa_aarch64::runtime_machine_double_indexed_frame_base_offset(),
+                    omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
                 ));
             }
             Ok(sites)

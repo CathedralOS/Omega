@@ -882,7 +882,7 @@ proves complete region coverage, and composes admitted leaves under their
 separate provenance. Do not add a second whole-image decoder/admission path.
 
 The existing single final-region artifact now carries the domain-separated
-`omega.final-footprint-certificate` schema, format version 34, and a certificate
+`omega.final-footprint-certificate` schema, format version 35, and a certificate
 fingerprint over its final placement binding, compiler-text derivation, and
 complete region inventory. Its explicit completeness flags remain false until
 compiler-body footprint decoding and admitted-leaf evidence land. The envelope
@@ -963,7 +963,8 @@ Direct-place immediate integer writes, writes through a frame-held pointer or
 indexed descriptor, and runtime-indexed writes into inline frame arrays now
 retain their own ordinary-body fragment and replay exact target `Place`, value,
 width, every storage/index relocation, and target scratch. Runtime-indexed
-immediate writes into inline machine arrays are included as well.
+immediate writes into single- and double-indexed inline machine arrays are
+included as well.
 Other ordinary copy/write shapes and calls remain incomplete. Pointee-pair
 selection now resolves both reference operands before the flat-storage fallback,
 preventing the source pointer bits from being copied as field data. The final

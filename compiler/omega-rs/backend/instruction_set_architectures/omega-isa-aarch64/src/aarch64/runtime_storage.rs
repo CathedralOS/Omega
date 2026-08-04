@@ -4395,6 +4395,19 @@ pub fn encode_runtime_machine_double_indexed_integer_write(
     Ok(bytes)
 }
 
+/// Exact scratch footprint of a double-indexed immediate write. The fixed
+/// address program writes x14/x16/x17/x26; x15 materializes the one shared
+/// frame base exactly when either index is frame-resident.
+pub fn runtime_machine_double_indexed_integer_write_clobbers(
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+) -> RegisterSet {
+    runtime_storage_copy_from_runtime_machine_double_indexed_clobbers(
+        outer_index_region,
+        inner_index_region,
+    )
+}
+
 /// Copy a FRAME-resident inline array element at a runtime index into another
 /// frame slot (`let v = arr[i]` where `arr` and `i` are locals/params): ONE
 /// frame pair serves the element address, the index, and the target slot --
@@ -7571,6 +7584,37 @@ mod tests {
                 MachineRegister::Aarch64X(17),
                 MachineRegister::Aarch64X(19),
                 MachineRegister::Aarch64X(20),
+                MachineRegister::Aarch64X(26),
+            ]
+        );
+    }
+
+    #[test]
+    fn double_indexed_integer_write_clobbers_track_shared_frame_base() {
+        assert_eq!(
+            runtime_machine_double_indexed_integer_write_clobbers(
+                omega_target_operations::RuntimeStorageRegion::Machine,
+                omega_target_operations::RuntimeStorageRegion::Machine,
+            )
+            .as_slice(),
+            &[
+                MachineRegister::Aarch64X(14),
+                MachineRegister::Aarch64X(16),
+                MachineRegister::Aarch64X(17),
+                MachineRegister::Aarch64X(26),
+            ]
+        );
+        assert_eq!(
+            runtime_machine_double_indexed_integer_write_clobbers(
+                omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                omega_target_operations::RuntimeStorageRegion::Machine,
+            )
+            .as_slice(),
+            &[
+                MachineRegister::Aarch64X(14),
+                MachineRegister::Aarch64X(15),
+                MachineRegister::Aarch64X(16),
+                MachineRegister::Aarch64X(17),
                 MachineRegister::Aarch64X(26),
             ]
         );
