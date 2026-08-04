@@ -335,7 +335,7 @@ pub(crate) fn build_domain_membership_contract(
     }
 }
 
-fn lower_state_parameter(
+pub(crate) fn lower_state_parameter(
     lowerer: &mut Lowerer,
     parameter: &resolved::signature::StateParameter,
 ) -> Result<typed::signature::StateParameter, Diagnostic> {

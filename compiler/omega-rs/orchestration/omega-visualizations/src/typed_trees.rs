@@ -893,6 +893,36 @@ fn proof_fact_label(program: &TypedTrees, fact: &psi_typed_trees::domain::ProofF
                 domain
             )
         }
+        psi_typed_trees::domain::ProofFact::Proposition(application) => {
+            let binders = application
+                .binder_arguments
+                .iter()
+                .map(|argument| {
+                    argument
+                        .path
+                        .iter()
+                        .map(|member| member.as_str())
+                        .collect::<Vec<_>>()
+                        .join("::")
+                })
+                .collect::<Vec<_>>();
+            let arguments = program
+                .expression_table
+                .expression_handles(application.arguments)
+                .iter()
+                .map(|argument| program.expression_table.display_name(*argument))
+                .collect::<Vec<_>>();
+            let binder_suffix = if binders.is_empty() {
+                String::new()
+            } else {
+                format!("[{}]", binders.join(", "))
+            };
+            format!(
+                "{}{binder_suffix}({})",
+                application.name.as_str(),
+                arguments.join(", ")
+            )
+        }
     }
 }
 

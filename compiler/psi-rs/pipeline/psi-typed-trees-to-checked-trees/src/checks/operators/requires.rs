@@ -237,6 +237,7 @@ fn requires_fact_proven(
             operands,
             *expression,
         ),
+        ProofFact::Proposition(_) => false,
     }
 }
 
@@ -431,6 +432,19 @@ fn requires_clause_label(
                 membership.value,
             ),
             symbol_name(program, membership.domain_symbol)
+        ),
+        ProofFact::Proposition(application) => format!(
+            "{}({})",
+            application.name.as_str(),
+            program
+                .expression_table
+                .expression_handles(application.arguments)
+                .iter()
+                .map(|argument| instantiate_operator_contract_expression_label(
+                    program, parameters, operands, *argument,
+                ))
+                .collect::<Vec<_>>()
+                .join(", ")
         ),
     }
 }

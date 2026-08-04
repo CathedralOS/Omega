@@ -256,6 +256,10 @@ pub enum FactPayload {
         domain: HandleSpan<Identifier>,
         domain_symbol: SymbolHandle,
     },
+    PropositionApplication {
+        fact: Handle<ProofFact>,
+        proposition: SymbolHandle,
+    },
     CarryPermission {
         value: ExpressionHandle,
         permission: psi_language_semantics::CarryPermission,
@@ -290,6 +294,11 @@ pub enum FactPayload {
         value: ExpressionHandle,
         domain: HandleSpan<Identifier>,
         domain_symbol: SymbolHandle,
+    },
+    ContractPropositionApplication {
+        kind: ContractFactKind,
+        fact: Handle<ProofFact>,
+        proposition: SymbolHandle,
     },
     ContractCarryPermission {
         kind: ContractFactKind,

@@ -52,6 +52,10 @@ fn append_domain_definition_facts(program: &TypedTrees, facts: &mut FactPlan) {
                     domain: membership.domain,
                     domain_symbol: membership.domain_symbol,
                 },
+                ProofFact::Proposition(application) => FactPayload::PropositionApplication {
+                    fact: fact_handle,
+                    proposition: application.proposition,
+                },
             };
             let fact = facts.append_fact(Fact {
                 place: FactPlace::Place(place),
@@ -88,6 +92,7 @@ fn append_proof_fact_place(
         ProofFact::Membership(membership) => {
             facts.append_place_from_expression(program, membership.value)
         }
+        ProofFact::Proposition(application) => facts.append_symbol_place(application.proposition),
     }
 }
 

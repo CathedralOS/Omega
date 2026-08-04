@@ -109,6 +109,7 @@ pub(super) fn evaluate_const_domain_facts(typed: &mut TypedTrees) -> Result<(), 
                         ExpressionNode::Boolean(true)
                     ),
                     ProofFact::Membership(_) => false,
+                    ProofFact::Proposition(_) => false,
                 })
         })
         .map(|data| data.symbol)
@@ -291,6 +292,7 @@ fn evaluate_domain_facts(
                     None => return Ok(None),
                 }
             }
+            ProofFact::Proposition(_) => return Ok(None),
         }
     }
     Ok(Some(true))

@@ -1641,8 +1641,14 @@ and allocation handles expose no compiler-owned stack/control storage.
      lexical symbols, and machine-index binders receive a deliberately
      non-callable `PropositionMachineParameter` identity. Witness types and
      direct transparent proposition expansions resolve in that telescope;
-     typed lowering fails closed until proposition application and normalized
-     proof identity land;
+     typed slice landed 2026-08-03: declarations retain their proof-only body
+     classification, direct proposition applications become a distinct proof
+     fact, machine-index and value arity are checked, runtime-value use rejects,
+     monomorphization deep-copies the application, and checked fact payloads
+     preserve its proposition identity without coercing it to `bool`.
+     Type/const proposition application, transparent-alias expansion,
+     proposition-aware entailment/evidence, and normalized terminal identity
+     remain in this rung;
   2. add the proof stratum to selected-conformance projection and permit
      by-value `dyn` only when the complete normalized value has no runtime
      carrier;

@@ -836,6 +836,12 @@ fn validate_literal_default_domain(
                     )));
                 }
             }
+            psi_typed_trees::domain::ProofFact::Proposition(application) => {
+                diagnostics.push(Diagnostic::error(format!(
+                    "data `{type_name}` literal cannot prove default-domain proposition `{}` at construction",
+                    application.name.as_str(),
+                )));
+            }
         }
     }
 }

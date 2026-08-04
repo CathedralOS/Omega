@@ -130,6 +130,12 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
         return builtin;
     }
 
+    let proposition =
+        top_level_symbol_by_kinds(symbols, &[SymbolKind::Proposition], target.as_str());
+    if proposition.is_valid() {
+        return proposition;
+    }
+
     // A receiverless call to a FREE top-level machine (`machine compute(item:
     // &Item) -> i32 { ... }`, called as `compute(item)`): resolve to the free
     // machine's entry state so downstream passes (contract call obligations,

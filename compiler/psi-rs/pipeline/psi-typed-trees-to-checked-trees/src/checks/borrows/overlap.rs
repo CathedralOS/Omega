@@ -127,6 +127,7 @@ fn place_segments_share_dependent_fact(
                     && expression_mentions_field(program, *expression, right_name)
             }
             psi_typed_trees::domain::ProofFact::Membership(_) => false,
+            psi_typed_trees::domain::ProofFact::Proposition(_) => false,
         })
 }
 

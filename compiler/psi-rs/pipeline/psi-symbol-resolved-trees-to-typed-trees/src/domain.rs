@@ -185,6 +185,24 @@ pub(crate) fn lower_proof_facts(
     for fact in lowerer.source_trees.proof_facts(facts) {
         match fact {
             resolved::domain::ProofFact::Expression(expression) => {
+                if let resolved::expression::ExpressionNode::Call(call) = lowerer
+                    .source_trees
+                    .tables
+                    .bodies
+                    .expressions
+                    .expression(*expression)
+                    && call.target_symbol.is_valid()
+                    && lowerer.source_trees.symbols.get(call.target_symbol).kind
+                        == psi_symbols::SymbolKind::Proposition
+                {
+                    let application =
+                        crate::proposition::lower_proposition_application(lowerer, call)?;
+                    lowerer.typed_trees.proof_facts.append_to_span(
+                        &mut lowered,
+                        typed::domain::ProofFact::Proposition(application),
+                    );
+                    continue;
+                }
                 let expression = lower_expression_handle_from_table_in_fact_position(
                     lowerer.source_trees,
                     &lowerer.source_trees.tables.bodies.expressions,

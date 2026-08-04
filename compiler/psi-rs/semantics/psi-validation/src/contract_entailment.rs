@@ -109,7 +109,9 @@ pub(crate) fn validate_machine_contract_entailment(
         for fact in program.proof_facts.span_or_empty(contract.facts) {
             match fact {
                 ProofFact::Expression(expression) => bucket.push(*expression),
-                ProofFact::Membership(_) => all_facts_are_expressions = false,
+                ProofFact::Membership(_) | ProofFact::Proposition(_) => {
+                    all_facts_are_expressions = false;
+                }
             }
         }
     }
@@ -3767,7 +3769,7 @@ fn intake_citation_for_edge(
             .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts).iter())
             .filter_map(|fact| match fact {
                 ProofFact::Expression(expression) => Some(*expression),
-                ProofFact::Membership(_) => None,
+                ProofFact::Membership(_) | ProofFact::Proposition(_) => None,
             })
             .collect::<Vec<_>>()
     };
@@ -3884,7 +3886,7 @@ fn intake_statement_citation_for_edge(
             .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts).iter())
             .filter_map(|fact| match fact {
                 ProofFact::Expression(expression) => Some(*expression),
-                ProofFact::Membership(_) => None,
+                ProofFact::Membership(_) | ProofFact::Proposition(_) => None,
             })
             .collect::<Vec<_>>()
     };
@@ -3945,7 +3947,7 @@ fn machine_requires_facts(program: &TypedTrees, machine: &Machine) -> Vec<Expres
         .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts).iter())
         .filter_map(|fact| match fact {
             ProofFact::Expression(expression) => Some(*expression),
-            ProofFact::Membership(_) => None,
+            ProofFact::Membership(_) | ProofFact::Proposition(_) => None,
         })
         .collect()
 }
@@ -3979,7 +3981,9 @@ fn instantiate_citation(
                         ProofFact::Expression(expression) => requires_facts.push(*expression),
                         // Membership requires are outside the structural
                         // judge's language: the site cannot discharge them.
-                        ProofFact::Membership(_) => requires_out_of_language = true,
+                        ProofFact::Membership(_) | ProofFact::Proposition(_) => {
+                            requires_out_of_language = true;
+                        }
                     }
                 }
             }
@@ -4129,7 +4133,7 @@ pub(crate) fn reject_refuted_value_call_requires(
                     .iter()
                     .filter_map(|fact| match fact {
                         ProofFact::Expression(expression) => Some(*expression),
-                        ProofFact::Membership(_) => None,
+                        ProofFact::Membership(_) | ProofFact::Proposition(_) => None,
                     }),
             );
         }
@@ -4143,7 +4147,7 @@ pub(crate) fn reject_refuted_value_call_requires(
                     .iter()
                     .filter_map(|fact| match fact {
                         ProofFact::Expression(expression) => Some(*expression),
-                        ProofFact::Membership(_) => None,
+                        ProofFact::Membership(_) | ProofFact::Proposition(_) => None,
                     }),
             );
         }
@@ -4821,6 +4825,9 @@ fn intake_available_self_induction_hypotheses(
                     requires.push(*expression);
                 }
                 (SignatureContractKind::Requires, ProofFact::Membership(_)) => {
+                    requires_out_of_language = true;
+                }
+                (SignatureContractKind::Requires, ProofFact::Proposition(_)) => {
                     requires_out_of_language = true;
                 }
                 (SignatureContractKind::Ensures, ProofFact::Expression(expression)) => {

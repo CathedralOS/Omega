@@ -926,6 +926,11 @@ fn handle_assignment<'program>(
                     all_hold = false;
                 }
             }
+            psi_typed_trees::domain::ProofFact::Proposition(_) => {
+                // Proposition entailment is proof-layer work. The default-domain
+                // interval checker must not pretend a proposition is Boolean.
+                all_hold = false;
+            }
         }
     }
     // Every fact re-proven at the post-write valuation: the place
@@ -1581,6 +1586,7 @@ fn field_is_where_mentioned(
             psi_typed_trees::domain::ProofFact::Membership(membership) => {
                 membership_field_name(program, membership.value) == Some(field)
             }
+            psi_typed_trees::domain::ProofFact::Proposition(_) => false,
         })
 }
 

@@ -39,5 +39,12 @@ pub(super) fn semantic_contract_payload(
                 domain_symbol: membership.domain_symbol,
             }
         }
+        psi_typed_trees::domain::ProofFact::Proposition(application) => {
+            FactPayload::ContractPropositionApplication {
+                kind,
+                fact: contract.fact,
+                proposition: application.proposition,
+            }
+        }
     }
 }

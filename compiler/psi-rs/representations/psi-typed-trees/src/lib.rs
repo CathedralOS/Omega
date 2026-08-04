@@ -16,6 +16,7 @@ pub mod measure;
 pub mod name;
 pub mod operator;
 pub mod proof_only;
+pub mod proposition;
 pub mod signature;
 pub mod snapshot;
 pub mod state;

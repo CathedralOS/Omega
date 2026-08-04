@@ -4,16 +4,63 @@ use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use psi_tokens_to_syntax_trees::parse_syntax_trees;
 
 #[test]
-fn proposition_declarations_fail_closed_at_typed_boundary() {
-    let tokens = Lexer::new("proposition related(left: i32, right: i32);")
+fn proposition_declarations_and_fact_applications_remain_distinct_when_typed() {
+    let source = r#"
+        proposition related(left: i32, right: i32);
+
+        machine preserve(left: i32, right: i32)
+        requires related(left, right)
+        {
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved_program = lower_syntax_trees(&syntax_trees).expect("resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved_program).expect("typing should succeed");
+
+    assert_eq!(typed.propositions().len(), 1);
+    assert!(matches!(
+        typed.propositions()[0].body,
+        psi_typed_trees::proposition::PropositionBody::Primitive
+    ));
+    let [contract] = typed.machine_contracts(&typed.machines()[0]) else {
+        panic!("machine should retain its requires contract");
+    };
+    let [fact] = typed.proof_facts.span_or_empty(contract.facts) else {
+        panic!("requires should retain one proposition fact");
+    };
+    let psi_typed_trees::domain::ProofFact::Proposition(application) = fact else {
+        panic!("proposition application must not become a Boolean expression");
+    };
+    assert_eq!(application.proposition, typed.propositions()[0].symbol);
+    assert_eq!(
+        typed
+            .expression_table
+            .expression_handles(application.arguments)
+            .len(),
+        2
+    );
+}
+
+#[test]
+fn proposition_application_rejects_in_runtime_value_position() {
+    let source = r#"
+        proposition related(left: i32, right: i32);
+        machine bad(value: i32) {
+            related(value, value);
+        }
+    "#;
+    let tokens = Lexer::new(source)
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
     let resolved_program = lower_syntax_trees(&syntax_trees).expect("resolution should succeed");
     let diagnostic = lower_symbol_resolved_trees(&resolved_program)
-        .expect_err("typed lowering must not discard propositions");
+        .expect_err("runtime proposition use must fail closed");
 
-    assert!(diagnostic.message.contains("proposition-family typing"));
+    assert!(diagnostic.message.contains("proof-only"));
 }
 
 #[test]
@@ -386,6 +433,9 @@ fn expands_transparent_domain_aliases_before_semantic_normalization() {
             psi_typed_trees::domain::ProofFact::Membership(membership) => membership.domain_symbol,
             psi_typed_trees::domain::ProofFact::Expression(_) => {
                 panic!("alias should expand to membership atoms")
+            }
+            psi_typed_trees::domain::ProofFact::Proposition(_) => {
+                panic!("domain alias should not become a proposition application")
             }
         })
         .collect::<Vec<_>>();

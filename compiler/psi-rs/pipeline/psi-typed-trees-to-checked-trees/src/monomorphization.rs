@@ -2027,6 +2027,35 @@ fn copy_signature_contract(
                     },
                 )
             }
+            psi_typed_trees::domain::ProofFact::Proposition(application) => {
+                let arguments = source
+                    .expression_table
+                    .expression_handles(application.arguments)
+                    .iter()
+                    .map(|argument| copy_expression(source, program, *argument, symbols))
+                    .collect::<Vec<_>>();
+                let arguments = program
+                    .expression_table
+                    .insert_expression_handles(arguments);
+                psi_typed_trees::domain::ProofFact::Proposition(
+                    psi_typed_trees::proposition::PropositionApplication {
+                        proposition: remapped_symbol(application.proposition, symbols),
+                        name: application.name.clone(),
+                        binder_arguments: application
+                            .binder_arguments
+                            .iter()
+                            .map(|argument| {
+                                psi_typed_trees::proposition::PropositionBinderArgument {
+                                    path: argument.path.clone(),
+                                    symbol: remapped_symbol(argument.symbol, symbols),
+                                }
+                            })
+                            .collect::<Vec<_>>()
+                            .into_boxed_slice(),
+                        arguments,
+                    },
+                )
+            }
         };
         program.proof_facts.append_to_span(&mut copied.facts, fact);
     }
@@ -3380,6 +3409,17 @@ fn encode_contract(
                     .map(|member| member.as_str())
                     .collect::<Vec<_>>()
                     .join("::")
+            ),
+            psi_typed_trees::domain::ProofFact::Proposition(application) => format!(
+                "{}({})",
+                application.name.as_str(),
+                program
+                    .expression_table
+                    .expression_handles(application.arguments)
+                    .iter()
+                    .map(|argument| program.expression_table.display_name(*argument))
+                    .collect::<Vec<_>>()
+                    .join(", ")
             ),
         })
         .collect();
