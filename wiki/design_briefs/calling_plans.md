@@ -1111,7 +1111,7 @@ relocation, and data relocation now consume that complete plan. Their former
 manual `+8`/`+12` stack accounting and trailing-mode operation classifier are
 retired; the operation key only selects the concrete adapter subcall.
 
-Final footprint certificate format v27 now retains an exact
+Final footprint certificate format v55 now retains an exact
 function-to-instruction partition in the encoded carrier. Checked image
 emission replays every contiguous function
 and instruction boundary over relocated final bytes, rejects gaps, overlaps,
@@ -1205,7 +1205,9 @@ frame-indexed AArch64 targets, including the exact source storage and mixed
 buffer/source/target relocations. Segmented literal-buffer writes share the
 text-assembly fragment as well,
 retaining their exact buffer symbol, byte offset, literal, encoder, and sole
-data-object relocation. String-
+data-object relocation. Segmented stored-suffix appends share it too, retaining
+their exact buffer and source/target storage identities, offsets, length delta,
+encoder, and mixed relocation set. String-
 descriptor writes replay all x86 targets
 and the direct, pointee, frame-indexed, and frame-indexed machine-storage
 AArch64 shapes, including exact rodata and storage/index relocations plus a
