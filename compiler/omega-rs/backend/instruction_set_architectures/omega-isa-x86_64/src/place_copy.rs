@@ -742,6 +742,13 @@ pub fn copy_places_to_indexed_clobbers(byte_count: usize) -> RegisterSet {
     copy_places_from_indexed_clobbers(byte_count)
 }
 
+/// Exact scratch footprint of a runtime-indexed source copied through a
+/// pointee target. The shared-base walk adds the same one-index scratch to the
+/// two address registers used by the other indexed copy shapes.
+pub fn copy_places_indexed_to_pointee_clobbers(byte_count: usize) -> RegisterSet {
+    copy_places_from_indexed_clobbers(byte_count)
+}
+
 /// Exact scratch footprint of a direct place-pair copy. Both address bases are
 /// materialized unconditionally; non-empty copies stage chunks through rax.
 pub fn copy_places_direct_clobbers(byte_count: usize) -> RegisterSet {
@@ -1084,6 +1091,18 @@ mod tests {
         );
         assert_eq!(
             copy_places_to_indexed_clobbers(8),
+            copy_places_from_indexed_clobbers(8)
+        );
+    }
+
+    #[test]
+    fn indexed_to_pointee_clobbers_match_the_one_index_place_walk() {
+        assert_eq!(
+            copy_places_indexed_to_pointee_clobbers(0),
+            copy_places_from_indexed_clobbers(0)
+        );
+        assert_eq!(
+            copy_places_indexed_to_pointee_clobbers(8),
             copy_places_from_indexed_clobbers(8)
         );
     }

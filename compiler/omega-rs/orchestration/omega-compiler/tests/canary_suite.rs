@@ -1127,7 +1127,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         executable_regions.contains(
             "\"certificate_schema\": \"omega.final-footprint-certificate\""
         )
-            && executable_regions.contains("\"certificate_format_version\": 20")
+            && executable_regions.contains("\"certificate_format_version\": 21")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
             && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")
@@ -1677,6 +1677,65 @@ fn compiler_body_to_indexed_copy_footprints_reach_x86_and_aarch64_artifacts() {
                 && footprints.contains(expected_registers)
                 && footprints.contains("\"enumeration_complete\": false"),
             "{target} artifact must retain the ordinary to-indexed footprint without claiming completeness"
+        );
+        let _ = fs::remove_dir_all(&scratch);
+    }
+}
+
+#[test]
+fn compiler_body_indexed_to_pointee_copy_footprints_reach_x86_and_aarch64_artifacts() {
+    let canary = pass_canary("calls/runtime_alias_indexed_read_through_transition_exit");
+    for (target, expected_registers) in [
+        (
+            "linux_x64",
+            "[\"X86Rax\", \"X86R11\", \"X86R14\", \"X86R15\"]",
+        ),
+        (
+            "linux_arm64",
+            "[\"Aarch64X(16)\", \"Aarch64X(17)\", \"Aarch64X(19)\", \"Aarch64X(20)\", \"Aarch64X(21)\", \"Aarch64X(26)\"]",
+        ),
+    ] {
+        let scratch = std::env::temp_dir().join(format!(
+            "omega-compiler-body-indexed-to-pointee-footprint-{target}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&scratch);
+        let source = scratch.join("src");
+        let output = scratch.join("out");
+        fs::create_dir_all(&source)
+            .expect("create compiler-body indexed-to-pointee source directory");
+        fs::copy(canary.join("main.omg"), source.join("main.omg"))
+            .expect("copy compiler-body indexed-to-pointee canary");
+        fs::write(
+            source.join("build.omg"),
+            format!("target {target} {{\n}}\n"),
+        )
+        .expect("write compiler-body indexed-to-pointee target");
+
+        compile(CompileOptions {
+            root_path: source.join("main.omg"),
+            build_dir: Some(output.clone()),
+            target_name: Some(target.into()),
+            write_output: true,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "compiler-body indexed-to-pointee copy should compile for {target}: {diagnostics:?}"
+            )
+        });
+        let abstract_operations = fs::read_to_string(output.join("08_abstract_operations.html"))
+            .expect("compiler-body indexed-to-pointee abstract operations should be written");
+        let footprints = fs::read_to_string(output.join("08_boundary_footprints.json"))
+            .expect("compiler-body indexed-to-pointee footprint evidence should be written");
+        assert!(
+            abstract_operations.contains("CopyPlaces"),
+            "{target} canary must exercise an indexed-to-pointee CopyPlaces operation"
+        );
+        assert!(
+            footprints.contains("\"origin\": \"compiler_body_place_copy\"")
+                && footprints.contains(expected_registers)
+                && footprints.contains("\"enumeration_complete\": false"),
+            "{target} artifact must retain the ordinary indexed-to-pointee footprint without claiming completeness"
         );
         let _ = fs::remove_dir_all(&scratch);
     }
