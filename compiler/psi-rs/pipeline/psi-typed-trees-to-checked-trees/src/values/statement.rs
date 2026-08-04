@@ -2,7 +2,7 @@ use super::*;
 use psi_checked_trees::CheckedValueStatementRole;
 use psi_typed_trees::statement::{StatementNode, TransitionGuardNode};
 
-impl ValueFactBuilder<'_> {
+impl ValueFactBuilder<'_, '_> {
     pub(super) fn collect_statement(
         &mut self,
         machine_symbol: SymbolHandle,

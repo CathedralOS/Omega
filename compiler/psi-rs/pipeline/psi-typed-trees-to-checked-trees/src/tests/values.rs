@@ -23,7 +23,8 @@ fn materializes_checked_value_facts_for_statement_expressions() {
     "#;
 
     let typed = typed_trees(source);
-    let values = build_value_facts(&typed);
+    let proof_plan = psi_proof::obligations::build_proof_plan(&typed);
+    let values = build_value_facts(&typed, &proof_plan);
 
     assert!(
         values.values.iter().any(|(_, value)| matches!(
@@ -120,7 +121,8 @@ fn materializes_checked_value_facts_for_machine_decreases() {
     "#;
 
     let typed = typed_trees(source);
-    let values = build_value_facts(&typed);
+    let proof_plan = psi_proof::obligations::build_proof_plan(&typed);
+    let values = build_value_facts(&typed, &proof_plan);
     let countdown = typed
         .machines()
         .iter()
@@ -137,6 +139,54 @@ fn materializes_checked_value_facts_for_machine_decreases() {
         )),
         "decreases clause should be visible as a checked value"
     );
+}
+
+#[test]
+fn assignment_value_fact_retains_stable_guard_range() {
+    let source = r#"
+        data Main {
+            source: i64;
+            target: i64;
+        }
+
+        machine Main::main(&mut self) {
+            transition self.source >= -128 && self.source <= 127 {
+                true -> store()
+                _ -> done()
+            }
+
+            state store(&mut self) {
+                self.target = self.source;
+            }
+
+            state done(&mut self) {}
+        }
+    "#;
+
+    let typed = typed_trees(source);
+    let proof_plan = psi_proof::obligations::build_proof_plan(&typed);
+    psi_proof::checker::check_proof_plan(&proof_plan).expect("guarded assignment should prove");
+    let values = build_value_facts(&typed, &proof_plan);
+    let guarded = values
+        .values
+        .iter()
+        .map(|(_, value)| value)
+        .find(|value| {
+            matches!(
+                value.origin,
+                psi_checked_trees::CheckedValueOrigin::StateStatement {
+                    role: CheckedValueStatementRole::AssignmentValue,
+                    ..
+                }
+            )
+        })
+        .and_then(|value| value.integer_range.as_ref())
+        .expect("guarded assignment should retain an integer range");
+    assert_eq!(
+        guarded.minimum,
+        psi_numerics::bignum::BigInt::from_i64(-128)
+    );
+    assert_eq!(guarded.maximum, psi_numerics::bignum::BigInt::from_i64(127));
 }
 
 fn typed_trees(source: &str) -> psi_typed_trees::TypedTrees {

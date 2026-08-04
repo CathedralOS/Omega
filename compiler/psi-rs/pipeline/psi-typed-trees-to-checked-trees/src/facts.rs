@@ -20,7 +20,7 @@ pub(crate) fn build_check_facts(
     operational: OperationalPlan,
 ) -> Result<CheckFacts, Vec<psi_diagnostics::Diagnostic>> {
     let borrow = build_borrow_facts(program);
-    let values = build_value_facts(program);
+    let values = build_value_facts(program, proof_plan);
     let mut operators = build_operator_facts(program, &values);
     let proof = build_proof_facts_with_operators(program, proof_plan, &borrow, &operators);
     let invariants = build_invariant_facts(program);

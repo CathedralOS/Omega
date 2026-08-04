@@ -49,14 +49,23 @@ data Main {
     console: Console;
     packed: SignedByte<PortableByte>;
     source: i64 [-128..=127];
+    flow_source: i64;
 }
 
 machine Main::main(&mut self) {
     self.source = -9;
     self.packed.value = self.source;
-    transition self.packed.value == -9 {
-        true -> good()
+    transition self.flow_source >= -128 && self.flow_source <= 127 {
+        true -> guarded_write()
         _ -> bad()
+    }
+
+    state guarded_write(&mut self) {
+        self.packed.value = self.flow_source;
+        transition self.packed.value == 0 {
+            true -> good()
+            _ -> bad()
+        }
     }
 
     state good(&mut self) { self.console.exit_process(72); }

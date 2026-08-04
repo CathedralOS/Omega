@@ -27,6 +27,7 @@ use psi_checked_trees::expression::{
 use psi_checked_trees::statement::StatementNode;
 use psi_checked_trees::types::PrimitiveType;
 use psi_checked_trees::{CheckedValueOrigin, CheckedValueStatementRole};
+use psi_numerics::bignum::BigInt;
 
 use super::super::static_values::{
     RuntimeStaticValues, resolve_runtime_static_float_value_in_table,
@@ -936,11 +937,11 @@ fn stored_integer_write_value_is_proved_fit(
         value_expression,
         static_values,
     ) {
-        let value = i128::from(value);
+        let value = BigInt::from_i64(value);
         return value >= stored_minimum && value <= stored_maximum;
     }
 
-    let declared_type = input
+    let proved_range = input
         .program
         .facts
         .values
@@ -956,25 +957,20 @@ fn stored_integer_write_value_is_proved_fit(
                 && state_symbol == source_key.state
                 && value_statement_index == statement_index =>
             {
-                value
-                    .type_reference
-                    .is_valid()
-                    .then_some(value.type_reference)
+                value.integer_range.as_ref()
             }
             _ => None,
         });
-    let Some(range) = declared_type.and_then(|type_reference| {
-        psi_checked_trees::wire::scalar_representation_range(input.program, type_reference)
-    }) else {
+    let Some(range) = proved_range else {
         return false;
     };
-    i128::from(range.minimum) >= stored_minimum && i128::from(range.maximum) <= stored_maximum
+    range.minimum >= stored_minimum && range.maximum <= stored_maximum
 }
 
 fn stored_integer_range(
     stored_byte_count: usize,
     interpretation: psi_layout_plans::IntegerInterpretation,
-) -> Option<(i128, i128)> {
+) -> Option<(BigInt, BigInt)> {
     let bit_count = stored_byte_count.checked_mul(8)?;
     if !(1..=64).contains(&bit_count) {
         return None;
@@ -982,11 +978,14 @@ fn stored_integer_range(
     Some(match interpretation {
         psi_layout_plans::IntegerInterpretation::Signed => {
             let magnitude = 1_i128.checked_shl(u32::try_from(bit_count - 1).ok()?)?;
-            (-magnitude, magnitude - 1)
+            (
+                BigInt::from_i128(-magnitude),
+                BigInt::from_i128(magnitude - 1),
+            )
         }
         psi_layout_plans::IntegerInterpretation::Unsigned => {
             let cardinality = 1_i128.checked_shl(u32::try_from(bit_count).ok()?)?;
-            (0, cardinality - 1)
+            (BigInt::zero(), BigInt::from_i128(cardinality - 1))
         }
     })
 }

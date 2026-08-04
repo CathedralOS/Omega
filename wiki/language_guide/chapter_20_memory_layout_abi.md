@@ -638,12 +638,13 @@ decode. The standard filesystem's portable stat carrier uses this mechanism so
 Darwin, Linux x86-64, Linux AArch64, and Windows policies can retain their real
 integer widths without changing semantic field types. Concrete proved-fit
 writes from exact compile-time integers or runtime values with a Psi-checked
-declared range now use the same exact-width store. The checked value retains its
-use-site type reference, so lowering consumes a validated declaration rather
-than inferring proof from storage shape. Unconstrained and merely flow-refined
-values still fail closed until the latter proof result has a durable checked
-fact. Ordinary scalar consumers do not make `IntegerAt` interchangeable with
-ordinary `At`.
+inclusive range now use the same exact-width store. Every assignment whose
+target type resolves participates in range analysis without becoming a new
+language proof obligation. The checked value retains its use-site type reference
+and BigInt discharge interval, including stable incoming guards and boundary
+witnesses, so lowering consumes a Psi fact rather than inferring proof from
+storage shape. Unproved values remain fail closed. Ordinary scalar consumers do
+not make `IntegerAt` interchangeable with ordinary `At`.
 Encodability alone does not authorize a transfer: sub-unit mutation must also
 have a legal implementation. Stable exclusive storage may use one bounded
 read-patch-write sequence. External storage requires a whole-container or

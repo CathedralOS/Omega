@@ -19,6 +19,12 @@ pub struct ProofPlan<'program> {
     pub program: &'program TypedTrees,
     pub obligations: Arena<ProofObligation>,
     pub type_constraints: Arena<ProofConstraint>,
+    /// Range-analysis inputs for every assignment whose target type resolves,
+    /// including assignments to unconstrained semantic carriers. Bounded proof
+    /// obligations remain the constrained subset; this complete arena lets the
+    /// checked-tree boundary retain useful, already-validated flow evidence for
+    /// physical encodings without creating a new language obligation.
+    pub assignment_value_ranges: Arena<BoundedAssignmentObligation>,
 }
 
 impl<'program> ProofPlan<'program> {
@@ -33,6 +39,7 @@ impl<'program> ProofPlan<'program> {
             program,
             obligations: Arena::with_capacity(obligation_capacity),
             type_constraints: Arena::with_capacity(constraint_capacity),
+            assignment_value_ranges: Arena::with_capacity(obligation_capacity),
         }
     }
 
@@ -363,12 +370,13 @@ pub struct GuardedTransitionObligation {
     pub guard: TransitionGuardNode,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct BoundedAssignmentObligation {
     pub machine_symbol: SymbolHandle,
     pub machine: Identifier,
     pub state_symbol: SymbolHandle,
     pub state: Identifier,
+    pub statement_index: usize,
     pub state_guard: Option<TransitionGuardNode>,
     /// The SOURCE state the incoming `state_guard` was taken from, for
     /// resolving guard-side hoisted locals (`__hoist_N` in the guard's own
@@ -455,9 +463,9 @@ pub struct BoundedTransitionArgumentObligation {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct IntegerRange {
-    pub(crate) minimum: psi_numerics::bignum::BigInt,
-    pub(crate) maximum: psi_numerics::bignum::BigInt,
+pub struct IntegerRange {
+    pub minimum: psi_numerics::bignum::BigInt,
+    pub maximum: psi_numerics::bignum::BigInt,
 }
 
 /// A top-level BINARY assignment value's operands with their DECLARED ranges,
@@ -794,16 +802,22 @@ fn collect_bounded_assignment_obligation(
     let ensures_witness_bounds =
         ensures_witness_bounds_at(program, machine, statements, statement_index);
     let target = assignment.target;
-    let Some((base_type, constraints)) = expression_type_reference(program, machine, state, target)
-        .and_then(|type_reference| constrained_type_reference(program, type_reference))
-    else {
+    let Some(target_type) = expression_type_reference(program, machine, state, target) else {
         return;
     };
+    let bounded_target = constrained_type_reference(program, target_type);
+    let (base_type, constraints) = bounded_target
+        .map(|(base_type, constraints)| {
+            (
+                base_type,
+                proof_plan.store_constraint_nodes(program, constraints),
+            )
+        })
+        .unwrap_or((target_type, HandleSpan::empty()));
 
     let value = assignment.value;
     let value_constraints =
         proof_plan.store_constraints(expression_constraints(program, machine, state, value));
-    let constraints = proof_plan.store_constraint_nodes(program, constraints);
     let (state_guard, state_guard_source) = match incoming_state_guard(program, machine, state) {
         Some((guard, source)) => (Some(guard), source),
         None => (None, SymbolHandle::invalid()),
@@ -840,23 +854,28 @@ fn collect_bounded_assignment_obligation(
         _ => None,
     };
 
-    proof_plan.push_obligation(ProofObligation::BoundedAssignment(
-        BoundedAssignmentObligation {
-            machine_symbol: machine.symbol,
-            machine: machine.name.clone(),
-            state_symbol: state.symbol,
-            state: state.name.clone(),
-            state_guard,
-            state_guard_source,
-            target,
-            value,
-            value_constraints,
-            base_type,
-            constraints,
-            binary_operands,
-            ensures_witness_bounds,
-        },
-    ));
+    let obligation = BoundedAssignmentObligation {
+        machine_symbol: machine.symbol,
+        machine: machine.name.clone(),
+        state_symbol: state.symbol,
+        state: state.name.clone(),
+        statement_index,
+        state_guard,
+        state_guard_source,
+        target,
+        value,
+        value_constraints,
+        base_type,
+        constraints,
+        binary_operands,
+        ensures_witness_bounds,
+    };
+    proof_plan
+        .assignment_value_ranges
+        .append(obligation.clone());
+    if bounded_target.is_some() {
+        proof_plan.push_obligation(ProofObligation::BoundedAssignment(obligation));
+    }
 }
 
 /// Walk `statements[..upto]` maintaining the live boundary-ensures witness
