@@ -199,6 +199,40 @@ fn compiler_instruction_validation_kind(
             )?,
             is_float: *is_float,
         }),
+        SelectedInstructionKind::ComparePlaces {
+            left,
+            right,
+            byte_size,
+            operator,
+            is_float,
+        } => Some(CompilerInstructionValidationKind::PlacePairGuard {
+            left: *left,
+            right: *right,
+            byte_size: *byte_size,
+            failure_branch_distance: branch_distances::byte_distance_to_next_runtime_write_end(
+                emission_context,
+                laid_out_instructions,
+                machine_instruction_index,
+            )?,
+            operator: *operator,
+            is_float: *is_float,
+        }),
+        SelectedInstructionKind::ComparePlaceValue {
+            place,
+            byte_size,
+            expected_value,
+            operator,
+        } => Some(CompilerInstructionValidationKind::PlaceValueGuard {
+            place: *place,
+            byte_size: *byte_size,
+            expected_value: *expected_value,
+            failure_branch_distance: branch_distances::byte_distance_to_next_runtime_write_end(
+                emission_context,
+                laid_out_instructions,
+                machine_instruction_index,
+            )?,
+            operator: *operator,
+        }),
         SelectedInstructionKind::SetDispatchState { dispatch_index } => {
             Some(CompilerInstructionValidationKind::DispatchStateWrite {
                 dispatch_index: *dispatch_index,

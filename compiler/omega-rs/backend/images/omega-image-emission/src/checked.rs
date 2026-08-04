@@ -151,6 +151,17 @@ pub fn emit_checked_executable_image(
 /// Replay the complete compiler function/instruction partition against final
 /// placed text. Relocations may change instruction fields, so the retained
 /// spans own boundaries while the final bytes own the fingerprint.
+#[derive(Clone, Copy)]
+enum CompilerInstructionRelocationRecipe {
+    None,
+    StaticStorage(omega_target_operations::RuntimeStorageRegion),
+    PlacePair {
+        left: omega_target_operations::Place,
+        right: omega_target_operations::Place,
+    },
+    PlaceValue(omega_target_operations::Place),
+}
+
 fn validate_compiler_function_instruction_boundaries(
     architecture: Architecture,
     code: &omega_machine_bytes::EncodedMachineCode,
@@ -260,11 +271,11 @@ fn validate_compiler_function_instruction_boundaries(
                 ))
             })?;
             if let Some(kind) = instruction.compiler_validation_kind {
-                let (expected_position, expected_bytes, kind_tag, storage_relocation): (
+                let (expected_position, expected_bytes, kind_tag, relocation_recipe): (
                     Option<usize>,
                     Vec<u8>,
                     u8,
-                    Option<omega_target_operations::RuntimeStorageRegion>,
+                    CompilerInstructionRelocationRecipe,
                 ) = match kind {
                     omega_machine_bytes::CompilerInstructionValidationKind::FunctionEnter => (
                         Some(0),
@@ -277,7 +288,7 @@ fn validate_compiler_function_instruction_boundaries(
                             }
                         },
                         1u8,
-                        None,
+                        CompilerInstructionRelocationRecipe::None,
                     ),
                     omega_machine_bytes::CompilerInstructionValidationKind::FunctionReturn => (
                         Some(instructions.len() - 1),
@@ -290,7 +301,7 @@ fn validate_compiler_function_instruction_boundaries(
                             }
                         },
                         2u8,
-                        None,
+                        CompilerInstructionRelocationRecipe::None,
                     ),
                     omega_machine_bytes::CompilerInstructionValidationKind::DispatchLoopEnter {
                         entry_dispatch_index,
@@ -301,7 +312,7 @@ fn validate_compiler_function_instruction_boundaries(
                             Architecture::Aarch64 => omega_isa_aarch64::encode_dispatch_loop_enter_bytes(entry_dispatch_index)?.to_vec(),
                         },
                         3u8,
-                        None,
+                        CompilerInstructionRelocationRecipe::None,
                     ),
                     omega_machine_bytes::CompilerInstructionValidationKind::DispatchCaseEnter {
                         dispatch_index,
@@ -313,7 +324,7 @@ fn validate_compiler_function_instruction_boundaries(
                             Architecture::Aarch64 => omega_isa_aarch64::encode_dispatch_case_enter_bytes(dispatch_index, skip_byte_distance)?.to_vec(),
                         },
                         4u8,
-                        None,
+                        CompilerInstructionRelocationRecipe::None,
                     ),
                     omega_machine_bytes::CompilerInstructionValidationKind::DispatchStaticGuard {
                         operator,
@@ -344,7 +355,77 @@ fn validate_compiler_function_instruction_boundaries(
                             )?,
                         },
                         8u8,
-                        Some(storage_region),
+                        CompilerInstructionRelocationRecipe::StaticStorage(storage_region),
+                    ),
+                    omega_machine_bytes::CompilerInstructionValidationKind::PlacePairGuard {
+                        left,
+                        right,
+                        byte_size,
+                        failure_branch_distance,
+                        operator,
+                        is_float,
+                    } => (
+                        None,
+                        match architecture {
+                            Architecture::X86_64 => omega_isa_x86_64::encode_place_compare(
+                                &left,
+                                &right,
+                                byte_size,
+                                failure_branch_distance,
+                                operator,
+                                is_float,
+                            )?.0,
+                            Architecture::Aarch64 => {
+                                let left_offset = left.const_offset().ok_or_else(|| Diagnostic::error(
+                                    "final AArch64 place-pair guard retained a non-direct place recipe",
+                                ))?;
+                                let right_offset = right.const_offset().ok_or_else(|| Diagnostic::error(
+                                    "final AArch64 place-pair guard retained a non-direct place recipe",
+                                ))?;
+                                omega_isa_aarch64::encode_runtime_storage_compare_bytes(
+                                    left_offset,
+                                    right_offset,
+                                    byte_size,
+                                    failure_branch_distance,
+                                    operator,
+                                    is_float,
+                                )?
+                            }
+                        },
+                        9u8,
+                        CompilerInstructionRelocationRecipe::PlacePair { left, right },
+                    ),
+                    omega_machine_bytes::CompilerInstructionValidationKind::PlaceValueGuard {
+                        place,
+                        byte_size,
+                        expected_value,
+                        failure_branch_distance,
+                        operator,
+                    } => (
+                        None,
+                        match architecture {
+                            Architecture::X86_64 => omega_isa_x86_64::encode_place_value_compare(
+                                &place,
+                                byte_size,
+                                expected_value,
+                                failure_branch_distance,
+                                operator,
+                            )?.0,
+                            Architecture::Aarch64 => {
+                                let byte_offset = place.const_offset().ok_or_else(|| Diagnostic::error(
+                                    "final AArch64 place-value guard retained a non-direct place recipe",
+                                ))?;
+                                omega_isa_aarch64::encode_runtime_storage_value_compare_bytes(
+                                    byte_offset,
+                                    byte_size,
+                                    expected_value,
+                                    failure_branch_distance,
+                                    operator,
+                                )?
+                            }
+                        },
+                        10u8,
+                        CompilerInstructionRelocationRecipe::PlaceValue(place),
                     ),
                     omega_machine_bytes::CompilerInstructionValidationKind::DispatchStateWrite {
                         dispatch_index,
@@ -356,7 +437,7 @@ fn validate_compiler_function_instruction_boundaries(
                             Architecture::Aarch64 => omega_isa_aarch64::encode_dispatch_state_write_bytes(dispatch_index, case_leave_byte_distance)?.to_vec(),
                         },
                         5u8,
-                        None,
+                        CompilerInstructionRelocationRecipe::None,
                     ),
                     omega_machine_bytes::CompilerInstructionValidationKind::DispatchCaseLeave {
                         loop_byte_distance,
@@ -367,7 +448,7 @@ fn validate_compiler_function_instruction_boundaries(
                             Architecture::Aarch64 => omega_isa_aarch64::encode_dispatch_case_leave_bytes(loop_byte_distance)?.to_vec(),
                         },
                         7u8,
-                        None,
+                        CompilerInstructionRelocationRecipe::None,
                     ),
                     omega_machine_bytes::CompilerInstructionValidationKind::DispatchForwardBranchSkip {
                         branch_arms_end_byte_distance,
@@ -378,28 +459,76 @@ fn validate_compiler_function_instruction_boundaries(
                             Architecture::Aarch64 => omega_isa_aarch64::encode_dispatch_case_leave_bytes(branch_arms_end_byte_distance)?.to_vec(),
                         },
                         6u8,
-                        None,
+                        CompilerInstructionRelocationRecipe::None,
                     ),
                 };
                 let final_instruction_bytes =
                     &final_text_bytes[instruction_byte_offset..instruction_end];
-                let bytes_match = if let Some(storage_region) = storage_relocation {
-                    validate_compiler_storage_relocation(
-                        architecture,
-                        object,
-                        relocations,
-                        instruction.selected_instruction_index,
-                        instruction_byte_offset,
-                        storage_region,
-                    )?;
-                    encoded_instruction_bytes == expected_bytes
-                        && compiler_instruction_non_relocation_bits_match(
+                let bytes_match = match relocation_recipe {
+                    CompilerInstructionRelocationRecipe::None => {
+                        final_instruction_bytes == expected_bytes
+                    }
+                    CompilerInstructionRelocationRecipe::StaticStorage(storage_region) => {
+                        validate_compiler_storage_relocation(
                             architecture,
-                            &expected_bytes,
-                            final_instruction_bytes,
-                        )
-                } else {
-                    final_instruction_bytes == expected_bytes
+                            object,
+                            relocations,
+                            instruction.selected_instruction_index,
+                            instruction_byte_offset,
+                            storage_region,
+                        )?;
+                        encoded_instruction_bytes == expected_bytes
+                            && compiler_instruction_non_relocation_bits_match(
+                                architecture,
+                                &expected_bytes,
+                                final_instruction_bytes,
+                                &[0],
+                            )
+                    }
+                    CompilerInstructionRelocationRecipe::PlacePair { left, right } => {
+                        let address_sites =
+                            compiler_place_pair_address_sites(architecture, left, right, kind)?;
+                        validate_compiler_data_address_relocations(
+                            architecture,
+                            object,
+                            relocations,
+                            instruction.selected_instruction_index,
+                            instruction_byte_offset,
+                            &address_sites,
+                        )?;
+                        encoded_instruction_bytes == expected_bytes
+                            && compiler_instruction_non_relocation_bits_match(
+                                architecture,
+                                &expected_bytes,
+                                final_instruction_bytes,
+                                &address_sites
+                                    .iter()
+                                    .map(|(offset, _)| *offset)
+                                    .collect::<Vec<_>>(),
+                            )
+                    }
+                    CompilerInstructionRelocationRecipe::PlaceValue(place) => {
+                        let address_sites =
+                            compiler_place_value_address_sites(architecture, place, kind)?;
+                        validate_compiler_data_address_relocations(
+                            architecture,
+                            object,
+                            relocations,
+                            instruction.selected_instruction_index,
+                            instruction_byte_offset,
+                            &address_sites,
+                        )?;
+                        encoded_instruction_bytes == expected_bytes
+                            && compiler_instruction_non_relocation_bits_match(
+                                architecture,
+                                &expected_bytes,
+                                final_instruction_bytes,
+                                &address_sites
+                                    .iter()
+                                    .map(|(offset, _)| *offset)
+                                    .collect::<Vec<_>>(),
+                            )
+                    }
                 };
                 if expected_position.is_some_and(|position| instruction_index != position)
                     || !bytes_match
@@ -574,6 +703,42 @@ fn compiler_instruction_footprint(
                 ),
             }
         }
+        CompilerInstructionValidationKind::PlacePairGuard {
+            left,
+            right,
+            byte_size,
+            is_float,
+            ..
+        } => match architecture {
+            Architecture::X86_64 => (
+                BoundaryFootprintFragmentOrigin::PlaceGuardComparison,
+                omega_isa_x86_64::place_compare_register_writes(is_float),
+                omega_isa_x86_64::place_compare_additional_machine_state(),
+            ),
+            Architecture::Aarch64 => (
+                BoundaryFootprintFragmentOrigin::PlaceGuardComparison,
+                omega_isa_aarch64::runtime_storage_compare_register_writes(
+                    left.const_offset()?,
+                    right.const_offset()?,
+                    byte_size,
+                    is_float,
+                ),
+                omega_isa_aarch64::runtime_storage_compare_additional_machine_state(),
+            ),
+        },
+        CompilerInstructionValidationKind::PlaceValueGuard { place, .. } => match architecture {
+            Architecture::X86_64 => (
+                BoundaryFootprintFragmentOrigin::PlaceGuardComparison,
+                omega_isa_x86_64::place_value_compare_register_writes(),
+                omega_isa_x86_64::place_value_compare_additional_machine_state(),
+            ),
+            Architecture::Aarch64 if place.const_offset().is_some() => (
+                BoundaryFootprintFragmentOrigin::PlaceGuardComparison,
+                omega_isa_aarch64::runtime_storage_value_compare_register_writes(),
+                omega_isa_aarch64::runtime_storage_value_compare_additional_machine_state(),
+            ),
+            Architecture::Aarch64 => return None,
+        },
         CompilerInstructionValidationKind::DispatchStateWrite { .. } => (
             BoundaryFootprintFragmentOrigin::DispatchScaffold,
             match architecture {
@@ -613,6 +778,7 @@ fn validate_compiler_body_specification_footprints(
             origin,
             BoundaryFootprintFragmentOrigin::DispatchScaffold
                 | BoundaryFootprintFragmentOrigin::StaticGuardComparison
+                | BoundaryFootprintFragmentOrigin::PlaceGuardComparison
         )
     });
     let boundary_contract_fingerprint = if !has_body_rows {
@@ -636,6 +802,7 @@ fn validate_compiler_body_specification_footprints(
     for (tag, origin) in [
         (1u8, BoundaryFootprintFragmentOrigin::DispatchScaffold),
         (2u8, BoundaryFootprintFragmentOrigin::StaticGuardComparison),
+        (3u8, BoundaryFootprintFragmentOrigin::PlaceGuardComparison),
     ] {
         let evidence_rows = derived
             .iter()
@@ -773,7 +940,188 @@ fn validate_compiler_storage_relocation(
             "compiler dispatch guard instruction #{selected_instruction_index} does not retain its exact storage-address relocation shape"
         )));
     }
-    let symbol_handle = matching[0].symbol_handle;
+    if !compiler_storage_symbol_matches(object, matching[0].symbol_handle, storage_region) {
+        let symbol_name = omega_object_file::object_symbol_name(object, matching[0].symbol_handle);
+        return Err(Diagnostic::error(format!(
+            "compiler dispatch guard instruction #{selected_instruction_index} storage relocation targets `{symbol_name}`, not its retained {storage_region:?} region"
+        )));
+    }
+    Ok(())
+}
+
+fn compiler_place_pair_address_sites(
+    architecture: Architecture,
+    left: omega_target_operations::Place,
+    right: omega_target_operations::Place,
+    kind: omega_machine_bytes::CompilerInstructionValidationKind,
+) -> Result<Vec<(usize, omega_target_operations::RuntimeStorageRegion)>, Diagnostic> {
+    let omega_machine_bytes::CompilerInstructionValidationKind::PlacePairGuard {
+        byte_size,
+        failure_branch_distance,
+        operator,
+        is_float,
+        ..
+    } = kind
+    else {
+        return Err(Diagnostic::error(
+            "invalid final place-pair validation recipe",
+        ));
+    };
+    match architecture {
+        Architecture::X86_64 => {
+            let (_, sites) = omega_isa_x86_64::encode_place_compare(
+                &left,
+                &right,
+                byte_size,
+                failure_branch_distance,
+                operator,
+                is_float,
+            )?;
+            sites
+                .iter()
+                .map(|(offset, side)| {
+                    let region = match side {
+                        omega_isa_x86_64::PlaceCopySide::Source => left.region,
+                        omega_isa_x86_64::PlaceCopySide::SourceIndex => left
+                            .scaled_index_region()
+                            .ok_or_else(|| Diagnostic::error("place-pair source index relocation has no retained index step"))?,
+                        omega_isa_x86_64::PlaceCopySide::SourceIndex2 => left
+                            .scaled_index_regions()
+                            .nth(1)
+                            .ok_or_else(|| Diagnostic::error("place-pair second source index relocation has no retained index step"))?,
+                        omega_isa_x86_64::PlaceCopySide::Target => right.region,
+                        omega_isa_x86_64::PlaceCopySide::TargetIndex => right
+                            .scaled_index_region()
+                            .ok_or_else(|| Diagnostic::error("place-pair target index relocation has no retained index step"))?,
+                        omega_isa_x86_64::PlaceCopySide::TargetIndex2 => right
+                            .scaled_index_regions()
+                            .nth(1)
+                            .ok_or_else(|| Diagnostic::error("place-pair second target index relocation has no retained index step"))?,
+                    };
+                    Ok((offset, region))
+                })
+                .collect()
+        }
+        Architecture::Aarch64 => Ok(vec![(0, left.region), (8, right.region)]),
+    }
+}
+
+fn compiler_place_value_address_sites(
+    architecture: Architecture,
+    place: omega_target_operations::Place,
+    kind: omega_machine_bytes::CompilerInstructionValidationKind,
+) -> Result<Vec<(usize, omega_target_operations::RuntimeStorageRegion)>, Diagnostic> {
+    let omega_machine_bytes::CompilerInstructionValidationKind::PlaceValueGuard {
+        byte_size,
+        expected_value,
+        failure_branch_distance,
+        operator,
+        ..
+    } = kind
+    else {
+        return Err(Diagnostic::error(
+            "invalid final place-value validation recipe",
+        ));
+    };
+    match architecture {
+        Architecture::X86_64 => {
+            let (_, sites) = omega_isa_x86_64::encode_place_value_compare(
+                &place,
+                byte_size,
+                expected_value,
+                failure_branch_distance,
+                operator,
+            )?;
+            sites
+                .iter()
+                .map(|(offset, side)| {
+                    let region = match side {
+                        omega_isa_x86_64::PlaceCopySide::Target => place.region,
+                        omega_isa_x86_64::PlaceCopySide::TargetIndex => place
+                            .scaled_index_region()
+                            .ok_or_else(|| Diagnostic::error("place-value index relocation has no retained index step"))?,
+                        omega_isa_x86_64::PlaceCopySide::TargetIndex2 => place
+                            .scaled_index_regions()
+                            .nth(1)
+                            .ok_or_else(|| Diagnostic::error("place-value second index relocation has no retained index step"))?,
+                        _ => return Err(Diagnostic::error("place-value recipe retained an invalid source relocation site")),
+                    };
+                    Ok((offset, region))
+                })
+                .collect()
+        }
+        Architecture::Aarch64 => Ok(vec![(0, place.region)]),
+    }
+}
+
+fn validate_compiler_data_address_relocations(
+    architecture: Architecture,
+    object: &omega_object_file::ObjectPlan,
+    relocations: &RelocationPlan,
+    selected_instruction_index: u32,
+    instruction_byte_offset: usize,
+    address_sites: &[(usize, omega_target_operations::RuntimeStorageRegion)],
+) -> Result<(), Diagnostic> {
+    let mut actual = relocations
+        .records()
+        .filter_map(|(_, relocation)| {
+            (relocation.section == SectionKind::Text
+                && relocation.origin.selected_instruction_index()
+                    == Some(selected_instruction_index))
+            .then_some(relocation)
+        })
+        .collect::<Vec<_>>();
+    actual.sort_unstable_by_key(|relocation| relocation.offset);
+    let mut expected = Vec::new();
+    for (site, region) in address_sites {
+        match architecture {
+            Architecture::X86_64 => expected.push((
+                instruction_byte_offset + site + 2,
+                RelocationKind::Absolute64,
+                8usize,
+                *region,
+            )),
+            Architecture::Aarch64 => {
+                expected.push((
+                    instruction_byte_offset + site,
+                    RelocationKind::Aarch64Page21,
+                    4usize,
+                    *region,
+                ));
+                expected.push((
+                    instruction_byte_offset + site + 4,
+                    RelocationKind::Aarch64PageOffset12,
+                    4usize,
+                    *region,
+                ));
+            }
+        }
+    }
+    expected.sort_unstable_by_key(|(offset, _, _, _)| *offset);
+    let matches = actual.len() == expected.len()
+        && actual
+            .iter()
+            .zip(&expected)
+            .all(|(relocation, (offset, kind, width, region))| {
+                relocation.offset == *offset
+                    && relocation.kind == *kind
+                    && relocation.byte_width == *width
+                    && relocation.addend == 0
+                    && compiler_storage_symbol_matches(object, relocation.symbol_handle, *region)
+            });
+    if !matches {
+        return Err(Diagnostic::error(format!(
+            "compiler place guard instruction #{selected_instruction_index} does not retain its exact place-derived storage relocation set"
+        )));
+    }
+    Ok(())
+}
+
+fn compiler_storage_symbol_matches(
+    object: &omega_object_file::ObjectPlan,
+    symbol_handle: omega_object_file::ObjectSymbolHandle,
+    storage_region: omega_target_operations::RuntimeStorageRegion,
+) -> bool {
     let symbol_name = omega_object_file::object_symbol_name(object, symbol_handle);
     let symbol_is_storage_object = object.layout.symbols.is_valid(symbol_handle)
         && object.layout.symbols.get(symbol_handle).kind == omega_object_file::SymbolKind::Object
@@ -807,18 +1155,14 @@ fn validate_compiler_storage_relocation(
                     == 1
         }
     };
-    if !symbol_is_storage_object || !expected_symbol {
-        return Err(Diagnostic::error(format!(
-            "compiler dispatch guard instruction #{selected_instruction_index} storage relocation targets `{symbol_name}`, not its retained {storage_region:?} region"
-        )));
-    }
-    Ok(())
+    symbol_is_storage_object && expected_symbol
 }
 
 fn compiler_instruction_non_relocation_bits_match(
     architecture: Architecture,
     expected: &[u8],
     final_bytes: &[u8],
+    address_sites: &[usize],
 ) -> bool {
     if expected.len() != final_bytes.len() {
         return false;
@@ -828,12 +1172,18 @@ fn compiler_instruction_non_relocation_bits_match(
         .zip(final_bytes)
         .enumerate()
         .all(|(offset, (expected, final_byte))| {
-            let mutable_mask = match architecture {
-                Architecture::X86_64 if (2..10).contains(&offset) => 0xff,
-                Architecture::Aarch64 if offset < 4 => [0xe0, 0xff, 0xff, 0x60][offset],
-                Architecture::Aarch64 if offset < 8 => [0x00, 0xfc, 0x3f, 0x00][offset - 4],
-                _ => 0,
-            };
+            let mutable_mask = address_sites.iter().fold(0u8, |mask, site| {
+                mask | match architecture {
+                    Architecture::X86_64 if (site + 2..site + 10).contains(&offset) => 0xff,
+                    Architecture::Aarch64 if (*site..site + 4).contains(&offset) => {
+                        [0xe0, 0xff, 0xff, 0x60][offset - site]
+                    }
+                    Architecture::Aarch64 if (site + 4..site + 8).contains(&offset) => {
+                        [0x00, 0xfc, 0x3f, 0x00][offset - site - 4]
+                    }
+                    _ => 0,
+                }
+            });
             (expected ^ final_byte) & !mutable_mask == 0
         })
 }
@@ -2374,7 +2724,9 @@ fn fingerprint_into(fingerprint: &mut u64, bytes: &[u8]) {
 #[cfg(test)]
 mod tests {
     use super::{
+        compiler_instruction_non_relocation_bits_match, compiler_place_value_address_sites,
         emit_checked_executable_image, validate_checked_instruction_bytes,
+        validate_compiler_data_address_relocations,
         validate_compiler_function_instruction_boundaries, validate_executable_region_enumeration,
         validate_final_text_relocation_envelope,
     };
@@ -2756,6 +3108,116 @@ mod tests {
                 .message
                 .contains("entry and return validation rows")
         );
+    }
+
+    #[test]
+    fn place_guard_replay_uses_materializer_relocation_sites() {
+        use omega_machine_bytes::CompilerInstructionValidationKind;
+        use omega_target_operations::{Place, PlaceStep, RuntimeStorageRegion, StateGuardOperator};
+
+        let target = NativeTarget::linux_x64();
+        let mut object = ObjectPlan::with_capacity(target, 0, 2);
+        let machine_symbol = object.layout.symbols.insert(SymbolPlan {
+            name: "omega_machine_Main_storage".to_owned(),
+            section: SymbolSection::Section(SectionKind::Bss),
+            offset: 0,
+            size: 64,
+            kind: SymbolKind::Object,
+            import_library: String::new(),
+        });
+        let frame_symbol = object.layout.symbols.insert(SymbolPlan {
+            name: omega_object_file::runtime_frame_storage_symbol_name(),
+            section: SymbolSection::Section(SectionKind::Bss),
+            offset: 64,
+            size: 64,
+            kind: SymbolKind::Object,
+            import_library: String::new(),
+        });
+        let mut place = Place::at(RuntimeStorageRegion::Machine, 16);
+        assert!(place.push_step(PlaceStep::ScaledIndex {
+            index_region: RuntimeStorageRegion::RuntimeFrame,
+            index_offset: 8,
+            index_byte_size: 4,
+            element_byte_size: 4,
+        }));
+        let kind = CompilerInstructionValidationKind::PlaceValueGuard {
+            place,
+            byte_size: 4,
+            expected_value: 7,
+            failure_branch_distance: 12,
+            operator: StateGuardOperator::Equal,
+        };
+        let sites =
+            compiler_place_value_address_sites(omega_target::Architecture::X86_64, place, kind)
+                .expect("place materializer sites");
+        assert!(sites.len() >= 2);
+        let mut relocations = RelocationPlan::with_target(target);
+        for (site, region) in &sites {
+            relocations.push_record(RelocationRecord {
+                origin: RelocationOrigin::Instruction {
+                    function_symbol_handle: Handle::invalid(),
+                    selected_instruction_index: 19,
+                },
+                section: SectionKind::Text,
+                offset: site + 2,
+                byte_width: 8,
+                symbol_handle: match region {
+                    RuntimeStorageRegion::Machine => machine_symbol,
+                    RuntimeStorageRegion::RuntimeFrame => frame_symbol,
+                },
+                addend: 0,
+                kind: RelocationKind::Absolute64,
+            });
+        }
+        validate_compiler_data_address_relocations(
+            omega_target::Architecture::X86_64,
+            &object,
+            &relocations,
+            19,
+            0,
+            &sites,
+        )
+        .expect("every materializer site should retain its place region");
+
+        let (expected, _) = omega_isa_x86_64::encode_place_value_compare(
+            &place,
+            4,
+            7,
+            12,
+            StateGuardOperator::Equal,
+        )
+        .expect("place guard bytes");
+        let mut final_bytes = expected.clone();
+        for (index, (site, _)) in sites.iter().enumerate() {
+            final_bytes[site + 2..site + 10]
+                .copy_from_slice(&(0x1000u64 + index as u64 * 0x100).to_le_bytes());
+        }
+        let site_offsets = sites.iter().map(|(offset, _)| *offset).collect::<Vec<_>>();
+        assert!(compiler_instruction_non_relocation_bits_match(
+            omega_target::Architecture::X86_64,
+            &expected,
+            &final_bytes,
+            &site_offsets,
+        ));
+        final_bytes[0] ^= 0xff;
+        assert!(!compiler_instruction_non_relocation_bits_match(
+            omega_target::Architecture::X86_64,
+            &expected,
+            &final_bytes,
+            &site_offsets,
+        ));
+
+        let missing = RelocationPlan::with_target(target);
+        let diagnostic = validate_compiler_data_address_relocations(
+            omega_target::Architecture::X86_64,
+            &object,
+            &missing,
+            19,
+            0,
+            &sites,
+        )
+        .expect_err("missing place-derived relocations must reject");
+        assert!(diagnostic.message.contains("place-derived"));
     }
 
     #[test]

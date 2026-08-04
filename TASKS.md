@@ -882,7 +882,7 @@ proves complete region coverage, and composes admitted leaves under their
 separate provenance. Do not add a second whole-image decoder/admission path.
 
 The existing single final-region artifact now carries the domain-separated
-`omega.final-footprint-certificate` schema, format version 7, and a certificate
+`omega.final-footprint-certificate` schema, format version 8, and a certificate
 fingerprint over its final placement binding, compiler-text derivation, and
 complete region inventory. Its explicit completeness flags remain false until
 compiler-body footprint decoding and admitted-leaf evidence land. The envelope
@@ -910,11 +910,15 @@ x86-64/AArch64 program, and bind matching final bytes under
 `compiler_function_body_specification_subset`. Storage-backed static guards now
 retain their comparison recipe too; validation regenerates their encoded
 program and composes exact storage-symbol relocation checks with the global
-final-byte relocation envelope. Runtime/place guards, ordinary writes/calls,
-and their footprint derivation remain incomplete. The final validator now also
+final-byte relocation envelope. Place-pair and place-vs-immediate guards now
+retain the canonical `Place` operands and comparison recipe, replay the same
+x86 materializer or direct AArch64 encoder, and require the exact place-derived
+storage/index relocation set. Runtime-value/text guards, ordinary writes/calls,
+and their byte replay remain incomplete. The final validator now also
 re-derives the dispatch/static-guard register and machine-state unions from
 those successfully replayed rows, requires exact equality with their earlier
-`StatePlan`-validated semantic fragments, and binds the composed footprint
+`StatePlan`-validated semantic fragments (including the complete place-guard
+union), and binds the composed footprint
 fingerprint plus the exact boundary-contract identity into the certificate.
 Certificate construction rejects a different public ceiling. This is
 footprint enforcement for the live target-spec subset, not a completeness
