@@ -65,20 +65,31 @@ data PortableIntegers {
     signed_value: i64;
     unsigned_value: u64;
 }
-data ForeignView { value: ForeignIntegers<PortableIntegers>; }
+data ForeignView {
+    value: ForeignIntegers<PortableIntegers>;
+    values: [ForeignIntegers<PortableIntegers>; 2];
+}
 
 data Main {
     console: Console;
-    bytes: [u8; 4];
+    bytes: [u8; 12];
+    index: u64;
 }
 
 machine Main::main(&mut self) {
     self.bytes[0] = 254;
     self.bytes[2] = 255;
     self.bytes[3] = 128;
+    // `values[1]` begins at byte 8: signed -128 and unsigned 0x3412.
+    self.bytes[8] = 128;
+    self.bytes[10] = 18;
+    self.bytes[11] = 52;
+    self.index = 1;
     let view: &ForeignView = &self.bytes[0] as &ForeignView;
     let signed_value: i64 = view.value.signed_value;
     let unsigned_value: u64 = view.value.unsigned_value;
+    let indexed_signed: i64 = view.values[self.index].signed_value;
+    let indexed_unsigned: u64 = view.values[self.index].unsigned_value;
     transition signed_value == -2 {
         true -> check_unsigned()
         _ -> bad_signed()
@@ -86,11 +97,25 @@ machine Main::main(&mut self) {
 
     state check_unsigned(&mut self) {
         transition unsigned_value == 33023 {
-            true -> good()
+            true -> check_indexed_signed()
             _ -> bad_unsigned()
+        }
+    }
+    state check_indexed_signed(&mut self) {
+        transition indexed_signed == -128 {
+            true -> check_indexed_unsigned()
+            _ -> bad_indexed_signed()
+        }
+    }
+    state check_indexed_unsigned(&mut self) {
+        transition indexed_unsigned == 13330 {
+            true -> good()
+            _ -> bad_indexed_unsigned()
         }
     }
     state good(&mut self) { self.console.exit_process(70); }
     state bad_signed(&mut self) { self.console.exit_process(71); }
     state bad_unsigned(&mut self) { self.console.exit_process(72); }
+    state bad_indexed_signed(&mut self) { self.console.exit_process(73); }
+    state bad_indexed_unsigned(&mut self) { self.console.exit_process(74); }
 }

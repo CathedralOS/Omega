@@ -2099,12 +2099,15 @@ ordinary code never receives a raw executable address.
   reject. Direct owned and reference-backed scalar projection now loads the
   exact stored width and uses the retained interpretation to sign- or
   zero-extend into the portable carrier; a raw-byte native canary distinguishes
-  both rules and cross-compiles for Windows x64 and Linux AArch64. Remaining
-  work is indexed projection, total/proved-fit mutation lowering, and the Linux
-  metadata policies/canaries that consume it. Ordinary scalar resolution still
-  rejects stored-width fields rather than treating them as `At`; mutable
-  recasts, interpreter record views, and by-value boundary classification stay
-  fail-closed until those consumers use the dedicated encoding metadata.
+  both rules for direct and runtime-indexed projections and cross-compiles for
+  Windows x64 and Linux AArch64. Descriptor-backed, inline-frame, machine-owned,
+  and reference-backed runtime indices retain their ordinary address geometry
+  while loading only the stored field width. Remaining work is total/proved-fit
+  mutation lowering and the Linux metadata policies/canaries that consume it.
+  Ordinary scalar resolution still rejects stored-width fields rather than
+  treating them as `At`; mutable recasts, interpreter record views, and by-value
+  boundary classification stay fail-closed until those consumers use the
+  dedicated encoding metadata.
   Linux `read_dir` now retains the real three-argument `getdents64`
   plan, omits the Darwin-only cursor at selection, and decodes the Linux record
   offsets in both target packages. Direct syscall failures now flow as explicit

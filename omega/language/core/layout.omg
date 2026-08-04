@@ -79,9 +79,9 @@ data Schema {
 // tiling has live direct plan-laid projection. `IntegerAt` is normalized for
 // consumers and is the only fixed-layout spelling for a foreign integer whose
 // stored width differs from its semantic carrier. Direct owned/reference-backed
-// projection widens according to `interpretation`; indexed projection and
-// mutation remain fail-closed. Tagged/wire placements remain consumers of the
-// wire-plan path today.
+// and runtime-indexed projection widen according to `interpretation`; mutation
+// remains fail-closed. Tagged/wire placements remain consumers of the wire-plan
+// path today.
 data IntegerInterpretation {
     case Signed;
     case Unsigned;

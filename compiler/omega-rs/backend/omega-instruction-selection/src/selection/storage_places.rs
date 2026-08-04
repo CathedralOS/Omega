@@ -605,6 +605,42 @@ pub(super) fn resolve_runtime_stored_integer_projection_in_table(
     expressions: &ExpressionTable,
     expression: ExpressionHandle,
 ) -> Option<RuntimeStoredIntegerProjection> {
+    if let Some(projection) = resolve_runtime_pointee_indexed_stored_integer_projection_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+    ) {
+        return Some(projection);
+    }
+    if let Some(projection) = resolve_runtime_frame_indexed_stored_integer_projection_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+    ) {
+        return Some(projection);
+    }
+    if let Some(projection) = resolve_runtime_frame_base_indexed_stored_integer_projection_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+    ) {
+        return Some(projection);
+    }
+    if let Some(projection) = resolve_runtime_machine_indexed_stored_integer_projection_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+    ) {
+        return Some(projection);
+    }
     if let Some(projection) = resolve_runtime_pointee_stored_integer_projection_in_table(
         input,
         dispatch_index,
@@ -690,6 +726,236 @@ fn stored_integer_projection_from_cursor(
         interpretation: stored.interpretation,
         carrier_signed: carrier.is_signed_integer(),
     })
+}
+
+fn resolve_runtime_frame_indexed_stored_integer_projection_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<RuntimeStoredIntegerProjection> {
+    let indexed = indexed_target_path_in_table(expressions, expression)?;
+    let collection_slot = runtime_frame_slot_for_expression_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        indexed.collection,
+    )?;
+    if runtime_frame_slot_is_inline_fixed_array_storage(input, collection_slot) {
+        return None;
+    }
+    let descriptor_place = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        indexed.collection,
+    )?;
+    let index_place = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        indexed.index,
+    )?;
+    if descriptor_place.region != RuntimeStorageRegion::RuntimeFrame {
+        return None;
+    }
+    let element_descriptor = collection_slot.type_descriptor.element_type()?;
+    let element_layout = descriptor_layout(input, element_descriptor);
+    let root_field = FieldLayout {
+        symbol: collection_slot.symbol,
+        name: collection_slot.name.clone(),
+        offset: 0,
+        type_symbol: element_descriptor.storage_symbol(),
+        type_name: "".into(),
+        type_descriptor: element_descriptor.clone(),
+        layout: element_layout,
+    };
+    let cursor = resolve_indexed_stored_integer_suffix_cursor_in_table(
+        &input.layouts,
+        NestedFieldLayoutCursor::from_root(&root_field),
+        expressions,
+        indexed.suffix_root,
+        indexed.boundary,
+    )?;
+    let field_byte_offset = cursor.byte_offset();
+    stored_integer_projection_from_cursor(
+        cursor,
+        RuntimeStoredIntegerSource::FrameIndexed {
+            descriptor_offset: descriptor_place.byte_offset,
+            index_region: index_place.region,
+            index_offset: index_place.byte_offset,
+            index_byte_size: index_place.byte_count,
+            element_byte_size: element_layout.size,
+            field_byte_offset,
+        },
+    )
+}
+
+fn resolve_runtime_frame_base_indexed_stored_integer_projection_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<RuntimeStoredIntegerProjection> {
+    let indexed = indexed_target_path_in_table(expressions, expression)?;
+    let collection_slot = runtime_frame_slot_for_expression_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        indexed.collection,
+    )?;
+    let owned_element: TypeLayoutDescriptor;
+    let (array_prefix_offset, element_descriptor) =
+        if let Some(element) = inline_fixed_array_element_type(&collection_slot.type_descriptor) {
+            (0usize, element)
+        } else {
+            let path = normalized_storage_name_path_in_table(expressions, indexed.collection)?;
+            if path.len() <= 1 {
+                return None;
+            }
+            let root = FieldLayout {
+                symbol: collection_slot.symbol,
+                name: collection_slot.name.clone(),
+                offset: 0,
+                type_symbol: collection_slot.type_descriptor.storage_symbol(),
+                type_name: "".into(),
+                type_descriptor: collection_slot.type_descriptor.clone(),
+                layout: TypeLayout {
+                    size: collection_slot.byte_size,
+                    alignment: collection_slot.alignment,
+                },
+            };
+            let mut cursor = NestedFieldLayoutCursor::from_root(&root);
+            for (field_name, field_symbol, field_index, case_variant) in path.suffix(1).iter() {
+                cursor = resolve_nested_field_layout_step(
+                    &input.layouts,
+                    cursor,
+                    field_name,
+                    field_symbol,
+                    field_index,
+                    case_variant,
+                )?;
+            }
+            owned_element = inline_fixed_array_element_type(cursor.type_descriptor())?.clone();
+            (cursor.byte_offset(), &owned_element)
+        };
+    let index_place = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        indexed.index,
+    )?;
+    if index_place.region != RuntimeStorageRegion::RuntimeFrame {
+        return None;
+    }
+    let element_layout = descriptor_layout(input, element_descriptor);
+    let root_field = FieldLayout {
+        symbol: collection_slot.symbol,
+        name: collection_slot.name.clone(),
+        offset: 0,
+        type_symbol: element_descriptor.storage_symbol(),
+        type_name: "".into(),
+        type_descriptor: element_descriptor.clone(),
+        layout: element_layout,
+    };
+    let cursor = resolve_indexed_stored_integer_suffix_cursor_in_table(
+        &input.layouts,
+        NestedFieldLayoutCursor::from_root(&root_field),
+        expressions,
+        indexed.suffix_root,
+        indexed.boundary,
+    )?;
+    let field_byte_offset = cursor.byte_offset();
+    stored_integer_projection_from_cursor(
+        cursor,
+        RuntimeStoredIntegerSource::FrameBaseIndexed {
+            base_byte_offset: collection_slot
+                .byte_offset
+                .checked_add(array_prefix_offset)?,
+            index_offset: index_place.byte_offset,
+            index_byte_size: index_place.byte_count,
+            element_byte_size: element_layout.size,
+            field_byte_offset,
+        },
+    )
+}
+
+fn resolve_runtime_machine_indexed_stored_integer_projection_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<RuntimeStoredIntegerProjection> {
+    let indexed = indexed_target_path_in_table(expressions, expression)?;
+    if runtime_frame_slot_for_expression_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        indexed.collection,
+    )
+    .is_some()
+    {
+        return None;
+    }
+    let collection = resolve_machine_owned_collection_with_const_prefix_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        indexed.collection,
+    )?;
+    let index_place = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        indexed.index,
+    )?;
+    if !matches!(
+        index_place.region,
+        RuntimeStorageRegion::RuntimeFrame | RuntimeStorageRegion::Machine
+    ) {
+        return None;
+    }
+    let element_descriptor = collection.type_descriptor.element_type()?;
+    let element_layout = descriptor_layout(input, element_descriptor);
+    let root_field = FieldLayout {
+        symbol: SymbolHandle::invalid(),
+        name: "".into(),
+        offset: 0,
+        type_symbol: element_descriptor.storage_symbol(),
+        type_name: "".into(),
+        type_descriptor: element_descriptor.clone(),
+        layout: element_layout,
+    };
+    let cursor = resolve_indexed_stored_integer_suffix_cursor_in_table(
+        &input.layouts,
+        NestedFieldLayoutCursor::from_root(&root_field),
+        expressions,
+        indexed.suffix_root,
+        indexed.boundary,
+    )?;
+    let field_byte_offset = cursor.byte_offset();
+    stored_integer_projection_from_cursor(
+        cursor,
+        RuntimeStoredIntegerSource::MachineIndexed {
+            base_byte_offset: collection.byte_offset,
+            index_region: index_place.region,
+            index_offset: index_place.byte_offset,
+            index_byte_size: index_place.byte_count,
+            element_byte_size: element_layout.size,
+            field_byte_offset,
+        },
+    )
 }
 
 /// Fold `<receiver>.len` to its STATIC element count when the receiver is (an
@@ -2250,6 +2516,109 @@ fn resolve_runtime_pointee_indexed_target_from_path(
             .checked_add(element_field_offset)?,
         byte_count: field_layout.size,
     })
+}
+
+fn resolve_runtime_pointee_indexed_stored_integer_projection_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<RuntimeStoredIntegerProjection> {
+    let indexed = indexed_target_path_in_table(expressions, expression)?;
+    let collection_path = normalized_storage_name_path_in_table(expressions, indexed.collection)?;
+    let slot = runtime_frame_slot_for_expression_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        indexed.collection,
+    )?;
+    let pointee_descriptor = slot.type_descriptor.reference_referee()?;
+    let pointee_layout = descriptor_layout(input, pointee_descriptor);
+    let wide_referee_slot = matches!(pointee_descriptor, TypeLayoutDescriptor::Named { .. })
+        && pointee_layout.size > input.runtime_abi.pointer_size
+        && slot.byte_size == pointee_layout.size;
+    if slot.byte_size != input.runtime_abi.pointer_size && !wide_referee_slot {
+        return None;
+    }
+    let shared_small_content_spill =
+        matches!(
+            &slot.type_descriptor,
+            TypeLayoutDescriptor::Reference {
+                is_mutable: false,
+                ..
+            }
+        ) && matches!(pointee_descriptor, TypeLayoutDescriptor::Named { .. })
+            && pointee_layout.size <= input.runtime_abi.pointer_size
+            && !input
+                .program
+                .machines()
+                .iter()
+                .any(|machine| machine.symbol == source_key.machine && machine.boundary);
+    if shared_small_content_spill {
+        return None;
+    }
+
+    let root_field = FieldLayout {
+        symbol: slot.symbol,
+        name: slot.name.clone(),
+        offset: 0,
+        type_symbol: pointee_descriptor.storage_symbol(),
+        type_name: "".into(),
+        type_descriptor: pointee_descriptor.clone(),
+        layout: pointee_layout,
+    };
+    let mut collection_cursor = NestedFieldLayoutCursor::from_root(&root_field);
+    for (field_name, field_symbol, field_index, case_variant) in collection_path.suffix(1).iter() {
+        collection_cursor = resolve_nested_field_layout_step(
+            &input.layouts,
+            collection_cursor,
+            field_name,
+            field_symbol,
+            field_index,
+            case_variant,
+        )?;
+    }
+    let (element_descriptor, _) = collection_cursor.type_descriptor().fixed_array()?;
+    let element_layout = descriptor_layout(input, element_descriptor);
+    let element_root = FieldLayout {
+        symbol: slot.symbol,
+        name: slot.name.clone(),
+        offset: 0,
+        type_symbol: element_descriptor.storage_symbol(),
+        type_name: "".into(),
+        type_descriptor: element_descriptor.clone(),
+        layout: element_layout,
+    };
+    let cursor = resolve_indexed_stored_integer_suffix_cursor_in_table(
+        &input.layouts,
+        NestedFieldLayoutCursor::from_root(&element_root),
+        expressions,
+        indexed.suffix_root,
+        indexed.boundary,
+    )?;
+    let index_place = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        indexed.index,
+    )?;
+    let field_byte_offset = collection_cursor
+        .byte_offset()
+        .checked_add(cursor.byte_offset())?;
+    stored_integer_projection_from_cursor(
+        cursor,
+        RuntimeStoredIntegerSource::FrameIndexed {
+            descriptor_offset: slot.byte_offset,
+            index_region: index_place.region,
+            index_offset: index_place.byte_offset,
+            index_byte_size: index_place.byte_count,
+            element_byte_size: element_layout.size,
+            field_byte_offset,
+        },
+    )
 }
 
 /// Whether a runtime-frame-INDEXED element field (`rooms[i].label`) is a fat
@@ -4084,24 +4453,61 @@ fn resolve_indexed_target_suffix_cursor_in_table<'layout>(
     expression: ExpressionHandle,
     boundary: ExpressionHandle,
 ) -> Option<NestedFieldLayoutCursor<'layout>> {
+    resolve_indexed_target_suffix_cursor_in_table_internal(
+        layouts,
+        cursor,
+        expressions,
+        expression,
+        boundary,
+        false,
+    )
+}
+
+fn resolve_indexed_stored_integer_suffix_cursor_in_table<'layout>(
+    layouts: &'layout omega_layout::LayoutPlan,
+    cursor: NestedFieldLayoutCursor<'layout>,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+    boundary: ExpressionHandle,
+) -> Option<NestedFieldLayoutCursor<'layout>> {
+    resolve_indexed_target_suffix_cursor_in_table_internal(
+        layouts,
+        cursor,
+        expressions,
+        expression,
+        boundary,
+        true,
+    )
+}
+
+fn resolve_indexed_target_suffix_cursor_in_table_internal<'layout>(
+    layouts: &'layout omega_layout::LayoutPlan,
+    cursor: NestedFieldLayoutCursor<'layout>,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+    boundary: ExpressionHandle,
+    allow_stored_integer: bool,
+) -> Option<NestedFieldLayoutCursor<'layout>> {
     if boundary.is_valid() && expression == boundary {
         return Some(cursor);
     }
     match expressions.expression(expression) {
-        ExpressionNode::Mutable(target) => resolve_indexed_target_suffix_cursor_in_table(
+        ExpressionNode::Mutable(target) => resolve_indexed_target_suffix_cursor_in_table_internal(
             layouts,
             cursor,
             expressions,
             *target,
             boundary,
+            allow_stored_integer,
         ),
         ExpressionNode::Indexed(indexed) => {
-            let Some(collection_cursor) = resolve_indexed_target_suffix_cursor_in_table(
+            let Some(collection_cursor) = resolve_indexed_target_suffix_cursor_in_table_internal(
                 layouts,
                 cursor,
                 expressions,
                 indexed.collection,
                 boundary,
+                allow_stored_integer,
             ) else {
                 return Some(cursor);
             };
@@ -4115,21 +4521,33 @@ fn resolve_indexed_target_suffix_cursor_in_table<'layout>(
             )
         }
         ExpressionNode::Member(member) => {
-            let cursor = resolve_indexed_target_suffix_cursor_in_table(
+            let cursor = resolve_indexed_target_suffix_cursor_in_table_internal(
                 layouts,
                 cursor,
                 expressions,
                 member.receiver,
                 boundary,
+                allow_stored_integer,
             )?;
-            resolve_nested_field_layout_step(
-                layouts,
-                cursor,
-                &member.member,
-                member.member_symbol,
-                None,
-                member.case_variant.as_ref(),
-            )
+            if allow_stored_integer {
+                resolve_nested_stored_integer_layout_step(
+                    layouts,
+                    cursor,
+                    &member.member,
+                    member.member_symbol,
+                    None,
+                    member.case_variant.as_ref(),
+                )
+            } else {
+                resolve_nested_field_layout_step(
+                    layouts,
+                    cursor,
+                    &member.member,
+                    member.member_symbol,
+                    None,
+                    member.case_variant.as_ref(),
+                )
+            }
         }
         _ => None,
     }
