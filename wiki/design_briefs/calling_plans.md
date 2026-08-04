@@ -1111,7 +1111,7 @@ relocation, and data relocation now consume that complete plan. Their former
 manual `+8`/`+12` stack accounting and trailing-mode operation classifier are
 retired; the operation key only selects the concrete adapter subcall.
 
-Final footprint certificate format v14 now retains an exact
+Final footprint certificate format v15 now retains an exact
 function-to-instruction partition in the encoded carrier. Checked image
 emission replays every contiguous function
 and instruction boundary over relocated final bytes, rejects gaps, overlaps,
@@ -1127,6 +1127,10 @@ certificate. Final validation also derives their architecture-owned
 register/machine-state union, requires equality with the `StatePlan`-validated
 `CallReturnMechanics` fragment, and binds that footprint plus the same boundary
 contract identity into the certificate.
+The replay boundary is the compiler-authored prefix, not the entire executable
+`.text` section. Format-owned import-thunk tails appended by Mach-O or PE stay
+outside compiler-function enumeration and are validated by their separate
+closed thunk specifications.
 The first middle-row target-spec replay covers dispatch-loop entry, case entry,
 state writes and termination, forward arm skips, and case leaves. Their
 normalized indices and branch distances survive emission; final validation
