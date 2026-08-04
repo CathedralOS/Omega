@@ -436,7 +436,12 @@ fn compiler_instruction_validation_kind(
                     | omega_instruction_selection::CopyPlacesShape::FromMachineDoubleIndexed { .. }
                     | omega_instruction_selection::CopyPlacesShape::ToMachineDoubleIndexed { .. }
                     | omega_instruction_selection::CopyPlacesShape::MachineIndexedPair { .. }
-            ) =>
+            )
+            || (emission_context.target.architecture == omega_target::Architecture::X86_64
+                && matches!(
+                    omega_instruction_selection::classify_copy_places_shape(source, target),
+                    omega_instruction_selection::CopyPlacesShape::General
+                )) =>
         {
             Some(CompilerInstructionValidationKind::CompilerBodyPlaceCopy {
                 source: *source,

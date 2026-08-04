@@ -1163,7 +1163,9 @@ machine storage are included too, together with direct-storage writes into
 runtime-indexed machine-array elements and double-runtime-indexed reads from
 inline frame or machine arrays. Their `Ordinary` role remains distinct from
 hidden-result copies, and the machine-array write-side mirror plus the
-machine-inline `arr[i] = arr[j]` pair are included.
+machine-inline `arr[i] = arr[j]` pair are included. The x86 general place
+materializer also replays every remaining otherwise-unclassified `CopyPlaces`
+path with scratch derived from each retained place's exact index depth.
 Final validation replays the exact target encoder
 and relocation set and matches the derived scratch union to the
 retained `CompilerBodyPlaceCopy` fragment. Other ordinary copy/write shapes and

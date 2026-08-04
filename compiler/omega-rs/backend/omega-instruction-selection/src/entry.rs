@@ -741,6 +741,9 @@ pub fn derive_boundary_compiler_body_place_copy_footprint<'instruction>(
                 omega_target::Architecture::Aarch64,
                 crate::CopyPlacesShape::MachineIndexedPair { .. },
             ) => omega_isa_aarch64::runtime_storage_copy_machine_indexed_to_machine_indexed_clobbers(),
+            (omega_target::Architecture::X86_64, crate::CopyPlacesShape::General) => {
+                omega_isa_x86_64::copy_places_clobbers(source, target, *byte_count)
+            }
             _ => continue,
         };
         registers.extend_from_slice(clobbers.as_slice());
@@ -2508,6 +2511,72 @@ mod tests {
             evidence.registers().as_slice(),
             &[
                 MachineRegister::X86Rax,
+                MachineRegister::X86R11,
+                MachineRegister::X86R14,
+                MachineRegister::X86R15,
+            ]
+        );
+    }
+
+    #[test]
+    fn compiler_body_general_x86_copy_uses_materializer_clobbers() {
+        let boundary = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::SystemVAMD64,
+            &CallSignature {
+                parameters: Vec::new(),
+                result: None,
+            },
+        )
+        .expect("System V boundary");
+        let target = omega_abstract_operations::Place::at(
+            omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+            32,
+        )
+        .with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+            index_region: omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+            index_offset: 64,
+            index_byte_size: 8,
+            element_byte_size: 24,
+        })
+        .and_then(|place| {
+            place.with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+                index_region: omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+                index_offset: 72,
+                index_byte_size: 8,
+                element_byte_size: 8,
+            })
+        })
+        .expect("frame double-indexed target");
+        let instruction = SelectedInstructionKind::CopyPlaces {
+            source: omega_abstract_operations::Place::at(
+                omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+                80,
+            ),
+            target,
+            byte_count: 8,
+            role: omega_abstract_operations::CopyPlacesRole::Ordinary,
+        };
+        assert!(matches!(
+            crate::classify_copy_places_shape(
+                match &instruction {
+                    SelectedInstructionKind::CopyPlaces { source, .. } => source,
+                    _ => unreachable!(),
+                },
+                match &instruction {
+                    SelectedInstructionKind::CopyPlaces { target, .. } => target,
+                    _ => unreachable!(),
+                },
+            ),
+            crate::CopyPlacesShape::General
+        ));
+        let evidence =
+            derive_boundary_compiler_body_place_copy_footprint(&boundary, [&instruction])
+                .expect("ordinary general place-copy evidence");
+        assert_eq!(
+            evidence.registers().as_slice(),
+            &[
+                MachineRegister::X86Rax,
+                MachineRegister::X86R10,
                 MachineRegister::X86R11,
                 MachineRegister::X86R14,
                 MachineRegister::X86R15,

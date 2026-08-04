@@ -695,6 +695,26 @@ pub fn encode_copy_places(
     }
 }
 
+/// Exact scratch footprint of the generic `CopyPlaces` materializer for any
+/// successfully encoded place pair. Both address registers are always
+/// written; r11 carries the first runtime index on either side, r10 carries a
+/// second index within either place, and non-empty chunks stage through rax.
+pub fn copy_places_clobbers(source: &Place, target: &Place, byte_count: usize) -> RegisterSet {
+    let source_indices = source.scaled_index_regions().count();
+    let target_indices = target.scaled_index_regions().count();
+    let mut registers = vec![MachineRegister::X86R14, MachineRegister::X86R15];
+    if source_indices > 0 || target_indices > 0 {
+        registers.push(MachineRegister::X86R11);
+    }
+    if source_indices > 1 || target_indices > 1 {
+        registers.push(MachineRegister::X86R10);
+    }
+    if byte_count > 0 {
+        registers.push(MachineRegister::X86Rax);
+    }
+    RegisterSet::new(registers)
+}
+
 /// Exact scratch footprint of a direct-source to dereferenced-target copy,
 /// the shape used by an indirect boundary result. The shared-base materializer
 /// holds the source base in r14, hops the target pointer into r15, and stages
@@ -1078,6 +1098,39 @@ mod tests {
             copy_places_direct_clobbers(8).as_slice(),
             &[
                 MachineRegister::X86Rax,
+                MachineRegister::X86R14,
+                MachineRegister::X86R15,
+            ]
+        );
+    }
+
+    #[test]
+    fn generic_copy_clobbers_follow_each_places_index_depth() {
+        let source = Place::at(RuntimeStorageRegion::RuntimeFrame, 16)
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::RuntimeFrame,
+                index_offset: 64,
+                index_byte_size: 8,
+                element_byte_size: 24,
+            })
+            .and_then(|place| {
+                place.with_step(PlaceStep::ScaledIndex {
+                    index_region: RuntimeStorageRegion::Machine,
+                    index_offset: 80,
+                    index_byte_size: 4,
+                    element_byte_size: 8,
+                })
+            })
+            .expect("double-indexed source");
+        let target = Place::at(RuntimeStorageRegion::Machine, 32)
+            .with_step(PlaceStep::Deref)
+            .expect("pointee target");
+        assert_eq!(
+            copy_places_clobbers(&source, &target, 8).as_slice(),
+            &[
+                MachineRegister::X86Rax,
+                MachineRegister::X86R10,
+                MachineRegister::X86R11,
                 MachineRegister::X86R14,
                 MachineRegister::X86R15,
             ]

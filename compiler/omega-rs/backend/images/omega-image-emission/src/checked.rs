@@ -307,6 +307,7 @@ enum CompilerBodyPlaceCopyShape {
         target_element_byte_size: usize,
         target_field_byte_offset: usize,
     },
+    General,
 }
 
 fn validate_compiler_function_instruction_boundaries(
@@ -1162,6 +1163,11 @@ fn validate_compiler_function_instruction_boundaries(
                                         target_field_byte_offset,
                                         byte_count,
                                     )?,
+                                    CompilerBodyPlaceCopyShape::General => {
+                                        return Err(Diagnostic::error(
+                                            "final aarch64 compiler-body place copy reached the x86-only general materializer class",
+                                        ));
+                                    }
                                 },
                             },
                             21u8,
@@ -1808,6 +1814,9 @@ fn compiler_instruction_footprint(
                         CompilerBodyPlaceCopyShape::MachineIndexedPair { .. } => {
                             omega_isa_x86_64::copy_places_machine_indexed_pair_clobbers(byte_count)
                         }
+                        CompilerBodyPlaceCopyShape::General => {
+                            omega_isa_x86_64::copy_places_clobbers(&source, &target, byte_count)
+                        }
                     },
                     Architecture::Aarch64 => match shape {
                         CompilerBodyPlaceCopyShape::Direct {
@@ -1888,6 +1897,7 @@ fn compiler_instruction_footprint(
                         CompilerBodyPlaceCopyShape::MachineIndexedPair { .. } => {
                             omega_isa_aarch64::runtime_storage_copy_machine_indexed_to_machine_indexed_clobbers()
                         }
+                        CompilerBodyPlaceCopyShape::General => return None,
                     },
                 },
                 MachineStateSet::empty(),
@@ -2389,6 +2399,9 @@ fn compiler_place_copy_address_sites(
                 }
                 Ok(sites)
             }
+            CompilerBodyPlaceCopyShape::General => Err(Diagnostic::error(
+                "final aarch64 place-copy relocation replay reached the x86-only general materializer class",
+            )),
             _ => Ok(vec![(0, source.region), (8, target.region)]),
         },
     }
@@ -2652,7 +2665,10 @@ fn compiler_body_place_copy_shape(
                 target_offset: offsets.2,
             });
         }
-        Err(_) => compiler_place_copy_pointee_pair_offsets(source, target)?,
+        Err(_) => match compiler_place_copy_pointee_pair_offsets(source, target) {
+            Ok(offsets) => offsets,
+            Err(_) => return Ok(CompilerBodyPlaceCopyShape::General),
+        },
     };
     Ok(CompilerBodyPlaceCopyShape::PointeePair {
         source_pointer_byte_offset,
@@ -5431,9 +5447,11 @@ fn fingerprint_into(fingerprint: &mut u64, bytes: &[u8]) {
 #[cfg(test)]
 mod tests {
     use super::{
-        compiler_instruction_non_relocation_bits_match, compiler_place_value_address_sites,
-        compiler_runtime_value_compare_address_sites, emit_checked_executable_image,
-        validate_checked_instruction_bytes, validate_compiler_data_address_relocations,
+        CompilerBodyPlaceCopyShape, compiler_body_place_copy_shape,
+        compiler_instruction_non_relocation_bits_match, compiler_place_copy_address_sites,
+        compiler_place_value_address_sites, compiler_runtime_value_compare_address_sites,
+        emit_checked_executable_image, validate_checked_instruction_bytes,
+        validate_compiler_data_address_relocations,
         validate_compiler_function_instruction_boundaries,
         validate_compiler_runtime_text_relocations, validate_executable_region_enumeration,
         validate_final_text_relocation_envelope,
@@ -5926,6 +5944,66 @@ mod tests {
         )
         .expect_err("missing place-derived relocations must reject");
         assert!(diagnostic.message.contains("operand-derived"));
+    }
+
+    #[test]
+    fn general_x86_place_copy_replay_uses_the_materializer_and_its_sites() {
+        use omega_target_operations::{Place, PlaceStep, RuntimeStorageRegion};
+
+        let source = Place::at(RuntimeStorageRegion::RuntimeFrame, 80);
+        let target = Place::at(RuntimeStorageRegion::RuntimeFrame, 32)
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::RuntimeFrame,
+                index_offset: 64,
+                index_byte_size: 8,
+                element_byte_size: 24,
+            })
+            .and_then(|place| {
+                place.with_step(PlaceStep::ScaledIndex {
+                    index_region: RuntimeStorageRegion::RuntimeFrame,
+                    index_offset: 72,
+                    index_byte_size: 8,
+                    element_byte_size: 8,
+                })
+            })
+            .expect("frame double-indexed target");
+        assert!(matches!(
+            compiler_body_place_copy_shape(&source, &target).expect("classify final place copy"),
+            CompilerBodyPlaceCopyShape::General
+        ));
+
+        let (bytes, encoded_sites) = omega_isa_x86_64::encode_copy_places(&source, &target, 8)
+            .expect("general x86 place copy");
+        assert!(!bytes.is_empty());
+        let replay_sites = compiler_place_copy_address_sites(
+            omega_target::Architecture::X86_64,
+            source,
+            target,
+            8,
+        )
+        .expect("general x86 final relocation sites");
+        let expected_sites = encoded_sites
+            .iter()
+            .map(|(offset, side)| {
+                let region = match side {
+                    omega_isa_x86_64::PlaceCopySide::Source => source.region,
+                    omega_isa_x86_64::PlaceCopySide::Target => target.region,
+                    omega_isa_x86_64::PlaceCopySide::SourceIndex
+                    | omega_isa_x86_64::PlaceCopySide::SourceIndex2 => {
+                        source.scaled_index_region().unwrap_or(source.region)
+                    }
+                    omega_isa_x86_64::PlaceCopySide::TargetIndex => {
+                        target.scaled_index_region().expect("first target index")
+                    }
+                    omega_isa_x86_64::PlaceCopySide::TargetIndex2 => target
+                        .scaled_index_regions()
+                        .nth(1)
+                        .expect("second target index"),
+                };
+                (offset, region)
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(replay_sites, expected_sites);
     }
 
     #[test]
