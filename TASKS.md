@@ -136,11 +136,14 @@ composite claim-frontier work remain.
   package owns the exact inherited semantic schema without a look-alike root
   domain. Its current exported UEFI `Main::run(handle, table)` remains the
   boot-verified raw firmware callable, not yet the selected storage provider.
-  Remaining implementation is Build entry-schema selection plus the generated
+  Remaining integration is Build entry-schema selection plus the generated
   stub/geometry bridge that binds emitted image and initial-storage geometry to
-  the inherited positions before forwarding the firmware invocation. This is
-  not a language-design blocker; do not substitute name recognition or pretend
-  firmware supplied `Extent` parameters.
+  the inherited positions before forwarding the firmware invocation. The stub
+  and geometry work is engineering, but production selection is **DESIGN
+  BLOCKED by `OWNER_QUESTIONS.md` Q4** because the owning Build model still
+  leaves its entry slot/discovery rule open. Do not substitute name recognition,
+  silently choose a unique export, or pretend firmware supplied `Extent`
+  parameters.
 
 - `Task<T>` plus the interrupt mask guard and acknowledgement token are now
   ordinary linear data. The interrupt carriers expose the compact
