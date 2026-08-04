@@ -1127,7 +1127,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         executable_regions.contains(
             "\"certificate_schema\": \"omega.final-footprint-certificate\""
         )
-            && executable_regions.contains("\"certificate_format_version\": 54")
+            && executable_regions.contains("\"certificate_format_version\": 55")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
             && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")
@@ -2649,6 +2649,56 @@ fn compiler_body_text_stored_append_footprints_reach_artifacts() {
                 && footprints.contains(expected_register)
                 && footprints.contains("\"enumeration_complete\": false"),
             "{target} artifact must retain stored-text append evidence without claiming completeness"
+        );
+        let _ = fs::remove_dir_all(&scratch);
+    }
+}
+
+#[test]
+fn compiler_body_text_stored_suffix_footprints_reach_artifacts() {
+    let canary = pass_canary("text/runtime_string_stored_suffix_exit");
+    for (target, expected_register) in [
+        ("linux_x64", "\"X86R11\""),
+        ("linux_arm64", "\"Aarch64X(23)\""),
+    ] {
+        let scratch = std::env::temp_dir().join(format!(
+            "omega-compiler-body-text-stored-suffix-footprint-{target}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&scratch);
+        let source = scratch.join("src");
+        let output = scratch.join("out");
+        fs::create_dir_all(&source)
+            .expect("create compiler-body stored-text suffix source directory");
+        fs::copy(canary.join("main.omg"), source.join("main.omg"))
+            .expect("copy compiler-body stored-text suffix canary");
+        fs::write(
+            source.join("build.omg"),
+            format!("target {target} {{\n}}\n"),
+        )
+        .expect("write compiler-body stored-text suffix target");
+        compile(CompileOptions {
+            root_path: source.join("main.omg"),
+            build_dir: Some(output.clone()),
+            target_name: Some(target.into()),
+            write_output: true,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!("compiler-body stored-text suffix should compile for {target}: {diagnostics:?}")
+        });
+        let footprints = fs::read_to_string(output.join("08_boundary_footprints.json"))
+            .expect("compiler-body stored-text suffix evidence should be written");
+        let target_operations = fs::read_to_string(output.join("09_target_operations.html"))
+            .expect("compiler-body stored-text suffix target operations should be written");
+        assert!(
+            target_operations.contains("AppendRuntimeTextStoredSuffix"),
+            "{target} canary must exercise the segmented stored-suffix operation"
+        );
+        assert!(
+            footprints.contains("\"origin\": \"compiler_body_text_assembly_write\"")
+                && footprints.contains(expected_register)
+                && footprints.contains("\"enumeration_complete\": false"),
+            "{target} artifact must retain segmented stored-suffix evidence without claiming completeness"
         );
         let _ = fs::remove_dir_all(&scratch);
     }
@@ -36233,6 +36283,39 @@ fn runtime_local_struct_string_field_concat_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_string_stored_suffix_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_string_stored_suffix_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-string-stored-suffix-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime string stored-suffix canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime string stored-suffix canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(193),
+        "expected segmented stored-suffix text assembly to exit 193, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_lookup_struct_field_concat_exit_canary_runs() {
     let canary = pass_canary("text/runtime_lookup_struct_field_concat_exit");
     let main_path = canary.join("main.omg");
@@ -45350,6 +45433,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "text/runtime_mutable_string_parameter_wrapped_concat_write_line",
     "text/runtime_mutable_struct_string_field_copy_concat_exit",
     "text/runtime_local_struct_string_field_concat_exit",
+    "text/runtime_string_stored_suffix_exit",
     "text/runtime_lookup_struct_field_concat_exit",
     "text/runtime_large_lookup_struct_field_concat_exit",
     "text/runtime_large_room_lookup_struct_field_concat_exit",

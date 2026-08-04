@@ -221,6 +221,11 @@ enum CompilerInstructionRelocationRecipe {
         buffer_symbol: std::sync::Arc<str>,
         source_region: omega_target_operations::RuntimeStorageRegion,
     },
+    RuntimeTextStoredSuffix {
+        buffer_symbol: std::sync::Arc<str>,
+        source_region: omega_target_operations::RuntimeStorageRegion,
+        target_region: omega_target_operations::RuntimeStorageRegion,
+    },
     RuntimeValue {
         left: omega_target_operations::RuntimeValueOperandHandle,
         right: omega_target_operations::RuntimeValueOperandHandle,
@@ -1878,6 +1883,41 @@ fn validate_compiler_function_instruction_boundaries(
                             buffer_symbol,
                         },
                     ),
+                    omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyTextStoredSuffixAppend {
+                        buffer_symbol,
+                        buffer_offset,
+                        source_region,
+                        source_offset,
+                        target_region,
+                        target_offset,
+                        length_delta,
+                    } => (
+                        None,
+                        match architecture {
+                            Architecture::X86_64 => {
+                                omega_isa_x86_64::encode_runtime_text_stored_suffix_append(
+                                    buffer_offset,
+                                    source_offset,
+                                    target_offset,
+                                    length_delta,
+                                )?
+                            }
+                            Architecture::Aarch64 => {
+                                omega_isa_aarch64::encode_runtime_text_stored_suffix_append(
+                                    buffer_offset,
+                                    source_offset,
+                                    target_offset,
+                                    length_delta,
+                                )?
+                            }
+                        },
+                        32u8,
+                        CompilerInstructionRelocationRecipe::RuntimeTextStoredSuffix {
+                            buffer_symbol,
+                            source_region,
+                            target_region,
+                        },
+                    ),
                     omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyPlaceBinaryWrite {
                         target,
                         byte_size,
@@ -2705,7 +2745,7 @@ fn validate_compiler_function_instruction_boundaries(
                             instruction.selected_instruction_index,
                             instruction_byte_offset,
                             &buffer_symbol,
-                            None,
+                            &[],
                         )?;
                         encoded_instruction_bytes == expected_bytes
                             && compiler_instruction_non_relocation_bits_match(
@@ -2730,7 +2770,7 @@ fn validate_compiler_function_instruction_boundaries(
                             instruction.selected_instruction_index,
                             instruction_byte_offset,
                             &buffer_symbol,
-                            Some((source_site, source_region)),
+                            &[(source_site, source_region)],
                         )?;
                         encoded_instruction_bytes == expected_bytes
                             && compiler_instruction_non_relocation_bits_match(
@@ -2738,6 +2778,35 @@ fn validate_compiler_function_instruction_boundaries(
                                 &expected_bytes,
                                 final_instruction_bytes,
                                 &[0, source_site],
+                            )
+                    }
+                    CompilerInstructionRelocationRecipe::RuntimeTextStoredSuffix {
+                        buffer_symbol,
+                        source_region,
+                        target_region,
+                    } => {
+                        let (source_site, target_site) = match architecture {
+                            Architecture::Aarch64 => (8usize, 52usize),
+                            Architecture::X86_64 => (
+                                omega_isa_x86_64::RUNTIME_TEXT_STORED_SUFFIX_APPEND_SOURCE_IMM_OFFSET,
+                                omega_isa_x86_64::RUNTIME_TEXT_STORED_SUFFIX_APPEND_TARGET_IMM_OFFSET,
+                            ),
+                        };
+                        validate_compiler_runtime_text_relocations(
+                            architecture,
+                            object,
+                            relocations,
+                            instruction.selected_instruction_index,
+                            instruction_byte_offset,
+                            &buffer_symbol,
+                            &[(source_site, source_region), (target_site, target_region)],
+                        )?;
+                        encoded_instruction_bytes == expected_bytes
+                            && compiler_instruction_non_relocation_bits_match(
+                                architecture,
+                                &expected_bytes,
+                                final_instruction_bytes,
+                                &[0, source_site, target_site],
                             )
                     }
                     CompilerInstructionRelocationRecipe::RuntimeValue { left, right } => {
@@ -3606,6 +3675,20 @@ fn compiler_instruction_footprint(
                     omega_isa_aarch64::runtime_text_literal_segment_write_register_writes(),
                     omega_isa_aarch64::runtime_text_literal_segment_write_additional_machine_state(
                     ),
+                ),
+            }
+        }
+        CompilerInstructionValidationKind::CompilerBodyTextStoredSuffixAppend { .. } => {
+            match architecture {
+                Architecture::X86_64 => (
+                    BoundaryFootprintFragmentOrigin::CompilerBodyTextAssemblyWrite,
+                    omega_isa_x86_64::runtime_text_stored_suffix_append_register_writes(),
+                    omega_isa_x86_64::runtime_text_stored_suffix_append_additional_machine_state(),
+                ),
+                Architecture::Aarch64 => (
+                    BoundaryFootprintFragmentOrigin::CompilerBodyTextAssemblyWrite,
+                    omega_isa_aarch64::runtime_text_stored_suffix_append_register_writes(),
+                    omega_isa_aarch64::runtime_text_stored_suffix_append_additional_machine_state(),
                 ),
             }
         }
@@ -6605,7 +6688,7 @@ fn validate_compiler_runtime_text_relocations(
     selected_instruction_index: u32,
     instruction_byte_offset: usize,
     buffer_symbol: &str,
-    source: Option<(usize, omega_target_operations::RuntimeStorageRegion)>,
+    storage_sites: &[(usize, omega_target_operations::RuntimeStorageRegion)],
 ) -> Result<(), Diagnostic> {
     #[derive(Clone, Copy)]
     enum ExpectedTarget<'symbol> {
@@ -6625,8 +6708,8 @@ fn validate_compiler_runtime_text_relocations(
     actual.sort_unstable_by_key(|relocation| relocation.offset);
 
     let mut sites = vec![(0usize, ExpectedTarget::Buffer(buffer_symbol))];
-    if let Some((site, region)) = source {
-        sites.push((site, ExpectedTarget::Storage(region)));
+    for (site, region) in storage_sites {
+        sites.push((*site, ExpectedTarget::Storage(*region)));
     }
     let mut expected = Vec::new();
     for (site, target) in sites {
@@ -6678,7 +6761,7 @@ fn validate_compiler_runtime_text_relocations(
             });
     if !matches {
         return Err(Diagnostic::error(format!(
-            "compiler runtime-text guard instruction #{selected_instruction_index} does not retain its exact buffer/source relocation set"
+            "compiler runtime-text instruction #{selected_instruction_index} does not retain its exact buffer/storage relocation set"
         )));
     }
     Ok(())
@@ -8968,10 +9051,10 @@ mod tests {
             instruction_index,
             instruction_offset,
             "omega_data_text_guard_buffer",
-            Some((
+            &[(
                 10,
                 omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
-            )),
+            )],
         )
         .expect("runtime-text replay should accept its exact data and storage symbols");
 
@@ -8982,13 +9065,13 @@ mod tests {
             instruction_index,
             instruction_offset,
             "omega_data_other_buffer",
-            Some((
+            &[(
                 10,
                 omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
-            )),
+            )],
         )
         .expect_err("a substituted runtime-text buffer symbol must reject");
-        assert!(diagnostic.message.contains("buffer/source relocation set"));
+        assert!(diagnostic.message.contains("buffer/storage relocation set"));
 
         let mut missing_source = RelocationPlan::with_target(target);
         missing_source.push_record(
@@ -9006,13 +9089,13 @@ mod tests {
             instruction_index,
             instruction_offset,
             "omega_data_text_guard_buffer",
-            Some((
+            &[(
                 10,
                 omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
-            )),
+            )],
         )
         .expect_err("a missing runtime-text source relocation must reject");
-        assert!(diagnostic.message.contains("buffer/source relocation set"));
+        assert!(diagnostic.message.contains("buffer/storage relocation set"));
     }
 
     #[test]

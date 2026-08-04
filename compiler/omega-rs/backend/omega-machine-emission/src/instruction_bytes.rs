@@ -606,6 +606,25 @@ fn compiler_instruction_validation_kind(
                 literal: Arc::clone(literal),
             },
         ),
+        SelectedInstructionKind::AppendRuntimeTextStoredSuffix {
+            buffer,
+            buffer_offset,
+            source_region,
+            source_offset,
+            target_region,
+            target_offset,
+            length_delta,
+        } => Some(
+            CompilerInstructionValidationKind::CompilerBodyTextStoredSuffixAppend {
+                buffer_symbol: Arc::clone(&emission_context.data.objects.get(*buffer).symbol),
+                buffer_offset: *buffer_offset,
+                source_region: *source_region,
+                source_offset: *source_offset,
+                target_region: *target_region,
+                target_offset: *target_offset,
+                length_delta: *length_delta,
+            },
+        ),
         SelectedInstructionKind::AppendTextLiteralToPlace {
             buffer,
             target,

@@ -968,8 +968,9 @@ pub fn runtime_text_stored_place_append_additional_machine_state() -> MachineSta
 /// Appends a stored source string (a `{ptr,len}` descriptor in `source_region`)
 /// to the end of a target string that lives in a fixed output `buffer`, updating
 /// the target descriptor. r14=buffer base, r15=target region base, the source
-/// region base is loaded into rcx. The copy itself is a `rep movsb` (rsi/rdi are
-/// preserved around it). `buffer_offset` is unused (the append point is the
+/// region base is loaded into rcx. The copy itself is a `rep movsb`; the
+/// enclosing callable frame preserves generated nonvolatile registers.
+/// `buffer_offset` is unused (the append point is the
 /// target's current length).
 pub fn encode_runtime_text_stored_place_append(
     source_offset: usize,
@@ -1008,7 +1009,8 @@ pub fn runtime_text_stored_place_append_to_runtime_pointee_width() -> usize {
 /// `encode_runtime_text_stored_place_append`, but loads the descriptor base by
 /// dereferencing the runtime pointer (one extra `mov r15,[r15+disp32]`) instead of
 /// using a relocated target-region base. r14=materialized buffer base, r15=descriptor
-/// address, rcx=source region base; the copy is a `rep movsb` (rsi/rdi preserved).
+/// address, rcx=source region base; the copy is a `rep movsb`, with generated
+/// nonvolatile registers preserved by the enclosing callable frame.
 /// The descriptor's `ptr` is overwritten to the buffer base and `len` grows by the
 /// source length -- so a prior stale `ptr` (e.g. from WriteRuntimePointeeString) is
 /// corrected here.
@@ -1045,10 +1047,27 @@ pub fn encode_runtime_text_stored_place_append_to_runtime_pointee(
 }
 
 pub const RUNTIME_TEXT_STORED_SUFFIX_APPEND_SOURCE_IMM_OFFSET: usize = 10;
-pub const RUNTIME_TEXT_STORED_SUFFIX_APPEND_TARGET_IMM_OFFSET: usize = 59;
+pub const RUNTIME_TEXT_STORED_SUFFIX_APPEND_TARGET_IMM_OFFSET: usize = 55;
 
 pub fn runtime_text_stored_suffix_append_width() -> usize {
-    90
+    86
+}
+
+pub fn runtime_text_stored_suffix_append_register_writes() -> RegisterSet {
+    RegisterSet::new([
+        MachineRegister::X86Rax,
+        MachineRegister::X86Rcx,
+        MachineRegister::X86Rsi,
+        MachineRegister::X86Rdi,
+        MachineRegister::X86R10,
+        MachineRegister::X86R11,
+        MachineRegister::X86R14,
+        MachineRegister::X86R15,
+    ])
+}
+
+pub fn runtime_text_stored_suffix_append_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::new([MachineState::Flags])
 }
 
 /// Writes a stored source string into `buffer + buffer_offset` and sets the
@@ -1068,11 +1087,9 @@ pub fn encode_runtime_text_stored_suffix_append(
     append_mov_r11_rcx(&mut bytes); // r11 = saved source length
     append_mov_r10_r14(&mut bytes); // r10 = buffer base
     append_add_r10_imm32(&mut bytes, buffer_offset)?; // r10 = dest = buffer + buffer_offset
-    append_push_rsi_rdi(&mut bytes);
     append_mov_rsi_rax(&mut bytes); // rsi = source pointer
     append_mov_rdi_r10(&mut bytes); // rdi = dest
     append_rep_movsb(&mut bytes); // copy rcx bytes
-    append_pop_rdi_rsi(&mut bytes);
     debug_assert_eq!(
         bytes.len(),
         RUNTIME_TEXT_STORED_SUFFIX_APPEND_TARGET_IMM_OFFSET
@@ -16156,14 +16173,6 @@ fn append_mov_rdi_r10(bytes: &mut Vec<u8>) {
 
 fn append_rep_movsb(bytes: &mut Vec<u8>) {
     bytes.extend([0xf3, 0xa4]); // rep movsb (copy rcx bytes [rsi]->[rdi], DF=0)
-}
-
-fn append_push_rsi_rdi(bytes: &mut Vec<u8>) {
-    bytes.extend([0x56, 0x57]); // push rsi ; push rdi
-}
-
-fn append_pop_rdi_rsi(bytes: &mut Vec<u8>) {
-    bytes.extend([0x5f, 0x5e]); // pop rdi ; pop rsi
 }
 
 fn append_mov_r12d_imm32(bytes: &mut Vec<u8>, value: u32) -> Result<(), Diagnostic> {

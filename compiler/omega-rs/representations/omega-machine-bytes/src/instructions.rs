@@ -150,6 +150,15 @@ pub enum CompilerInstructionValidationKind {
         byte_offset: usize,
         literal: Arc<str>,
     },
+    CompilerBodyTextStoredSuffixAppend {
+        buffer_symbol: Arc<str>,
+        buffer_offset: usize,
+        source_region: RuntimeStorageRegion,
+        source_offset: usize,
+        target_region: RuntimeStorageRegion,
+        target_offset: usize,
+        length_delta: usize,
+    },
     CompilerBodyPlaceBinaryWrite {
         target: Place,
         byte_size: usize,

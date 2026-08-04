@@ -1087,14 +1087,15 @@ source appends share it for direct/pointee x86 targets and direct, pointee, or
 frame-indexed AArch64 targets, with exact source storage and mixed
 buffer/source/target relocations. Segmented literal writes retain their exact
 buffer symbol, byte offset, literal, encoder, and sole data relocation under
-the same text-assembly fragment; segmented stored-suffix operations remain
-outside the partial proof.
+the same text-assembly fragment. Segmented stored-suffix appends retain the
+exact buffer and source/target storage identities, offsets, length delta,
+encoder, and mixed relocation set under that fragment too.
 Place-copy selection retains its separate `compiler_body_place_copy` evidence
 only for
 the `Ordinary` role; final validation regenerates the same place-copy bytes,
 checks the storage, pointer-slot, and index relocations, and requires the target
 scratch union to match. Other otherwise-general binary targets, AArch64
-composed-place conversion shapes, segmented stored-suffix operations, and calls remain
+composed-place conversion shapes, and calls remain
 outside the partial proof. The pointee-pair selector resolves
 both reference operands before flat storage, so the source remains a
 dereference rather than being mistaken for pointer-slot contents.
@@ -1127,7 +1128,7 @@ relocation-envelope fingerprints plus their composed derivation identity. The
 boundary/placement binding includes that derivation identity, so a valid final
 inventory cannot be paired with evidence from a different encoded-to-final
 derivation. The single emitted artifact is now self-described as
-`omega.final-footprint-certificate` format v27, with a domain-separated
+`omega.final-footprint-certificate` format v55, with a domain-separated
 certificate fingerprint over its final placement binding, compiler-text
 derivation, and region inventory. It remains explicitly incomplete evidence,
 not an admission certificate, until the missing footprint classes close. The
