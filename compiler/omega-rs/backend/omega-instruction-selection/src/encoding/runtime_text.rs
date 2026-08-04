@@ -425,7 +425,10 @@ pub fn encode_runtime_text_buffer_materialize_to_runtime_pointee(
                 field_byte_offset,
             )
         }
-        Architecture::X86_64 => unsupported_x86_64_encoding(),
+        Architecture::X86_64 => x86_64::encode_runtime_text_buffer_materialize_to_runtime_pointee(
+            pointer_byte_offset,
+            field_byte_offset,
+        ),
     }
 }
 
@@ -447,7 +450,15 @@ pub fn encode_runtime_text_buffer_materialize_to_runtime_frame_indexed(
                 field_byte_offset,
             )
         }
-        Architecture::X86_64 => unsupported_x86_64_encoding(),
+        Architecture::X86_64 => {
+            x86_64::encode_runtime_text_buffer_materialize_to_runtime_frame_indexed(
+                descriptor_offset,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+            )
+        }
     }
 }
 

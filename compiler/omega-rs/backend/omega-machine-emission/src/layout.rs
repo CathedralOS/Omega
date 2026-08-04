@@ -379,11 +379,13 @@ fn machine_instruction_width(
                     field_byte_offset,
                 ),
                 omega_instruction_selection::WritePlaceShape::FrameIndexed {
+                    index_byte_size,
                     element_byte_size,
                     field_byte_offset,
                     ..
                 } => omega_instruction_selection::runtime_text_buffer_materialize_to_runtime_frame_indexed_width(
                     input.target.architecture,
+                    index_byte_size,
                     element_byte_size,
                     field_byte_offset,
                 ),
