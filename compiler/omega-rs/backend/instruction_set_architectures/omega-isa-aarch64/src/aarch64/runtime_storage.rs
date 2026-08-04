@@ -3215,6 +3215,29 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_storage
     Ok(bytes)
 }
 
+/// Exact scratch footprint shared by both runtime-frame-indexed source copy
+/// encoders above. Address formation always writes x16/x17/x19/x20/x21/x26;
+/// later chunk and large-offset paths stay within that same closed set.
+pub fn runtime_storage_copy_from_runtime_frame_indexed_clobbers() -> RegisterSet {
+    RegisterSet::new([
+        MachineRegister::Aarch64X(16),
+        MachineRegister::Aarch64X(17),
+        MachineRegister::Aarch64X(19),
+        MachineRegister::Aarch64X(20),
+        MachineRegister::Aarch64X(21),
+        MachineRegister::Aarch64X(26),
+    ])
+}
+
+/// Offset of the second page-pair in the to-runtime-storage variant. A
+/// frame-to-frame copy reuses the opening frame base and has no second site.
+pub fn runtime_storage_copy_from_runtime_frame_indexed_target_address_offset(
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> usize {
+    super::widths::runtime_frame_index_setup_width(element_byte_size, field_byte_offset)
+}
+
 pub fn encode_runtime_storage_copy_from_runtime_frame_fixed_indexed(
     descriptor_offset: usize,
     element_index: usize,
@@ -7254,6 +7277,25 @@ mod tests {
                 MachineRegister::Aarch64X(20),
                 MachineRegister::Aarch64X(26),
             ]
+        );
+    }
+
+    #[test]
+    fn from_indexed_clobbers_cover_address_formation_and_copy_chunks() {
+        assert_eq!(
+            runtime_storage_copy_from_runtime_frame_indexed_clobbers().as_slice(),
+            &[
+                MachineRegister::Aarch64X(16),
+                MachineRegister::Aarch64X(17),
+                MachineRegister::Aarch64X(19),
+                MachineRegister::Aarch64X(20),
+                MachineRegister::Aarch64X(21),
+                MachineRegister::Aarch64X(26),
+            ]
+        );
+        assert_eq!(
+            runtime_storage_copy_from_runtime_frame_indexed_target_address_offset(8, 16),
+            widths::runtime_frame_index_setup_width(8, 16)
         );
     }
 

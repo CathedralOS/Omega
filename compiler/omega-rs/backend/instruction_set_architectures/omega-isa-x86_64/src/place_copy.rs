@@ -721,6 +721,21 @@ pub fn copy_places_pointee_pair_clobbers(byte_count: usize) -> RegisterSet {
     copy_places_direct_clobbers(byte_count)
 }
 
+/// Exact scratch footprint of a copy with one runtime-indexed source. r11
+/// holds and scales the index, r14/r15 hold the two addresses, and non-empty
+/// chunks stage through rax.
+pub fn copy_places_from_indexed_clobbers(byte_count: usize) -> RegisterSet {
+    let mut registers = vec![
+        MachineRegister::X86R11,
+        MachineRegister::X86R14,
+        MachineRegister::X86R15,
+    ];
+    if byte_count > 0 {
+        registers.push(MachineRegister::X86Rax);
+    }
+    RegisterSet::new(registers)
+}
+
 /// Exact scratch footprint of a direct place-pair copy. Both address bases are
 /// materialized unconditionally; non-empty copies stage chunks through rax.
 pub fn copy_places_direct_clobbers(byte_count: usize) -> RegisterSet {
@@ -1028,6 +1043,27 @@ mod tests {
             copy_places_pointee_pair_clobbers(8).as_slice(),
             &[
                 MachineRegister::X86Rax,
+                MachineRegister::X86R14,
+                MachineRegister::X86R15,
+            ]
+        );
+    }
+
+    #[test]
+    fn from_indexed_clobbers_track_index_and_nonempty_chunks() {
+        assert_eq!(
+            copy_places_from_indexed_clobbers(0).as_slice(),
+            &[
+                MachineRegister::X86R11,
+                MachineRegister::X86R14,
+                MachineRegister::X86R15,
+            ]
+        );
+        assert_eq!(
+            copy_places_from_indexed_clobbers(8).as_slice(),
+            &[
+                MachineRegister::X86Rax,
+                MachineRegister::X86R11,
                 MachineRegister::X86R14,
                 MachineRegister::X86R15,
             ]
