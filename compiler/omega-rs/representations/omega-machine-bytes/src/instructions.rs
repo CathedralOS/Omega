@@ -92,6 +92,11 @@ pub enum CompilerInstructionValidationKind {
         spill_offset: usize,
         byte_length: usize,
     },
+    ExitIndirectResultCopy {
+        source: omega_target_operations::Place,
+        target: omega_target_operations::Place,
+        byte_count: usize,
+    },
     DispatchStateWrite {
         dispatch_index: u32,
         case_leave_byte_distance: isize,

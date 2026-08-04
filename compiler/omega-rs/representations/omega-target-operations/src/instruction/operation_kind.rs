@@ -446,6 +446,7 @@ pub enum TargetOperationKind {
         source: Place,
         target: Place,
         byte_count: usize,
+        role: omega_abstract_operations::CopyPlacesRole,
     },
 
     /// Write rung 2a: store an immediate integer at `byte_size` into a

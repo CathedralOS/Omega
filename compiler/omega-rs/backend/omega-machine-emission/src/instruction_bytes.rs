@@ -3,7 +3,8 @@ use crate::branch_distances;
 use crate::encoding::encode_machine_instruction_bytes;
 use crate::layout::{self, layout_machine_instructions};
 use omega_assigned_target_operations::{
-    SelectedInstructionKind, StateGuardLowering, StateGuardOperator, TargetOperationKind,
+    CopyPlacesRole, SelectedInstructionKind, StateGuardLowering, StateGuardOperator,
+    TargetOperationKind,
 };
 use omega_machine_bytes::{
     CheckedInstructionValidationKind, CheckedOperandLoaderKind, CheckedOperandLoaderRegister,
@@ -381,6 +382,16 @@ fn compiler_instruction_validation_kind(
                 byte_length: *byte_length,
             },
         ),
+        SelectedInstructionKind::CopyPlaces {
+            source,
+            target,
+            byte_count,
+            role: CopyPlacesRole::ExitIndirectResult,
+        } => Some(CompilerInstructionValidationKind::ExitIndirectResultCopy {
+            source: *source,
+            target: *target,
+            byte_count: *byte_count,
+        }),
         SelectedInstructionKind::SetDispatchState { dispatch_index } => {
             Some(CompilerInstructionValidationKind::DispatchStateWrite {
                 dispatch_index: *dispatch_index,

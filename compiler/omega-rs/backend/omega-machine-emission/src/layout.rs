@@ -890,6 +890,7 @@ fn machine_instruction_width(
             source,
             target,
             byte_count,
+            ..
         } => omega_instruction_selection::copy_places_width(
             input.target.architecture,
             source,

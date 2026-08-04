@@ -615,6 +615,7 @@ pub(super) fn encode_machine_instruction_bytes(
             source,
             target,
             byte_count,
+            ..
         } => omega_instruction_selection::encode_copy_places(
             input.target.architecture,
             source,

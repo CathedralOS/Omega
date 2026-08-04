@@ -703,10 +703,12 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 source,
                 target,
                 byte_count,
+                role,
             } => Self::CopyPlaces {
                 source: *source,
                 target: *target,
                 byte_count: *byte_count,
+                role: *role,
             },
             omega_abstract_operations::AbstractOperationKind::WritePlaceInteger {
                 target,

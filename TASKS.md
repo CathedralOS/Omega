@@ -882,7 +882,7 @@ proves complete region coverage, and composes admitted leaves under their
 separate provenance. Do not add a second whole-image decoder/admission path.
 
 The existing single final-region artifact now carries the domain-separated
-`omega.final-footprint-certificate` schema, format version 12, and a certificate
+`omega.final-footprint-certificate` schema, format version 13, and a certificate
 fingerprint over its final placement binding, compiler-text derivation, and
 complete region inventory. Its explicit completeness flags remain false until
 compiler-body footprint decoding and admitted-leaf evidence land. The envelope
@@ -933,6 +933,12 @@ entry `args` slice-descriptor write. Each row retains its normalized ABI/storage
 recipe, requires the exact runtime-frame relocation site even when a stack-held
 indirect pointer precedes it, and must reproduce the earlier `EntryStorage` or
 `EntrySliceDescriptor` StatePlan fragment. The final validator now also
+replays indirect-result copies through the captured hidden destination pointer.
+The canonical place-pair operation retains a closed boundary role so an
+ordinary pointee copy cannot acquire ABI evidence by matching the same shape;
+validation regenerates the exact place-copy program and relocation set and
+requires its clobber union to equal `ExitIndirectResultCopy`. The final
+validator now also
 re-derives the dispatch/static-guard register and machine-state unions from
 those successfully replayed rows, requires exact equality with their earlier
 `StatePlan`-validated semantic fragments (including the complete place-guard

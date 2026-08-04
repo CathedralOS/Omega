@@ -496,6 +496,7 @@ pub fn derive_boundary_exit_indirect_result_copy_footprint<'instruction>(
             source,
             target,
             byte_count,
+            role: omega_abstract_operations::CopyPlacesRole::ExitIndirectResult,
         } = instruction
         else {
             continue;
@@ -1658,6 +1659,7 @@ mod tests {
             ),
             target,
             byte_count,
+            role: omega_abstract_operations::CopyPlacesRole::ExitIndirectResult,
         }
     }
 
@@ -1716,6 +1718,31 @@ mod tests {
                 MachineRegister::Aarch64X(20),
             ]
         );
+    }
+
+    #[test]
+    fn ordinary_pointee_copy_does_not_acquire_indirect_result_footprint() {
+        let result = ValueShape::integer(24, 8);
+        let boundary = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::SystemVAMD64,
+            &CallSignature {
+                parameters: Vec::new(),
+                result: Some(result),
+            },
+        )
+        .expect("SysV indirect result");
+        let mut instruction = indirect_result_copy_instruction(64, 32, 24);
+        let SelectedInstructionKind::CopyPlaces { role, .. } = &mut instruction else {
+            unreachable!("helper returns a place copy")
+        };
+        *role = omega_abstract_operations::CopyPlacesRole::Ordinary;
+
+        let evidence =
+            derive_boundary_exit_indirect_result_copy_footprint(&boundary, 32, [&instruction])
+                .expect("ordinary copy remains valid outside boundary evidence");
+
+        assert!(evidence.registers().as_slice().is_empty());
+        assert!(evidence.machine_state().is_empty());
     }
 
     #[test]

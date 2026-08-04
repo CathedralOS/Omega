@@ -12,6 +12,16 @@ mod tests;
 
 pub use classification::AbstractOperationDomain;
 
+/// Semantic provenance retained on the canonical place-pair copy. Boundary
+/// copies remain the same operation and byte program as ordinary copies, but
+/// final footprint validation must not infer ABI evidence from shape alone.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum CopyPlacesRole {
+    #[default]
+    Ordinary,
+    ExitIndirectResult,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AbstractOperationKind {
     EnterFunction,
@@ -587,6 +597,7 @@ pub enum AbstractOperationKind {
         source: Place,
         target: Place,
         byte_count: usize,
+        role: CopyPlacesRole,
     },
 
     /// Write rung 2a: store an immediate integer at `byte_size` into a

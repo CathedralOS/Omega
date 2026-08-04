@@ -24,6 +24,7 @@ pub(super) fn collect_runtime_storage_copy_relocations(
             source,
             target,
             byte_count,
+            ..
         } => {
             // The rung-2 walker arm: patch BY PLACE REGION. On x86_64 the
             // materializer reports its base-mov sites from the SAME walk that
