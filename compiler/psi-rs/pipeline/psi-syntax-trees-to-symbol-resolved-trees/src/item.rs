@@ -72,6 +72,17 @@ pub(crate) fn lower_item(
             let operator = lower_operator_definition(lowerer, syntax_trees, operator)?;
             lowerer.symbol_resolved_trees.operators.push(operator);
         }
+        // PROP-FAMILY-SURFACE source slice: parsing retains proposition
+        // declarations exactly, but they must never disappear as inert items
+        // or masquerade as executable machines. Resolution remains closed
+        // until the dedicated proof-static binder telescope and proposition
+        // symbol category are present.
+        syntax::item::Item::Proposition(proposition) => {
+            return Err(Diagnostic::error(format!(
+                "proposition `{}` reached symbol resolution before the dedicated proposition-family representation is available",
+                proposition.name.as_str()
+            )));
+        }
         syntax::item::Item::WireData(wire_data) => {
             let wire_schema = lower_wire_schema(lowerer, syntax_trees, wire_data)?;
             // Chapter 20: numbers are INERT schema facts -- a numbered data

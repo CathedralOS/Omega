@@ -15,6 +15,7 @@ mod machine;
 mod measure;
 mod operator;
 mod proof_fact;
+mod proposition;
 mod state;
 mod statement;
 mod target;

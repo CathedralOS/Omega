@@ -1,7 +1,7 @@
 use crate::SyntaxTrees;
 use crate::identifier::Identifier;
 use crate::item::{
-    BoundaryLevel, CapabilityContractKind, CapabilityMember, Item, ProofFact,
+    BoundaryLevel, CapabilityContractKind, CapabilityMember, Item, ProofFact, PropositionBody,
     TargetHostSettingValue, WireDataMember,
 };
 
@@ -179,6 +179,28 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
             syntax_trees.items.identifier_path_members(package.path),
             counts,
         ),
+        Item::Proposition(proposition) => {
+            count_identifier(&proposition.name, counts);
+            for parameter in syntax_trees
+                .items
+                .type_parameters(proposition.type_parameters)
+            {
+                count_identifier(&parameter.name, counts);
+                count_type_parameter_kind(syntax_trees, &parameter.kind, counts);
+            }
+            for parameter in syntax_trees.items.state_parameters(proposition.parameters) {
+                count_state_parameter(syntax_trees, *parameter, counts);
+            }
+            match proposition.body {
+                PropositionBody::Primitive => {}
+                PropositionBody::Witness { evidence } => {
+                    count_type_reference_handle(syntax_trees, evidence, counts);
+                }
+                PropositionBody::Transparent { proposition } => {
+                    count_expression_handle(syntax_trees, proposition, counts);
+                }
+            }
+        }
         Item::Provider(provider) => count_identifier_members(
             syntax_trees.items.identifier_path_members(provider.name),
             counts,

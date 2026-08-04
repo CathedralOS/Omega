@@ -22,6 +22,7 @@ pub enum Item {
     Module(ModuleDeclaration),
     Operator(OperatorDefinition),
     Package(PackageDeclaration),
+    Proposition(PropositionDefinition),
     Provider(ProviderDeclaration),
     Export(ExportItem),
     Use(UseItem),
@@ -239,6 +240,30 @@ pub struct ModuleDeclaration {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct PackageDeclaration {
     pub path: HandleSpan<Identifier>,
+}
+
+/// A proof-formula declaration. It has no result, executable body, effects, or
+/// runtime representation; its parameters are an erased proof-side telescope.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PropositionDefinition {
+    pub name: Identifier,
+    pub type_parameters: HandleSpan<TypeParameter>,
+    pub parameters: HandleSpan<StateParameterHandle>,
+    pub body: PropositionBody,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PropositionBody {
+    /// Owner-declared fact with no recoverable witness interface.
+    Primitive,
+    /// Exactly one owner-authorized carrierless evidence interface.
+    Witness {
+        evidence: crate::types::TypeReferenceHandle,
+    },
+    /// Source/debug alias expanded before normalized semantic identity.
+    Transparent {
+        proposition: crate::expression::ExpressionHandle,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -1630,7 +1630,12 @@ and allocation handles expose no compiler-owned stack/control storage.
      positions, and normalized proposition identity. Proposition braces name
      the one canonical carrierless evidence interface; they are not executable
      machine bodies. Transparent aliases expand before terminal identity and
-     survive only in source/debug maps;
+     survive only in source/debug maps. Source slice landed 2026-08-03:
+     primitive, single-evidence, and transparent declaration forms now have
+     dedicated syntax nodes, deep-copy/source-identity/snapshot retention, and
+     reject runtime return or executable/ambiguous body shapes. The syntax to
+     resolved boundary deliberately fails closed until its dedicated
+     proposition symbol and proof-static binder telescope land;
   2. add the proof stratum to selected-conformance projection and permit
      by-value `dyn` only when the complete normalized value has no runtime
      carrier;

@@ -9,6 +9,7 @@ use crate::parser::library::parse_library_definition;
 use crate::parser::machine::parse_machine;
 use crate::parser::measure::parse_measure_definition;
 use crate::parser::operator::parse_operator_definition;
+use crate::parser::proposition::parse_proposition_definition;
 use crate::parser::target::parse_target_definition;
 use crate::parser::trait_definition::parse_trait_definition;
 use crate::parser::type_reference::{
@@ -115,6 +116,12 @@ pub(super) fn parse_item<'tokens, 'source>(
         let input = input.take_contextual("const")?;
         let (item, rest) = parse_const_definition(syntax_trees, input)?;
         return Ok((Item::Const(item), rest));
+    }
+
+    if input.at_contextual("proposition") {
+        let input = input.take_contextual("proposition")?;
+        let (item, rest) = parse_proposition_definition(syntax_trees, input)?;
+        return Ok((Item::Proposition(item), rest));
     }
 
     if input.at_keyword(KeywordKind::Enum) {
