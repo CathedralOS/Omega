@@ -1168,7 +1168,8 @@ improvements do not change public identity.
   recursively nested parameter/literal expression using builtin
   add/subtract/multiply in a settled arithmetic domain. A third exact form
   lowers a recursively nested Boolean expression over literals, exact named
-  parameters, builtin negation, and builtin equality/inequality, either
+  parameters, builtin negation, builtin equality/inequality, and short-circuit
+  `&&`/`||`, either
   directly or through a nonempty linear sequence of unconditional one-parameter
   Boolean state bindings. Optional compile-known
   propagation also requires its result to match the closed reflexive contract.
@@ -1354,8 +1355,13 @@ improvements do not change public identity.
   zero/one equality results. Builtin Boolean `!=` canonically composes the same
   equality operation with `BooleanNot`, verifies and meters both semantic
   sites, and exercises nested target/assigned Boolean emission without adding a
-  redundant terminal opcode. This eager operation does not model short-circuit
-  `&&`/`||`; those require control lowering. The
+  redundant terminal opcode. Direct-return `&&`/`||` now use the required
+  control lowering: Psi emits an acyclic terminal decision tree, the deciding
+  left operand bypasses the right subtree with a smaller measured fuel path,
+  and recursive Boolean target/assigned control executes both operators on
+  AArch64 and x86-64 without adding eager logical opcodes. Short-circuit forms
+  nested inside equality and the linear/explicit-conditional producer shapes
+  remain bounded implementation work, not language-design blockers. The
   initial vocabulary now has canonical semantic bytes and a domain-separated
   semantic fingerprint as well: decoding rejects alternate encodings, invalid
   modules, and trailing data, while a golden identity test freezes the format.

@@ -32,9 +32,9 @@ sum-case content-path segments, v12 adds exact authored-partition substitution
 rows, and v13 adds structural Boolean conditional control without adding an
 executable operation. V14 adds independent dense entry-claim bindings without
 adding an executable operation or proposition. V15 adds total Boolean logical
-negation as an operation and proposition term. Current v16 adds canonical
-nominal proposition declarations and normalized application identity without
-adding an executable operation. The verifier
+negation as an operation and proposition term. V16 adds canonical nominal
+proposition declarations and normalized application identity without adding an
+executable operation. Current v17 adds total Boolean equality. The verifier
 reconstructs operation, edge-binding, and return-binding axioms guaranteed on
 every return path, rejects
 unreachable fact sources and out-of-scope contract
@@ -52,8 +52,9 @@ execution.
 
 The first Psi-owned checked-tree producer, `psi-checked-trees-to-terminal`,
 lowers four exact closed-contract source forms: a recursively nested Boolean
-expression over literals, exact named parameters, builtin negation, and builtin
-equality/inequality from ordinary Boolean parameters; a recursively nested
+expression over literals, exact named parameters, builtin negation, builtin
+equality/inequality, and short-circuit `&&`/`||` from ordinary Boolean
+parameters; a recursively nested
 expression over exact parameter/literal operands using builtin
 wrapping/saturating add, subtract, or multiply from a nonempty sequence of
 ordinary primitive-integer parameters; or an
@@ -206,6 +207,10 @@ safe-point selector now returns the complete canonical graph partition at every
 explicit jump, conditional, or return edge; validation rejects omitted or
 reordered segments. Build-time migration, loop certificates, general
 target/native block lowering, and native metering remain.
+Direct-return Boolean `&&`/`||` lower to terminal conditional trees rather than
+eager operations. A deciding left operand bypasses the right subtree; measured
+usage is three units on that path versus four when the right operand is
+evaluated, and native AArch64/x86-64 control preserves the same truth tables.
 Attributed response reporting additionally waits on executable terminal
 wait/foreign-edge variants carrying their response-contract status. The current
 total operation plus unconditional jump/return vocabulary can close a bounded

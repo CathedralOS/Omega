@@ -91,8 +91,9 @@ the Psi check.
 The first Psi-owned terminal source producer is live as
 `psi-checked-trees-to-terminal`. It accepts four exact free-machine forms. A
 Boolean machine may return a literal, exact named parameter, or a recursively
-nested expression over builtin logical negation and Boolean equality/inequality
-from any sequence of ordinary Boolean parameters, either directly or through a
+nested expression over builtin logical negation, Boolean equality/inequality,
+and short-circuit `&&`/`||` from any sequence of ordinary Boolean parameters,
+either directly or through a
 nonempty linear sequence of unconditional state bindings. Every non-entry
 Boolean state has one ordinary Boolean parameter, and each jump carries a
 literal or an exact parameter from its source state. Compile-known Boolean
@@ -129,6 +130,10 @@ three-state Boolean chain carrying its ninth parameter, a closed three-state
 integer chain, a direct zero-parameter integer literal, plus a nine-parameter
 integer direct return, discards
 `CheckedTrees`, then verifies and executes the produced semantic modules.
+Direct-return `&&`/`||` expressions lower to acyclic terminal conditional
+trees. Each evaluated operand owns its selected conditional edge; the deciding
+left operand bypasses the right subtree, and Boolean leaf constants plus return
+edges remain explicit and metered. No eager logical operation is introduced.
 The source conditional likewise survives frontend disposal, selects both arms,
 charges only the taken edge, crosses Omega's abstract boundary with both
 successors intact, and executes both selections through emitted host machine
