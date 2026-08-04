@@ -179,6 +179,10 @@ enum CompilerInstructionRelocationRecipe {
         target: omega_target_operations::Place,
         literal: std::sync::Arc<str>,
     },
+    PlaceBoundedBufferSourceAppend {
+        target: omega_target_operations::Place,
+        source: omega_target_operations::Place,
+    },
     PlaceStringWrite {
         target: omega_target_operations::Place,
         data_symbol: std::sync::Arc<str>,
@@ -1481,6 +1485,34 @@ fn validate_compiler_function_instruction_boundaries(
                             },
                         )
                     }
+                    omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyPlaceBoundedBufferSourceAppend {
+                        target,
+                        source,
+                    } => {
+                        if architecture == Architecture::Aarch64
+                            && ![target, source].into_iter().all(|place| matches!(
+                                compiler_body_place_integer_write_shape(&place),
+                                Ok(CompilerBodyPlaceIntegerWriteShape::Direct { .. }
+                                    | CompilerBodyPlaceIntegerWriteShape::Pointee { .. })
+                            ))
+                        {
+                            return Err(Diagnostic::error(
+                                "final aarch64 compiler-body bounded-buffer source append retained an unsupported place",
+                            ));
+                        }
+                        (
+                            None,
+                            match architecture {
+                                Architecture::X86_64 => omega_isa_x86_64::encode_place_bounded_buffer_source_append(&target, &source)?.0,
+                                Architecture::Aarch64 => omega_isa_aarch64::encode_place_bounded_buffer_source_append(&target, &source)?.0,
+                            },
+                            27u8,
+                            CompilerInstructionRelocationRecipe::PlaceBoundedBufferSourceAppend {
+                                target,
+                                source,
+                            },
+                        )
+                    }
                     omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyPlaceStringWrite {
                         target,
                         data_symbol,
@@ -2128,6 +2160,68 @@ fn validate_compiler_function_instruction_boundaries(
                                 sites
                                     .iter()
                                     .map(|(offset, _)| (offset, target.region))
+                                    .collect()
+                            }
+                        };
+                        validate_compiler_data_address_relocations(
+                            architecture,
+                            object,
+                            relocations,
+                            instruction.selected_instruction_index,
+                            instruction_byte_offset,
+                            &address_sites,
+                        )?;
+                        encoded_instruction_bytes == expected_bytes
+                            && compiler_instruction_non_relocation_bits_match(
+                                architecture,
+                                &expected_bytes,
+                                final_instruction_bytes,
+                                &address_sites
+                                    .iter()
+                                    .map(|(offset, _)| *offset)
+                                    .collect::<Vec<_>>(),
+                            )
+                    }
+                    CompilerInstructionRelocationRecipe::PlaceBoundedBufferSourceAppend {
+                        target,
+                        source,
+                    } => {
+                        let address_sites = match architecture {
+                            Architecture::X86_64 => {
+                                let (_, sites) =
+                                    omega_isa_x86_64::encode_place_bounded_buffer_source_append(
+                                        &target, &source,
+                                    )?;
+                                sites.iter().map(|(offset, side)| {
+                                    let region = match side {
+                                        omega_isa_x86_64::PlaceCopySide::Target => target.region,
+                                        omega_isa_x86_64::PlaceCopySide::Source => source.region,
+                                        omega_isa_x86_64::PlaceCopySide::TargetIndex => target.scaled_index_region().ok_or_else(|| Diagnostic::error("bounded-buffer source-append target index relocation has no retained index step"))?,
+                                        omega_isa_x86_64::PlaceCopySide::SourceIndex => source.scaled_index_region().ok_or_else(|| Diagnostic::error("bounded-buffer source-append source index relocation has no retained index step"))?,
+                                        omega_isa_x86_64::PlaceCopySide::TargetIndex2 => target.scaled_index_regions().nth(1).ok_or_else(|| Diagnostic::error("bounded-buffer source-append second target index relocation has no retained index step"))?,
+                                        omega_isa_x86_64::PlaceCopySide::SourceIndex2 => source.scaled_index_regions().nth(1).ok_or_else(|| Diagnostic::error("bounded-buffer source-append second source index relocation has no retained index step"))?,
+                                    };
+                                    Ok((offset, region))
+                                }).collect::<Result<Vec<_>, Diagnostic>>()?
+                            }
+                            Architecture::Aarch64 => {
+                                let (_, sites) =
+                                    omega_isa_aarch64::encode_place_bounded_buffer_source_append(
+                                        &target, &source,
+                                    )?;
+                                sites
+                                    .iter()
+                                    .map(|(offset, side)| {
+                                        let region = match side {
+                                            omega_isa_aarch64::BoundedBufferPlaceSide::Target => {
+                                                target.region
+                                            }
+                                            omega_isa_aarch64::BoundedBufferPlaceSide::Source => {
+                                                source.region
+                                            }
+                                        };
+                                        (offset, region)
+                                    })
                                     .collect()
                             }
                         };
@@ -2986,6 +3080,35 @@ fn compiler_instruction_footprint(
                     BoundaryFootprintFragmentOrigin::CompilerBodyPlaceBoundedBufferWrite,
                     omega_isa_aarch64::place_bounded_buffer_literal_append_register_write_ceiling(),
                     omega_isa_aarch64::place_bounded_buffer_literal_append_additional_machine_state(
+                    ),
+                )
+            }
+        },
+        CompilerInstructionValidationKind::CompilerBodyPlaceBoundedBufferSourceAppend {
+            target,
+            source,
+        } => match architecture {
+            Architecture::X86_64 => (
+                BoundaryFootprintFragmentOrigin::CompilerBodyPlaceBoundedBufferWrite,
+                omega_isa_x86_64::place_bounded_buffer_source_append_register_writes(
+                    &target, &source,
+                ),
+                omega_isa_x86_64::place_bounded_buffer_source_append_additional_machine_state(),
+            ),
+            Architecture::Aarch64 => {
+                if ![target, source].into_iter().all(|place| {
+                    matches!(
+                        compiler_body_place_integer_write_shape(&place),
+                        Ok(CompilerBodyPlaceIntegerWriteShape::Direct { .. }
+                            | CompilerBodyPlaceIntegerWriteShape::Pointee { .. })
+                    )
+                }) {
+                    return None;
+                }
+                (
+                    BoundaryFootprintFragmentOrigin::CompilerBodyPlaceBoundedBufferWrite,
+                    omega_isa_aarch64::place_bounded_buffer_source_append_register_write_ceiling(),
+                    omega_isa_aarch64::place_bounded_buffer_source_append_additional_machine_state(
                     ),
                 )
             }

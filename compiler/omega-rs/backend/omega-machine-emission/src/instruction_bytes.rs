@@ -519,6 +519,23 @@ fn compiler_instruction_validation_kind(
                 },
             )
         }
+        SelectedInstructionKind::AppendPlaceBoundedBufferSource { target, source }
+            if emission_context.target.architecture == omega_target::Architecture::X86_64
+                || ([target, source].into_iter().all(|place| {
+                    matches!(
+                        omega_instruction_selection::classify_write_place_shape(place),
+                        omega_instruction_selection::WritePlaceShape::Direct { .. }
+                            | omega_instruction_selection::WritePlaceShape::Pointee { .. }
+                    )
+                })) =>
+        {
+            Some(
+                CompilerInstructionValidationKind::CompilerBodyPlaceBoundedBufferSourceAppend {
+                    target: *target,
+                    source: *source,
+                },
+            )
+        }
         SelectedInstructionKind::WritePlaceString {
             target,
             data,

@@ -87,6 +87,23 @@ pub fn encode_place_bounded_buffer_source_append(
     Ok((bytes, sites))
 }
 
+pub fn place_bounded_buffer_source_append_register_write_ceiling() -> RegisterSet {
+    RegisterSet::new([
+        MachineRegister::Aarch64X(10),
+        MachineRegister::Aarch64X(11),
+        MachineRegister::Aarch64X(12),
+        MachineRegister::Aarch64X(13),
+        MachineRegister::Aarch64X(14),
+        MachineRegister::Aarch64X(15),
+        MachineRegister::Aarch64X(16),
+        MachineRegister::Aarch64X(17),
+    ])
+}
+
+pub fn place_bounded_buffer_source_append_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::new([omega_calling_conventions::MachineState::Flags])
+}
+
 pub fn encode_place_bounded_buffer_literal_append(
     target: &Place,
     literal: &str,

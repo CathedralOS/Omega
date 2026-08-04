@@ -566,6 +566,25 @@ pub fn encode_place_bounded_buffer_source_append(
     Ok((bytes, sites))
 }
 
+pub fn place_bounded_buffer_source_append_register_writes(
+    target: &Place,
+    source: &Place,
+) -> RegisterSet {
+    let mut registers = place_integer_write_clobbers(target).as_slice().to_vec();
+    registers.extend_from_slice(place_integer_write_clobbers(source).as_slice());
+    registers.extend([
+        MachineRegister::X86R14,
+        MachineRegister::X86Rcx,
+        MachineRegister::X86Rdi,
+        MachineRegister::X86Rsi,
+    ]);
+    RegisterSet::new(registers)
+}
+
+pub fn place_bounded_buffer_source_append_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::new([MachineState::Flags])
+}
+
 /// Append immediate literal bytes to a bounded byte carrier addressed through
 /// a Place. This is the place-shaped successor of the machine-only encoder.
 pub fn encode_place_bounded_buffer_literal_append(
