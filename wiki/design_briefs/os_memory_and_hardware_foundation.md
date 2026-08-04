@@ -1017,6 +1017,12 @@ outside relocation fields, binds the literal-buffer `.data` symbol and any
 descriptor source-storage symbol, and requires the re-derived target register/
 flags union to equal the earlier `runtime_text_guard_comparison` StatePlan
 fragment.
+Recursive runtime-value guard replay uses the same canonical `ValueOperand`
+arena retained once beside encoded machine code; instruction rows carry only
+their operand roots and normalized comparison parameters. Final validation
+regenerates the evaluator bytes, reconstructs every nested storage/index/text
+relocation site, and checks the target may-write ceiling plus operand-sensitive
+stack/control state against `runtime_value_guard_comparison`.
 Direct-image emission also validates the fixed encoder-owned function-entry
 prologue and return epilogue against the exact relocated entry-region bytes on
 x86-64 and AArch64 before publication. The inventory names this narrow

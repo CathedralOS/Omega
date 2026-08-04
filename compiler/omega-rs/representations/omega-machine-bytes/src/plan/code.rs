@@ -7,6 +7,10 @@ pub struct EncodedMachineCode {
     pub functions: Arena<EncodedMachineFunction>,
     pub instructions: Arena<EncodedMachineInstruction>,
     pub bytes: Arena<u8>,
+    /// Canonical operand arena retained for final replay of recursive
+    /// compiler-owned value evaluators. Handles in instruction recipes point
+    /// into this 1:1 arena copy.
+    pub runtime_value_operands: Arena<omega_target_operations::RuntimeValueOperand>,
     pub byte_count: usize,
 }
 

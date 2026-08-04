@@ -22,6 +22,7 @@ mod tests {
             functions: Arena::with_capacity(1),
             instructions: Arena::with_capacity(2),
             bytes: Arena::with_capacity(3),
+            runtime_value_operands: Arena::with_capacity(4),
             byte_count: 4,
         };
         let semantics = EncodedMachineSemanticSummary::with_capacity(5, 6, 7, 8, 11);

@@ -989,8 +989,8 @@ pub fn runtime_binary_right_operand_gap(architecture: Architecture) -> usize {
 /// the relocation walker can pin the second symbol here.
 pub fn machine_indexed_operand_frame_index_base_offset(architecture: Architecture) -> usize {
     match architecture {
-        Architecture::Aarch64 => 8,
-        Architecture::X86_64 => 13,
+        Architecture::Aarch64 => aarch64::MACHINE_INDEXED_OPERAND_FRAME_INDEX_BASE_OFFSET,
+        Architecture::X86_64 => x86_64::MACHINE_INDEXED_OPERAND_FRAME_INDEX_BASE_OFFSET,
     }
 }
 
@@ -998,8 +998,8 @@ pub fn machine_indexed_operand_frame_index_base_offset(architecture: Architectur
 /// after loading the pointee address from the frame-resident descriptor.
 pub fn frame_indexed_operand_machine_index_base_offset(architecture: Architecture) -> usize {
     match architecture {
-        Architecture::Aarch64 => 32,
-        Architecture::X86_64 => 17,
+        Architecture::Aarch64 => aarch64::FRAME_INDEXED_OPERAND_MACHINE_INDEX_BASE_OFFSET,
+        Architecture::X86_64 => x86_64::FRAME_INDEXED_OPERAND_MACHINE_INDEX_BASE_OFFSET,
     }
 }
 

@@ -54,6 +54,13 @@ pub enum CompilerInstructionValidationKind {
         delimiter_failure_branch_distance: isize,
         operator: StateGuardOperator,
     },
+    RuntimeValueGuard {
+        left: omega_target_operations::RuntimeValueOperandHandle,
+        right: omega_target_operations::RuntimeValueOperandHandle,
+        byte_size: usize,
+        failure_branch_distance: isize,
+        operator: StateGuardOperator,
+    },
     DispatchStateWrite {
         dispatch_index: u32,
         case_leave_byte_distance: isize,
