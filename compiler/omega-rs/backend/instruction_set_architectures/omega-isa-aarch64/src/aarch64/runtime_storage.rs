@@ -3229,6 +3229,13 @@ pub fn runtime_storage_copy_from_runtime_frame_indexed_clobbers() -> RegisterSet
     ])
 }
 
+/// Exact scratch footprint of the direct-frame-source to frame-indexed target
+/// encoder. Its address formation and copy use the same closed set as the
+/// indexed-source mirror.
+pub fn runtime_storage_copy_to_runtime_frame_indexed_clobbers() -> RegisterSet {
+    runtime_storage_copy_from_runtime_frame_indexed_clobbers()
+}
+
 /// Offset of the second page-pair in the to-runtime-storage variant. A
 /// frame-to-frame copy reuses the opening frame base and has no second site.
 pub fn runtime_storage_copy_from_runtime_frame_indexed_target_address_offset(
@@ -7296,6 +7303,14 @@ mod tests {
         assert_eq!(
             runtime_storage_copy_from_runtime_frame_indexed_target_address_offset(8, 16),
             widths::runtime_frame_index_setup_width(8, 16)
+        );
+    }
+
+    #[test]
+    fn to_indexed_clobbers_match_the_frame_index_address_contract() {
+        assert_eq!(
+            runtime_storage_copy_to_runtime_frame_indexed_clobbers(),
+            runtime_storage_copy_from_runtime_frame_indexed_clobbers()
         );
     }
 
