@@ -491,6 +491,7 @@ fn compiler_instruction_validation_kind(
                 | omega_instruction_selection::WritePlaceShape::Pointee { .. }
                 | omega_instruction_selection::WritePlaceShape::FrameIndexed { .. }
                 | omega_instruction_selection::WritePlaceShape::FrameBaseIndexed { .. }
+                | omega_instruction_selection::WritePlaceShape::MachineIndexed { .. }
         ) =>
         {
             Some(
