@@ -149,6 +149,26 @@ fn checked_source_survives_frontend_drop_as_verified_terminal_psi() {
             .iter()
             .any(|site| matches!(site.subject, DebugSubject::Operation(_)))
     );
+    let source_text = std::fs::read_to_string(source_canary()).expect("read source debug canary");
+    let snippets = |subject: fn(DebugSubject) -> bool| {
+        debug_map
+            .sites
+            .iter()
+            .filter(|site| subject(site.subject))
+            .map(|site| {
+                &source_text[usize::try_from(site.span.start).unwrap()
+                    ..usize::try_from(site.span.end).unwrap()]
+            })
+            .collect::<Vec<_>>()
+    };
+    assert!(
+        snippets(|subject| matches!(subject, DebugSubject::Operation(_)))
+            .iter()
+            .all(|snippet| *snippet == "7i32")
+    );
+    let edge_snippets = snippets(|subject| matches!(subject, DebugSubject::Edge(_)));
+    assert!(edge_snippets.iter().any(|snippet| *snippet == "7i32"));
+    assert!(edge_snippets.contains(&"->"));
     assert_eq!(
         terminal_psi_identity(&semantic_module).unwrap(),
         original_identity
