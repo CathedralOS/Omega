@@ -320,6 +320,30 @@ pub fn runtime_text_indexed_literal_append_buffer_address_offset(
     runtime_frame_index_setup_width(element_byte_size, field_byte_offset) + 4
 }
 
+pub fn runtime_text_stored_place_pointee_source_address_offset(
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+) -> usize {
+    16 + load_data_offset_width(pointer_byte_offset, 8)
+        + add_constant_width(field_byte_offset)
+        + load_data_offset_width(8, 8)
+        + 8
+}
+
+pub fn runtime_text_indexed_stored_place_buffer_address_offset(
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> usize {
+    runtime_frame_index_setup_width(element_byte_size, field_byte_offset) + 8
+}
+
+pub fn runtime_text_indexed_stored_place_source_address_offset(
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> usize {
+    runtime_frame_index_setup_width(element_byte_size, field_byte_offset) + 24
+}
+
 pub fn runtime_text_indexed_buffer_materialize_buffer_address_offset(
     element_byte_size: usize,
     field_byte_offset: usize,

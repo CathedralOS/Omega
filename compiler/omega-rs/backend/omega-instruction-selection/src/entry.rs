@@ -1075,10 +1075,19 @@ pub fn derive_boundary_compiler_body_text_assembly_write_footprint<'instruction>
         let (target, write_kind) = match instruction {
             SelectedInstructionKind::MaterializeTextBufferToPlace { target, .. } => (target, 0u8),
             SelectedInstructionKind::AppendTextLiteralToPlace { target, .. } => (target, 1u8),
+            SelectedInstructionKind::AppendTextStoredToPlace { target, .. } => (target, 2u8),
             _ => continue,
         };
         let shape = crate::classify_write_place_shape(target);
         let (writes, state) = match (architecture, shape, write_kind) {
+            (
+                omega_target::Architecture::X86_64,
+                crate::WritePlaceShape::Direct { .. } | crate::WritePlaceShape::Pointee { .. },
+                2,
+            ) => (
+                omega_isa_x86_64::runtime_text_stored_place_append_register_writes(),
+                omega_isa_x86_64::runtime_text_stored_place_append_additional_machine_state(),
+            ),
             (
                 omega_target::Architecture::X86_64,
                 crate::WritePlaceShape::Direct { .. } | crate::WritePlaceShape::Pointee { .. },
@@ -1102,6 +1111,22 @@ pub fn derive_boundary_compiler_body_text_assembly_write_footprint<'instruction>
             ) => (
                 omega_isa_x86_64::runtime_text_buffer_materialize_register_writes(),
                 omega_isa_x86_64::runtime_text_buffer_materialize_additional_machine_state(),
+            ),
+            (
+                omega_target::Architecture::Aarch64,
+                crate::WritePlaceShape::Direct { .. } | crate::WritePlaceShape::Pointee { .. },
+                2,
+            ) => (
+                omega_isa_aarch64::runtime_text_stored_place_append_register_writes(),
+                omega_isa_aarch64::runtime_text_stored_place_append_additional_machine_state(),
+            ),
+            (
+                omega_target::Architecture::Aarch64,
+                crate::WritePlaceShape::FrameIndexed { .. },
+                2,
+            ) => (
+                omega_isa_aarch64::runtime_text_stored_place_append_to_runtime_frame_indexed_register_writes(),
+                omega_isa_aarch64::runtime_text_stored_place_append_additional_machine_state(),
             ),
             (
                 omega_target::Architecture::Aarch64,

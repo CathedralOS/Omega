@@ -54,6 +54,18 @@ pub fn encode_runtime_text_stored_suffix_append(
     Ok(bytes)
 }
 
+pub fn runtime_text_stored_place_append_register_writes() -> RegisterSet {
+    RegisterSet::new([15, 16, 17, 19, 20, 21, 22, 23, 24, 26].map(MachineRegister::Aarch64X))
+}
+
+pub fn runtime_text_stored_place_append_to_runtime_frame_indexed_register_writes() -> RegisterSet {
+    RegisterSet::new([15, 16, 17, 19, 20, 21, 22, 23, 24, 25, 26].map(MachineRegister::Aarch64X))
+}
+
+pub fn runtime_text_stored_place_append_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::new([MachineState::Flags])
+}
+
 pub fn encode_runtime_text_stored_place_append(
     buffer_offset: usize,
     source_offset: usize,
