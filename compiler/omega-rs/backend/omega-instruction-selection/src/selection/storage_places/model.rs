@@ -16,6 +16,30 @@ pub(in crate::selection) struct RuntimeBitFieldPlace {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub(in crate::selection) enum RuntimeStoredIntegerSource {
+    Direct {
+        region: RuntimeStorageRegion,
+        byte_offset: usize,
+    },
+    Pointee {
+        pointer_byte_offset: usize,
+        field_byte_offset: usize,
+    },
+}
+
+/// One `IntegerAt` projection after layout resolution. The source width and
+/// interpretation describe the physical integer; the carrier fields describe
+/// the portable semantic value produced by extension.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(in crate::selection) struct RuntimeStoredIntegerProjection {
+    pub(in crate::selection) source: RuntimeStoredIntegerSource,
+    pub(in crate::selection) stored_byte_count: usize,
+    pub(in crate::selection) carrier_byte_count: usize,
+    pub(in crate::selection) interpretation: psi_layout_plans::IntegerInterpretation,
+    pub(in crate::selection) carrier_signed: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(in crate::selection) struct RuntimeFrameIndexedTarget {
     pub(in crate::selection) descriptor_offset: usize,
     pub(in crate::selection) index_region: RuntimeStorageRegion,

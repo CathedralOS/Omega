@@ -43,6 +43,7 @@ pub(in crate::selection) struct NestedFieldLayoutCursor<'layout> {
     type_descriptor: &'layout TypeLayoutDescriptor,
     layout: TypeLayout,
     bit_field: Option<&'layout omega_layout::BitFieldLayout>,
+    stored_integer: Option<&'layout omega_layout::StoredIntegerLayout>,
 }
 
 impl<'layout> NestedFieldLayoutCursor<'layout> {
@@ -55,6 +56,7 @@ impl<'layout> NestedFieldLayoutCursor<'layout> {
             type_descriptor: &root_field.type_descriptor,
             layout: root_field.layout,
             bit_field: None,
+            stored_integer: None,
         }
     }
 
@@ -77,6 +79,12 @@ impl<'layout> NestedFieldLayoutCursor<'layout> {
         self.type_descriptor
     }
 
+    pub(in crate::selection) fn stored_integer(
+        self,
+    ) -> Option<&'layout omega_layout::StoredIntegerLayout> {
+        self.stored_integer
+    }
+
     pub(in crate::selection) fn from_indexed_fixed_array_element(
         cursor: Self,
         index: usize,
@@ -91,6 +99,7 @@ impl<'layout> NestedFieldLayoutCursor<'layout> {
             type_descriptor: element_type,
             layout: element_layout,
             bit_field: None,
+            stored_integer: None,
         }
     }
 }
@@ -102,6 +111,46 @@ pub(in crate::selection) fn resolve_nested_field_layout_step<'layout>(
     field_symbol: SymbolHandle,
     field_index: Option<usize>,
     case_variant: Option<&Identifier>,
+) -> Option<NestedFieldLayoutCursor<'layout>> {
+    resolve_nested_field_layout_step_internal(
+        layouts,
+        cursor,
+        field_name,
+        field_symbol,
+        field_index,
+        case_variant,
+        false,
+    )
+}
+
+pub(in crate::selection) fn resolve_nested_stored_integer_layout_step<'layout>(
+    layouts: &'layout LayoutPlan,
+    cursor: NestedFieldLayoutCursor<'layout>,
+    field_name: &Identifier,
+    field_symbol: SymbolHandle,
+    field_index: Option<usize>,
+    case_variant: Option<&Identifier>,
+) -> Option<NestedFieldLayoutCursor<'layout>> {
+    resolve_nested_field_layout_step_internal(
+        layouts,
+        cursor,
+        field_name,
+        field_symbol,
+        field_index,
+        case_variant,
+        true,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn resolve_nested_field_layout_step_internal<'layout>(
+    layouts: &'layout LayoutPlan,
+    cursor: NestedFieldLayoutCursor<'layout>,
+    field_name: &Identifier,
+    field_symbol: SymbolHandle,
+    field_index: Option<usize>,
+    case_variant: Option<&Identifier>,
+    allow_stored_integer: bool,
 ) -> Option<NestedFieldLayoutCursor<'layout>> {
     let field_segment = parse_field_segment(field_name, field_index)?;
     let data_layout = data_layout(layouts, cursor.type_descriptor.storage_symbol())?;
@@ -173,7 +222,8 @@ pub(in crate::selection) fn resolve_nested_field_layout_step<'layout>(
     // The normalized plan retains the exact physical width and extension rule,
     // but ordinary scalar storage resolution must not treat the semantic
     // carrier width as the stored width before dedicated lowering consumes it.
-    if layouts.stored_integer(field.symbol).is_some() {
+    let stored_integer = layouts.stored_integer(field.symbol);
+    if stored_integer.is_some() && !allow_stored_integer {
         return None;
     }
     let containing_byte_offset = cursor.byte_offset;
@@ -185,6 +235,7 @@ pub(in crate::selection) fn resolve_nested_field_layout_step<'layout>(
         type_descriptor: &field.type_descriptor,
         layout: field.layout,
         bit_field: layouts.bit_field(field.symbol),
+        stored_integer,
     };
 
     if let Some(index) = field_segment.index {
@@ -203,6 +254,7 @@ pub(in crate::selection) fn resolve_nested_field_layout_step<'layout>(
         next.type_descriptor = element_type;
         next.layout = element_layout;
         next.bit_field = None;
+        next.stored_integer = None;
     }
 
     Some(next)

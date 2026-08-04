@@ -9,10 +9,12 @@ pub(super) use machine_owned::{
     MachineOwnedCollectionTarget, resolve_machine_owned_bit_field_in_table,
     resolve_machine_owned_collection_in_table, resolve_machine_owned_place,
     resolve_machine_owned_place_in_table, resolve_machine_owned_self_case_tag_place_in_table,
+    resolve_machine_owned_stored_integer_in_table,
 };
 pub(super) use model::{
     RuntimeBitFieldPlace, RuntimeFrameBaseIndexedTarget, RuntimeFrameFixedIndexedTarget,
-    RuntimeFrameIndexedTarget, RuntimeStoragePlace,
+    RuntimeFrameIndexedTarget, RuntimeStoragePlace, RuntimeStoredIntegerProjection,
+    RuntimeStoredIntegerSource,
 };
 use omega_abstract_operations::RuntimeStorageRegion;
 pub(super) use static_values::{
@@ -25,7 +27,7 @@ use crate::InstructionSelectionInput;
 use expressions::{StorageNamePath, StoragePathSuffix, normalized_storage_name_path_in_table};
 use nested_fields::{
     NestedFieldLayoutCursor, resolve_nested_field_layout_step,
-    resolve_nested_field_layout_with_pairs,
+    resolve_nested_field_layout_with_pairs, resolve_nested_stored_integer_layout_step,
 };
 use omega_control_flow::StateKey;
 use omega_layout::{FieldLayout, TypeLayout, TypeLayoutDescriptor};
@@ -591,6 +593,103 @@ pub(super) fn resolve_runtime_bit_field_place_in_table(
         expressions,
         expression,
     )
+}
+
+/// Resolve a plan-laid `IntegerAt` leaf without exposing it to ordinary place
+/// consumers. The result carries both physical width/interpretation and the
+/// semantic carrier width; callers must perform the stated extension.
+pub(super) fn resolve_runtime_stored_integer_projection_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<RuntimeStoredIntegerProjection> {
+    if let Some(projection) = resolve_runtime_pointee_stored_integer_projection_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+    ) {
+        return Some(projection);
+    }
+
+    let path = normalized_storage_name_path_in_table(expressions, expression)?;
+    if path.is_empty() || path.member_index(0).is_some() {
+        return None;
+    }
+    let suffix = path.suffix(1);
+    if let Some(slot) =
+        find_runtime_frame_slot_for_path(input, dispatch_index, source_key, |slot| {
+            slot_matches_table_path(slot, &path)
+        })
+        .or_else(|| {
+            latest_dispatch_frame_slot(input, dispatch_index, |slot| {
+                slot_matches_table_path(slot, &path)
+            })
+        })
+    {
+        let root_field = FieldLayout {
+            symbol: slot.symbol,
+            name: slot.name.clone(),
+            offset: slot.byte_offset,
+            type_symbol: slot.type_symbol,
+            type_name: slot.type_name.clone(),
+            type_descriptor: slot.type_descriptor.clone(),
+            layout: TypeLayout {
+                size: slot.byte_size,
+                alignment: slot.alignment,
+            },
+        };
+        let mut cursor = NestedFieldLayoutCursor::from_root(&root_field);
+        for (field_name, field_symbol, field_index, case_variant) in suffix.iter() {
+            cursor = resolve_nested_stored_integer_layout_step(
+                &input.layouts,
+                cursor,
+                field_name,
+                field_symbol,
+                field_index,
+                case_variant,
+            )?;
+        }
+        let byte_offset = cursor.byte_offset();
+        return stored_integer_projection_from_cursor(
+            cursor,
+            RuntimeStoredIntegerSource::Direct {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset,
+            },
+        );
+    }
+
+    resolve_machine_owned_stored_integer_in_table(
+        &input.layouts,
+        input,
+        dispatch_index,
+        input.entry_key.machine,
+        source_key.machine,
+        expressions,
+        expression,
+    )
+}
+
+fn stored_integer_projection_from_cursor(
+    cursor: NestedFieldLayoutCursor<'_>,
+    source: RuntimeStoredIntegerSource,
+) -> Option<RuntimeStoredIntegerProjection> {
+    let stored = cursor.stored_integer()?;
+    if stored.stored_width_bits == 0 || stored.stored_width_bits % 8 != 0 {
+        return None;
+    }
+    let carrier = descriptor_primitive_type(cursor.type_descriptor())?;
+    Some(RuntimeStoredIntegerProjection {
+        source,
+        stored_byte_count: usize::from(stored.stored_width_bits / 8),
+        carrier_byte_count: cursor.layout().size,
+        interpretation: stored.interpretation,
+        carrier_signed: carrier.is_signed_integer(),
+    })
 }
 
 /// Fold `<receiver>.len` to its STATIC element count when the receiver is (an
@@ -3037,6 +3136,88 @@ pub(super) fn resolve_runtime_pointee_slot_offset_in_table(
         field_byte_offset,
         pointee_byte_size: field_layout.size,
     })
+}
+
+/// `IntegerAt` sibling of the ordinary pointee resolver. This deliberately
+/// walks with the dedicated stored-integer cursor; the ordinary resolver keeps
+/// rejecting the same field so no byte-copy consumer can bypass extension.
+fn resolve_runtime_pointee_stored_integer_projection_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<RuntimeStoredIntegerProjection> {
+    let path = normalized_storage_name_path_in_table(expressions, expression)?;
+    if path.len() <= 1 {
+        return None;
+    }
+    let slot = runtime_frame_slot_for_expression_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+    )?;
+    let recast_referee_size = slot
+        .type_descriptor
+        .reference_referee()
+        .filter(|descriptor| matches!(descriptor, TypeLayoutDescriptor::Named { .. }))
+        .map(|descriptor| descriptor_layout(input, descriptor).size);
+    let wide_referee_slot = recast_referee_size
+        .is_some_and(|size| size > input.runtime_abi.pointer_size && slot.byte_size == size);
+    if slot.byte_size != input.runtime_abi.pointer_size && !wide_referee_slot {
+        return None;
+    }
+    let slot_is_shared_reference = matches!(
+        &slot.type_descriptor,
+        TypeLayoutDescriptor::Reference {
+            is_mutable: false,
+            ..
+        }
+    );
+    let pointee_descriptor = slot.type_descriptor.reference_referee()?;
+    let pointee_layout = descriptor_layout(input, pointee_descriptor);
+    if slot_is_shared_reference
+        && matches!(pointee_descriptor, TypeLayoutDescriptor::Named { .. })
+        && pointee_layout.size <= input.runtime_abi.pointer_size
+        && !input
+            .program
+            .machines()
+            .iter()
+            .any(|machine| machine.symbol == source_key.machine && machine.boundary)
+    {
+        return None;
+    }
+
+    let root_field = FieldLayout {
+        symbol: slot.symbol,
+        name: slot.name.clone(),
+        offset: 0,
+        type_symbol: pointee_descriptor.storage_symbol(),
+        type_name: "".into(),
+        type_descriptor: pointee_descriptor.clone(),
+        layout: pointee_layout,
+    };
+    let mut cursor = NestedFieldLayoutCursor::from_root(&root_field);
+    for (field_name, field_symbol, field_index, case_variant) in path.suffix(1).iter() {
+        cursor = resolve_nested_stored_integer_layout_step(
+            &input.layouts,
+            cursor,
+            field_name,
+            field_symbol,
+            field_index,
+            case_variant,
+        )?;
+    }
+    let field_byte_offset = cursor.byte_offset();
+    stored_integer_projection_from_cursor(
+        cursor,
+        RuntimeStoredIntegerSource::Pointee {
+            pointer_byte_offset: slot.byte_offset,
+            field_byte_offset,
+        },
+    )
 }
 
 pub(super) fn resolve_runtime_pointee_fixed_indexed_target_in_table(

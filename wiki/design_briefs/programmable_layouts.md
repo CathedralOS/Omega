@@ -420,11 +420,13 @@ retains byte offset, whole-byte stored bit width, and signed/unsigned
 interpretation, rejects non-integer or non-total decode ranges, includes the
 encoding in plan identity and overlap checks, and exposes exact stored-width
 access geometry. That encoding now survives the typed plan-laid boundary and
-the concrete Omega layout as field-keyed stored-width metadata. Direct
-plan-laid projection/sign extension and proved-fit mutation are still
-outstanding; ordinary scalar resolution, mutable recasts, interpreter record
-views, and by-value boundary classification reject rather than treating
-`IntegerAt` as `At` or truncating through the scalar materializer.
+the concrete Omega layout as field-keyed stored-width metadata. Direct owned
+and reference-backed plan-laid projection now loads exactly that width and
+sign- or zero-extends according to the retained interpretation. Indexed
+projection and proved-fit mutation are still outstanding; ordinary scalar
+resolution, mutable recasts, interpreter record views, and by-value boundary
+classification reject rather than treating `IntegerAt` as `At` or truncating
+through the scalar materializer.
 The admitted `compact_binary` realization now derives bounded repeated framing
 from carrier semantics: `[T; N]` contributes exactly `N` elements and
 `FixedVec<T, N>` contributes its intrinsic live length up to `N`; the retired

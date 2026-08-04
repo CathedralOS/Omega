@@ -13,6 +13,8 @@ pub(in crate::selection) use operators::{
 pub(crate) use value_operands::resolve_runtime_value_operand_in_table;
 pub(in crate::selection::runtime_dispatch) use value_operands::{
     binary_value_operand_byte_width, binary_value_operands_are_float,
+    resolve_runtime_stored_integer_operand_in_table,
+    select_runtime_stored_integer_projection_write_in_table,
 };
 
 use crate::InstructionSelectionInput;

@@ -26,7 +26,10 @@ use super::super::storage_places::{
     resolve_runtime_transition_guard_call_result_place, static_elided_local_value_in_table,
     static_fixed_array_len_in_table,
 };
-use super::writes::mutation::{binary_value_operand_byte_width, binary_value_operands_are_float};
+use super::writes::mutation::{
+    binary_value_operand_byte_width, binary_value_operands_are_float,
+    resolve_runtime_stored_integer_operand_in_table,
+};
 use super::writes::resolve_runtime_text_equals_operand_in_table;
 use omega_abstract_operations::{
     RuntimeBitFieldFragment, RuntimeValueOperand, RuntimeValueOperandHandle,
@@ -1930,6 +1933,17 @@ fn resolve_runtime_value_operand_in_table(
                 && source_primitive.accepts_float_literal()
                 && !target_primitive.accepts_float_literal(),
         }));
+    }
+
+    if let Some(operand) = resolve_runtime_stored_integer_operand_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+        runtime_value_operands,
+    ) {
+        return Some(operand);
     }
 
     if matches!(expressions.expression(expression), ExpressionNode::Call(_))

@@ -30,13 +30,15 @@ use super::super::text_writes::{
 };
 use super::super::writes::mutation::{
     binary_value_operand_byte_width, binary_value_operands_are_float,
+    resolve_runtime_stored_integer_operand_in_table,
 };
 use super::super::writes::{
     RuntimeStaticValues, case_payload_field_variant_tag, runtime_storage_copy_in_table,
     runtime_storage_fixed_indexed_source_copy_in_table,
     runtime_storage_indexed_source_copy_in_table, runtime_storage_indirect_copy_in_table,
-    select_runtime_case_tag_write_in_table, select_runtime_convert_mutation_write_in_table,
-    signedness_adjusted_operator, signedness_adjusted_operator_for_operands,
+    runtime_stored_integer_projection_copy_in_table, select_runtime_case_tag_write_in_table,
+    select_runtime_convert_mutation_write_in_table, signedness_adjusted_operator,
+    signedness_adjusted_operator_for_operands,
 };
 use crate::selection::instruction_sink::SelectedInstructionSink;
 use psi_checked_trees::types::PrimitiveType;
@@ -358,6 +360,18 @@ fn select_runtime_resolved_scalar_mutation_write_in_table_with_scratch(
             expressions,
             resolved_target,
             resolved_value,
+        )
+    })
+    .or_else(|| {
+        runtime_stored_integer_projection_copy_in_table(
+            input,
+            dispatch_index,
+            target_source_key,
+            value_source_key,
+            expressions,
+            resolved_target,
+            resolved_value,
+            runtime_value_operands,
         )
     })
     .or_else(|| {
@@ -1577,6 +1591,17 @@ fn resolve_runtime_value_operand_in_table(
             }));
         }
         _ => {}
+    }
+
+    if let Some(operand) = resolve_runtime_stored_integer_operand_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+        runtime_value_operands,
+    ) {
+        return Some(operand);
     }
 
     if let Some(indexed_target) = resolve_runtime_frame_indexed_target_in_table(

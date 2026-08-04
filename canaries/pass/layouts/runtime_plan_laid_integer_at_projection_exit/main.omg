@@ -1,0 +1,96 @@
+// A foreign integer record whose physical fields are narrower than their
+// portable carriers. Raw bytes seed a signed i8 value (-2) and an unsigned u16
+// value (33023); projection must load only those widths and apply the plan's
+// sign/zero-extension rule. Reading either field as its carrier width consumes
+// sibling bytes and fails this canary.
+use omega::language::std::console;
+
+data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
+data SchemaField {
+    key: u64;
+    size: u64 [0..=4096];
+    align: u64 [1..=16];
+    number: i64;
+    kind: FieldKind;
+}
+data Schema {
+    fields: [SchemaField; 32];
+    field_count: u64 [0..=32];
+}
+data IntegerInterpretation { case Signed; case Unsigned; }
+data FieldPlan {
+    case IntegerAt(
+        offset: u64,
+        stored_width: u64,
+        interpretation: IntegerInterpretation
+    );
+}
+data FieldEntry { key: u64; placement: FieldPlan; }
+data Plan {
+    entries: [FieldEntry; 64];
+    entry_count: u64;
+    size_fixed: u64;
+    size_is_dynamic: bool;
+    align: u64;
+}
+
+data ForeignIntegers { entries: [FieldEntry; 64]; }
+machine ForeignIntegers::plan(&mut self, schema: Schema) -> Plan {
+    self.entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::IntegerAt {
+            offset: 0,
+            stored_width: 8,
+            interpretation: IntegerInterpretation::Signed,
+        },
+    };
+    self.entries[1] = FieldEntry {
+        key: schema.fields[1].key,
+        placement: FieldPlan::IntegerAt {
+            offset: 2,
+            stored_width: 16,
+            interpretation: IntegerInterpretation::Unsigned,
+        },
+    };
+    Plan {
+        entries: self.entries,
+        entry_count: 2,
+        size_fixed: 4,
+        size_is_dynamic: false,
+        align: 1,
+    }
+}
+
+data PortableIntegers {
+    signed_value: i64;
+    unsigned_value: u64;
+}
+data ForeignView { value: ForeignIntegers<PortableIntegers>; }
+
+data Main {
+    console: Console;
+    bytes: [u8; 4];
+}
+
+machine Main::main(&mut self) {
+    self.bytes[0] = 254;
+    self.bytes[2] = 255;
+    self.bytes[3] = 128;
+    let view: &ForeignView = &self.bytes[0] as &ForeignView;
+    let signed_value: i64 = view.value.signed_value;
+    let unsigned_value: u64 = view.value.unsigned_value;
+    transition signed_value == -2 {
+        true -> check_unsigned()
+        _ -> bad_signed()
+    }
+
+    state check_unsigned(&mut self) {
+        transition unsigned_value == 33023 {
+            true -> good()
+            _ -> bad_unsigned()
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad_signed(&mut self) { self.console.exit_process(71); }
+    state bad_unsigned(&mut self) { self.console.exit_process(72); }
+}

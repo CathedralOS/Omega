@@ -54,6 +54,7 @@ pub(super) use storage_copy::{
     runtime_storage_copy, runtime_storage_copy_in_table, runtime_storage_fixed_indexed_source_copy,
     runtime_storage_fixed_indexed_source_copy_in_table,
     runtime_storage_indexed_source_copy_in_table, runtime_storage_indirect_copy_in_table,
+    runtime_stored_integer_projection_copy_in_table,
 };
 pub(in crate::selection) use string_values::emit_runtime_frame_slot_text_comparison_write_in_table;
 
@@ -745,7 +746,7 @@ fn select_runtime_storage_resolved_scalar_mutation_write_in_table_with_scratch(
     // place in this state must come from live storage. Without this, a chain
     // like `v = 5; v = src; w = v + 1;` would fold the stale `v == 5` and
     // compute the wrong `w`.
-    if let Some(kind) = subslice_copy::runtime_fixed_array_subslice_indexed_source_copy_in_table(
+    if let Some(kind) = storage_copy::runtime_stored_integer_projection_copy_in_table(
         input,
         dispatch_index,
         target_source_key,
@@ -753,7 +754,19 @@ fn select_runtime_storage_resolved_scalar_mutation_write_in_table_with_scratch(
         expressions,
         target,
         value,
+        runtime_value_operands,
     )
+    .or_else(|| {
+        subslice_copy::runtime_fixed_array_subslice_indexed_source_copy_in_table(
+            input,
+            dispatch_index,
+            target_source_key,
+            value_source_key,
+            expressions,
+            target,
+            value,
+        )
+    })
     .or_else(|| {
         storage_copy::runtime_storage_indexed_source_copy_in_table(
             input,

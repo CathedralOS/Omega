@@ -78,9 +78,10 @@ data Schema {
 // width; `offset` remains byte-denominated. `At` or a complete repeated `Bits`
 // tiling has live direct plan-laid projection. `IntegerAt` is normalized for
 // consumers and is the only fixed-layout spelling for a foreign integer whose
-// stored width differs from its semantic carrier; direct widening projection
-// still fails closed until that lowering is installed. Tagged/wire placements
-// remain consumers of the wire-plan path today.
+// stored width differs from its semantic carrier. Direct owned/reference-backed
+// projection widens according to `interpretation`; indexed projection and
+// mutation remain fail-closed. Tagged/wire placements remain consumers of the
+// wire-plan path today.
 data IntegerInterpretation {
     case Signed;
     case Unsigned;

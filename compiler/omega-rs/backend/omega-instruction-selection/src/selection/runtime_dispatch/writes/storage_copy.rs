@@ -17,7 +17,39 @@ use super::super::super::storage_places::{
     resolve_runtime_storage_place_in_table,
 };
 use omega_abstract_operations::RuntimeStorageRegion;
-use omega_abstract_operations::SelectedInstructionKind;
+use omega_abstract_operations::{RuntimeValueOperand, SelectedInstructionKind};
+use psi_arena::Arena;
+
+#[allow(clippy::too_many_arguments)]
+pub(in crate::selection::runtime_dispatch) fn runtime_stored_integer_projection_copy_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    target_source_key: StateKey,
+    value_source_key: StateKey,
+    expressions: &ExpressionTable,
+    target: ExpressionHandle,
+    value: ExpressionHandle,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+) -> Option<SelectedInstructionKind> {
+    let target = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        expressions,
+        target,
+    )?;
+    super::mutation::select_runtime_stored_integer_projection_write_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        value,
+        target.region,
+        target.byte_offset,
+        target.byte_count,
+        runtime_value_operands,
+    )
+}
 
 pub(in crate::selection::runtime_dispatch) fn runtime_storage_copy(
     input: &InstructionSelectionInput<'_>,

@@ -443,8 +443,12 @@ fn judge_scalar_recast(
         // target. The same normalized representation supplies size/alignment
         // and scalar-leaf facts; this is the top-level-array continuation of
         // the array fields records already admit.
-        if let Some(target_representation) = mutable_type_representation(program, cast.target_type)
-        {
+        let target_representation = if mutable_recast {
+            mutable_type_representation(program, cast.target_type)
+        } else {
+            shared_projection_type_representation(program, cast.target_type)
+        };
+        if let Some(target_representation) = target_representation {
             if program.normalized_type_identity(let_referee)
                 != program.normalized_type_identity(cast.target_type)
             {
@@ -501,6 +505,16 @@ fn judge_scalar_recast(
                 && let Some(source_representation) =
                     mutable_type_representation(program, source_type)
             {
+                if target_representation.has_stored_integer_projection
+                    || source_representation.has_stored_integer_projection
+                {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "{context}: stored-width integer decoding is admitted only for a shared \
+                         view over a proven byte region; typed aggregate aliases require identical \
+                         storage representations"
+                    )));
+                    return;
+                }
                 let compatible = if mutable_recast {
                     mutable_record_representations_equivalent(
                         program,
@@ -1079,6 +1093,7 @@ struct MutableRecordRepresentation {
     size: usize,
     align: usize,
     leaves: Vec<MutableRecordLeaf>,
+    has_stored_integer_projection: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -1092,8 +1107,27 @@ fn mutable_type_representation(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Option<MutableRecordRepresentation> {
-    let mut representation =
-        mutable_record_type_representation(program, type_reference, &mut HashSet::new())?;
+    type_representation(program, type_reference, false)
+}
+
+fn shared_projection_type_representation(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<MutableRecordRepresentation> {
+    type_representation(program, type_reference, true)
+}
+
+fn type_representation(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+    allow_stored_integer_projection: bool,
+) -> Option<MutableRecordRepresentation> {
+    let mut representation = mutable_record_type_representation(
+        program,
+        type_reference,
+        &mut HashSet::new(),
+        allow_stored_integer_projection,
+    )?;
     representation
         .leaves
         .sort_by_key(|leaf| (leaf.offset, leaf.size));
@@ -1109,6 +1143,7 @@ fn mutable_record_representation_inner(
     program: &TypedTrees,
     name: &str,
     visiting: &mut HashSet<String>,
+    allow_stored_integer_projection: bool,
 ) -> Option<MutableRecordRepresentation> {
     if !visiting.insert(name.to_owned()) {
         return None;
@@ -1128,28 +1163,52 @@ fn mutable_record_representation_inner(
             visiting.remove(name);
             return None;
         };
-        let Some(representation) =
-            mutable_record_type_representation(program, field.type_reference, visiting)
-        else {
+        let Some(representation) = mutable_record_type_representation(
+            program,
+            field.type_reference,
+            visiting,
+            allow_stored_integer_projection,
+        ) else {
             visiting.remove(name);
             return None;
         };
         fields.push(representation);
     }
 
+    let mut has_stored_integer_projection = fields
+        .iter()
+        .any(|field| field.has_stored_integer_projection);
     let (size, align, offsets) = if let Some(plan) = program
         .plan_laid_layouts
         .iter()
         .find(|plan| plan.data_name == name)
     {
-        if !plan.integer_fields.is_empty()
+        if (!allow_stored_integer_projection && !plan.integer_fields.is_empty())
             || plan.offsets.len() != fields.len()
-            || fields.iter().zip(&plan.offsets).any(|(field, offset)| {
-                offset
-                    .checked_add(field.size)
-                    .is_none_or(|end| end > plan.size)
-            })
         {
+            visiting.remove(name);
+            return None;
+        }
+        for integer_field in &plan.integer_fields {
+            let field = fields.get_mut(integer_field.field_index)?;
+            if field.leaves.len() != 1
+                || integer_field.stored_width_bits == 0
+                || integer_field.stored_width_bits % 8 != 0
+            {
+                visiting.remove(name);
+                return None;
+            }
+            let stored_size = usize::from(integer_field.stored_width_bits / 8);
+            field.size = stored_size;
+            field.align = field.align.min(stored_size.max(1));
+            field.leaves[0].size = stored_size;
+            has_stored_integer_projection = true;
+        }
+        if fields.iter().zip(&plan.offsets).any(|(field, offset)| {
+            offset
+                .checked_add(field.size)
+                .is_none_or(|end| end > plan.size)
+        }) {
             visiting.remove(name);
             return None;
         }
@@ -1179,6 +1238,7 @@ fn mutable_record_representation_inner(
         size,
         align,
         leaves,
+        has_stored_integer_projection,
     })
 }
 
@@ -1186,6 +1246,7 @@ fn mutable_record_type_representation(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
     visiting: &mut HashSet<String>,
+    allow_stored_integer_projection: bool,
 ) -> Option<MutableRecordRepresentation> {
     if let Some(primitive) = program.primitive_type_reference(type_reference) {
         let size = primitive.scalar_byte_size()?;
@@ -1197,6 +1258,7 @@ fn mutable_record_type_representation(
                 size,
                 facts: mutable_scalar_representation_facts(program, type_reference)?,
             }],
+            has_stored_integer_projection: false,
         });
     }
     match program.type_reference_table.type_reference(type_reference) {
@@ -1204,7 +1266,12 @@ fn mutable_record_type_representation(
             element_type,
             length: FixedArrayLength::Literal(length),
         } => {
-            let element = mutable_record_type_representation(program, *element_type, visiting)?;
+            let element = mutable_record_type_representation(
+                program,
+                *element_type,
+                visiting,
+                allow_stored_integer_projection,
+            )?;
             let size = element.size.checked_mul(*length)?;
             let mut leaves = Vec::with_capacity(element.leaves.len().checked_mul(*length)?);
             for index in 0..*length {
@@ -1221,11 +1288,15 @@ fn mutable_record_type_representation(
                 size,
                 align: element.align,
                 leaves,
+                has_stored_integer_projection: element.has_stored_integer_projection,
             })
         }
-        TypeReferenceNode::Named { name, .. } => {
-            mutable_record_representation_inner(program, name.as_str(), visiting)
-        }
+        TypeReferenceNode::Named { name, .. } => mutable_record_representation_inner(
+            program,
+            name.as_str(),
+            visiting,
+            allow_stored_integer_projection,
+        ),
         // A non-scalar constraint is a fact over the aggregate rather than a
         // leaf representation fact. It cannot be preserved by this rung.
         TypeReferenceNode::Constrained { .. } | TypeReferenceNode::Reference { .. } => None,
@@ -1276,6 +1347,7 @@ fn repeat_representation(
         size,
         align: element.align,
         leaves,
+        has_stored_integer_projection: element.has_stored_integer_projection,
     })
 }
 

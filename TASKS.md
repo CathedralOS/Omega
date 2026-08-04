@@ -132,6 +132,11 @@ composite claim-frontier work remain.
   can recompose the exact parent lineage. Remaining integration is for concrete
   target startup providers to feed their emitted image/layout geometry into the
   handoff and allocate their later frames/task stacks from the returned pool.
+  Cathedral's current exported UEFI `Main::run(handle, table)` is not such a
+  provider: no selected target-entry trait/schema inherits
+  `ProgramStorageEntry` yet. That is a target-package implementation dependency,
+  not a language-design blocker; do not substitute name recognition for the
+  missing schema.
 
 - `Task<T>` plus the interrupt mask guard and acknowledgement token are now
   ordinary linear data. The interrupt carriers expose the compact
@@ -401,7 +406,10 @@ those rows remain absent until their actual checked proofs exist.
   claim identities and replayable place substitutions. The executable source
   canary remains content-free and fail-closed. Next connect the now-unblocked
   real content-bearing source slice, insert sealed introduction and
-  custody-exit rows, and discharge or admit the exact frontier theorem.
+  custody-exit rows, and discharge or admit the exact frontier theorem. The
+  real content-bearing executable source canary is currently blocked on
+  implementation of aggregate terminal values/calls or the custody-exit
+  producer needed to cross that boundary. This is not a language-design block.
 - **TERMINAL-CONTENT-CLAIMS — DESIGN RESOLVED; implementation unblocked:** a
   real direct partition wrapper exposed a gap hidden by the synthetic terminal
   fixture.
@@ -2088,11 +2096,15 @@ ordinary code never receives a raw executable address.
   geometry, typed plan-laid layouts, and concrete Omega layouts: byte offset,
   whole-byte stored width through 64 bits, and interpretation survive into a
   field-keyed backend record; invalid carriers and non-total decode ranges
-  reject. Remaining work is direct sign/zero-extending projection,
-  total/proved-fit mutation lowering, and the Linux metadata policies/canaries
-  that consume it. Ordinary scalar resolution, mutable recasts, interpreter
-  record views, and by-value boundary classification reject stored-width fields
-  until those consumers use the dedicated encoding metadata.
+  reject. Direct owned and reference-backed scalar projection now loads the
+  exact stored width and uses the retained interpretation to sign- or
+  zero-extend into the portable carrier; a raw-byte native canary distinguishes
+  both rules and cross-compiles for Windows x64 and Linux AArch64. Remaining
+  work is indexed projection, total/proved-fit mutation lowering, and the Linux
+  metadata policies/canaries that consume it. Ordinary scalar resolution still
+  rejects stored-width fields rather than treating them as `At`; mutable
+  recasts, interpreter record views, and by-value boundary classification stay
+  fail-closed until those consumers use the dedicated encoding metadata.
   Linux `read_dir` now retains the real three-argument `getdents64`
   plan, omits the Darwin-only cursor at selection, and decodes the Linux record
   offsets in both target packages. Direct syscall failures now flow as explicit
