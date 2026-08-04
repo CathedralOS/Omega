@@ -1725,10 +1725,17 @@ and allocation handles expose no compiler-owned stack/control storage.
      law, composites inherit without redeclaration, and the permanent canary
      covers concrete proposition substitution plus heterogeneous machine-
      indexed reflexive/symmetric/transitive telescope synthesis;
-  4. add `Respects` over normalized argument records, checking both
-     representative-invariant semantic preconditions and related results; and
-  5. migrate `%` from executable-`bool` relations and suffix-based law
-     discovery to proposition evidence plus explicit selected conformances.
+  4. **DESIGN BLOCKED (`OWNER_QUESTIONS.md` Q3):** add `Respects` over
+     normalized argument records, checking both representative-invariant
+     semantic preconditions and related results. The semantic clauses are
+     settled, but the source/identity surface for the synthesized record,
+     receiver/parameter projections, and derived callable-domain proposition
+     is not; do not promote the legacy flattened pair-of-calls scan;
+  5. **DESIGN BLOCKED (`OWNER_QUESTIONS.md` Q1 and Q3):** migrate `%` from
+     executable-`bool` relations and suffix-based law discovery to proposition
+     evidence plus explicit selected conformances. Exact equivalence selection
+     needs Q1's complete conformance map, and lifted operations depend on Q3's
+     `Respects` surface.
   Preserve the existing generic quotient canaries as migration coverage for
   heterogeneous machine-indexed representatives; add a decidable rational
   relation, existential Cauchy evidence, a total lifted operation, and a
