@@ -156,6 +156,7 @@ pub fn emit_checked_executable_image(
 #[derive(Clone)]
 enum CompilerInstructionRelocationRecipe {
     None,
+    NoRelocations,
     StaticStorage {
         storage_region: omega_target_operations::RuntimeStorageRegion,
         address_site: usize,
@@ -234,6 +235,76 @@ enum CompilerInstructionRelocationRecipe {
         left: omega_target_operations::RuntimeValueOperandHandle,
         right: omega_target_operations::RuntimeValueOperandHandle,
     },
+}
+
+fn encode_simple_outbound_syscall(
+    architecture: Architecture,
+    operands: &[omega_target_operations::InstructionOperand],
+    number: u32,
+    plan: &omega_calling_conventions::CallPlan,
+) -> Result<Vec<u8>, Diagnostic> {
+    use omega_calling_conventions::{EntryControl, ValueLocation};
+
+    let EntryControl::SupervisorCall {
+        number_register,
+        immediate,
+    } = plan.entry_control
+    else {
+        return Err(Diagnostic::error(
+            "final outbound syscall replay retained non-supervisor entry control",
+        ));
+    };
+    if plan.result.is_some() || plan.parameters.len() != operands.len() {
+        return Err(Diagnostic::error(
+            "final simple outbound syscall replay retained incompatible parameter/result arity",
+        ));
+    }
+    let parameter_registers = plan
+        .parameters
+        .iter()
+        .map(|placement| match placement.locations.as_slice() {
+            [ValueLocation::Register {
+                register,
+                value_byte_offset: 0,
+                byte_size,
+            }] if *byte_size == placement.shape.byte_size => Ok(*register),
+            _ => Err(Diagnostic::error(
+                "final simple outbound syscall replay requires one whole-value register per parameter",
+            )),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    match architecture {
+        Architecture::X86_64 => omega_isa_x86_64::encode_syscall_sequence(
+            operands,
+            number,
+            &parameter_registers,
+            number_register,
+            immediate,
+        ),
+        Architecture::Aarch64 => {
+            let operands = operands
+                .iter()
+                .map(|operand| match operand.kind {
+                    omega_target_operations::InstructionOperandKind::ImmediateInteger(value) => Ok(
+                        omega_isa_aarch64::Aarch64CallOperand::ImmediateInteger(value),
+                    ),
+                    omega_target_operations::InstructionOperandKind::ByteLength(value) => {
+                        Ok(omega_isa_aarch64::Aarch64CallOperand::ByteLength(value))
+                    }
+                    _ => Err(Diagnostic::error(
+                        "final simple outbound syscall replay retained a relocatable operand",
+                    )),
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            omega_isa_aarch64::encode_syscall_sequence(
+                &operands,
+                number,
+                &parameter_registers,
+                number_register,
+                immediate,
+            )
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -1456,6 +1527,21 @@ fn validate_compiler_function_instruction_boundaries(
                             },
                         )
                     }
+                    omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyOutboundSyscall {
+                        operands,
+                        number,
+                        plan,
+                    } => (
+                        None,
+                        encode_simple_outbound_syscall(
+                            architecture,
+                            &operands,
+                            number,
+                            &plan,
+                        )?,
+                        35u8,
+                        CompilerInstructionRelocationRecipe::NoRelocations,
+                    ),
                     omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyStorageBitFieldWrite {
                         region,
                         base_byte_offset,
@@ -2728,6 +2814,16 @@ fn validate_compiler_function_instruction_boundaries(
                     CompilerInstructionRelocationRecipe::None => {
                         final_instruction_bytes == expected_bytes
                     }
+                    CompilerInstructionRelocationRecipe::NoRelocations => {
+                        let has_relocation = relocations.records().any(|(_, relocation)| {
+                            relocation.section == SectionKind::Text
+                                && relocation.origin.selected_instruction_index()
+                                    == Some(instruction.selected_instruction_index)
+                        });
+                        !has_relocation
+                            && encoded_instruction_bytes == expected_bytes
+                            && final_instruction_bytes == expected_bytes
+                    }
                     CompilerInstructionRelocationRecipe::StaticStorage {
                         storage_region,
                         address_site,
@@ -3432,7 +3528,7 @@ fn compiler_instruction_footprint(
     omega_machine_instructions::BoundaryFootprintFragmentOrigin,
     omega_calling_conventions::StateFootprintEvidence,
 )> {
-    use omega_calling_conventions::{MachineStateSet, StateFootprintEvidence};
+    use omega_calling_conventions::{MachineState, MachineStateSet, StateFootprintEvidence};
     use omega_machine_bytes::CompilerInstructionValidationKind;
     use omega_machine_instructions::BoundaryFootprintFragmentOrigin;
 
@@ -3906,6 +4002,15 @@ fn compiler_instruction_footprint(
             },
             MachineStateSet::empty(),
         ),
+        CompilerInstructionValidationKind::CompilerBodyOutboundSyscall { plan, .. } => (
+            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscall,
+            plan.ordinary_clobbers,
+            MachineStateSet::new([
+                MachineState::Flags,
+                MachineState::InstructionPointer,
+                MachineState::ControlState,
+            ]),
+        ),
         CompilerInstructionValidationKind::CompilerBodyPlaceBinaryWrite {
             target,
             left,
@@ -4336,6 +4441,7 @@ fn validate_compiler_body_specification_footprints(
                 | BoundaryFootprintFragmentOrigin::CompilerBodyPlaceIntegerWrite
                 | BoundaryFootprintFragmentOrigin::CompilerBodyPlaceAddressWrite
                 | BoundaryFootprintFragmentOrigin::CompilerBodyConstantHostResult
+                | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscall
                 | BoundaryFootprintFragmentOrigin::CompilerBodyStorageBitFieldWrite
                 | BoundaryFootprintFragmentOrigin::CompilerBodyPlaceBoundedBufferWrite
                 | BoundaryFootprintFragmentOrigin::CompilerBodyPlaceStringWrite
@@ -4414,6 +4520,10 @@ fn validate_compiler_body_specification_footprints(
         (
             19u8,
             BoundaryFootprintFragmentOrigin::CompilerBodyConstantHostResult,
+        ),
+        (
+            20u8,
+            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscall,
         ),
     ] {
         let evidence_rows = derived

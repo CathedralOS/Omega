@@ -117,6 +117,9 @@ pub fn boundary_footprint_fragments_json(plan: &EncodedMachinePlan) -> String {
                 omega_abstract_operations::BoundaryFootprintFragmentOrigin::CompilerBodyConstantHostResult => {
                     "compiler_body_constant_host_result"
                 }
+                omega_abstract_operations::BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscall => {
+                    "compiler_body_outbound_syscall"
+                }
                 omega_abstract_operations::BoundaryFootprintFragmentOrigin::CompilerBodyStorageBitFieldWrite => {
                     "compiler_body_storage_bit_field_write"
                 }

@@ -882,7 +882,7 @@ proves complete region coverage, and composes admitted leaves under their
 separate provenance. Do not add a second whole-image decoder/admission path.
 
 The existing single final-region artifact now carries the domain-separated
-`omega.final-footprint-certificate` schema, format version 67, and a certificate
+`omega.final-footprint-certificate` schema, format version 68, and a certificate
 fingerprint over its final placement binding, compiler-text derivation, and
 complete region inventory. Its explicit completeness flags remain false until
 compiler-body footprint decoding and admitted-leaf evidence land. The envelope
@@ -937,6 +937,15 @@ fixed result-region relocation, and matches the x86-64 RAX/R15 or
 offset-sensitive AArch64 X0/X16[/X17] clobber set to a dedicated StatePlan
 fragment without inventing a `CallPlan` or boundary control transfer. The final
 validator now also
+replays immediate/byte-length, no-result Linux syscalls as the first outbound
+call leaf. The selected binding's authoritative `CallPlan` supplies every
+argument register, syscall-number register, and supervisor-call immediate;
+validation requires exact x86-64/AArch64 bytes and proves that the instruction
+owns no relocation records. Its semantic leaf footprint is the plan's complete
+ordinary-clobber set plus flags, instruction-pointer, and prescribed control
+transition, matched to dedicated `CompilerBodyOutboundSyscall` evidence under
+the enclosing boundary ceiling. Result-bearing, storage-addressed, composite,
+and imported calls remain incomplete. The final validator now also
 replays register-, stack-, and indirect-pointer entry argument copies plus the
 entry `args` slice-descriptor write. Each row retains its normalized ABI/storage
 recipe, requires the exact runtime-frame relocation site even when a stack-held
@@ -993,7 +1002,8 @@ relocations. Composed-place conversion writes now share that fragment and exact
 recipe for all x86 materializer targets and every classified AArch64 target:
 direct, pointee, frame-descriptor-indexed, inline-frame-indexed, and single- or
 double-runtime-indexed machine places. Unclassified AArch64 place shapes,
-persistent-machine text assembly, and calls remain incomplete. Direct,
+persistent-machine text assembly, and the remaining call classes remain
+incomplete. Direct,
 pointee, or frame-indexed x86 text-buffer materialization now retains the exact
 buffer symbol and target place. AArch64 additionally replays cross-region frame
 indices and transient inline-frame indexed destinations. These forms replay the
