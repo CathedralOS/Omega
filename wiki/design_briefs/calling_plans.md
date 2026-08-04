@@ -1184,11 +1184,15 @@ Final validation regenerates the evaluator/store bytes, walks nested operand
 relocations, and matches the closed target may-write ceiling to the separately
 retained `CompilerBodyPlaceBinaryWrite` fragment. The x86 general materializer
 also replays a frame-held descriptor indexed from machine storage.
+Direct runtime-storage numeric conversion writes retain their complete cast
+policy and source-operand root, replay exact conversion/store bytes and nested
+relocations, and match a separate `CompilerBodyStorageConvertWrite` fragment.
 Final validation replays the exact target encoder
 and relocation set and matches the derived scratch union to the
 respective retained `CompilerBodyPlaceCopy` or
-`CompilerBodyPlaceIntegerWrite` fragment. Other otherwise-general binary targets,
-conversion/string/bit-field writes, and calls remain unreplayed. Pointee-pair
+`CompilerBodyPlaceIntegerWrite` fragment. Other otherwise-general binary
+targets, composed-place conversion, string/bit-field writes, and calls remain
+unreplayed. Pointee-pair
 selection resolves both reference
 operands before flat storage so the source pointer is never copied as field
 data.

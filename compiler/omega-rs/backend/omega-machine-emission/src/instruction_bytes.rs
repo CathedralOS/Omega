@@ -512,6 +512,33 @@ fn compiler_instruction_validation_kind(
                 },
             )
         }
+        SelectedInstructionKind::WriteRuntimeStorageConvert {
+            target_region,
+            target_offset,
+            target_byte_size,
+            source,
+            source_byte_size,
+            source_is_float,
+            target_is_float,
+            source_signed,
+            target_signed,
+            trapping,
+            saturating,
+        } => Some(
+            CompilerInstructionValidationKind::CompilerBodyStorageConvertWrite {
+                target_region: *target_region,
+                target_offset: *target_offset,
+                target_byte_size: *target_byte_size,
+                source: *source,
+                source_byte_size: *source_byte_size,
+                source_is_float: *source_is_float,
+                target_is_float: *target_is_float,
+                source_signed: *source_signed,
+                target_signed: *target_signed,
+                trapping: *trapping,
+                saturating: *saturating,
+            },
+        ),
         SelectedInstructionKind::SetDispatchState { dispatch_index } => {
             Some(CompilerInstructionValidationKind::DispatchStateWrite {
                 dispatch_index: *dispatch_index,

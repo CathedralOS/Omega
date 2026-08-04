@@ -5,7 +5,7 @@ use crate::{
 use psi_diagnostics::Diagnostic;
 
 pub const FINAL_FOOTPRINT_CERTIFICATE_SCHEMA: &str = "omega.final-footprint-certificate";
-pub const FINAL_FOOTPRINT_CERTIFICATE_FORMAT_VERSION: u32 = 43;
+pub const FINAL_FOOTPRINT_CERTIFICATE_FORMAT_VERSION: u32 = 44;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum FinalFootprintClass {
