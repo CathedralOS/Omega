@@ -955,23 +955,38 @@ pub fn derive_boundary_compiler_body_place_bounded_buffer_write_footprint<'instr
     let mut registers = Vec::new();
     let mut additional_state = MachineStateSet::empty();
     for instruction in instructions {
-        let (target, is_append) = match instruction {
-            SelectedInstructionKind::WritePlaceBoundedBuffer { target, .. } => (target, false),
+        let (target, source, append_kind) = match instruction {
+            SelectedInstructionKind::WritePlaceBoundedBuffer { target, .. } => (target, None, 0u8),
             SelectedInstructionKind::AppendPlaceBoundedBufferLiteral { target, .. } => {
-                (target, true)
+                (target, None, 1)
+            }
+            SelectedInstructionKind::AppendPlaceBoundedBufferSource { target, source } => {
+                (target, Some(source), 2)
             }
             _ => continue,
         };
         let supported = architecture == omega_target::Architecture::X86_64
-            || matches!(
+            || (matches!(
                 crate::classify_write_place_shape(target),
                 crate::WritePlaceShape::Direct { .. } | crate::WritePlaceShape::Pointee { .. }
-            );
+            ) && source.map_or(true, |source| {
+                matches!(
+                    crate::classify_write_place_shape(source),
+                    crate::WritePlaceShape::Direct { .. } | crate::WritePlaceShape::Pointee { .. }
+                )
+            }));
         if !supported {
             continue;
         }
         let (writes, state) = match architecture {
-            omega_target::Architecture::X86_64 if is_append => (
+            omega_target::Architecture::X86_64 if append_kind == 2 => (
+                omega_isa_x86_64::place_bounded_buffer_source_append_register_writes(
+                    target,
+                    source.expect("source append retains a source"),
+                ),
+                omega_isa_x86_64::place_bounded_buffer_source_append_additional_machine_state(),
+            ),
+            omega_target::Architecture::X86_64 if append_kind == 1 => (
                 omega_isa_x86_64::place_bounded_buffer_literal_append_register_writes(target),
                 omega_isa_x86_64::place_bounded_buffer_literal_append_additional_machine_state(),
             ),
@@ -979,7 +994,11 @@ pub fn derive_boundary_compiler_body_place_bounded_buffer_write_footprint<'instr
                 omega_isa_x86_64::place_bounded_buffer_write_register_writes(target),
                 omega_isa_x86_64::place_bounded_buffer_write_additional_machine_state(target),
             ),
-            omega_target::Architecture::Aarch64 if is_append => (
+            omega_target::Architecture::Aarch64 if append_kind == 2 => (
+                omega_isa_aarch64::place_bounded_buffer_source_append_register_write_ceiling(),
+                omega_isa_aarch64::place_bounded_buffer_source_append_additional_machine_state(),
+            ),
+            omega_target::Architecture::Aarch64 if append_kind == 1 => (
                 omega_isa_aarch64::place_bounded_buffer_literal_append_register_write_ceiling(),
                 omega_isa_aarch64::place_bounded_buffer_literal_append_additional_machine_state(),
             ),

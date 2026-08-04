@@ -121,6 +121,10 @@ pub enum CompilerInstructionValidationKind {
         target: Place,
         literal: Arc<str>,
     },
+    CompilerBodyPlaceBoundedBufferSourceAppend {
+        target: Place,
+        source: Place,
+    },
     CompilerBodyPlaceStringWrite {
         target: Place,
         data_symbol: Arc<str>,
