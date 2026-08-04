@@ -388,6 +388,65 @@ fn indexed_relation_requires_a_fresh_telescope_per_representative() {
 }
 
 #[test]
+fn proposition_law_conformance_substitutes_the_selected_family() {
+    let typed = typed_program_from_source(
+        r#"
+        data Carrier {}
+        proposition related(left: Carrier, right: Carrier);
+
+        trait Reflexive<C, proposition Relation>
+        where proposition Relation(left: C, right: C);
+        {
+            machine reflexive(value: C) ensures Relation(value, value);
+        }
+
+        machine reflexive(value: Carrier)
+        satisfies Reflexive<Carrier, related>::reflexive
+        requires related(value, value)
+        ensures related(value, value)
+        {
+        }
+        "#,
+    );
+
+    validate_program(&typed)
+        .expect("the proof machine should satisfy the substituted proposition law exactly");
+}
+
+#[test]
+fn proposition_law_conformance_rejects_a_different_ensures() {
+    let typed = typed_program_from_source(
+        r#"
+        data Carrier {}
+        proposition related(left: Carrier, right: Carrier);
+        proposition unrelated(left: Carrier, right: Carrier);
+
+        trait Reflexive<C, proposition Relation>
+        where proposition Relation(left: C, right: C);
+        {
+            machine reflexive(value: C) ensures Relation(value, value);
+        }
+
+        machine reflexive(value: Carrier)
+        satisfies Reflexive<Carrier, related>::reflexive
+        requires unrelated(value, value)
+        ensures unrelated(value, value)
+        {
+        }
+        "#,
+    );
+
+    let diagnostics = validate_program(&typed)
+        .expect_err("a proof of another proposition must not satisfy the selected relation law");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("proves no ensures matching proposition law")
+            && diagnostic.message.contains("proposition:fact:related")
+    }));
+}
+
+#[test]
 fn local_dynamic_value_rejects_boundary_trait() {
     let typed = typed_program_from_source(
         r#"

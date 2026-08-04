@@ -1254,6 +1254,7 @@ fn validate_machine_single_requirement(
         conformance_alias,
         trait_definition,
         requirement,
+        explicit_type_arguments,
         diagnostics,
     );
 }
