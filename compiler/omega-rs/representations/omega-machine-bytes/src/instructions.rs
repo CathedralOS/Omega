@@ -103,8 +103,7 @@ pub enum CompilerInstructionValidationKind {
         byte_count: usize,
     },
     CompilerBodyPlaceIntegerWrite {
-        storage_region: RuntimeStorageRegion,
-        byte_offset: usize,
+        target: Place,
         value: i64,
         byte_size: usize,
     },

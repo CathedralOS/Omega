@@ -310,6 +310,17 @@ enum CompilerBodyPlaceCopyShape {
     General,
 }
 
+#[derive(Clone, Copy)]
+enum CompilerBodyPlaceIntegerWriteShape {
+    Direct {
+        byte_offset: usize,
+    },
+    Pointee {
+        pointer_byte_offset: usize,
+        field_byte_offset: usize,
+    },
+}
+
 fn validate_compiler_function_instruction_boundaries(
     architecture: Architecture,
     code: &omega_machine_bytes::EncodedMachineCode,
@@ -1179,18 +1190,15 @@ fn validate_compiler_function_instruction_boundaries(
                         )
                     }
                     omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyPlaceIntegerWrite {
-                        storage_region,
-                        byte_offset,
+                        target,
                         value,
                         byte_size,
-                    } => (
-                        None,
-                        match architecture {
+                    } => {
+                        let shape = compiler_body_place_integer_write_shape(&target)?;
+                        (
+                            None,
+                            match architecture {
                             Architecture::X86_64 => {
-                                let target = omega_target_operations::Place::at(
-                                    storage_region,
-                                    byte_offset,
-                                );
                                 omega_isa_x86_64::encode_place_integer_write(
                                     &target,
                                     value,
@@ -1198,20 +1206,32 @@ fn validate_compiler_function_instruction_boundaries(
                                 )?
                                 .0
                             }
-                            Architecture::Aarch64 => {
+                            Architecture::Aarch64 => match shape {
+                                CompilerBodyPlaceIntegerWriteShape::Direct { byte_offset } => {
                                 omega_isa_aarch64::encode_runtime_machine_integer_write(
                                     byte_offset,
                                     byte_size,
                                     value,
                                 )?
-                            }
-                        },
-                        22u8,
-                        CompilerInstructionRelocationRecipe::StaticStorage {
-                            storage_region,
-                            address_site: 0,
-                        },
-                    ),
+                                }
+                                CompilerBodyPlaceIntegerWriteShape::Pointee {
+                                    pointer_byte_offset,
+                                    field_byte_offset,
+                                } => omega_isa_aarch64::encode_runtime_pointee_integer_write(
+                                    pointer_byte_offset,
+                                    field_byte_offset,
+                                    byte_size,
+                                    value,
+                                )?,
+                            },
+                            },
+                            22u8,
+                            CompilerInstructionRelocationRecipe::StaticStorage {
+                                storage_region: target.region,
+                                address_site: 0,
+                            },
+                        )
+                    }
                     omega_machine_bytes::CompilerInstructionValidationKind::DispatchStateWrite {
                         dispatch_index,
                         case_leave_byte_distance,
@@ -1937,18 +1957,30 @@ fn compiler_instruction_footprint(
                 MachineStateSet::empty(),
             )
         }
-        CompilerInstructionValidationKind::CompilerBodyPlaceIntegerWrite {
-            byte_offset, ..
-        } => (
-            BoundaryFootprintFragmentOrigin::CompilerBodyPlaceIntegerWrite,
-            match architecture {
-                Architecture::X86_64 => omega_isa_x86_64::direct_place_integer_write_clobbers(),
-                Architecture::Aarch64 => {
-                    omega_isa_aarch64::runtime_machine_integer_write_clobbers(byte_offset)
-                }
-            },
-            MachineStateSet::empty(),
-        ),
+        CompilerInstructionValidationKind::CompilerBodyPlaceIntegerWrite { target, .. } => {
+            let Ok(shape) = compiler_body_place_integer_write_shape(&target) else {
+                return None;
+            };
+            (
+                BoundaryFootprintFragmentOrigin::CompilerBodyPlaceIntegerWrite,
+                match architecture {
+                    Architecture::X86_64 => omega_isa_x86_64::place_integer_write_clobbers(&target),
+                    Architecture::Aarch64 => match shape {
+                        CompilerBodyPlaceIntegerWriteShape::Direct { byte_offset } => {
+                            omega_isa_aarch64::runtime_machine_integer_write_clobbers(byte_offset)
+                        }
+                        CompilerBodyPlaceIntegerWriteShape::Pointee {
+                            pointer_byte_offset,
+                            field_byte_offset,
+                        } => omega_isa_aarch64::runtime_pointee_integer_write_clobbers(
+                            pointer_byte_offset,
+                            field_byte_offset,
+                        ),
+                    },
+                },
+                MachineStateSet::empty(),
+            )
+        }
         CompilerInstructionValidationKind::DispatchStateWrite { .. } => (
             BoundaryFootprintFragmentOrigin::DispatchScaffold,
             match architecture {
@@ -2727,6 +2759,39 @@ fn compiler_body_place_copy_shape(
         target_pointer_byte_offset,
         target_field_byte_offset,
     })
+}
+
+fn compiler_body_place_integer_write_shape(
+    target: &omega_target_operations::Place,
+) -> Result<CompilerBodyPlaceIntegerWriteShape, Diagnostic> {
+    if let Some(byte_offset) = target.const_offset() {
+        return Ok(CompilerBodyPlaceIntegerWriteShape::Direct { byte_offset });
+    }
+    if target.region != omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
+        return Err(Diagnostic::error(
+            "final pointee integer-write pointer is not captured in the runtime frame",
+        ));
+    }
+    match target.steps() {
+        [
+            omega_target_operations::PlaceStep::ConstOffset(pointer_byte_offset),
+            omega_target_operations::PlaceStep::Deref,
+        ] => Ok(CompilerBodyPlaceIntegerWriteShape::Pointee {
+            pointer_byte_offset: *pointer_byte_offset,
+            field_byte_offset: 0,
+        }),
+        [
+            omega_target_operations::PlaceStep::ConstOffset(pointer_byte_offset),
+            omega_target_operations::PlaceStep::Deref,
+            omega_target_operations::PlaceStep::ConstOffset(field_byte_offset),
+        ] => Ok(CompilerBodyPlaceIntegerWriteShape::Pointee {
+            pointer_byte_offset: *pointer_byte_offset,
+            field_byte_offset: *field_byte_offset,
+        }),
+        _ => Err(Diagnostic::error(
+            "final compiler-body integer-write target is not a retained direct or frame-held pointee shape",
+        )),
+    }
 }
 
 fn compiler_place_copy_from_frame_base_indexed_offsets(
