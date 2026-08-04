@@ -1151,11 +1151,10 @@ subset is also explicit: immediate-only, no-result Linux syscalls replay their
 plan-selected register and supervisor instruction program, reject any
 relocation record, and retain the complete ordinary-clobber plus
 flags/instruction-pointer/control-state leaf under a dedicated origin. A
-zero-parameter value-result companion now replays the plan-selected result
-register and exact result-region relocation, including AArch64's
-offset-sensitive X16[/X17] store-address scratch under its own origin. This does
-not cover parameter-bearing value calls, storage/data operands, composites, or
-imports.
+value-result companion with immediate/byte-length parameters now replays the
+plan-selected parameter/result registers and exact result-region relocation,
+including AArch64's offset-sensitive X16[/X17] store-address scratch under its
+own origin. This does not cover storage/data operands, composites, or imports.
 The
 envelope now exists as a typed `omega-image` object with a closed class
 vocabulary and normalized coverage rows; its identity is replayed before the

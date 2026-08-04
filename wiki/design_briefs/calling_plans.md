@@ -1140,12 +1140,12 @@ supervisor immediate. Checked emission regenerates the complete x86-64 or
 AArch64 sequence, requires zero relocation records for this immediate-only
 class, and matches the plan's full ordinary-clobber leaf plus flags and the
 prescribed supervisor control transition to a dedicated StatePlan fragment.
-The first value-result subset covers zero-parameter Linux syscalls. Final
-replay uses the same plan-selected result register, validates the sole
-result-storage relocation, and adds AArch64's offset-sensitive X16[/X17]
-post-call store scratch to a separate StatePlan fragment. Parameter-bearing
-value calls, storage/data operands, composite syscall adapters, and imported
-calls remain separate unfinished classes.
+The first value-result subset covers Linux syscalls whose parameters are
+immediate integers or byte lengths. Final replay uses the same plan-selected
+parameter and result registers, validates the sole result-storage relocation,
+and adds AArch64's offset-sensitive X16[/X17] post-call store scratch to a
+separate StatePlan fragment. Storage/data operands, composite syscall adapters,
+and imported calls remain separate unfinished classes.
 The replay boundary is the compiler-authored prefix, not the entire executable
 `.text` section. Format-owned import-thunk tails appended by Mach-O or PE stay
 outside compiler-function enumeration and are validated by their separate
