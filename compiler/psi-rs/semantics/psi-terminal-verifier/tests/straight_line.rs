@@ -266,6 +266,130 @@ fn v15_boolean_not_axiom_proves_the_return_contract() {
 }
 
 #[test]
+fn v17_boolean_equality_axiom_proves_the_return_contract() {
+    let left = ValueId::new(30).expect("left parameter");
+    let right = ValueId::new(31).expect("right parameter");
+    let compared = ValueId::new(32).expect("compared");
+    let result = ValueId::new(33).expect("result");
+    let obligation = ObligationId::new(30).expect("obligation");
+    let term = |id| ScalarTerm::value(id, ScalarType::Boolean);
+    let equality = ScalarTerm::boolean_equal(term(left), term(right)).unwrap();
+    let goal = Proposition::Equal(term(result), equality.clone());
+    let module = TerminalModule {
+        semantic_version: SemanticVersion::V17,
+        entry: MachineId::new(30).expect("machine"),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        machines: vec![TerminalMachine {
+            id: MachineId::new(30).expect("machine"),
+            parameters: vec![
+                ValueDeclaration {
+                    id: left,
+                    scalar_type: ScalarType::Boolean,
+                },
+                ValueDeclaration {
+                    id: right,
+                    scalar_type: ScalarType::Boolean,
+                },
+            ],
+            result: ValueDeclaration {
+                id: result,
+                scalar_type: ScalarType::Boolean,
+            },
+            structural_places: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: BlockId::new(30).expect("block"),
+            blocks: vec![Block {
+                id: BlockId::new(30).expect("block"),
+                parameters: Vec::new(),
+                operations: vec![Operation {
+                    id: OperationId::new(30).expect("operation"),
+                    result: ValueDeclaration {
+                        id: compared,
+                        scalar_type: ScalarType::Boolean,
+                    },
+                    kind: OperationKind::BooleanEqual { left, right },
+                }],
+                terminator: Terminator::Return {
+                    edge: EdgeId::new(30).expect("edge"),
+                    value: compared,
+                },
+            }],
+            contract: MachineContract {
+                id: ContractId::new(30).expect("contract"),
+                requires: Vec::new(),
+                ensures: vec![ContractClause {
+                    obligation,
+                    proposition: goal.clone(),
+                }],
+            },
+        }],
+    };
+    let bundle = ProofBundle {
+        evidence: vec![ObligationEvidence {
+            obligation,
+            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                identity: EvidenceIdentity::new(30).expect("certificate"),
+                proof_system_version: ProofSystemVersion::CURRENT,
+                proof: ProofNode {
+                    conclusion: goal,
+                    rule: ProofRule::EqualityTransitivity {
+                        left_equals_middle: Box::new(ProofNode {
+                            conclusion: Proposition::Equal(term(result), term(compared)),
+                            rule: ProofRule::SemanticAxiom { index: 1 },
+                        }),
+                        middle_equals_right: Box::new(ProofNode {
+                            conclusion: Proposition::Equal(term(compared), equality),
+                            rule: ProofRule::SemanticAxiom { index: 0 },
+                        }),
+                    },
+                },
+            }),
+        }],
+    };
+
+    verify_module(&module, &bundle, &AdmissionProfile::default())
+        .expect("v17 Boolean-equality semantics should reconstruct operation and return axioms");
+
+    let mut old = module.clone();
+    old.semantic_version = SemanticVersion::V16;
+    assert_eq!(
+        validate_module(&old).expect_err("v16 cannot contain a Boolean-equality operation"),
+        ModuleError::OperationRequiresSemanticVersion {
+            operation: OperationId::new(30).expect("operation"),
+            required: SemanticVersion::V17,
+            actual: SemanticVersion::V16,
+        }
+    );
+
+    let integer =
+        ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 operand type"));
+    let mut wrong_operand = module.clone();
+    wrong_operand.machines[0].contract.ensures.clear();
+    wrong_operand.machines[0].parameters[1].scalar_type = integer;
+    assert_eq!(
+        validate_module(&wrong_operand).expect_err("Boolean equality requires Boolean operands"),
+        ModuleError::BooleanEqualOperandTypeMismatch {
+            operation: OperationId::new(30).expect("operation"),
+            operand: right,
+            actual: integer,
+        }
+    );
+
+    let mut wrong_result = module;
+    wrong_result.machines[0].contract.ensures.clear();
+    wrong_result.machines[0].blocks[0].operations[0]
+        .result
+        .scalar_type = integer;
+    assert_eq!(
+        validate_module(&wrong_result).expect_err("Boolean equality requires a Boolean result"),
+        ModuleError::BooleanEqualRequiresBooleanResult(OperationId::new(30).expect("operation"))
+    );
+}
+
+#[test]
 fn v9_content_conservation_accepts_a_replaceable_certificate() {
     let (module, goal, obligation) = reflexive_content_module();
     let bundle = ProofBundle {

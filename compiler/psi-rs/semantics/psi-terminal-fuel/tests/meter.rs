@@ -32,6 +32,14 @@ fn current_vocabulary_has_explicit_v1_costs_and_attribution() {
         1,
         "Boolean logical not has one explicit v1-schedule unit"
     );
+    assert_eq!(
+        TerminalFuelSchedule::V1.operation_units(&OperationKind::BooleanEqual {
+            left: value_id(1),
+            right: value_id(2),
+        }),
+        1,
+        "Boolean equality has one explicit v1-schedule unit"
+    );
     let operation = operation();
     let jump = Terminator::Jump {
         edge: edge_id(1),

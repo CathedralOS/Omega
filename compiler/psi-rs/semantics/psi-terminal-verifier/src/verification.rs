@@ -216,6 +216,11 @@ fn reconstruct_semantic_axioms(machine: &TerminalMachine) -> Vec<Proposition> {
                         .expect("validator requires a Boolean logical-not operand");
                     axioms.push(Proposition::Equal(value_term(operation.result.id), negated));
                 }
+                OperationKind::BooleanEqual { left, right } => {
+                    let equal = ScalarTerm::boolean_equal(value_term(left), value_term(right))
+                        .expect("validator requires Boolean equality operands");
+                    axioms.push(Proposition::Equal(value_term(operation.result.id), equal));
+                }
                 OperationKind::WrappingIntegerAdd { left, right } => {
                     let ScalarType::Integer(integer_type) = operation.result.scalar_type else {
                         unreachable!("validator requires wrapping-add integer result type")

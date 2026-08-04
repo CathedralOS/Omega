@@ -29,6 +29,8 @@ use psi_core::{
 /// Version 15 adds total Boolean logical negation.
 /// Version 16 adds self-contained nominal proposition declarations and
 /// normalized application identities. Transparent aliases remain absent.
+/// Version 17 adds total Boolean equality over two already-defined Boolean
+/// values.
 /// Older bytes retain their original meaning and identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SemanticVersion(NonZeroU16);
@@ -50,7 +52,8 @@ impl SemanticVersion {
     pub const V14: Self = Self(NonZeroU16::new(14).expect("fourteen is nonzero"));
     pub const V15: Self = Self(NonZeroU16::new(15).expect("fifteen is nonzero"));
     pub const V16: Self = Self(NonZeroU16::new(16).expect("sixteen is nonzero"));
-    pub const CURRENT: Self = Self::V16;
+    pub const V17: Self = Self(NonZeroU16::new(17).expect("seventeen is nonzero"));
+    pub const CURRENT: Self = Self::V17;
 
     pub fn new(raw: u16) -> Option<Self> {
         NonZeroU16::new(raw).map(Self)
@@ -302,6 +305,7 @@ pub enum OperationKind {
     IntegerConstant { value: IntegerValue },
     BooleanConstant { value: bool },
     BooleanNot { operand: ValueId },
+    BooleanEqual { left: ValueId, right: ValueId },
     WrappingIntegerAdd { left: ValueId, right: ValueId },
     SaturatingIntegerAdd { left: ValueId, right: ValueId },
     WrappingIntegerSubtract { left: ValueId, right: ValueId },
