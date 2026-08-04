@@ -937,6 +937,183 @@ pub fn encode_runtime_pointee_convert_write(
     Ok(bytes)
 }
 
+/// Convert one runtime value and store it through a frame-held indexed
+/// descriptor. Address setup leaves the element address in x16 while the
+/// ordinary conversion evaluator uses the disjoint left-operand scratch bank.
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_frame_indexed_convert_write(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    descriptor_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_byte_size: usize,
+    source: RuntimeValueOperandHandle,
+    source_byte_size: usize,
+    source_is_float: bool,
+    target_is_float: bool,
+    source_signed: bool,
+    target_signed: bool,
+    trapping: bool,
+    saturating: bool,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::new();
+    append_runtime_frame_index_target_address_with_index_region(
+        &mut bytes,
+        16,
+        index_region,
+        descriptor_offset,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+        17,
+        26,
+    )?;
+    append_runtime_value_operand(
+        runtime_value_operands,
+        &mut bytes,
+        17,
+        RUNTIME_VALUE_LEFT_SCRATCH_REGISTERS,
+        source,
+    )?;
+    append_runtime_convert_operation(
+        &mut bytes,
+        17,
+        source_byte_size,
+        target_byte_size,
+        source_is_float,
+        target_is_float,
+        source_signed,
+        target_signed,
+        trapping,
+        saturating,
+    )?;
+    append_runtime_storage_result_write(&mut bytes, 0, target_byte_size)?;
+    Ok(bytes)
+}
+
+/// Convert one runtime value and store it into a runtime-indexed inline frame
+/// array. The shared frame pair supplies both the array and index bases.
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_frame_base_indexed_convert_write(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    base_byte_offset: usize,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_byte_size: usize,
+    source: RuntimeValueOperandHandle,
+    source_byte_size: usize,
+    source_is_float: bool,
+    target_is_float: bool,
+    source_signed: bool,
+    target_signed: bool,
+    trapping: bool,
+    saturating: bool,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::new();
+    append_runtime_frame_base_index_target_address(
+        &mut bytes,
+        16,
+        base_byte_offset,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+        17,
+        26,
+    )?;
+    append_runtime_value_operand(
+        runtime_value_operands,
+        &mut bytes,
+        17,
+        RUNTIME_VALUE_LEFT_SCRATCH_REGISTERS,
+        source,
+    )?;
+    append_runtime_convert_operation(
+        &mut bytes,
+        17,
+        source_byte_size,
+        target_byte_size,
+        source_is_float,
+        target_is_float,
+        source_signed,
+        target_signed,
+        trapping,
+        saturating,
+    )?;
+    append_runtime_storage_result_write(&mut bytes, 0, target_byte_size)?;
+    Ok(bytes)
+}
+
+/// Convert one runtime value and store it into a double-runtime-indexed
+/// machine array. The fixed address program finishes before operand
+/// evaluation, leaving only the element address live in x16.
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_machine_double_indexed_convert_write(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    base_byte_offset: usize,
+    outer_index_offset: usize,
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    outer_index_byte_size: usize,
+    outer_stride: usize,
+    inner_index_offset: usize,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_byte_size: usize,
+    inner_stride: usize,
+    field_byte_offset: usize,
+    target_byte_size: usize,
+    source: RuntimeValueOperandHandle,
+    source_byte_size: usize,
+    source_is_float: bool,
+    target_is_float: bool,
+    source_signed: bool,
+    target_signed: bool,
+    trapping: bool,
+    saturating: bool,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::new();
+    let (outer_base, inner_base) =
+        append_double_index_bases(&mut bytes, outer_index_region, inner_index_region);
+    append_double_index_address_math(
+        &mut bytes,
+        outer_base,
+        outer_index_offset,
+        outer_index_byte_size,
+        outer_stride,
+        inner_base,
+        inner_index_offset,
+        inner_index_byte_size,
+        inner_stride,
+        base_byte_offset + field_byte_offset,
+    )?;
+    append_runtime_value_operand(
+        runtime_value_operands,
+        &mut bytes,
+        17,
+        RUNTIME_VALUE_LEFT_SCRATCH_REGISTERS,
+        source,
+    )?;
+    append_runtime_convert_operation(
+        &mut bytes,
+        17,
+        source_byte_size,
+        target_byte_size,
+        source_is_float,
+        target_is_float,
+        source_signed,
+        target_signed,
+        trapping,
+        saturating,
+    )?;
+    append_runtime_storage_result_write(&mut bytes, 0, target_byte_size)?;
+    Ok(bytes)
+}
+
 /// Convert the value whose raw bits are in `register` between integer/float
 /// representations, leaving the converted result back in `register`. Uses FP
 /// register 0 (`S0`/`D0`) as the scratch FP bank. See

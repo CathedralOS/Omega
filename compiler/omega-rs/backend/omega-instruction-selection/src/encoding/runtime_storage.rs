@@ -206,12 +206,97 @@ pub fn encode_write_place_convert(
         )
         .map(|(bytes, _)| bytes),
         Architecture::Aarch64 => match classify_write_place_shape(target) {
+            WritePlaceShape::Direct { byte_offset } => aarch64::encode_runtime_storage_convert(
+                runtime_value_operands,
+                byte_offset,
+                target_byte_size,
+                source,
+                source_byte_size,
+                source_is_float,
+                target_is_float,
+                source_signed,
+                target_signed,
+                trapping,
+                saturating,
+            ),
             WritePlaceShape::Pointee {
                 pointer_byte_offset,
                 field_byte_offset,
             } => aarch64::encode_runtime_pointee_convert_write(
                 runtime_value_operands,
                 pointer_byte_offset,
+                field_byte_offset,
+                target_byte_size,
+                source,
+                source_byte_size,
+                source_is_float,
+                target_is_float,
+                source_signed,
+                target_signed,
+                trapping,
+                saturating,
+            ),
+            WritePlaceShape::FrameIndexed {
+                descriptor_offset,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+            } => aarch64::encode_runtime_frame_indexed_convert_write(
+                runtime_value_operands,
+                descriptor_offset,
+                omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+                target_byte_size,
+                source,
+                source_byte_size,
+                source_is_float,
+                target_is_float,
+                source_signed,
+                target_signed,
+                trapping,
+                saturating,
+            ),
+            WritePlaceShape::FrameIndexedByRegion {
+                descriptor_offset,
+                index_region,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+            } => aarch64::encode_runtime_frame_indexed_convert_write(
+                runtime_value_operands,
+                descriptor_offset,
+                index_region,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+                target_byte_size,
+                source,
+                source_byte_size,
+                source_is_float,
+                target_is_float,
+                source_signed,
+                target_signed,
+                trapping,
+                saturating,
+            ),
+            WritePlaceShape::FrameBaseIndexed {
+                base_byte_offset,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+            } => aarch64::encode_runtime_frame_base_indexed_convert_write(
+                runtime_value_operands,
+                base_byte_offset,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
                 field_byte_offset,
                 target_byte_size,
                 source,
@@ -248,8 +333,41 @@ pub fn encode_write_place_convert(
                 trapping,
                 saturating,
             ),
+            WritePlaceShape::MachineDoubleIndexed {
+                base_byte_offset,
+                outer_index_region,
+                outer_index_offset,
+                outer_index_byte_size,
+                outer_stride,
+                inner_index_region,
+                inner_index_offset,
+                inner_index_byte_size,
+                inner_stride,
+                field_byte_offset,
+            } => aarch64::encode_runtime_machine_double_indexed_convert_write(
+                runtime_value_operands,
+                base_byte_offset,
+                outer_index_offset,
+                outer_index_region,
+                outer_index_byte_size,
+                outer_stride,
+                inner_index_offset,
+                inner_index_region,
+                inner_index_byte_size,
+                inner_stride,
+                field_byte_offset,
+                target_byte_size,
+                source,
+                source_byte_size,
+                source_is_float,
+                target_is_float,
+                source_signed,
+                target_signed,
+                trapping,
+                saturating,
+            ),
             _ => Err(Diagnostic::error(
-                "WritePlaceConvert on aarch64 currently serves pointee and machine-indexed targets only",
+                "WritePlaceConvert on aarch64 does not serve this unclassified place shape",
             )),
         },
     }
@@ -2960,5 +3078,99 @@ pub fn encode_runtime_machine_double_indexed_integer_write(
             byte_size,
             value,
         ),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use omega_target_operations::{Place, PlaceStep, RuntimeStorageRegion, RuntimeValueOperand};
+
+    fn storage_source() -> (
+        psi_arena::Arena<RuntimeValueOperand>,
+        RuntimeValueOperandHandle,
+    ) {
+        let mut operands = psi_arena::Arena::new();
+        let source = operands.insert(RuntimeValueOperand::Storage {
+            region: RuntimeStorageRegion::Machine,
+            byte_offset: 96,
+            byte_size: 4,
+        });
+        (operands, source)
+    }
+
+    fn encode_aarch64_convert(target: &Place) -> Result<Vec<u8>, Diagnostic> {
+        let (operands, source) = storage_source();
+        encode_write_place_convert(
+            Architecture::Aarch64,
+            &operands,
+            target,
+            8,
+            source,
+            4,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+        )
+    }
+
+    #[test]
+    fn aarch64_place_convert_serves_every_classified_place_shape() {
+        let direct = Place::at(RuntimeStorageRegion::Machine, 16);
+        let pointee = Place::at(RuntimeStorageRegion::RuntimeFrame, 24)
+            .with_step(PlaceStep::Deref)
+            .and_then(|place| place.with_step(PlaceStep::ConstOffset(8)))
+            .expect("pointee place");
+        let frame_indexed = Place::at(RuntimeStorageRegion::RuntimeFrame, 32)
+            .with_step(PlaceStep::Deref)
+            .and_then(|place| {
+                place.with_step(PlaceStep::ScaledIndex {
+                    index_region: RuntimeStorageRegion::Machine,
+                    index_offset: 40,
+                    index_byte_size: 8,
+                    element_byte_size: 16,
+                })
+            })
+            .expect("frame-indexed place");
+        let frame_base_indexed = Place::at(RuntimeStorageRegion::RuntimeFrame, 48)
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::RuntimeFrame,
+                index_offset: 56,
+                index_byte_size: 8,
+                element_byte_size: 16,
+            })
+            .expect("frame-base-indexed place");
+        let machine_indexed = Place::at(RuntimeStorageRegion::Machine, 64)
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::RuntimeFrame,
+                index_offset: 72,
+                index_byte_size: 8,
+                element_byte_size: 16,
+            })
+            .expect("machine-indexed place");
+        let machine_double_indexed = machine_indexed
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::Machine,
+                index_offset: 80,
+                index_byte_size: 8,
+                element_byte_size: 4,
+            })
+            .expect("machine-double-indexed place");
+
+        for target in [
+            direct,
+            pointee,
+            frame_indexed,
+            frame_base_indexed,
+            machine_indexed,
+            machine_double_indexed,
+        ] {
+            let bytes = encode_aarch64_convert(&target)
+                .unwrap_or_else(|diagnostic| panic!("{target:?}: {diagnostic:?}"));
+            assert!(!bytes.is_empty(), "{target:?} must emit conversion bytes");
+        }
     }
 }

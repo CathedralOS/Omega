@@ -2159,8 +2159,12 @@ fn validate_compiler_function_instruction_boundaries(
                         if architecture == Architecture::Aarch64
                             && !matches!(
                                 shape,
-                                CompilerBodyPlaceIntegerWriteShape::Pointee { .. }
+                                CompilerBodyPlaceIntegerWriteShape::Direct { .. }
+                                    | CompilerBodyPlaceIntegerWriteShape::Pointee { .. }
+                                    | CompilerBodyPlaceIntegerWriteShape::FrameIndexed { .. }
+                                    | CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. }
                                     | CompilerBodyPlaceIntegerWriteShape::MachineIndexed { .. }
+                                    | CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed { .. }
                             )
                         {
                             return Err(Diagnostic::error(
@@ -2184,12 +2188,74 @@ fn validate_compiler_function_instruction_boundaries(
                                     saturating,
                                 )?.0,
                                 Architecture::Aarch64 => match shape {
+                                    CompilerBodyPlaceIntegerWriteShape::Direct { byte_offset } =>
+                                        omega_isa_aarch64::encode_runtime_storage_convert(
+                                            &code.runtime_value_operands,
+                                            byte_offset,
+                                            target_byte_size,
+                                            source,
+                                            source_byte_size,
+                                            source_is_float,
+                                            target_is_float,
+                                            source_signed,
+                                            target_signed,
+                                            trapping,
+                                            saturating,
+                                        )?,
                                     CompilerBodyPlaceIntegerWriteShape::Pointee {
                                         pointer_byte_offset,
                                         field_byte_offset,
                                     } => omega_isa_aarch64::encode_runtime_pointee_convert_write(
                                         &code.runtime_value_operands,
                                         pointer_byte_offset,
+                                        field_byte_offset,
+                                        target_byte_size,
+                                        source,
+                                        source_byte_size,
+                                        source_is_float,
+                                        target_is_float,
+                                        source_signed,
+                                        target_signed,
+                                        trapping,
+                                        saturating,
+                                    )?,
+                                    CompilerBodyPlaceIntegerWriteShape::FrameIndexed {
+                                        descriptor_offset,
+                                        index_region,
+                                        index_offset,
+                                        index_byte_size,
+                                        element_byte_size,
+                                        field_byte_offset,
+                                    } => omega_isa_aarch64::encode_runtime_frame_indexed_convert_write(
+                                        &code.runtime_value_operands,
+                                        descriptor_offset,
+                                        index_region,
+                                        index_offset,
+                                        index_byte_size,
+                                        element_byte_size,
+                                        field_byte_offset,
+                                        target_byte_size,
+                                        source,
+                                        source_byte_size,
+                                        source_is_float,
+                                        target_is_float,
+                                        source_signed,
+                                        target_signed,
+                                        trapping,
+                                        saturating,
+                                    )?,
+                                    CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed {
+                                        base_byte_offset,
+                                        index_offset,
+                                        index_byte_size,
+                                        element_byte_size,
+                                        field_byte_offset,
+                                    } => omega_isa_aarch64::encode_runtime_frame_base_indexed_convert_write(
+                                        &code.runtime_value_operands,
+                                        base_byte_offset,
+                                        index_offset,
+                                        index_byte_size,
+                                        element_byte_size,
                                         field_byte_offset,
                                         target_byte_size,
                                         source,
@@ -2215,6 +2281,39 @@ fn validate_compiler_function_instruction_boundaries(
                                         index_offset,
                                         index_byte_size,
                                         element_byte_size,
+                                        field_byte_offset,
+                                        target_byte_size,
+                                        source,
+                                        source_byte_size,
+                                        source_is_float,
+                                        target_is_float,
+                                        source_signed,
+                                        target_signed,
+                                        trapping,
+                                        saturating,
+                                    )?,
+                                    CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed {
+                                        base_byte_offset,
+                                        outer_index_region,
+                                        outer_index_offset,
+                                        outer_index_byte_size,
+                                        outer_stride,
+                                        inner_index_region,
+                                        inner_index_offset,
+                                        inner_index_byte_size,
+                                        inner_stride,
+                                        field_byte_offset,
+                                    } => omega_isa_aarch64::encode_runtime_machine_double_indexed_convert_write(
+                                        &code.runtime_value_operands,
+                                        base_byte_offset,
+                                        outer_index_offset,
+                                        outer_index_region,
+                                        outer_index_byte_size,
+                                        outer_stride,
+                                        inner_index_offset,
+                                        inner_index_region,
+                                        inner_index_byte_size,
+                                        inner_stride,
                                         field_byte_offset,
                                         target_byte_size,
                                         source,
@@ -6100,11 +6199,40 @@ fn compiler_place_convert_write_address_sites(
             omega_isa_x86_64::place_binary_operand_start_width(&target)
         }
         Architecture::Aarch64 => match compiler_body_place_integer_write_shape(&target)? {
+            CompilerBodyPlaceIntegerWriteShape::Direct { .. } => 8,
             CompilerBodyPlaceIntegerWriteShape::Pointee {
                 pointer_byte_offset,
                 field_byte_offset,
             } => omega_isa_aarch64::runtime_pointee_operand_start_width(
                 pointer_byte_offset,
+                field_byte_offset,
+            ),
+            CompilerBodyPlaceIntegerWriteShape::FrameIndexed {
+                index_region,
+                element_byte_size,
+                field_byte_offset,
+                ..
+            } => {
+                if index_region == omega_target_operations::RuntimeStorageRegion::Machine {
+                    sites.push((32, omega_target_operations::RuntimeStorageRegion::Machine));
+                }
+                omega_isa_aarch64::runtime_frame_indexed_operand_start_width(
+                    index_region,
+                    element_byte_size,
+                    field_byte_offset,
+                )
+            }
+            CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed {
+                base_byte_offset,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+            } => omega_isa_aarch64::runtime_frame_base_indexed_operand_start_width(
+                base_byte_offset,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
                 field_byte_offset,
             ),
             CompilerBodyPlaceIntegerWriteShape::MachineIndexed {
@@ -6131,6 +6259,25 @@ fn compiler_place_convert_write_address_sites(
                     element_byte_size,
                     field_byte_offset,
                     0,
+                )
+            }
+            CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed {
+                outer_index_region,
+                inner_index_region,
+                ..
+            } => {
+                if outer_index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+                    || inner_index_region
+                        == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+                {
+                    sites.push((
+                        omega_isa_aarch64::runtime_machine_double_indexed_frame_base_offset(),
+                        omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                    ));
+                }
+                omega_isa_aarch64::runtime_machine_double_indexed_binary_left_operand_offset(
+                    outer_index_region,
+                    inner_index_region,
                 )
             }
             _ => {
@@ -8683,10 +8830,11 @@ mod tests {
     use super::{
         CompilerBodyPlaceCopyShape, CompilerBodyPlaceIntegerWriteShape,
         compiler_body_place_copy_shape, compiler_body_place_integer_write_shape,
-        compiler_instruction_non_relocation_bits_match, compiler_place_copy_address_sites,
-        compiler_place_integer_write_address_sites, compiler_place_value_address_sites,
-        compiler_runtime_value_compare_address_sites, emit_checked_executable_image,
-        validate_checked_instruction_bytes, validate_compiler_data_address_relocations,
+        compiler_instruction_non_relocation_bits_match, compiler_place_convert_write_address_sites,
+        compiler_place_copy_address_sites, compiler_place_integer_write_address_sites,
+        compiler_place_value_address_sites, compiler_runtime_value_compare_address_sites,
+        emit_checked_executable_image, validate_checked_instruction_bytes,
+        validate_compiler_data_address_relocations,
         validate_compiler_function_instruction_boundaries,
         validate_compiler_runtime_text_relocations, validate_executable_region_enumeration,
         validate_final_text_relocation_envelope,
@@ -9292,6 +9440,127 @@ mod tests {
             })
             .collect::<Vec<_>>();
         assert_eq!(replay_sites, expected_sites);
+    }
+
+    #[test]
+    fn aarch64_composed_place_convert_relocation_sites_follow_each_address_recipe() {
+        use omega_target_operations::{
+            Place, PlaceStep, RuntimeStorageRegion, RuntimeValueOperand,
+        };
+
+        let mut operands = psi_arena::Arena::new();
+        let source = operands.insert(RuntimeValueOperand::Storage {
+            region: RuntimeStorageRegion::Machine,
+            byte_offset: 96,
+            byte_size: 4,
+        });
+
+        let direct = Place::at(RuntimeStorageRegion::Machine, 16);
+        assert_eq!(
+            compiler_place_convert_write_address_sites(
+                omega_target::Architecture::Aarch64,
+                &operands,
+                direct,
+                source,
+            )
+            .expect("direct conversion sites"),
+            vec![
+                (0, RuntimeStorageRegion::Machine),
+                (8, RuntimeStorageRegion::Machine)
+            ]
+        );
+
+        let frame_indexed = Place::at(RuntimeStorageRegion::RuntimeFrame, 32)
+            .with_step(PlaceStep::Deref)
+            .and_then(|place| {
+                place.with_step(PlaceStep::ScaledIndex {
+                    index_region: RuntimeStorageRegion::Machine,
+                    index_offset: 40,
+                    index_byte_size: 8,
+                    element_byte_size: 16,
+                })
+            })
+            .expect("frame-indexed place");
+        let frame_indexed_operand_start =
+            omega_isa_aarch64::runtime_frame_indexed_operand_start_width(
+                RuntimeStorageRegion::Machine,
+                16,
+                0,
+            );
+        assert_eq!(
+            compiler_place_convert_write_address_sites(
+                omega_target::Architecture::Aarch64,
+                &operands,
+                frame_indexed,
+                source,
+            )
+            .expect("frame-indexed conversion sites"),
+            vec![
+                (0, RuntimeStorageRegion::RuntimeFrame),
+                (32, RuntimeStorageRegion::Machine),
+                (frame_indexed_operand_start, RuntimeStorageRegion::Machine),
+            ]
+        );
+
+        let frame_base_indexed = Place::at(RuntimeStorageRegion::RuntimeFrame, 48)
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::RuntimeFrame,
+                index_offset: 56,
+                index_byte_size: 8,
+                element_byte_size: 16,
+            })
+            .expect("frame-base-indexed place");
+        let frame_base_operand_start =
+            omega_isa_aarch64::runtime_frame_base_indexed_operand_start_width(48, 56, 8, 16, 0);
+        assert_eq!(
+            compiler_place_convert_write_address_sites(
+                omega_target::Architecture::Aarch64,
+                &operands,
+                frame_base_indexed,
+                source,
+            )
+            .expect("frame-base-indexed conversion sites"),
+            vec![
+                (0, RuntimeStorageRegion::RuntimeFrame),
+                (frame_base_operand_start, RuntimeStorageRegion::Machine),
+            ]
+        );
+
+        let machine_double_indexed = Place::at(RuntimeStorageRegion::Machine, 64)
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::RuntimeFrame,
+                index_offset: 72,
+                index_byte_size: 8,
+                element_byte_size: 16,
+            })
+            .and_then(|place| {
+                place.with_step(PlaceStep::ScaledIndex {
+                    index_region: RuntimeStorageRegion::Machine,
+                    index_offset: 80,
+                    index_byte_size: 8,
+                    element_byte_size: 4,
+                })
+            })
+            .expect("machine-double-indexed place");
+        let machine_double_operand_start =
+            omega_isa_aarch64::runtime_machine_double_indexed_binary_left_operand_offset(
+                RuntimeStorageRegion::RuntimeFrame,
+                RuntimeStorageRegion::Machine,
+            );
+        assert_eq!(
+            compiler_place_convert_write_address_sites(
+                omega_target::Architecture::Aarch64,
+                &operands,
+                machine_double_indexed,
+                source,
+            )
+            .expect("machine-double-indexed conversion sites"),
+            vec![
+                (0, RuntimeStorageRegion::Machine),
+                (8, RuntimeStorageRegion::RuntimeFrame),
+                (machine_double_operand_start, RuntimeStorageRegion::Machine),
+            ]
+        );
     }
 
     #[test]
