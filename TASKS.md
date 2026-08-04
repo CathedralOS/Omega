@@ -881,6 +881,12 @@ instruction/region rows against the closed target instruction specifications,
 proves complete region coverage, and composes admitted leaves under their
 separate provenance. Do not add a second whole-image decoder/admission path.
 
+The existing single final-region artifact now carries the domain-separated
+`omega.final-footprint-certificate` schema, format version 1, and a certificate
+fingerprint over its final placement binding, compiler-text derivation, and
+complete region inventory. Its explicit completeness flags remain false until
+compiler-body footprint decoding and admitted-leaf evidence land.
+
 - Finish enumeration of compiler-generated entry/body regions.
 - Validate final placed bytes after relocation, thunks, veneers, and generated
   stubs against `StatePlan`.
