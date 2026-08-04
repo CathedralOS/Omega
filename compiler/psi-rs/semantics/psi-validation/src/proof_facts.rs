@@ -156,16 +156,37 @@ pub(crate) fn validate_proof_facts(
                 )));
             }
             ProofFact::Proposition(application) => {
-                if !application.proposition.is_valid()
-                    || !program
-                        .propositions()
-                        .iter()
-                        .any(|proposition| proposition.symbol == application.proposition)
-                {
+                let declaration = program
+                    .propositions()
+                    .iter()
+                    .find(|proposition| proposition.symbol == application.proposition);
+                let Some(declaration) = declaration else {
                     diagnostics.push(Diagnostic::error(format!(
                         "{owner} references an unknown proposition `{}`",
                         application.name.as_str()
                     )));
+                    continue;
+                };
+                for (index, (argument, parameter)) in program
+                    .expression_table
+                    .expression_handles(application.arguments)
+                    .iter()
+                    .zip(program.proposition_parameters(declaration))
+                    .enumerate()
+                {
+                    if !crate::expression_types::argument_matches_type_reference_handle(
+                        program,
+                        *argument,
+                        parameter.type_reference,
+                    ) {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "{owner} proposition `{}` argument {} does not match parameter `{}` type `{}`",
+                            application.name.as_str(),
+                            index + 1,
+                            parameter.name.as_str(),
+                            program.display_type_reference(parameter.type_reference),
+                        )));
+                    }
                 }
             }
         }

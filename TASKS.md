@@ -1652,9 +1652,13 @@ and allocation handles expose no compiler-owned stack/control storage.
      identity, call/operator substitutions retain caller terms, and requires
      discharge uses exact normalized proposition matching rather than the
      legacy unknown-payload fallback. Type/const proposition application,
-     checked proof introduction and witness evidence, generic proposition
-     binders, and self-contained terminal-Psi declaration/application identity
-     remain in this rung;
+     generic proposition binders, selected witness evidence, and
+     self-contained terminal-Psi declaration/application identity remain in
+     this rung. Checked-introduction slice landed 2026-08-03: proposition
+     arguments receive declaration-type validation; ordinary checked machines
+     may forward established facts or cite a checked/accepted contract after
+     discharging its normalized proposition requirements, while an empty
+     ordinary body can no longer invent a primitive proposition ensure;
   2. add the proof stratum to selected-conformance projection and permit
      by-value `dyn` only when the complete normalized value has no runtime
      carrier;

@@ -25,6 +25,7 @@ mod places;
 mod proof_facts;
 mod proof_only_faces;
 mod properties;
+mod proposition_entailment;
 mod qualification_evidence;
 mod quotients;
 mod recasts;
@@ -138,6 +139,7 @@ fn validate_program_internal(
     let fact_plan = psi_facts::build_definition_fact_plan(program);
 
     validate_proposition_definitions(program, &mut diagnostics);
+    proposition_entailment::validate_proposition_entailment(program, &mut diagnostics);
 
     literals::validate_literal_widths(program, &mut diagnostics);
     literals::validate_suffix_landings(program, &mut diagnostics);

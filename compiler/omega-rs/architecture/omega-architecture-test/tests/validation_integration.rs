@@ -62,9 +62,12 @@ fn proposition_contract_rejects_different_application() {
     let diagnostics = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
         .expect_err("a different proposition argument tuple must not be accepted");
     assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
+        (diagnostic
             .message
             .contains("cannot prove requires contract")
+            || diagnostic
+                .message
+                .contains("is not established at the call"))
             && diagnostic.message.contains("proposition:fact:related")
     }));
 }
@@ -106,6 +109,86 @@ fn transparent_proposition_alias_cycle_rejects() {
         diagnostic
             .message
             .contains("participates in an alias cycle")
+    }));
+}
+
+#[test]
+fn bodyless_checked_machine_cannot_invent_proposition_ensure() {
+    let typed = typed_program_from_source(
+        r#"
+        proposition related(left: i32, right: i32);
+
+        machine invented(value: i32)
+        ensures related(value, value)
+        {
+        }
+        "#,
+    );
+
+    let diagnostics = validate_program(&typed)
+        .expect_err("an ordinary empty body must not invent a primitive proposition");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot establish proposition ensure")
+    }));
+}
+
+#[test]
+fn checked_machine_may_forward_required_proposition() {
+    let typed = typed_program_from_source(
+        r#"
+        proposition related(left: i32, right: i32);
+
+        machine forwarded(left: i32, right: i32)
+        requires related(left, right)
+        ensures related(left, right)
+        {
+        }
+        "#,
+    );
+
+    validate_program(&typed).expect("a required proposition may be forwarded unchanged");
+}
+
+#[test]
+fn checked_machine_may_cite_accepted_proposition_axiom() {
+    let typed = typed_program_from_source(
+        r#"
+        proposition reflexive(value: i32);
+
+        boundary machine accepted_reflexivity(value: i32)
+        ensures reflexive(value);
+
+        machine cite(value: i32)
+        ensures reflexive(value)
+        {
+            accepted_reflexivity(value);
+        }
+        "#,
+    );
+
+    validate_program(&typed).expect("an accepted proposition axiom may be cited explicitly");
+}
+
+#[test]
+fn proposition_application_rejects_wrong_value_argument_type() {
+    let typed = typed_program_from_source(
+        r#"
+        proposition integer_fact(value: i32);
+
+        machine bad()
+        requires integer_fact(true)
+        {
+        }
+        "#,
+    );
+
+    let diagnostics = validate_program(&typed)
+        .expect_err("a proposition argument must match its declared parameter type");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains("argument 1 does not match")
+            && diagnostic.message.contains("parameter `value` type `i32`")
     }));
 }
 
