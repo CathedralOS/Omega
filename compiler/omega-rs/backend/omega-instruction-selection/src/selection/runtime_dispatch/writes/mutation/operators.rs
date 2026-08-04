@@ -23,6 +23,17 @@ pub(super) fn is_float_classification_predicate(operator: StateGuardOperator) ->
     )
 }
 
+pub(in crate::selection) fn float_unary_result_is_bool(operator: StateGuardOperator) -> bool {
+    matches!(
+        operator,
+        StateGuardOperator::IsNan
+            | StateGuardOperator::IsFinite
+            | StateGuardOperator::IsInfinite
+            | StateGuardOperator::IsNormal
+            | StateGuardOperator::IsSubnormal
+    )
+}
+
 pub(super) fn runtime_binary_operator(operator: BinaryOperator) -> Option<StateGuardOperator> {
     match operator {
         BinaryOperator::Add => Some(StateGuardOperator::Add),
@@ -254,4 +265,28 @@ fn builtin_runtime_call_operator_by_symbol(
     }
 
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use omega_abstract_operations::StateGuardOperator;
+
+    use super::float_unary_result_is_bool;
+
+    #[test]
+    fn boolean_float_predicates_exclude_enum_classification() {
+        for operator in [
+            StateGuardOperator::IsNan,
+            StateGuardOperator::IsFinite,
+            StateGuardOperator::IsInfinite,
+            StateGuardOperator::IsNormal,
+            StateGuardOperator::IsSubnormal,
+        ] {
+            assert!(float_unary_result_is_bool(operator), "{operator:?}");
+        }
+        assert!(!float_unary_result_is_bool(
+            StateGuardOperator::FloatClassify
+        ));
+        assert!(!float_unary_result_is_bool(StateGuardOperator::Sqrt));
+    }
 }

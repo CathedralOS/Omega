@@ -8,8 +8,7 @@ use self::bindings::{
 };
 use self::call_targets::{resolve_call_target_machine, resolve_call_target_state};
 use self::folding::{
-    IntegerLanding, boolean_and, boolean_not, boolean_or, expressions_equivalent,
-    fold_binary_expression,
+    IntegerLanding, boolean_and, boolean_or, expressions_equivalent, fold_binary_expression,
 };
 use self::helper_stack::HelperStateStack;
 use crate::StateValueRole;
@@ -334,7 +333,7 @@ fn simplify_expression_with_bindings(
                 None,
             );
             match unary.operator {
-                UnaryOperator::LogicalNot => boolean_not(operand),
+                UnaryOperator::LogicalNot => boolean_not_typed(program, machine, operand),
             }
         }
         Expression::Name(path) => bindings
@@ -510,8 +509,145 @@ fn simplify_binary_expression(
         return folded;
     }
 
+    if let Some(folded) = fold_boolean_comparison_typed(
+        program,
+        machine,
+        binary.operator,
+        left.clone(),
+        right.clone(),
+    ) {
+        return folded;
+    }
+
     let landing = landing.or_else(|| integer_fold_landing(program, machine, binary, &left, &right));
     fold_binary_expression(binary.operator, left, right, landing)
+}
+
+/// Fold `condition ==/!= bool` while retaining the operand type needed to
+/// negate ordered comparisons correctly. The lower-level folder deliberately
+/// lacks checked-tree context and therefore uses a conservative negation.
+fn fold_boolean_comparison_typed(
+    program: &CheckedTrees,
+    machine: &Machine,
+    operator: psi_checked_trees::expression::BinaryOperator,
+    left: Expression,
+    right: Expression,
+) -> Option<Expression> {
+    use psi_checked_trees::expression::BinaryOperator::{Equal, NotEqual};
+
+    if !matches!(operator, Equal | NotEqual) {
+        return None;
+    }
+    if let Expression::Boolean(flag) = right {
+        let positive = matches!(operator, Equal) == flag;
+        return Some(if positive {
+            left
+        } else {
+            boolean_not_typed(program, machine, left)
+        });
+    }
+    if let Expression::Boolean(flag) = left {
+        let positive = matches!(operator, Equal) == flag;
+        return Some(if positive {
+            right
+        } else {
+            boolean_not_typed(program, machine, right)
+        });
+    }
+    None
+}
+
+/// Negate a boolean expression without assuming every ordered domain is total.
+/// Integer ordering can use the complementary comparison; IEEE ordering must
+/// keep an explicit boolean negation because unordered (NaN) makes both sides
+/// of a complementary pair false.
+fn boolean_not_typed(
+    program: &CheckedTrees,
+    machine: &Machine,
+    expression: Expression,
+) -> Expression {
+    use psi_checked_trees::expression::BinaryOperator as Op;
+
+    match expression {
+        Expression::Boolean(value) => Expression::Boolean(!value),
+        Expression::Binary(binary) => {
+            let inverted = match binary.operator {
+                Op::Equal => Some(Op::NotEqual),
+                Op::NotEqual => Some(Op::Equal),
+                Op::Greater | Op::GreaterOrEqual | Op::Less | Op::LessOrEqual
+                    if ordered_comparison_is_provably_total(program, machine, &binary) =>
+                {
+                    Some(match binary.operator {
+                        Op::Greater => Op::LessOrEqual,
+                        Op::GreaterOrEqual => Op::Less,
+                        Op::Less => Op::GreaterOrEqual,
+                        Op::LessOrEqual => Op::Greater,
+                        _ => unreachable!(),
+                    })
+                }
+                Op::And => {
+                    return boolean_or(
+                        boolean_not_typed(program, machine, binary.left),
+                        boolean_not_typed(program, machine, binary.right),
+                    );
+                }
+                Op::Or => {
+                    return boolean_and(
+                        boolean_not_typed(program, machine, binary.left),
+                        boolean_not_typed(program, machine, binary.right),
+                    );
+                }
+                _ => None,
+            };
+
+            if let Some(operator) = inverted {
+                Expression::Binary(Box::new(BinaryExpression {
+                    left: binary.left,
+                    operator,
+                    right: binary.right,
+                }))
+            } else {
+                Expression::Binary(Box::new(BinaryExpression {
+                    left: Expression::Binary(binary),
+                    operator: Op::Equal,
+                    right: Expression::Boolean(false),
+                }))
+            }
+        }
+        other => Expression::Binary(Box::new(BinaryExpression {
+            left: other,
+            operator: psi_checked_trees::expression::BinaryOperator::Equal,
+            right: Expression::Boolean(false),
+        })),
+    }
+}
+
+fn ordered_comparison_is_provably_total(
+    program: &CheckedTrees,
+    machine: &Machine,
+    binary: &BinaryExpression,
+) -> bool {
+    expression_is_provably_non_float(program, machine, &binary.left)
+        || expression_is_provably_non_float(program, machine, &binary.right)
+}
+
+fn expression_is_provably_non_float(
+    program: &CheckedTrees,
+    machine: &Machine,
+    expression: &Expression,
+) -> bool {
+    use psi_checked_trees::types::PrimitiveType::{F32, F64};
+
+    let primitive = match expression {
+        Expression::Boolean(_) | Expression::Integer(_) | Expression::String(_) => return true,
+        Expression::Float(_) => return false,
+        Expression::Name(path) => declared_type_reference(program, machine, path.symbol())
+            .and_then(|reference| program.primitive_type_reference(reference)),
+        Expression::Member(member) => member_field_primitive(program, member.member_symbol),
+        Expression::Cast(cast) => program.primitive_type_reference(cast.target_type),
+        _ => None,
+    };
+    primitive.is_some_and(|primitive| !matches!(primitive, F32 | F64))
 }
 
 /// The landed integer type of an about-to-fold binary expression (CM2, ch5
@@ -798,7 +934,7 @@ fn simplify_guarded_helper_comparison(
     {
         return Some(match operator {
             Equal => condition,
-            NotEqual => boolean_not(condition),
+            NotEqual => boolean_not_typed(program, machine, condition),
             _ => unreachable!(),
         });
     }
@@ -809,7 +945,7 @@ fn simplify_guarded_helper_comparison(
     {
         return Some(match operator {
             Equal => condition,
-            NotEqual => boolean_not(condition),
+            NotEqual => boolean_not_typed(program, machine, condition),
             _ => unreachable!(),
         });
     }
@@ -921,7 +1057,10 @@ fn helper_state_match_condition_with_stack(
     let mut matched = Expression::Boolean(false);
 
     for (_, transition) in helper.transitions.iter() {
-        let effective_guard = boolean_and(boolean_not(covered.clone()), transition.guard.clone());
+        let effective_guard = boolean_and(
+            boolean_not_typed(program, machine, covered.clone()),
+            transition.guard.clone(),
+        );
         if let Some(value_matches) = expression_match_condition_with_stack(
             program,
             machine,
@@ -1498,6 +1637,45 @@ mod tests {
         );
     }
 
+    #[test]
+    fn preserves_ordered_comparison_negation_for_partial_orders() {
+        let machine = Machine {
+            symbol: SymbolHandle::invalid(),
+            name: "main".into(),
+            attached_data: None,
+            contracts: Default::default(),
+            service_reaches: Default::default(),
+            owned_data: Default::default(),
+            satisfies: Default::default(),
+            states: Default::default(),
+            ..Machine::default()
+        };
+        let program = CheckedTrees::default();
+        let value_symbol = SymbolHandle::from_arena_index(101);
+        let comparison = Expression::Binary(Box::new(BinaryExpression {
+            left: name("value", value_symbol),
+            operator: BinaryOperator::Less,
+            right: Expression::Float(
+                psi_numerics::literals::FloatLiteral::parse("1.0")
+                    .expect("test float literal is valid"),
+            ),
+        }));
+        let expression = Expression::Binary(Box::new(BinaryExpression {
+            left: comparison.clone(),
+            operator: BinaryOperator::Equal,
+            right: Expression::Boolean(false),
+        }));
+
+        assert_eq!(
+            simplify_expression(&program, &machine, &expression),
+            Expression::Binary(Box::new(BinaryExpression {
+                left: comparison,
+                operator: BinaryOperator::Equal,
+                right: Expression::Boolean(false),
+            }))
+        );
+    }
+
     enum TestStatement {
         LocalData {
             symbol: SymbolHandle,
@@ -1558,6 +1736,7 @@ mod tests {
                         continuation: psi_checked_trees::statement::TransitionTargetHandle::invalid(
                         ),
                         guard,
+                        source_span: Default::default(),
                     })
                 }
             };

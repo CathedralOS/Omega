@@ -82,10 +82,30 @@ pub(in crate::selection) fn static_integer_value_in_table(
     match expressions.expression(expression) {
         ExpressionNode::Integer(value) => value.bits_u64().map(|bits| bits as i64),
         ExpressionNode::Boolean(value) => Some(i64::from(*value)),
+        // Inline-branch terminal values are copied through the runtime
+        // branching expression table before instruction selection. Boolean
+        // terminals can retain their keyword spelling there as an unresolved
+        // one-segment Name rather than an explicit Boolean node. Treat only
+        // symbol-less `true`/`false` names as keywords; ordinary resolved names
+        // must continue through storage/alias resolution.
+        ExpressionNode::Name(path) if !path.head_symbol.is_valid() && !path.symbol.is_valid() => {
+            let [name] = expressions.name_path_members(path.members) else {
+                return None;
+            };
+            boolean_keyword_integer(name.as_str())
+        }
         ExpressionNode::Mutable(inner) => {
             static_integer_value_in_table(layouts, expressions, *inner)
         }
         _ => enum_variant_value_in_table(layouts, expressions, expression),
+    }
+}
+
+fn boolean_keyword_integer(name: &str) -> Option<i64> {
+    match name {
+        "false" => Some(0),
+        "true" => Some(1),
+        _ => None,
     }
 }
 
@@ -219,5 +239,17 @@ fn clamp_runtime_case_comparison_operand(
     };
     if *byte_size > omega_layout::ENUM_TAG_BYTES {
         *byte_size = omega_layout::ENUM_TAG_BYTES;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::boolean_keyword_integer;
+
+    #[test]
+    fn boolean_keyword_names_have_integer_values() {
+        assert_eq!(boolean_keyword_integer("false"), Some(0));
+        assert_eq!(boolean_keyword_integer("true"), Some(1));
+        assert_eq!(boolean_keyword_integer("value"), None);
     }
 }

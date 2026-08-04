@@ -41900,18 +41900,136 @@ fn runtime_total_order_satisfiers_exit_canary_runs() {
 
 #[test]
 fn build_runtime_float_semantics_twins_agree() {
+    const DIFFERENTIAL_SUITE_ID: &str = "omega.float.hardware.macos_arm64.semantic-edge-twins.v1";
+    const DIFFERENTIAL_COVERAGE: &[&str] = &[
+        "one zero-argument semantic machine at build time and runtime",
+        "binary32/binary64 nearest-even ties",
+        "subnormal underflow and finite overflow",
+        "signed zero, infinity, NaN, and partial comparisons",
+        "minimum/maximum, classification, and square root",
+        "directed arithmetic and directed FMA",
+        "fused versus separately rounded multiply-add",
+    ];
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0xa6cd_3291_982e_12a1;
+
     let canary = pass_canary("float/build_runtime_semantics_twins");
     let main_path = canary.join("main.omg");
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("float semantic twins should compile and evaluate their array length");
-    let interpreted = omega_interpreter::interpret(&checked, &[]);
+
+    let mut selected_intrinsics = std::collections::BTreeSet::new();
+    let mut selected_plan_identities = Vec::new();
+    for provider_plan_identity in checked
+        .facts
+        .operators
+        .resolved_uses()
+        .map(|operator_use| operator_use.provider_plan_identity)
+        .chain(
+            checked
+                .facts
+                .operators
+                .named_uses()
+                .map(|operator_use| operator_use.provider_plan_identity),
+        )
+    {
+        let Some(plan) = checked
+            .selected_provider_plans()
+            .plan_by_identity(provider_plan_identity)
+        else {
+            continue;
+        };
+        let [row] = plan.rows.as_slice() else {
+            continue;
+        };
+        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { name } =
+            &row.binding
+        else {
+            continue;
+        };
+        selected_intrinsics.insert(name.clone());
+        selected_plan_identities.push(plan.identity_fingerprint());
+    }
+    selected_plan_identities.sort_unstable();
+    selected_plan_identities.dedup();
     assert_eq!(
-        interpreted.error, None,
+        selected_intrinsics.len(),
+        56,
+        "{DIFFERENTIAL_SUITE_ID} must bind every operation/format edge used by the twin"
+    );
+    assert_eq!(
+        selected_plan_identities.len(),
+        56,
+        "{DIFFERENTIAL_SUITE_ID} must retain one exact plan per selected intrinsic"
+    );
+
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.error, None,
         "the runtime half of the float semantic twins should interpret"
     );
     assert_eq!(
-        interpreted.exit_code, 70,
+        outcome.exit_code, 70,
         "build-time and runtime f32/f64 edge families should agree"
+    );
+
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-float-semantic-edge-twins-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("float semantic twins should compile natively");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("float semantic twins should run natively");
+    let _ = fs::remove_dir_all(&build_dir);
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "native runtime must agree with the build-time twin; stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let scratch = std::env::temp_dir().join(format!(
+        "omega-float-semantic-edge-twins-linux-arm64-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&scratch);
+    let source_dir = scratch.join("src");
+    fs::create_dir_all(&source_dir).expect("semantic-edge cross-target source directory");
+    fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
+        .expect("copy semantic-edge twin canary");
+    fs::write(source_dir.join("build.omg"), "target linux_arm64 {\n}\n")
+        .expect("write semantic-edge target manifest");
+    compile(CompileOptions {
+        root_path: source_dir.join("main.omg"),
+        build_dir: Some(scratch.join("out")),
+        target_name: Some("linux_arm64".to_owned()),
+        write_output: true,
+    })
+    .unwrap_or_else(|diagnostics| {
+        panic!("float semantic twins should compile for linux_arm64: {diagnostics:#?}")
+    });
+    let _ = fs::remove_dir_all(&scratch);
+
+    let result_identity = retained_float_differential_result_identity(
+        DIFFERENTIAL_SUITE_ID,
+        "macos_arm64",
+        DIFFERENTIAL_COVERAGE,
+        &selected_intrinsics,
+        &selected_plan_identities,
+        &outcome,
+        &output,
+        &["linux_arm64"],
+    );
+    assert_eq!(
+        result_identity, EXPECTED_DIFFERENTIAL_RESULT_IDENTITY,
+        "{DIFFERENTIAL_SUITE_ID} result changed ({result_identity:#018x}); validate the exact plans, build/runtime edge corpus, interpreter/native results, and cross-target build before refreshing the retained identity"
     );
 }
 

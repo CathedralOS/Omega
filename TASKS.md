@@ -1790,9 +1790,18 @@ and allocation handles expose no compiler-owned stack/control storage.
   `omega.float.hardware.macos_arm64.directed-fma.v1` /
   `0x75be2c4963f3f15a`, binding its six exact plans to binary32/binary64 half-ULP
   edges, all three directions, one fused rounding, control-state restoration,
-  interpreter/native results, and Linux AArch64 cross-build success. Every other
-  admitted hardware realization still needs an equally target-specific retained
-  suite result.
+  interpreter/native results, and Linux AArch64 cross-build success. The
+  aggregate semantic-edge twin retains
+  `omega.float.hardware.macos_arm64.semantic-edge-twins.v1` /
+  `0xa6cd3291982e12a1`, binding all 56 exact plans selected by one zero-argument
+  build/runtime machine to both-format rounding, subnormal/overflow, signed
+  zero, infinity, NaN partial ordering, min/max, classification, square root,
+  directed arithmetic/FMA, and fused-versus-unfused edges. Its retained result
+  includes build-time evaluation, interpreter/native exit agreement, and Linux
+  AArch64 cross-build success. This is cross-family coherence evidence for the
+  macOS AArch64 realization, not a substitute for a target/family-specific
+  result. Every other admitted hardware realization still needs an equally
+  target-specific retained suite result.
   The first checked-software provider slice is now live independently of a
   float algorithm: an ordinary body may satisfy one exact named boundary
   operator without `via`, provided its machine-checked equality/`&&` ensures

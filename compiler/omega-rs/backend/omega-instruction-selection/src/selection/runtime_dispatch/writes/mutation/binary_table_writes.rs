@@ -647,16 +647,16 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
         static_values,
         runtime_value_operands,
     )?;
-    let classification_byte_width = is_float_classification_predicate(operator).then(|| {
-        binary_value_operand_byte_width(
-            input,
-            dispatch_index,
-            value_source_key,
-            expressions,
-            left_expression,
-            right_expression,
-        )
-    });
+    let operand_byte_width = binary_value_operand_byte_width(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        left_expression,
+        right_expression,
+    );
+    let classification_byte_width =
+        is_float_classification_predicate(operator).then_some(operand_byte_width);
     let right = if let Some(byte_width) = classification_byte_width {
         // The encoder compares the left float register with itself. Keep an
         // ignored metadata placeholder here so the authored unary argument is
@@ -738,10 +738,25 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
     ) || target_place
         .as_ref()
         .is_some_and(|place| place.byte_count == 4);
-    let unary_operand_is_f32 = classification_byte_width == Some(4);
-    if is_float && (target_is_f32 || unary_operand_is_f32) {
-        narrow_f32_literal_operands(runtime_value_operands, expressions, left_expression, left);
-        narrow_f32_literal_operands(runtime_value_operands, expressions, right_expression, right);
+    if is_float && (target_is_f32 || operand_byte_width == 4) {
+        narrow_f32_literal_operands(
+            input,
+            dispatch_index,
+            value_source_key,
+            runtime_value_operands,
+            expressions,
+            left_expression,
+            left,
+        );
+        narrow_f32_literal_operands(
+            input,
+            dispatch_index,
+            value_source_key,
+            runtime_value_operands,
+            expressions,
+            right_expression,
+            right,
+        );
     }
 
     if !is_float {
@@ -1165,16 +1180,16 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_binary_writ
         static_values,
         runtime_value_operands,
     )?;
-    let classification_byte_width = is_float_classification_predicate(operator).then(|| {
-        binary_value_operand_byte_width(
-            input,
-            dispatch_index,
-            source_key,
-            expressions,
-            left_expression,
-            right_expression,
-        )
-    });
+    let operand_byte_width = binary_value_operand_byte_width(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        left_expression,
+        right_expression,
+    );
+    let classification_byte_width =
+        is_float_classification_predicate(operator).then_some(operand_byte_width);
     let right = if let Some(byte_width) = classification_byte_width {
         runtime_value_operands.insert(RuntimeValueOperand::Immediate(byte_width as i64))
     } else {
@@ -1227,10 +1242,25 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_binary_writ
     // its `Float` initializer (`let a: f32 = 2.5; ... a + b`) -- carries the wrong
     // (f64) bit pattern and must be narrowed to f32 bits. This is the LOCAL
     // float-arithmetic entry point; without it the addss reads garbage.
-    let unary_operand_is_f32 = classification_byte_width == Some(4);
-    if is_float && (byte_size == 4 || unary_operand_is_f32) {
-        narrow_f32_literal_operands(runtime_value_operands, expressions, left_expression, left);
-        narrow_f32_literal_operands(runtime_value_operands, expressions, right_expression, right);
+    if is_float && (byte_size == 4 || operand_byte_width == 4) {
+        narrow_f32_literal_operands(
+            input,
+            dispatch_index,
+            source_key,
+            runtime_value_operands,
+            expressions,
+            left_expression,
+            left,
+        );
+        narrow_f32_literal_operands(
+            input,
+            dispatch_index,
+            source_key,
+            runtime_value_operands,
+            expressions,
+            right_expression,
+            right,
+        );
     }
 
     // Consume carried checked adapter evidence for normalized float
@@ -1276,6 +1306,9 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_binary_writ
 /// Binary operand expression in lockstep with the operand tree so a float literal
 /// inside an inner sub-expression is narrowed too. No-op for non-literal operands.
 pub(super) fn narrow_f32_literal_operands(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     expressions: &ExpressionTable,
     operand_expression: ExpressionHandle,
@@ -1288,13 +1321,58 @@ pub(super) fn narrow_f32_literal_operands(
                 *bits = narrowed;
             }
         }
+        ExpressionNode::Name(_) => {
+            // A materialized f32 place records its already-narrow bits in the
+            // static-value tracker. An elided constant local has no place and
+            // retains the source literal's f64 carrier there; normalize only
+            // that latter provenance. Treating every immediate Name as f64
+            // would corrupt a folded machine/frame f32 value.
+            if resolve_runtime_storage_place_in_table(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                operand_expression,
+            )
+            .is_none()
+                && let RuntimeValueOperand::Immediate(bits) =
+                    runtime_value_operands.get_mut(operand)
+            {
+                *bits = i64::from((f64::from_bits(*bits as u64) as f32).to_bits());
+            }
+        }
+        ExpressionNode::Mutable(inner) => narrow_f32_literal_operands(
+            input,
+            dispatch_index,
+            source_key,
+            runtime_value_operands,
+            expressions,
+            *inner,
+            operand,
+        ),
         ExpressionNode::Binary(binary) => {
             let (left_expr, right_expr) = (binary.left, binary.right);
             if let RuntimeValueOperand::Binary { left, right, .. } =
                 *runtime_value_operands.get(operand)
             {
-                narrow_f32_literal_operands(runtime_value_operands, expressions, left_expr, left);
-                narrow_f32_literal_operands(runtime_value_operands, expressions, right_expr, right);
+                narrow_f32_literal_operands(
+                    input,
+                    dispatch_index,
+                    source_key,
+                    runtime_value_operands,
+                    expressions,
+                    left_expr,
+                    left,
+                );
+                narrow_f32_literal_operands(
+                    input,
+                    dispatch_index,
+                    source_key,
+                    runtime_value_operands,
+                    expressions,
+                    right_expr,
+                    right,
+                );
             }
         }
         _ => {}
@@ -1519,6 +1597,9 @@ pub(in crate::selection::runtime_dispatch) fn build_runtime_convert_write(
     // the convert reads them (movd, low dword).
     if source_primitive == PrimitiveType::F32 {
         narrow_f32_literal_operands(
+            input,
+            dispatch_index,
+            value_source_key,
             runtime_value_operands,
             expressions,
             source_expression,

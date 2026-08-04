@@ -1012,10 +1012,14 @@ pub(super) fn boolean_not(expression: Expression) -> Expression {
             let inverted = match binary.operator {
                 Op::Equal => Some(Op::NotEqual),
                 Op::NotEqual => Some(Op::Equal),
-                Op::Greater => Some(Op::LessOrEqual),
-                Op::GreaterOrEqual => Some(Op::Less),
-                Op::Less => Some(Op::GreaterOrEqual),
-                Op::LessOrEqual => Some(Op::Greater),
+                // Do not complement ordered comparisons here. `Expression`
+                // carries no operand type, and the familiar total-order
+                // identities are false for IEEE values: when either operand
+                // is NaN, both `a < b` and `a >= b` are false. Preserve the
+                // boolean negation explicitly so runtime float comparison can
+                // retain the unordered leg. A future type-aware integer-only
+                // pass may recover the total-order optimization.
+                Op::Greater | Op::GreaterOrEqual | Op::Less | Op::LessOrEqual => None,
                 Op::And => {
                     return boolean_or(boolean_not(binary.left), boolean_not(binary.right));
                 }

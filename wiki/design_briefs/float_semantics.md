@@ -410,7 +410,16 @@ retains `omega.float.hardware.macos_arm64.directed-fma.v1` /
 `0x75be2c4963f3f15a`, binding its six exact plan identities to binary32/binary64
 half-ULP cases, all three requested directions, one fused rounding,
 control-state restoration, interpreter/native outputs, and Linux AArch64
-cross-build success.
+cross-build success. The aggregate semantic-edge twin retains
+`omega.float.hardware.macos_arm64.semantic-edge-twins.v1` /
+`0xa6cd3291982e12a1`, binding all 56 exact plans selected by one zero-argument
+build/runtime machine to both-format rounding, subnormal/overflow, signed zero,
+infinity, NaN partial ordering, min/max, classification, square root, directed
+arithmetic/FMA, and fused-versus-unfused cases. Its retained result includes
+build-time evaluation, interpreter/native exit agreement, and Linux AArch64
+cross-build success. This is cross-family coherence evidence for the macOS
+AArch64 realization, not a replacement for the remaining target/family-specific
+results.
 
 ## 2. Domains: the value/policy split
 

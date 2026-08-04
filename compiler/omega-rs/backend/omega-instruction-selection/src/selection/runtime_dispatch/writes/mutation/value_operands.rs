@@ -228,6 +228,32 @@ fn resolve_runtime_value_operand_in_table_with_root(
             left_expr,
             right_expr,
         );
+        // Normalize f32-literal immediates at the binary node that consumes
+        // them. Doing this only at a float-valued write target misses nested
+        // float comparisons inside a bool expression: the outer `&&` writes a
+        // one-byte bool, while each comparison still executes its operands at
+        // single precision. Without this local normalization the AArch64/x86
+        // encoders read the low word of an f64 bit pattern as the f32 operand.
+        if is_float && byte_width == 4 {
+            super::binary_table_writes::narrow_f32_literal_operands(
+                input,
+                dispatch_index,
+                source_key,
+                runtime_value_operands,
+                expressions,
+                left_expr,
+                left,
+            );
+            super::binary_table_writes::narrow_f32_literal_operands(
+                input,
+                dispatch_index,
+                source_key,
+                runtime_value_operands,
+                expressions,
+                right_expr,
+                right,
+            );
+        }
         // A case-name equality (the lowered form of `in`) compares the TAG
         // only; the place operand must not read payload bytes.
         clamp_runtime_case_comparison_operands_in_table(
@@ -372,6 +398,9 @@ fn resolve_runtime_value_operand_in_table_with_root(
             );
             if is_float_classification_predicate(operator) && byte_width == 4 {
                 super::binary_table_writes::narrow_f32_literal_operands(
+                    input,
+                    dispatch_index,
+                    source_key,
                     runtime_value_operands,
                     expressions,
                     operand_expression,
@@ -778,6 +807,9 @@ pub(super) fn resolve_selected_ternary_float_operand_in_table_with_root(
             (third_expression, third),
         ] {
             super::binary_table_writes::narrow_f32_literal_operands(
+                input,
+                dispatch_index,
+                source_key,
                 runtime_value_operands,
                 expressions,
                 expression,
