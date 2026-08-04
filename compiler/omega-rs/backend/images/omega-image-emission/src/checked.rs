@@ -196,6 +196,11 @@ enum CompilerInstructionRelocationRecipe {
         buffer_symbol: std::sync::Arc<str>,
         target: omega_target_operations::Place,
     },
+    TextStoredAppend {
+        buffer_symbol: std::sync::Arc<str>,
+        source_region: omega_target_operations::RuntimeStorageRegion,
+        target: omega_target_operations::Place,
+    },
     PlaceBinaryWrite {
         target: omega_target_operations::Place,
         left: omega_target_operations::RuntimeValueOperandHandle,
@@ -1766,6 +1771,88 @@ fn validate_compiler_function_instruction_boundaries(
                             },
                         )
                     }
+                    omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyTextStoredAppend {
+                        buffer_symbol,
+                        source_region,
+                        source_offset,
+                        target,
+                    } => {
+                        let shape = compiler_body_place_integer_write_shape(&target)?;
+                        let bytes = match (architecture, shape) {
+                            (
+                                Architecture::X86_64,
+                                CompilerBodyPlaceIntegerWriteShape::Direct { byte_offset },
+                            ) => omega_isa_x86_64::encode_runtime_text_stored_place_append(
+                                source_offset,
+                                byte_offset,
+                            )?,
+                            (
+                                Architecture::X86_64,
+                                CompilerBodyPlaceIntegerWriteShape::Pointee {
+                                    pointer_byte_offset,
+                                    field_byte_offset,
+                                },
+                            ) => omega_isa_x86_64::encode_runtime_text_stored_place_append_to_runtime_pointee(
+                                source_offset,
+                                pointer_byte_offset,
+                                field_byte_offset,
+                            )?,
+                            (
+                                Architecture::Aarch64,
+                                CompilerBodyPlaceIntegerWriteShape::Direct { byte_offset },
+                            ) => omega_isa_aarch64::encode_runtime_text_stored_place_append(
+                                0,
+                                source_offset,
+                                byte_offset,
+                            )?,
+                            (
+                                Architecture::Aarch64,
+                                CompilerBodyPlaceIntegerWriteShape::Pointee {
+                                    pointer_byte_offset,
+                                    field_byte_offset,
+                                },
+                            ) => omega_isa_aarch64::encode_runtime_text_stored_place_append_to_runtime_pointee(
+                                0,
+                                source_offset,
+                                pointer_byte_offset,
+                                field_byte_offset,
+                            )?,
+                            (
+                                Architecture::Aarch64,
+                                CompilerBodyPlaceIntegerWriteShape::FrameIndexed {
+                                    descriptor_offset,
+                                    index_offset,
+                                    index_byte_size,
+                                    element_byte_size,
+                                    field_byte_offset,
+                                    ..
+                                },
+                            ) => omega_isa_aarch64::encode_runtime_text_stored_place_append_to_runtime_frame_indexed(
+                                0,
+                                source_offset,
+                                descriptor_offset,
+                                index_offset,
+                                index_byte_size,
+                                element_byte_size,
+                                field_byte_offset,
+                            )?,
+                            _ => {
+                                return Err(Diagnostic::error(
+                                    "final compiler-body stored-text append retained an unsupported target",
+                                ));
+                            }
+                        };
+                        (
+                            None,
+                            bytes,
+                            30u8,
+                            CompilerInstructionRelocationRecipe::TextStoredAppend {
+                                buffer_symbol,
+                                source_region,
+                                target,
+                            },
+                        )
+                    }
                     omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyPlaceBinaryWrite {
                         target,
                         byte_size,
@@ -2467,6 +2554,29 @@ fn validate_compiler_function_instruction_boundaries(
                             instruction_byte_offset,
                             target,
                             &buffer_symbol,
+                        )?;
+                        encoded_instruction_bytes == expected_bytes
+                            && compiler_instruction_non_relocation_bits_match(
+                                architecture,
+                                &expected_bytes,
+                                final_instruction_bytes,
+                                &address_sites,
+                            )
+                    }
+                    CompilerInstructionRelocationRecipe::TextStoredAppend {
+                        buffer_symbol,
+                        source_region,
+                        target,
+                    } => {
+                        let address_sites = validate_compiler_text_stored_append_relocations(
+                            architecture,
+                            object,
+                            relocations,
+                            instruction.selected_instruction_index,
+                            instruction_byte_offset,
+                            target,
+                            &buffer_symbol,
+                            source_region,
                         )?;
                         encoded_instruction_bytes == expected_bytes
                             && compiler_instruction_non_relocation_bits_match(
@@ -3416,6 +3526,40 @@ fn compiler_instruction_footprint(
                 ) => (
                     omega_isa_aarch64::runtime_text_literal_append_register_writes(),
                     omega_isa_aarch64::runtime_text_literal_append_additional_machine_state(),
+                ),
+                _ => return None,
+            };
+            (
+                BoundaryFootprintFragmentOrigin::CompilerBodyTextAssemblyWrite,
+                registers,
+                additional_state,
+            )
+        }
+        CompilerInstructionValidationKind::CompilerBodyTextStoredAppend { target, .. } => {
+            let shape = compiler_body_place_integer_write_shape(&target).ok()?;
+            let (registers, additional_state) = match (architecture, shape) {
+                (
+                    Architecture::X86_64,
+                    CompilerBodyPlaceIntegerWriteShape::Direct { .. }
+                    | CompilerBodyPlaceIntegerWriteShape::Pointee { .. },
+                ) => (
+                    omega_isa_x86_64::runtime_text_stored_place_append_register_writes(),
+                    omega_isa_x86_64::runtime_text_stored_place_append_additional_machine_state(),
+                ),
+                (
+                    Architecture::Aarch64,
+                    CompilerBodyPlaceIntegerWriteShape::Direct { .. }
+                    | CompilerBodyPlaceIntegerWriteShape::Pointee { .. },
+                ) => (
+                    omega_isa_aarch64::runtime_text_stored_place_append_register_writes(),
+                    omega_isa_aarch64::runtime_text_stored_place_append_additional_machine_state(),
+                ),
+                (
+                    Architecture::Aarch64,
+                    CompilerBodyPlaceIntegerWriteShape::FrameIndexed { .. },
+                ) => (
+                    omega_isa_aarch64::runtime_text_stored_place_append_to_runtime_frame_indexed_register_writes(),
+                    omega_isa_aarch64::runtime_text_stored_place_append_additional_machine_state(),
                 ),
                 _ => return None,
             };
@@ -6192,6 +6336,160 @@ fn validate_compiler_text_literal_append_relocations(
     if !matches {
         return Err(Diagnostic::error(format!(
             "compiler text literal-append instruction #{selected_instruction_index} does not retain its exact buffer/target relocation set"
+        )));
+    }
+    Ok(sites.into_iter().map(|(site, _)| site).collect())
+}
+
+fn validate_compiler_text_stored_append_relocations(
+    architecture: Architecture,
+    object: &omega_object_file::ObjectPlan,
+    relocations: &RelocationPlan,
+    selected_instruction_index: u32,
+    instruction_byte_offset: usize,
+    target: omega_target_operations::Place,
+    buffer_symbol: &str,
+    source_region: omega_target_operations::RuntimeStorageRegion,
+) -> Result<Vec<usize>, Diagnostic> {
+    #[derive(Clone, Copy)]
+    enum ExpectedTarget {
+        Buffer,
+        Storage(omega_target_operations::RuntimeStorageRegion),
+    }
+
+    let sites = match (
+        architecture,
+        compiler_body_place_integer_write_shape(&target)?,
+    ) {
+        (Architecture::X86_64, CompilerBodyPlaceIntegerWriteShape::Direct { .. }) => vec![
+            (0usize, ExpectedTarget::Buffer),
+            (10usize, ExpectedTarget::Storage(target.region)),
+            (
+                omega_isa_x86_64::RUNTIME_TEXT_STORED_PLACE_APPEND_SOURCE_IMM_OFFSET,
+                ExpectedTarget::Storage(source_region),
+            ),
+        ],
+        (Architecture::X86_64, CompilerBodyPlaceIntegerWriteShape::Pointee { .. }) => vec![
+            (0usize, ExpectedTarget::Buffer),
+            (10usize, ExpectedTarget::Storage(target.region)),
+            (
+                omega_isa_x86_64::RUNTIME_TEXT_STORED_PLACE_APPEND_POINTEE_SOURCE_IMM_OFFSET,
+                ExpectedTarget::Storage(source_region),
+            ),
+        ],
+        (Architecture::Aarch64, CompilerBodyPlaceIntegerWriteShape::Direct { .. }) => vec![
+            (0usize, ExpectedTarget::Buffer),
+            (8usize, ExpectedTarget::Storage(target.region)),
+            (28usize, ExpectedTarget::Storage(source_region)),
+        ],
+        (
+            Architecture::Aarch64,
+            CompilerBodyPlaceIntegerWriteShape::Pointee {
+                pointer_byte_offset,
+                field_byte_offset,
+            },
+        ) => vec![
+            (0usize, ExpectedTarget::Buffer),
+            (8usize, ExpectedTarget::Storage(target.region)),
+            (
+                omega_isa_aarch64::runtime_text_stored_place_pointee_source_address_offset(
+                    pointer_byte_offset,
+                    field_byte_offset,
+                ),
+                ExpectedTarget::Storage(source_region),
+            ),
+        ],
+        (
+            Architecture::Aarch64,
+            CompilerBodyPlaceIntegerWriteShape::FrameIndexed {
+                element_byte_size,
+                field_byte_offset,
+                ..
+            },
+        ) => vec![
+            (0usize, ExpectedTarget::Storage(target.region)),
+            (
+                omega_isa_aarch64::runtime_text_indexed_stored_place_buffer_address_offset(
+                    element_byte_size,
+                    field_byte_offset,
+                ),
+                ExpectedTarget::Buffer,
+            ),
+            (
+                omega_isa_aarch64::runtime_text_indexed_stored_place_source_address_offset(
+                    element_byte_size,
+                    field_byte_offset,
+                ),
+                ExpectedTarget::Storage(source_region),
+            ),
+        ],
+        _ => {
+            return Err(Diagnostic::error(
+                "final stored-text append relocation recipe retained an unsupported target",
+            ));
+        }
+    };
+
+    let mut actual = relocations
+        .records()
+        .filter_map(|(_, relocation)| {
+            (relocation.section == SectionKind::Text
+                && relocation.origin.selected_instruction_index()
+                    == Some(selected_instruction_index))
+            .then_some(relocation)
+        })
+        .collect::<Vec<_>>();
+    actual.sort_unstable_by_key(|relocation| relocation.offset);
+    let mut expected = Vec::new();
+    for (site, target) in &sites {
+        match architecture {
+            Architecture::X86_64 => expected.push((
+                instruction_byte_offset + site + 2,
+                RelocationKind::Absolute64,
+                8usize,
+                *target,
+            )),
+            Architecture::Aarch64 => {
+                expected.push((
+                    instruction_byte_offset + site,
+                    RelocationKind::Aarch64Page21,
+                    4usize,
+                    *target,
+                ));
+                expected.push((
+                    instruction_byte_offset + site + 4,
+                    RelocationKind::Aarch64PageOffset12,
+                    4usize,
+                    *target,
+                ));
+            }
+        }
+    }
+    expected.sort_unstable_by_key(|(offset, _, _, _)| *offset);
+    let matches = actual.len() == expected.len()
+        && actual
+            .iter()
+            .zip(&expected)
+            .all(|(relocation, (offset, kind, width, target))| {
+                let target_matches = match target {
+                    ExpectedTarget::Buffer => compiler_data_object_symbol_matches(
+                        object,
+                        relocation.symbol_handle,
+                        buffer_symbol,
+                    ),
+                    ExpectedTarget::Storage(region) => {
+                        compiler_storage_symbol_matches(object, relocation.symbol_handle, *region)
+                    }
+                };
+                relocation.offset == *offset
+                    && relocation.kind == *kind
+                    && relocation.byte_width == *width
+                    && relocation.addend == 0
+                    && target_matches
+            });
+    if !matches {
+        return Err(Diagnostic::error(format!(
+            "compiler stored-text append instruction #{selected_instruction_index} does not retain its exact buffer/source/target relocation set"
         )));
     }
     Ok(sites.into_iter().map(|(site, _)| site).collect())

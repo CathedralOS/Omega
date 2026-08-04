@@ -945,7 +945,24 @@ pub const RUNTIME_TEXT_STORED_PLACE_APPEND_SOURCE_IMM_OFFSET: usize = 33;
 pub const RUNTIME_TEXT_STORED_PLACE_APPEND_POINTEE_SOURCE_IMM_OFFSET: usize = 40;
 
 pub fn runtime_text_stored_place_append_width() -> usize {
-    86
+    82
+}
+
+pub fn runtime_text_stored_place_append_register_writes() -> RegisterSet {
+    RegisterSet::new([
+        MachineRegister::X86Rax,
+        MachineRegister::X86Rcx,
+        MachineRegister::X86Rsi,
+        MachineRegister::X86Rdi,
+        MachineRegister::X86R10,
+        MachineRegister::X86R11,
+        MachineRegister::X86R14,
+        MachineRegister::X86R15,
+    ])
+}
+
+pub fn runtime_text_stored_place_append_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::new([MachineState::Flags])
 }
 
 /// Appends a stored source string (a `{ptr,len}` descriptor in `source_region`)
@@ -974,17 +991,15 @@ pub fn encode_runtime_text_stored_place_append(
     append_add_r11_rcx(&mut bytes); // r11 = new length = current + source
     append_store_r14_to_r15(&mut bytes, target_offset)?; // descriptor.ptr = buffer
     append_store_r11_to_r15(&mut bytes, target_offset + 8)?; // descriptor.len = new length
-    append_push_rsi_rdi(&mut bytes);
     append_mov_rsi_rax(&mut bytes); // rsi = source pointer
     append_mov_rdi_r10(&mut bytes); // rdi = dest
     append_rep_movsb(&mut bytes); // copy rcx bytes
-    append_pop_rdi_rsi(&mut bytes);
     debug_assert_eq!(bytes.len(), runtime_text_stored_place_append_width());
     Ok(bytes)
 }
 
 pub fn runtime_text_stored_place_append_to_runtime_pointee_width() -> usize {
-    93
+    89
 }
 
 /// Appends a stored source string to a target string whose `{ptr,len}` descriptor
@@ -1019,11 +1034,9 @@ pub fn encode_runtime_text_stored_place_append_to_runtime_pointee(
     append_add_r11_rcx(&mut bytes); // r11 = new length = current + source
     append_store_r14_to_r15(&mut bytes, field_byte_offset)?; // descriptor.ptr = buffer
     append_store_r11_to_r15(&mut bytes, field_byte_offset + 8)?; // descriptor.len = new length
-    append_push_rsi_rdi(&mut bytes);
     append_mov_rsi_rax(&mut bytes); // rsi = source pointer
     append_mov_rdi_r10(&mut bytes); // rdi = dest
     append_rep_movsb(&mut bytes); // copy rcx bytes
-    append_pop_rdi_rsi(&mut bytes);
     debug_assert_eq!(
         bytes.len(),
         runtime_text_stored_place_append_to_runtime_pointee_width()

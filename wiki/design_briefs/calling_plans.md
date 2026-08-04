@@ -1199,7 +1199,10 @@ replays its direct x86 form and the direct, pointee, and frame-indexed AArch64
 forms, binding the exact buffer data object and target storage relocations to a
 dedicated `CompilerBodyTextAssemblyWrite` footprint. Direct, pointee, and frame-
 indexed literal text appends on both targets share that fragment and retain
-their exact literal, buffer, place, encoder, and relocation recipe. String-
+their exact literal, buffer, place, encoder, and relocation recipe. Stored-
+source appends share it for direct/pointee x86 targets and direct, pointee, or
+frame-indexed AArch64 targets, including the exact source storage and mixed
+buffer/source/target relocations. String-
 descriptor writes replay all x86 targets
 and the direct, pointee, frame-indexed, and frame-indexed machine-storage
 AArch64 shapes, including exact rodata and storage/index relocations plus a
