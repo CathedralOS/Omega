@@ -1713,12 +1713,18 @@ and allocation handles expose no compiler-owned stack/control storage.
      endpoint, omits alias declarations, assigns dense deterministic IDs, and
      emits no frontend arena handle; codec, verifier, migration, and archived
      v1-v15 compatibility are covered;
-  2. add the proof stratum to selected-conformance projection and permit
-     by-value `dyn` only when the complete normalized value has no runtime
-     carrier;
-  3. add independent `Reflexive`, `Symmetric`, `Transitive`, and
-     `Antisymmetric` requirements, with
-     `Equivalence`, preorder, and partial-order composition;
+  2. **DESIGN BLOCKED (`OWNER_QUESTIONS.md` Q1):** add the proof stratum to
+     selected-conformance projection and permit by-value `dyn` only when the
+     complete normalized value has no runtime carrier. The carrierless runtime
+     rule is settled, but the projection cannot retain or reopen an exact proof
+     term until named conformances have a complete requirement-to-satisfier
+     association; this is the same blocker as selected witness evidence above;
+  3. independent `Reflexive`, `Symmetric`, `Transitive`, and `Antisymmetric`
+     requirements plus `Equivalence`, `Preorder`, and `PartialOrder`
+     composition landed in core on 2026-08-03. Each base trait owns only its
+     law, composites inherit without redeclaration, and the permanent canary
+     covers concrete proposition substitution plus heterogeneous machine-
+     indexed reflexive/symmetric/transitive telescope synthesis;
   4. add `Respects` over normalized argument records, checking both
      representative-invariant semantic preconditions and related results; and
   5. migrate `%` from executable-`bool` relations and suffix-based law

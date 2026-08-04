@@ -1,0 +1,64 @@
+// Proof-only relation properties.
+//
+// A relation is an explicit proposition family, not an executable Boolean
+// decision procedure. Each independent property owns exactly one law. The
+// composite traits inherit those requirements without redeclaring or
+// renaming them, so selecting a different proof conformance does not change
+// the relation's nominal identity.
+
+trait Reflexive<C, proposition Relation>
+where proposition Relation(left: C, right: C);
+{
+    machine reflexive(value: C)
+    ensures Relation(value, value);
+}
+
+trait Symmetric<C, proposition Relation>
+where proposition Relation(left: C, right: C);
+{
+    machine symmetric(left: C, right: C)
+    requires Relation(left, right)
+    ensures Relation(right, left);
+}
+
+trait Transitive<C, proposition Relation>
+where proposition Relation(left: C, right: C);
+{
+    machine transitive(left: C, middle: C, right: C)
+    requires
+        Relation(left, middle)
+        Relation(middle, right)
+    ensures Relation(left, right);
+}
+
+trait Antisymmetric<C, proposition Relation>
+where proposition Relation(left: C, right: C);
+{
+    machine antisymmetric(left: C, right: C)
+    requires
+        Relation(left, right)
+        Relation(right, left)
+    ensures left == right;
+}
+
+trait Equivalence<C, proposition Relation>:
+    Reflexive<C, Relation>
+    + Symmetric<C, Relation>
+    + Transitive<C, Relation>
+where proposition Relation(left: C, right: C);
+{
+}
+
+trait Preorder<C, proposition Relation>:
+    Reflexive<C, Relation>
+    + Transitive<C, Relation>
+where proposition Relation(left: C, right: C);
+{
+}
+
+trait PartialOrder<C, proposition Relation>:
+    Preorder<C, Relation>
+    + Antisymmetric<C, Relation>
+where proposition Relation(left: C, right: C);
+{
+}
