@@ -23,13 +23,12 @@ use omega_instruction_selection::{
     runtime_atomic_store_from_operand_width, runtime_atomic_swap_width,
     runtime_byte_read_width_with_plans, runtime_byte_write_width_with_plans,
     runtime_storage_convert_width, runtime_storage_copy_to_return_register_width,
-    runtime_text_buffer_materialize_width, runtime_text_line_read_width_with_plans,
-    runtime_text_literal_append_width, runtime_text_literal_compare_width,
+    runtime_text_line_read_width_with_plans, runtime_text_literal_compare_width,
     runtime_text_literal_segment_write_width, runtime_text_literal_write_width,
-    runtime_text_storage_compare_width, runtime_text_stored_place_append_width,
-    runtime_text_stored_suffix_append_width, runtime_value_compare_width,
-    syscall_sequence_width_with_plan, table_function_call_sequence_width_with_plan,
-    vtable_call_sequence_width_at_offset_with_plan, vtable_call_sequence_width_with_plan,
+    runtime_text_storage_compare_width, runtime_text_stored_suffix_append_width,
+    runtime_value_compare_width, syscall_sequence_width_with_plan,
+    table_function_call_sequence_width_with_plan, vtable_call_sequence_width_at_offset_with_plan,
+    vtable_call_sequence_width_with_plan,
 };
 use omega_machine_instructions::{MachineInstruction, MachineInstructionKind};
 use psi_diagnostics::Diagnostic;
@@ -304,7 +303,11 @@ fn machine_instruction_width(
             ..
         } => {
             let literal_len = input.data.objects.get(*buffer).bytes.len();
-            runtime_text_storage_compare_width(input.target.architecture, *source_offset, literal_len)
+            runtime_text_storage_compare_width(
+                input.target.architecture,
+                *source_offset,
+                literal_len,
+            )
         }
         SelectedInstructionKind::ComparePlaces {
             left,
@@ -366,96 +369,27 @@ fn machine_instruction_width(
         // Task #132: the place-shaped survivors decompose by shape; the
         // width fns mirror the encoders exactly.
         SelectedInstructionKind::MaterializeTextBufferToPlace { target, .. } => {
-            match omega_instruction_selection::classify_write_place_shape(target) {
-                omega_instruction_selection::WritePlaceShape::Direct { byte_offset } => {
-                    runtime_text_buffer_materialize_width(input.target.architecture, byte_offset)
-                }
-                omega_instruction_selection::WritePlaceShape::Pointee {
-                    pointer_byte_offset,
-                    field_byte_offset,
-                } => omega_instruction_selection::runtime_text_buffer_materialize_to_runtime_pointee_width(
-                    input.target.architecture,
-                    pointer_byte_offset,
-                    field_byte_offset,
-                ),
-                omega_instruction_selection::WritePlaceShape::FrameIndexed {
-                    index_byte_size,
-                    element_byte_size,
-                    field_byte_offset,
-                    ..
-                } => omega_instruction_selection::runtime_text_buffer_materialize_to_runtime_frame_indexed_width(
-                    input.target.architecture,
-                    index_byte_size,
-                    element_byte_size,
-                    field_byte_offset,
-                ),
-                _ => 0,
-            }
+            omega_instruction_selection::runtime_text_buffer_materialize_to_place_width(
+                input.target.architecture,
+                target,
+            )
         }
         SelectedInstructionKind::AppendTextStoredToPlace {
             source_offset,
             target,
             ..
-        } => match omega_instruction_selection::classify_write_place_shape(target) {
-            omega_instruction_selection::WritePlaceShape::Direct { byte_offset } => {
-                runtime_text_stored_place_append_width(
-                    input.target.architecture,
-                    *source_offset,
-                    byte_offset,
-                )
-            }
-            omega_instruction_selection::WritePlaceShape::Pointee {
-                pointer_byte_offset,
-                field_byte_offset,
-            } => omega_instruction_selection::runtime_text_stored_place_append_to_runtime_pointee_width(
-                input.target.architecture,
-                *source_offset,
-                pointer_byte_offset,
-                field_byte_offset,
-            ),
-            omega_instruction_selection::WritePlaceShape::FrameIndexed {
-                index_byte_size,
-                element_byte_size,
-                field_byte_offset,
-                ..
-            } => omega_instruction_selection::runtime_text_stored_place_append_to_runtime_frame_indexed_width(
-                input.target.architecture,
-                *source_offset,
-                index_byte_size,
-                element_byte_size,
-                field_byte_offset,
-            ),
-            _ => 0,
-        },
+        } => omega_instruction_selection::runtime_text_stored_place_append_to_place_width(
+            input.target.architecture,
+            *source_offset,
+            target,
+        ),
         SelectedInstructionKind::AppendTextLiteralToPlace {
             target, literal, ..
-        } => match omega_instruction_selection::classify_write_place_shape(target) {
-            omega_instruction_selection::WritePlaceShape::Direct { byte_offset } => {
-                runtime_text_literal_append_width(input.target.architecture, byte_offset, literal)
-            }
-            omega_instruction_selection::WritePlaceShape::Pointee {
-                pointer_byte_offset,
-                field_byte_offset,
-            } => omega_instruction_selection::runtime_text_literal_append_to_runtime_pointee_width(
-                input.target.architecture,
-                pointer_byte_offset,
-                field_byte_offset,
-                literal,
-            ),
-            omega_instruction_selection::WritePlaceShape::FrameIndexed {
-                index_byte_size,
-                element_byte_size,
-                field_byte_offset,
-                ..
-            } => omega_instruction_selection::runtime_text_literal_append_to_runtime_frame_indexed_width(
-                input.target.architecture,
-                index_byte_size,
-                element_byte_size,
-                field_byte_offset,
-                literal,
-            ),
-            _ => 0,
-        },
+        } => omega_instruction_selection::runtime_text_literal_append_to_place_width(
+            input.target.architecture,
+            target,
+            literal,
+        ),
         SelectedInstructionKind::WriteRuntimeStorageConvert {
             target_offset,
             target_byte_size,
@@ -973,13 +907,7 @@ fn machine_instruction_width(
             register,
             byte_size,
             ..
-        } => {
-            return_register_integer_write_width(
-                input.target.architecture,
-                *register,
-                *byte_size,
-            )
-        }
+        } => return_register_integer_write_width(input.target.architecture, *register, *byte_size),
         SelectedInstructionKind::CopyRuntimeStorageToReturnRegister {
             register,
             byte_offset,
@@ -995,9 +923,7 @@ fn machine_instruction_width(
             register,
             byte_size,
             ..
-        } => {
-            entry_argument_register_write_width(input.target.architecture, *register, *byte_size)
-        }
+        } => entry_argument_register_write_width(input.target.architecture, *register, *byte_size),
         SelectedInstructionKind::WriteEntryStackArgument { byte_size, .. } => {
             entry_stack_argument_write_width(input.target.architecture, *byte_size)
         }
@@ -1037,33 +963,25 @@ fn machine_instruction_width(
         }
         SelectedInstructionKind::FlagsSnapshot { .. } => {
             if input.target.architecture != omega_target::Architecture::X86_64 {
-                return Err(Diagnostic::error(
-                    "asm instruction `pushfq` is x86_64-only",
-                ));
+                return Err(Diagnostic::error("asm instruction `pushfq` is x86_64-only"));
             }
             flags_snapshot_width()
         }
         SelectedInstructionKind::FlagsRestore { source } => {
             if input.target.architecture != omega_target::Architecture::X86_64 {
-                return Err(Diagnostic::error(
-                    "asm instruction `popfq` is x86_64-only",
-                ));
+                return Err(Diagnostic::error("asm instruction `popfq` is x86_64-only"));
             }
             flags_restore_width(input.assigned_target_operations, *source)
         }
         SelectedInstructionKind::MsrRead { index, .. } => {
             if input.target.architecture != omega_target::Architecture::X86_64 {
-                return Err(Diagnostic::error(
-                    "asm instruction `rdmsr` is x86_64-only",
-                ));
+                return Err(Diagnostic::error("asm instruction `rdmsr` is x86_64-only"));
             }
             msr_read_width(input.assigned_target_operations, *index)
         }
         SelectedInstructionKind::MsrWrite { index, value } => {
             if input.target.architecture != omega_target::Architecture::X86_64 {
-                return Err(Diagnostic::error(
-                    "asm instruction `wrmsr` is x86_64-only",
-                ));
+                return Err(Diagnostic::error("asm instruction `wrmsr` is x86_64-only"));
             }
             msr_write_width(input.assigned_target_operations, *index, *value)
         }
@@ -1080,7 +998,9 @@ fn machine_instruction_width(
             if input.target.architecture != omega_target::Architecture::X86_64 {
                 return Err(Diagnostic::error(format!(
                     "asm instruction `{}` is x86_64-only",
-                    register.write_mnemonic().expect("writable control register")
+                    register
+                        .write_mnemonic()
+                        .expect("writable control register")
                 )));
             }
             control_register_write_width(input.assigned_target_operations, *source)

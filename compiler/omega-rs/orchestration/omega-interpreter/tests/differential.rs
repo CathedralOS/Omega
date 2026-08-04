@@ -942,6 +942,10 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ),
     ("text/runtime_slice_indexed_string_guard_exit", 70),
     ("text/runtime_local_array_indexed_string_guard_exit", 70),
+    (
+        "text/runtime_local_array_indexed_string_field_concat_exit",
+        89,
+    ),
     ("text/runtime_slice_fixed_indexed_string_guard_exit", 70),
     ("text/runtime_pointee_string_guard_exit", 70),
     ("text/runtime_string_field_literal_guard_exit", 70),

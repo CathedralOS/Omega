@@ -393,6 +393,19 @@ pub(in crate::selection) fn runtime_text_builder_write_without_aliases_emit(
                             target.field_byte_offset,
                         ),
                     });
+                } else if let Some(target) = target.frame_base_indexed.as_ref() {
+                    emit(SelectedInstructionKind::AppendTextStoredToPlace {
+                        buffer,
+                        source_region: source_place.region,
+                        source_offset: source_place.byte_offset,
+                        target: crate::selection::runtime_dispatch::frame_base_indexed_place(
+                            target.base_byte_offset,
+                            target.index_offset,
+                            target.index_byte_size,
+                            target.element_byte_size,
+                            target.field_byte_offset,
+                        ),
+                    });
                 } else {
                     return false;
                 }
@@ -414,6 +427,7 @@ pub(in crate::selection) fn runtime_text_builder_write_without_aliases_emit(
                     target.place.as_ref(),
                     target.pointee.as_ref(),
                     target.indexed.as_ref(),
+                    target.frame_base_indexed.as_ref(),
                     target.machine_indexed.as_ref(),
                     target.machine_double_indexed.as_ref(),
                     literal,
@@ -432,6 +446,7 @@ pub(in crate::selection) fn runtime_text_builder_write_without_aliases_emit(
                     target.place.as_ref(),
                     target.pointee.as_ref(),
                     target.indexed.as_ref(),
+                    target.frame_base_indexed.as_ref(),
                     target.machine_indexed.as_ref(),
                     target.machine_double_indexed.as_ref(),
                     Arc::from(UNSUPPORTED_RUNTIME_TEXT_SEGMENT),
@@ -760,6 +775,19 @@ fn emit_runtime_text_builder_segments_with_handle_resolver(
                             target.field_byte_offset,
                         ),
                     });
+                } else if let Some(target) = target.frame_base_indexed.as_ref() {
+                    emit(SelectedInstructionKind::AppendTextStoredToPlace {
+                        buffer,
+                        source_region: source_place.region,
+                        source_offset: source_place.byte_offset,
+                        target: crate::selection::runtime_dispatch::frame_base_indexed_place(
+                            target.base_byte_offset,
+                            target.index_offset,
+                            target.index_byte_size,
+                            target.element_byte_size,
+                            target.field_byte_offset,
+                        ),
+                    });
                 } else {
                     return false;
                 }
@@ -781,6 +809,7 @@ fn emit_runtime_text_builder_segments_with_handle_resolver(
                     target.place.as_ref(),
                     target.pointee.as_ref(),
                     target.indexed.as_ref(),
+                    target.frame_base_indexed.as_ref(),
                     target.machine_indexed.as_ref(),
                     target.machine_double_indexed.as_ref(),
                     literal,
@@ -799,6 +828,7 @@ fn emit_runtime_text_builder_segments_with_handle_resolver(
                     target.place.as_ref(),
                     target.pointee.as_ref(),
                     target.indexed.as_ref(),
+                    target.frame_base_indexed.as_ref(),
                     target.machine_indexed.as_ref(),
                     target.machine_double_indexed.as_ref(),
                     Arc::from(UNSUPPORTED_RUNTIME_TEXT_SEGMENT),
@@ -822,6 +852,7 @@ fn append_runtime_text_literal_to_target(
     target_place: Option<&RuntimeStoragePlace>,
     target_pointee: Option<&RuntimePointeeTarget>,
     target_indexed: Option<&RuntimeFrameIndexedTarget>,
+    target_frame_base_indexed: Option<&RuntimeFrameBaseIndexedTarget>,
     target_machine_indexed: Option<&RuntimeMachineIndexedTarget>,
     target_machine_double_indexed: Option<&RuntimeMachineDoubleIndexedTarget>,
     literal: Arc<str>,
@@ -851,6 +882,18 @@ fn append_runtime_text_literal_to_target(
             target: crate::selection::runtime_dispatch::text_place_frame_indexed(
                 target.descriptor_offset,
                 target.index_region,
+                target.index_offset,
+                target.index_byte_size,
+                target.element_byte_size,
+                target.field_byte_offset,
+            ),
+            literal,
+        });
+    } else if let Some(target) = target_frame_base_indexed {
+        emit(SelectedInstructionKind::AppendTextLiteralToPlace {
+            buffer,
+            target: crate::selection::runtime_dispatch::frame_base_indexed_place(
+                target.base_byte_offset,
                 target.index_offset,
                 target.index_byte_size,
                 target.element_byte_size,
@@ -912,9 +955,6 @@ fn initialize_runtime_text_target_with_first_literal_segment(
     segments: &[omega_runtime_text::RuntimeTextBuilderSegment],
     emit: &mut dyn FnMut(SelectedInstructionKind),
 ) -> bool {
-    if target.frame_base_indexed.is_some() && segments.len() != 1 {
-        return false;
-    }
     let Some(first) = segments.first() else {
         return false;
     };

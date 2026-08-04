@@ -4907,7 +4907,7 @@ fn append_runtime_frame_index_target_address(
 /// machine field) materializes its own page pair into x21 at the CONSTANT
 /// offset 32 (after the frame pair + the fixed-width descriptor load), which
 /// the relocation record patches to the machine symbol.
-fn append_runtime_frame_index_target_address_with_index_region(
+pub(in crate::aarch64) fn append_runtime_frame_index_target_address_with_index_region(
     bytes: &mut Vec<u8>,
     address_register: u8,
     index_region: omega_target_operations::RuntimeStorageRegion,
@@ -5753,7 +5753,7 @@ fn append_runtime_machine_index_target_address(
 /// right one (`self.double(arr[i])` doubled the INDEX: d = i + arr[i] -- the
 /// local-array value-operand ZII/garbage divergence; x86_64 is immune because
 /// it stashes the left result on the stack).
-fn append_runtime_frame_base_index_target_address(
+pub(in crate::aarch64) fn append_runtime_frame_base_index_target_address(
     bytes: &mut Vec<u8>,
     address_register: u8,
     base_byte_offset: usize,

@@ -1127,7 +1127,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         executable_regions.contains(
             "\"certificate_schema\": \"omega.final-footprint-certificate\""
         )
-            && executable_regions.contains("\"certificate_format_version\": 65")
+            && executable_regions.contains("\"certificate_format_version\": 66")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
             && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")
@@ -2562,6 +2562,45 @@ fn compiler_body_text_buffer_materialize_footprints_reach_artifacts() {
         );
         let _ = fs::remove_dir_all(&scratch);
     }
+}
+
+#[test]
+fn compiler_body_frame_base_indexed_text_assembly_footprints_reach_aarch64_artifact() {
+    let canary = pass_canary("text/runtime_local_array_indexed_string_field_concat_exit");
+    let scratch = std::env::temp_dir().join(format!(
+        "omega-compiler-body-frame-base-indexed-text-assembly-footprint-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&scratch);
+    let source = scratch.join("src");
+    let output = scratch.join("out");
+    fs::create_dir_all(&source)
+        .expect("create compiler-body frame-base-indexed text-assembly source directory");
+    fs::copy(canary.join("main.omg"), source.join("main.omg"))
+        .expect("copy compiler-body frame-base-indexed text-assembly canary");
+    fs::write(source.join("build.omg"), "target linux_arm64 {\n}\n")
+        .expect("write compiler-body frame-base-indexed text-assembly target");
+    compile(CompileOptions {
+        root_path: source.join("main.omg"),
+        build_dir: Some(output.clone()),
+        target_name: Some("linux_arm64".into()),
+        write_output: true,
+    })
+    .unwrap_or_else(|diagnostics| {
+        panic!(
+            "compiler-body frame-base-indexed text assembly should compile for linux_arm64: {diagnostics:?}"
+        )
+    });
+    let footprints = fs::read_to_string(output.join("08_boundary_footprints.json"))
+        .expect("compiler-body frame-base-indexed text-assembly evidence should be written");
+    assert!(
+        footprints.contains("\"origin\": \"compiler_body_text_assembly_write\"")
+            && footprints.contains("\"Aarch64X(19)\"")
+            && footprints.contains("\"Aarch64X(24)\"")
+            && footprints.contains("\"enumeration_complete\": false"),
+        "linux_arm64 artifact must retain frame-base-indexed stored/literal text-assembly evidence without claiming completeness"
+    );
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -36233,6 +36272,37 @@ fn runtime_local_array_indexed_string_guard_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_local_array_indexed_string_field_concat_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_local_array_indexed_string_field_concat_exit");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-local-array-indexed-string-field-concat-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime local-array-indexed string field concat canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime local-array-indexed string field concat canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(89),
+        "expected frame-base-indexed text assembly to preserve `prefix omega!` and exit 89, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_slice_fixed_indexed_string_guard_exit_canary_runs() {
     // The CONSTANT-index sibling of the slice-indexed shape: a slice
     // element's String field guard-compared against a literal at a literal
@@ -45635,6 +45705,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "text/runtime_slice_indexed_string_guard_exit",
     "text/runtime_slice_machine_indexed_string_guard_exit",
     "text/runtime_local_array_indexed_string_guard_exit",
+    "text/runtime_local_array_indexed_string_field_concat_exit",
     "text/runtime_slice_fixed_indexed_string_guard_exit",
     "text/runtime_pointee_string_guard_exit",
     "text/runtime_string_field_literal_guard_exit",
