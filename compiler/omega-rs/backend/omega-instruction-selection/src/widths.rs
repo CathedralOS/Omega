@@ -791,6 +791,7 @@ pub fn runtime_text_stored_place_append_width(
 pub fn runtime_text_stored_place_append_to_runtime_frame_indexed_width(
     architecture: Architecture,
     source_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> usize {
@@ -802,7 +803,10 @@ pub fn runtime_text_stored_place_append_to_runtime_frame_indexed_width(
                 field_byte_offset,
             )
         }
-        Architecture::X86_64 => 0,
+        Architecture::X86_64 => {
+            let _ = (source_offset, element_byte_size, field_byte_offset);
+            x86_64::runtime_text_stored_place_append_to_runtime_frame_indexed_width(index_byte_size)
+        }
     }
 }
 

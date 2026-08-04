@@ -92,6 +92,7 @@ pub(crate) fn runtime_text_indexed_literal_append_buffer_address_offset(
 
 pub(crate) fn runtime_text_indexed_stored_place_buffer_address_offset(
     architecture: Architecture,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> usize {
@@ -99,7 +100,12 @@ pub(crate) fn runtime_text_indexed_stored_place_buffer_address_offset(
         Architecture::Aarch64 => {
             runtime_frame_index_setup_width(element_byte_size, field_byte_offset) + 8
         }
-        Architecture::X86_64 => 8,
+        Architecture::X86_64 => {
+            let _ = (element_byte_size, field_byte_offset);
+            omega_isa_x86_64::runtime_text_stored_place_append_to_runtime_frame_indexed_buffer_imm_offset(
+                index_byte_size,
+            )
+        }
     }
 }
 
@@ -147,6 +153,7 @@ fn aarch64_unsigned_immediate_width(value: u64) -> usize {
 
 pub(crate) fn runtime_text_indexed_stored_place_source_address_offset(
     architecture: Architecture,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> usize {
@@ -154,6 +161,11 @@ pub(crate) fn runtime_text_indexed_stored_place_source_address_offset(
         Architecture::Aarch64 => {
             runtime_frame_index_setup_width(element_byte_size, field_byte_offset) + 24
         }
-        Architecture::X86_64 => 8,
+        Architecture::X86_64 => {
+            let _ = (element_byte_size, field_byte_offset);
+            omega_isa_x86_64::runtime_text_stored_place_append_to_runtime_frame_indexed_source_imm_offset(
+                index_byte_size,
+            )
+        }
     }
 }

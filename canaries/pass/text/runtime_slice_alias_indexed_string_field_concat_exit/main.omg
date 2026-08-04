@@ -9,13 +9,16 @@ data Room {
 
 data Main {
     console: Console;
+    suffix: &[u8] in Utf8;
     rooms: [Room; 2];
 }
 
 machine Main::main(&mut self) {
     let index: u64 = 1;
+    self.suffix = "omega";
+    let source_text: &[u8] in Utf8 = self.suffix;
     let room_slice: &mut [Room] = self.rooms.as_mut_slice();
-    room_slice[index].description = "prefix " + "omega";
+    room_slice[index].description = "prefix " + source_text;
 
     transition room_slice[index].description == "prefix omega" {
         true -> good()

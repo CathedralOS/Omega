@@ -7853,6 +7853,35 @@ mod text_buffer_materialize_place_tests {
             assert_eq!(&bytes[buffer_site..buffer_site + 2], &[0x49, 0xbe]);
         }
     }
+
+    #[test]
+    fn frame_indexed_stored_append_width_and_relocation_sites_follow_index_width() {
+        for index_byte_size in [1usize, 2, 4, 8] {
+            let bytes = encode_runtime_text_stored_place_append_to_runtime_frame_indexed(
+                56,
+                24,
+                40,
+                index_byte_size,
+                32,
+                8,
+            )
+            .expect("frame-indexed stored-text append");
+            let buffer_site =
+                runtime_text_stored_place_append_to_runtime_frame_indexed_buffer_imm_offset(
+                    index_byte_size,
+                );
+            let source_site =
+                runtime_text_stored_place_append_to_runtime_frame_indexed_source_imm_offset(
+                    index_byte_size,
+                );
+            assert_eq!(
+                bytes.len(),
+                runtime_text_stored_place_append_to_runtime_frame_indexed_width(index_byte_size)
+            );
+            assert_eq!(&bytes[buffer_site..buffer_site + 2], &[0x49, 0xbe]);
+            assert_eq!(&bytes[source_site..source_site + 2], &[0x48, 0xb9]);
+        }
+    }
 }
 
 pub fn runtime_text_literal_compare_branch_next_offset(byte_index: usize) -> usize {
@@ -8107,6 +8136,77 @@ fn append_frame_indexed_element_address_into_rax(
         frame_indexed_string_prefix_width(index_byte_size)
     );
     Ok(())
+}
+
+pub fn runtime_text_stored_place_append_to_runtime_frame_indexed_width(
+    index_byte_size: usize,
+) -> usize {
+    frame_indexed_string_prefix_width(index_byte_size) + 75
+}
+
+pub fn runtime_text_stored_place_append_to_runtime_frame_indexed_buffer_imm_offset(
+    index_byte_size: usize,
+) -> usize {
+    frame_indexed_string_prefix_width(index_byte_size) + 3
+}
+
+pub fn runtime_text_stored_place_append_to_runtime_frame_indexed_source_imm_offset(
+    index_byte_size: usize,
+) -> usize {
+    frame_indexed_string_prefix_width(index_byte_size) + 26
+}
+
+pub fn runtime_text_stored_place_append_to_runtime_frame_indexed_register_writes() -> RegisterSet {
+    runtime_text_stored_place_append_register_writes()
+}
+
+/// Appends a stored source descriptor to a text descriptor inside a
+/// runtime-indexed frame slice. The shared prefix resolves the indexed element
+/// into rax; r15 then retains that descriptor base while r14 holds the relocated
+/// output buffer and rcx is reused for the relocated source descriptor.
+pub fn encode_runtime_text_stored_place_append_to_runtime_frame_indexed(
+    source_offset: usize,
+    descriptor_offset: usize,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(
+        runtime_text_stored_place_append_to_runtime_frame_indexed_width(index_byte_size),
+    );
+    append_frame_indexed_element_address_into_rax(
+        &mut bytes,
+        descriptor_offset,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+    )?;
+    bytes.extend([0x49, 0x89, 0xc7]); // mov r15, rax (indexed descriptor base)
+    append_mov_r14_imm64(&mut bytes, 0); // buffer base (reloc @ prefix + 3)
+    append_load_r11_from_r15(&mut bytes, field_byte_offset + 8)?;
+    append_mov_r10_r14(&mut bytes);
+    append_add_r10_r11(&mut bytes);
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_text_stored_place_append_to_runtime_frame_indexed_source_imm_offset(
+            index_byte_size,
+        )
+    );
+    append_mov_rcx_imm64(&mut bytes, 0); // source region base
+    append_load_rax_from_rcx(&mut bytes, source_offset)?;
+    append_load_rcx_from_rcx(&mut bytes, source_offset + 8)?;
+    append_add_r11_rcx(&mut bytes);
+    append_store_r14_to_r15(&mut bytes, field_byte_offset)?;
+    append_store_r11_to_r15(&mut bytes, field_byte_offset + 8)?;
+    append_mov_rsi_rax(&mut bytes);
+    append_mov_rdi_r10(&mut bytes);
+    append_rep_movsb(&mut bytes);
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_text_stored_place_append_to_runtime_frame_indexed_width(index_byte_size)
+    );
+    Ok(bytes)
 }
 
 pub fn runtime_text_literal_append_to_runtime_frame_indexed_width(

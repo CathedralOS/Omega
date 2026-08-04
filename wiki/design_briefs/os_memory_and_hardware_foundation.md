@@ -1085,8 +1085,8 @@ target encoder and mixed data/storage relocation set, and matches a dedicated
 `CompilerBodyTextAssemblyWrite` footprint. Direct, pointee, and frame-indexed
 literal appends on both targets share that fragment and retain their exact
 literal, buffer identity, target place, encoder, and relocation set. Stored-
-source appends share it for direct/pointee x86 targets and direct, pointee, or
-frame-indexed AArch64 targets, with exact source storage and mixed
+source appends share it for direct, pointee, or frame-indexed targets on both
+architectures, with exact source storage and mixed
 buffer/source/target relocations. Segmented literal writes retain their exact
 buffer symbol, byte offset, literal, encoder, and sole data relocation under
 the same text-assembly fragment. Segmented stored-suffix appends retain the
@@ -1134,7 +1134,7 @@ relocation-envelope fingerprints plus their composed derivation identity. The
 boundary/placement binding includes that derivation identity, so a valid final
 inventory cannot be paired with evidence from a different encoded-to-final
 derivation. The single emitted artifact is now self-described as
-`omega.final-footprint-certificate` format v58, with a domain-separated
+`omega.final-footprint-certificate` format v59, with a domain-separated
 certificate fingerprint over its final placement binding, compiler-text
 derivation, and region inventory. It remains explicitly incomplete evidence,
 not an admission certificate, until the missing footprint classes close. The

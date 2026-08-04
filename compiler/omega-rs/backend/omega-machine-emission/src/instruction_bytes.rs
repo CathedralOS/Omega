@@ -668,7 +668,8 @@ fn compiler_instruction_validation_kind(
             (
                 omega_target::Architecture::X86_64,
                 omega_instruction_selection::WritePlaceShape::Direct { .. }
-                    | omega_instruction_selection::WritePlaceShape::Pointee { .. },
+                    | omega_instruction_selection::WritePlaceShape::Pointee { .. }
+                    | omega_instruction_selection::WritePlaceShape::FrameIndexed { .. },
             ) | (
                 omega_target::Architecture::Aarch64,
                 omega_instruction_selection::WritePlaceShape::Direct { .. }

@@ -1846,6 +1846,24 @@ fn validate_compiler_function_instruction_boundaries(
                                 field_byte_offset,
                             )?,
                             (
+                                Architecture::X86_64,
+                                CompilerBodyPlaceIntegerWriteShape::FrameIndexed {
+                                    descriptor_offset,
+                                    index_offset,
+                                    index_byte_size,
+                                    element_byte_size,
+                                    field_byte_offset,
+                                    ..
+                                },
+                            ) => omega_isa_x86_64::encode_runtime_text_stored_place_append_to_runtime_frame_indexed(
+                                source_offset,
+                                descriptor_offset,
+                                index_offset,
+                                index_byte_size,
+                                element_byte_size,
+                                field_byte_offset,
+                            )?,
+                            (
                                 Architecture::Aarch64,
                                 CompilerBodyPlaceIntegerWriteShape::Direct { byte_offset },
                             ) => omega_isa_aarch64::encode_runtime_text_stored_place_append(
@@ -3838,6 +3856,13 @@ fn compiler_instruction_footprint(
                     | CompilerBodyPlaceIntegerWriteShape::Pointee { .. },
                 ) => (
                     omega_isa_x86_64::runtime_text_stored_place_append_register_writes(),
+                    omega_isa_x86_64::runtime_text_stored_place_append_additional_machine_state(),
+                ),
+                (
+                    Architecture::X86_64,
+                    CompilerBodyPlaceIntegerWriteShape::FrameIndexed { .. },
+                ) => (
+                    omega_isa_x86_64::runtime_text_stored_place_append_to_runtime_frame_indexed_register_writes(),
                     omega_isa_x86_64::runtime_text_stored_place_append_additional_machine_state(),
                 ),
                 (
@@ -6991,6 +7016,26 @@ fn validate_compiler_text_stored_append_relocations(
             (10usize, ExpectedTarget::Storage(target.region)),
             (
                 omega_isa_x86_64::RUNTIME_TEXT_STORED_PLACE_APPEND_POINTEE_SOURCE_IMM_OFFSET,
+                ExpectedTarget::Storage(source_region),
+            ),
+        ],
+        (
+            Architecture::X86_64,
+            CompilerBodyPlaceIntegerWriteShape::FrameIndexed {
+                index_byte_size, ..
+            },
+        ) => vec![
+            (0usize, ExpectedTarget::Storage(target.region)),
+            (
+                omega_isa_x86_64::runtime_text_stored_place_append_to_runtime_frame_indexed_buffer_imm_offset(
+                    index_byte_size,
+                ),
+                ExpectedTarget::Buffer,
+            ),
+            (
+                omega_isa_x86_64::runtime_text_stored_place_append_to_runtime_frame_indexed_source_imm_offset(
+                    index_byte_size,
+                ),
                 ExpectedTarget::Storage(source_region),
             ),
         ],
