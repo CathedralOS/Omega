@@ -1745,7 +1745,7 @@ fn compiler_body_indexed_to_pointee_copy_footprints_reach_x86_and_aarch64_artifa
 fn compiler_body_frame_base_indexed_copy_footprints_reach_x86_and_aarch64_artifacts() {
     let canary = pass_canary("collections/runtime_frame_indexed_local_read_exit");
     for (target, expected_register) in [
-        ("linux_x64", "\"X86R11\""),
+        ("linux_x64", "\"X86R10\""),
         ("linux_arm64", "\"Aarch64X(24)\""),
     ] {
         let scratch = std::env::temp_dir().join(format!(
