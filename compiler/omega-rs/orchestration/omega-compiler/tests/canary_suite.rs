@@ -3217,6 +3217,32 @@ fn cross_linux_value_syscalls_compile_on_both_architectures() {
             build_dir.join("omega-program").exists(),
             "{target} should emit an ELF image"
         );
+        let report = fs::read_to_string(build_dir.join("backend_report.txt"))
+            .expect("read Linux backend report");
+        let expected_size = if target == "linux_x64" { 144 } else { 128 };
+        assert!(
+            report.contains(&format!(
+                "data StatLayout<StatRecord>: size {expected_size}, align 8"
+            )),
+            "{target} must retain its kernel stat extent"
+        );
+        let target_source = fs::read_to_string(repo_root().join(format!(
+            "omega/language/std/targets/{target}/filesystem_impl.omg"
+        )))
+        .expect("read Linux target filesystem policy");
+        if target == "linux_arm64" {
+            assert!(
+                target_source.contains("self.entries[2] = FieldEntry { key: schema.fields[2].key, placement: FieldPlan::IntegerAt { offset: 20, stored_width: 32")
+                    && target_source.contains("self.entries[13] = FieldEntry { key: schema.fields[13].key, placement: FieldPlan::IntegerAt { offset: 56, stored_width: 32"),
+                "Linux AArch64 stat must retain its 32-bit nlink and blksize encodings"
+            );
+        } else {
+            assert!(
+                target_source.contains("self.entries[2] = FieldEntry { key: schema.fields[2].key, placement: FieldPlan::At { offset: 16 }")
+                    && target_source.contains("self.entries[13] = FieldEntry { key: schema.fields[13].key, placement: FieldPlan::At { offset: 56 }"),
+                "Linux x86-64 stat must retain its 64-bit nlink and blksize encodings"
+            );
+        }
         let _ = fs::remove_dir_all(&build_dir);
     }
 }
@@ -42136,6 +42162,13 @@ fn plan_laid_compact_bits_exit_canary_runs_and_cross_compiles() {
 #[test]
 fn plan_laid_integer_at_projection_exit_canary_runs_and_cross_compiles() {
     let canary = pass_canary("layouts/runtime_plan_laid_integer_at_projection_exit");
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
+        .expect("IntegerAt projection canary should compile to checked trees");
+    let interpreted = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        interpreted.exit_code, 70,
+        "interpreter must apply the same signed/unsigned stored-width decode"
+    );
     let build_dir =
         std::env::temp_dir().join(format!("omega-plan-laid-integer-at-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);

@@ -429,10 +429,14 @@ derives and retains total-write evidence when the field's complete admitted
 semantic range fits the stored encoding. Direct stable-owned mutation consumes
 that evidence to write exactly the physical width, and direct guards consume
 the decoded projection instead of comparing the semantic carrier width against
-raw storage. Concrete proved-fit mutation is still outstanding; ordinary
-scalar resolution, mutable recasts, interpreter record views, and by-value
-boundary classification reject rather than treating `IntegerAt` as `At` or
-truncating through the scalar materializer.
+raw storage. Read-only interpreter record views now perform the same exact-width
+signed/unsigned decode. The portable filesystem stat record uses wide semantic
+carriers while the Darwin, Linux x86-64, Linux AArch64, and Windows policies own
+their physical integer widths; both Linux kernel layouts cross-validate through
+their native fstat plans. Concrete proved-fit mutation is still outstanding;
+ordinary scalar resolution, mutable recasts, and by-value boundary
+classification reject rather than treating `IntegerAt` as `At` or truncating
+through the scalar materializer.
 The admitted `compact_binary` realization now derives bounded repeated framing
 from carrier semantics: `[T; N]` contributes exactly `N` elements and
 `FixedVec<T, N>` contributes its intrinsic live length up to `N`; the retired

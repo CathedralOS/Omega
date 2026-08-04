@@ -633,9 +633,12 @@ reference-backed address calculation. The compiler also retains whether the
 field's admitted semantic range is wholly encodable at the stored width. A
 direct write into stable owned storage may narrow on that total-write evidence,
 and direct guards compare the widened semantic projection rather than the raw
-neighboring carrier bytes. Concrete proved-fit writes remain implementation
-work and fail closed; ordinary scalar consumers do not make `IntegerAt`
-interchangeable with ordinary `At`.
+neighboring carrier bytes. Read-only interpreter record views apply the same
+decode. The standard filesystem's portable stat carrier uses this mechanism so
+Darwin, Linux x86-64, Linux AArch64, and Windows policies can retain their real
+integer widths without changing semantic field types. Concrete proved-fit
+writes remain implementation work and fail closed; ordinary scalar consumers
+do not make `IntegerAt` interchangeable with ordinary `At`.
 Encodability alone does not authorize a transfer: sub-unit mutation must also
 have a legal implementation. Stable exclusive storage may use one bounded
 read-patch-write sequence. External storage requires a whole-container or

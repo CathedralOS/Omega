@@ -199,26 +199,25 @@ data Metadata [copy] {
 }
 
 // The semantic scalar fields the portable wrapper consumes from a foreign
-// `struct stat` record. Field widths describe the actual carriers shared by
-// the supported layouts: mode/link count are narrow u16 values, device ids and
-// block size are u32, and the remaining counters/timestamps are 64-bit. A
-// target-authored `StatLayout::plan` chooses their byte positions without
-// leaking offsets into the boundary/provider surface.
+// `struct stat` record. These are portable semantic carriers, not one target's
+// physical typedef widths. A target-authored `StatLayout::plan` chooses byte
+// positions and uses `IntegerAt` wherever its ABI stores a narrower integer,
+// without leaking offsets or widths into the boundary/provider surface.
 data StatRecord {
-    dev: u32;
-    mode: u16;
-    nlink: u16;
+    dev: u64;
+    mode: u32;
+    nlink: u64;
     ino: u64;
     uid: u32;
     gid: u32;
-    rdev: u32;
+    rdev: u64;
     atime: i64;
     mtime: i64;
     ctime: i64;
     btime: i64;
     size: i64;
     blocks: u64;
-    blksize: u32;
+    blksize: u64;
 }
 
 // The four selected-target implementations live beside the target filesystem
@@ -349,8 +348,9 @@ data MetadataResult {
 // `omega::language::std::filesystem_host`, imported at the top of this file.
 
 // The ergonomic capability. Holds the raw host plus the portable flag/mode
-// constants it applies (staged in fields). `stat_buf` is scratch for the 144-byte
-// darwin `struct stat` that `metadata_path` fills and decodes.
+// constants it applies (staged in fields). `stat_buf` is scratch sized for the
+// largest selected `struct stat` carrier; the target `StatLayout` supplies the
+// live extent and field encodings.
 data Filesystem {
     host: FilesystemHost;
     create_mode: i32;
@@ -778,7 +778,7 @@ machine Filesystem::copy(&mut self, from: &[u8] in Path, to: &[u8] in Path, buff
     // elided local folds its computed initializer back into the `set_permissions`
     // argument, which the host-call marshaller rejects (a host arg must be a
     // simple place). `perm_mode` is the same field the set_permissions wrapper uses.
-    self.perm_mode = widen_u16_to_u32(stat.value.mode) & 511;
+    self.perm_mode = stat.value.mode & 511;
     let chmodded: i32 = self.host.set_permissions(to, self.perm_mode);
     transition n >= 0 { true -> ok(n) _ -> err(src, n) }
     state ok(&mut self, n: i64) -> IoResult {
@@ -830,16 +830,16 @@ machine Filesystem::try_exists(&mut self, path: &[u8] in Path) -> ExistsResult {
 // while lstat can report one, so the same decode remains correct for all three.
 machine Filesystem::decode_metadata(&mut self) -> Metadata {
     let stat: &StatView = &self.stat_buf[0] as &StatView;
-    let mode: u32 = widen_u16_to_u32(stat.value.mode);
-    let nlink: u64 = widen_u16_to_u64(stat.value.nlink);
+    let mode: u32 = stat.value.mode;
+    let nlink: u64 = stat.value.nlink;
     let ino: u64 = stat.value.ino;
     let uid: u32 = stat.value.uid;
     let gid: u32 = stat.value.gid;
-    let dev: u64 = widen_u32_to_u64(stat.value.dev);
-    let rdev: u64 = widen_u32_to_u64(stat.value.rdev);
+    let dev: u64 = stat.value.dev;
+    let rdev: u64 = stat.value.rdev;
     let ctime: i64 = stat.value.ctime;
     let blocks: u64 = stat.value.blocks;
-    let blksize: u64 = widen_u32_to_u64(stat.value.blksize);
+    let blksize: u64 = stat.value.blksize;
     let len: i64 = stat.value.size;
     let is_dir: bool = (mode & 61440) == 16384;
     let is_symlink: bool = (mode & 61440) == 40960;
