@@ -538,6 +538,58 @@ fn validate_compiler_function_instruction_boundaries(
                         13u8,
                         CompilerInstructionRelocationRecipe::RuntimeValue { left, right },
                     ),
+                    omega_machine_bytes::CompilerInstructionValidationKind::ReturnRegisterIntegerWrite {
+                        register,
+                        byte_size,
+                        value,
+                    } => (
+                        None,
+                        match architecture {
+                            Architecture::X86_64 => {
+                                omega_isa_x86_64::encode_return_register_integer_write_bytes(
+                                    register,
+                                    byte_size,
+                                    value,
+                                )?
+                            }
+                            Architecture::Aarch64 => {
+                                omega_isa_aarch64::encode_return_register_integer_write_bytes(
+                                    register,
+                                    byte_size,
+                                    value,
+                                )?
+                                .to_vec()
+                            }
+                        },
+                        14u8,
+                        CompilerInstructionRelocationRecipe::None,
+                    ),
+                    omega_machine_bytes::CompilerInstructionValidationKind::RuntimeStorageToReturnRegister {
+                        register,
+                        storage_region,
+                        byte_offset,
+                        byte_size,
+                    } => (
+                        None,
+                        match architecture {
+                            Architecture::X86_64 => {
+                                omega_isa_x86_64::encode_runtime_storage_copy_to_return_register_bytes(
+                                    register,
+                                    byte_offset,
+                                    byte_size,
+                                )?
+                            }
+                            Architecture::Aarch64 => {
+                                omega_isa_aarch64::encode_runtime_storage_copy_to_return_register_bytes(
+                                    register,
+                                    byte_offset,
+                                    byte_size,
+                                )?
+                            }
+                        },
+                        15u8,
+                        CompilerInstructionRelocationRecipe::StaticStorage(storage_region),
+                    ),
                     omega_machine_bytes::CompilerInstructionValidationKind::DispatchStateWrite {
                         dispatch_index,
                         case_leave_byte_distance,
@@ -977,6 +1029,39 @@ fn compiler_instruction_footprint(
                 ),
             }
         }
+        CompilerInstructionValidationKind::ReturnRegisterIntegerWrite { register, .. } => (
+            BoundaryFootprintFragmentOrigin::ExitResultRegisters,
+            match architecture {
+                Architecture::X86_64 => {
+                    omega_isa_x86_64::return_register_integer_write_clobbers(register)
+                }
+                Architecture::Aarch64 => {
+                    omega_isa_aarch64::return_register_integer_write_clobbers(register)
+                }
+            },
+            MachineStateSet::empty(),
+        ),
+        CompilerInstructionValidationKind::RuntimeStorageToReturnRegister {
+            register,
+            byte_offset,
+            byte_size,
+            ..
+        } => (
+            BoundaryFootprintFragmentOrigin::ExitResultRegisters,
+            match architecture {
+                Architecture::X86_64 => {
+                    omega_isa_x86_64::runtime_storage_copy_to_return_register_clobbers(register)
+                }
+                Architecture::Aarch64 => {
+                    omega_isa_aarch64::runtime_storage_copy_to_return_register_clobbers(
+                        register,
+                        byte_offset,
+                        byte_size,
+                    )
+                }
+            },
+            MachineStateSet::empty(),
+        ),
         CompilerInstructionValidationKind::DispatchStateWrite { .. } => (
             BoundaryFootprintFragmentOrigin::DispatchScaffold,
             match architecture {
@@ -1019,6 +1104,7 @@ fn validate_compiler_body_specification_footprints(
                 | BoundaryFootprintFragmentOrigin::RuntimeTextGuardComparison
                 | BoundaryFootprintFragmentOrigin::RuntimeValueGuardComparison
                 | BoundaryFootprintFragmentOrigin::PlaceGuardComparison
+                | BoundaryFootprintFragmentOrigin::ExitResultRegisters
         )
     });
     let boundary_contract_fingerprint = if !has_body_rows {
@@ -1051,6 +1137,7 @@ fn validate_compiler_body_specification_footprints(
             BoundaryFootprintFragmentOrigin::RuntimeValueGuardComparison,
         ),
         (5u8, BoundaryFootprintFragmentOrigin::PlaceGuardComparison),
+        (6u8, BoundaryFootprintFragmentOrigin::ExitResultRegisters),
     ] {
         let evidence_rows = derived
             .iter()
@@ -1185,13 +1272,13 @@ fn validate_compiler_storage_relocation(
     };
     if !expected_shape || matching.iter().any(|relocation| relocation.addend != 0) {
         return Err(Diagnostic::error(format!(
-            "compiler dispatch guard instruction #{selected_instruction_index} does not retain its exact storage-address relocation shape"
+            "compiler instruction #{selected_instruction_index} does not retain its exact storage-address relocation shape"
         )));
     }
     if !compiler_storage_symbol_matches(object, matching[0].symbol_handle, storage_region) {
         let symbol_name = omega_object_file::object_symbol_name(object, matching[0].symbol_handle);
         return Err(Diagnostic::error(format!(
-            "compiler dispatch guard instruction #{selected_instruction_index} storage relocation targets `{symbol_name}`, not its retained {storage_region:?} region"
+            "compiler instruction #{selected_instruction_index} storage relocation targets `{symbol_name}`, not its retained {storage_region:?} region"
         )));
     }
     Ok(())
@@ -3750,7 +3837,7 @@ mod tests {
             &sites,
         )
         .expect_err("missing place-derived relocations must reject");
-        assert!(diagnostic.message.contains("place-derived"));
+        assert!(diagnostic.message.contains("operand-derived"));
     }
 
     #[test]
