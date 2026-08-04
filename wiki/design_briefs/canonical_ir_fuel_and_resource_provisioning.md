@@ -63,7 +63,7 @@ builtin parameter-plus-literal wrapping/saturating add, subtract, or multiply;
 or one ordered positive-Boolean/fallback conditional whose two successors bind
 already-defined integer entry parameters to direct-return branch states; the
 same ordered form supports ordinary Boolean entry/branch parameters with
-literal or parameter Boolean returns.
+recursive short-circuit guards and branch returns.
 It emits the semantic module and proof bundle separately and fails closed on
 all other shapes. Its canaries drop the frontend trees before terminal
 verification and interpretation; ninth-parameter `bool` and `u8` machines
@@ -216,7 +216,9 @@ expression preserve the same metered semantics through native AArch64/x86-64
 control. The same construction composes with linear Boolean state chains:
 decision leaves carry canonical Boolean values through ordinary jump bindings,
 and deciding paths bypass the unused subtree before converging on the next
-source state.
+source state. Explicit Boolean conditionals use terminal test edges from a
+short-circuit guard directly to the selected branch, while each selected arm
+may independently contain the same decision form.
 Attributed response reporting additionally waits on executable terminal
 wait/foreign-edge variants carrying their response-contract status. The current
 total operation plus unconditional jump/return vocabulary can close a bounded

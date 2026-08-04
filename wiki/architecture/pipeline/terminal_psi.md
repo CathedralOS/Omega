@@ -89,7 +89,7 @@ Omega concerns, and Omega orchestration runs that admission explicitly after
 the Psi check.
 
 The first Psi-owned terminal source producer is live as
-`psi-checked-trees-to-terminal`. It accepts four exact free-machine forms. A
+`psi-checked-trees-to-terminal`. It accepts five exact free-machine forms. A
 Boolean machine may return a literal, exact named parameter, or a recursively
 nested expression over builtin logical negation, Boolean equality/inequality,
 and short-circuit `&&`/`||` from any sequence of ordinary Boolean parameters,
@@ -122,8 +122,12 @@ ordered sequence of already-defined integer entry parameters to its branch
 state. Each target parameter must match its argument type exactly, and the
 state returns a recursively nested parameter/literal add/subtract/multiply
 expression in a settled Wrapping or Saturating domain. This preserves source
-ordering and keeps each branch's computation local to its selected path. All
-four forms require a matching closed
+ordering and keeps each branch's computation local to its selected path. The
+parallel Boolean conditional form accepts the recursive Boolean vocabulary in
+its positive guard and both branch returns. A short-circuit guard sends its
+terminal test edges directly to the selected branch with the authored entry
+arguments; short-circuit arms remain local decision trees and only the selected
+arm is charged. All five forms require a matching closed
 `requires`/`ensures` pair. The producer rejects all other checked-tree shapes,
 including selected domain-owned operator meanings. The source canary lowers
 all six versioned integer-policy operations in both constant-fed and

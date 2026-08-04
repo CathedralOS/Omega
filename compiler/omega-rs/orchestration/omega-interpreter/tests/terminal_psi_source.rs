@@ -795,6 +795,180 @@ fn checked_source_boolean_conditional_reaches_native_control() {
 
 #[cfg(unix)]
 #[test]
+fn checked_source_boolean_conditional_arms_preserve_short_circuit_control() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("terminal-Psi Boolean conditional source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_boolean_conditional_short_circuit_arms")
+        .expect("Boolean conditional short-circuit arms should lower");
+    drop(checked);
+
+    let semantic_bytes = encode_module(&lowered.semantic_module)
+        .expect("Boolean conditional arm control should encode");
+    let semantic_module =
+        decode_module(&semantic_bytes).expect("Boolean conditional arm control should decode");
+    let verified = verify_module(
+        &semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("Boolean conditional arm control should verify");
+    let fixed = derive_fixed_entry_fuel(&verified, semantic_module.entry)
+        .expect("Boolean conditional arm control should have exact fuel");
+    assert_eq!(fixed.ceiling_units(), 6);
+
+    for (condition, when_true, when_false) in [
+        (false, false, false),
+        (false, false, true),
+        (false, true, false),
+        (false, true, true),
+        (true, false, false),
+        (true, false, true),
+        (true, true, false),
+        (true, true, true),
+    ] {
+        let expected_units = if (condition && !when_true) || (!condition && when_false) {
+            4
+        } else {
+            6
+        };
+        let measured = interpret_terminal_measured(
+            &verified,
+            &[
+                TerminalScalarValue::Boolean(condition),
+                TerminalScalarValue::Boolean(when_true),
+                TerminalScalarValue::Boolean(when_false),
+            ],
+        )
+        .expect("Boolean conditional arm control should interpret");
+        assert_eq!(measured.value(), TerminalScalarValue::Boolean(!condition));
+        assert_eq!(measured.usage().total_units(), expected_units);
+    }
+
+    let abstract_operations = lower_verified_module(&verified)
+        .expect("Boolean conditional arm control should cross the Omega boundary");
+    let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
+        .expect("Boolean conditional arm control should lower for the host");
+    assert!(matches!(
+        target_operations.functions[0].operation,
+        TerminalTargetOperation::ReturnBooleanConditionalControl { .. }
+    ));
+    let assigned = assign_registers(&target_operations)
+        .expect("Boolean conditional arm control homes should assign");
+    let machine_code =
+        emit_machine_code(&assigned).expect("Boolean conditional arm control should emit");
+    let object_artifact = build_terminal_object_artifact(&machine_code)
+        .expect("Boolean conditional arm control should form an object");
+    let entry = object_artifact.entry_function();
+    for (condition, when_true, when_false) in [
+        (false, false, false),
+        (false, false, true),
+        (false, true, false),
+        (false, true, true),
+        (true, false, false),
+        (true, false, true),
+        (true, true, false),
+        (true, true, true),
+    ] {
+        assert_eq!(
+            run_host_machine_code_with_three_bools(
+                entry.bytes(&object_artifact),
+                condition,
+                when_true,
+                when_false,
+            ),
+            i32::from(!condition)
+        );
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn checked_source_boolean_conditional_guard_preserves_short_circuit_control() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("terminal-Psi Boolean conditional source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_boolean_conditional_short_circuit_guard")
+        .expect("Boolean conditional short-circuit guard should lower");
+    drop(checked);
+
+    let semantic_bytes = encode_module(&lowered.semantic_module)
+        .expect("Boolean conditional guard control should encode");
+    let semantic_module =
+        decode_module(&semantic_bytes).expect("Boolean conditional guard control should decode");
+    let verified = verify_module(
+        &semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("Boolean conditional guard control should verify");
+    let fixed = derive_fixed_entry_fuel(&verified, semantic_module.entry)
+        .expect("Boolean conditional guard control should have exact fuel");
+    assert_eq!(fixed.ceiling_units(), 3);
+
+    for (first, second, fallback) in [
+        (false, false, false),
+        (false, false, true),
+        (false, true, false),
+        (false, true, true),
+        (true, false, false),
+        (true, false, true),
+        (true, true, false),
+        (true, true, true),
+    ] {
+        let expected = if first && second { first } else { fallback };
+        let expected_units = if first { 3 } else { 2 };
+        let measured = interpret_terminal_measured(
+            &verified,
+            &[
+                TerminalScalarValue::Boolean(first),
+                TerminalScalarValue::Boolean(second),
+                TerminalScalarValue::Boolean(fallback),
+            ],
+        )
+        .expect("Boolean conditional guard control should interpret");
+        assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+        assert_eq!(measured.usage().total_units(), expected_units);
+    }
+
+    let abstract_operations = lower_verified_module(&verified)
+        .expect("Boolean conditional guard control should cross the Omega boundary");
+    let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
+        .expect("Boolean conditional guard control should lower for the host");
+    assert!(matches!(
+        target_operations.functions[0].operation,
+        TerminalTargetOperation::ReturnBooleanConditionalControl { .. }
+    ));
+    let assigned = assign_registers(&target_operations)
+        .expect("Boolean conditional guard control homes should assign");
+    let machine_code =
+        emit_machine_code(&assigned).expect("Boolean conditional guard control should emit");
+    let object_artifact = build_terminal_object_artifact(&machine_code)
+        .expect("Boolean conditional guard control should form an object");
+    let entry = object_artifact.entry_function();
+    for (first, second, fallback) in [
+        (false, false, false),
+        (false, false, true),
+        (false, true, false),
+        (false, true, true),
+        (true, false, false),
+        (true, false, true),
+        (true, true, false),
+        (true, true, true),
+    ] {
+        let expected = if first && second { first } else { fallback };
+        assert_eq!(
+            run_host_machine_code_with_three_bools(
+                entry.bytes(&object_artifact),
+                first,
+                second,
+                fallback,
+            ),
+            i32::from(expected)
+        );
+    }
+}
+
+#[cfg(unix)]
+#[test]
 fn source_closed_integer_chain_matches_emitted_host_machine_code() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("terminal-Psi closed integer-chain canary should compile");

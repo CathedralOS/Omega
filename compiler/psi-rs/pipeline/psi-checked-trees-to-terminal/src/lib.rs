@@ -1234,6 +1234,7 @@ fn lower_boolean_conditional_machine(
         return unsupported("conditional transitions cannot carry continuations");
     }
     let condition = lower_positive_boolean_guard(checked, condition, entry_parameters)?;
+    validate_short_circuit_expression(&condition)?;
 
     let mut branch_parameter_counts = Vec::with_capacity(2);
     let mut branch_expressions = Vec::with_capacity(2);
@@ -1259,11 +1260,7 @@ fn lower_boolean_conditional_machine(
             return unsupported("Boolean conditional branch must contain one value expression");
         };
         let branch_expression = lower_boolean_expression(checked, *return_expression, parameters)?;
-        if contains_short_circuit(&branch_expression) {
-            return unsupported(
-                "short-circuit logic in explicit conditional branches is not yet supported",
-            );
-        }
+        validate_short_circuit_expression(&branch_expression)?;
         branch_parameter_counts.push(parameters.len());
         branch_expressions.push(branch_expression);
     }
@@ -2634,6 +2631,109 @@ fn boolean_decision_block_count(decision: &LoweredBooleanDecision) -> usize {
     }
 }
 
+fn boolean_decision_test_count(decision: &LoweredBooleanDecision) -> usize {
+    match decision {
+        LoweredBooleanDecision::Return(_) => 0,
+        LoweredBooleanDecision::Test {
+            when_true,
+            when_false,
+            ..
+        } => 1 + boolean_decision_test_count(when_true) + boolean_decision_test_count(when_false),
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct LoweredBooleanDecisionTarget {
+    block: BlockId,
+    arguments: Vec<ValueId>,
+}
+
+#[allow(clippy::too_many_arguments)]
+fn emit_boolean_guard_decision_blocks(
+    decision: &LoweredBooleanDecision,
+    parameters: &[ValueDeclaration],
+    when_true_target: &LoweredBooleanDecisionTarget,
+    when_false_target: &LoweredBooleanDecisionTarget,
+    next_value_identity: &mut u64,
+    next_edge_identity: &mut u64,
+    all_operations: &mut Vec<Operation>,
+    blocks: &mut Vec<Option<Block>>,
+) -> LoweredBooleanDecisionTarget {
+    match decision {
+        LoweredBooleanDecision::Return(true) => when_true_target.clone(),
+        LoweredBooleanDecision::Return(false) => when_false_target.clone(),
+        LoweredBooleanDecision::Test {
+            condition,
+            when_true,
+            when_false,
+        } => {
+            let block_index = blocks.len();
+            let block = block_id(
+                u64::try_from(block_index)
+                    .expect("block index fits a semantic identity")
+                    .checked_add(1)
+                    .expect("guard decision block identity is nonzero"),
+            );
+            blocks.push(None);
+            let operation_start = all_operations.len();
+            let condition =
+                emit_boolean_expression(condition, parameters, next_value_identity, all_operations);
+            let operation_end = all_operations.len();
+            let true_edge = edge_id(*next_edge_identity);
+            let false_edge = edge_id(
+                next_edge_identity
+                    .checked_add(1)
+                    .expect("guard false edge identity advances"),
+            );
+            *next_edge_identity = next_edge_identity
+                .checked_add(2)
+                .expect("guard decision edge identities advance");
+            let when_true = emit_boolean_guard_decision_blocks(
+                when_true,
+                parameters,
+                when_true_target,
+                when_false_target,
+                next_value_identity,
+                next_edge_identity,
+                all_operations,
+                blocks,
+            );
+            let when_false = emit_boolean_guard_decision_blocks(
+                when_false,
+                parameters,
+                when_true_target,
+                when_false_target,
+                next_value_identity,
+                next_edge_identity,
+                all_operations,
+                blocks,
+            );
+            blocks[block_index] = Some(Block {
+                id: block,
+                parameters: Vec::new(),
+                operations: all_operations[operation_start..operation_end].to_vec(),
+                terminator: Terminator::Conditional {
+                    condition,
+                    when_true: SuccessorEdge {
+                        edge: true_edge,
+                        target: when_true.block,
+                        arguments: when_true.arguments,
+                    },
+                    when_false: SuccessorEdge {
+                        edge: false_edge,
+                        target: when_false.block,
+                        arguments: when_false.arguments,
+                    },
+                },
+            });
+            LoweredBooleanDecisionTarget {
+                block,
+                arguments: Vec::new(),
+            }
+        }
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn emit_boolean_decision_blocks(
     decision: &LoweredBooleanDecision,
@@ -2744,6 +2844,55 @@ fn emit_boolean_decision_blocks(
         operations: all_operations[operation_start..operation_end].to_vec(),
         terminator,
     });
+    block
+}
+
+#[allow(clippy::too_many_arguments)]
+fn emit_boolean_return_blocks(
+    expression: &LoweredBooleanReturnExpression,
+    parameters: &[ValueDeclaration],
+    next_value_identity: &mut u64,
+    next_edge_identity: &mut u64,
+    all_operations: &mut Vec<Operation>,
+    blocks: &mut Vec<Option<Block>>,
+) -> BlockId {
+    if contains_short_circuit(expression) {
+        let decision = lower_boolean_decision(
+            expression,
+            LoweredBooleanDecision::Return(true),
+            LoweredBooleanDecision::Return(false),
+        );
+        return emit_boolean_decision_blocks(
+            &decision,
+            parameters,
+            parameters.to_vec(),
+            LoweredBooleanDecisionExit::Return,
+            next_value_identity,
+            next_edge_identity,
+            all_operations,
+            blocks,
+        );
+    }
+
+    let block = block_id(
+        u64::try_from(blocks.len())
+            .expect("block count fits a semantic identity")
+            .checked_add(1)
+            .expect("Boolean return block identity is nonzero"),
+    );
+    let operation_start = all_operations.len();
+    let value =
+        emit_boolean_expression(expression, parameters, next_value_identity, all_operations);
+    let edge = edge_id(*next_edge_identity);
+    *next_edge_identity = next_edge_identity
+        .checked_add(1)
+        .expect("Boolean return edge identities advance");
+    blocks.push(Some(Block {
+        id: block,
+        parameters: parameters.to_vec(),
+        operations: all_operations[operation_start..].to_vec(),
+        terminator: Terminator::Return { edge, value },
+    }));
     block
 }
 
@@ -2976,32 +3125,86 @@ fn build_boolean_conditional_module(
     }
     let mut next_value_identity = 1_u64;
     let parameters = allocate_boolean_parameters(parameter_count, &mut next_value_identity);
-    let mut all_operations = Vec::new();
-    let condition = emit_boolean_expression(
+    let condition_decision = lower_boolean_decision(
         &condition,
-        &parameters,
-        &mut next_value_identity,
-        &mut all_operations,
+        LoweredBooleanDecision::Return(true),
+        LoweredBooleanDecision::Return(false),
     );
-    let entry_operation_end = all_operations.len();
+    let guard_block_count = boolean_decision_test_count(&condition_decision);
+    let true_block_count = if contains_short_circuit(&when_true_expression) {
+        boolean_decision_block_count(&lower_boolean_decision(
+            &when_true_expression,
+            LoweredBooleanDecision::Return(true),
+            LoweredBooleanDecision::Return(false),
+        ))
+    } else {
+        1
+    };
+    let true_target_block = block_id(
+        u64::try_from(guard_block_count)
+            .expect("guard block count fits a semantic identity")
+            .checked_add(1)
+            .expect("true branch follows the guard decision"),
+    );
+    let false_target_block = block_id(
+        true_target_block
+            .get()
+            .checked_add(
+                u64::try_from(true_block_count)
+                    .expect("true branch block count fits a semantic identity"),
+            )
+            .expect("false branch follows the true branch"),
+    );
+    let mut all_operations = Vec::new();
+    let mut blocks = Vec::new();
+    let mut next_edge_identity = 1_u64;
+    let entry = emit_boolean_guard_decision_blocks(
+        &condition_decision,
+        &parameters,
+        &LoweredBooleanDecisionTarget {
+            block: true_target_block,
+            arguments: when_true_arguments
+                .iter()
+                .map(|position| parameters[*position].id)
+                .collect(),
+        },
+        &LoweredBooleanDecisionTarget {
+            block: false_target_block,
+            arguments: when_false_arguments
+                .iter()
+                .map(|position| parameters[*position].id)
+                .collect(),
+        },
+        &mut next_value_identity,
+        &mut next_edge_identity,
+        &mut all_operations,
+        &mut blocks,
+    );
+    assert_eq!(entry.block, block_id(1));
+    assert!(entry.arguments.is_empty());
+    assert_eq!(blocks.len(), guard_block_count);
     let true_parameters =
         allocate_boolean_parameters(when_true_parameter_count, &mut next_value_identity);
     let false_parameters =
         allocate_boolean_parameters(when_false_parameter_count, &mut next_value_identity);
-    let true_operation_start = all_operations.len();
-    let true_value = emit_boolean_expression(
+    let true_target = emit_boolean_return_blocks(
         &when_true_expression,
         &true_parameters,
         &mut next_value_identity,
+        &mut next_edge_identity,
         &mut all_operations,
+        &mut blocks,
     );
-    let true_operation_end = all_operations.len();
-    let false_value = emit_boolean_expression(
+    assert_eq!(true_target, true_target_block);
+    let false_target = emit_boolean_return_blocks(
         &when_false_expression,
         &false_parameters,
         &mut next_value_identity,
+        &mut next_edge_identity,
         &mut all_operations,
+        &mut blocks,
     );
+    assert_eq!(false_target, false_target_block);
     let result = ValueDeclaration {
         id: value_id(next_value_identity),
         scalar_type: ScalarType::Boolean,
@@ -3036,51 +3239,10 @@ fn build_boolean_conditional_module(
                 content_identity_reshuffles: identity_reshuffles.reshuffles,
                 content_partition_compositions: partition_compositions.compositions,
                 entry: block_id(1),
-                blocks: vec![
-                    Block {
-                        id: block_id(1),
-                        parameters: Vec::new(),
-                        operations: all_operations[..entry_operation_end].to_vec(),
-                        terminator: Terminator::Conditional {
-                            condition,
-                            when_true: SuccessorEdge {
-                                edge: edge_id(1),
-                                target: block_id(2),
-                                arguments: when_true_arguments
-                                    .iter()
-                                    .map(|position| parameters[*position].id)
-                                    .collect(),
-                            },
-                            when_false: SuccessorEdge {
-                                edge: edge_id(2),
-                                target: block_id(3),
-                                arguments: when_false_arguments
-                                    .iter()
-                                    .map(|position| parameters[*position].id)
-                                    .collect(),
-                            },
-                        },
-                    },
-                    Block {
-                        id: block_id(2),
-                        parameters: true_parameters,
-                        operations: all_operations[true_operation_start..true_operation_end]
-                            .to_vec(),
-                        terminator: Terminator::Return {
-                            edge: edge_id(3),
-                            value: true_value,
-                        },
-                    },
-                    Block {
-                        id: block_id(3),
-                        parameters: false_parameters,
-                        operations: all_operations[true_operation_end..].to_vec(),
-                        terminator: Terminator::Return {
-                            edge: edge_id(4),
-                            value: false_value,
-                        },
-                    },
-                ],
+                blocks: blocks
+                    .into_iter()
+                    .map(|block| block.expect("every Boolean conditional block is finalized"))
+                    .collect(),
                 contract: MachineContract {
                     id: contract_id(1),
                     requires: vec![goal.clone()],
