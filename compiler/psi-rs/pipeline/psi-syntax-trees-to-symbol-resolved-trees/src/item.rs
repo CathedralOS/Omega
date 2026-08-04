@@ -5,6 +5,7 @@ use crate::lowerer::Lowerer;
 use crate::machine::lower_machine_into;
 use crate::measure::lower_measure_definition;
 use crate::operator::lower_operator_definition;
+use crate::proposition::lower_proposition_definition;
 use crate::trait_definition::lower_trait_definition;
 use crate::type_reference::lower_child_type_references;
 use crate::wire::lower_wire_schema;
@@ -72,16 +73,9 @@ pub(crate) fn lower_item(
             let operator = lower_operator_definition(lowerer, syntax_trees, operator)?;
             lowerer.symbol_resolved_trees.operators.push(operator);
         }
-        // PROP-FAMILY-SURFACE source slice: parsing retains proposition
-        // declarations exactly, but they must never disappear as inert items
-        // or masquerade as executable machines. Resolution remains closed
-        // until the dedicated proof-static binder telescope and proposition
-        // symbol category are present.
         syntax::item::Item::Proposition(proposition) => {
-            return Err(Diagnostic::error(format!(
-                "proposition `{}` reached symbol resolution before the dedicated proposition-family representation is available",
-                proposition.name.as_str()
-            )));
+            let proposition = lower_proposition_definition(lowerer, syntax_trees, proposition)?;
+            lowerer.symbol_resolved_trees.propositions.push(proposition);
         }
         syntax::item::Item::WireData(wire_data) => {
             let wire_schema = lower_wire_schema(lowerer, syntax_trees, wire_data)?;

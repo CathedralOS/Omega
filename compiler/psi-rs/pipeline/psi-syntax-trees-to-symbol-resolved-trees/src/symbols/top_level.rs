@@ -2,6 +2,7 @@ mod data;
 mod domains;
 mod machines;
 mod operators;
+mod propositions;
 mod traits;
 
 use psi_arena::Arena;
@@ -14,6 +15,7 @@ use super::top_level::data::assign_data_symbols;
 use super::top_level::domains::assign_domain_symbols;
 use super::top_level::machines::assign_machine_symbols;
 use super::top_level::operators::assign_root_operator_symbols;
+use super::top_level::propositions::assign_proposition_symbols;
 use super::top_level::traits::assign_trait_symbols;
 
 pub(super) fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolTable) {
@@ -33,6 +35,7 @@ pub(super) fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbol
     assign_domain_symbols(program, symbols, &mut root_children);
     assign_data_symbols(program, symbols, &mut root_children);
     assign_machine_symbols(program, symbols, &mut root_children);
+    assign_proposition_symbols(program, symbols, &mut root_children);
     assign_root_operator_symbols(program, symbols, &mut root_children);
     assign_trait_symbols(program, symbols, &mut root_children);
 

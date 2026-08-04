@@ -1,6 +1,6 @@
 use crate::{
-    data, domain, expression, measure, operator, signature, snapshot, state, statement, tables,
-    types, wire,
+    data, domain, expression, measure, operator, proposition, signature, snapshot, state,
+    statement, tables, types, wire,
 };
 use psi_arena::{Arena, Handle, HandleSpan, OrderedRootArena};
 use psi_diagnostics::PhaseSnapshot;
@@ -31,6 +31,7 @@ pub struct SymbolResolvedRoots {
     pub machines: OrderedRootArena<crate::machine::Machine>,
     pub measures: OrderedRootArena<measure::MeasureDefinition>,
     pub operators: OrderedRootArena<operator::OperatorDefinition>,
+    pub propositions: OrderedRootArena<proposition::PropositionDefinition>,
     pub traits: OrderedRootArena<crate::trait_definition::TraitDefinition>,
     pub conformances: OrderedRootArena<crate::trait_definition::DataConformance>,
     pub wire_schemas: OrderedRootArena<wire::WireSchema>,
@@ -52,6 +53,7 @@ impl SymbolResolvedRoots {
             machines,
             measures: OrderedRootArena::default(),
             operators,
+            propositions: OrderedRootArena::default(),
             traits,
             conformances: OrderedRootArena::default(),
             wire_schemas: OrderedRootArena::default(),
@@ -75,6 +77,7 @@ pub struct SymbolResolvedDeclarationStorage {
     pub domain_path_members: Arena<crate::name::DiagnosticName>,
     pub operator_path_members: Arena<crate::name::DiagnosticName>,
     pub operator_definitions: Arena<operator::OperatorDefinition>,
+    pub proposition_binders: Arena<proposition::PropositionBinder>,
     pub machine_owned_data: Arena<crate::machine::OwnedData>,
     pub machine_trait_conformances: Arena<crate::machine::TraitConformance>,
     pub machine_state_handles: Arena<Handle<state::State>>,

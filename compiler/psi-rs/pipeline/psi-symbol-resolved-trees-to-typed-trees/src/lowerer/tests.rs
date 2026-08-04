@@ -4,6 +4,19 @@ use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use psi_tokens_to_syntax_trees::parse_syntax_trees;
 
 #[test]
+fn proposition_declarations_fail_closed_at_typed_boundary() {
+    let tokens = Lexer::new("proposition related(left: i32, right: i32);")
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved_program = lower_syntax_trees(&syntax_trees).expect("resolution should succeed");
+    let diagnostic = lower_symbol_resolved_trees(&resolved_program)
+        .expect_err("typed lowering must not discard propositions");
+
+    assert!(diagnostic.message.contains("proposition-family typing"));
+}
+
+#[test]
 fn lowers_dungeon_style_machine_program() {
     let source = r#"
     data Inventory {

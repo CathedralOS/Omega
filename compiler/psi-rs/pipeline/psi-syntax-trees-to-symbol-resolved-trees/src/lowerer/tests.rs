@@ -7,22 +7,90 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 #[test]
-fn proposition_declarations_fail_closed_until_dedicated_resolution_lands() {
-    let source = "proposition related(left: i32, right: i32);";
+fn proposition_declarations_resolve_as_a_distinct_proof_category() {
+    let source = r#"
+        proposition related(left: i32, right: i32);
+        proposition witnessed<machine Generator>(value: i32) { i32; }
+        proposition reflexive(value: i32) = related(value, value);
+    "#;
     let tokens = Lexer::new(source)
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let diagnostic = lower_syntax_trees(&syntax_trees)
-        .expect_err("propositions must not disappear or lower as machines");
+    let program = lower_syntax_trees(&syntax_trees).expect("resolution should succeed");
 
+    assert_eq!(program.propositions.len(), 3);
+    assert_eq!(program.machines.len(), 0);
     assert!(
-        diagnostic
-            .message
-            .contains("dedicated proposition-family representation"),
-        "unexpected diagnostic: {}",
-        diagnostic.message
+        program
+            .propositions
+            .iter()
+            .all(|item| item.symbol.is_valid())
     );
+    assert!(
+        program
+            .propositions
+            .iter()
+            .all(|item| program.symbols.get(item.symbol).kind
+                == psi_symbols::SymbolKind::Proposition)
+    );
+
+    let witnessed = &program.propositions[1];
+    let [generator] = program
+        .tables
+        .declarations
+        .proposition_binders
+        .span_or_empty(witnessed.binders)
+    else {
+        panic!("witnessed proposition should retain one binder");
+    };
+    assert!(matches!(
+        generator.kind,
+        psi_symbol_resolved_trees::proposition::PropositionBinderKind::Machine
+    ));
+    assert_eq!(
+        program.symbols.get(generator.symbol).kind,
+        psi_symbols::SymbolKind::PropositionMachineParameter
+    );
+    let psi_symbol_resolved_trees::proposition::PropositionBody::Witness { evidence } =
+        &witnessed.body
+    else {
+        panic!("witness evidence should remain distinct from a body");
+    };
+    assert!(matches!(
+        evidence,
+        psi_symbol_resolved_trees::types::TypeReference::Named { symbol, name }
+            if symbol.is_valid() && name.as_str() == "i32"
+    ));
+
+    let psi_symbol_resolved_trees::proposition::PropositionBody::Transparent { proposition } =
+        program.propositions[2].body
+    else {
+        panic!("transparent proposition should retain its source expansion");
+    };
+    let psi_symbol_resolved_trees::expression::ExpressionNode::Call(call) =
+        program.tables.bodies.expressions.expression(proposition)
+    else {
+        panic!("transparent expansion should remain a proposition call");
+    };
+    assert_eq!(call.target_symbol, program.propositions[0].symbol);
+    for argument in program
+        .tables
+        .bodies
+        .expressions
+        .expression_handles(call.arguments)
+    {
+        let psi_symbol_resolved_trees::expression::ExpressionNode::Name(path) =
+            program.tables.bodies.expressions.expression(*argument)
+        else {
+            panic!("alias arguments should remain parameter names");
+        };
+        assert!(path.symbol.is_valid());
+        assert_eq!(
+            program.symbols.get(path.symbol).kind,
+            psi_symbols::SymbolKind::Parameter
+        );
+    }
 }
 
 #[test]

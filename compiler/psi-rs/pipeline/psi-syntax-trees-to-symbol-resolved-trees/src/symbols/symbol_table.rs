@@ -13,7 +13,7 @@ use psi_symbols::{
 use crate::symbols::symbol_table::children::{
     insert_builtin_type_symbol_children, insert_data_symbol_children,
     insert_domain_symbol_children, insert_machine_symbol_children, insert_operator_symbol_children,
-    insert_trait_symbol_children,
+    insert_proposition_symbol_children, insert_trait_symbol_children,
 };
 use crate::symbols::symbol_table::names::{operator_symbol_name, symbol_seed};
 
@@ -55,6 +55,9 @@ pub(super) fn build_symbol_table(
                         symbol_seed(SymbolKind::Machine, &machine.name, has_sources)
                     }),
                 )
+                .chain(program.propositions.iter().map(|proposition| {
+                    symbol_seed(SymbolKind::Proposition, &proposition.name, has_sources)
+                }))
                 .chain(
                     root_operator_names
                         .iter()
@@ -109,6 +112,17 @@ pub(super) fn build_symbol_table(
                 program,
                 machine_symbol,
                 machine,
+                has_sources,
+            );
+        }
+    }
+    for proposition in &program.propositions {
+        if let Some(proposition_symbol) = root_children.next() {
+            insert_proposition_symbol_children(
+                &mut builder,
+                program,
+                proposition_symbol,
+                proposition,
                 has_sources,
             );
         }

@@ -30,6 +30,7 @@ pub enum TypeDeclarationKind {
     Library,
     Machine,
     Operator,
+    Proposition,
     State,
     Target,
     Trait,
@@ -163,6 +164,56 @@ pub fn build_type_surface_report(syntax_trees: &SyntaxTrees) -> TypeSurfaceRepor
             | Item::Module(_)
             | Item::Package(_)
             | Item::Use(_) => {}
+            Item::Proposition(proposition) => {
+                insert_declaration(
+                    &mut report,
+                    &proposition.name,
+                    TypeDeclarationKind::Proposition,
+                );
+                for binder in syntax_trees
+                    .items
+                    .type_parameters(proposition.type_parameters)
+                {
+                    if let psi_syntax_trees::item::TypeParameterKind::Const { type_reference } =
+                        binder.kind
+                    {
+                        collect_type_reference(
+                            &mut report,
+                            syntax_trees,
+                            type_reference,
+                            TypeReferenceUseKind::Parameter,
+                            &format!(
+                                "proposition `{}` const binder `{}`",
+                                proposition.name, binder.name
+                            ),
+                        );
+                    }
+                }
+                for parameter in syntax_trees.items.state_parameters(proposition.parameters) {
+                    let parameter = syntax_trees.items.state_parameter(*parameter);
+                    collect_type_reference(
+                        &mut report,
+                        syntax_trees,
+                        parameter.type_reference,
+                        TypeReferenceUseKind::Parameter,
+                        &format!(
+                            "proposition `{}` parameter `{}`",
+                            proposition.name, parameter.name
+                        ),
+                    );
+                }
+                if let psi_syntax_trees::item::PropositionBody::Witness { evidence } =
+                    proposition.body
+                {
+                    collect_type_reference(
+                        &mut report,
+                        syntax_trees,
+                        evidence,
+                        TypeReferenceUseKind::Constraint,
+                        &format!("proposition `{}` evidence", proposition.name),
+                    );
+                }
+            }
             Item::Machine(machine) => collect_machine(&mut report, syntax_trees, machine),
             Item::Measure(measure) => {
                 insert_declaration(
@@ -711,6 +762,7 @@ mod tests {
             lifetime_parameters: Vec::new(),
             type_parameters: HandleSpan::empty(),
             satisfies: HandleSpan::empty(),
+            conformance_bounds: Vec::new(),
             terminates: false,
             terminates_guarantee: false,
             decreases: HandleSpan::empty(),

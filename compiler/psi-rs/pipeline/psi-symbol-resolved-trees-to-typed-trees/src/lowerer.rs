@@ -13,6 +13,13 @@ use psi_typed_trees::TypedTrees;
 pub fn lower_symbol_resolved_trees(
     symbol_resolved_trees: &SymbolResolvedTrees,
 ) -> Result<TypedTrees, Diagnostic> {
+    if let Some(proposition) = symbol_resolved_trees.propositions.iter().next() {
+        return Err(Diagnostic::error(format!(
+            "proposition `{}` reached typed lowering before proposition-family typing is available",
+            proposition.name.as_str()
+        )));
+    }
+
     // Decision 11: user-written `==` against bare payload-bearing case names
     // must be rejected BEFORE membership lowering synthesizes its internal
     // tag-equality compares, which are deliberately the same typed shape.

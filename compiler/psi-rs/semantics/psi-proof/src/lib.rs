@@ -17,8 +17,25 @@ pub mod obligations;
 pub struct ProofSurfaceReport {
     pub invariants: Arena<InvariantSurface>,
     pub domains: Arena<DomainSurface>,
+    pub propositions: Arena<PropositionSurface>,
     pub contracts: Arena<ContractSurface>,
     pub bounded_sites: Arena<BoundedTypeSite>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PropositionSurface {
+    pub name: String,
+    pub binder_count: usize,
+    pub parameter_count: usize,
+    pub body: PropositionBodySurface,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum PropositionBodySurface {
+    #[default]
+    Primitive,
+    Witness,
+    Transparent,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -154,6 +171,43 @@ pub fn build_proof_surface_report(syntax_trees: &SyntaxTrees) -> ProofSurfaceRep
                     operator,
                     &format!("operator `{}`", operator_name(syntax_trees, operator.name)),
                 );
+            }
+            Item::Proposition(proposition) => {
+                let body = match proposition.body {
+                    psi_syntax_trees::item::PropositionBody::Primitive => {
+                        PropositionBodySurface::Primitive
+                    }
+                    psi_syntax_trees::item::PropositionBody::Witness { evidence } => {
+                        collect_bounded_type_site_tree(
+                            &mut report,
+                            syntax_trees,
+                            evidence,
+                            &format!("proposition `{}` evidence", proposition.name),
+                        );
+                        PropositionBodySurface::Witness
+                    }
+                    psi_syntax_trees::item::PropositionBody::Transparent { .. } => {
+                        PropositionBodySurface::Transparent
+                    }
+                };
+                for parameter in syntax_trees.items.state_parameters(proposition.parameters) {
+                    let parameter = syntax_trees.items.state_parameter(*parameter);
+                    collect_bounded_type_site_tree(
+                        &mut report,
+                        syntax_trees,
+                        parameter.type_reference,
+                        &format!(
+                            "proposition `{}` parameter `{}`",
+                            proposition.name, parameter.name
+                        ),
+                    );
+                }
+                report.propositions.insert(PropositionSurface {
+                    name: proposition.name.to_string(),
+                    binder_count: proposition.type_parameters.len(),
+                    parameter_count: proposition.parameters.len(),
+                    body,
+                });
             }
             Item::Machine(machine) => collect_machine(&mut report, syntax_trees, machine),
             Item::Trait(trait_definition) => {

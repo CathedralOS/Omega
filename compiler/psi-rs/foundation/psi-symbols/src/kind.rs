@@ -13,6 +13,7 @@ pub enum SymbolKind {
     Variant,
     Machine,
     Operator,
+    Proposition,
     State,
     Trait,
     Conformance,
@@ -23,6 +24,9 @@ pub enum SymbolKind {
     /// symbol is callable inside its generic machine through its authored
     /// signature contract.
     MachineParameter,
+    /// An opaque proof-static machine identity used as a proposition-family
+    /// index. It is deliberately not callable and owns no signature children.
+    PropositionMachineParameter,
     Local,
     HostCapability,
     Object,

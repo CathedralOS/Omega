@@ -5,6 +5,7 @@ use crate::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use crate::invariant::InvariantDefinition;
 use crate::machine::{Machine, OwnedData};
 use crate::operator::OperatorDefinition;
+use crate::proposition::{PropositionBinderKind, PropositionBody, PropositionDefinition};
 use crate::signature::{StateParameter, StateSignature};
 use crate::state::State;
 use crate::statement::{Statement, Transition, TransitionGuard, TransitionTarget};
@@ -59,6 +60,11 @@ impl SymbolResolvedTreesSnapshot {
                     .iter()
                     .map(|operator| operator_snapshot(symbol_resolved_trees, operator))
                     .collect(),
+                propositions: symbol_resolved_trees
+                    .propositions
+                    .iter()
+                    .map(|proposition| proposition_snapshot(symbol_resolved_trees, proposition))
+                    .collect(),
                 traits: symbol_resolved_trees
                     .traits
                     .iter()
@@ -110,6 +116,7 @@ pub struct SymbolResolvedRootsSnapshot {
     pub machines: Vec<MachineSnapshot>,
     pub measures: Vec<MeasureDefinitionSnapshot>,
     pub operators: Vec<OperatorDefinitionSnapshot>,
+    pub propositions: Vec<PropositionSnapshot>,
     pub traits: Vec<TraitSnapshot>,
     pub wire_schemas: Vec<WireSchemaSnapshot>,
 }
@@ -445,6 +452,32 @@ pub struct StateParameterSnapshot {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct PropositionSnapshot {
+    pub has_symbol: bool,
+    pub name: String,
+    pub binders: Vec<PropositionBinderSnapshot>,
+    pub parameters: Vec<StateParameterSnapshot>,
+    pub body: PropositionBodySnapshot,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct PropositionBinderSnapshot {
+    pub has_symbol: bool,
+    pub name: String,
+    pub kind: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub const_type: Option<TypeReferenceSnapshot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum PropositionBodySnapshot {
+    Primitive,
+    Witness { evidence: TypeReferenceSnapshot },
+    Transparent { proposition: ExpressionSnapshot },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum StatementSnapshot {
     AssemblyFact {
@@ -694,6 +727,53 @@ fn data_member_snapshot(program: &SymbolResolvedTrees, member: &DataMember) -> D
             identity: variant.identity,
             name: variant.name.to_string(),
             retired_payload_identities: variant.retired_payload_identities.clone(),
+        },
+    }
+}
+
+fn proposition_snapshot(
+    program: &SymbolResolvedTrees,
+    proposition: &PropositionDefinition,
+) -> PropositionSnapshot {
+    PropositionSnapshot {
+        has_symbol: proposition.symbol.is_valid(),
+        name: proposition.name.to_string(),
+        binders: program
+            .tables
+            .declarations
+            .proposition_binders
+            .span_or_empty(proposition.binders)
+            .iter()
+            .map(|binder| {
+                let (kind, const_type) = match &binder.kind {
+                    PropositionBinderKind::Type => ("type", None),
+                    PropositionBinderKind::Const { type_reference } => (
+                        "const",
+                        Some(type_reference_snapshot(program, type_reference)),
+                    ),
+                    PropositionBinderKind::Machine => ("machine", None),
+                };
+                PropositionBinderSnapshot {
+                    has_symbol: binder.symbol.is_valid(),
+                    name: binder.name.to_string(),
+                    kind,
+                    const_type,
+                }
+            })
+            .collect(),
+        parameters: program
+            .state_parameters(proposition.parameters)
+            .iter()
+            .map(|parameter| state_parameter_snapshot(program, parameter))
+            .collect(),
+        body: match &proposition.body {
+            PropositionBody::Primitive => PropositionBodySnapshot::Primitive,
+            PropositionBody::Witness { evidence } => PropositionBodySnapshot::Witness {
+                evidence: type_reference_snapshot(program, evidence),
+            },
+            PropositionBody::Transparent { proposition } => PropositionBodySnapshot::Transparent {
+                proposition: table_expression_snapshot(program, *proposition),
+            },
         },
     }
 }
