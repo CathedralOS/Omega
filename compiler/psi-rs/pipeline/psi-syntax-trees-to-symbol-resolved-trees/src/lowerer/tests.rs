@@ -7,6 +7,25 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 #[test]
+fn proposition_declarations_fail_closed_until_dedicated_resolution_lands() {
+    let source = "proposition related(left: i32, right: i32);";
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let diagnostic = lower_syntax_trees(&syntax_trees)
+        .expect_err("propositions must not disappear or lower as machines");
+
+    assert!(
+        diagnostic
+            .message
+            .contains("dedicated proposition-family representation"),
+        "unexpected diagnostic: {}",
+        diagnostic.message
+    );
+}
+
+#[test]
 fn lowers_dungeon_style_machine_program() {
     let source = r#"
     data Inventory {

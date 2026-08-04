@@ -4,7 +4,8 @@ use crate::expression::{
 use crate::identifier::Identifier;
 use crate::item::{
     BoundaryLevel, CapabilityContract, CapabilityContractKind, CapabilityMember, DataMember, Item,
-    LibraryFunction, ProofFact, StateParameterNode, StateSignature, WireDataMember,
+    LibraryFunction, ProofFact, PropositionBody, StateParameterNode, StateSignature,
+    WireDataMember,
 };
 use crate::statement::{
     AssemblyFactKind, StatementNode, TransitionGuardNode, TransitionTargetNode,
@@ -115,6 +116,12 @@ pub enum ItemSnapshot {
     Package {
         path: Vec<IdentifierSnapshot>,
     },
+    Proposition {
+        name: IdentifierSnapshot,
+        type_parameters: Vec<TypeParameterSnapshot>,
+        parameters: Vec<StateParameterSnapshot>,
+        body: PropositionBodySnapshot,
+    },
     Provider {
         name: Vec<IdentifierSnapshot>,
         category: &'static str,
@@ -166,6 +173,18 @@ pub enum ItemSnapshot {
         name: IdentifierSnapshot,
         encoding: Option<IdentifierSnapshot>,
         members: Vec<WireDataMemberSnapshot>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum PropositionBodySnapshot {
+    Primitive,
+    Witness {
+        evidence: TypeReferenceSnapshot,
+    },
+    Transparent {
+        proposition: Box<ExpressionSnapshot>,
     },
 }
 
@@ -770,6 +789,40 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
         },
         Item::Package(value) => ItemSnapshot::Package {
             path: snapshot_identifier_slice(syntax_trees.items.identifier_path_members(value.path)),
+        },
+        Item::Proposition(value) => ItemSnapshot::Proposition {
+            name: snapshot_identifier(&value.name),
+            type_parameters: syntax_trees
+                .items
+                .type_parameters(value.type_parameters)
+                .iter()
+                .map(|parameter| snapshot_type_parameter(syntax_trees, parameter))
+                .collect(),
+            parameters: syntax_trees
+                .items
+                .state_parameters(value.parameters)
+                .iter()
+                .map(|parameter| {
+                    snapshot_state_parameter(
+                        syntax_trees,
+                        syntax_trees.items.state_parameter(*parameter),
+                    )
+                })
+                .collect(),
+            body: match value.body {
+                PropositionBody::Primitive => PropositionBodySnapshot::Primitive,
+                PropositionBody::Witness { evidence } => PropositionBodySnapshot::Witness {
+                    evidence: snapshot_type_reference_handle(syntax_trees, evidence),
+                },
+                PropositionBody::Transparent { proposition } => {
+                    PropositionBodySnapshot::Transparent {
+                        proposition: Box::new(snapshot_expression_handle(
+                            syntax_trees,
+                            proposition,
+                        )),
+                    }
+                }
+            },
         },
         Item::Provider(value) => ItemSnapshot::Provider {
             name: snapshot_identifier_slice(syntax_trees.items.identifier_path_members(value.name)),

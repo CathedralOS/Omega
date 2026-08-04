@@ -114,6 +114,7 @@ impl SyntaxTrees {
             | Item::Module(_)
             | Item::Operator(_)
             | Item::Package(_)
+            | Item::Proposition(_)
             | Item::Provider(_)
             | Item::Target(_)
             | Item::WireData(_)
@@ -242,6 +243,30 @@ impl SyntaxTrees {
             Item::Package(package) => Item::Package(crate::item::PackageDeclaration {
                 path: self.copy_item_identifier_span(other, package.path),
             }),
+            Item::Proposition(proposition) => {
+                Item::Proposition(crate::item::PropositionDefinition {
+                    name: proposition.name.clone(),
+                    type_parameters: self
+                        .copy_type_parameter_span(other, proposition.type_parameters),
+                    parameters: self
+                        .copy_state_parameter_handle_span(other, proposition.parameters),
+                    body: match proposition.body {
+                        crate::item::PropositionBody::Primitive => {
+                            crate::item::PropositionBody::Primitive
+                        }
+                        crate::item::PropositionBody::Witness { evidence } => {
+                            crate::item::PropositionBody::Witness {
+                                evidence: self.copy_type_reference_handle(other, evidence),
+                            }
+                        }
+                        crate::item::PropositionBody::Transparent { proposition } => {
+                            crate::item::PropositionBody::Transparent {
+                                proposition: self.copy_expression_handle(other, proposition),
+                            }
+                        }
+                    },
+                })
+            }
             Item::Provider(provider) => Item::Provider(crate::item::ProviderDeclaration {
                 name: self.copy_item_identifier_span(other, provider.name),
                 category: provider.category,

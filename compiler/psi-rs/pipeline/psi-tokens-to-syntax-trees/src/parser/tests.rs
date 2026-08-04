@@ -5,6 +5,83 @@ use psi_syntax_trees::statement::StatementNode;
 use psi_syntax_trees::types::TypeReferenceNode;
 
 #[test]
+fn parses_primitive_witness_and_transparent_proposition_declarations() {
+    let source = r#"
+        proposition related(left: i32, right: i32);
+
+        proposition converges_together<machine Left, machine Right>(
+            left: Stream<Left>,
+            right: Stream<Right>
+        ) {
+            ConvergenceEvidence<Left, Right>;
+        }
+
+        proposition reflexive(value: i32) = related(value, value);
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("all settled proposition forms should parse");
+    let propositions = parsed
+        .root_items()
+        .filter_map(|item| match item {
+            psi_syntax_trees::item::Item::Proposition(proposition) => Some(proposition),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(propositions.len(), 3);
+    assert!(matches!(
+        propositions[0].body,
+        psi_syntax_trees::item::PropositionBody::Primitive
+    ));
+    assert_eq!(
+        parsed
+            .items
+            .state_parameters(propositions[0].parameters)
+            .len(),
+        2
+    );
+    assert_eq!(
+        parsed
+            .items
+            .type_parameters(propositions[1].type_parameters)
+            .len(),
+        2
+    );
+    assert!(matches!(
+        propositions[1].body,
+        psi_syntax_trees::item::PropositionBody::Witness { .. }
+    ));
+    assert!(matches!(
+        propositions[2].body,
+        psi_syntax_trees::item::PropositionBody::Transparent { proposition }
+            if matches!(parsed.expressions.expression(proposition), ExpressionNode::Call(_))
+    ));
+
+    let snapshot = parsed
+        .snapshot_json()
+        .expect("proposition syntax should snapshot");
+    assert!(snapshot.contains("\"kind\":\"proposition\""));
+    assert!(snapshot.contains("\"kind\":\"witness\""));
+    assert!(snapshot.contains("\"kind\":\"transparent\""));
+}
+
+#[test]
+fn proposition_declarations_reject_runtime_or_ambiguous_body_shapes() {
+    for source in [
+        "proposition bad(value: i32) -> bool;",
+        "proposition bad(value: i32) { Evidence; OtherEvidence; }",
+        "proposition bad(value: i32) { value }",
+    ] {
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        parse_syntax_trees(&tokens).expect_err("invalid proposition body must reject");
+    }
+}
+
+#[test]
 fn parses_stable_identities_through_the_full_u64_range() {
     let source = r#"
         data MaximumIdentity {
