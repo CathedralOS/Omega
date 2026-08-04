@@ -43,6 +43,7 @@ use super::widths::{
     add_constant_width, bit_fragment_container_bytes,
     runtime_frame_base_indexed_address_to_runtime_frame_write_width,
     runtime_frame_base_indexed_binary_write_width, runtime_frame_base_indexed_integer_write_width,
+    runtime_frame_base_indexed_string_write_width,
     runtime_frame_fixed_indexed_address_to_runtime_frame_write_width,
     runtime_frame_indexed_address_to_runtime_frame_write_width,
     runtime_frame_indexed_binary_write_width, runtime_frame_indexed_integer_write_width,
@@ -2760,6 +2761,52 @@ pub fn encode_runtime_frame_indexed_string_write(
     bytes.extend(encode_store_x_to_x(17, 16, 0)?);
     append_unsigned_immediate(&mut bytes, 17, byte_length as u64);
     bytes.extend(encode_store_x_to_x(17, 16, 8)?);
+    Ok(bytes)
+}
+
+pub fn encode_runtime_frame_base_indexed_string_write(
+    base_byte_offset: usize,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_length: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(runtime_frame_base_indexed_string_write_width(
+        base_byte_offset,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+        byte_length,
+    ));
+    append_runtime_frame_base_index_target_address(
+        &mut bytes,
+        16,
+        base_byte_offset,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+        17,
+        26,
+    )?;
+    bytes.extend(encode_adrp_placeholder(17));
+    bytes.extend(encode_add_page_offset_placeholder(17));
+    bytes.extend(encode_store_x_to_x(17, 16, 0)?);
+    append_unsigned_immediate(&mut bytes, 17, byte_length as u64);
+    bytes.extend(encode_store_x_to_x(17, 16, 8)?);
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_frame_base_indexed_string_write_width(
+            base_byte_offset,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+            byte_length,
+        )
+    );
     Ok(bytes)
 }
 
@@ -8023,6 +8070,28 @@ mod tests {
     fn string_descriptor_write_materializes_large_machine_offsets() {
         encode_runtime_machine_string_write(37_024, 12)
             .expect("large String descriptor offset encodes");
+    }
+
+    #[test]
+    fn frame_base_indexed_string_write_width_matches_emission() {
+        for index_byte_size in [1usize, 2, 4, 8] {
+            let bytes =
+                encode_runtime_frame_base_indexed_string_write(24, 8, index_byte_size, 16, 0, 7)
+                    .expect("frame-base-indexed string descriptor write");
+            assert_eq!(
+                bytes.len(),
+                runtime_frame_base_indexed_string_write_width(24, 8, index_byte_size, 16, 0, 7,)
+            );
+            let data_site =
+                super::super::widths::runtime_frame_base_indexed_string_data_address_offset(
+                    24,
+                    8,
+                    index_byte_size,
+                    16,
+                    0,
+                );
+            assert_eq!(bytes.len() - data_site, 20);
+        }
     }
 
     #[test]

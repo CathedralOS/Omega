@@ -1,4 +1,5 @@
 use super::super::offsets::{
+    runtime_frame_base_indexed_string_data_address_offset,
     runtime_frame_indexed_string_data_address_offset,
     runtime_machine_indexed_string_data_address_offset,
     runtime_machine_indexed_string_runtime_frame_address_offset,
@@ -92,6 +93,28 @@ pub(super) fn collect_runtime_storage_string_relocations(
                             context.insert_data_address_at_relative_offset(
                                 runtime_frame_indexed_string_data_address_offset(
                                     context.input.target.architecture,
+                                    element_byte_size,
+                                    field_byte_offset,
+                                ),
+                                data_symbol,
+                            );
+                        }
+                        omega_instruction_selection::WritePlaceShape::FrameBaseIndexed {
+                            base_byte_offset,
+                            index_offset,
+                            index_byte_size,
+                            element_byte_size,
+                            field_byte_offset,
+                        } => {
+                            context.insert_data_address_at_instruction_start(
+                                context.storage_region_symbol_handle(target.region),
+                            );
+                            context.insert_data_address_at_relative_offset(
+                                runtime_frame_base_indexed_string_data_address_offset(
+                                    context.input.target.architecture,
+                                    base_byte_offset,
+                                    index_offset,
+                                    index_byte_size,
                                     element_byte_size,
                                     field_byte_offset,
                                 ),

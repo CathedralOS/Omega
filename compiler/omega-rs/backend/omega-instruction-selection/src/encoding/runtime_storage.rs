@@ -1733,6 +1733,20 @@ pub fn encode_write_place_string(
                 field_byte_offset,
                 byte_length,
             ),
+            WritePlaceShape::FrameBaseIndexed {
+                base_byte_offset,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+            } => aarch64::encode_runtime_frame_base_indexed_string_write(
+                base_byte_offset,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+                byte_length,
+            ),
             WritePlaceShape::MachineIndexed {
                 base_byte_offset,
                 index_region: omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
@@ -1750,7 +1764,7 @@ pub fn encode_write_place_string(
             ),
             _ => Err(Diagnostic::error(
                 "WritePlaceString on aarch64 serves direct, pointee, frame-indexed, \
-                 and frame-resident machine-indexed place shapes only until the \
+                 frame-base-indexed, and frame-resident machine-indexed place shapes only until the \
                  aarch64 place materializer lands; this shape refuses loudly",
             )),
         },
