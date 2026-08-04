@@ -3510,6 +3510,11 @@ pub fn runtime_storage_copy_from_runtime_machine_indexed_clobbers() -> RegisterS
     ])
 }
 
+/// Exact scratch footprint of the machine-inline-array write-side mirror.
+pub fn runtime_storage_copy_to_runtime_machine_indexed_clobbers() -> RegisterSet {
+    runtime_storage_copy_from_runtime_machine_indexed_clobbers()
+}
+
 /// Write-side mirror of
 /// [`encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage`].
 /// x86_64-only for now; aarch64 emits nothing real.
@@ -7381,6 +7386,14 @@ mod tests {
                 MachineRegister::Aarch64X(20),
                 MachineRegister::Aarch64X(26),
             ]
+        );
+    }
+
+    #[test]
+    fn to_machine_indexed_clobbers_match_the_address_recipe() {
+        assert_eq!(
+            runtime_storage_copy_to_runtime_machine_indexed_clobbers(),
+            runtime_storage_copy_from_runtime_machine_indexed_clobbers()
         );
     }
 

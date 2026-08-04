@@ -247,6 +247,15 @@ enum CompilerBodyPlaceCopyShape {
         field_byte_offset: usize,
         target_offset: usize,
     },
+    ToMachineIndexed {
+        source_offset: usize,
+        base_byte_offset: usize,
+        index_region: omega_target_operations::RuntimeStorageRegion,
+        index_offset: usize,
+        index_byte_size: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+    },
 }
 
 fn validate_compiler_function_instruction_boundaries(
@@ -981,6 +990,24 @@ fn validate_compiler_function_instruction_boundaries(
                                         target_offset,
                                         byte_count,
                                     )?,
+                                    CompilerBodyPlaceCopyShape::ToMachineIndexed {
+                                        source_offset,
+                                        base_byte_offset,
+                                        index_region,
+                                        index_offset,
+                                        index_byte_size,
+                                        element_byte_size,
+                                        field_byte_offset,
+                                    } => omega_isa_aarch64::encode_runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage(
+                                        source_offset,
+                                        base_byte_offset,
+                                        index_offset,
+                                        index_region,
+                                        index_byte_size,
+                                        element_byte_size,
+                                        field_byte_offset,
+                                        byte_count,
+                                    )?,
                                 },
                             },
                             21u8,
@@ -1606,6 +1633,9 @@ fn compiler_instruction_footprint(
                         CompilerBodyPlaceCopyShape::FromMachineIndexed { .. } => {
                             omega_isa_x86_64::copy_places_from_machine_indexed_clobbers(byte_count)
                         }
+                        CompilerBodyPlaceCopyShape::ToMachineIndexed { .. } => {
+                            omega_isa_x86_64::copy_places_to_machine_indexed_clobbers(byte_count)
+                        }
                     },
                     Architecture::Aarch64 => match shape {
                         CompilerBodyPlaceCopyShape::Direct {
@@ -1659,6 +1689,9 @@ fn compiler_instruction_footprint(
                         }
                         CompilerBodyPlaceCopyShape::FromMachineIndexed { .. } => {
                             omega_isa_aarch64::runtime_storage_copy_from_runtime_machine_indexed_clobbers()
+                        }
+                        CompilerBodyPlaceCopyShape::ToMachineIndexed { .. } => {
+                            omega_isa_aarch64::runtime_storage_copy_to_runtime_machine_indexed_clobbers()
                         }
                     },
                 },
@@ -2047,6 +2080,37 @@ fn compiler_place_copy_address_sites(
                 ));
                 Ok(sites)
             }
+            CompilerBodyPlaceCopyShape::ToMachineIndexed {
+                base_byte_offset,
+                index_region,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+                ..
+            } => {
+                let mut sites = vec![(0, target.region)];
+                if index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
+                    sites.push((
+                        omega_isa_aarch64::runtime_storage_copy_from_runtime_machine_indexed_runtime_frame_address_offset(
+                            base_byte_offset,
+                        ),
+                        index_region,
+                    ));
+                }
+                sites.push((
+                    omega_isa_aarch64::runtime_storage_copy_to_runtime_machine_indexed_source_address_offset(
+                        base_byte_offset,
+                        index_region,
+                        index_offset,
+                        index_byte_size,
+                        element_byte_size,
+                        field_byte_offset,
+                    ),
+                    source.region,
+                ));
+                Ok(sites)
+            }
             _ => Ok(vec![(0, source.region), (8, target.region)]),
         },
     }
@@ -2167,6 +2231,26 @@ fn compiler_body_place_copy_shape(
             target_offset,
         });
     }
+    if let Ok((
+        source_offset,
+        base_byte_offset,
+        index_region,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+    )) = compiler_place_copy_to_machine_indexed_offsets(source, target)
+    {
+        return Ok(CompilerBodyPlaceCopyShape::ToMachineIndexed {
+            source_offset,
+            base_byte_offset,
+            index_region,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+        });
+    }
     let (
         source_pointer_byte_offset,
         source_field_byte_offset,
@@ -2266,6 +2350,48 @@ fn compiler_place_copy_from_machine_indexed_offsets(
         element_byte_size,
         field_byte_offset,
         target_offset,
+    ))
+}
+
+fn compiler_place_copy_to_machine_indexed_offsets(
+    source: &omega_target_operations::Place,
+    target: &omega_target_operations::Place,
+) -> Result<
+    (
+        usize,
+        usize,
+        omega_target_operations::RuntimeStorageRegion,
+        usize,
+        usize,
+        usize,
+        usize,
+    ),
+    Diagnostic,
+> {
+    let source_offset = source.const_offset().ok_or_else(|| {
+        Diagnostic::error("final to-machine-indexed copy source is not direct runtime storage")
+    })?;
+    if target.region != omega_target_operations::RuntimeStorageRegion::Machine {
+        return Err(Diagnostic::error(
+            "final to-machine-indexed copy target is not machine storage",
+        ));
+    }
+    let (
+        base_byte_offset,
+        index_region,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+    ) = compiler_single_direct_indexed_place_offsets(target)?;
+    Ok((
+        source_offset,
+        base_byte_offset,
+        index_region,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
     ))
 }
 
