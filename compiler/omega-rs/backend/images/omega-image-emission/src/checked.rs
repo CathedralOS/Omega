@@ -96,6 +96,17 @@ pub fn emit_checked_executable_image(
                 .fixed_mechanics_validation_fingerprint
                 .to_le_bytes(),
         );
+        fingerprint_into(
+            &mut derivation_fingerprint,
+            &(compiler_function_validation.body_specification_instruction_count as u64)
+                .to_le_bytes(),
+        );
+        fingerprint_into(
+            &mut derivation_fingerprint,
+            &compiler_function_validation
+                .body_specification_validation_fingerprint
+                .to_le_bytes(),
+        );
         compiler_text_validation.derivation_fingerprint = derivation_fingerprint;
         emitted_output.compiler_text_validation = Some(compiler_text_validation);
         emitted_output.compiler_function_validation = Some(compiler_function_validation);
@@ -129,6 +140,8 @@ fn validate_compiler_function_instruction_boundaries(
     let mut zero_width_instruction_count = 0usize;
     let mut fixed_mechanics_instruction_count = 0usize;
     let mut fixed_mechanics_validation_fingerprint = 0xcbf2_9ce4_8422_2325u64;
+    let mut body_specification_instruction_count = 0usize;
+    let mut body_specification_validation_fingerprint = 0xcbf2_9ce4_8422_2325u64;
 
     for (function_index, (_, function)) in code.functions.iter().enumerate() {
         if function.byte_offset != expected_byte_offset {
@@ -208,9 +221,10 @@ fn validate_compiler_function_instruction_boundaries(
                     ))
                 })?;
             if let Some(kind) = instruction.compiler_validation_kind {
-                let (expected_position, expected_bytes, kind_tag) = match kind {
+                let (expected_position, expected_bytes, kind_tag): (Option<usize>, Vec<u8>, u8) =
+                    match kind {
                     omega_machine_bytes::CompilerInstructionValidationKind::FunctionEnter => (
-                        0,
+                        Some(0),
                         match architecture {
                             Architecture::X86_64 => {
                                 omega_isa_x86_64::encode_function_enter_bytes().to_vec()
@@ -222,7 +236,7 @@ fn validate_compiler_function_instruction_boundaries(
                         1u8,
                     ),
                     omega_machine_bytes::CompilerInstructionValidationKind::FunctionReturn => (
-                        instructions.len() - 1,
+                        Some(instructions.len() - 1),
                         match architecture {
                             Architecture::X86_64 => {
                                 omega_isa_x86_64::encode_return_bytes().to_vec()
@@ -233,29 +247,89 @@ fn validate_compiler_function_instruction_boundaries(
                         },
                         2u8,
                     ),
-                };
-                if instruction_index != expected_position
+                    omega_machine_bytes::CompilerInstructionValidationKind::DispatchLoopEnter {
+                        entry_dispatch_index,
+                    } => (
+                        None,
+                        match architecture {
+                            Architecture::X86_64 => omega_isa_x86_64::encode_dispatch_loop_enter_bytes(entry_dispatch_index)?,
+                            Architecture::Aarch64 => omega_isa_aarch64::encode_dispatch_loop_enter_bytes(entry_dispatch_index)?.to_vec(),
+                        },
+                        3u8,
+                    ),
+                    omega_machine_bytes::CompilerInstructionValidationKind::DispatchCaseEnter {
+                        dispatch_index,
+                        skip_byte_distance,
+                    } => (
+                        None,
+                        match architecture {
+                            Architecture::X86_64 => omega_isa_x86_64::encode_dispatch_case_enter_bytes(dispatch_index, skip_byte_distance)?,
+                            Architecture::Aarch64 => omega_isa_aarch64::encode_dispatch_case_enter_bytes(dispatch_index, skip_byte_distance)?.to_vec(),
+                        },
+                        4u8,
+                    ),
+                    omega_machine_bytes::CompilerInstructionValidationKind::DispatchStateWrite {
+                        dispatch_index,
+                        case_leave_byte_distance,
+                    } => (
+                        None,
+                        match architecture {
+                            Architecture::X86_64 => omega_isa_x86_64::encode_dispatch_state_write_bytes(dispatch_index, case_leave_byte_distance)?,
+                            Architecture::Aarch64 => omega_isa_aarch64::encode_dispatch_state_write_bytes(dispatch_index, case_leave_byte_distance)?.to_vec(),
+                        },
+                        5u8,
+                    ),
+                    omega_machine_bytes::CompilerInstructionValidationKind::DispatchCaseLeave {
+                        loop_byte_distance,
+                    } => (
+                        None,
+                        match architecture {
+                            Architecture::X86_64 => omega_isa_x86_64::encode_dispatch_case_leave_bytes(loop_byte_distance)?,
+                            Architecture::Aarch64 => omega_isa_aarch64::encode_dispatch_case_leave_bytes(loop_byte_distance)?.to_vec(),
+                        },
+                        7u8,
+                    ),
+                    omega_machine_bytes::CompilerInstructionValidationKind::DispatchForwardBranchSkip {
+                        branch_arms_end_byte_distance,
+                    } => (
+                        None,
+                        match architecture {
+                            Architecture::X86_64 => omega_isa_x86_64::encode_dispatch_case_leave_bytes(branch_arms_end_byte_distance)?,
+                            Architecture::Aarch64 => omega_isa_aarch64::encode_dispatch_case_leave_bytes(branch_arms_end_byte_distance)?.to_vec(),
+                        },
+                        6u8,
+                    ),
+                    };
+                if expected_position.is_some_and(|position| instruction_index != position)
                     || final_text_bytes[instruction_byte_offset..instruction_end] != expected_bytes
                 {
                     return Err(Diagnostic::error(format!(
-                        "compiler function #{function_index} instruction #{} does not match its fixed target call-return specification",
+                        "compiler function #{function_index} instruction #{} does not match its fixed target instruction specification",
                         instruction.selected_instruction_index
                     )));
                 }
-                fingerprint_into(&mut fixed_mechanics_validation_fingerprint, &[kind_tag]);
+                let (class_count, class_fingerprint) = if kind_tag <= 2 {
+                    (
+                        &mut fixed_mechanics_instruction_count,
+                        &mut fixed_mechanics_validation_fingerprint,
+                    )
+                } else {
+                    (
+                        &mut body_specification_instruction_count,
+                        &mut body_specification_validation_fingerprint,
+                    )
+                };
+                fingerprint_into(class_fingerprint, &[kind_tag]);
+                fingerprint_into(class_fingerprint, &(function_index as u64).to_le_bytes());
                 fingerprint_into(
-                    &mut fixed_mechanics_validation_fingerprint,
-                    &(function_index as u64).to_le_bytes(),
-                );
-                fingerprint_into(
-                    &mut fixed_mechanics_validation_fingerprint,
+                    class_fingerprint,
                     &(instruction_byte_offset as u64).to_le_bytes(),
                 );
                 fingerprint_into(
-                    &mut fixed_mechanics_validation_fingerprint,
+                    class_fingerprint,
                     &final_text_bytes[instruction_byte_offset..instruction_end],
                 );
-                fixed_mechanics_instruction_count += 1;
+                *class_count += 1;
             }
             fingerprint_into(
                 &mut fingerprint,
@@ -306,6 +380,8 @@ fn validate_compiler_function_instruction_boundaries(
         zero_width_instruction_count,
         fixed_mechanics_instruction_count,
         fixed_mechanics_validation_fingerprint,
+        body_specification_instruction_count,
+        body_specification_validation_fingerprint,
         validation_fingerprint: fingerprint,
     })
 }
@@ -1942,11 +2018,18 @@ mod tests {
 
         let target = NativeTarget::linux_x64();
         let enter = omega_isa_x86_64::encode_function_enter_bytes();
+        let dispatch =
+            omega_isa_x86_64::encode_dispatch_loop_enter_bytes(7).expect("dispatch loop entry");
         let leave = omega_isa_x86_64::encode_return_bytes();
-        let final_bytes = enter.into_iter().chain(leave).collect::<Vec<_>>();
+        let final_bytes = enter
+            .into_iter()
+            .chain(dispatch.iter().copied())
+            .chain(leave)
+            .collect::<Vec<_>>();
         let mut plan =
-            omega_machine_bytes::EncodedMachinePlan::with_capacity(target, 1, 3, final_bytes.len());
+            omega_machine_bytes::EncodedMachinePlan::with_capacity(target, 1, 4, final_bytes.len());
         let enter_bytes = plan.code.bytes.insert_many(enter);
+        let dispatch_bytes = plan.code.bytes.insert_many(dispatch);
         let leave_bytes = plan.code.bytes.insert_many(leave);
         let first = plan.code.instructions.insert(EncodedMachineInstruction {
             selected_instruction_index: 4,
@@ -1956,10 +2039,18 @@ mod tests {
         });
         plan.code.instructions.insert(EncodedMachineInstruction {
             selected_instruction_index: 5,
+            bytes: dispatch_bytes,
+            compiler_validation_kind: Some(CompilerInstructionValidationKind::DispatchLoopEnter {
+                entry_dispatch_index: 7,
+            }),
             ..EncodedMachineInstruction::default()
         });
         plan.code.instructions.insert(EncodedMachineInstruction {
             selected_instruction_index: 6,
+            ..EncodedMachineInstruction::default()
+        });
+        plan.code.instructions.insert(EncodedMachineInstruction {
+            selected_instruction_index: 7,
             bytes: leave_bytes,
             compiler_validation_kind: Some(CompilerInstructionValidationKind::FunctionReturn),
             ..EncodedMachineInstruction::default()
@@ -1968,7 +2059,7 @@ mod tests {
             source_key: Default::default(),
             byte_offset: 0,
             byte_count: final_bytes.len(),
-            instructions: HandleSpan::from_parts(first, 3),
+            instructions: HandleSpan::from_parts(first, 4),
         });
         plan.code.byte_count = final_bytes.len();
 
@@ -1979,9 +2070,10 @@ mod tests {
         )
         .expect("retained function rows should enumerate exact final boundaries");
         assert_eq!(evidence.function_count, 1);
-        assert_eq!(evidence.instruction_count, 3);
+        assert_eq!(evidence.instruction_count, 4);
         assert_eq!(evidence.zero_width_instruction_count, 1);
         assert_eq!(evidence.fixed_mechanics_instruction_count, 2);
+        assert_eq!(evidence.body_specification_instruction_count, 1);
 
         let mut mutated = final_bytes.clone();
         mutated[0] ^= 0xff;
@@ -1994,10 +2086,24 @@ mod tests {
         assert!(
             diagnostic
                 .message
-                .contains("fixed target call-return specification")
+                .contains("fixed target instruction specification")
         );
 
-        plan.code.functions.get_mut(function).instructions = HandleSpan::from_parts(first, 2);
+        let mut mutated = final_bytes.clone();
+        mutated[enter.len()] ^= 0xff;
+        let diagnostic = validate_compiler_function_instruction_boundaries(
+            omega_target::Architecture::X86_64,
+            &plan.code,
+            &mutated,
+        )
+        .expect_err("mutated dispatch specification bytes must reject");
+        assert!(
+            diagnostic
+                .message
+                .contains("fixed target instruction specification")
+        );
+
+        plan.code.functions.get_mut(function).instructions = HandleSpan::from_parts(first, 3);
         let diagnostic = validate_compiler_function_instruction_boundaries(
             omega_target::Architecture::X86_64,
             &plan.code,

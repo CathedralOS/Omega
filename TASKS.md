@@ -882,7 +882,7 @@ proves complete region coverage, and composes admitted leaves under their
 separate provenance. Do not add a second whole-image decoder/admission path.
 
 The existing single final-region artifact now carries the domain-separated
-`omega.final-footprint-certificate` schema, format version 3, and a certificate
+`omega.final-footprint-certificate` schema, format version 4, and a certificate
 fingerprint over its final placement binding, compiler-text derivation, and
 complete region inventory. Its explicit completeness flags remain false until
 compiler-body footprint decoding and admitted-leaf evidence land. The envelope
@@ -899,6 +899,12 @@ register/state footprints. Each compiler function's retained first/last rows
 also replay the architecture's exact fixed entry/return byte programs; this
 supersedes the entry-symbol-only prefix/suffix check and covers every generated
 function under `compiler_function_call_return_mechanics`.
+The first ordinary middle-row target-spec subset is also live: dispatch-loop
+entry, case entry, state write/termination, forward arm skip, and case leave
+retain their normalized indices and branch distances, regenerate the expected
+x86-64/AArch64 program, and bind matching final bytes under
+`compiler_function_body_specification_subset`. Guards, ordinary writes/calls,
+and their footprint derivation remain incomplete.
 
 - Finish enumeration of compiler-generated entry/body regions.
 - Validate final placed bytes after relocation, thunks, veneers, and generated

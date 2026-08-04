@@ -44,6 +44,8 @@ pub struct CompilerFunctionValidationEvidence {
     pub zero_width_instruction_count: usize,
     pub fixed_mechanics_instruction_count: usize,
     pub fixed_mechanics_validation_fingerprint: u64,
+    pub body_specification_instruction_count: usize,
+    pub body_specification_validation_fingerprint: u64,
     pub validation_fingerprint: u64,
 }
 
@@ -57,6 +59,8 @@ impl CompilerFunctionValidationEvidence {
             (self.zero_width_instruction_count as u64).to_le_bytes(),
             (self.fixed_mechanics_instruction_count as u64).to_le_bytes(),
             self.fixed_mechanics_validation_fingerprint.to_le_bytes(),
+            (self.body_specification_instruction_count as u64).to_le_bytes(),
+            self.body_specification_validation_fingerprint.to_le_bytes(),
         ] {
             for byte in bytes {
                 hash ^= u64::from(byte);
