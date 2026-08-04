@@ -4209,6 +4209,16 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_base_double_indexed_to_run
     Ok(bytes)
 }
 
+/// Exact scratch footprint of an all-frame double-indexed element read.
+pub fn runtime_storage_copy_from_runtime_frame_base_double_indexed_clobbers() -> RegisterSet {
+    RegisterSet::new([
+        MachineRegister::Aarch64X(14),
+        MachineRegister::Aarch64X(16),
+        MachineRegister::Aarch64X(17),
+        MachineRegister::Aarch64X(26),
+    ])
+}
+
 /// Write twin: `grid[i][j] = <literal>` -- the same address math, then the
 /// value immediate materialized into x17 (AFTER every relocation, so its
 /// variable width perturbs no reloc offset) and stored at the element.

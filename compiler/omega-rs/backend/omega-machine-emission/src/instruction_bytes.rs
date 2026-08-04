@@ -432,6 +432,7 @@ fn compiler_instruction_validation_kind(
                 omega_instruction_selection::CopyPlacesShape::FromFrameBaseIndexed { .. }
                     | omega_instruction_selection::CopyPlacesShape::FromMachineIndexed { .. }
                     | omega_instruction_selection::CopyPlacesShape::ToMachineIndexed { .. }
+                    | omega_instruction_selection::CopyPlacesShape::FromFrameBaseDoubleIndexed { .. }
             ) =>
         {
             Some(CompilerInstructionValidationKind::CompilerBodyPlaceCopy {
