@@ -15,7 +15,8 @@ use omega_terminal_abstract_operations::{
     TerminalAbstractParameter,
 };
 use omega_terminal_target_operations::{
-    TerminalPsiProvenance, TerminalScalarParameterLocation, TerminalTargetConditionalIntegerArm,
+    TerminalPsiProvenance, TerminalScalarParameterLocation, TerminalTargetBooleanControl,
+    TerminalTargetConditionalBooleanArm, TerminalTargetConditionalIntegerArm,
     TerminalTargetFunction, TerminalTargetIntegerControl, TerminalTargetIntegerExpression,
     TerminalTargetOperation, TerminalTargetOperationPlan,
 };
@@ -102,7 +103,10 @@ fn lower_function(
         .iter()
         .any(|operation| matches!(operation, TerminalAbstractOperation::Conditional { .. }))
     {
-        return lower_integer_conditional(function, &values);
+        return match function.result.scalar_type {
+            ScalarType::Integer(_) => lower_integer_conditional(function, &values),
+            ScalarType::Boolean => lower_boolean_conditional(function, &values),
+        };
     }
 
     for operation in &function.operations {
@@ -622,6 +626,242 @@ fn lower_integer_conditional(
         provenance: conditional_provenance(function, lowered.operations, lowered.edges),
         operation: target_operation_from_integer_control(lowered.control, result_type),
     })
+}
+
+fn lower_boolean_conditional(
+    function: &TerminalAbstractFunction,
+    values: &BTreeMap<ValueId, KnownScalar>,
+) -> Result<TerminalTargetFunction, LoweringError> {
+    let lowered = lower_boolean_block(function, values.clone(), function.entry, BTreeSet::new())?;
+    Ok(TerminalTargetFunction {
+        machine: function.machine,
+        provenance: conditional_provenance(function, lowered.operations, lowered.edges),
+        operation: target_operation_from_boolean_control(lowered.control),
+    })
+}
+
+struct LoweredBooleanArm {
+    arm: TerminalTargetConditionalBooleanArm,
+    operations: Vec<OperationId>,
+    edges: Vec<EdgeId>,
+}
+
+fn lower_boolean_arm(
+    function: &TerminalAbstractFunction,
+    values: &BTreeMap<ValueId, KnownScalar>,
+    successor: &omega_terminal_abstract_operations::TerminalAbstractSuccessor,
+    visited: &BTreeSet<BlockId>,
+) -> Result<LoweredBooleanArm, LoweringError> {
+    let mut values = values.clone();
+    bind_conditional_values(&mut values, &successor.bindings, successor.psi_edge)?;
+    let mut lowered = lower_boolean_block(function, values, successor.target, visited.clone())?;
+    lowered.edges.insert(0, successor.psi_edge);
+    Ok(LoweredBooleanArm {
+        arm: TerminalTargetConditionalBooleanArm {
+            psi_edge: successor.psi_edge,
+            control: Box::new(lowered.control),
+        },
+        operations: lowered.operations,
+        edges: lowered.edges,
+    })
+}
+
+struct LoweredBooleanControl {
+    control: TerminalTargetBooleanControl,
+    operations: Vec<OperationId>,
+    edges: Vec<EdgeId>,
+}
+
+fn lower_boolean_block(
+    function: &TerminalAbstractFunction,
+    mut values: BTreeMap<ValueId, KnownScalar>,
+    block: BlockId,
+    mut visited: BTreeSet<BlockId>,
+) -> Result<LoweredBooleanControl, LoweringError> {
+    if !visited.insert(block) {
+        return Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(
+            function.machine,
+        ));
+    }
+    let Some((block_index, block_entry)) = function
+        .block_entries
+        .iter()
+        .enumerate()
+        .find(|(_, block_entry)| block_entry.block == block)
+    else {
+        return Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(
+            function.machine,
+        ));
+    };
+    let block_end = function
+        .block_entries
+        .get(block_index + 1)
+        .map_or(function.operations.len(), |next| next.operation_offset);
+    let Some((terminator, body)) = function
+        .operations
+        .get(block_entry.operation_offset..block_end)
+        .and_then(|operations| operations.split_last())
+    else {
+        return Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(
+            function.machine,
+        ));
+    };
+    let mut operations = Vec::new();
+    for operation in body {
+        if !lower_conditional_scalar_operation(operation, &mut values, &mut operations)? {
+            return Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(
+                function.machine,
+            ));
+        }
+    }
+    match terminator {
+        TerminalAbstractOperation::Jump {
+            psi_edge,
+            target,
+            bindings,
+        } => {
+            bind_conditional_values(&mut values, bindings, *psi_edge)?;
+            let mut lowered = lower_boolean_block(function, values, *target, visited)?;
+            operations.append(&mut lowered.operations);
+            lowered.operations = operations;
+            lowered.edges.insert(0, *psi_edge);
+            Ok(lowered)
+        }
+        TerminalAbstractOperation::Conditional {
+            condition,
+            when_true,
+            when_false,
+        } => match values
+            .get(condition)
+            .cloned()
+            .ok_or(LoweringError::UnknownValue(*condition))?
+        {
+            KnownScalar::Boolean(selected_true_arm) => {
+                let selected = if selected_true_arm {
+                    when_true
+                } else {
+                    when_false
+                };
+                let mut lowered = lower_boolean_arm(function, &values, selected, &visited)?;
+                operations.append(&mut lowered.operations);
+                Ok(LoweredBooleanControl {
+                    control: *lowered.arm.control,
+                    operations,
+                    edges: lowered.edges,
+                })
+            }
+            KnownScalar::BooleanParameter {
+                parameter_index,
+                location,
+            } => {
+                let when_true = lower_boolean_arm(function, &values, when_true, &visited)?;
+                let when_false = lower_boolean_arm(function, &values, when_false, &visited)?;
+                operations.extend(when_true.operations);
+                operations.extend(when_false.operations);
+                let mut edges = when_true.edges;
+                edges.extend(when_false.edges);
+                Ok(LoweredBooleanControl {
+                    control: TerminalTargetBooleanControl::Conditional {
+                        condition_source: *condition,
+                        condition_parameter_index: parameter_index,
+                        condition_location: location,
+                        when_true: when_true.arm,
+                        when_false: when_false.arm,
+                    },
+                    operations,
+                    edges,
+                })
+            }
+            KnownScalar::Integer { .. } => {
+                Err(LoweringError::ConditionalConditionMustBeBoolean(*condition))
+            }
+        },
+        TerminalAbstractOperation::Return {
+            psi_edge,
+            result,
+            value,
+            scalar_type,
+        } => {
+            if *result != function.result.value || *scalar_type != ScalarType::Boolean {
+                return Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(
+                    function.machine,
+                ));
+            }
+            let returned = values
+                .get(value)
+                .cloned()
+                .ok_or(LoweringError::UnknownValue(*value))?;
+            let control = match returned {
+                KnownScalar::Boolean(returned_value) => {
+                    TerminalTargetBooleanControl::ReturnImmediate {
+                        psi_return_edge: *psi_edge,
+                        source_value: *value,
+                        value: returned_value,
+                    }
+                }
+                KnownScalar::BooleanParameter {
+                    parameter_index,
+                    location,
+                } => TerminalTargetBooleanControl::ReturnParameter {
+                    psi_return_edge: *psi_edge,
+                    source_value: *value,
+                    parameter_index,
+                    location,
+                },
+                KnownScalar::Integer { .. } => {
+                    return Err(LoweringError::ValueTypeMismatch(*value));
+                }
+            };
+            Ok(LoweredBooleanControl {
+                control,
+                operations,
+                edges: vec![*psi_edge],
+            })
+        }
+        _ => Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(
+            function.machine,
+        )),
+    }
+}
+
+fn target_operation_from_boolean_control(
+    control: TerminalTargetBooleanControl,
+) -> TerminalTargetOperation {
+    match control {
+        TerminalTargetBooleanControl::ReturnImmediate {
+            psi_return_edge,
+            source_value,
+            value,
+        } => TerminalTargetOperation::ReturnBooleanImmediate {
+            psi_edge: psi_return_edge,
+            source_value,
+            value,
+        },
+        TerminalTargetBooleanControl::ReturnParameter {
+            psi_return_edge,
+            source_value,
+            parameter_index,
+            location,
+        } => TerminalTargetOperation::ReturnBooleanParameter {
+            psi_edge: psi_return_edge,
+            source_value,
+            parameter_index,
+            location,
+        },
+        TerminalTargetBooleanControl::Conditional {
+            condition_source,
+            condition_parameter_index,
+            condition_location,
+            when_true,
+            when_false,
+        } => TerminalTargetOperation::ReturnBooleanConditionalControl {
+            condition_source,
+            condition_parameter_index,
+            condition_location,
+            when_true,
+            when_false,
+        },
+    }
 }
 
 struct LoweredConditionalArm {

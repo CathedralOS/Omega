@@ -1210,8 +1210,10 @@ improvements do not change public identity.
   The same acyclic block walker now starts at the actual entry, so any computed
   unconditional prefix before the first runtime branch retains its bindings,
   fuel edge, and canonical provenance through native emission. Boolean-result
-  conditional control, cyclic semantics, reusable native block layout, and
-  broader general block programs still fail closed.
+  CFGs now use parallel recursive target/assigned control with immediate or
+  ABI-parameter leaves and execute natively on both architectures. Cyclic
+  semantics, reusable native block layout, and operations beyond the current
+  scalar terminal vocabulary still fail closed.
   Because the
   legacy exit prover cannot establish ordinary `result == literal` contracts,
   this bootstrap canary preserves a closed typed `requires`/`ensures` fact and

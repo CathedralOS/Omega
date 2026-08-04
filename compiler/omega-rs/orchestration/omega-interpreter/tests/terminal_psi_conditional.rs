@@ -6,7 +6,8 @@ use omega_terminal_assigned_target_operations::TerminalAssignedOperation;
 use omega_terminal_machine_emission::emit_machine_code;
 use omega_terminal_psi_to_abstract_operations::lower_verified_module;
 use omega_terminal_target_operations::{
-    TerminalTargetIntegerControl, TerminalTargetIntegerExpression, TerminalTargetOperation,
+    TerminalTargetBooleanControl, TerminalTargetIntegerControl, TerminalTargetIntegerExpression,
+    TerminalTargetOperation,
 };
 use omega_terminal_target_operations_to_assigned_target_operations::assign_registers;
 use psi_core::{
@@ -561,6 +562,97 @@ fn runtime_nested_conditional_lowers_as_recursive_target_control() {
 }
 
 #[test]
+fn nested_boolean_result_conditional_reaches_native_control() {
+    let module = nested_boolean_conditional_module();
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("nested Boolean-result conditional verifies");
+    let fixed = derive_fixed_entry_fuel(&verified, MachineId::new(1).unwrap())
+        .expect("nested Boolean-result conditional has a fixed bound");
+    assert_eq!(fixed.ceiling_units(), 3);
+
+    for (outer, inner, expected, fuel) in [
+        (true, true, true, 3),
+        (true, false, false, 3),
+        (false, true, true, 2),
+    ] {
+        let measured = interpret_terminal_measured(
+            &verified,
+            &[
+                TerminalScalarValue::Boolean(outer),
+                TerminalScalarValue::Boolean(inner),
+                TerminalScalarValue::Boolean(true),
+                TerminalScalarValue::Boolean(false),
+                TerminalScalarValue::Boolean(true),
+            ],
+        )
+        .expect("nested Boolean-result path executes");
+        assert_eq!(measured.usage().total_units(), fuel);
+        assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+    }
+
+    let abstract_plan = lower_verified_module(&verified).expect("lower Boolean requirements");
+    let host_target = lower_to_target_operations(&abstract_plan, NativeTarget::host())
+        .expect("nested Boolean-result conditional lowers for the host");
+    let TerminalTargetOperation::ReturnBooleanConditionalControl {
+        when_true,
+        when_false,
+        ..
+    } = &host_target.functions[0].operation
+    else {
+        panic!("outer Boolean conditional must remain")
+    };
+    assert!(matches!(
+        when_true.control.as_ref(),
+        TerminalTargetBooleanControl::Conditional {
+            condition_source,
+            when_true: nested_true,
+            when_false: nested_false,
+            ..
+        } if *condition_source == ValueId::new(6).unwrap()
+            && nested_true.psi_edge == EdgeId::new(3).unwrap()
+            && nested_false.psi_edge == EdgeId::new(4).unwrap()
+    ));
+    assert!(matches!(
+        when_false.control.as_ref(),
+        TerminalTargetBooleanControl::ReturnParameter { psi_return_edge, .. }
+            if *psi_return_edge == EdgeId::new(5).unwrap()
+    ));
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_plan = lower_to_target_operations(&abstract_plan, target)
+            .expect("nested Boolean control lowers for each architecture");
+        let assigned = assign_registers(&target_plan)
+            .expect("nested Boolean control assigns for each architecture");
+        let emitted = emit_machine_code(&assigned)
+            .expect("nested Boolean control emits for each architecture");
+        assert!(!emitted.functions[0].bytes.is_empty());
+    }
+    let assigned = assign_registers(&host_target).expect("host Boolean control assigns");
+    let machine_code = emit_machine_code(&assigned).expect("host Boolean control emits");
+    #[cfg(unix)]
+    for (outer, inner, expected) in [
+        (true, true, true),
+        (true, false, false),
+        (false, true, true),
+    ] {
+        assert_eq!(
+            run_host_boolean_conditional(
+                &machine_code.functions[0].bytes,
+                outer,
+                inner,
+                true,
+                false,
+                true,
+            ),
+            i32::from(expected)
+        );
+    }
+}
+
+#[test]
 fn conditional_requires_semantic_v13() {
     let module = conditional_module(SemanticVersion::V12);
     assert!(matches!(
@@ -901,8 +993,161 @@ fn nested_constant_conditional_module() -> TerminalModule {
     }
 }
 
+fn nested_boolean_conditional_module() -> TerminalModule {
+    let declaration = |raw| ValueDeclaration {
+        id: ValueId::new(raw).expect("nonzero value"),
+        scalar_type: ScalarType::Boolean,
+    };
+    TerminalModule {
+        semantic_version: SemanticVersion::CURRENT,
+        entry: MachineId::new(1).unwrap(),
+        machines: vec![TerminalMachine {
+            id: MachineId::new(1).unwrap(),
+            parameters: (1..=5).map(declaration).collect(),
+            result: declaration(10),
+            structural_places: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: BlockId::new(1).unwrap(),
+            blocks: vec![
+                Block {
+                    id: BlockId::new(1).unwrap(),
+                    parameters: Vec::new(),
+                    operations: Vec::new(),
+                    terminator: Terminator::Conditional {
+                        condition: ValueId::new(1).unwrap(),
+                        when_true: SuccessorEdge {
+                            edge: EdgeId::new(1).unwrap(),
+                            target: BlockId::new(2).unwrap(),
+                            arguments: vec![
+                                ValueId::new(2).unwrap(),
+                                ValueId::new(3).unwrap(),
+                                ValueId::new(4).unwrap(),
+                            ],
+                        },
+                        when_false: SuccessorEdge {
+                            edge: EdgeId::new(2).unwrap(),
+                            target: BlockId::new(3).unwrap(),
+                            arguments: vec![ValueId::new(5).unwrap()],
+                        },
+                    },
+                },
+                Block {
+                    id: BlockId::new(2).unwrap(),
+                    parameters: vec![declaration(6), declaration(7), declaration(8)],
+                    operations: Vec::new(),
+                    terminator: Terminator::Conditional {
+                        condition: ValueId::new(6).unwrap(),
+                        when_true: SuccessorEdge {
+                            edge: EdgeId::new(3).unwrap(),
+                            target: BlockId::new(4).unwrap(),
+                            arguments: vec![ValueId::new(7).unwrap()],
+                        },
+                        when_false: SuccessorEdge {
+                            edge: EdgeId::new(4).unwrap(),
+                            target: BlockId::new(5).unwrap(),
+                            arguments: vec![ValueId::new(8).unwrap()],
+                        },
+                    },
+                },
+                Block {
+                    id: BlockId::new(3).unwrap(),
+                    parameters: vec![declaration(9)],
+                    operations: Vec::new(),
+                    terminator: Terminator::Return {
+                        edge: EdgeId::new(5).unwrap(),
+                        value: ValueId::new(9).unwrap(),
+                    },
+                },
+                Block {
+                    id: BlockId::new(4).unwrap(),
+                    parameters: vec![declaration(11)],
+                    operations: Vec::new(),
+                    terminator: Terminator::Return {
+                        edge: EdgeId::new(6).unwrap(),
+                        value: ValueId::new(11).unwrap(),
+                    },
+                },
+                Block {
+                    id: BlockId::new(5).unwrap(),
+                    parameters: vec![declaration(12)],
+                    operations: Vec::new(),
+                    terminator: Terminator::Return {
+                        edge: EdgeId::new(7).unwrap(),
+                        value: ValueId::new(12).unwrap(),
+                    },
+                },
+            ],
+            contract: MachineContract {
+                id: ContractId::new(1).unwrap(),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+            },
+        }],
+    }
+}
+
 #[cfg(unix)]
 static NEXT_SCRATCH_DIRECTORY: AtomicU64 = AtomicU64::new(0);
+
+#[cfg(unix)]
+fn run_host_boolean_conditional(
+    bytes: &[u8],
+    outer: bool,
+    inner: bool,
+    when_true: bool,
+    when_false: bool,
+    outer_false: bool,
+) -> i32 {
+    let directory = fresh_scratch_directory("omega-terminal-boolean-conditional");
+    let _cleanup = ScratchDirectory(directory.clone());
+    let assembly_path = directory.join("entry.s");
+    let driver_path = directory.join("driver.c");
+    let executable_path = directory.join("entry");
+    let bytes = bytes
+        .iter()
+        .map(|byte| format!("0x{byte:02x}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let assembly = if cfg!(target_os = "macos") {
+        format!(".text\n.globl _terminal_entry\n.p2align 2\n_terminal_entry:\n.byte {bytes}\n")
+    } else {
+        format!(
+            ".text\n.globl terminal_entry\n.type terminal_entry,@function\nterminal_entry:\n.byte {bytes}\n.size terminal_entry, .-terminal_entry\n.section .note.GNU-stack,\"\",@progbits\n"
+        )
+    };
+    let boolean = |value| if value { "true" } else { "false" };
+    let driver = format!(
+        "#include <stdbool.h>\n\
+extern bool terminal_entry(bool, bool, bool, bool, bool);\n\
+int main(void) {{ return terminal_entry({}, {}, {}, {}, {}); }}\n",
+        boolean(outer),
+        boolean(inner),
+        boolean(when_true),
+        boolean(when_false),
+        boolean(outer_false),
+    );
+    std::fs::write(&assembly_path, assembly).expect("write Boolean conditional assembly harness");
+    std::fs::write(&driver_path, driver).expect("write Boolean conditional C harness");
+    let link = Command::new("cc")
+        .arg(&assembly_path)
+        .arg(&driver_path)
+        .arg("-o")
+        .arg(&executable_path)
+        .output()
+        .expect("invoke host C linker driver");
+    assert!(
+        link.status.success(),
+        "host linker rejected Boolean conditional machine code:\n{}",
+        String::from_utf8_lossy(&link.stderr)
+    );
+    Command::new(&executable_path)
+        .status()
+        .expect("execute Boolean conditional canary")
+        .code()
+        .expect("Boolean conditional canary exited normally")
+}
 
 #[cfg(unix)]
 fn run_host_runtime_nested_conditional(
