@@ -582,17 +582,67 @@ fn compiler_instruction_validation_kind(
             else {
                 return Ok(None);
             };
-            if operation_key.uses_linux_timespec_result()
-                || operation_key.uses_linux_timespec_argument()
-            {
-                return Ok(None);
-            }
             let operands = emission_context
                 .assigned_target_operations
                 .instruction_operands(*operands)
                 .ok_or_else(|| {
                     Diagnostic::error("compiler outbound syscall lost its assigned operand span")
                 })?;
+            if operation_key.uses_linux_timespec_result() {
+                if binding.call_plan().parameters.len() != 2
+                    || binding.call_plan().result.is_none()
+                    || !matches!(
+                        operands,
+                        [
+                            omega_assigned_target_operations::InstructionOperand {
+                                kind:
+                                    omega_assigned_target_operations::InstructionOperandKind::RuntimeScalarInteger {
+                                        byte_count: 8,
+                                        ..
+                                    },
+                            },
+                            omega_assigned_target_operations::InstructionOperand {
+                                kind:
+                                    omega_assigned_target_operations::InstructionOperandKind::ImmediateInteger(_),
+                            },
+                        ]
+                    )
+                {
+                    return Ok(None);
+                }
+                return Ok(Some(
+                    CompilerInstructionValidationKind::CompilerBodyOutboundSyscallTimespecResult {
+                        operands: operands.to_vec(),
+                        number: *number,
+                        plan: binding.call_plan().clone(),
+                    },
+                ));
+            }
+            if operation_key.uses_linux_timespec_argument() {
+                if binding.call_plan().parameters.len() != 2
+                    || binding.call_plan().result.is_none()
+                    || !matches!(
+                        operands,
+                        [omega_assigned_target_operations::InstructionOperand {
+                            kind:
+                                omega_assigned_target_operations::InstructionOperandKind::RuntimeScalarInteger {
+                                    byte_count: 4 | 8,
+                                    ..
+                                }
+                                | omega_assigned_target_operations::InstructionOperandKind::ImmediateInteger(0..),
+                        }]
+                    )
+                {
+                    return Ok(None);
+                }
+                return Ok(Some(
+                    CompilerInstructionValidationKind::CompilerBodyOutboundSyscallTimespecArgument {
+                        operands: operands.to_vec(),
+                        number: *number,
+                        plan: binding.call_plan().clone(),
+                    },
+                ));
+            }
             if binding.call_plan().result.is_some() {
                 let Some((result, arguments)) = operands.split_first() else {
                     return Ok(None);

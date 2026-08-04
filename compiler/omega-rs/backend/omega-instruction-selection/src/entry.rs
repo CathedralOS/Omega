@@ -1266,6 +1266,186 @@ enum OutboundSyscallResultArgumentClass {
     Data,
 }
 
+#[derive(Clone, Copy)]
+enum OutboundSyscallTimespecClass {
+    Argument,
+    Result,
+}
+
+/// Derive the Linux nanosleep adapter leaf. The concrete two-pointer syscall
+/// plan owns the supervisor boundary while the compiler-owned request builder
+/// additionally mutates balanced stack state and target-specific arithmetic
+/// scratch.
+pub fn derive_boundary_compiler_body_outbound_syscall_timespec_argument_footprint(
+    boundary: &ValidatedBoundaryEntryPlan,
+    input: &crate::InstructionSelectionInput<'_>,
+    operands: &psi_arena::Arena<omega_abstract_operations::InstructionOperand>,
+    instructions: &[omega_abstract_operations::AbstractOperation],
+) -> Result<StateFootprintEvidence, PlanDiagnostic> {
+    derive_boundary_compiler_body_outbound_syscall_timespec_footprint(
+        boundary,
+        input,
+        operands,
+        instructions,
+        OutboundSyscallTimespecClass::Argument,
+    )
+}
+
+/// Derive the Linux clock_gettime adapter leaf. Its private two-word result is
+/// reduced to nanoseconds and stored into the semantic scalar destination.
+pub fn derive_boundary_compiler_body_outbound_syscall_timespec_result_footprint(
+    boundary: &ValidatedBoundaryEntryPlan,
+    input: &crate::InstructionSelectionInput<'_>,
+    operands: &psi_arena::Arena<omega_abstract_operations::InstructionOperand>,
+    instructions: &[omega_abstract_operations::AbstractOperation],
+) -> Result<StateFootprintEvidence, PlanDiagnostic> {
+    derive_boundary_compiler_body_outbound_syscall_timespec_footprint(
+        boundary,
+        input,
+        operands,
+        instructions,
+        OutboundSyscallTimespecClass::Result,
+    )
+}
+
+fn derive_boundary_compiler_body_outbound_syscall_timespec_footprint(
+    boundary: &ValidatedBoundaryEntryPlan,
+    input: &crate::InstructionSelectionInput<'_>,
+    operands: &psi_arena::Arena<omega_abstract_operations::InstructionOperand>,
+    instructions: &[omega_abstract_operations::AbstractOperation],
+    class: OutboundSyscallTimespecClass,
+) -> Result<StateFootprintEvidence, PlanDiagnostic> {
+    use omega_abstract_operations::{AbstractOperationKind, InstructionOperandKind};
+    use omega_calling_conventions::{EntryControl, HostBindingMechanism, MachineRegister};
+
+    let mut registers = Vec::new();
+    let mut has_syscall = false;
+    for instruction in instructions {
+        let AbstractOperationKind::HostOperation {
+            operation_ordinal,
+            operands: operand_span,
+        } = &instruction.kind
+        else {
+            continue;
+        };
+        let Some((_, host_call)) = input.host_calls.calls.iter().find(|(_, host_call)| {
+            host_call.source_key == instruction.source_key
+                && host_call.statement_index == instruction.source_statement
+        }) else {
+            continue;
+        };
+        let Some(operation) = input
+            .host_calls
+            .operations
+            .span(host_call.operations)
+            .and_then(|operations| operations.get(usize::from(*operation_ordinal)))
+        else {
+            continue;
+        };
+        let Some((_, binding)) = input
+            .host_abi
+            .bindings
+            .iter()
+            .find(|(_, binding)| binding.operation_key == operation.operation_key)
+        else {
+            continue;
+        };
+        let Some(call_operands) = operands.span(*operand_span) else {
+            continue;
+        };
+        let shape_matches = match (class, call_operands) {
+            (
+                OutboundSyscallTimespecClass::Result,
+                [
+                    omega_abstract_operations::InstructionOperand {
+                        kind: InstructionOperandKind::RuntimeScalarInteger { byte_count: 8, .. },
+                    },
+                    omega_abstract_operations::InstructionOperand {
+                        kind: InstructionOperandKind::ImmediateInteger(_),
+                    },
+                ],
+            ) => true,
+            (
+                OutboundSyscallTimespecClass::Argument,
+                [
+                    omega_abstract_operations::InstructionOperand {
+                        kind:
+                            InstructionOperandKind::RuntimeScalarInteger {
+                                byte_count: 4 | 8, ..
+                            }
+                            | InstructionOperandKind::ImmediateInteger(0..),
+                    },
+                ],
+            ) => true,
+            _ => false,
+        };
+        let operation_matches = match class {
+            OutboundSyscallTimespecClass::Argument => {
+                operation.operation_key.uses_linux_timespec_argument()
+            }
+            OutboundSyscallTimespecClass::Result => {
+                operation.operation_key.uses_linux_timespec_result()
+            }
+        };
+        if !operation_matches
+            || !shape_matches
+            || !matches!(binding.mechanism, HostBindingMechanism::Syscall { .. })
+            || binding.call_plan().parameters.len() != 2
+            || binding.call_plan().result.is_none()
+            || !matches!(
+                binding.call_plan().entry_control,
+                EntryControl::SupervisorCall { .. }
+            )
+        {
+            continue;
+        }
+        has_syscall = true;
+        registers.extend_from_slice(binding.call_plan().ordinary_clobbers.as_slice());
+        match (input.target.architecture, class, call_operands) {
+            (omega_target::Architecture::X86_64, OutboundSyscallTimespecClass::Result, _) => {
+                registers.push(MachineRegister::X86Rsp)
+            }
+            (omega_target::Architecture::X86_64, OutboundSyscallTimespecClass::Argument, _) => {
+                registers.extend([MachineRegister::X86Rdx, MachineRegister::X86Rsp])
+            }
+            (
+                omega_target::Architecture::Aarch64,
+                OutboundSyscallTimespecClass::Result,
+                [
+                    omega_abstract_operations::InstructionOperand {
+                        kind:
+                            InstructionOperandKind::RuntimeScalarInteger {
+                                byte_offset,
+                                byte_count,
+                                ..
+                            },
+                    },
+                    _,
+                ],
+            ) => registers.extend_from_slice(
+                omega_isa_aarch64::constant_host_result_clobbers(*byte_offset, *byte_count)
+                    .as_slice(),
+            ),
+            _ => {}
+        }
+    }
+    let evidence = StateFootprintEvidence::new(
+        RegisterSet::new(registers),
+        if has_syscall {
+            MachineStateSet::new([
+                MachineState::Flags,
+                MachineState::InstructionPointer,
+                MachineState::StackPointer,
+                MachineState::ControlState,
+            ])
+        } else {
+            MachineStateSet::empty()
+        },
+    );
+    omega_calling_conventions::validate_outbound_call_footprint(boundary, &evidence)?;
+    Ok(evidence)
+}
+
 fn derive_boundary_compiler_body_outbound_syscall_result_footprint_for_arguments(
     boundary: &ValidatedBoundaryEntryPlan,
     input: &crate::InstructionSelectionInput<'_>,

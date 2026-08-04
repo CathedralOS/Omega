@@ -7,6 +7,8 @@ use crate::{
     derive_boundary_compiler_body_outbound_syscall_result_footprint,
     derive_boundary_compiler_body_outbound_syscall_result_storage_arguments_footprint,
     derive_boundary_compiler_body_outbound_syscall_storage_arguments_footprint,
+    derive_boundary_compiler_body_outbound_syscall_timespec_argument_footprint,
+    derive_boundary_compiler_body_outbound_syscall_timespec_result_footprint,
     derive_boundary_compiler_body_place_address_write_footprint,
     derive_boundary_compiler_body_place_binary_write_footprint,
     derive_boundary_compiler_body_place_bounded_buffer_write_footprint,
@@ -565,6 +567,40 @@ fn retain_exit_footprints(
             },
         )
         .expect("retained compiler-body result-bearing data-argument syscall footprint must name the entry boundary contract");
+    }
+    let evidence = derive_boundary_compiler_body_outbound_syscall_timespec_argument_footprint(
+        boundary,
+        input,
+        operands,
+        instructions,
+    )
+    .expect("selected compiler-body timespec-argument syscalls must fit the validated entry state ceiling");
+    if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
+        plan.retain_validated_fragment(
+            boundary,
+            omega_abstract_operations::BoundaryFootprintFragment {
+                origin: omega_abstract_operations::BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallTimespecArgument,
+                evidence,
+            },
+        )
+        .expect("retained compiler-body timespec-argument syscall footprint must name the entry boundary contract");
+    }
+    let evidence = derive_boundary_compiler_body_outbound_syscall_timespec_result_footprint(
+        boundary,
+        input,
+        operands,
+        instructions,
+    )
+    .expect("selected compiler-body timespec-result syscalls must fit the validated entry state ceiling");
+    if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
+        plan.retain_validated_fragment(
+            boundary,
+            omega_abstract_operations::BoundaryFootprintFragment {
+                origin: omega_abstract_operations::BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallTimespecResult,
+                evidence,
+            },
+        )
+        .expect("retained compiler-body timespec-result syscall footprint must name the entry boundary contract");
     }
     let evidence = derive_boundary_compiler_body_storage_bit_field_write_footprint(
         boundary,

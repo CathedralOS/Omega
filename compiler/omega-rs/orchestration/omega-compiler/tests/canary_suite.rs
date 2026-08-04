@@ -1144,7 +1144,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         executable_regions.contains(
             "\"certificate_schema\": \"omega.final-footprint-certificate\""
         )
-            && executable_regions.contains("\"certificate_format_version\": 73")
+            && executable_regions.contains("\"certificate_format_version\": 74")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
             && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")
@@ -5284,6 +5284,14 @@ fn cross_linux_time_host_compiles_on_both_architectures() {
             footprints.contains("\"origin\": \"compiler_body_outbound_syscall\"")
                 && footprints.contains("\"machine_state_bits\": 77"),
             "{target} process-exit syscalls must retain their supervisor-call footprint"
+        );
+        assert!(
+            footprints.contains("\"origin\": \"compiler_body_outbound_syscall_timespec_result\""),
+            "{target} clock_gettime adapters must retain their exact composite footprint"
+        );
+        assert!(
+            footprints.contains("\"origin\": \"compiler_body_outbound_syscall_timespec_argument\""),
+            "{target} nanosleep adapters must retain their exact composite footprint"
         );
         let _ = fs::remove_dir_all(&build_dir);
     }

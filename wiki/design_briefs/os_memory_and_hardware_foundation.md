@@ -1139,7 +1139,7 @@ relocation-envelope fingerprints plus their composed derivation identity. The
 boundary/placement binding includes that derivation identity, so a valid final
 inventory cannot be paired with evidence from a different encoded-to-final
 derivation. The single emitted artifact is now self-described as
-`omega.final-footprint-certificate` format v73, with a domain-separated
+`omega.final-footprint-certificate` format v74, with a domain-separated
 certificate fingerprint over its final placement binding, compiler-text
 derivation, and region inventory. It remains explicitly incomplete evidence,
 not an admission certificate, until the missing footprint classes close. The
@@ -1162,8 +1162,12 @@ under a separate origin. AArch64 inline bounded-buffer pointers are admitted
 only through the closed immediate-offset form. Static data-object addresses now
 use separate no-result/result-bearing origins: the encoded carrier retains each
 exact symbol and final admission requires the complete mixed data-symbol and
-runtime-storage-root relocation set. Composite adapters and imported calls
-remain outside this subset. Result-bearing runtime-storage-only syscalls
+runtime-storage-root relocation set. Linux `clock_gettime` and `nanosleep` now
+have dedicated composite classes: final replay regenerates their private stack
+records, fixed conversion/trap programs, and exact result or optional argument
+relocation, while StatePlan retains their balanced stack-pointer effect and
+target-specific scratch. Other composite adapters and imported calls remain
+outside this subset. Result-bearing runtime-storage-only syscalls
 continue to combine their argument relocation set with the exact result-region
 relocation and AArch64's offset-sensitive result-store scratch under a separate
 origin.

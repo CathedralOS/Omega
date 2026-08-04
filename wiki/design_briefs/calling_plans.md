@@ -1111,7 +1111,7 @@ relocation, and data relocation now consume that complete plan. Their former
 manual `+8`/`+12` stack accounting and trailing-mode operation classifier are
 retired; the operation key only selects the concrete adapter subcall.
 
-Final footprint certificate format v73 now retains an exact
+Final footprint certificate format v74 now retains an exact
 function-to-instruction partition in the encoded carrier. Checked image
 emission replays every contiguous function
 and instruction boundary over relocated final bytes, rejects gaps, overlaps,
@@ -1156,8 +1156,13 @@ form; x86-64 retains its full supported offset range. Static data-object
 addresses now use distinct no-result/result-bearing origins. Machine evidence
 retains each exact data symbol, final replay permits otherwise-closed immediate
 or runtime-storage parameters beside it, and admission requires the complete
-mixed data-symbol/storage-root relocation set. Composite adapters and imported
-calls remain unfinished. Result-bearing runtime-storage-only syscalls continue
+mixed data-symbol/storage-root relocation set. The Linux `clock_gettime` and
+`nanosleep` composites now have dedicated final classes as well. Replay
+regenerates their private stack adapters, exact result/optional argument
+relocations, and target-specific scratch; their StatePlan leaves include the
+balanced stack-pointer effect without publishing `timespec` as Omega ABI. The
+remaining composite adapters and imported calls remain unfinished. Result-
+bearing runtime-storage-only syscalls continue
 to combine their argument relocation set with the exact result-region
 relocation and AArch64's offset-sensitive result-store scratch under a distinct
 origin.
