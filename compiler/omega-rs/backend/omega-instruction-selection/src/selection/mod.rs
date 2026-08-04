@@ -1,5 +1,6 @@
 use crate::{
     InstructionSelectionInput, derive_boundary_call_return_mechanics_footprint,
+    derive_boundary_compiler_body_constant_host_result_footprint,
     derive_boundary_compiler_body_place_address_write_footprint,
     derive_boundary_compiler_body_place_binary_write_footprint,
     derive_boundary_compiler_body_place_bounded_buffer_write_footprint,
@@ -231,6 +232,7 @@ fn select_entry_instructions(
             &mut boundary_footprints,
             entry_boundary.as_ref(),
             input,
+            operands,
             runtime_value_operands,
             instructions.span(instruction_span).unwrap_or_default(),
         );
@@ -266,6 +268,7 @@ fn select_entry_instructions(
         &mut boundary_footprints,
         entry_boundary.as_ref(),
         input,
+        operands,
         runtime_value_operands,
         instructions.span(instruction_span).unwrap_or_default(),
     );
@@ -276,6 +279,7 @@ fn retain_exit_footprints(
     plan: &mut omega_abstract_operations::BoundaryFootprintPlan,
     boundary: Option<&omega_calling_conventions::ValidatedBoundaryEntryPlan>,
     input: &InstructionSelectionInput<'_>,
+    operands: &Arena<InstructionOperand>,
     runtime_value_operands: &Arena<AbstractValueOperand>,
     instructions: &[AbstractOperation],
 ) {
@@ -434,6 +438,25 @@ fn retain_exit_footprints(
             },
         )
         .expect("retained compiler-body address-write footprint must name the entry boundary contract");
+    }
+    let evidence = derive_boundary_compiler_body_constant_host_result_footprint(
+        boundary,
+        input,
+        operands,
+        instructions,
+    )
+    .expect(
+        "selected compiler-body constant host results must fit the validated entry state ceiling",
+    );
+    if !evidence.registers().as_slice().is_empty() {
+        plan.retain_validated_fragment(
+            boundary,
+            omega_abstract_operations::BoundaryFootprintFragment {
+                origin: omega_abstract_operations::BoundaryFootprintFragmentOrigin::CompilerBodyConstantHostResult,
+                evidence,
+            },
+        )
+        .expect("retained compiler-body constant-host-result footprint must name the entry boundary contract");
     }
     let evidence = derive_boundary_compiler_body_storage_bit_field_write_footprint(
         boundary,

@@ -935,6 +935,23 @@ pub fn encode_host_call_sequence_constant_result_from_operands(
     Ok(bytes)
 }
 
+/// Exact register footprint of the no-call constant-result sequence. A large
+/// or unscaled result offset additionally materializes the address in x17.
+pub fn constant_host_result_clobbers(byte_offset: usize, byte_size: usize) -> RegisterSet {
+    let mut registers = vec![MachineRegister::Aarch64X(0), MachineRegister::Aarch64X(16)];
+    let offset_is_scaled_immediate = match byte_size {
+        1 => byte_offset <= 4095,
+        2 => byte_offset.is_multiple_of(2) && byte_offset / 2 <= 4095,
+        4 => byte_offset.is_multiple_of(4) && byte_offset / 4 <= 4095,
+        8 => byte_offset.is_multiple_of(8) && byte_offset / 8 <= 4095,
+        _ => false,
+    };
+    if !offset_is_scaled_immediate {
+        registers.push(MachineRegister::Aarch64X(17));
+    }
+    RegisterSet::new(registers)
+}
+
 /// A value-returning host call whose callee returns a POINTER to the real
 /// result (darwin `___error()` -> `&errno`). Identical to
 /// `encode_host_call_sequence_value_returning_from_operands` except that, right
@@ -1871,6 +1888,22 @@ mod result_register_tests {
         let bytes = encode_return_register_integer_write_bytes(MachineRegister::Aarch64X(0), 2, 7)
             .expect("w0 carries the u16 result");
         assert_eq!(bytes, 0x5280_00e0u32.to_le_bytes());
+    }
+
+    #[test]
+    fn constant_host_result_footprint_tracks_large_offset_scratch() {
+        assert_eq!(
+            constant_host_result_clobbers(8, 8).as_slice(),
+            &[MachineRegister::Aarch64X(0), MachineRegister::Aarch64X(16)]
+        );
+        assert_eq!(
+            constant_host_result_clobbers(32_769, 8).as_slice(),
+            &[
+                MachineRegister::Aarch64X(0),
+                MachineRegister::Aarch64X(16),
+                MachineRegister::Aarch64X(17),
+            ]
+        );
     }
 }
 

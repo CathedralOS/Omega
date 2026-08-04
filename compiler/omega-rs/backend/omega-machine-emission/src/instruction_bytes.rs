@@ -12,7 +12,7 @@ use omega_machine_bytes::{
     EncodedMachineInstruction,
 };
 use omega_machine_instructions::{MachineInstruction, MachineInstructionPlan};
-use omega_target_operations::RuntimeValueOperandSource;
+use omega_target_operations::{InstructionOperandLike, RuntimeValueOperandSource};
 use psi_arena::{Arena, HandleSpan};
 use psi_diagnostics::Diagnostic;
 use std::sync::Arc;
@@ -485,6 +485,45 @@ fn compiler_instruction_validation_kind(
                 target_offset: *target_offset,
             },
         ),
+        SelectedInstructionKind::HostOperation {
+            operation_key,
+            operands,
+        } if operation_key.lowers_to_constant_result()
+            && crate::host_bindings::host_binding(emission_context, *operation_key).is_none() =>
+        {
+            let operands = emission_context
+                .assigned_target_operations
+                .instruction_operands(*operands)
+                .ok_or_else(|| {
+                    Diagnostic::error(
+                        "compiler constant host result lost its assigned operand span",
+                    )
+                })?;
+            let Some((result_region, result_offset, result_byte_size)) = operands
+                .first()
+                .and_then(InstructionOperandLike::runtime_scalar_integer)
+            else {
+                return Err(Diagnostic::error(
+                    "compiler constant host result has no runtime scalar result operand",
+                ));
+            };
+            let Some(value) = operands
+                .get(1)
+                .and_then(InstructionOperandLike::immediate_integer)
+            else {
+                return Err(Diagnostic::error(
+                    "compiler constant host result has no immediate value operand",
+                ));
+            };
+            Some(
+                CompilerInstructionValidationKind::CompilerBodyConstantHostResult {
+                    result_region,
+                    result_offset,
+                    result_byte_size,
+                    value,
+                },
+            )
+        }
         SelectedInstructionKind::WriteStorageBitField {
             region,
             base_byte_offset,

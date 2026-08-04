@@ -1111,7 +1111,7 @@ relocation, and data relocation now consume that complete plan. Their former
 manual `+8`/`+12` stack accounting and trailing-mode operation classifier are
 retired; the operation key only selects the concrete adapter subcall.
 
-Final footprint certificate format v66 now retains an exact
+Final footprint certificate format v67 now retains an exact
 function-to-instruction partition in the encoded carrier. Checked image
 emission replays every contiguous function
 and instruction boundary over relocated final bytes, rejects gaps, overlaps,
@@ -1127,6 +1127,12 @@ certificate. Final validation also derives their architecture-owned
 register/machine-state union, requires equality with the `StatePlan`-validated
 `CallReturnMechanics` fragment, and binds that footprint plus the same boundary
 contract identity into the certificate.
+Compiler-materialized host constants now participate in that middle-row replay
+without being reclassified as calls. The validator regenerates the fixed
+immediate/result-store sequence, checks its one result-region relocation, and
+requires its exact scratch registers to equal a dedicated compiler-body
+StatePlan fragment. There is still no selected binding, `CallPlan`, stack
+protocol, or foreign control transfer on this path.
 The replay boundary is the compiler-authored prefix, not the entire executable
 `.text` section. Format-owned import-thunk tails appended by Mach-O or PE stay
 outside compiler-function enumeration and are validated by their separate
