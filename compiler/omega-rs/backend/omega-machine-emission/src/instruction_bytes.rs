@@ -524,6 +524,52 @@ fn compiler_instruction_validation_kind(
                 },
             )
         }
+        SelectedInstructionKind::HostOperation {
+            operation_key,
+            operands,
+        } => {
+            let Some(binding) =
+                crate::host_bindings::host_binding(emission_context, *operation_key)
+            else {
+                return Ok(None);
+            };
+            let omega_calling_conventions::HostBindingMechanism::Syscall { number, .. } =
+                &binding.mechanism
+            else {
+                return Ok(None);
+            };
+            if operation_key.uses_linux_timespec_result()
+                || operation_key.uses_linux_timespec_argument()
+                || binding.call_plan().result.is_some()
+            {
+                return Ok(None);
+            }
+            let operands = emission_context
+                .assigned_target_operations
+                .instruction_operands(*operands)
+                .ok_or_else(|| {
+                    Diagnostic::error("compiler outbound syscall lost its assigned operand span")
+                })?;
+            if operands.is_empty()
+                || !operands.iter().all(|operand| {
+                    matches!(
+                        operand.kind,
+                        omega_assigned_target_operations::InstructionOperandKind::ImmediateInteger(
+                            _
+                        ) | omega_assigned_target_operations::InstructionOperandKind::ByteLength(_)
+                    )
+                })
+            {
+                return Ok(None);
+            }
+            Some(
+                CompilerInstructionValidationKind::CompilerBodyOutboundSyscall {
+                    operands: operands.to_vec(),
+                    number: *number,
+                    plan: binding.call_plan().clone(),
+                },
+            )
+        }
         SelectedInstructionKind::WriteStorageBitField {
             region,
             base_byte_offset,

@@ -10,6 +10,7 @@ pub use entry::{
     DerivedBoundaryEntryParameterStorage, DerivedBoundaryEntryStorage, DerivedBoundaryExit,
     derive_boundary_call_return_mechanics_footprint,
     derive_boundary_compiler_body_constant_host_result_footprint,
+    derive_boundary_compiler_body_outbound_syscall_footprint,
     derive_boundary_compiler_body_place_address_write_footprint,
     derive_boundary_compiler_body_place_binary_write_footprint,
     derive_boundary_compiler_body_place_bounded_buffer_write_footprint,
@@ -66,6 +67,7 @@ pub struct InstructionSelectionInput<'plan> {
     pub program: &'plan CheckedTrees,
     pub selected_provider_plans: &'plan omega_effects::SelectedProviderPlanFacts,
     pub control_flow: &'plan ControlFlowPlan,
+    pub host_abi: &'plan omega_calling_conventions::HostAbiPlan,
     pub host_calls: &'plan HostCallPlan,
     pub state_calls: &'plan StateCallPlan,
     /// See BackendPlan::receiver_bases (per-instance receiver dispatch).

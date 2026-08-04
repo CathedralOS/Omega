@@ -740,6 +740,34 @@ pub fn validate_call_return_mechanics_footprint(
     )
 }
 
+/// Validate one outbound call leaf inside an ordinary call-return activation.
+/// The callee or supervisor may consume the plan's complete volatile ceiling;
+/// control transfer is prescribed by the selected outbound entry mechanism,
+/// rather than being ordinary handler-body transitive use.
+pub fn validate_outbound_call_footprint(
+    validated: &ValidatedBoundaryEntryPlan,
+    evidence: &StateFootprintEvidence,
+) -> Result<(), PlanDiagnostic> {
+    if validated.plan().call.entry_control != EntryControl::CallReturn {
+        return Err(PlanDiagnostic(
+            "outbound call footprint evidence requires an enclosing CallReturn activation".into(),
+        ));
+    }
+    validate_state_footprint_under_ceiling(
+        validated,
+        evidence,
+        validated
+            .plan()
+            .state
+            .permitted_transitive_use
+            .union(MachineStateSet::new([
+                MachineState::InstructionPointer,
+                MachineState::StackPointer,
+                MachineState::ControlState,
+            ])),
+    )
+}
+
 /// Validate a recursive runtime-value evaluator used by guards or ordinary
 /// binary writes. Its x86 lowering may use balanced push/pop pairs while
 /// evaluating `Binary` operands; that stack effect is prescribed only for an

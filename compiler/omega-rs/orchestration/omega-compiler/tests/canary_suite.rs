@@ -1127,7 +1127,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         executable_regions.contains(
             "\"certificate_schema\": \"omega.final-footprint-certificate\""
         )
-            && executable_regions.contains("\"certificate_format_version\": 67")
+            && executable_regions.contains("\"certificate_format_version\": 68")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
             && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")
@@ -5260,6 +5260,13 @@ fn cross_linux_time_host_compiles_on_both_architectures() {
         assert!(
             build_dir.join("omega-program").exists(),
             "{target} should emit an ELF image"
+        );
+        let footprints = fs::read_to_string(build_dir.join("08_boundary_footprints.json"))
+            .expect("Linux time-host boundary footprints should be written");
+        assert!(
+            footprints.contains("\"origin\": \"compiler_body_outbound_syscall\"")
+                && footprints.contains("\"machine_state_bits\": 77"),
+            "{target} process-exit syscalls must retain their supervisor-call footprint"
         );
         let _ = fs::remove_dir_all(&build_dir);
     }

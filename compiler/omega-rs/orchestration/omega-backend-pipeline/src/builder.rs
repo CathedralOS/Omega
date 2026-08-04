@@ -417,6 +417,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
                 program: program.as_ref(),
                 selected_provider_plans: selected_provider_plans.as_ref(),
                 control_flow: &backend_plan.control_flow,
+                host_abi: &backend_plan.host_abi,
                 host_calls: &backend_plan.host_calls,
                 state_calls: &backend_plan.state_calls,
                 alias_flow: &backend_plan.alias_flow,

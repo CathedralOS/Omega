@@ -1,10 +1,10 @@
 use omega_abstract_operations::SelectedInstructionKind;
 use omega_calling_conventions::{
-    BoundaryEntryPlan, CallSignature, EntryControl, IndirectPointerLocation, MachineStateSet,
-    PlanDiagnostic, RegisterSet, StateFootprintEvidence, ValidatedBoundaryEntryPlan, ValueLocation,
-    ValuePlacement, ValueShape, validate_boundary_entry_plan,
-    validate_call_return_mechanics_footprint, validate_runtime_value_guard_footprint,
-    validate_state_footprint,
+    BoundaryEntryPlan, CallSignature, EntryControl, IndirectPointerLocation, MachineState,
+    MachineStateSet, PlanDiagnostic, RegisterSet, StateFootprintEvidence,
+    ValidatedBoundaryEntryPlan, ValueLocation, ValuePlacement, ValueShape,
+    validate_boundary_entry_plan, validate_call_return_mechanics_footprint,
+    validate_runtime_value_guard_footprint, validate_state_footprint,
 };
 
 /// The observable exit half of one validated boundary plan. Result fragments
@@ -944,6 +944,90 @@ pub fn derive_boundary_compiler_body_constant_host_result_footprint(
     let evidence =
         StateFootprintEvidence::new(RegisterSet::new(registers), MachineStateSet::empty());
     validate_state_footprint(boundary, &evidence)?;
+    Ok(evidence)
+}
+
+/// Derive the semantic leaf footprint of simple outbound syscalls. The target
+/// encoder is constrained by the same retained `CallPlan`; the supervisor may
+/// realize any ordinary clobber admitted by that plan.
+pub fn derive_boundary_compiler_body_outbound_syscall_footprint(
+    boundary: &ValidatedBoundaryEntryPlan,
+    input: &crate::InstructionSelectionInput<'_>,
+    operands: &psi_arena::Arena<omega_abstract_operations::InstructionOperand>,
+    instructions: &[omega_abstract_operations::AbstractOperation],
+) -> Result<StateFootprintEvidence, PlanDiagnostic> {
+    use omega_abstract_operations::{AbstractOperationKind, InstructionOperandKind};
+    use omega_calling_conventions::{EntryControl, HostBindingMechanism};
+
+    let mut registers = Vec::new();
+    let mut has_syscall = false;
+    for instruction in instructions {
+        let AbstractOperationKind::HostOperation {
+            operation_ordinal,
+            operands: operand_span,
+        } = &instruction.kind
+        else {
+            continue;
+        };
+        let Some((_, host_call)) = input.host_calls.calls.iter().find(|(_, host_call)| {
+            host_call.source_key == instruction.source_key
+                && host_call.statement_index == instruction.source_statement
+        }) else {
+            continue;
+        };
+        let Some(operation) = input
+            .host_calls
+            .operations
+            .span(host_call.operations)
+            .and_then(|operations| operations.get(usize::from(*operation_ordinal)))
+        else {
+            continue;
+        };
+        let Some((_, binding)) = input
+            .host_abi
+            .bindings
+            .iter()
+            .find(|(_, binding)| binding.operation_key == operation.operation_key)
+        else {
+            continue;
+        };
+        if !matches!(binding.mechanism, HostBindingMechanism::Syscall { .. })
+            || operation.operation_key.uses_linux_timespec_result()
+            || operation.operation_key.uses_linux_timespec_argument()
+            || binding.call_plan().result.is_some()
+            || !matches!(
+                binding.call_plan().entry_control,
+                EntryControl::SupervisorCall { .. }
+            )
+            || !operands.span(*operand_span).is_some_and(|operands| {
+                !operands.is_empty()
+                    && operands.iter().all(|operand| {
+                        matches!(
+                            operand.kind,
+                            InstructionOperandKind::ImmediateInteger(_)
+                                | InstructionOperandKind::ByteLength(_)
+                        )
+                    })
+            })
+        {
+            continue;
+        }
+        has_syscall = true;
+        registers.extend_from_slice(binding.call_plan().ordinary_clobbers.as_slice());
+    }
+    let evidence = StateFootprintEvidence::new(
+        RegisterSet::new(registers),
+        if has_syscall {
+            MachineStateSet::new([
+                MachineState::Flags,
+                MachineState::InstructionPointer,
+                MachineState::ControlState,
+            ])
+        } else {
+            MachineStateSet::empty()
+        },
+    );
+    omega_calling_conventions::validate_outbound_call_footprint(boundary, &evidence)?;
     Ok(evidence)
 }
 

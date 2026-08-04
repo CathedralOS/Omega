@@ -1,7 +1,7 @@
 use omega_calling_conventions::{
     PlanDiagnostic, StateFootprintEvidence, ValidatedBoundaryEntryPlan, compose_state_footprints,
-    validate_call_return_mechanics_footprint, validate_runtime_value_guard_footprint,
-    validate_state_footprint,
+    validate_call_return_mechanics_footprint, validate_outbound_call_footprint,
+    validate_runtime_value_guard_footprint, validate_state_footprint,
 };
 
 /// Provenance of one independently derived boundary-code footprint fragment.
@@ -17,6 +17,7 @@ pub enum BoundaryFootprintFragmentOrigin {
     CompilerBodyPlaceIntegerWrite,
     CompilerBodyPlaceAddressWrite,
     CompilerBodyConstantHostResult,
+    CompilerBodyOutboundSyscall,
     CompilerBodyStorageBitFieldWrite,
     CompilerBodyPlaceBoundedBufferWrite,
     CompilerBodyPlaceStringWrite,
@@ -62,6 +63,9 @@ impl BoundaryFootprintPlan {
         match fragment.origin {
             BoundaryFootprintFragmentOrigin::CallReturnMechanics => {
                 validate_call_return_mechanics_footprint(boundary, &fragment.evidence)?
+            }
+            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscall => {
+                validate_outbound_call_footprint(boundary, &fragment.evidence)?
             }
             BoundaryFootprintFragmentOrigin::RuntimeValueGuardComparison
             | BoundaryFootprintFragmentOrigin::CompilerBodyPlaceBinaryWrite
@@ -212,5 +216,16 @@ mod tests {
                 },
             )
             .expect("call-return mechanics may use their prescribed control state");
+
+        let mut outbound = BoundaryFootprintPlan::default();
+        outbound
+            .retain_validated_fragment(
+                &boundary,
+                BoundaryFootprintFragment {
+                    origin: BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscall,
+                    evidence: control_evidence(),
+                },
+            )
+            .expect("outbound calls may use their prescribed control state");
     }
 }
