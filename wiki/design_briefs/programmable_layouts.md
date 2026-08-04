@@ -452,8 +452,12 @@ target-neutral ordinary scalar materializer now accepts a concrete value only
 after checking signed or unsigned fit, writes the exact stored width in either
 byte order, and decodes with the retained extension rule. Rejection leaves the
 destination unchanged. A compiler/provider-resolved symbolic value uses the
-same fit check; unresolved symbolic `IntegerAt` materialization remains
-fail-closed.
+same fit check. An unresolved loader-consumed `IntegerAt` remains fail-closed
+because native relocation cannot prove the narrowed value. After Omega handoff,
+the generated writer instead retains the signed/unsigned source-width and
+stored-width constraint as invocation evidence, resolves the sealed target
+privately, and rejects a non-fitting value before publishing a context or
+changing any destination byte.
 The admitted `compact_binary` realization now derives bounded repeated framing
 from carrier semantics: `[T; N]` contributes exactly `N` elements and
 `FixedVec<T, N>` contributes its intrinsic live length up to `N`; the retired

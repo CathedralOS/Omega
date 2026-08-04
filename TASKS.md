@@ -2137,7 +2137,10 @@ ordinary code never receives a raw executable address.
   signed and unsigned values, writes only the stored width in either byte
   order, and sign- or zero-extends through the matching decoder; rejection is
   atomic. A compiler/provider-resolved symbolic value uses the same fit check;
-  unresolved symbolic `IntegerAt` materialization stays fail-closed.
+  unresolved loader-consumed `IntegerAt` stays fail-closed. A post-handoff
+  writer retains the exact source/stored widths and interpretation as
+  invocation evidence, privately resolves the sealed target once, and rejects
+  a non-fitting value before opaque context publication or destination writes.
   Linux `read_dir` now retains the real three-argument `getdents64`
   plan, omits the Darwin-only cursor at selection, and decodes the Linux record
   offsets in both target packages. Direct syscall failures now flow as explicit

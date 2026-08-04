@@ -971,6 +971,7 @@ impl InstalledCode {
             destination_len,
             destination_site,
         )
+        .map(|_| ())
     }
 
     fn validate_post_handoff_entry_writer_invocation(
@@ -979,20 +980,29 @@ impl InstalledCode {
         invocation: &PostHandoffWriterInvocationPlan,
         destination_len: usize,
         destination_site: PlacementSite,
-    ) -> Result<(), MaterializationDiagnostic> {
+    ) -> Result<Vec<u64>, MaterializationDiagnostic> {
         plan.validate(destination_len, destination_site)?;
+        let mut source_values = Vec::with_capacity(invocation.sources.len());
         for slot in &invocation.sources {
-            match slot.source {
+            let value = match slot.source {
                 PostHandoffWriterSource::Resolve(target) => {
                     if target != slot.target || !self.contains_entry_target(target) {
                         return Err(MaterializationDiagnostic(format!(
                             "post-handoff writer target {target:?} is not an admitted entry in the exact installed artifact"
                         )));
                     }
+                    self.resolve_entry_target(target).ok_or_else(|| {
+                        MaterializationDiagnostic(format!(
+                            "post-handoff writer could not resolve admitted target {target:?}"
+                        ))
+                    })?
                 }
                 PostHandoffWriterSource::Resolved(value) => match slot.target {
                     RelocationTarget::Entry(_)
-                        if self.resolve_entry_target(slot.target) == Some(value) => {}
+                        if self.resolve_entry_target(slot.target) == Some(value) =>
+                    {
+                        value
+                    }
                     RelocationTarget::Entry(_) => {
                         return Err(MaterializationDiagnostic(format!(
                             "post-handoff writer pre-resolved entry {:?} does not match the exact installed realization",
@@ -1006,9 +1016,11 @@ impl InstalledCode {
                         )));
                     }
                 },
-            }
+            };
+            source_values.push(value);
         }
-        Ok(())
+        invocation.validate_source_values(&source_values)?;
+        Ok(source_values)
     }
 
     /// Resolve every distinct source exactly once into an opaque packed
@@ -1021,7 +1033,7 @@ impl InstalledCode {
         destination_site: PlacementSite,
     ) -> Result<ResolvedPostHandoffEntryWriterContext, MaterializationDiagnostic> {
         let invocation = plan.lower_reusable_fragment()?;
-        self.validate_post_handoff_entry_writer_invocation(
+        let source_values = self.validate_post_handoff_entry_writer_invocation(
             plan,
             &invocation,
             destination_len,
@@ -1030,18 +1042,7 @@ impl InstalledCode {
 
         let mut packed_words = Vec::with_capacity(invocation.sources.len() + 1);
         packed_words.push(destination_site.base_address);
-        for slot in &invocation.sources {
-            packed_words.push(match slot.source {
-                PostHandoffWriterSource::Resolved(value) => value,
-                PostHandoffWriterSource::Resolve(target) => {
-                    self.resolve_entry_target(target).ok_or_else(|| {
-                        MaterializationDiagnostic(format!(
-                            "post-handoff writer could not populate symbolic target {target:?}"
-                        ))
-                    })?
-                }
-            });
-        }
+        packed_words.extend(source_values);
         let fingerprint = fingerprint_post_handoff_entry_writer_context(
             self.identity,
             self.artifact(),
@@ -1190,6 +1191,20 @@ fn fingerprint_post_handoff_entry_writer_context(
                 mix(data.normalized_identity());
             }
         }
+    }
+    mix(invocation.fit_constraints.len() as u64);
+    for constraint in &invocation.fit_constraints {
+        mix(constraint.source_slot as u64);
+        mix(constraint.fit.source_width_bits.into());
+        mix(constraint.fit.stored_width_bits.into());
+        mix(match constraint.fit.interpretation {
+            psi_layout_plans::IntegerInterpretation::Signed => 1,
+            psi_layout_plans::IntegerInterpretation::Unsigned => 2,
+        });
+        for byte in constraint.field.as_bytes() {
+            mix(u64::from(*byte));
+        }
+        mix(0xff);
     }
     mix(packed_words.len() as u64);
     for word in packed_words {
@@ -1367,8 +1382,9 @@ mod tests {
         ExtentDiagnostic, ExtentLineageId, ExtentRightId, ExtentRootGrant, MappingEraId,
     };
     use psi_layout_plans::{
-        ArtifactInstallationScopeId, ByteOrder, MaterializationWrite, PlacementAddressRange,
-        PlacementPhase, PostHandoffWriterSource, PostHandoffWriterStep,
+        ArtifactInstallationScopeId, ByteOrder, IntegerInterpretation, MaterializationWrite,
+        PlacementAddressRange, PlacementPhase, PostHandoffWriterSource, PostHandoffWriterStep,
+        StoredIntegerFit,
     };
 
     fn id<T>(identity: u64, constructor: fn(u64) -> Result<T, InstallationDiagnostic>) -> T {
@@ -1905,6 +1921,7 @@ mod tests {
                     destination_lsb: 0,
                     source_lsb: 0,
                     width: 64,
+                    stored_integer_fit: None,
                 },
                 source: PostHandoffWriterSource::Resolve(target),
             }],
@@ -1921,6 +1938,23 @@ mod tests {
             .execute_post_handoff_entry_writer(&writer(target), &mut destination, destination_site)
             .expect("installed entry writer");
         assert_eq!(u64::from_le_bytes(destination), 0x8010);
+
+        let mut narrow = writer(target);
+        narrow.steps[0].write.container_width_bits = 16;
+        narrow.steps[0].write.width = 16;
+        narrow.steps[0].write.stored_integer_fit = Some(StoredIntegerFit {
+            source_width_bits: 64,
+            stored_width_bits: 16,
+            interpretation: IntegerInterpretation::Signed,
+        });
+        let error = installed
+            .populate_post_handoff_entry_writer_context(
+                &narrow,
+                destination.len(),
+                destination_site,
+            )
+            .expect_err("an installed address outside stored range cannot populate a context");
+        assert!(error.0.contains("does not fit"), "{}", error.0);
 
         let mut checked_writer = writer(target);
         let mut low_half = checked_writer.steps[0].clone();
@@ -2030,6 +2064,7 @@ mod tests {
                 destination_lsb: 0,
                 source_lsb: 0,
                 width: 64,
+                stored_integer_fit: None,
             },
             source: PostHandoffWriterSource::Resolve(target),
         };
