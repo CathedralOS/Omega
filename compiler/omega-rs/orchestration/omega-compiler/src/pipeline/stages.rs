@@ -53,6 +53,7 @@ pub(super) struct EmittedProgram {
     pub(super) object: omega_object_file::ObjectPlan,
     pub(super) relocations: omega_object_file::RelocationPlan,
     pub(super) encoded_machine_code: omega_machine_bytes::EncodedMachineCode,
+    pub(super) encoded_machine_semantics: omega_machine_bytes::EncodedMachineSemanticSummary,
     pub(super) text_bytes: Vec<u8>,
     pub(super) data_bytes: Vec<u8>,
 }
@@ -569,6 +570,7 @@ pub(super) fn backend_plan_to_native_image_payload(
             object: plan.object.clone(),
             relocations: plan.relocations.clone(),
             encoded_machine_code: plan.encoded_machine.code.clone(),
+            encoded_machine_semantics: plan.encoded_machine.semantics.clone(),
             text_bytes,
             data_bytes: plan.data.bytes.storage_slice().to_vec(),
         };

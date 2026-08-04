@@ -549,6 +549,7 @@ dependencies = [
 name = "omega-image-emission"
 version = "0.1.0"
 dependencies = [
+ "omega-calling-conventions",
  "omega-image",
  "omega-image-elf",
  "omega-image-macho",
@@ -556,6 +557,7 @@ dependencies = [
  "omega-isa-aarch64",
  "omega-isa-x86_64",
  "omega-machine-bytes",
+ "omega-machine-instructions",
  "omega-object-file",
  "omega-target",
  "omega-target-operations",
