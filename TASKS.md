@@ -882,7 +882,7 @@ proves complete region coverage, and composes admitted leaves under their
 separate provenance. Do not add a second whole-image decoder/admission path.
 
 The existing single final-region artifact now carries the domain-separated
-`omega.final-footprint-certificate` schema, format version 71, and a certificate
+`omega.final-footprint-certificate` schema, format version 72, and a certificate
 fingerprint over its final placement binding, compiler-text derivation, and
 complete region inventory. Its explicit completeness flags remain false until
 compiler-body footprint decoding and admitted-leaf evidence land. The envelope
@@ -949,14 +949,18 @@ immediate/byte-length parameters now form a second exact leaf: replay consumes
 the plan-selected parameter and result registers, requires the sole
 result-storage relocation, and adds the AArch64 X16[/X17] store-address scratch
 to dedicated `CompilerBodyOutboundSyscallResult` evidence. Other storage/data
-operand classes remain separate. No-result calls may now load scalar arguments
-from runtime frame or machine storage: final replay derives every argument's
-exact relocation site, rejects any extra record, and matches the plan-owned
-scratch and control leaf to
-`CompilerBodyOutboundSyscallStorageArguments`. Address, text/data,
-composite, and imported calls remain incomplete. Result-bearing calls may now
-combine those runtime-scalar argument relocations with the exact result-region
-relocation and offset-sensitive result-store scratch under
+operand classes remain separate. No-result calls may now consume scalar
+values, string pointer/length descriptor fields, pointee descriptor fields, or
+the address of a runtime frame/machine place. Final replay derives every
+runtime-storage argument's exact relocation site, rejects any extra record,
+and matches the plan-owned scratch and control leaf to
+`CompilerBodyOutboundSyscallStorageArguments`. The AArch64 inline bounded-
+buffer pointer subset is closed only while its content offset fits the
+encoder's immediate-address form; x86-64 accepts the full encoder-supported
+offset range. Static data-object addresses, composite adapters, and imported
+calls remain incomplete. Result-bearing calls may combine those same runtime-
+storage argument relocations with the exact result-region relocation and
+offset-sensitive result-store scratch under
 `CompilerBodyOutboundSyscallResultStorageArguments`. The final validator now
 also
 replays register-, stack-, and indirect-pointer entry argument copies plus the

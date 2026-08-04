@@ -1031,10 +1031,37 @@ pub fn derive_boundary_compiler_body_outbound_syscall_footprint(
     Ok(evidence)
 }
 
-/// Derive no-result outbound syscall leaves that load one or more scalar
-/// arguments from runtime storage. Their marshallers use only the normalized
-/// syscall plan's ordinary-clobber set; exact storage relocations are retained
-/// later beside the encoded instruction.
+fn abstract_outbound_syscall_storage_argument_is_closed(
+    architecture: omega_target::Architecture,
+    operand: &omega_abstract_operations::InstructionOperand,
+) -> bool {
+    use omega_abstract_operations::InstructionOperandKind;
+
+    match operand.kind {
+        InstructionOperandKind::RuntimeStringPointer {
+            byte_offset,
+            is_bounded_buffer: true,
+            ..
+        } => {
+            architecture == omega_target::Architecture::X86_64
+                || byte_offset
+                    .checked_add(8)
+                    .is_some_and(|content_offset| content_offset <= 4095)
+        }
+        InstructionOperandKind::RuntimeStringPointer { .. }
+        | InstructionOperandKind::RuntimeStringLength { .. }
+        | InstructionOperandKind::RuntimePointeeStringPointer { .. }
+        | InstructionOperandKind::RuntimePointeeStringLength { .. }
+        | InstructionOperandKind::RuntimeScalarInteger { .. }
+        | InstructionOperandKind::RuntimeStorageAddress { .. } => true,
+        _ => false,
+    }
+}
+
+/// Derive no-result outbound syscall leaves that marshal one or more values,
+/// descriptor fields, or addresses from runtime storage. Their marshallers use
+/// only the normalized syscall plan's ordinary-clobber set; exact storage
+/// relocations are retained later beside the encoded instruction.
 pub fn derive_boundary_compiler_body_outbound_syscall_storage_arguments_footprint(
     boundary: &ValidatedBoundaryEntryPlan,
     input: &crate::InstructionSelectionInput<'_>,
@@ -1080,10 +1107,7 @@ pub fn derive_boundary_compiler_body_outbound_syscall_storage_arguments_footprin
             continue;
         };
         let has_storage = arguments.iter().any(|operand| {
-            matches!(
-                operand.kind,
-                InstructionOperandKind::RuntimeScalarInteger { .. }
-            )
+            abstract_outbound_syscall_storage_argument_is_closed(input.target.architecture, operand)
         });
         if !matches!(binding.mechanism, HostBindingMechanism::Syscall { .. })
             || operation.operation_key.uses_linux_timespec_result()
@@ -1100,7 +1124,9 @@ pub fn derive_boundary_compiler_body_outbound_syscall_storage_arguments_footprin
                     operand.kind,
                     InstructionOperandKind::ImmediateInteger(_)
                         | InstructionOperandKind::ByteLength(_)
-                        | InstructionOperandKind::RuntimeScalarInteger { .. }
+                ) || abstract_outbound_syscall_storage_argument_is_closed(
+                    input.target.architecture,
+                    operand,
                 )
             })
         {
@@ -1221,10 +1247,7 @@ fn derive_boundary_compiler_body_outbound_syscall_result_footprint_for_arguments
             continue;
         };
         let has_storage_argument = arguments.iter().any(|operand| {
-            matches!(
-                operand.kind,
-                InstructionOperandKind::RuntimeScalarInteger { .. }
-            )
+            abstract_outbound_syscall_storage_argument_is_closed(input.target.architecture, operand)
         });
         if !matches!(binding.mechanism, HostBindingMechanism::Syscall { .. })
             || operation.operation_key.uses_linux_timespec_result()
@@ -1241,7 +1264,9 @@ fn derive_boundary_compiler_body_outbound_syscall_result_footprint_for_arguments
                     operand.kind,
                     InstructionOperandKind::ImmediateInteger(_)
                         | InstructionOperandKind::ByteLength(_)
-                        | InstructionOperandKind::RuntimeScalarInteger { .. }
+                ) || abstract_outbound_syscall_storage_argument_is_closed(
+                    input.target.architecture,
+                    operand,
                 )
             })
         {
@@ -1979,6 +2004,63 @@ mod tests {
         CallingPolicy, MachineRegime, MachineRegister, MachineState, ValueShape,
         evaluate_ordinary_boundary_entry_plan,
     };
+
+    #[test]
+    fn outbound_syscall_storage_arguments_close_over_runtime_address_shapes() {
+        use omega_abstract_operations::{
+            InstructionOperand, InstructionOperandKind, RuntimeStorageRegion,
+        };
+
+        let runtime_address = InstructionOperand {
+            kind: InstructionOperandKind::RuntimeStorageAddress {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 64,
+            },
+        };
+        let descriptor_length = InstructionOperand {
+            kind: InstructionOperandKind::RuntimePointeeStringLength {
+                region: RuntimeStorageRegion::Machine,
+                byte_offset: 32,
+            },
+        };
+        let bounded_at_aarch64_limit = InstructionOperand {
+            kind: InstructionOperandKind::RuntimeStringPointer {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 4087,
+                is_bounded_buffer: true,
+            },
+        };
+        let bounded_beyond_aarch64_limit = InstructionOperand {
+            kind: InstructionOperandKind::RuntimeStringPointer {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 4088,
+                is_bounded_buffer: true,
+            },
+        };
+
+        for operand in [&runtime_address, &descriptor_length] {
+            assert!(abstract_outbound_syscall_storage_argument_is_closed(
+                omega_target::Architecture::X86_64,
+                operand,
+            ));
+            assert!(abstract_outbound_syscall_storage_argument_is_closed(
+                omega_target::Architecture::Aarch64,
+                operand,
+            ));
+        }
+        assert!(abstract_outbound_syscall_storage_argument_is_closed(
+            omega_target::Architecture::Aarch64,
+            &bounded_at_aarch64_limit,
+        ));
+        assert!(!abstract_outbound_syscall_storage_argument_is_closed(
+            omega_target::Architecture::Aarch64,
+            &bounded_beyond_aarch64_limit,
+        ));
+        assert!(abstract_outbound_syscall_storage_argument_is_closed(
+            omega_target::Architecture::X86_64,
+            &bounded_beyond_aarch64_limit,
+        ));
+    }
 
     #[test]
     fn inbound_writes_consume_the_exact_selected_register() {
