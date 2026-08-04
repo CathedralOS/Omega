@@ -2106,9 +2106,15 @@ ordinary code never receives a raw executable address.
   total-write evidence derived from the field's admitted semantic range; direct
   stable-owned mutation consumes it to store exactly the physical width. Direct
   guards also reselect the stored projection and compare its widened semantic
-  value rather than reading the carrier width from raw storage. Remaining work
-  is concrete proved-fit mutation lowering. Read-only interpreter record views
-  now perform the same stored-width decode. The portable filesystem stat record
+  value rather than reading the carrier width from raw storage. Concrete
+  proved-fit mutation is now live for exact compile-time integers and runtime
+  assignment values whose Psi-checked declared range wholly fits the stored
+  encoding; checked values retain their use-site type reference so Omega
+  consumes the validated declaration rather than reconstructing a range from
+  layout shape. An unconstrained runtime value remains fail-closed. Remaining
+  mutation work is serializing flow-refined (for example stable-guard) range
+  discharge into checked facts. Read-only interpreter record views now perform
+  the same stored-width decode. The portable filesystem stat record
   has wide semantic carriers, while Darwin, Linux x86-64, Linux AArch64, and
   Windows target policies retain their physical widths; both Linux kernel
   layouts validate through the cross-target fstat canary. Native Linux runtime

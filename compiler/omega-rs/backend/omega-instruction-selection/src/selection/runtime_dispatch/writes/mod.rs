@@ -741,7 +741,7 @@ fn select_runtime_storage_resolved_scalar_mutation_write_in_table_with_scratch(
         return true;
     }
 
-    if let Some(kind) = mutation::select_runtime_total_stored_integer_mutation_write_in_table(
+    if let Some(kind) = mutation::select_runtime_stored_integer_mutation_write_in_table(
         input,
         dispatch_index,
         target_source_key,

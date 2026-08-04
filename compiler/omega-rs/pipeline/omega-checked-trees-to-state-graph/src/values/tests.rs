@@ -19,6 +19,7 @@ fn state_value_summary_keeps_values_for_matching_state() {
             statement_index: 3,
             role: CheckedValueStatementRole::AssignmentValue,
         },
+        ..CheckedValueFact::default()
     });
     program.facts.values.values.insert(CheckedValueFact {
         expression,
@@ -28,6 +29,7 @@ fn state_value_summary_keeps_values_for_matching_state() {
             statement_index: 4,
             role: CheckedValueStatementRole::CallArgument,
         },
+        ..CheckedValueFact::default()
     });
 
     let mut state_graph = StateGraph::default();
@@ -76,6 +78,7 @@ fn state_value_summary_carries_nested_checked_policy_adapter_evidence() {
     program.facts.values.values.insert(CheckedValueFact {
         expression: root_expression,
         origin,
+        ..CheckedValueFact::default()
     });
     program
         .facts

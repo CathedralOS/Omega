@@ -433,8 +433,13 @@ raw storage. Read-only interpreter record views now perform the same exact-width
 signed/unsigned decode. The portable filesystem stat record uses wide semantic
 carriers while the Darwin, Linux x86-64, Linux AArch64, and Windows policies own
 their physical integer widths; both Linux kernel layouts cross-validate through
-their native fstat plans. Concrete proved-fit mutation is still outstanding;
-ordinary scalar resolution, mutable recasts, and by-value boundary
+their native fstat plans. Concrete proved-fit mutation now admits exact
+compile-time integers and runtime assignment values whose Psi-checked declared
+range wholly fits the stored encoding. The checked value fact retains the
+use-site type reference; Omega consumes that validated declaration and keeps
+unconstrained values fail-closed. Flow-refined proof results still need a
+durable checked fact before stable-guard-only writes can lower. Ordinary scalar
+resolution, mutable recasts, and by-value boundary
 classification reject rather than treating `IntegerAt` as `At` or truncating
 through the scalar materializer.
 The admitted `compact_binary` realization now derives bounded repeated framing

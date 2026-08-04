@@ -42269,6 +42269,83 @@ fn plan_laid_integer_at_total_write_exit_canary_runs_and_cross_compiles() {
 }
 
 #[test]
+fn plan_laid_integer_at_proved_write_exit_canary_runs_and_cross_compiles() {
+    let canary = pass_canary("layouts/runtime_plan_laid_integer_at_proved_write_exit");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-plan-laid-integer-at-proved-write-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("proved-fit IntegerAt mutation canary should compile natively");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("proved-fit IntegerAt mutation canary should run");
+    assert_eq!(output.status.code(), Some(72));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    for target in ["windows_x64", "linux_arm64"] {
+        let cross_dir = std::env::temp_dir().join(format!(
+            "omega-plan-laid-integer-at-proved-write-{target}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&cross_dir);
+        let source_dir = cross_dir.join("src");
+        fs::create_dir_all(&source_dir).expect("create proved-fit IntegerAt cross source");
+        fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
+            .expect("copy proved-fit IntegerAt canary");
+        fs::write(
+            source_dir.join("build.omg"),
+            format!("target {target} {{\n}}\n"),
+        )
+        .expect("write target manifest");
+        compile(CompileOptions {
+            root_path: source_dir.join("main.omg"),
+            build_dir: Some(cross_dir.join("build")),
+            target_name: Some(target.into()),
+            write_output: true,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "proved-fit IntegerAt mutation should cross-compile for {target}: {diagnostics:?}"
+            )
+        });
+        let _ = fs::remove_dir_all(&cross_dir);
+    }
+}
+
+#[test]
+fn plan_laid_integer_at_unproved_write_stays_rejected() {
+    let canary = pass_canary("layouts/runtime_plan_laid_integer_at_proved_write_exit");
+    let source = fs::read_to_string(canary.join("main.omg"))
+        .expect("read proved-fit IntegerAt canary")
+        .replace("source: i64 [-128..=127];", "source: i64;")
+        .replace("    self.source = -9;\n", "");
+    let temp_dir = std::env::temp_dir().join(format!(
+        "omega-plan-laid-integer-at-unproved-write-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&temp_dir);
+    fs::create_dir_all(&temp_dir).expect("create unproved IntegerAt source directory");
+    let main_path = temp_dir.join("main.omg");
+    fs::write(&main_path, source).expect("write unproved IntegerAt source");
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(temp_dir.join("build")),
+        target_name: None,
+        write_output: true,
+    })
+    .expect_err("an unconstrained value must not narrow into IntegerAt storage");
+    let _ = fs::remove_dir_all(&temp_dir);
+}
+
+#[test]
 fn plan_laid_value_by_value_param_exit_canary_runs() {
     // PLAN-LAID VALUE TYPES across a BY-VALUE parameter (layouts L4): the same
     // `Spread16<Gdtish>` spread placement must survive being handed to a state
@@ -43002,6 +43079,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "layouts/runtime_plan_laid_value_field_exit",
     "layouts/runtime_plan_laid_compact_bits_exit",
     "layouts/runtime_plan_laid_integer_at_projection_exit",
+    "layouts/runtime_plan_laid_integer_at_proved_write_exit",
     "layouts/runtime_plan_laid_integer_at_total_write_exit",
     "layouts/runtime_plan_laid_value_by_value_param_exit",
     "layouts/runtime_plan_laid_record_view_exit",

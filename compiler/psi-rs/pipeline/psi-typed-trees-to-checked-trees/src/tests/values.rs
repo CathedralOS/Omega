@@ -45,6 +45,25 @@ fn materializes_checked_value_facts_for_statement_expressions() {
         )),
         "assignment value should be visible as a checked value"
     );
+    let assignment_value = values
+        .values
+        .iter()
+        .map(|(_, value)| value)
+        .find(|value| {
+            matches!(
+                value.origin,
+                psi_checked_trees::CheckedValueOrigin::StateStatement {
+                    role: CheckedValueStatementRole::AssignmentValue,
+                    ..
+                }
+            )
+        })
+        .expect("assignment value fact");
+    assert_eq!(
+        typed.primitive_type_reference(assignment_value.type_reference),
+        Some(psi_typed_trees::types::PrimitiveType::I32),
+        "checked assignment values should retain their use-site declared type"
+    );
     assert!(
         values.values.iter().any(|(_, value)| matches!(
             value.origin,

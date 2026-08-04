@@ -92,9 +92,17 @@ impl ValueFactBuilder<'_> {
             return;
         }
 
-        self.facts
-            .values
-            .insert(CheckedValueFact { expression, origin });
+        let type_reference = crate::operators::expression_type_reference_for_origin(
+            self.program,
+            expression,
+            origin,
+        )
+        .unwrap_or_else(psi_typed_trees::types::TypeReferenceHandle::invalid);
+        self.facts.values.insert(CheckedValueFact {
+            expression,
+            origin,
+            type_reference,
+        });
 
         self.collect_expression_children(expression);
     }
