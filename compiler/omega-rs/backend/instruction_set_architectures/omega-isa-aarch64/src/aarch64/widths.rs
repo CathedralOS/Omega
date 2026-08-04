@@ -313,6 +313,13 @@ pub fn runtime_text_buffer_materialize_to_runtime_frame_indexed_width(
     runtime_frame_index_setup_width(element_byte_size, field_byte_offset) + 52
 }
 
+pub fn runtime_text_indexed_literal_append_buffer_address_offset(
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> usize {
+    runtime_frame_index_setup_width(element_byte_size, field_byte_offset) + 4
+}
+
 pub fn runtime_text_indexed_buffer_materialize_buffer_address_offset(
     element_byte_size: usize,
     field_byte_offset: usize,

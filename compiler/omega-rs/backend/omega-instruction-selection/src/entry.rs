@@ -1061,9 +1061,9 @@ pub fn derive_boundary_compiler_body_place_string_write_footprint<'instruction>(
 }
 
 /// Derive the target-encoder footprint for compiler-body runtime-text
-/// materialization. This is ordinary lowering evidence: Psi has already
-/// established the text operation, while Omega retains the exact buffer/place
-/// recipe that the final artifact validator can replay.
+/// assembly. This is ordinary lowering evidence: Psi has already established
+/// the text operation, while Omega retains the exact buffer/place recipe that
+/// the final artifact validator can replay.
 pub fn derive_boundary_compiler_body_text_assembly_write_footprint<'instruction>(
     boundary: &ValidatedBoundaryEntryPlan,
     instructions: impl IntoIterator<Item = &'instruction SelectedInstructionKind>,
@@ -1072,22 +1072,51 @@ pub fn derive_boundary_compiler_body_text_assembly_write_footprint<'instruction>
     let mut registers = Vec::new();
     let mut additional_state = MachineStateSet::empty();
     for instruction in instructions {
-        let SelectedInstructionKind::MaterializeTextBufferToPlace { target, .. } = instruction
-        else {
-            continue;
+        let (target, write_kind) = match instruction {
+            SelectedInstructionKind::MaterializeTextBufferToPlace { target, .. } => (target, 0u8),
+            SelectedInstructionKind::AppendTextLiteralToPlace { target, .. } => (target, 1u8),
+            _ => continue,
         };
         let shape = crate::classify_write_place_shape(target);
-        let (writes, state) = match (architecture, shape) {
+        let (writes, state) = match (architecture, shape, write_kind) {
+            (
+                omega_target::Architecture::X86_64,
+                crate::WritePlaceShape::Direct { .. } | crate::WritePlaceShape::Pointee { .. },
+                1,
+            ) => (
+                omega_isa_x86_64::runtime_text_literal_append_register_writes(),
+                omega_isa_x86_64::runtime_text_literal_append_additional_machine_state(),
+            ),
+            (
+                omega_target::Architecture::X86_64,
+                crate::WritePlaceShape::FrameIndexed { .. },
+                1,
+            ) => (
+                omega_isa_x86_64::runtime_text_literal_append_to_runtime_frame_indexed_register_writes(),
+                omega_isa_x86_64::runtime_text_literal_append_additional_machine_state(),
+            ),
             (
                 omega_target::Architecture::X86_64,
                 crate::WritePlaceShape::Direct { .. },
+                0,
             ) => (
                 omega_isa_x86_64::runtime_text_buffer_materialize_register_writes(),
                 omega_isa_x86_64::runtime_text_buffer_materialize_additional_machine_state(),
             ),
             (
                 omega_target::Architecture::Aarch64,
+                crate::WritePlaceShape::Direct { .. }
+                | crate::WritePlaceShape::Pointee { .. }
+                | crate::WritePlaceShape::FrameIndexed { .. },
+                1,
+            ) => (
+                omega_isa_aarch64::runtime_text_literal_append_register_writes(),
+                omega_isa_aarch64::runtime_text_literal_append_additional_machine_state(),
+            ),
+            (
+                omega_target::Architecture::Aarch64,
                 crate::WritePlaceShape::Direct { .. },
+                0,
             ) => (
                 omega_isa_aarch64::runtime_text_buffer_materialize_register_writes(),
                 omega_isa_aarch64::runtime_text_buffer_materialize_additional_machine_state(),
@@ -1095,6 +1124,7 @@ pub fn derive_boundary_compiler_body_text_assembly_write_footprint<'instruction>
             (
                 omega_target::Architecture::Aarch64,
                 crate::WritePlaceShape::Pointee { .. },
+                0,
             ) => (
                 omega_isa_aarch64::runtime_text_buffer_materialize_to_runtime_pointee_register_writes(),
                 omega_isa_aarch64::runtime_text_buffer_materialize_additional_machine_state(),
@@ -1102,6 +1132,7 @@ pub fn derive_boundary_compiler_body_text_assembly_write_footprint<'instruction>
             (
                 omega_target::Architecture::Aarch64,
                 crate::WritePlaceShape::FrameIndexed { .. },
+                0,
             ) => (
                 omega_isa_aarch64::runtime_text_buffer_materialize_to_runtime_frame_indexed_register_writes(),
                 omega_isa_aarch64::runtime_text_buffer_materialize_additional_machine_state(),

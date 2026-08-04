@@ -1127,7 +1127,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         executable_regions.contains(
             "\"certificate_schema\": \"omega.final-footprint-certificate\""
         )
-            && executable_regions.contains("\"certificate_format_version\": 51")
+            && executable_regions.contains("\"certificate_format_version\": 52")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
             && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")
@@ -2559,6 +2559,52 @@ fn compiler_body_text_buffer_materialize_footprints_reach_artifacts() {
                 && footprints.contains(expected_register)
                 && footprints.contains("\"enumeration_complete\": false"),
             "{target} artifact must retain text-buffer materialization evidence without claiming completeness"
+        );
+        let _ = fs::remove_dir_all(&scratch);
+    }
+}
+
+#[test]
+fn compiler_body_text_literal_append_footprints_reach_artifacts() {
+    let canary = pass_canary("text/runtime_local_struct_string_field_concat_exit");
+    for (target, expected_register) in [
+        ("linux_x64", "\"X86Rcx\""),
+        ("linux_arm64", "\"Aarch64X(26)\""),
+    ] {
+        let scratch = std::env::temp_dir().join(format!(
+            "omega-compiler-body-text-literal-append-footprint-{target}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&scratch);
+        let source = scratch.join("src");
+        let output = scratch.join("out");
+        fs::create_dir_all(&source)
+            .expect("create compiler-body text literal-append source directory");
+        fs::copy(canary.join("main.omg"), source.join("main.omg"))
+            .expect("copy compiler-body text literal-append canary");
+        fs::write(
+            source.join("build.omg"),
+            format!("target {target} {{\n}}\n"),
+        )
+        .expect("write compiler-body text literal-append target");
+        compile(CompileOptions {
+            root_path: source.join("main.omg"),
+            build_dir: Some(output.clone()),
+            target_name: Some(target.into()),
+            write_output: true,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "compiler-body text literal appends should compile for {target}: {diagnostics:?}"
+            )
+        });
+        let footprints = fs::read_to_string(output.join("08_boundary_footprints.json"))
+            .expect("compiler-body text literal-append evidence should be written");
+        assert!(
+            footprints.contains("\"origin\": \"compiler_body_text_assembly_write\"")
+                && footprints.contains(expected_register)
+                && footprints.contains("\"enumeration_complete\": false"),
+            "{target} artifact must retain text literal-append evidence without claiming completeness"
         );
         let _ = fs::remove_dir_all(&scratch);
     }
