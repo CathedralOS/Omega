@@ -3178,11 +3178,33 @@ fn check_proposition_law_conformance(
             instantiated.proposition = *symbol;
             instantiated.name = name.clone();
         }
-        let binder_labels = instantiated
-            .binder_arguments
-            .iter()
-            .map(|argument| argument.display_name())
-            .collect::<Vec<_>>();
+        let binder_labels = if instantiated.binder_arguments.is_empty() {
+            match synthesize_indexed_law_binder_labels(
+                program,
+                law,
+                &instantiated,
+                requirement,
+                entry_state,
+            ) {
+                Some(labels) => labels,
+                None => {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "machine `{}` satisfies `{}::{}` but the selected proposition family `{}` requires an indexed binder telescope that cannot be synthesized from the law's representative parameters",
+                        machine.name,
+                        trait_definition.name,
+                        requirement.name,
+                        instantiated.name,
+                    )));
+                    continue;
+                }
+            }
+        } else {
+            instantiated
+                .binder_arguments
+                .iter()
+                .map(|argument| argument.display_name())
+                .collect::<Vec<_>>()
+        };
         let argument_labels = program
             .expression_table
             .expression_handles(instantiated.arguments)
@@ -3199,6 +3221,13 @@ fn check_proposition_law_conformance(
             )
             .map(|formula| formula.identity_label())
         else {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` satisfies `{}::{}` but its proposition law `{}` does not normalize after trait-family and indexed-binder substitution",
+                machine.name,
+                trait_definition.name,
+                requirement.name,
+                instantiated.name,
+            )));
             continue;
         };
         let matched = proven_propositions.iter().any(|proven| {
@@ -3213,6 +3242,79 @@ fn check_proposition_law_conformance(
                 machine.name, trait_definition.name, requirement.name,
             )));
         }
+    }
+}
+
+fn synthesize_indexed_law_binder_labels(
+    program: &TypedTrees,
+    authored_law: &psi_typed_trees::proposition::PropositionApplication,
+    instantiated_law: &psi_typed_trees::proposition::PropositionApplication,
+    requirement: &StateSignature,
+    entry_state: &psi_typed_trees::state::State,
+) -> Option<Vec<String>> {
+    let declaration = program
+        .propositions()
+        .iter()
+        .find(|declaration| declaration.symbol == instantiated_law.proposition)?;
+    let binder_count = program.proposition_binders(declaration).len();
+    if binder_count == 0 {
+        return Some(Vec::new());
+    }
+    let required_parameters = program.state_signature_parameters(requirement);
+    let actual_parameters = program.state_parameters(entry_state);
+    let mut labels = Vec::with_capacity(binder_count);
+    for argument in program
+        .expression_table
+        .expression_handles(authored_law.arguments)
+    {
+        let required_index =
+            proposition_law_parameter_index(program, *argument, required_parameters)?;
+        let actual = actual_parameters.get(required_index)?;
+        let generic_arguments = generic_type_argument_handles(program, actual.type_reference)?;
+        labels.extend(
+            generic_arguments
+                .iter()
+                .map(|argument| program.display_type_reference(*argument)),
+        );
+    }
+    (labels.len() == binder_count).then_some(labels)
+}
+
+fn proposition_law_parameter_index(
+    program: &TypedTrees,
+    argument: ExpressionHandle,
+    parameters: &[psi_typed_trees::signature::StateParameter],
+) -> Option<usize> {
+    let ExpressionNode::Name(path) = program.expression_table.expression(argument) else {
+        return None;
+    };
+    let name = program
+        .expression_table
+        .name_path_members(path.members)
+        .last()?;
+    parameters.iter().position(|parameter| {
+        (path.symbol.is_valid() && parameter.symbol == path.symbol)
+            || parameter.name.as_str() == name.as_str()
+    })
+}
+
+fn generic_type_argument_handles(
+    program: &TypedTrees,
+    type_reference: psi_typed_trees::types::TypeReferenceHandle,
+) -> Option<&[psi_typed_trees::types::TypeReferenceHandle]> {
+    match program.type_reference_table.type_reference(type_reference) {
+        psi_typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
+            generic_type_argument_handles(program, *referee)
+        }
+        psi_typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+            generic_type_argument_handles(program, *base_type)
+        }
+        psi_typed_trees::types::TypeReferenceNode::Generic { arguments, .. } => Some(
+            program
+                .type_reference_table
+                .type_reference_handles(*arguments),
+        ),
+        _ => None,
     }
 }
 

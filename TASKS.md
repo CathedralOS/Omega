@@ -1691,8 +1691,15 @@ and allocation handles expose no compiler-owned stack/control storage.
      the authored telescope, enter normalized identity and snapshots, survive
      monomorphization, and instantiate generic proposition value signatures.
      Cross-category, wrong-width/wrong-type const, and concrete value-signature
-     mismatches reject. Indexed-law binder synthesis, selected witness
-     evidence, and terminal-Psi identity remain in this rung;
+     mismatches reject. Indexed-law synthesis slice landed 2026-08-03:
+     proposition-law conformance expands one complete fresh carrier telescope
+     per representative parameter, validates each proof-machine group against
+     the carrier's binder kinds and contracts, treats a bare indexed carrier
+     only as its family identity, and reconstructs the concrete proposition's
+     binder labels from the proof machine's representative types before exact
+     normalized-law matching. Missing, reused, or swapped representative
+     packs reject. Selected witness evidence and terminal-Psi identity remain
+     in this rung;
   2. add the proof stratum to selected-conformance projection and permit
      by-value `dyn` only when the complete normalized value has no runtime
      carrier;
