@@ -845,7 +845,7 @@ pub fn derive_boundary_compiler_body_place_integer_write_footprint<'instruction>
     Ok(evidence)
 }
 
-/// Derive the closed encoder-family footprint for direct compiler-body binary
+/// Derive the closed encoder-family footprint for retained compiler-body binary
 /// writes. The retained operand arena is the one byte emission consumes, so
 /// nested evaluator stack/control-state needs cannot drift from this evidence.
 pub fn derive_boundary_compiler_body_place_binary_write_footprint<'instruction>(
@@ -873,6 +873,7 @@ pub fn derive_boundary_compiler_body_place_binary_write_footprint<'instruction>(
                 | crate::WritePlaceShape::Pointee { .. }
                 | crate::WritePlaceShape::FrameIndexed { .. }
                 | crate::WritePlaceShape::FrameBaseIndexed { .. }
+                | crate::WritePlaceShape::MachineIndexed { .. }
         ) {
             continue;
         }

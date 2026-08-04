@@ -1367,6 +1367,7 @@ fn validate_compiler_function_instruction_boundaries(
                                 | CompilerBodyPlaceIntegerWriteShape::Pointee { .. }
                                 | CompilerBodyPlaceIntegerWriteShape::FrameIndexed { .. }
                                 | CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. }
+                                | CompilerBodyPlaceIntegerWriteShape::MachineIndexed { .. }
                         ) {
                             return Err(Diagnostic::error(
                                 "final compiler-body binary-write subset retained an unsupported target",
@@ -1438,6 +1439,26 @@ fn validate_compiler_function_instruction_boundaries(
                                 } => omega_isa_aarch64::encode_runtime_frame_base_indexed_binary_write(
                                     &code.runtime_value_operands,
                                     base_byte_offset,
+                                    index_offset,
+                                    index_byte_size,
+                                    element_byte_size,
+                                    field_byte_offset,
+                                    byte_size,
+                                    left,
+                                    operator,
+                                    right,
+                                )?,
+                                CompilerBodyPlaceIntegerWriteShape::MachineIndexed {
+                                    base_byte_offset,
+                                    index_region,
+                                    index_offset,
+                                    index_byte_size,
+                                    element_byte_size,
+                                    field_byte_offset,
+                                } => omega_isa_aarch64::encode_runtime_machine_indexed_binary_write(
+                                    &code.runtime_value_operands,
+                                    base_byte_offset,
+                                    index_region,
                                     index_offset,
                                     index_byte_size,
                                     element_byte_size,
@@ -2301,6 +2322,7 @@ fn compiler_instruction_footprint(
                     | CompilerBodyPlaceIntegerWriteShape::Pointee { .. }
                     | CompilerBodyPlaceIntegerWriteShape::FrameIndexed { .. }
                     | CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. }
+                    | CompilerBodyPlaceIntegerWriteShape::MachineIndexed { .. }
             ) {
                 return None;
             }
@@ -4218,6 +4240,7 @@ fn compiler_place_binary_write_address_sites(
             | CompilerBodyPlaceIntegerWriteShape::Pointee { .. }
             | CompilerBodyPlaceIntegerWriteShape::FrameIndexed { .. }
             | CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. }
+            | CompilerBodyPlaceIntegerWriteShape::MachineIndexed { .. }
     ) {
         return Err(Diagnostic::error(
             "final compiler-body binary-write relocation recipe retained an unsupported target",
@@ -4257,10 +4280,41 @@ fn compiler_place_binary_write_address_sites(
                 field_byte_offset,
                 0,
             ),
+            CompilerBodyPlaceIntegerWriteShape::MachineIndexed {
+                base_byte_offset,
+                index_region,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+            } => omega_isa_aarch64::runtime_machine_indexed_integer_write_width(
+                base_byte_offset,
+                index_region,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+                0,
+            ),
             _ => unreachable!("binary-write shape checked above"),
         },
     };
     let mut sites = vec![(0, target.region)];
+    if architecture == Architecture::Aarch64
+        && let CompilerBodyPlaceIntegerWriteShape::MachineIndexed {
+            base_byte_offset,
+            index_region,
+            ..
+        } = shape
+        && index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+    {
+        sites.push((
+            omega_isa_aarch64::runtime_machine_indexed_integer_runtime_frame_address_offset(
+                base_byte_offset,
+            ),
+            omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+        ));
+    }
     let mut visiting = Vec::new();
     collect_compiler_runtime_value_address_sites(
         architecture,
