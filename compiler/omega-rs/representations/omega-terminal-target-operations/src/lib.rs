@@ -107,6 +107,14 @@ pub enum TerminalTargetOperation {
         when_true: TerminalTargetConditionalBooleanArm,
         when_false: TerminalTargetConditionalBooleanArm,
     },
+    /// Execute Boolean control whose root condition is a recursive runtime
+    /// Boolean expression rather than one direct ABI parameter.
+    ReturnBooleanExpressionConditionalControl {
+        condition_source: ValueId,
+        condition: TerminalTargetBooleanExpression,
+        when_true: TerminalTargetConditionalBooleanArm,
+        when_false: TerminalTargetConditionalBooleanArm,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -156,10 +164,21 @@ pub enum TerminalTargetBooleanControl {
         parameter_index: usize,
         location: TerminalScalarParameterLocation,
     },
+    ReturnExpression {
+        psi_return_edge: EdgeId,
+        source_value: ValueId,
+        expression: TerminalTargetBooleanExpression,
+    },
     Conditional {
         condition_source: ValueId,
         condition_parameter_index: usize,
         condition_location: TerminalScalarParameterLocation,
+        when_true: TerminalTargetConditionalBooleanArm,
+        when_false: TerminalTargetConditionalBooleanArm,
+    },
+    ConditionalExpression {
+        condition_source: ValueId,
+        condition: TerminalTargetBooleanExpression,
         when_true: TerminalTargetConditionalBooleanArm,
         when_false: TerminalTargetConditionalBooleanArm,
     },

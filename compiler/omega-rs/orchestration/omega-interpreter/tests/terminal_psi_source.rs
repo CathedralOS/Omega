@@ -1308,6 +1308,91 @@ fn checked_source_short_circuit_booleans_lower_to_terminal_control() {
 
 #[cfg(unix)]
 #[test]
+fn checked_source_short_circuit_expression_conditions_reach_native_control() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("short-circuit expression-condition canary should compile");
+    let lowered = lower_machine(&checked, "terminal_boolean_equal_and_equal")
+        .expect("short-circuit expression conditions should lower");
+    drop(checked);
+    let semantic_bytes = encode_module(&lowered.semantic_module)
+        .expect("expression-condition control should encode canonically");
+    let semantic_module =
+        decode_module(&semantic_bytes).expect("expression-condition control should decode");
+    let verified = verify_module(
+        &semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("expression-condition control should verify");
+    let fuel = derive_fixed_entry_fuel(&verified, semantic_module.entry)
+        .expect("expression-condition control should have fixed fuel");
+    assert_eq!(fuel.ceiling_units(), 6);
+
+    for (first, second, third) in [
+        (false, false, false),
+        (false, false, true),
+        (false, true, false),
+        (false, true, true),
+        (true, false, false),
+        (true, false, true),
+        (true, true, false),
+        (true, true, true),
+    ] {
+        let expected = first == second && second == third;
+        let expected_units = if first == second { 6 } else { 4 };
+        let measured = interpret_terminal_measured(
+            &verified,
+            &[
+                TerminalScalarValue::Boolean(first),
+                TerminalScalarValue::Boolean(second),
+                TerminalScalarValue::Boolean(third),
+            ],
+        )
+        .expect("expression-condition control should interpret");
+        assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+        assert_eq!(measured.usage().total_units(), expected_units);
+    }
+
+    let abstract_operations = lower_verified_module(&verified)
+        .expect("expression-condition control should cross the Omega boundary");
+    let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
+        .expect("expression-condition control should select for the host");
+    assert!(matches!(
+        target_operations.functions[0].operation,
+        TerminalTargetOperation::ReturnBooleanExpressionConditionalControl { .. }
+    ));
+    let assigned = assign_registers(&target_operations)
+        .expect("expression-condition control homes should assign");
+    let machine_code =
+        emit_machine_code(&assigned).expect("expression-condition control should emit");
+    let object_artifact = build_terminal_object_artifact(&machine_code)
+        .expect("expression-condition control should form an object");
+    let entry = object_artifact.entry_function();
+    for (first, second, third) in [
+        (false, false, false),
+        (false, false, true),
+        (false, true, false),
+        (false, true, true),
+        (true, false, false),
+        (true, false, true),
+        (true, true, false),
+        (true, true, true),
+    ] {
+        let expected = i32::from(first == second && second == third);
+        assert_eq!(
+            run_host_machine_code_with_three_bools(
+                entry.bytes(&object_artifact),
+                first,
+                second,
+                third,
+            ),
+            expected
+        );
+    }
+}
+
+#[cfg(unix)]
+#[test]
 fn source_booleans_reach_constant_and_stack_parameter_machine_code() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("terminal-Psi Boolean source canary should compile");
@@ -2026,6 +2111,58 @@ fn run_host_machine_code_with_two_bools(bytes: &[u8], left: bool, right: bool) -
         .expect("execute terminal Boolean-equality canary")
         .code()
         .expect("terminal Boolean-equality canary exited normally")
+}
+
+#[cfg(unix)]
+fn run_host_machine_code_with_three_bools(
+    bytes: &[u8],
+    first: bool,
+    second: bool,
+    third: bool,
+) -> i32 {
+    let directory = fresh_scratch_directory("omega-terminal-boolean-control-expression");
+    let _cleanup = ScratchDirectory(directory.clone());
+    let assembly_path = directory.join("entry.s");
+    let driver_path = directory.join("driver.c");
+    let executable_path = directory.join("entry");
+    let bytes = bytes
+        .iter()
+        .map(|byte| format!("0x{byte:02x}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let assembly = if cfg!(target_os = "macos") {
+        format!(".text\n.globl _terminal_entry\n.p2align 2\n_terminal_entry:\n.byte {bytes}\n")
+    } else {
+        format!(
+            ".text\n.globl terminal_entry\n.type terminal_entry,@function\nterminal_entry:\n.byte {bytes}\n.size terminal_entry, .-terminal_entry\n.section .note.GNU-stack,\"\",@progbits\n"
+        )
+    };
+    let driver = format!(
+        "#include <stdbool.h>\nextern bool terminal_entry(bool, bool, bool);\nint main(void) {{ return terminal_entry({}, {}, {}); }}\n",
+        if first { "true" } else { "false" },
+        if second { "true" } else { "false" },
+        if third { "true" } else { "false" },
+    );
+    std::fs::write(&assembly_path, assembly)
+        .expect("write Boolean-control-expression assembly harness");
+    std::fs::write(&driver_path, driver).expect("write Boolean-control-expression C harness");
+    let link = Command::new("cc")
+        .arg(&assembly_path)
+        .arg(&driver_path)
+        .arg("-o")
+        .arg(&executable_path)
+        .output()
+        .expect("invoke host C linker driver");
+    assert!(
+        link.status.success(),
+        "host linker rejected Boolean-control-expression machine code:\n{}",
+        String::from_utf8_lossy(&link.stderr)
+    );
+    Command::new(&executable_path)
+        .status()
+        .expect("execute terminal Boolean-control-expression canary")
+        .code()
+        .expect("terminal Boolean-control-expression canary exited normally")
 }
 
 #[cfg(unix)]

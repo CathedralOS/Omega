@@ -1359,9 +1359,12 @@ improvements do not change public identity.
   control lowering: Psi emits an acyclic terminal decision tree, the deciding
   left operand bypasses the right subtree with a smaller measured fuel path,
   and recursive Boolean target/assigned control executes both operators on
-  AArch64 and x86-64 without adding eager logical opcodes. Short-circuit forms
-  nested inside equality and the linear/explicit-conditional producer shapes
-  remain bounded implementation work, not language-design blockers. The
+  AArch64 and x86-64 without adding eager logical opcodes. Recursive Boolean
+  target expressions may now drive those control nodes or appear at their
+  return leaves, so comparisons such as `(a == b) && (b == c)` preserve
+  short-circuit fuel and execute natively. Short-circuit forms nested inside
+  equality and the linear/explicit-conditional producer shapes remain bounded
+  implementation work, not language-design blockers. The
   initial vocabulary now has canonical semantic bytes and a domain-separated
   semantic fingerprint as well: decoding rejects alternate encodings, invalid
   modules, and trailing data, while a golden identity test freezes the format.

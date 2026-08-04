@@ -83,6 +83,13 @@ pub enum TerminalAssignedOperation {
         when_true: TerminalAssignedConditionalBooleanArm,
         when_false: TerminalAssignedConditionalBooleanArm,
     },
+    ReturnBooleanExpressionConditionalControl {
+        condition_source: ValueId,
+        condition_frame: TerminalExpressionFrame,
+        condition: TerminalAssignedBooleanExpression,
+        when_true: TerminalAssignedConditionalBooleanArm,
+        when_false: TerminalAssignedConditionalBooleanArm,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -132,10 +139,23 @@ pub enum TerminalAssignedBooleanControl {
         parameter_index: usize,
         location: TerminalAssignedScalarLocation,
     },
+    ReturnExpression {
+        psi_return_edge: EdgeId,
+        source_value: ValueId,
+        frame: TerminalExpressionFrame,
+        expression: TerminalAssignedBooleanExpression,
+    },
     Conditional {
         condition_source: ValueId,
         condition_parameter_index: usize,
         condition_location: TerminalAssignedScalarLocation,
+        when_true: TerminalAssignedConditionalBooleanArm,
+        when_false: TerminalAssignedConditionalBooleanArm,
+    },
+    ConditionalExpression {
+        condition_source: ValueId,
+        condition_frame: TerminalExpressionFrame,
+        condition: TerminalAssignedBooleanExpression,
         when_true: TerminalAssignedConditionalBooleanArm,
         when_false: TerminalAssignedConditionalBooleanArm,
     },
