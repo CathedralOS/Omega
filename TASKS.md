@@ -944,12 +944,12 @@ validation requires exact x86-64/AArch64 bytes and proves that the instruction
 owns no relocation records. Its semantic leaf footprint is the plan's complete
 ordinary-clobber set plus flags, instruction-pointer, and prescribed control
 transition, matched to dedicated `CompilerBodyOutboundSyscall` evidence under
-the enclosing boundary ceiling. Zero-parameter result-bearing Linux syscalls
-now form a second exact leaf: replay consumes the plan-selected result register,
-requires the sole result-storage relocation, and adds the AArch64 X16[/X17]
-store-address scratch to dedicated `CompilerBodyOutboundSyscallResult`
-evidence. Parameter-bearing value calls, storage/data operands, composites, and
-imports remain incomplete. The final validator now also
+the enclosing boundary ceiling. Result-bearing Linux syscalls with only
+immediate/byte-length parameters now form a second exact leaf: replay consumes
+the plan-selected parameter and result registers, requires the sole
+result-storage relocation, and adds the AArch64 X16[/X17] store-address scratch
+to dedicated `CompilerBodyOutboundSyscallResult` evidence. Storage/data
+operands, composites, and imports remain incomplete. The final validator now also
 replays register-, stack-, and indirect-pointer entry argument copies plus the
 entry `args` slice-descriptor write. Each row retains its normalized ABI/storage
 recipe, requires the exact runtime-frame relocation site even when a stack-held

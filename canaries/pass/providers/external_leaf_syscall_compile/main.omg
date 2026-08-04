@@ -3,12 +3,17 @@
 // number and instruction; this source also joins the general pass corpus.
 boundary trait RawProcess {
     machine process_id() -> i64;
+    machine process_group(id: i64) -> i64;
     machine exit(code: i32);
 }
 
 linux_x64 machine process_id_leaf() -> i64
     satisfies RawProcess::process_id
     via Binding::Syscall(39);
+
+linux_x64 machine process_group_leaf(id: i64) -> i64
+    satisfies RawProcess::process_group
+    via Binding::Syscall(121);
 
 linux_x64 machine exit_leaf(code: i32)
     satisfies RawProcess::exit
@@ -18,14 +23,19 @@ linux_arm64 machine process_id_leaf() -> i64
     satisfies RawProcess::process_id
     via Binding::Syscall(172);
 
+linux_arm64 machine process_group_leaf(id: i64) -> i64
+    satisfies RawProcess::process_group
+    via Binding::Syscall(155);
+
 linux_arm64 machine exit_leaf(code: i32)
     satisfies RawProcess::exit
     via Binding::Syscall(93);
 
-data Main { process: RawProcess; pid: i64; }
+data Main { process: RawProcess; pid: i64; pgid: i64; }
 machine Main::main(&mut self) {
     self.pid = self.process.process_id();
-    transition self.pid > 0 { true -> good() _ -> bad() }
+    self.pgid = self.process.process_group(0);
+    transition self.pid > 0 && self.pgid >= 0 { true -> good() _ -> bad() }
     state good(&mut self) { self.process.exit(70); }
     state bad(&mut self) { self.process.exit(71); }
 }
