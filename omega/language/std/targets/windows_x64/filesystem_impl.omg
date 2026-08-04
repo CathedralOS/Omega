@@ -13,20 +13,20 @@
 // that carrier retain the interpreter's synthetic tail positions so native
 // Windows honestly observes zero while the hermetic model can expose them.
 windows_x64 machine StatLayout::plan(&mut self, schema: Schema) -> Plan {
-    self.entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
-    self.entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 6 } };
-    self.entries[2] = FieldEntry { key: schema.fields[2].key, placement: FieldPlan::At { offset: 8 } };
+    self.entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::IntegerAt { offset: 0, stored_width: 32, interpretation: IntegerInterpretation::Unsigned } };
+    self.entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::IntegerAt { offset: 6, stored_width: 16, interpretation: IntegerInterpretation::Unsigned } };
+    self.entries[2] = FieldEntry { key: schema.fields[2].key, placement: FieldPlan::IntegerAt { offset: 8, stored_width: 16, interpretation: IntegerInterpretation::Unsigned } };
     self.entries[3] = FieldEntry { key: schema.fields[3].key, placement: FieldPlan::At { offset: 64 } };
     self.entries[4] = FieldEntry { key: schema.fields[4].key, placement: FieldPlan::At { offset: 72 } };
     self.entries[5] = FieldEntry { key: schema.fields[5].key, placement: FieldPlan::At { offset: 76 } };
-    self.entries[6] = FieldEntry { key: schema.fields[6].key, placement: FieldPlan::At { offset: 16 } };
+    self.entries[6] = FieldEntry { key: schema.fields[6].key, placement: FieldPlan::IntegerAt { offset: 16, stored_width: 32, interpretation: IntegerInterpretation::Unsigned } };
     self.entries[7] = FieldEntry { key: schema.fields[7].key, placement: FieldPlan::At { offset: 32 } };
     self.entries[8] = FieldEntry { key: schema.fields[8].key, placement: FieldPlan::At { offset: 40 } };
     self.entries[9] = FieldEntry { key: schema.fields[9].key, placement: FieldPlan::At { offset: 80 } };
     self.entries[10] = FieldEntry { key: schema.fields[10].key, placement: FieldPlan::At { offset: 48 } };
     self.entries[11] = FieldEntry { key: schema.fields[11].key, placement: FieldPlan::At { offset: 24 } };
     self.entries[12] = FieldEntry { key: schema.fields[12].key, placement: FieldPlan::At { offset: 88 } };
-    self.entries[13] = FieldEntry { key: schema.fields[13].key, placement: FieldPlan::At { offset: 96 } };
+    self.entries[13] = FieldEntry { key: schema.fields[13].key, placement: FieldPlan::IntegerAt { offset: 96, stored_width: 32, interpretation: IntegerInterpretation::Unsigned } };
     Plan { entries: self.entries, entry_count: 14, size_fixed: 144, size_is_dynamic: false, align: 8 }
 }
 

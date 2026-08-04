@@ -2107,12 +2107,15 @@ ordinary code never receives a raw executable address.
   stable-owned mutation consumes it to store exactly the physical width. Direct
   guards also reselect the stored projection and compare its widened semantic
   value rather than reading the carrier width from raw storage. Remaining work
-  is concrete proved-fit mutation lowering and the Linux metadata
-  policies/canaries that consume it.
+  is concrete proved-fit mutation lowering. Read-only interpreter record views
+  now perform the same stored-width decode. The portable filesystem stat record
+  has wide semantic carriers, while Darwin, Linux x86-64, Linux AArch64, and
+  Windows target policies retain their physical widths; both Linux kernel
+  layouts validate through the cross-target fstat canary. Native Linux runtime
+  confirmation remains platform-gated.
   Ordinary scalar resolution still rejects stored-width fields rather than
-  treating them as `At`; mutable recasts, interpreter record views, and by-value
-  boundary classification stay fail-closed until those consumers use the
-  dedicated encoding metadata.
+  treating them as `At`; mutable recasts and by-value boundary classification
+  stay fail-closed until those consumers use the dedicated encoding metadata.
   Linux `read_dir` now retains the real three-argument `getdents64`
   plan, omits the Darwin-only cursor at selection, and decodes the Linux record
   offsets in both target packages. Direct syscall failures now flow as explicit

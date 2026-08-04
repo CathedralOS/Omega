@@ -7261,13 +7261,13 @@ impl<'program> Evaluator<'program> {
             ));
         }
 
-        let offsets = if let Some(plan) = self
+        let plan = self
             .program
             .plan_laid_layouts
             .iter()
-            .find(|plan| plan.data_name == type_name)
-        {
-            if !plan.integer_fields.is_empty() || plan.offsets.len() != field_specs.len() {
+            .find(|plan| plan.data_name == type_name);
+        let offsets = if let Some(plan) = plan {
+            if plan.offsets.len() != field_specs.len() {
                 visiting.remove(type_name);
                 return Ok(None);
             }
@@ -7289,14 +7289,33 @@ impl<'program> Evaluator<'program> {
 
         let type_symbol = data.symbol;
         let mut field_values = std::collections::BTreeMap::new();
-        for ((name, type_reference, _, _), field_offset) in field_specs.into_iter().zip(offsets) {
-            let Some(value) = self.assemble_record_view_type_inner(
+        for (field_index, ((name, type_reference, _, _), field_offset)) in
+            field_specs.into_iter().zip(offsets).enumerate()
+        {
+            let value = if let Some(integer) = plan.and_then(|plan| {
+                plan.integer_fields
+                    .iter()
+                    .find(|integer| integer.field_index == field_index)
+            }) {
+                let Some(primitive) = self.program.primitive_type_reference(type_reference) else {
+                    visiting.remove(type_name);
+                    return Ok(None);
+                };
+                self.assemble_stored_integer_byte_region(
+                    cells,
+                    base_offset + field_offset,
+                    primitive,
+                    integer.stored_width_bits,
+                    integer.interpretation,
+                )?
+            } else if let Some(value) = self.assemble_record_view_type_inner(
                 type_reference,
                 cells,
                 base_offset + field_offset,
                 visiting,
-            )?
-            else {
+            )? {
+                value
+            } else {
                 visiting.remove(type_name);
                 return Ok(None);
             };
@@ -7322,6 +7341,46 @@ impl<'program> Evaluator<'program> {
             base_offset,
             &mut HashSet::new(),
         )
+    }
+
+    /// Decode one validated `IntegerAt` leaf from its exact physical width and
+    /// extend it into the portable semantic carrier. The layout validator has
+    /// already established a positive whole-byte width through 64 bits and a
+    /// total decode range; the interpreter mirrors native projection here.
+    fn assemble_stored_integer_byte_region(
+        &self,
+        cells: &[Cell],
+        offset: usize,
+        target: PrimitiveType,
+        stored_width_bits: u16,
+        interpretation: psi_layout_plans::IntegerInterpretation,
+    ) -> EvalResult<Value> {
+        if stored_width_bits == 0 || stored_width_bits > 64 || stored_width_bits % 8 != 0 {
+            return trap("stored-integer record view has an invalid physical width");
+        }
+        let byte_count = usize::from(stored_width_bits / 8);
+        let mut bits = 0u64;
+        for byte_index in 0..byte_count {
+            let cell = cells.get(offset + byte_index).ok_or_else(|| {
+                Halt::Trap(format!(
+                    "stored-integer record view reads byte {} past the region",
+                    offset + byte_index
+                ))
+            })?;
+            let byte = cell.borrow().as_int().unwrap_or(0) as u64 & 0xFF;
+            bits |= byte << (8 * byte_index);
+        }
+        if matches!(
+            interpretation,
+            psi_layout_plans::IntegerInterpretation::Signed
+        ) && stored_width_bits < 64
+        {
+            let sign_bit = 1u64 << (stored_width_bits - 1);
+            if bits & sign_bit != 0 {
+                bits |= !0u64 << stored_width_bits;
+            }
+        }
+        Ok(Value::Int(wrap_to_width(bits as i64, target)))
     }
 
     fn assemble_record_view_type_inner(
@@ -7472,8 +7531,7 @@ impl<'program> Evaluator<'program> {
             .iter()
             .find(|plan| plan.data_name == type_name)
         {
-            (plan.integer_fields.is_empty() && plan.offsets.len() == field_layouts.len())
-                .then_some((plan.size, plan.align))
+            (plan.offsets.len() == field_layouts.len()).then_some((plan.size, plan.align))
         } else {
             let mut offset = 0usize;
             let mut max_align = 1usize;

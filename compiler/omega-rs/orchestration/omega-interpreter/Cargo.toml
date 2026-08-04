@@ -14,6 +14,7 @@ psi-symbols = { path = "../../../psi-rs/foundation/psi-symbols" }
 psi-language-core = { path = "../../../psi-rs/foundation/psi-language-core" }
 psi-language-semantics = { path = "../../../psi-rs/foundation/psi-language-semantics" }
 psi-numerics = { path = "../../../psi-rs/foundation/psi-numerics" }
+psi-layout-plans = { path = "../../../psi-rs/foundation/psi-layout-plans" }
 psi-typed-trees = { path = "../../../psi-rs/representations/psi-typed-trees" }
 psi-checked-trees = { path = "../../../psi-rs/representations/psi-checked-trees" }
 psi-core = { path = "../../../psi-rs/foundation/psi-core" }
@@ -40,4 +41,3 @@ psi-proof-kernel = { path = "../../../psi-rs/semantics/psi-proof-kernel" }
 psi-terminal-codec = { path = "../../../psi-rs/semantics/psi-terminal-codec" }
 psi-terminal-fixed-fuel = { path = "../../../psi-rs/semantics/psi-terminal-fixed-fuel" }
 psi-extents = { path = "../../../psi-rs/foundation/psi-extents" }
-psi-layout-plans = { path = "../../../psi-rs/foundation/psi-layout-plans" }
