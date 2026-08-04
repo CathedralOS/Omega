@@ -291,6 +291,9 @@ The fingerprinted semantic module contains:
 - contracts, author-declared premises, generated structural obligations,
   cleanup/transfer actions, conservation equations, work attribution, trust
   classes, and authorized admission sites;
+- nominal proposition families with their binder telescopes and
+  fact-only/witness-bearing classification; transparent proposition
+  definitions are expanded before this boundary and remain only in debug maps;
 - target-neutral provider requirements and scoped ordering operations; and
 - stable identities shared by execution, propositions, proof evidence, fuel,
   diagnostics, and lowering provenance.

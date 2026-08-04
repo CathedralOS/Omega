@@ -1610,14 +1610,18 @@ and allocation handles expose no compiler-owned stack/control storage.
 - **N6:** implement law-bearing relations and quotient evidence in the ordered
   sequence fixed by
   `wiki/design_briefs/law_bearing_relations_and_quotients.md`:
-  1. **PROP-FAMILY-SURFACE — DESIGN BLOCKED (`OWNER_QUESTIONS.md` Q1):**
-     land the proof-side Prop-family/index-telescope fragment after choosing
-     the source declaration/application and transparent-alias surface;
+  1. **PROP-FAMILY-SURFACE — DESIGN CLEAR:** land the dedicated
+     `proposition` declaration and binder kind, primitive and witness-bearing
+     forms, transparent `=` aliases, proposition application in fact
+     positions, and normalized proposition identity. Proposition braces name
+     the one canonical carrierless evidence interface; they are not executable
+     machine bodies. Transparent aliases expand before terminal identity and
+     survive only in source/debug maps;
   2. add the proof stratum to selected-conformance projection and permit
      by-value `dyn` only when the complete normalized value has no runtime
      carrier;
-  3. add transparent proposition aliases plus independent `Reflexive`,
-     `Symmetric`, `Transitive`, and `Antisymmetric` requirements, with
+  3. add independent `Reflexive`, `Symmetric`, `Transitive`, and
+     `Antisymmetric` requirements, with
      `Equivalence`, preorder, and partial-order composition;
   4. add `Respects` over normalized argument records, checking both
      representative-invariant semantic preconditions and related results; and
@@ -1626,7 +1630,14 @@ and allocation handles expose no compiler-owned stack/control storage.
   Preserve the existing generic quotient canaries as migration coverage for
   heterogeneous machine-indexed representatives; add a decidable rational
   relation, existential Cauchy evidence, a total lifted operation, and a
-  partial lifted operation as acceptance drivers.
+  partial lifted operation as acceptance drivers. Proposition-surface canaries
+  cover a checked fact-only relation, witness-bearing evidence and a transparent
+  alias reopening the same witness, rejection when a proof supplies no required
+  evidence, rejection of a literally bodyless ordinary theorem machine,
+  explicit admitted-axiom provenance, and `%` rejecting any equivalence whose
+  closure depends on admitted evidence. Equality propositions canonicalize
+  operand orientation; transitivity composes through the shared endpoint on
+  either side without adding a separate trusted symmetry judgment.
 - **N8:** expand the construction corpus and proof-engine support needed by
   layouts, quotients, and `Real`.
 - **F7:** replace hardcoded float lowering with the settled ordinary
@@ -1965,7 +1976,7 @@ move it to a convenience library.
   `{ instance, selected-conformance table }` carrier from the byte-identical
   slice descriptor, and layout/runtime-storage descriptors retain the exact
   trait and authored named-selection metadata. **DYNAMIC-CONFORMANCE-SATISFIERS
-  — DESIGN BLOCKED (`OWNER_QUESTIONS.md` Q2):** the source model does not yet
+  — DESIGN BLOCKED (`OWNER_QUESTIONS.md` Q1):** the source model does not yet
   settle how one named whole-trait edge binds its complete set of attached
   requirement satisfiers; do not derive adapter rows by state-name coincidence.
   Descriptor materialization, private table emission, requirement adapters,
@@ -2001,7 +2012,7 @@ move it to a convenience library.
   canaries now carry ordinary checked fuel rankings, so enabling the common
   termination floor no longer leaves those semantic-evaluation consumers on
   stale unmeasured loops. **BUILD-TIME-ABNORMAL-OUTCOME — DESIGN
-  BLOCKED (`OWNER_QUESTIONS.md` Q3):** the failure/control axis is settled, but
+  BLOCKED (`OWNER_QUESTIONS.md` Q2):** the failure/control axis is settled, but
   its complete-contract and terminal source surface are not. Contextual `trap`
   currently erases to an ordinary terminal transition and is not usable
   admission evidence; do not invent an abnormal-outcome summary until the
@@ -2085,16 +2096,12 @@ ordinary code never receives a raw executable address.
   arithmetic earns a distinct public library carrier beyond exact-by-default
   obligations and the existing explicit policy families, as recorded in
   `wiki/language_guide/appendix_open_questions.md`.
-- **PROP-FAMILY-SURFACE:** blocked on `OWNER_QUESTIONS.md` Q1's choice of
-  nominal proposition-family declaration, application, and transparent-alias
-  surface over carrierless selected-conformance evidence. This blocks N6's
-  ordered first rung and therefore its later quotient migration.
-- **BUILD-TIME-ABNORMAL-OUTCOME:** blocked on `OWNER_QUESTIONS.md` Q3's
+- **BUILD-TIME-ABNORMAL-OUTCOME:** blocked on `OWNER_QUESTIONS.md` Q2's
   complete-contract spelling and normalized propagation model for nuclear
   abort, trap-capable operations, and other abnormal non-return. The legacy
   contextual `trap` parser route erases to ordinary termination and cannot
   support build-time admission.
-- **DYNAMIC-CONFORMANCE-SATISFIERS:** blocked on `OWNER_QUESTIONS.md` Q2's
+- **DYNAMIC-CONFORMANCE-SATISFIERS:** blocked on `OWNER_QUESTIONS.md` Q1's
   binding between one named whole-trait edge and its complete requirement
   satisfier set. This blocks dynamic table adapter emission, not static trait
   dispatch.

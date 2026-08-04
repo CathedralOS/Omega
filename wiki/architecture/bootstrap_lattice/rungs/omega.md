@@ -66,9 +66,9 @@ its output is checked rather than trusted.
 - The certificate bridge: making the entailment engine emit kernel-checkable
   witnesses so it stops being self-trusting.
 - The remaining general quantifier surface beyond the settled proof-side
-  Prop-family/index-telescope fragment. Implementing that fragment is now the
-  concrete predecessor of Cauchy evidence and the Real quotient; its semantics
-  are fixed in the law-bearing-relation brief.
+  `proposition`-family/index-telescope fragment. Implementing that fragment is
+  now the concrete predecessor of Cauchy evidence and the Real quotient; its
+  semantics are fixed in the law-bearing-relation brief.
 - The runtime approximation-policy surface connecting constructed `Real`
   specifications to finite floats. The proof-side quotient construction itself
   is settled.

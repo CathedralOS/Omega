@@ -1,6 +1,6 @@
 # Design Brief: Dependent Types — the Systems Fragment, Lifetimes, and the Lean Path
 
-Current staged design as of 2026-07-27; implementation remains incomplete.
+Current staged design as of 2026-08-03; implementation remains incomplete.
 Companion to [Chapter 12](../language_guide/chapter_12_dependent_types.md) (the
 user-facing surface) and
 [proof_engine_north_star.md](proof_engine_north_star.md) (the automation/kernel
@@ -140,13 +140,13 @@ The systems verdict above remains unchanged for runtime data. The
 law-bearing-quotient ruling adds one ordered proof-side fragment that did not
 exist when the original ladder was sequenced:
 
-```text
-R<I, J>(left: C<I>, right: C<J>) : Proposition
+```omega
+proposition R<I, J>(left: C<I>, right: C<J>);
 ```
 
 `C` is a proof carrier family with a typed proof-static index telescope, and
 `I`/`J` are independently quantified index packs. Evidence is carrierless,
-erased selected-conformance projection. This is Prop-valued dependency only:
+erased selected-conformance projection. This is proposition-valued dependency only:
 it does not admit arbitrary value-to-runtime-`Type` computation, runtime proof
 fields, value-directed layout, or general Pi-type normalization.
 
@@ -486,7 +486,7 @@ The staged path (no rewrite at any stage):
    automation strength was never its gap).
 4. **The ghost stratum.** Recursive ghost data is gated on the existing
    strict-decrease measure (never definitional unfolding — Lean's lesson).
-   Before quotient formation, add the Prop-valued-family/index-telescope
+   Before quotient formation, add the `proposition`-family/index-telescope
    fragment and carrierless selected-conformance evidence specified in the
    law-bearing-relation brief. Relation properties are explicit composable
    conformances; quotient lifting requires `Respects`, including
@@ -581,7 +581,7 @@ Ordered rungs, each independently shippable, each with its acceptance driver:
   opaque. Normalized per-state frame publication is live and kept outside
   public contract identity. Driver:
   dependent facts across sibling-machine calls.
-- **R6 — Proof propositions and index telescopes:** add Prop-valued families
+- **R6 — Proof propositions and index telescopes:** add `proposition` families
   over representative values, typed proof-static carrier-family index packs,
   and carrierless selected-conformance evidence. Establish one requirement
   projection with runtime and proof strata; by-value `dyn` is legal only when

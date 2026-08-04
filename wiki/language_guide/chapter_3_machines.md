@@ -15,6 +15,11 @@ function-like call is one important use of a machine, not its definition.
 Machines may be attached to data, or free-standing when there is no natural
 owning data type.
 
+`proposition P(...);` is the adjacent proof-formula declaration that machine
+contracts may require or ensure. An ordinary proof machine carries the checked
+work or derivation that establishes it. Chapter 10 defines primitive,
+witness-bearing, and transparent proposition declarations.
+
 ## One Construct, Several Uses
 
 The same machine can be called at runtime and evaluated by the compiler when

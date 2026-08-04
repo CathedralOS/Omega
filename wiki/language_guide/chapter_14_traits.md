@@ -430,7 +430,7 @@ the trait plus authored named selection in physical layout descriptors; it no
 longer models the second word as a slice length. Descriptor materialization,
 private table emission, and adapter lowering remain subsequent implementation
 rungs. The exact association between a named whole-trait edge and its attached
-requirement satisfiers is design-blocked on `OWNER_QUESTIONS.md` Q2; neither Psi
+requirement satisfiers is design-blocked on `OWNER_QUESTIONS.md` Q1; neither Psi
 nor Omega may infer adapter rows merely from matching state names.
 
 The table is a private realization. Logical identity records the trait,
@@ -496,6 +496,23 @@ law-bearing quotients. It never makes a carrierless machine runtime-callable,
 and it never permits a local dynamic descriptor to cross a component boundary.
 See [chapter 10](chapter_10_compile_time_proofs.md) and
 [Law-Bearing Relations, Evidence, And Quotients](../design_briefs/law_bearing_relations_and_quotients.md).
+
+A witness-bearing proposition names exactly one such carrierless evidence
+interface in its declaration:
+
+```omega
+proposition converges_together<machine Left, machine Right>(
+    left: CauchySeq<Left>,
+    right: CauchySeq<Right>
+) {
+    ConvergenceEvidence<Left, Right>;
+}
+```
+
+The proposition owner authorizes that interface. Selected conformances supply
+concrete witnesses; they do not create proposition identities or nominate
+themselves as evidence routes. Eliminating an established proposition opens the
+same retained evidence term that introduced it.
 
 ### Operational envelopes
 

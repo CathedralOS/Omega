@@ -1,8 +1,16 @@
 # Design Brief: Mathematical Proofs
 
-Current as of 2026-07-18. Omega does not introduce a second proof language.
+Current as of 2026-08-03. Omega does not introduce a second proof language.
 Proofs use ordinary machines, data, contracts, domains, and ranked recursion;
 proof-only uses erase after checking.
+
+The proof language has one dedicated formula declaration. A `proposition`
+names a fact; ordinary proof machines establish it through `ensures` and use it
+through `requires` or proof expressions. Primitive propositions end in `;`,
+witness-bearing propositions name one carrierless evidence interface in
+braces, and transparent proposition definitions use `=`. See
+[Law-Bearing Relations, Evidence, And Quotients](law_bearing_relations_and_quotients.md)
+for the complete source and evidence model.
 
 ## Proof machines are ordinary machines
 
@@ -178,7 +186,7 @@ The useful staging is:
 2. order and algebraic laws through explicit conformances;
 3. signed rational support, `FloatMeaning`, executable operation semantics,
    finite-float embeddings, and error bounds;
-4. proof-side Prop-valued families, typed index telescopes, and carrierless
+4. proof-side `proposition` families, typed index telescopes, and carrierless
    evidence;
 5. sequence/Cauchy relation evidence, explicit `Equivalence`, quotient
    formation, and `Respects` lifting for `Real`; and

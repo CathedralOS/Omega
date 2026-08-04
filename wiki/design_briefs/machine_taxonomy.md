@@ -27,6 +27,14 @@ theorem; the same body may also be called at runtime. Evaluation context may
 change lowering or erase the execution entirely, but it may not change the
 contract's meaning.
 
+A `proposition` is the adjacent proof-formula category, not another machine
+supply or consumption mode. It declares something a machine contract may
+require or ensure; it never denotes an operation or transition system. Proof
+machines remain ordinary machines: their checked contracts establish
+proposition applications, and fact-only invocations erase. The dedicated
+category also keeps a resultless machine requirement such as
+`where machine Visit(item: &T);` unambiguously operational.
+
 ## The substitutable contract
 
 A machine's public contract includes every behavior a caller is allowed to
@@ -117,6 +125,11 @@ machine Kernel32::write_file(handle: WinHandle, bytes: &[u8]) -> WriteResult
         plan: MsX64,
     };
 ```
+
+Proposition declarations have their own non-executable forms: `;` introduces a
+primitive fact, braces name one canonical carrierless evidence interface, and
+`=` defines a transparent logical expansion. None is a machine body or machine
+supply mode.
 
 The expression after `via` must be compile-time evaluable to a normalized
 `Binding` value. Its normalized identity enters the derived provider plan;

@@ -185,7 +185,8 @@ handling arm. v1 fact-kinds: intervals (done) + which-case + slice-length.
 3. **Certificate bridge:** can the existing engine emit kernel-checkable
    certificates (so automation stays the front line under the kernel)?
 4. **`Real` / analysis:** the proof-side Cauchy/evidence/quotient construction
-   is settled; the Prop-family/index-telescope fragment gates its
+   and dedicated `proposition` surface are settled; implementing the
+   proposition-family/index-telescope fragment gates its
    implementation, while the runtime approximation-policy surface remains
    open.
 5. **Trust migration:** which existing automated judgments become total kernel
