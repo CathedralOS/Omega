@@ -1676,8 +1676,13 @@ and allocation handles expose no compiler-owned stack/control storage.
      types), validate a concrete declaration's value signature after ordinary
      type-parameter substitution, reject category/signature mismatches, and
      forward abstract proposition parameters through composed traits. Indexed
-     carrier-family telescope matching and proposition-law conformance
-     substitution remain in this rung;
+     telescope slice landed 2026-08-03: a relation over an indexed proof
+     carrier must instantiate one fresh ordered copy of the carrier's complete
+     static-parameter telescope per representative, with matching binder kind,
+     const type, and exact binder use; accidental index reuse rejects.
+     Proposition-law conformance substitution, type/const proposition call
+     arguments, selected witness evidence, and terminal-Psi identity remain in
+     this rung;
   2. add the proof stratum to selected-conformance projection and permit
      by-value `dyn` only when the complete normalized value has no runtime
      carrier;

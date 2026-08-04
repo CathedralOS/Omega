@@ -751,14 +751,18 @@ fn validate_proposition_family_arguments(
             )));
             continue;
         };
-        let actual_parameters = if symbol.is_valid()
+        let actual_declaration = if symbol.is_valid()
             && program.symbols.get(*symbol).kind == psi_symbols::SymbolKind::Proposition
         {
             program
                 .propositions()
                 .iter()
                 .find(|proposition| proposition.symbol == *symbol)
-                .map(|proposition| program.proposition_parameters(proposition))
+        } else {
+            None
+        };
+        let actual_parameters = if let Some(declaration) = actual_declaration {
+            Some(program.proposition_parameters(declaration))
         } else if symbol.is_valid()
             && program.symbols.get(*symbol).kind == psi_symbols::SymbolKind::PropositionParameter
         {
@@ -792,18 +796,40 @@ fn validate_proposition_family_arguments(
             )));
             continue;
         }
+        let actual_binders = actual_declaration
+            .map(|declaration| program.proposition_binders(declaration))
+            .unwrap_or(&[]);
+        let mut indexed_binder_offset = 0usize;
+        let mut used_indexed_carrier = false;
         for (index, (actual, expected)) in actual_parameters
             .iter()
             .zip(expected_parameters)
             .enumerate()
         {
-            if !type_references_match_with_trait_bindings(
-                program,
-                actual.type_reference,
-                expected.type_reference,
-                parameters,
-                &mut bindings,
-            ) {
+            let indexed_match = if actual_binders.is_empty() {
+                None
+            } else {
+                indexed_carrier_parameter_matches(
+                    program,
+                    expected.type_reference,
+                    actual.type_reference,
+                    parameters,
+                    applied_arguments,
+                    actual_binders,
+                    &mut indexed_binder_offset,
+                )
+            };
+            used_indexed_carrier |= indexed_match.is_some();
+            let matches = indexed_match.unwrap_or_else(|| {
+                type_references_match_with_trait_bindings(
+                    program,
+                    actual.type_reference,
+                    expected.type_reference,
+                    parameters,
+                    &mut bindings,
+                )
+            });
+            if !matches {
                 let expected_type =
                     required_trait_type_parameter(program, expected.type_reference, parameters)
                         .and_then(|expected_parameter| {
@@ -823,7 +849,106 @@ fn validate_proposition_family_arguments(
                 )));
             }
         }
+        if used_indexed_carrier && indexed_binder_offset != actual_binders.len() {
+            diagnostics.push(Diagnostic::error(format!(
+                "{application_label} proposition family `{name}` has {} proof-static binder(s), but the substituted carrier telescopes consume {}",
+                actual_binders.len(),
+                indexed_binder_offset,
+            )));
+        }
     }
+}
+
+fn indexed_carrier_parameter_matches(
+    program: &TypedTrees,
+    expected: TypeReferenceHandle,
+    actual: TypeReferenceHandle,
+    trait_parameters: &[TypeParameter],
+    applied_arguments: &[TypeReferenceHandle],
+    proposition_binders: &[psi_typed_trees::proposition::PropositionBinder],
+    binder_offset: &mut usize,
+) -> Option<bool> {
+    let carrier_parameter = required_trait_type_parameter(program, expected, trait_parameters)?;
+    let carrier_index = trait_parameters
+        .iter()
+        .position(|parameter| parameter.symbol == carrier_parameter.symbol)?;
+    let carrier_argument = *applied_arguments.get(carrier_index)?;
+    let TypeReferenceNode::Named {
+        symbol: carrier_symbol,
+        ..
+    } = program
+        .type_reference_table
+        .type_reference(carrier_argument)
+    else {
+        return None;
+    };
+    let carrier = program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.symbol == *carrier_symbol)?;
+    let carrier_telescope = program.data_type_parameters(carrier);
+    if carrier_telescope.is_empty() {
+        return None;
+    }
+
+    let start = *binder_offset;
+    let end = start.saturating_add(carrier_telescope.len());
+    *binder_offset = end;
+    let Some(binder_group) = proposition_binders.get(start..end) else {
+        return Some(false);
+    };
+    let TypeReferenceNode::Generic {
+        base_symbol,
+        arguments,
+        ..
+    } = program.type_reference_table.type_reference(actual)
+    else {
+        return Some(false);
+    };
+    if *base_symbol != carrier.symbol {
+        return Some(false);
+    }
+    let arguments = program
+        .type_reference_table
+        .type_reference_handles(*arguments);
+    if arguments.len() != binder_group.len() {
+        return Some(false);
+    }
+
+    Some(
+        carrier_telescope
+            .iter()
+            .zip(binder_group)
+            .zip(arguments)
+            .all(|((carrier_parameter, proposition_binder), argument)| {
+                let kind_matches = match (&carrier_parameter.kind, &proposition_binder.kind) {
+                    (
+                        TypeParameterKind::Type,
+                        psi_typed_trees::proposition::PropositionBinderKind::Type,
+                    )
+                    | (
+                        TypeParameterKind::Machine { .. },
+                        psi_typed_trees::proposition::PropositionBinderKind::Machine,
+                    ) => true,
+                    (
+                        TypeParameterKind::Const {
+                            type_reference: carrier_type,
+                        },
+                        psi_typed_trees::proposition::PropositionBinderKind::Const {
+                            type_reference: binder_type,
+                        },
+                    ) => type_references_match(program, *binder_type, *carrier_type),
+                    _ => false,
+                };
+                kind_matches
+                    && matches!(
+                        program.type_reference_table.type_reference(*argument),
+                        TypeReferenceNode::Named { symbol, name }
+                            if ((*symbol).is_valid() && *symbol == proposition_binder.symbol)
+                                || name == &proposition_binder.name
+                    )
+            }),
+    )
 }
 
 fn bound_proves_trait_application(
