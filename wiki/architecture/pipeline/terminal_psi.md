@@ -95,9 +95,12 @@ nested expression over builtin logical negation, Boolean equality/inequality,
 and short-circuit `&&`/`||` from any sequence of ordinary Boolean parameters,
 either directly or through a
 nonempty linear sequence of unconditional state bindings. Every non-entry
-Boolean state has one ordinary Boolean parameter, and each jump carries a
-literal or an exact parameter from its source state. Compile-known Boolean
-bindings likewise must match the closed reflexive contract. A single-state
+Boolean state has one ordinary Boolean parameter, and each jump carries the
+result of the same recursively nested Boolean expression vocabulary from its
+source state. Short-circuit binding leaves converge on the next state through
+ordinary Boolean block-parameter arguments; a final-state short-circuit return
+uses the same terminal decision form. Compile-known Boolean bindings likewise
+must match the closed reflexive contract. A single-state
 integer machine may declare any sequence of ordinary primitive-integer
 parameters, including none, and return one exact named parameter, one landed
 literal, or a recursively nested

@@ -114,6 +114,12 @@ enum LoweredBooleanDecision {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LoweredBooleanDecisionExit {
+    Return,
+    Jump { target: BlockId },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum LoweredIntegerBinaryKind {
     WrappingAdd,
     SaturatingAdd,
@@ -1768,11 +1774,7 @@ fn lower_boolean_state_chain(
         };
         let expression =
             lower_boolean_expression(checked, *argument, checked.state_parameters(state))?;
-        if contains_short_circuit(&expression) {
-            return unsupported(
-                "short-circuit logic in Boolean state-chain bindings is not yet supported",
-            );
-        }
+        validate_short_circuit_expression(&expression)?;
         let known_value = evaluate_boolean_expression(&expression, &known_parameters);
         jump_expressions.push(expression);
         known_parameters = vec![known_value];
@@ -1793,11 +1795,7 @@ fn lower_boolean_state_chain(
         *return_expression,
         std::slice::from_ref(return_parameter),
     )?;
-    if contains_short_circuit(&return_expression) {
-        return unsupported(
-            "short-circuit logic in Boolean state-chain returns is not yet supported",
-        );
-    }
+    validate_short_circuit_expression(&return_expression)?;
     let expected_value = evaluate_boolean_expression(&return_expression, &known_parameters);
 
     let contract_value = validate_boolean_contract(checked, machine, expected_value)?;
@@ -2625,6 +2623,130 @@ fn lower_boolean_decision(
     }
 }
 
+fn boolean_decision_block_count(decision: &LoweredBooleanDecision) -> usize {
+    match decision {
+        LoweredBooleanDecision::Return(_) => 1,
+        LoweredBooleanDecision::Test {
+            when_true,
+            when_false,
+            ..
+        } => 1 + boolean_decision_block_count(when_true) + boolean_decision_block_count(when_false),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn emit_boolean_decision_blocks(
+    decision: &LoweredBooleanDecision,
+    expression_parameters: &[ValueDeclaration],
+    block_parameters: Vec<ValueDeclaration>,
+    exit: LoweredBooleanDecisionExit,
+    next_value_identity: &mut u64,
+    next_edge_identity: &mut u64,
+    all_operations: &mut Vec<Operation>,
+    blocks: &mut Vec<Option<Block>>,
+) -> BlockId {
+    let block_index = blocks.len();
+    let block = block_id(
+        u64::try_from(block_index)
+            .expect("block index fits a semantic identity")
+            .checked_add(1)
+            .expect("block identity is nonzero"),
+    );
+    blocks.push(None);
+    let operation_start = all_operations.len();
+    let (terminator, operation_end) = match decision {
+        LoweredBooleanDecision::Return(value) => {
+            let returned = emit_boolean_expression(
+                &LoweredBooleanReturnExpression::Constant { value: *value },
+                expression_parameters,
+                next_value_identity,
+                all_operations,
+            );
+            let edge = edge_id(*next_edge_identity);
+            *next_edge_identity = next_edge_identity
+                .checked_add(1)
+                .expect("short-circuit exit edge identities advance");
+            let terminator = match exit {
+                LoweredBooleanDecisionExit::Return => Terminator::Return {
+                    edge,
+                    value: returned,
+                },
+                LoweredBooleanDecisionExit::Jump { target } => Terminator::Jump {
+                    edge,
+                    target,
+                    arguments: vec![returned],
+                },
+            };
+            (terminator, all_operations.len())
+        }
+        LoweredBooleanDecision::Test {
+            condition,
+            when_true,
+            when_false,
+        } => {
+            let condition = emit_boolean_expression(
+                condition,
+                expression_parameters,
+                next_value_identity,
+                all_operations,
+            );
+            let operation_end = all_operations.len();
+            let true_edge = edge_id(*next_edge_identity);
+            let false_edge = edge_id(
+                next_edge_identity
+                    .checked_add(1)
+                    .expect("short-circuit false edge identity advances"),
+            );
+            *next_edge_identity = next_edge_identity
+                .checked_add(2)
+                .expect("short-circuit conditional edge identities advance");
+            let true_target = emit_boolean_decision_blocks(
+                when_true,
+                expression_parameters,
+                Vec::new(),
+                exit,
+                next_value_identity,
+                next_edge_identity,
+                all_operations,
+                blocks,
+            );
+            let false_target = emit_boolean_decision_blocks(
+                when_false,
+                expression_parameters,
+                Vec::new(),
+                exit,
+                next_value_identity,
+                next_edge_identity,
+                all_operations,
+                blocks,
+            );
+            (
+                Terminator::Conditional {
+                    condition,
+                    when_true: SuccessorEdge {
+                        edge: true_edge,
+                        target: true_target,
+                        arguments: Vec::new(),
+                    },
+                    when_false: SuccessorEdge {
+                        edge: false_edge,
+                        target: false_target,
+                        arguments: Vec::new(),
+                    },
+                },
+                operation_end,
+            )
+        }
+    };
+    blocks[block_index] = Some(Block {
+        id: block,
+        parameters: block_parameters,
+        operations: all_operations[operation_start..operation_end].to_vec(),
+        terminator,
+    });
+    block
+}
+
 fn build_boolean_short_circuit_module(
     parameter_count: usize,
     return_expression: LoweredBooleanReturnExpression,
@@ -2632,107 +2754,6 @@ fn build_boolean_short_circuit_module(
     identity_reshuffles: LoweredContentIdentityReshuffles,
     partition_compositions: LoweredContentPartitionCompositions,
 ) -> LoweredTerminalPsi {
-    fn emit_decision(
-        decision: &LoweredBooleanDecision,
-        parameters: &[ValueDeclaration],
-        next_value_identity: &mut u64,
-        next_edge_identity: &mut u64,
-        all_operations: &mut Vec<Operation>,
-        blocks: &mut Vec<Option<Block>>,
-    ) -> BlockId {
-        let block_index = blocks.len();
-        let block = block_id(
-            u64::try_from(block_index)
-                .expect("block index fits a semantic identity")
-                .checked_add(1)
-                .expect("block identity is nonzero"),
-        );
-        blocks.push(None);
-        let operation_start = all_operations.len();
-        let (terminator, operation_end) = match decision {
-            LoweredBooleanDecision::Return(value) => {
-                let returned = emit_boolean_expression(
-                    &LoweredBooleanReturnExpression::Constant { value: *value },
-                    parameters,
-                    next_value_identity,
-                    all_operations,
-                );
-                let edge = edge_id(*next_edge_identity);
-                *next_edge_identity = next_edge_identity
-                    .checked_add(1)
-                    .expect("short-circuit return edge identities advance");
-                (
-                    Terminator::Return {
-                        edge,
-                        value: returned,
-                    },
-                    all_operations.len(),
-                )
-            }
-            LoweredBooleanDecision::Test {
-                condition,
-                when_true,
-                when_false,
-            } => {
-                let condition = emit_boolean_expression(
-                    condition,
-                    parameters,
-                    next_value_identity,
-                    all_operations,
-                );
-                let operation_end = all_operations.len();
-                let true_edge = edge_id(*next_edge_identity);
-                let false_edge = edge_id(
-                    next_edge_identity
-                        .checked_add(1)
-                        .expect("short-circuit false edge identity advances"),
-                );
-                *next_edge_identity = next_edge_identity
-                    .checked_add(2)
-                    .expect("short-circuit conditional edge identities advance");
-                let true_target = emit_decision(
-                    when_true,
-                    parameters,
-                    next_value_identity,
-                    next_edge_identity,
-                    all_operations,
-                    blocks,
-                );
-                let false_target = emit_decision(
-                    when_false,
-                    parameters,
-                    next_value_identity,
-                    next_edge_identity,
-                    all_operations,
-                    blocks,
-                );
-                (
-                    Terminator::Conditional {
-                        condition,
-                        when_true: SuccessorEdge {
-                            edge: true_edge,
-                            target: true_target,
-                            arguments: Vec::new(),
-                        },
-                        when_false: SuccessorEdge {
-                            edge: false_edge,
-                            target: false_target,
-                            arguments: Vec::new(),
-                        },
-                    },
-                    operation_end,
-                )
-            }
-        };
-        blocks[block_index] = Some(Block {
-            id: block,
-            parameters: Vec::new(),
-            operations: all_operations[operation_start..operation_end].to_vec(),
-            terminator,
-        });
-        block
-    }
-
     let parameters = (0..parameter_count)
         .map(|index| ValueDeclaration {
             id: value_id(
@@ -2756,9 +2777,11 @@ fn build_boolean_short_circuit_module(
     let mut all_operations = Vec::new();
     let mut blocks = Vec::new();
     let mut next_edge_identity = 1_u64;
-    let entry = emit_decision(
+    let entry = emit_boolean_decision_blocks(
         &decision,
         &parameters,
+        Vec::new(),
+        LoweredBooleanDecisionExit::Return,
         &mut next_value_identity,
         &mut next_edge_identity,
         &mut all_operations,
@@ -3182,14 +3205,87 @@ fn build_boolean_state_chain_module(
     let mut all_operations = Vec::new();
     let mut blocks = Vec::with_capacity(jump_expressions.len() + 1);
     let mut current_parameters = terminal_parameters.clone();
+    let mut next_edge_identity = 1_u64;
     for (index, jump_expression) in jump_expressions.iter().enumerate() {
-        let operation_start = all_operations.len();
-        let jump_value = emit_boolean_expression(
-            jump_expression,
-            &current_parameters,
-            &mut next_value_identity,
-            &mut all_operations,
-        );
+        let block_parameters = if index == 0 {
+            Vec::new()
+        } else {
+            current_parameters.clone()
+        };
+        if contains_short_circuit(jump_expression) {
+            let decision = lower_boolean_decision(
+                jump_expression,
+                LoweredBooleanDecision::Return(true),
+                LoweredBooleanDecision::Return(false),
+            );
+            let decision_block_count = boolean_decision_block_count(&decision);
+            let target = block_id(
+                u64::try_from(blocks.len())
+                    .expect("generated block count fits a semantic identity")
+                    .checked_add(
+                        u64::try_from(decision_block_count)
+                            .expect("decision block count fits a semantic identity"),
+                    )
+                    .and_then(|identity| identity.checked_add(1))
+                    .expect("the next source-state block follows its decision tree"),
+            );
+            let expected_entry = block_id(
+                u64::try_from(blocks.len())
+                    .expect("generated block count fits a semantic identity")
+                    .checked_add(1)
+                    .expect("decision entry block identity is nonzero"),
+            );
+            let entry = emit_boolean_decision_blocks(
+                &decision,
+                &current_parameters,
+                block_parameters,
+                LoweredBooleanDecisionExit::Jump { target },
+                &mut next_value_identity,
+                &mut next_edge_identity,
+                &mut all_operations,
+                &mut blocks,
+            );
+            assert_eq!(entry, expected_entry);
+            assert_eq!(
+                blocks.len(),
+                usize::try_from(target.get()).expect("block identity fits usize") - 1,
+                "decision block count predicts the next source-state identity"
+            );
+        } else {
+            let operation_start = all_operations.len();
+            let jump_value = emit_boolean_expression(
+                jump_expression,
+                &current_parameters,
+                &mut next_value_identity,
+                &mut all_operations,
+            );
+            let block = block_id(
+                u64::try_from(blocks.len())
+                    .expect("block count fits a semantic identity")
+                    .checked_add(1)
+                    .expect("block identity is nonzero"),
+            );
+            let target = block_id(
+                block
+                    .get()
+                    .checked_add(1)
+                    .expect("target block identity follows its source"),
+            );
+            let edge = edge_id(next_edge_identity);
+            next_edge_identity = next_edge_identity
+                .checked_add(1)
+                .expect("state-chain jump edge identities advance");
+            blocks.push(Some(Block {
+                id: block,
+                parameters: block_parameters,
+                operations: all_operations[operation_start..].to_vec(),
+                terminator: Terminator::Jump {
+                    edge,
+                    target,
+                    arguments: vec![jump_value],
+                },
+            }));
+        }
         let next_parameter = ValueDeclaration {
             id: value_id(next_value_identity),
             scalar_type: ScalarType::Boolean,
@@ -3197,64 +3293,56 @@ fn build_boolean_state_chain_module(
         next_value_identity = next_value_identity
             .checked_add(1)
             .expect("generated identities advance after a Boolean block parameter");
-        blocks.push(Block {
-            id: block_id(
-                u64::try_from(index)
-                    .expect("block index fits a semantic identity")
-                    .checked_add(1)
-                    .expect("block identity is nonzero"),
-            ),
-            parameters: if index == 0 {
-                Vec::new()
-            } else {
-                current_parameters.clone()
-            },
-            operations: all_operations[operation_start..].to_vec(),
-            terminator: Terminator::Jump {
-                edge: edge_id(
-                    u64::try_from(index)
-                        .expect("edge index fits a semantic identity")
-                        .checked_add(1)
-                        .expect("edge identity is nonzero"),
-                ),
-                target: block_id(
-                    u64::try_from(index)
-                        .expect("block index fits a semantic identity")
-                        .checked_add(2)
-                        .expect("target block identity follows its source"),
-                ),
-                arguments: vec![jump_value],
-            },
-        });
         current_parameters = vec![next_parameter];
     }
-    let return_operation_start = all_operations.len();
-    let return_value = emit_boolean_expression(
-        &return_expression,
-        &current_parameters,
-        &mut next_value_identity,
-        &mut all_operations,
-    );
-    let final_index = jump_expressions.len();
-    blocks.push(Block {
-        id: block_id(
-            u64::try_from(final_index)
-                .expect("block index fits a semantic identity")
+    if contains_short_circuit(&return_expression) {
+        let decision = lower_boolean_decision(
+            &return_expression,
+            LoweredBooleanDecision::Return(true),
+            LoweredBooleanDecision::Return(false),
+        );
+        let expected_entry = block_id(
+            u64::try_from(blocks.len())
+                .expect("generated block count fits a semantic identity")
+                .checked_add(1)
+                .expect("decision entry block identity is nonzero"),
+        );
+        let entry = emit_boolean_decision_blocks(
+            &decision,
+            &current_parameters,
+            current_parameters.clone(),
+            LoweredBooleanDecisionExit::Return,
+            &mut next_value_identity,
+            &mut next_edge_identity,
+            &mut all_operations,
+            &mut blocks,
+        );
+        assert_eq!(entry, expected_entry);
+    } else {
+        let return_operation_start = all_operations.len();
+        let return_value = emit_boolean_expression(
+            &return_expression,
+            &current_parameters,
+            &mut next_value_identity,
+            &mut all_operations,
+        );
+        let block = block_id(
+            u64::try_from(blocks.len())
+                .expect("block count fits a semantic identity")
                 .checked_add(1)
                 .expect("block identity is nonzero"),
-        ),
-        parameters: current_parameters,
-        operations: all_operations[return_operation_start..].to_vec(),
-        terminator: Terminator::Return {
-            edge: edge_id(
-                u64::try_from(final_index)
-                    .expect("edge index fits a semantic identity")
-                    .checked_add(1)
-                    .expect("edge identity is nonzero"),
-            ),
-            value: return_value,
-        },
-    });
+        );
+        let edge = edge_id(next_edge_identity);
+        blocks.push(Some(Block {
+            id: block,
+            parameters: current_parameters,
+            operations: all_operations[return_operation_start..].to_vec(),
+            terminator: Terminator::Return {
+                edge,
+                value: return_value,
+            },
+        }));
+    }
     let result_id = value_id(next_value_identity);
     let literal = ScalarTerm::boolean(contract_value);
     let goal = Proposition::Equal(literal.clone(), literal);
@@ -3290,7 +3378,10 @@ fn build_boolean_state_chain_module(
                 content_identity_reshuffles: identity_reshuffles.reshuffles,
                 content_partition_compositions: partition_compositions.compositions,
                 entry: block_id(1),
-                blocks,
+                blocks: blocks
+                    .into_iter()
+                    .map(|block| block.expect("every Boolean state-chain block is finalized"))
+                    .collect(),
                 contract: MachineContract {
                     id: contract_id(1),
                     requires: vec![goal.clone()],

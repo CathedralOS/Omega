@@ -1362,9 +1362,12 @@ improvements do not change public identity.
   AArch64 and x86-64 without adding eager logical opcodes. Recursive Boolean
   target expressions may now drive those control nodes or appear at their
   return leaves, so comparisons such as `(a == b) && (b == c)` preserve
-  short-circuit fuel and execute natively. Short-circuit forms nested inside
-  equality and the linear/explicit-conditional producer shapes remain bounded
-  implementation work, not language-design blockers. The
+  short-circuit fuel and execute natively. Linear Boolean state chains now use
+  the same decision trees for both carried jump bindings and final returns;
+  canonical Boolean leaves converge through ordinary block-parameter bindings.
+  Short-circuit forms nested inside equality and the explicit-conditional
+  producer shape remain bounded implementation work, not language-design
+  blockers. The
   initial vocabulary now has canonical semantic bytes and a domain-separated
   semantic fingerprint as well: decoding rejects alternate encodings, invalid
   modules, and trailing data, while a golden identity test freezes the format.

@@ -1481,6 +1481,123 @@ fn source_boolean_jump_bindings_reach_stack_parameter_machine_code() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn source_boolean_state_chain_return_preserves_short_circuit_control() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("terminal-Psi Boolean state-chain canary should compile");
+    let lowered = lower_machine(&checked, "terminal_boolean_chain_short_circuit_return")
+        .expect("Boolean state-chain short-circuit return should lower");
+    drop(checked);
+
+    let semantic_bytes = encode_module(&lowered.semantic_module)
+        .expect("state-chain short-circuit control should encode");
+    let semantic_module =
+        decode_module(&semantic_bytes).expect("state-chain short-circuit control should decode");
+    let verified = verify_module(
+        &semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("state-chain short-circuit control should verify");
+    let fuel = derive_fixed_entry_fuel(&verified, semantic_module.entry)
+        .expect("state-chain short-circuit control should have fixed fuel");
+    assert_eq!(fuel.ceiling_units(), 6);
+
+    for (value, expected_units) in [(false, 6), (true, 4)] {
+        let measured =
+            interpret_terminal_measured(&verified, &[TerminalScalarValue::Boolean(value)])
+                .expect("state-chain short-circuit control should interpret");
+        assert_eq!(measured.value(), TerminalScalarValue::Boolean(true));
+        assert_eq!(measured.usage().total_units(), expected_units);
+    }
+
+    let abstract_operations = lower_verified_module(&verified)
+        .expect("state-chain short-circuit control should cross the Omega boundary");
+    let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
+        .expect("state-chain short-circuit control should select for the host");
+    assert!(matches!(
+        target_operations.functions[0].operation,
+        TerminalTargetOperation::ReturnBooleanConditionalControl { .. }
+    ));
+    let assigned = assign_registers(&target_operations)
+        .expect("state-chain short-circuit control homes should assign");
+    let machine_code =
+        emit_machine_code(&assigned).expect("state-chain short-circuit control should emit");
+    let object_artifact = build_terminal_object_artifact(&machine_code)
+        .expect("state-chain short-circuit control should form an object");
+    let entry = object_artifact.entry_function();
+    assert_eq!(
+        run_host_machine_code_with_bool(entry.bytes(&object_artifact), false),
+        1
+    );
+    assert_eq!(
+        run_host_machine_code_with_bool(entry.bytes(&object_artifact), true),
+        1
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn source_boolean_state_chain_binding_preserves_short_circuit_control() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("terminal-Psi Boolean state-chain canary should compile");
+    let lowered = lower_machine(&checked, "terminal_boolean_chain_short_circuit_binding")
+        .expect("Boolean state-chain short-circuit binding should lower");
+    drop(checked);
+
+    let semantic_bytes =
+        encode_module(&lowered.semantic_module).expect("state-chain binding control should encode");
+    let semantic_module =
+        decode_module(&semantic_bytes).expect("state-chain binding control should decode");
+    let verified = verify_module(
+        &semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("state-chain binding control should verify");
+    let fuel = derive_fixed_entry_fuel(&verified, semantic_module.entry)
+        .expect("state-chain binding control should have fixed fuel");
+    assert_eq!(fuel.ceiling_units(), 6);
+
+    for (first, second) in [(false, false), (false, true), (true, false), (true, true)] {
+        let expected = first && second;
+        let expected_units = if first { 6 } else { 5 };
+        let measured = interpret_terminal_measured(
+            &verified,
+            &[
+                TerminalScalarValue::Boolean(first),
+                TerminalScalarValue::Boolean(second),
+            ],
+        )
+        .expect("state-chain binding control should interpret");
+        assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+        assert_eq!(measured.usage().total_units(), expected_units);
+    }
+
+    let abstract_operations = lower_verified_module(&verified)
+        .expect("state-chain binding control should cross the Omega boundary");
+    let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
+        .expect("state-chain binding control should select for the host");
+    assert!(matches!(
+        target_operations.functions[0].operation,
+        TerminalTargetOperation::ReturnBooleanConditionalControl { .. }
+    ));
+    let assigned = assign_registers(&target_operations)
+        .expect("state-chain binding control homes should assign");
+    let machine_code =
+        emit_machine_code(&assigned).expect("state-chain binding control should emit");
+    let object_artifact = build_terminal_object_artifact(&machine_code)
+        .expect("state-chain binding control should form an object");
+    let entry = object_artifact.entry_function();
+    for (first, second) in [(false, false), (false, true), (true, false), (true, true)] {
+        assert_eq!(
+            run_host_machine_code_with_two_bools(entry.bytes(&object_artifact), first, second,),
+            i32::from(first && second)
+        );
+    }
+}
+
 #[test]
 fn psi_terminal_producer_rejects_source_outside_its_declared_slice() {
     let checked = compile_to_checked(&source_canary(), None)

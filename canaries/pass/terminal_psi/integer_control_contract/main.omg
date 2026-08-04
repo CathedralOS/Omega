@@ -397,6 +397,25 @@ ensures true == true
     state finish(value: bool) -> bool { value }
 }
 
+machine terminal_boolean_chain_short_circuit_return(value: bool) -> bool
+requires true == true
+ensures true == true
+{
+    transition { _ -> finish(value) }
+    state finish(value: bool) -> bool { value || !value }
+}
+
+machine terminal_boolean_chain_short_circuit_binding(first: bool, second: bool) -> bool
+requires true == true
+ensures true == true
+{
+    transition { _ -> carry(first && second) }
+    state carry(value: bool) -> bool {
+        transition { _ -> finish(value) }
+    }
+    state finish(value: bool) -> bool { value }
+}
+
 machine terminal_boolean_chain_wrong_contract() -> bool
 requires false == false
 ensures false == false
