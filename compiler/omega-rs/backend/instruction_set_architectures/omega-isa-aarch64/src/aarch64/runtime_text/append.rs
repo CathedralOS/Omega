@@ -602,3 +602,28 @@ fn data_offset_encodable(byte_offset: usize, byte_size: usize) -> bool {
         _ => false,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn frame_indexed_stored_append_width_matches_emission() {
+        for index_byte_size in [1usize, 2, 4, 8] {
+            let bytes = encode_runtime_text_stored_place_append_to_runtime_frame_indexed(
+                0,
+                0,
+                8,
+                0,
+                index_byte_size,
+                16,
+                0,
+            )
+            .expect("AArch64 frame-indexed stored-text append");
+            assert_eq!(
+                bytes.len(),
+                runtime_text_stored_place_append_to_runtime_frame_indexed_width(0, 16, 0)
+            );
+        }
+    }
+}

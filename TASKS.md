@@ -882,7 +882,7 @@ proves complete region coverage, and composes admitted leaves under their
 separate provenance. Do not add a second whole-image decoder/admission path.
 
 The existing single final-region artifact now carries the domain-separated
-`omega.final-footprint-certificate` schema, format version 58, and a certificate
+`omega.final-footprint-certificate` schema, format version 59, and a certificate
 fingerprint over its final placement binding, compiler-text derivation, and
 complete region inventory. Its explicit completeness flags remain false until
 compiler-body footprint decoding and admitted-leaf evidence land. The envelope
@@ -994,8 +994,8 @@ target encoder and mixed data/storage relocation set, and match a dedicated
 `CompilerBodyTextAssemblyWrite` footprint. Literal text appends share that
 fragment for the direct, pointee, and frame-indexed shapes on both targets,
 retaining their exact literal, buffer identity, target place, encoder, and
-relocation set. Stored-source appends share it for direct/pointee x86 targets
-and direct, pointee, or frame-indexed AArch64 targets, retaining the exact
+relocation set. Stored-source appends share it for direct, pointee, or
+frame-indexed targets on both architectures, retaining the exact
 source storage and mixed buffer/source/target relocation set. Segmented
 literal-buffer writes now share the text-assembly fragment too,
 retaining the exact buffer symbol, byte offset, literal, target encoder, and

@@ -1164,6 +1164,14 @@ pub fn derive_boundary_compiler_body_text_assembly_write_footprint<'instruction>
             ),
             (
                 omega_target::Architecture::X86_64,
+                crate::WritePlaceShape::FrameIndexed { .. },
+                2,
+            ) => (
+                omega_isa_x86_64::runtime_text_stored_place_append_to_runtime_frame_indexed_register_writes(),
+                omega_isa_x86_64::runtime_text_stored_place_append_additional_machine_state(),
+            ),
+            (
+                omega_target::Architecture::X86_64,
                 crate::WritePlaceShape::Direct { .. } | crate::WritePlaceShape::Pointee { .. },
                 1,
             ) => (

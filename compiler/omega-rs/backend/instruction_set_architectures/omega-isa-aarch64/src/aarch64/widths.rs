@@ -254,7 +254,7 @@ pub fn runtime_text_stored_place_append_to_runtime_frame_indexed_width(
     field_byte_offset: usize,
 ) -> usize {
     runtime_frame_index_setup_width(element_byte_size, field_byte_offset)
-        + 64
+        + 68
         + runtime_text_descriptor_load_pair_width(source_offset)
 }
 

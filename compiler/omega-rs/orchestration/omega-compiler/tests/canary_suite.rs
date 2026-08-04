@@ -1127,7 +1127,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         executable_regions.contains(
             "\"certificate_schema\": \"omega.final-footprint-certificate\""
         )
-            && executable_regions.contains("\"certificate_format_version\": 58")
+            && executable_regions.contains("\"certificate_format_version\": 59")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
             && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")
@@ -2612,7 +2612,7 @@ fn compiler_body_text_literal_append_footprints_reach_artifacts() {
 
 #[test]
 fn compiler_body_text_stored_append_footprints_reach_artifacts() {
-    let canary = pass_canary("text/runtime_local_struct_string_field_concat_exit");
+    let canary = pass_canary("text/runtime_slice_alias_indexed_string_field_concat_exit");
     for (target, expected_register) in [
         ("linux_x64", "\"X86Rsi\""),
         ("linux_arm64", "\"Aarch64X(24)\""),

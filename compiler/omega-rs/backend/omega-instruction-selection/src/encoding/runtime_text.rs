@@ -321,7 +321,17 @@ pub fn encode_runtime_text_stored_place_append_to_runtime_frame_indexed(
                 field_byte_offset,
             )
         }
-        Architecture::X86_64 => unsupported_x86_64_encoding(),
+        Architecture::X86_64 => {
+            let _ = buffer_offset;
+            x86_64::encode_runtime_text_stored_place_append_to_runtime_frame_indexed(
+                source_offset,
+                descriptor_offset,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+            )
+        }
     }
 }
 
