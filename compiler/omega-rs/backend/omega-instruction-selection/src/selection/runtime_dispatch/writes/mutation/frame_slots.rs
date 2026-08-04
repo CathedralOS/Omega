@@ -354,6 +354,20 @@ fn select_runtime_frame_slot_value_write_in_table_with_source_anchor_and_call_or
         });
     }
 
+    if let Some(kind) = super::select_runtime_stored_integer_projection_write_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        value,
+        RuntimeStorageRegion::RuntimeFrame,
+        slot.byte_offset,
+        slot.byte_size,
+        runtime_value_operands,
+    ) {
+        return Some(kind);
+    }
+
     if let Some(pointee) = resolve_runtime_pointee_slot_offset_in_table(
         input,
         dispatch_index,

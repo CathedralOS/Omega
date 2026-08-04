@@ -1,10 +1,14 @@
 use super::expressions::{
     StorageNamePath, normalized_storage_expression, normalized_storage_name_path_in_table,
 };
-use super::model::{RuntimeBitFieldPlace, RuntimeStoragePlace};
+use super::model::{
+    RuntimeBitFieldPlace, RuntimeStoragePlace, RuntimeStoredIntegerProjection,
+    RuntimeStoredIntegerSource,
+};
 use super::nested_fields::{
     NestedFieldLayoutCursor, resolve_nested_field_layout_step,
     resolve_nested_field_layout_with_pairs, resolve_nested_field_layout_with_symbols,
+    resolve_nested_stored_integer_layout_step,
 };
 use omega_abstract_operations::RuntimeStorageRegion;
 use omega_layout::{
@@ -159,6 +163,56 @@ pub(in crate::selection) fn resolve_machine_owned_bit_field_in_table(
         base_byte_offset: machine_base_offset.checked_add(containing_byte_offset)?,
         value_byte_count: cursor.layout().size,
         fragments: bit_field.fragments.clone(),
+    })
+}
+
+pub(in crate::selection) fn resolve_machine_owned_stored_integer_in_table(
+    layouts: &LayoutPlan,
+    input: &crate::InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    entry_machine: SymbolHandle,
+    source_machine: SymbolHandle,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<RuntimeStoredIntegerProjection> {
+    let path = normalized_storage_name_path_in_table(expressions, expression)?;
+    let (machine_base_offset, root_field, suffix_start_index) =
+        root_machine_field_layout_from_table_path(
+            layouts,
+            input,
+            dispatch_index,
+            entry_machine,
+            source_machine,
+            &path,
+        )?;
+    let mut cursor = NestedFieldLayoutCursor::from_root(root_field);
+    for (field_name, field_symbol, field_index, case_variant) in
+        path.suffix(suffix_start_index).iter()
+    {
+        cursor = resolve_nested_stored_integer_layout_step(
+            layouts,
+            cursor,
+            field_name,
+            field_symbol,
+            field_index,
+            case_variant,
+        )?;
+    }
+    let stored = cursor.stored_integer()?;
+    let stored_byte_count = usize::from(stored.stored_width_bits.checked_div(8)?);
+    if stored_byte_count == 0 || stored.stored_width_bits % 8 != 0 {
+        return None;
+    }
+    let carrier = super::descriptor_primitive_type(cursor.type_descriptor())?;
+    Some(RuntimeStoredIntegerProjection {
+        source: RuntimeStoredIntegerSource::Direct {
+            region: RuntimeStorageRegion::Machine,
+            byte_offset: machine_base_offset.checked_add(cursor.byte_offset())?,
+        },
+        stored_byte_count,
+        carrier_byte_count: cursor.layout().size,
+        interpretation: stored.interpretation,
+        carrier_signed: carrier.is_signed_integer(),
     })
 }
 

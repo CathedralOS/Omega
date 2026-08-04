@@ -1,7 +1,7 @@
 use crate::InstructionSelectionInput;
 use crate::selection::bindings::{RuntimeAliasBinding, resolve_runtime_alias_binding};
 use crate::selection::storage_places::{
-    RuntimeStoragePlace, clamp_runtime_case_comparison_operands,
+    RuntimeStoragePlace, RuntimeStoredIntegerSource, clamp_runtime_case_comparison_operands,
     clamp_runtime_case_comparison_operands_in_table, classify_scalar_value_type_in_table,
     combine_binary_operand_scalar_types, enum_variant_value_in_table,
     resolve_binary_operand_arithmetic_domain_in_table,
@@ -13,6 +13,7 @@ use crate::selection::storage_places::{
     resolve_runtime_pointee_slot_offset, resolve_runtime_pointee_slot_offset_in_table,
     resolve_runtime_storage_place, resolve_runtime_storage_place_in_table,
     resolve_runtime_storage_place_is_fat_slice_in_table,
+    resolve_runtime_stored_integer_projection_in_table,
 };
 use omega_abstract_operations::{
     RuntimeValueOperand, RuntimeValueOperandHandle, StateGuardOperator,
@@ -532,6 +533,17 @@ fn resolve_runtime_value_operand_in_table_with_root(
         }
     }
 
+    if let Some(operand) = resolve_runtime_stored_integer_operand_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+        runtime_value_operands,
+    ) {
+        return Some(operand);
+    }
+
     if let Some(pointer_target) = resolve_runtime_pointee_slot_offset_in_table(
         input,
         dispatch_index,
@@ -652,6 +664,108 @@ fn resolve_runtime_value_operand_in_table_with_root(
         byte_offset: place.byte_offset,
         byte_size: place.byte_count,
     }))
+}
+
+pub(crate) fn resolve_runtime_stored_integer_operand_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+) -> Option<RuntimeValueOperandHandle> {
+    let projection = resolve_runtime_stored_integer_projection_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+    )?;
+    if !supports_runtime_value_operand(projection.stored_byte_count)
+        || !supports_runtime_value_operand(projection.carrier_byte_count)
+    {
+        return None;
+    }
+    let source = match projection.source {
+        RuntimeStoredIntegerSource::Direct {
+            region,
+            byte_offset,
+        } => runtime_value_operands.insert(RuntimeValueOperand::Storage {
+            region,
+            byte_offset,
+            byte_size: projection.stored_byte_count,
+        }),
+        RuntimeStoredIntegerSource::Pointee {
+            pointer_byte_offset,
+            field_byte_offset,
+        } => runtime_value_operands.insert(RuntimeValueOperand::Pointee {
+            pointer_byte_offset,
+            field_byte_offset,
+            byte_size: projection.stored_byte_count,
+        }),
+    };
+    Some(runtime_value_operands.insert(RuntimeValueOperand::Convert {
+        source,
+        source_byte_size: projection.stored_byte_count,
+        target_byte_size: projection.carrier_byte_count,
+        source_is_float: false,
+        target_is_float: false,
+        source_signed: matches!(
+            projection.interpretation,
+            psi_layout_plans::IntegerInterpretation::Signed
+        ),
+        target_signed: projection.carrier_signed,
+        trapping: false,
+        saturating: false,
+    }))
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn select_runtime_stored_integer_projection_write_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+    target_region: omega_abstract_operations::RuntimeStorageRegion,
+    target_offset: usize,
+    target_byte_size: usize,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+) -> Option<omega_abstract_operations::SelectedInstructionKind> {
+    let source = resolve_runtime_stored_integer_operand_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+        runtime_value_operands,
+    )?;
+    let RuntimeValueOperand::Convert {
+        target_byte_size: carrier_byte_size,
+        target_signed,
+        ..
+    } = runtime_value_operands.get(source)
+    else {
+        return None;
+    };
+    if *carrier_byte_size != target_byte_size {
+        return None;
+    }
+    Some(
+        omega_abstract_operations::SelectedInstructionKind::WriteRuntimeStorageConvert {
+            target_region,
+            target_offset,
+            target_byte_size,
+            source,
+            source_byte_size: target_byte_size,
+            source_is_float: false,
+            target_is_float: false,
+            source_signed: *target_signed,
+            target_signed: *target_signed,
+            trapping: false,
+            saturating: false,
+        },
+    )
 }
 
 /// Reify a selected named multiply-then-add or fused-multiply-add compiler call
