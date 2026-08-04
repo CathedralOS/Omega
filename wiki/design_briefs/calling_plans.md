@@ -1193,8 +1193,11 @@ Final validation replays the exact target encoder
 and relocation set and matches the derived scratch union to the
 respective retained `CompilerBodyPlaceCopy` or
 `CompilerBodyPlaceIntegerWrite` fragment. Other otherwise-general binary
-targets, other AArch64 composed-place conversion shapes, text-assembly writes,
-and calls remain unreplayed. String-descriptor writes replay all x86 targets
+targets, other AArch64 composed-place conversion shapes, remaining text-
+assembly writes, and calls remain unreplayed. Text-buffer materialization
+replays its direct x86 form and the direct, pointee, and frame-indexed AArch64
+forms, binding the exact buffer data object and target storage relocations to a
+dedicated `CompilerBodyTextAssemblyWrite` footprint. String-descriptor writes replay all x86 targets
 and the direct, pointee, frame-indexed, and frame-indexed machine-storage
 AArch64 shapes, including exact rodata and storage/index relocations plus a
 separate `CompilerBodyPlaceStringWrite` footprint. Immediate bounded-buffer

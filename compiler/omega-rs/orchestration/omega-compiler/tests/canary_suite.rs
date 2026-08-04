@@ -1127,7 +1127,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         executable_regions.contains(
             "\"certificate_schema\": \"omega.final-footprint-certificate\""
         )
-            && executable_regions.contains("\"certificate_format_version\": 50")
+            && executable_regions.contains("\"certificate_format_version\": 51")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
             && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")
@@ -2513,6 +2513,52 @@ fn compiler_body_bounded_buffer_source_append_footprints_reach_artifacts() {
                 && footprints.contains(expected_register)
                 && footprints.contains("\"enumeration_complete\": false"),
             "{target} artifact must retain the bounded-buffer source-append footprint without claiming completeness"
+        );
+        let _ = fs::remove_dir_all(&scratch);
+    }
+}
+
+#[test]
+fn compiler_body_text_buffer_materialize_footprints_reach_artifacts() {
+    let canary = pass_canary("text/runtime_string_append_in_place_exit");
+    for (target, expected_register) in [
+        ("linux_x64", "\"X86Rsi\""),
+        ("linux_arm64", "\"Aarch64X(21)\""),
+    ] {
+        let scratch = std::env::temp_dir().join(format!(
+            "omega-compiler-body-text-buffer-materialize-footprint-{target}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&scratch);
+        let source = scratch.join("src");
+        let output = scratch.join("out");
+        fs::create_dir_all(&source)
+            .expect("create compiler-body text-buffer materialize source directory");
+        fs::copy(canary.join("main.omg"), source.join("main.omg"))
+            .expect("copy compiler-body text-buffer materialize canary");
+        fs::write(
+            source.join("build.omg"),
+            format!("target {target} {{\n}}\n"),
+        )
+        .expect("write compiler-body text-buffer materialize target");
+        compile(CompileOptions {
+            root_path: source.join("main.omg"),
+            build_dir: Some(output.clone()),
+            target_name: Some(target.into()),
+            write_output: true,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "compiler-body text-buffer materialization should compile for {target}: {diagnostics:?}"
+            )
+        });
+        let footprints = fs::read_to_string(output.join("08_boundary_footprints.json"))
+            .expect("compiler-body text-buffer materialize evidence should be written");
+        assert!(
+            footprints.contains("\"origin\": \"compiler_body_text_assembly_write\"")
+                && footprints.contains(expected_register)
+                && footprints.contains("\"enumeration_complete\": false"),
+            "{target} artifact must retain text-buffer materialization evidence without claiming completeness"
         );
         let _ = fs::remove_dir_all(&scratch);
     }
@@ -19233,6 +19279,42 @@ fn runtime_chained_string_append_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_string_append_in_place_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_string_append_in_place_exit");
+    let main_path = canary.join("main.omg");
+    let checked = compile_to_checked(&main_path, None)
+        .expect("descriptor text append-in-place canary should check");
+    let interpreted = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(interpreted.error, None);
+    assert_eq!(interpreted.exit_code, 70);
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-string-append-in-place-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("descriptor text append-in-place canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("descriptor text append-in-place canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected descriptor text materialization followed by append to preserve the prefix and exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
     let _ = fs::remove_dir_all(&build_dir);
 }
 
@@ -45164,6 +45246,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "text/runtime_alias_string_write",
     "text/runtime_alias_text_builder_write",
     "text/runtime_string_concat_membership_exit",
+    "text/runtime_string_append_in_place_exit",
     "text/runtime_string_field_concat_exit",
     "text/runtime_machine_owned_indexed_string_field_concat_exit",
     "text/runtime_slice_alias_indexed_string_field_concat_exit",

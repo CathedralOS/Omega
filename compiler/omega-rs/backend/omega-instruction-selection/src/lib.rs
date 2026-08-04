@@ -16,6 +16,7 @@ pub use entry::{
     derive_boundary_compiler_body_place_string_write_footprint,
     derive_boundary_compiler_body_storage_bit_field_write_footprint,
     derive_boundary_compiler_body_storage_convert_write_footprint,
+    derive_boundary_compiler_body_text_assembly_write_footprint,
     derive_boundary_dispatch_scaffold_footprint, derive_boundary_entry_slice_descriptor_footprint,
     derive_boundary_entry_storage, derive_boundary_entry_storage_writes, derive_boundary_exit,
     derive_boundary_exit_indirect_result_copy_footprint,

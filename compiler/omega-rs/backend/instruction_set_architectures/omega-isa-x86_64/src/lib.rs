@@ -7632,9 +7632,31 @@ pub const RUNTIME_TEXT_BUFFER_MATERIALIZE_TARGET_IMM_OFFSET: usize = 10;
 
 pub fn runtime_text_buffer_materialize_width() -> usize {
     // mov r14,imm64(10) + mov r15,imm64(10) + load rax,[r15+t](7) + load rcx,[r15+t+8](7)
-    // + mov r11,rcx(3) + mov r10,r14(3) + push rsi;push rdi(2) + mov rsi,rax(3)
-    // + mov rdi,r10(3) + rep movsb(2) + pop rdi;pop rsi(2) + store r14(7) + store r11(7)
-    66
+    // + mov r11,rcx(3) + mov r10,r14(3) + mov rsi,rax(3) + mov rdi,r10(3)
+    // + rep movsb(2) + store r14(7) + store r11(7). The callable frame already
+    // preserves RSI/RDI, so body-local push/pop traffic would only exceed the
+    // ordinary StatePlan's stack-pointer ceiling.
+    62
+}
+
+/// Exact may-write set of the direct text-buffer materializer below. RSI and
+/// RDI are restored by the enclosing callable frame, so this body sequence can
+/// use them without transiently mutating RSP.
+pub fn runtime_text_buffer_materialize_register_writes() -> RegisterSet {
+    RegisterSet::new([
+        MachineRegister::X86Rax,
+        MachineRegister::X86Rcx,
+        MachineRegister::X86Rsi,
+        MachineRegister::X86Rdi,
+        MachineRegister::X86R10,
+        MachineRegister::X86R11,
+        MachineRegister::X86R14,
+        MachineRegister::X86R15,
+    ])
+}
+
+pub fn runtime_text_buffer_materialize_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::empty()
 }
 
 /// Materializes a fresh writable text buffer for an in-place concat: copies the
@@ -7650,11 +7672,9 @@ pub fn encode_runtime_text_buffer_materialize(target_offset: usize) -> Result<Ve
     append_load_rcx_from_r15(&mut bytes, target_offset + 8)?; // rcx = source length
     append_mov_r11_rcx(&mut bytes); // r11 = saved length
     append_mov_r10_r14(&mut bytes); // r10 = dest = buffer base
-    append_push_rsi_rdi(&mut bytes);
     append_mov_rsi_rax(&mut bytes); // rsi = source pointer
     append_mov_rdi_r10(&mut bytes); // rdi = dest
     append_rep_movsb(&mut bytes); // copy rcx bytes
-    append_pop_rdi_rsi(&mut bytes);
     append_store_r14_to_r15(&mut bytes, target_offset)?; // descriptor.ptr = buffer
     append_store_r11_to_r15(&mut bytes, target_offset + 8)?; // descriptor.len = original length
     debug_assert_eq!(bytes.len(), runtime_text_buffer_materialize_width());

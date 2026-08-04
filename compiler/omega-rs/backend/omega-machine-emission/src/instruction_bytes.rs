@@ -560,6 +560,30 @@ fn compiler_instruction_validation_kind(
                 },
             )
         }
+        SelectedInstructionKind::MaterializeTextBufferToPlace { buffer, target }
+            if matches!(
+                (
+                    emission_context.target.architecture,
+                    omega_instruction_selection::classify_write_place_shape(target),
+                ),
+                (
+                    omega_target::Architecture::X86_64,
+                    omega_instruction_selection::WritePlaceShape::Direct { .. },
+                ) | (
+                    omega_target::Architecture::Aarch64,
+                    omega_instruction_selection::WritePlaceShape::Direct { .. }
+                        | omega_instruction_selection::WritePlaceShape::Pointee { .. }
+                        | omega_instruction_selection::WritePlaceShape::FrameIndexed { .. },
+                )
+            ) =>
+        {
+            Some(
+                CompilerInstructionValidationKind::CompilerBodyTextBufferMaterialize {
+                    buffer_symbol: Arc::clone(&emission_context.data.objects.get(*buffer).symbol),
+                    target: *target,
+                },
+            )
+        }
         SelectedInstructionKind::WritePlaceBinary {
             target,
             byte_size,

@@ -1,0 +1,27 @@
+domain [u8]::Utf8
+requires
+    valid_utf8(self);
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    let mut line: &[u8] in Utf8;
+    line = "prefix ";
+    line = line + "omega";
+
+    transition line == "prefix omega" {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

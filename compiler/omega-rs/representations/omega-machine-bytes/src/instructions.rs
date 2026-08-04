@@ -130,6 +130,10 @@ pub enum CompilerInstructionValidationKind {
         data_symbol: Arc<str>,
         byte_length: usize,
     },
+    CompilerBodyTextBufferMaterialize {
+        buffer_symbol: Arc<str>,
+        target: Place,
+    },
     CompilerBodyPlaceBinaryWrite {
         target: Place,
         byte_size: usize,
