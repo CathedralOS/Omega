@@ -15,6 +15,7 @@ impl EncodedMachinePlan {
                 functions: Arena::with_capacity(function_capacity),
                 instructions: Arena::with_capacity(instruction_capacity),
                 bytes: Arena::with_capacity(byte_capacity),
+                runtime_value_operands: Arena::new(),
                 byte_count: 0,
             },
             EncodedMachineSemanticSummary::with_capacity(0, 0, 0, 0, 0),

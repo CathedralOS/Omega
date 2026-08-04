@@ -2149,6 +2149,9 @@ pub fn runtime_text_equals_literal_operand_width(
 /// (left page + two fixed-width left descriptor loads precede it). The
 /// relocation planner targets the right region's symbol here.
 pub const RUNTIME_TEXT_EQUALS_RIGHT_BASE_OFFSET: usize = 8 + 24 + 24;
+/// Relative address-materialization sites inside recursive value operands.
+pub const MACHINE_INDEXED_OPERAND_FRAME_INDEX_BASE_OFFSET: usize = 8;
+pub const FRAME_INDEXED_OPERAND_MACHINE_INDEX_BASE_OFFSET: usize = 32;
 
 pub fn runtime_value_operand_width(
     runtime_value_operands: &impl RuntimeValueOperandSource,

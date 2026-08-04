@@ -11107,6 +11107,9 @@ pub fn encode_runtime_machine_bounded_buffer_literal_append(
 /// right operand is evaluated (both accumulate in r10). Relocation planning adds
 /// this to the right operand's start offset.
 pub const BINARY_RIGHT_OPERAND_PUSH_WIDTH: usize = 2;
+/// Relative address-materialization sites inside recursive value operands.
+pub const MACHINE_INDEXED_OPERAND_FRAME_INDEX_BASE_OFFSET: usize = 13;
+pub const FRAME_INDEXED_OPERAND_MACHINE_INDEX_BASE_OFFSET: usize = 17;
 
 #[allow(clippy::too_many_arguments)]
 pub fn runtime_storage_binary_write_width(

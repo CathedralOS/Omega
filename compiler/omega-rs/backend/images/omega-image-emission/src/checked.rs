@@ -167,6 +167,10 @@ enum CompilerInstructionRelocationRecipe {
         buffer_symbol: std::sync::Arc<str>,
         source_region: omega_target_operations::RuntimeStorageRegion,
     },
+    RuntimeValue {
+        left: omega_target_operations::RuntimeValueOperandHandle,
+        right: omega_target_operations::RuntimeValueOperandHandle,
+    },
 }
 
 fn validate_compiler_function_instruction_boundaries(
@@ -501,6 +505,39 @@ fn validate_compiler_function_instruction_boundaries(
                             source_region,
                         },
                     ),
+                    omega_machine_bytes::CompilerInstructionValidationKind::RuntimeValueGuard {
+                        left,
+                        right,
+                        byte_size,
+                        failure_branch_distance,
+                        operator,
+                    } => (
+                        None,
+                        match architecture {
+                            Architecture::X86_64 => {
+                                omega_isa_x86_64::encode_runtime_value_compare(
+                                    &code.runtime_value_operands,
+                                    left,
+                                    right,
+                                    byte_size,
+                                    failure_branch_distance,
+                                    operator,
+                                )?
+                            }
+                            Architecture::Aarch64 => {
+                                omega_isa_aarch64::encode_runtime_value_compare(
+                                    &code.runtime_value_operands,
+                                    left,
+                                    right,
+                                    byte_size,
+                                    failure_branch_distance,
+                                    operator,
+                                )?
+                            }
+                        },
+                        13u8,
+                        CompilerInstructionRelocationRecipe::RuntimeValue { left, right },
+                    ),
                     omega_machine_bytes::CompilerInstructionValidationKind::DispatchStateWrite {
                         dispatch_index,
                         case_leave_byte_distance,
@@ -653,6 +690,32 @@ fn validate_compiler_function_instruction_boundaries(
                                 &[0, source_site],
                             )
                     }
+                    CompilerInstructionRelocationRecipe::RuntimeValue { left, right } => {
+                        let address_sites = compiler_runtime_value_compare_address_sites(
+                            architecture,
+                            &code.runtime_value_operands,
+                            left,
+                            right,
+                        )?;
+                        validate_compiler_data_address_relocations(
+                            architecture,
+                            object,
+                            relocations,
+                            instruction.selected_instruction_index,
+                            instruction_byte_offset,
+                            &address_sites,
+                        )?;
+                        encoded_instruction_bytes == expected_bytes
+                            && compiler_instruction_non_relocation_bits_match(
+                                architecture,
+                                &expected_bytes,
+                                final_instruction_bytes,
+                                &address_sites
+                                    .iter()
+                                    .map(|(offset, _)| *offset)
+                                    .collect::<Vec<_>>(),
+                            )
+                    }
                 };
                 if expected_position.is_some_and(|position| instruction_index != position)
                     || !bytes_match
@@ -662,9 +725,11 @@ fn validate_compiler_function_instruction_boundaries(
                         instruction.selected_instruction_index
                     )));
                 }
-                if let Some(footprint) =
-                    compiler_instruction_footprint(architecture, kind_for_footprint)
-                {
+                if let Some(footprint) = compiler_instruction_footprint(
+                    architecture,
+                    &code.runtime_value_operands,
+                    kind_for_footprint,
+                ) {
                     compiler_instruction_footprints.push(footprint);
                 }
                 let (class_count, class_fingerprint) = if kind_tag <= 2 {
@@ -761,6 +826,7 @@ fn validate_compiler_function_instruction_boundaries(
 
 fn compiler_instruction_footprint(
     architecture: Architecture,
+    runtime_value_operands: &psi_arena::Arena<omega_target_operations::RuntimeValueOperand>,
     kind: omega_machine_bytes::CompilerInstructionValidationKind,
 ) -> Option<(
     omega_machine_instructions::BoundaryFootprintFragmentOrigin,
@@ -889,6 +955,28 @@ fn compiler_instruction_footprint(
                 omega_isa_aarch64::runtime_text_storage_compare_additional_machine_state(),
             ),
         },
+        CompilerInstructionValidationKind::RuntimeValueGuard { left, right, .. } => {
+            match architecture {
+                Architecture::X86_64 => (
+                    BoundaryFootprintFragmentOrigin::RuntimeValueGuardComparison,
+                    omega_isa_x86_64::runtime_value_compare_register_write_ceiling(),
+                    omega_isa_x86_64::runtime_value_compare_additional_machine_state(
+                        runtime_value_operands,
+                        left,
+                        right,
+                    ),
+                ),
+                Architecture::Aarch64 => (
+                    BoundaryFootprintFragmentOrigin::RuntimeValueGuardComparison,
+                    omega_isa_aarch64::runtime_value_compare_register_write_ceiling(),
+                    omega_isa_aarch64::runtime_value_compare_additional_machine_state(
+                        runtime_value_operands,
+                        left,
+                        right,
+                    ),
+                ),
+            }
+        }
         CompilerInstructionValidationKind::DispatchStateWrite { .. } => (
             BoundaryFootprintFragmentOrigin::DispatchScaffold,
             match architecture {
@@ -929,6 +1017,7 @@ fn validate_compiler_body_specification_footprints(
             BoundaryFootprintFragmentOrigin::DispatchScaffold
                 | BoundaryFootprintFragmentOrigin::StaticGuardComparison
                 | BoundaryFootprintFragmentOrigin::RuntimeTextGuardComparison
+                | BoundaryFootprintFragmentOrigin::RuntimeValueGuardComparison
                 | BoundaryFootprintFragmentOrigin::PlaceGuardComparison
         )
     });
@@ -957,7 +1046,11 @@ fn validate_compiler_body_specification_footprints(
             3u8,
             BoundaryFootprintFragmentOrigin::RuntimeTextGuardComparison,
         ),
-        (4u8, BoundaryFootprintFragmentOrigin::PlaceGuardComparison),
+        (
+            4u8,
+            BoundaryFootprintFragmentOrigin::RuntimeValueGuardComparison,
+        ),
+        (5u8, BoundaryFootprintFragmentOrigin::PlaceGuardComparison),
     ] {
         let evidence_rows = derived
             .iter()
@@ -1209,6 +1302,185 @@ fn compiler_place_value_address_sites(
     }
 }
 
+fn compiler_runtime_value_compare_address_sites(
+    architecture: Architecture,
+    operands: &psi_arena::Arena<omega_target_operations::RuntimeValueOperand>,
+    left: omega_target_operations::RuntimeValueOperandHandle,
+    right: omega_target_operations::RuntimeValueOperandHandle,
+) -> Result<Vec<(usize, omega_target_operations::RuntimeStorageRegion)>, Diagnostic> {
+    let mut sites = Vec::new();
+    let mut visiting = Vec::new();
+    collect_compiler_runtime_value_address_sites(
+        architecture,
+        operands,
+        left,
+        0,
+        &mut visiting,
+        &mut sites,
+    )?;
+    let right_offset = compiler_runtime_value_operand_width(architecture, operands, left)?;
+    collect_compiler_runtime_value_address_sites(
+        architecture,
+        operands,
+        right,
+        right_offset,
+        &mut visiting,
+        &mut sites,
+    )?;
+    Ok(sites)
+}
+
+fn collect_compiler_runtime_value_address_sites(
+    architecture: Architecture,
+    operands: &psi_arena::Arena<omega_target_operations::RuntimeValueOperand>,
+    operand_handle: omega_target_operations::RuntimeValueOperandHandle,
+    operand_offset: usize,
+    visiting: &mut Vec<omega_target_operations::RuntimeValueOperandHandle>,
+    sites: &mut Vec<(usize, omega_target_operations::RuntimeStorageRegion)>,
+) -> Result<(), Diagnostic> {
+    use omega_target_operations::{RuntimeStorageRegion, RuntimeValueOperand};
+
+    if !operands.is_valid(operand_handle) {
+        return Err(Diagnostic::error(
+            "final runtime-value guard retained an invalid operand handle",
+        ));
+    }
+    if visiting.contains(&operand_handle) {
+        return Err(Diagnostic::error(
+            "final runtime-value guard retained a cyclic operand graph",
+        ));
+    }
+    visiting.push(operand_handle);
+    match operands.get(operand_handle) {
+        RuntimeValueOperand::Immediate(_) => {}
+        RuntimeValueOperand::Storage { region, .. }
+        | RuntimeValueOperand::BitField { region, .. } => {
+            sites.push((operand_offset, *region));
+        }
+        RuntimeValueOperand::Pointee { .. }
+        | RuntimeValueOperand::FrameBaseIndexed { .. }
+        | RuntimeValueOperand::FrameFixedIndexed { .. } => {
+            sites.push((operand_offset, RuntimeStorageRegion::RuntimeFrame));
+        }
+        RuntimeValueOperand::FrameIndexed { index_region, .. } => {
+            sites.push((operand_offset, RuntimeStorageRegion::RuntimeFrame));
+            if *index_region == RuntimeStorageRegion::Machine {
+                sites.push((
+                    operand_offset
+                        + match architecture {
+                            Architecture::X86_64 => {
+                                omega_isa_x86_64::FRAME_INDEXED_OPERAND_MACHINE_INDEX_BASE_OFFSET
+                            }
+                            Architecture::Aarch64 => {
+                                omega_isa_aarch64::FRAME_INDEXED_OPERAND_MACHINE_INDEX_BASE_OFFSET
+                            }
+                        },
+                    RuntimeStorageRegion::Machine,
+                ));
+            }
+        }
+        RuntimeValueOperand::MachineIndexed { index_region, .. } => {
+            sites.push((operand_offset, RuntimeStorageRegion::Machine));
+            if *index_region == RuntimeStorageRegion::RuntimeFrame {
+                sites.push((
+                    operand_offset
+                        + match architecture {
+                            Architecture::X86_64 => {
+                                omega_isa_x86_64::MACHINE_INDEXED_OPERAND_FRAME_INDEX_BASE_OFFSET
+                            }
+                            Architecture::Aarch64 => {
+                                omega_isa_aarch64::MACHINE_INDEXED_OPERAND_FRAME_INDEX_BASE_OFFSET
+                            }
+                        },
+                    RuntimeStorageRegion::RuntimeFrame,
+                ));
+            }
+        }
+        RuntimeValueOperand::Binary { left, right, .. } => {
+            collect_compiler_runtime_value_address_sites(
+                architecture,
+                operands,
+                *left,
+                operand_offset,
+                visiting,
+                sites,
+            )?;
+            let left_width = compiler_runtime_value_operand_width(architecture, operands, *left)?;
+            let right_gap = match architecture {
+                Architecture::X86_64 => omega_isa_x86_64::BINARY_RIGHT_OPERAND_PUSH_WIDTH,
+                Architecture::Aarch64 => 0,
+            };
+            collect_compiler_runtime_value_address_sites(
+                architecture,
+                operands,
+                *right,
+                operand_offset + left_width + right_gap,
+                visiting,
+                sites,
+            )?;
+        }
+        RuntimeValueOperand::TextEquals {
+            left_region,
+            right_region,
+            ..
+        } => {
+            sites.push((operand_offset, *left_region));
+            sites.push((
+                operand_offset
+                    + match architecture {
+                        Architecture::X86_64 => {
+                            omega_isa_x86_64::RUNTIME_TEXT_EQUALS_RIGHT_BASE_OFFSET
+                        }
+                        Architecture::Aarch64 => {
+                            omega_isa_aarch64::RUNTIME_TEXT_EQUALS_RIGHT_BASE_OFFSET
+                        }
+                    },
+                *right_region,
+            ));
+        }
+        RuntimeValueOperand::TextEqualsLiteral { place, .. } => {
+            if !operands.is_valid(*place) {
+                return Err(Diagnostic::error(
+                    "final runtime-value text-literal operand retained an invalid place handle",
+                ));
+            }
+            let region = match operands.get(*place) {
+                RuntimeValueOperand::Storage { region, .. } => *region,
+                _ => RuntimeStorageRegion::RuntimeFrame,
+            };
+            sites.push((operand_offset, region));
+        }
+        RuntimeValueOperand::Convert { source, .. } => {
+            collect_compiler_runtime_value_address_sites(
+                architecture,
+                operands,
+                *source,
+                operand_offset,
+                visiting,
+                sites,
+            )?;
+        }
+    }
+    visiting.pop();
+    Ok(())
+}
+
+fn compiler_runtime_value_operand_width(
+    architecture: Architecture,
+    operands: &psi_arena::Arena<omega_target_operations::RuntimeValueOperand>,
+    operand: omega_target_operations::RuntimeValueOperandHandle,
+) -> Result<usize, Diagnostic> {
+    if !operands.is_valid(operand) {
+        return Err(Diagnostic::error(
+            "final runtime-value guard retained an invalid operand handle",
+        ));
+    }
+    Ok(match architecture {
+        Architecture::X86_64 => omega_isa_x86_64::runtime_value_operand_width(operands, operand),
+        Architecture::Aarch64 => omega_isa_aarch64::runtime_value_operand_width(operands, operand),
+    })
+}
+
 fn validate_compiler_data_address_relocations(
     architecture: Architecture,
     object: &omega_object_file::ObjectPlan,
@@ -1266,7 +1538,7 @@ fn validate_compiler_data_address_relocations(
             });
     if !matches {
         return Err(Diagnostic::error(format!(
-            "compiler place guard instruction #{selected_instruction_index} does not retain its exact place-derived storage relocation set"
+            "compiler instruction #{selected_instruction_index} does not retain its exact operand-derived storage relocation set"
         )));
     }
     Ok(())
@@ -2985,8 +3257,8 @@ fn fingerprint_into(fingerprint: &mut u64, bytes: &[u8]) {
 mod tests {
     use super::{
         compiler_instruction_non_relocation_bits_match, compiler_place_value_address_sites,
-        emit_checked_executable_image, validate_checked_instruction_bytes,
-        validate_compiler_data_address_relocations,
+        compiler_runtime_value_compare_address_sites, emit_checked_executable_image,
+        validate_checked_instruction_bytes, validate_compiler_data_address_relocations,
         validate_compiler_function_instruction_boundaries,
         validate_compiler_runtime_text_relocations, validate_executable_region_enumeration,
         validate_final_text_relocation_envelope,
@@ -3574,6 +3846,74 @@ mod tests {
     }
 
     #[test]
+    fn runtime_value_guard_replay_derives_recursive_operand_sites() {
+        use omega_target_operations::{RuntimeStorageRegion, RuntimeValueOperand};
+
+        let mut operands = psi_arena::Arena::new();
+        let indexed = operands.insert(RuntimeValueOperand::FrameIndexed {
+            descriptor_offset: 16,
+            index_region: RuntimeStorageRegion::Machine,
+            index_offset: 8,
+            index_byte_size: 4,
+            element_byte_size: 16,
+            field_byte_offset: 4,
+            byte_size: 4,
+        });
+        let left = operands.insert(RuntimeValueOperand::Convert {
+            source: indexed,
+            source_byte_size: 4,
+            target_byte_size: 8,
+            source_is_float: false,
+            target_is_float: false,
+            source_signed: true,
+            target_signed: true,
+            trapping: false,
+            saturating: false,
+        });
+        let right = operands.insert(RuntimeValueOperand::TextEquals {
+            left_region: RuntimeStorageRegion::RuntimeFrame,
+            left_offset: 40,
+            left_is_bounded_buffer: false,
+            right_region: RuntimeStorageRegion::Machine,
+            right_offset: 80,
+            right_is_bounded_buffer: false,
+        });
+
+        let sites = compiler_runtime_value_compare_address_sites(
+            omega_target::Architecture::X86_64,
+            &operands,
+            left,
+            right,
+        )
+        .expect("recursive value operands should yield exact relocation sites");
+        let right_start = omega_isa_x86_64::runtime_value_operand_width(&operands, left);
+        assert_eq!(
+            sites,
+            vec![
+                (0, RuntimeStorageRegion::RuntimeFrame),
+                (
+                    omega_isa_x86_64::FRAME_INDEXED_OPERAND_MACHINE_INDEX_BASE_OFFSET,
+                    RuntimeStorageRegion::Machine,
+                ),
+                (right_start, RuntimeStorageRegion::RuntimeFrame),
+                (
+                    right_start + omega_isa_x86_64::RUNTIME_TEXT_EQUALS_RIGHT_BASE_OFFSET,
+                    RuntimeStorageRegion::Machine,
+                ),
+            ]
+        );
+
+        let diagnostic = compiler_runtime_value_compare_address_sites(
+            omega_target::Architecture::X86_64,
+            &operands,
+            omega_target_operations::RuntimeValueOperandHandle::invalid(),
+            right,
+        )
+        .expect_err("an invalid retained operand root must reject");
+        assert!(diagnostic.message.contains("invalid operand handle"));
+    }
+
+    #[test]
     fn checked_emission_rejects_unclassified_executable_bytes() {
         let inventory = PlacedExecutableRegionInventory {
             text_address: 0x1000,
@@ -3631,6 +3971,7 @@ mod tests {
             functions: Arena::new(),
             instructions,
             bytes,
+            runtime_value_operands: Arena::new(),
             byte_count: 5,
         };
 
@@ -3732,6 +4073,7 @@ mod tests {
             functions: Arena::new(),
             instructions,
             bytes,
+            runtime_value_operands: Arena::new(),
             byte_count: out_bytes.len() + in_bytes.len(),
         };
         let mut final_bytes = out_bytes;
@@ -3842,6 +4184,7 @@ mod tests {
             functions: Arena::new(),
             instructions,
             bytes,
+            runtime_value_operands: Arena::new(),
             byte_count: encoded.len(),
         };
 
@@ -3941,6 +4284,7 @@ mod tests {
             functions: Arena::new(),
             instructions,
             bytes,
+            runtime_value_operands: Arena::new(),
             byte_count: encoded.len(),
         };
 
@@ -4073,6 +4417,7 @@ mod tests {
             functions: Arena::new(),
             instructions,
             bytes,
+            runtime_value_operands: Arena::new(),
             byte_count: encoded.len(),
         };
 
@@ -4175,6 +4520,7 @@ mod tests {
             functions: Arena::new(),
             instructions,
             bytes,
+            runtime_value_operands: Arena::new(),
             byte_count: encoded.len(),
         };
 
@@ -4286,6 +4632,7 @@ mod tests {
             functions: Arena::new(),
             instructions,
             bytes,
+            runtime_value_operands: Arena::new(),
             byte_count: encoded.len(),
         };
 
@@ -4385,6 +4732,7 @@ mod tests {
             functions: Arena::new(),
             instructions,
             bytes,
+            runtime_value_operands: Arena::new(),
             byte_count: encoded.len(),
         };
         let relocations = RelocationPlan::with_target(NativeTarget::linux_x64());

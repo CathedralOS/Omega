@@ -882,7 +882,7 @@ proves complete region coverage, and composes admitted leaves under their
 separate provenance. Do not add a second whole-image decoder/admission path.
 
 The existing single final-region artifact now carries the domain-separated
-`omega.final-footprint-certificate` schema, format version 9, and a certificate
+`omega.final-footprint-certificate` schema, format version 10, and a certificate
 fingerprint over its final placement binding, compiler-text derivation, and
 complete region inventory. Its explicit completeness flags remain false until
 compiler-body footprint decoding and admitted-leaf evidence land. The envelope
@@ -918,7 +918,13 @@ descriptor-vs-literal guards now retain the canonical data-object symbol,
 literal/length, storage source, operator, and normalized branch distances;
 validation replays the target encoder, requires the exact data/storage
 relocation set, and admits their `RuntimeTextGuardComparison` footprint.
-Runtime-value guards and ordinary writes/calls remain incomplete. The final validator now also
+Recursive runtime-value guards now retain their two roots into a single
+canonical operand arena carried by encoded machine code. Final validation
+regenerates the complete evaluator program, independently walks nested
+binary/conversion/index/text-equality operands to require the exact relocation
+set, and admits the target's closed `RuntimeValueGuardComparison` may-write
+ceiling with operand-sensitive stack/control state. Ordinary writes/calls remain
+incomplete. The final validator now also
 re-derives the dispatch/static-guard register and machine-state unions from
 those successfully replayed rows, requires exact equality with their earlier
 `StatePlan`-validated semantic fragments (including the complete place-guard

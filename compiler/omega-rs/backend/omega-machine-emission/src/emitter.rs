@@ -45,7 +45,14 @@ mod tests {
     #[test]
     fn copies_machine_semantic_summaries_to_encoded_plan() {
         let target = NativeTarget::host();
-        let assigned_target_operations = AssignedTargetOperationPlan::default();
+        let mut assigned_target_operations = AssignedTargetOperationPlan::default();
+        assigned_target_operations
+            .code
+            .runtime_value_operands
+            .insert(omega_assigned_target_operations::AssignedValueOperand {
+                kind: omega_target_operations::RuntimeValueOperand::Immediate(42),
+                home: omega_assigned_target_operations::AssignedValueHomeKind::Immediate,
+            });
         let host_abi = build_host_abi_plan(target);
         let data = omega_target_operations::TargetDataPlan::default();
         let mut machine_instructions = MachineInstructionPlan::with_capacity(target, 1, 2);
@@ -139,6 +146,15 @@ mod tests {
             .map(|(_, function)| function)
             .expect("encoded function");
         assert_eq!(encoded_function.instructions.len(), 2);
+        assert_eq!(
+            encoded
+                .code
+                .runtime_value_operands
+                .iter()
+                .next()
+                .map(|(_, operand)| operand),
+            Some(&omega_target_operations::RuntimeValueOperand::Immediate(42))
+        );
         assert_eq!(
             encoded
                 .code

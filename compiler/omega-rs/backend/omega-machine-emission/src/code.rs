@@ -13,6 +13,21 @@ pub(crate) fn build_encoded_machine_code(
         input.machine_instructions.code.instructions.len(),
         0,
     );
+    code.runtime_value_operands.reserve(
+        input
+            .assigned_target_operations
+            .code
+            .runtime_value_operands
+            .len(),
+    );
+    for (_, operand) in input
+        .assigned_target_operations
+        .code
+        .runtime_value_operands
+        .iter()
+    {
+        code.runtime_value_operands.insert(operand.kind.clone());
+    }
 
     for (_, function) in input.machine_instructions.code.functions.iter() {
         let byte_offset = code.bytes.len();
