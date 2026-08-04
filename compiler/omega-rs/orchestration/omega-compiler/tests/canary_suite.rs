@@ -1124,7 +1124,12 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         "the exact placed compiler entry region must retain its composed encoded-machine footprint:\n{compiler_entry_region}"
     );
     assert!(
-        executable_regions.contains("\"placement_stage\": \"final_image\"")
+        executable_regions.contains(
+            "\"certificate_schema\": \"omega.final-footprint-certificate\""
+        )
+            && executable_regions.contains("\"certificate_format_version\": 1")
+            && executable_regions.contains("\"certificate_fingerprint\": \"0x")
+            && executable_regions.contains("\"placement_stage\": \"final_image\"")
             && executable_regions.contains("\"origin\": \"compiler_function\"")
             && executable_regions.contains(
                 "\"final_byte_validated_classes\": [\"compiler_function_relocation_envelope\", \"compiler_entry_call_return_mechanics\""

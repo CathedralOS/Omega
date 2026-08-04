@@ -1027,7 +1027,11 @@ The compiler publishes the encoded-prefix, final-prefix, and canonical
 relocation-envelope fingerprints plus their composed derivation identity. The
 boundary/placement binding includes that derivation identity, so a valid final
 inventory cannot be paired with evidence from a different encoded-to-final
-derivation.
+derivation. The single emitted artifact is now self-described as
+`omega.final-footprint-certificate` format v1, with a domain-separated
+certificate fingerprint over its final placement binding, compiler-text
+derivation, and region inventory. It remains explicitly incomplete evidence,
+not an admission certificate, until the missing footprint classes close.
 Checked image emission rejects any unclassified final executable gap. The
 current closed emitter therefore publishes `region_enumeration_complete: true`:
 compiler functions and format-owned import thunks cover every `.text` byte,
