@@ -44,6 +44,7 @@ pub(super) fn semantic_contract_payload(
                 kind,
                 fact: contract.fact,
                 proposition: application.proposition,
+                instantiated: psi_arena::Handle::invalid(),
             }
         }
     }

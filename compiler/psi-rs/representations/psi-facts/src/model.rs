@@ -299,6 +299,9 @@ pub enum FactPayload {
         kind: ContractFactKind,
         fact: Handle<ProofFact>,
         proposition: SymbolHandle,
+        /// Canonical caller-term identity after call/operator substitution.
+        /// Invalid on declaration-shaped facts.
+        instantiated: Handle<InstantiatedExpression>,
     },
     ContractCarryPermission {
         kind: ContractFactKind,

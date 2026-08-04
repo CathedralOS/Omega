@@ -26,6 +26,57 @@ pub(crate) enum ProofFactOwner<'program> {
     },
 }
 
+pub(crate) fn validate_proposition_definitions(
+    program: &TypedTrees,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for proposition in program.propositions() {
+        let mut visiting = Vec::new();
+        if transparent_proposition_cycle(program, proposition.symbol, &mut visiting) {
+            diagnostics.push(Diagnostic::error(format!(
+                "transparent proposition `{}` participates in an alias cycle",
+                proposition.name.as_str()
+            )));
+        }
+        if let psi_typed_trees::proposition::PropositionBody::Witness { evidence } =
+            proposition.body
+            && !evidence.is_valid()
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "witness-bearing proposition `{}` has no resolved evidence interface",
+                proposition.name.as_str()
+            )));
+        }
+    }
+}
+
+fn transparent_proposition_cycle(
+    program: &TypedTrees,
+    symbol: psi_symbols::SymbolHandle,
+    visiting: &mut Vec<psi_symbols::SymbolHandle>,
+) -> bool {
+    if visiting.contains(&symbol) {
+        return true;
+    }
+    let Some(proposition) = program
+        .propositions()
+        .iter()
+        .find(|proposition| proposition.symbol == symbol)
+    else {
+        return false;
+    };
+    let psi_typed_trees::proposition::PropositionBody::Transparent {
+        proposition: psi_typed_trees::proposition::PropositionFormula::Application(application),
+    } = &proposition.body
+    else {
+        return false;
+    };
+    visiting.push(symbol);
+    let cyclic = transparent_proposition_cycle(program, application.proposition, visiting);
+    visiting.pop();
+    cyclic
+}
+
 impl fmt::Display for ProofFactOwner<'_> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {

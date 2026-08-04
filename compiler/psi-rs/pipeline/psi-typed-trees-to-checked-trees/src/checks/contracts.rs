@@ -8,7 +8,7 @@ mod exits;
 mod writes;
 // `pub(super)` so the operator-`requires` discharge (checks/operators) can
 // reuse the domain-derived boolean proving labels.
-pub(super) mod labels;
+pub(crate) mod labels;
 mod places;
 mod prover;
 

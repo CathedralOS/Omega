@@ -72,6 +72,32 @@ impl FactPlan {
         }
     }
 
+    pub fn proposition_fact_label(&self, program: &TypedTrees, fact: &Fact) -> Option<String> {
+        let (proof_fact, instantiated) = match fact.payload {
+            FactPayload::PropositionApplication { fact, .. } => (fact, Handle::invalid()),
+            FactPayload::ContractPropositionApplication {
+                fact, instantiated, ..
+            } => (fact, instantiated),
+            _ => return None,
+        };
+        if instantiated.is_valid() {
+            return Some(
+                self.instantiated_expressions
+                    .get(instantiated)
+                    .label
+                    .clone(),
+            );
+        }
+        let psi_typed_trees::domain::ProofFact::Proposition(application) =
+            program.proof_facts.get(proof_fact)
+        else {
+            return None;
+        };
+        program
+            .normalize_proposition_application(application)
+            .map(|formula| formula.identity_label())
+    }
+
     pub fn append_place(&mut self, place: Place) -> PlaceHandle {
         self.places.append(place)
     }

@@ -17,6 +17,99 @@ fn typed_program_from_source(source: &str) -> psi_typed_trees::TypedTrees {
 }
 
 #[test]
+fn proposition_contract_requires_exact_normalized_application() {
+    let typed = typed_program_from_source(
+        r#"
+        proposition related(left: i32, right: i32);
+        proposition self_related(value: i32) = related(value, value);
+
+        machine consume(left: i32, right: i32)
+        requires related(left, right)
+        {
+        }
+
+        machine caller(value: i32)
+        requires self_related(value)
+        {
+            consume(value, value);
+        }
+        "#,
+    );
+
+    psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+        .expect("a transparent alias must establish its normalized expansion");
+}
+
+#[test]
+fn proposition_contract_rejects_different_application() {
+    let typed = typed_program_from_source(
+        r#"
+        proposition related(left: i32, right: i32);
+
+        machine consume(left: i32, right: i32)
+        requires related(left, right)
+        {
+        }
+
+        machine caller(left: i32, right: i32)
+        requires related(left, left)
+        {
+            consume(left, right);
+        }
+        "#,
+    );
+
+    let diagnostics = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+        .expect_err("a different proposition argument tuple must not be accepted");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot prove requires contract")
+            && diagnostic.message.contains("proposition:fact:related")
+    }));
+}
+
+#[test]
+fn transparent_boolean_proposition_normalizes_to_boolean_fact() {
+    let typed = typed_program_from_source(
+        r#"
+        proposition positive(value: i32) = value > 0;
+
+        machine consume(value: i32)
+        requires positive(value)
+        {
+        }
+
+        machine caller(value: i32)
+        requires value > 0
+        {
+            consume(value);
+        }
+        "#,
+    );
+
+    psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+        .expect("a transparent Boolean proposition must normalize to its Boolean fact");
+}
+
+#[test]
+fn transparent_proposition_alias_cycle_rejects() {
+    let typed = typed_program_from_source(
+        r#"
+        proposition first(value: i32) = second(value);
+        proposition second(value: i32) = first(value);
+        "#,
+    );
+
+    let diagnostics = validate_program(&typed).expect_err("transparent aliases must be acyclic");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("participates in an alias cycle")
+    }));
+}
+
+#[test]
 fn local_dynamic_value_rejects_boundary_trait() {
     let typed = typed_program_from_source(
         r#"
