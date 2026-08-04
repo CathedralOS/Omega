@@ -3497,6 +3497,19 @@ pub fn encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_stora
     Ok(bytes)
 }
 
+/// Exact scratch footprint shared by machine-inline-array element reads. The
+/// address recipe always writes x16/x17/x19/x20/x26; large offsets and copied
+/// chunks remain within that closed set.
+pub fn runtime_storage_copy_from_runtime_machine_indexed_clobbers() -> RegisterSet {
+    RegisterSet::new([
+        MachineRegister::Aarch64X(16),
+        MachineRegister::Aarch64X(17),
+        MachineRegister::Aarch64X(19),
+        MachineRegister::Aarch64X(20),
+        MachineRegister::Aarch64X(26),
+    ])
+}
+
 /// Write-side mirror of
 /// [`encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage`].
 /// x86_64-only for now; aarch64 emits nothing real.
@@ -7352,6 +7365,20 @@ mod tests {
                 MachineRegister::Aarch64X(17),
                 MachineRegister::Aarch64X(20),
                 MachineRegister::Aarch64X(24),
+                MachineRegister::Aarch64X(26),
+            ]
+        );
+    }
+
+    #[test]
+    fn machine_indexed_copy_clobbers_match_the_address_recipe() {
+        assert_eq!(
+            runtime_storage_copy_from_runtime_machine_indexed_clobbers().as_slice(),
+            &[
+                MachineRegister::Aarch64X(16),
+                MachineRegister::Aarch64X(17),
+                MachineRegister::Aarch64X(19),
+                MachineRegister::Aarch64X(20),
                 MachineRegister::Aarch64X(26),
             ]
         );

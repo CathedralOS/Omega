@@ -1046,10 +1046,11 @@ descriptor/index slots landing in direct frame or machine storage are included
 too, along with their direct-frame-source to frame-indexed-target mirror.
 The frame-indexed-source to frame-held-pointee form is included as well.
 Runtime-indexed reads from inline frame arrays into direct frame storage are
-also covered. Selection retains their separate `compiler_body_place_copy`
-evidence only for the `Ordinary` role; final validation regenerates the same
-place-copy bytes, checks the storage, pointer-slot, and index relocations, and
-requires the target scratch union to match. Other ordinary copy/write shapes
+also covered, as are inline machine-array reads into direct frame or machine
+storage. Selection retains their separate `compiler_body_place_copy` evidence
+only for the `Ordinary` role; final validation regenerates the same place-copy
+bytes, checks the storage, pointer-slot, and index relocations, and requires the
+target scratch union to match. Other ordinary copy/write shapes
 and calls remain outside the partial proof. The pointee-pair selector resolves
 both reference operands before flat storage, so the source remains a
 dereference rather than being mistaken for pointer-slot contents.
@@ -1070,7 +1071,7 @@ relocation-envelope fingerprints plus their composed derivation identity. The
 boundary/placement binding includes that derivation identity, so a valid final
 inventory cannot be paired with evidence from a different encoded-to-final
 derivation. The single emitted artifact is now self-described as
-`omega.final-footprint-certificate` format v22, with a domain-separated
+`omega.final-footprint-certificate` format v23, with a domain-separated
 certificate fingerprint over its final placement binding, compiler-text
 derivation, and region inventory. It remains explicitly incomplete evidence,
 not an admission certificate, until the missing footprint classes close. The
