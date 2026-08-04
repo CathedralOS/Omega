@@ -51,7 +51,7 @@ use psi_layout_plans::{
     ArtifactInstallationScopeId, EntryStubId, PlacementConstraints, PlacementPhase, PlacementSite,
 };
 use psi_proof_kernel::AdmissionProfile;
-use psi_terminal::{OperationKind, SemanticVersion};
+use psi_terminal::{OperationKind, SemanticVersion, Terminator};
 use psi_terminal_codec::{
     DebugSubject, build_artifact_manifest, decode_debug_map, decode_module, decode_proof_bundle,
     encode_debug_map, encode_module, encode_proof_bundle, terminal_psi_identity,
@@ -1227,6 +1227,82 @@ fn checked_source_runtime_boolean_inequality_reuses_terminal_primitives() {
             run_host_machine_code_with_two_bools(entry.bytes(&object_artifact), left, right),
             expected
         );
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn checked_source_short_circuit_booleans_lower_to_terminal_control() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("short-circuit Boolean source canaries should compile");
+    for (machine, is_and) in [
+        ("terminal_boolean_and", true),
+        ("terminal_boolean_or", false),
+    ] {
+        let lowered = lower_machine(&checked, machine)
+            .expect("short-circuit Boolean expression should lower");
+        let conditional_count = lowered.semantic_module.machines[0]
+            .blocks
+            .iter()
+            .filter(|block| matches!(block.terminator, Terminator::Conditional { .. }))
+            .count();
+        assert_eq!(conditional_count, 2);
+        let semantic_bytes = encode_module(&lowered.semantic_module)
+            .expect("short-circuit Boolean control should encode canonically");
+        let semantic_module =
+            decode_module(&semantic_bytes).expect("short-circuit Boolean control should decode");
+        let verified = verify_module(
+            &semantic_module,
+            &lowered.proof_bundle,
+            &AdmissionProfile::default(),
+        )
+        .expect("short-circuit Boolean control should verify");
+        let fuel = derive_fixed_entry_fuel(&verified, semantic_module.entry)
+            .expect("short-circuit Boolean control should have fixed fuel");
+        assert_eq!(fuel.ceiling_units(), 4);
+
+        for (left, right) in [(false, false), (false, true), (true, false), (true, true)] {
+            let expected = if is_and { left && right } else { left || right };
+            let expected_units = if (is_and && !left) || (!is_and && left) {
+                3
+            } else {
+                4
+            };
+            let measured = interpret_terminal_measured(
+                &verified,
+                &[
+                    TerminalScalarValue::Boolean(left),
+                    TerminalScalarValue::Boolean(right),
+                ],
+            )
+            .expect("short-circuit Boolean control should interpret");
+            assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+            assert_eq!(measured.usage().total_units(), expected_units);
+        }
+
+        let abstract_operations = lower_verified_module(&verified)
+            .expect("short-circuit Boolean control should cross the Omega boundary");
+        let target_operations =
+            lower_to_target_operations(&abstract_operations, NativeTarget::host())
+                .expect("short-circuit Boolean control should select for the host");
+        assert!(matches!(
+            target_operations.functions[0].operation,
+            TerminalTargetOperation::ReturnBooleanConditionalControl { .. }
+        ));
+        let assigned = assign_registers(&target_operations)
+            .expect("short-circuit Boolean control homes should assign");
+        let machine_code =
+            emit_machine_code(&assigned).expect("short-circuit Boolean control should emit");
+        let object_artifact = build_terminal_object_artifact(&machine_code)
+            .expect("short-circuit Boolean control should form an object");
+        let entry = object_artifact.entry_function();
+        for (left, right) in [(false, false), (false, true), (true, false), (true, true)] {
+            let expected = i32::from(if is_and { left && right } else { left || right });
+            assert_eq!(
+                run_host_machine_code_with_two_bools(entry.bytes(&object_artifact), left, right),
+                expected
+            );
+        }
     }
 }
 

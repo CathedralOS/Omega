@@ -93,6 +93,24 @@ enum LoweredBooleanReturnExpression {
         left: Box<LoweredBooleanReturnExpression>,
         right: Box<LoweredBooleanReturnExpression>,
     },
+    And {
+        left: Box<LoweredBooleanReturnExpression>,
+        right: Box<LoweredBooleanReturnExpression>,
+    },
+    Or {
+        left: Box<LoweredBooleanReturnExpression>,
+        right: Box<LoweredBooleanReturnExpression>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum LoweredBooleanDecision {
+    Return(bool),
+    Test {
+        condition: LoweredBooleanReturnExpression,
+        when_true: Box<LoweredBooleanDecision>,
+        when_false: Box<LoweredBooleanDecision>,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1234,12 +1252,14 @@ fn lower_boolean_conditional_machine(
         else {
             return unsupported("Boolean conditional branch must contain one value expression");
         };
+        let branch_expression = lower_boolean_expression(checked, *return_expression, parameters)?;
+        if contains_short_circuit(&branch_expression) {
+            return unsupported(
+                "short-circuit logic in explicit conditional branches is not yet supported",
+            );
+        }
         branch_parameter_counts.push(parameters.len());
-        branch_expressions.push(lower_boolean_expression(
-            checked,
-            *return_expression,
-            parameters,
-        )?);
+        branch_expressions.push(branch_expression);
     }
 
     let branch_arguments = |transition: &psi_checked_trees::statement::TableTransition,
@@ -1667,6 +1687,7 @@ fn lower_boolean_machine(
         return unsupported("Boolean source machine must contain exactly one value expression");
     };
     let return_expression = lower_boolean_expression(checked, *return_expression, parameters)?;
+    validate_short_circuit_expression(&return_expression)?;
     let known_parameters = vec![None; parameters.len()];
     let expected_value = evaluate_boolean_expression(&return_expression, &known_parameters);
     let contract_value = validate_boolean_contract(checked, machine, expected_value)?;
@@ -1747,6 +1768,11 @@ fn lower_boolean_state_chain(
         };
         let expression =
             lower_boolean_expression(checked, *argument, checked.state_parameters(state))?;
+        if contains_short_circuit(&expression) {
+            return unsupported(
+                "short-circuit logic in Boolean state-chain bindings is not yet supported",
+            );
+        }
         let known_value = evaluate_boolean_expression(&expression, &known_parameters);
         jump_expressions.push(expression);
         known_parameters = vec![known_value];
@@ -1767,6 +1793,11 @@ fn lower_boolean_state_chain(
         *return_expression,
         std::slice::from_ref(return_parameter),
     )?;
+    if contains_short_circuit(&return_expression) {
+        return unsupported(
+            "short-circuit logic in Boolean state-chain returns is not yet supported",
+        );
+    }
     let expected_value = evaluate_boolean_expression(&return_expression, &known_parameters);
 
     let contract_value = validate_boolean_contract(checked, machine, expected_value)?;
@@ -1831,9 +1862,64 @@ fn lower_boolean_expression(
                 equality
             })
         }
+        ExpressionNode::Binary(binary)
+            if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) =>
+        {
+            if let Some(operator_use) = checked.facts.operators.expression_use(expression)
+                && operator_use.status != CheckedOperatorResolutionStatus::BuiltinFallback
+            {
+                return unsupported("terminal short-circuit logic must use the builtin operator");
+            }
+            let left = Box::new(lower_boolean_expression(checked, binary.left, parameters)?);
+            let right = Box::new(lower_boolean_expression(checked, binary.right, parameters)?);
+            Ok(if binary.operator == BinaryOperator::And {
+                LoweredBooleanReturnExpression::And { left, right }
+            } else {
+                LoweredBooleanReturnExpression::Or { left, right }
+            })
+        }
         _ => unsupported(
-            "Boolean terminal expressions require a literal, declared parameter, logical not, or builtin equality/inequality",
+            "Boolean terminal expressions require a literal, declared parameter, logical not, builtin equality/inequality, or short-circuit logic",
         ),
+    }
+}
+
+fn contains_short_circuit(expression: &LoweredBooleanReturnExpression) -> bool {
+    match expression {
+        LoweredBooleanReturnExpression::Constant { .. }
+        | LoweredBooleanReturnExpression::Parameter { .. } => false,
+        LoweredBooleanReturnExpression::Not { operand } => contains_short_circuit(operand),
+        LoweredBooleanReturnExpression::Equal { left, right } => {
+            contains_short_circuit(left) || contains_short_circuit(right)
+        }
+        LoweredBooleanReturnExpression::And { .. } | LoweredBooleanReturnExpression::Or { .. } => {
+            true
+        }
+    }
+}
+
+fn validate_short_circuit_expression(
+    expression: &LoweredBooleanReturnExpression,
+) -> Result<(), LoweringError> {
+    match expression {
+        LoweredBooleanReturnExpression::Constant { .. }
+        | LoweredBooleanReturnExpression::Parameter { .. } => Ok(()),
+        LoweredBooleanReturnExpression::Not { operand } => {
+            validate_short_circuit_expression(operand)
+        }
+        LoweredBooleanReturnExpression::Equal { left, right } => {
+            if contains_short_circuit(left) || contains_short_circuit(right) {
+                return unsupported(
+                    "short-circuit expressions nested inside equality are not yet supported",
+                );
+            }
+            Ok(())
+        }
+        LoweredBooleanReturnExpression::And { left, right }
+        | LoweredBooleanReturnExpression::Or { left, right } => {
+            validate_short_circuit_expression(left)?;
+            validate_short_circuit_expression(right)
+        }
     }
 }
 
@@ -1878,6 +1964,22 @@ fn evaluate_boolean_expression(
             evaluate_boolean_expression(left, parameters)?
                 == evaluate_boolean_expression(right, parameters)?,
         ),
+        LoweredBooleanReturnExpression::And { left, right } => {
+            let left = evaluate_boolean_expression(left, parameters)?;
+            if left {
+                evaluate_boolean_expression(right, parameters)
+            } else {
+                Some(false)
+            }
+        }
+        LoweredBooleanReturnExpression::Or { left, right } => {
+            let left = evaluate_boolean_expression(left, parameters)?;
+            if left {
+                Some(true)
+            } else {
+                evaluate_boolean_expression(right, parameters)
+            }
+        }
     }
 }
 
@@ -2498,6 +2600,228 @@ fn build_integer_conditional_module(
     }
 }
 
+fn lower_boolean_decision(
+    expression: &LoweredBooleanReturnExpression,
+    when_true: LoweredBooleanDecision,
+    when_false: LoweredBooleanDecision,
+) -> LoweredBooleanDecision {
+    match expression {
+        LoweredBooleanReturnExpression::And { left, right } => {
+            let right = lower_boolean_decision(right, when_true, when_false.clone());
+            lower_boolean_decision(left, right, when_false)
+        }
+        LoweredBooleanReturnExpression::Or { left, right } => {
+            let right = lower_boolean_decision(right, when_true.clone(), when_false);
+            lower_boolean_decision(left, when_true, right)
+        }
+        LoweredBooleanReturnExpression::Not { operand } if contains_short_circuit(operand) => {
+            lower_boolean_decision(operand, when_false, when_true)
+        }
+        expression => LoweredBooleanDecision::Test {
+            condition: expression.clone(),
+            when_true: Box::new(when_true),
+            when_false: Box::new(when_false),
+        },
+    }
+}
+
+fn build_boolean_short_circuit_module(
+    parameter_count: usize,
+    return_expression: LoweredBooleanReturnExpression,
+    contract_value: bool,
+    identity_reshuffles: LoweredContentIdentityReshuffles,
+    partition_compositions: LoweredContentPartitionCompositions,
+) -> LoweredTerminalPsi {
+    fn emit_decision(
+        decision: &LoweredBooleanDecision,
+        parameters: &[ValueDeclaration],
+        next_value_identity: &mut u64,
+        next_edge_identity: &mut u64,
+        all_operations: &mut Vec<Operation>,
+        blocks: &mut Vec<Option<Block>>,
+    ) -> BlockId {
+        let block_index = blocks.len();
+        let block = block_id(
+            u64::try_from(block_index)
+                .expect("block index fits a semantic identity")
+                .checked_add(1)
+                .expect("block identity is nonzero"),
+        );
+        blocks.push(None);
+        let operation_start = all_operations.len();
+        let (terminator, operation_end) = match decision {
+            LoweredBooleanDecision::Return(value) => {
+                let returned = emit_boolean_expression(
+                    &LoweredBooleanReturnExpression::Constant { value: *value },
+                    parameters,
+                    next_value_identity,
+                    all_operations,
+                );
+                let edge = edge_id(*next_edge_identity);
+                *next_edge_identity = next_edge_identity
+                    .checked_add(1)
+                    .expect("short-circuit return edge identities advance");
+                (
+                    Terminator::Return {
+                        edge,
+                        value: returned,
+                    },
+                    all_operations.len(),
+                )
+            }
+            LoweredBooleanDecision::Test {
+                condition,
+                when_true,
+                when_false,
+            } => {
+                let condition = emit_boolean_expression(
+                    condition,
+                    parameters,
+                    next_value_identity,
+                    all_operations,
+                );
+                let operation_end = all_operations.len();
+                let true_edge = edge_id(*next_edge_identity);
+                let false_edge = edge_id(
+                    next_edge_identity
+                        .checked_add(1)
+                        .expect("short-circuit false edge identity advances"),
+                );
+                *next_edge_identity = next_edge_identity
+                    .checked_add(2)
+                    .expect("short-circuit conditional edge identities advance");
+                let true_target = emit_decision(
+                    when_true,
+                    parameters,
+                    next_value_identity,
+                    next_edge_identity,
+                    all_operations,
+                    blocks,
+                );
+                let false_target = emit_decision(
+                    when_false,
+                    parameters,
+                    next_value_identity,
+                    next_edge_identity,
+                    all_operations,
+                    blocks,
+                );
+                (
+                    Terminator::Conditional {
+                        condition,
+                        when_true: SuccessorEdge {
+                            edge: true_edge,
+                            target: true_target,
+                            arguments: Vec::new(),
+                        },
+                        when_false: SuccessorEdge {
+                            edge: false_edge,
+                            target: false_target,
+                            arguments: Vec::new(),
+                        },
+                    },
+                    operation_end,
+                )
+            }
+        };
+        blocks[block_index] = Some(Block {
+            id: block,
+            parameters: Vec::new(),
+            operations: all_operations[operation_start..operation_end].to_vec(),
+            terminator,
+        });
+        block
+    }
+
+    let parameters = (0..parameter_count)
+        .map(|index| ValueDeclaration {
+            id: value_id(
+                u64::try_from(index)
+                    .expect("parameter index fits a semantic identity")
+                    .checked_add(1)
+                    .expect("parameter identity is nonzero"),
+            ),
+            scalar_type: ScalarType::Boolean,
+        })
+        .collect::<Vec<_>>();
+    let mut next_value_identity = u64::try_from(parameter_count)
+        .expect("parameter count fits a semantic identity")
+        .checked_add(1)
+        .expect("generated identities follow parameter identities");
+    let decision = lower_boolean_decision(
+        &return_expression,
+        LoweredBooleanDecision::Return(true),
+        LoweredBooleanDecision::Return(false),
+    );
+    let mut all_operations = Vec::new();
+    let mut blocks = Vec::new();
+    let mut next_edge_identity = 1_u64;
+    let entry = emit_decision(
+        &decision,
+        &parameters,
+        &mut next_value_identity,
+        &mut next_edge_identity,
+        &mut all_operations,
+        &mut blocks,
+    );
+    let result = ValueDeclaration {
+        id: value_id(next_value_identity),
+        scalar_type: ScalarType::Boolean,
+    };
+    let literal = ScalarTerm::boolean(contract_value);
+    let goal = Proposition::Equal(literal.clone(), literal);
+    let obligation = obligation_id(1);
+    let mut structural_places = identity_reshuffles
+        .structural_places
+        .into_iter()
+        .map(|place| (place.id, place.kind))
+        .collect::<BTreeMap<_, _>>();
+    for place in partition_compositions.structural_places {
+        merge_content_place_declaration(&mut structural_places, place)
+            .expect("checked lowering rejects conflicting structural places");
+    }
+    LoweredTerminalPsi {
+        semantic_module: TerminalModule {
+            semantic_version: SemanticVersion::CURRENT,
+            entry: machine_id(1),
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
+            machines: vec![TerminalMachine {
+                id: machine_id(1),
+                parameters,
+                result,
+                structural_places: structural_places
+                    .into_iter()
+                    .map(|(id, kind)| StructuralPlaceDeclaration { id, kind })
+                    .collect(),
+                content_entry_claims: identity_reshuffles.entry_claims,
+                content_identity_reshuffles: identity_reshuffles.reshuffles,
+                content_partition_compositions: partition_compositions.compositions,
+                entry,
+                blocks: blocks
+                    .into_iter()
+                    .map(|block| block.expect("every decision block is finalized"))
+                    .collect(),
+                contract: MachineContract {
+                    id: contract_id(1),
+                    requires: vec![goal.clone()],
+                    ensures: vec![ContractClause {
+                        obligation,
+                        proposition: goal,
+                    }],
+                },
+            }],
+        },
+        proof_bundle: ProofBundle {
+            evidence: vec![ObligationEvidence {
+                obligation,
+                route: EvidenceRoute::KernelDerived(PrimitiveJudgment::ReflexiveEquality),
+            }],
+        },
+        debug_map: None,
+    }
+}
+
 fn build_boolean_module(
     parameter_count: usize,
     return_expression: LoweredBooleanReturnExpression,
@@ -2505,6 +2829,15 @@ fn build_boolean_module(
     identity_reshuffles: LoweredContentIdentityReshuffles,
     partition_compositions: LoweredContentPartitionCompositions,
 ) -> LoweredTerminalPsi {
+    if contains_short_circuit(&return_expression) {
+        return build_boolean_short_circuit_module(
+            parameter_count,
+            return_expression,
+            contract_value,
+            identity_reshuffles,
+            partition_compositions,
+        );
+    }
     let parameters = (0..parameter_count)
         .map(|index| ValueDeclaration {
             id: value_id(
@@ -2816,6 +3149,9 @@ fn emit_boolean_expression(
                 kind: OperationKind::BooleanEqual { left, right },
             });
             id
+        }
+        LoweredBooleanReturnExpression::And { .. } | LoweredBooleanReturnExpression::Or { .. } => {
+            unreachable!("short-circuit Boolean expressions lower through terminal control")
         }
     }
 }
@@ -3352,7 +3688,8 @@ fn build_debug_map(
     for (index, block) in terminal_machine.blocks.iter().enumerate() {
         let source_state = source_states
             .get(index)
-            .expect("terminal blocks follow accepted source-state order");
+            .or_else(|| source_states.last())
+            .expect("an accepted source machine has at least one state");
         push(
             DebugSubject::Block(block.id),
             checked.symbols.symbol_source_span(source_state.symbol),
@@ -3361,6 +3698,7 @@ fn build_debug_map(
         for (edge_index, edge) in block.terminator.edges().enumerate() {
             let transition_span = transition_spans
                 .get(edge_index)
+                .or_else(|| (transition_spans.len() == 1).then(|| &transition_spans[0]))
                 .copied()
                 .filter(|span| *span != psi_source::SourceSpan::default())
                 .filter(|span| checked.symbols.source_file(*span).is_some());
