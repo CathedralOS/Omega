@@ -1048,7 +1048,8 @@ The frame-indexed-source to frame-held-pointee form is included as well.
 Runtime-indexed reads from inline frame arrays into direct frame storage are
 also covered, as are inline machine-array reads into direct frame or machine
 storage and direct-storage writes into runtime-indexed machine-array elements.
-Double-runtime-indexed reads from inline frame or machine arrays are covered too.
+Double-runtime-indexed reads from inline frame or machine arrays and the
+machine-array write-side mirror are covered too.
 Selection retains their separate `compiler_body_place_copy` evidence only for
 the `Ordinary` role; final validation regenerates the same place-copy bytes,
 checks the storage, pointer-slot, and index relocations, and requires the target
@@ -1073,7 +1074,7 @@ relocation-envelope fingerprints plus their composed derivation identity. The
 boundary/placement binding includes that derivation identity, so a valid final
 inventory cannot be paired with evidence from a different encoded-to-final
 derivation. The single emitted artifact is now self-described as
-`omega.final-footprint-certificate` format v26, with a domain-separated
+`omega.final-footprint-certificate` format v27, with a domain-separated
 certificate fingerprint over its final placement binding, compiler-text
 derivation, and region inventory. It remains explicitly incomplete evidence,
 not an admission certificate, until the missing footprint classes close. The

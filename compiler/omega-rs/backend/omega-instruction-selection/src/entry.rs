@@ -717,6 +717,22 @@ pub fn derive_boundary_compiler_body_place_copy_footprint<'instruction>(
                 outer_index_region,
                 inner_index_region,
             ),
+            (
+                omega_target::Architecture::X86_64,
+                crate::CopyPlacesShape::ToMachineDoubleIndexed { .. },
+            ) => omega_isa_x86_64::copy_places_to_machine_double_indexed_clobbers(*byte_count),
+            (
+                omega_target::Architecture::Aarch64,
+                crate::CopyPlacesShape::ToMachineDoubleIndexed {
+                    outer_index_region,
+                    inner_index_region,
+                    ..
+                },
+            ) => omega_isa_aarch64::runtime_storage_copy_to_runtime_machine_double_indexed_clobbers(
+                source.region,
+                outer_index_region,
+                inner_index_region,
+            ),
             _ => continue,
         };
         registers.extend_from_slice(clobbers.as_slice());
