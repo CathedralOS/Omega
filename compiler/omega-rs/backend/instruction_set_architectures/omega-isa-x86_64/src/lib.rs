@@ -18,6 +18,7 @@ pub use place_copy::{
     place_binary_operand_start_width, place_bounded_buffer_write_additional_machine_state,
     place_bounded_buffer_write_register_writes, place_compare_additional_machine_state,
     place_compare_register_writes, place_integer_write_clobbers,
+    place_string_write_additional_machine_state, place_string_write_register_writes,
     place_value_compare_additional_machine_state, place_value_compare_register_writes,
 };
 

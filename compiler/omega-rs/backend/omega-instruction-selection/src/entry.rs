@@ -984,6 +984,51 @@ pub fn derive_boundary_compiler_body_place_bounded_buffer_write_footprint<'instr
     Ok(evidence)
 }
 
+/// Derive the closed encoder-family footprint for retained compiler-body
+/// string-descriptor writes.
+pub fn derive_boundary_compiler_body_place_string_write_footprint<'instruction>(
+    boundary: &ValidatedBoundaryEntryPlan,
+    instructions: impl IntoIterator<Item = &'instruction SelectedInstructionKind>,
+) -> Result<StateFootprintEvidence, PlanDiagnostic> {
+    let architecture = boundary.plan().call.policy.architecture();
+    let mut registers = Vec::new();
+    let mut additional_state = MachineStateSet::empty();
+    for instruction in instructions {
+        let SelectedInstructionKind::WritePlaceString { target, .. } = instruction else {
+            continue;
+        };
+        let supported = architecture == omega_target::Architecture::X86_64
+            || matches!(
+                crate::classify_write_place_shape(target),
+                crate::WritePlaceShape::Direct { .. }
+                    | crate::WritePlaceShape::Pointee { .. }
+                    | crate::WritePlaceShape::FrameIndexed { .. }
+                    | crate::WritePlaceShape::MachineIndexed {
+                        index_region: omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                        ..
+                    }
+            );
+        if !supported {
+            continue;
+        }
+        let (writes, state) = match architecture {
+            omega_target::Architecture::X86_64 => (
+                omega_isa_x86_64::place_string_write_register_writes(target),
+                omega_isa_x86_64::place_string_write_additional_machine_state(target),
+            ),
+            omega_target::Architecture::Aarch64 => (
+                omega_isa_aarch64::place_string_write_register_write_ceiling(),
+                omega_isa_aarch64::place_string_write_additional_machine_state(),
+            ),
+        };
+        registers.extend_from_slice(writes.as_slice());
+        additional_state = additional_state.union(state);
+    }
+    let evidence = StateFootprintEvidence::new(RegisterSet::new(registers), additional_state);
+    validate_state_footprint(boundary, &evidence)?;
+    Ok(evidence)
+}
+
 /// Derive the closed encoder-family footprint for direct compiler-body
 /// conversion writes from the same operand arena consumed by emission.
 pub fn derive_boundary_compiler_body_storage_convert_write_footprint<'instruction>(
