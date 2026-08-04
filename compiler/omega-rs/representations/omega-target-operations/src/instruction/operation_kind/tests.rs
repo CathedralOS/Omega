@@ -40,6 +40,7 @@ fn operation_kinds_expose_runtime_storage_domains() {
         source: crate::Place::at(RuntimeStorageRegion::Machine, 0),
         target: crate::Place::at(RuntimeStorageRegion::RuntimeFrame, 8),
         byte_count: 8,
+        role: omega_abstract_operations::CopyPlacesRole::Ordinary,
     };
     let read = TargetOperationKind::ReadRuntimeTextLine {
         buffer: TargetDataObjectHandle::invalid(),

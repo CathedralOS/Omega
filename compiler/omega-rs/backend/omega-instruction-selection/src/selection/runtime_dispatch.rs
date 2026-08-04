@@ -81,6 +81,7 @@ pub(crate) fn copy_places_direct(
         source: omega_abstract_operations::Place::at(source_region, source_offset),
         target: omega_abstract_operations::Place::at(target_region, target_offset),
         byte_count,
+        role: omega_abstract_operations::CopyPlacesRole::Ordinary,
     }
 }
 
@@ -114,6 +115,7 @@ pub(crate) fn copy_places_to_pointee(
         source: omega_abstract_operations::Place::at(source_region, source_offset),
         target: pointee_place(pointer_byte_offset, field_byte_offset),
         byte_count,
+        role: omega_abstract_operations::CopyPlacesRole::Ordinary,
     }
 }
 
@@ -130,6 +132,7 @@ pub(crate) fn copy_places_from_pointee(
         source: pointee_place(pointer_byte_offset, field_byte_offset),
         target: omega_abstract_operations::Place::at(target_region, target_offset),
         byte_count,
+        role: omega_abstract_operations::CopyPlacesRole::Ordinary,
     }
 }
 
@@ -154,6 +157,7 @@ pub(crate) fn copy_places_from_fixed_indexed(
         ),
         target: omega_abstract_operations::Place::at(target_region, target_offset),
         byte_count,
+        role: omega_abstract_operations::CopyPlacesRole::Ordinary,
     }
 }
 
@@ -210,6 +214,7 @@ pub(crate) fn copy_places_from_indexed(
         ),
         target: omega_abstract_operations::Place::at(target_region, target_offset),
         byte_count,
+        role: omega_abstract_operations::CopyPlacesRole::Ordinary,
     }
 }
 
@@ -237,6 +242,7 @@ pub(crate) fn copy_places_to_indexed(
             field_byte_offset,
         ),
         byte_count,
+        role: omega_abstract_operations::CopyPlacesRole::Ordinary,
     }
 }
 
@@ -337,6 +343,7 @@ pub(crate) fn copy_places_from_machine_double_indexed(
         ),
         target: omega_abstract_operations::Place::at(target_region, target_offset),
         byte_count,
+        role: omega_abstract_operations::CopyPlacesRole::Ordinary,
     }
 }
 
@@ -1329,6 +1336,7 @@ pub(crate) fn copy_places_to_machine_double_indexed(
             field_byte_offset,
         ),
         byte_count,
+        role: omega_abstract_operations::CopyPlacesRole::Ordinary,
     }
 }
 
@@ -1368,6 +1376,7 @@ pub(crate) fn copy_places_machine_indexed_pair(
             target_field_byte_offset,
         ),
         byte_count,
+        role: omega_abstract_operations::CopyPlacesRole::Ordinary,
     }
 }
 
@@ -1402,6 +1411,7 @@ pub(crate) fn copy_places_from_frame_base_double_indexed(
         ),
         target: omega_abstract_operations::Place::at(target_region, target_offset),
         byte_count,
+        role: omega_abstract_operations::CopyPlacesRole::Ordinary,
     }
 }
 
@@ -1429,6 +1439,7 @@ pub(crate) fn copy_places_from_machine_indexed(
         ),
         target: omega_abstract_operations::Place::at(target_region, target_offset),
         byte_count,
+        role: omega_abstract_operations::CopyPlacesRole::Ordinary,
     }
 }
 
@@ -1456,6 +1467,7 @@ pub(crate) fn copy_places_to_machine_indexed(
             field_byte_offset,
         ),
         byte_count,
+        role: omega_abstract_operations::CopyPlacesRole::Ordinary,
     }
 }
 
@@ -1483,6 +1495,7 @@ pub(crate) fn copy_places_indexed_to_pointee(
         ),
         target: pointee_place(pointer_byte_offset, target_field_byte_offset),
         byte_count,
+        role: omega_abstract_operations::CopyPlacesRole::Ordinary,
     }
 }
 
@@ -1505,6 +1518,7 @@ pub(crate) fn copy_places_fixed_indexed_to_pointee(
         ),
         target: pointee_place(pointer_byte_offset, target_field_byte_offset),
         byte_count,
+        role: omega_abstract_operations::CopyPlacesRole::Ordinary,
     }
 }
 

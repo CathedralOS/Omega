@@ -657,6 +657,7 @@ fn select_runtime_frame_slot_value_write_in_table_with_source_anchor_and_call_or
                 slot.byte_offset,
             ),
             byte_count: slot.byte_size,
+            role: omega_abstract_operations::CopyPlacesRole::Ordinary,
         });
     }
 

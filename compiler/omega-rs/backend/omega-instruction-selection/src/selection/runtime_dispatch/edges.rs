@@ -724,6 +724,7 @@ fn select_entry_runtime_place_result(
                 source: omega_abstract_operations::Place::at(place.region, place.byte_offset),
                 target: super::pointee_place(pointer_offset, 0),
                 byte_count: place.byte_count,
+                role: omega_abstract_operations::CopyPlacesRole::ExitIndirectResult,
             },
             source_key,
             source_statement: edge.statement_index,

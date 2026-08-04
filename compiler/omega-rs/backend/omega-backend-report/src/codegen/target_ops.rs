@@ -745,13 +745,20 @@ fn selected_instruction_name(
             source,
             target,
             byte_count,
+            role,
         } => {
             let source_symbol =
                 storage_region_symbol_name(source.region, backend_plan.entry_machine_name());
             let target_symbol =
                 storage_region_symbol_name(target.region, backend_plan.entry_machine_name());
+            let role = match role {
+                omega_target_operations::CopyPlacesRole::Ordinary => "",
+                omega_target_operations::CopyPlacesRole::ExitIndirectResult => {
+                    " role exit_indirect_result"
+                }
+            };
             format!(
-                "copy places {source_symbol}{:?} -> {target_symbol}{:?} bytes {byte_count}",
+                "copy places {source_symbol}{:?} -> {target_symbol}{:?} bytes {byte_count}{role}",
                 source.steps(),
                 target.steps()
             )
