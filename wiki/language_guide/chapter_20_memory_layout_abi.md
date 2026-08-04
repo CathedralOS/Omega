@@ -663,8 +663,11 @@ The target-neutral scalar materializer applies the same rule to concrete named
 values. It checks fit before changing the destination, emits exactly the stored
 bytes in the selected byte order, and its inverse decoder extends back into the
 declared semantic width. A compiler/provider-resolved symbolic value passes the
-same fit check. An unresolved symbolic value is not a concrete fit proof and
-therefore cannot use `IntegerAt` materialization.
+same fit check. A loader cannot defer an unresolved narrowed value and therefore
+rejects it. A post-handoff generated writer may resolve the sealed identity
+privately, but it retains the exact signed/unsigned fit constraint in its
+invocation evidence and checks the resolved value before any write or context
+publication.
 
 Encodability alone does not authorize a transfer: sub-unit mutation must also
 have a legal implementation. Stable exclusive storage may use one bounded

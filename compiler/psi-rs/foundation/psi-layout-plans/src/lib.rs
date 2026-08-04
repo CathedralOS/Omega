@@ -596,6 +596,17 @@ pub struct MaterializationWrite {
     pub destination_lsb: u16,
     pub source_lsb: u16,
     pub width: u16,
+    pub stored_integer_fit: Option<StoredIntegerFit>,
+}
+
+/// Value-domain constraint retained when a symbolic source lands in a
+/// narrower stored-integer encoding. Post-handoff resolution must discharge
+/// this constraint before any destination byte changes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StoredIntegerFit {
+    pub source_width_bits: u16,
+    pub stored_width_bits: u16,
+    pub interpretation: IntegerInterpretation,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -706,6 +717,13 @@ pub struct PostHandoffWriterSourceSlot {
     pub source: PostHandoffWriterSource,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PostHandoffWriterFitConstraint {
+    pub source_slot: usize,
+    pub field: String,
+    pub fit: StoredIntegerFit,
+}
+
 /// Invocation-sensitive half of generated writer lowering. This evidence is
 /// intentionally separate from the reusable fragment identity.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -713,6 +731,37 @@ pub struct PostHandoffWriterInvocationPlan {
     pub fragment: GeneratedPostHandoffWriterFragmentPlan,
     pub placement: PlacementConstraints,
     pub sources: Vec<PostHandoffWriterSourceSlot>,
+    pub fit_constraints: Vec<PostHandoffWriterFitConstraint>,
+}
+
+impl PostHandoffWriterInvocationPlan {
+    pub fn validate_source_values(
+        &self,
+        source_values: &[u64],
+    ) -> Result<(), MaterializationDiagnostic> {
+        if source_values.len() != self.sources.len() {
+            return Err(MaterializationDiagnostic(format!(
+                "post-handoff writer has {} source values for {} source slots",
+                source_values.len(),
+                self.sources.len()
+            )));
+        }
+        for constraint in &self.fit_constraints {
+            let value = source_values.get(constraint.source_slot).ok_or_else(|| {
+                MaterializationDiagnostic(format!(
+                    "post-handoff stored-integer constraint for `{}` names missing source slot {}",
+                    constraint.field, constraint.source_slot
+                ))
+            })?;
+            validate_stored_integer_fit(
+                &constraint.field,
+                constraint.fit,
+                *value,
+                "resolved symbolic",
+            )?;
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -747,6 +796,7 @@ impl PostHandoffWriterPlan {
         }
 
         let mut sources = Vec::<PostHandoffWriterSourceSlot>::new();
+        let mut fit_constraints = Vec::new();
         let mut steps = Vec::with_capacity(self.steps.len());
         for step in &self.steps {
             if let PostHandoffWriterSource::Resolve(target) = step.source
@@ -778,6 +828,13 @@ impl PostHandoffWriterPlan {
                 });
                 index
             };
+            if let Some(fit) = step.write.stored_integer_fit {
+                fit_constraints.push(PostHandoffWriterFitConstraint {
+                    source_slot,
+                    field: step.write.field.clone(),
+                    fit,
+                });
+            }
             steps.push(GeneratedPostHandoffWriterStep {
                 container_byte_offset: step.write.container_byte_offset,
                 container_width_bits: step.write.container_width_bits,
@@ -805,6 +862,7 @@ impl PostHandoffWriterPlan {
             fragment,
             placement: self.placement,
             sources,
+            fit_constraints,
         })
     }
 
@@ -889,6 +947,10 @@ impl PostHandoffWriterPlan {
                 }
             };
             values.push(value);
+        }
+
+        for (step, value) in self.steps.iter().zip(&values) {
+            validate_write_source_value(&step.write, *value, "resolved symbolic")?;
         }
 
         for (step, value) in self.steps.iter().zip(values) {
@@ -1309,22 +1371,11 @@ pub fn derive_symbolic_materialization(
             let write = write_from_entry(entry, symbolic)?;
             let action = match resolved {
                 Some(source_value) => {
-                    validate_stored_integer_bits(
-                        entry,
-                        symbolic.width_bits,
-                        source_value,
-                        "symbolic",
-                    )?;
+                    validate_write_source_value(&write, source_value, "symbolic")?;
                     MaterializationAction::ResolvedWrite {
                         write,
                         source_value,
                     }
-                }
-                None if matches!(entry.placement, LayoutPlacementReport::IntegerAt { .. }) => {
-                    return Err(MaterializationDiagnostic(format!(
-                        "symbolic field `{}` uses stored-integer placement without a concrete fit proof",
-                        symbolic.field
-                    )));
                 }
                 None if context.consumption == ConsumptionInstant::AfterOmegaHandoff => {
                     MaterializationAction::RuntimeWriter(write)
@@ -1441,6 +1492,23 @@ fn write_from_entry(
                 symbolic.field
             ))
         })?,
+        stored_integer_fit: match entry.placement {
+            LayoutPlacementReport::IntegerAt {
+                stored_width,
+                interpretation,
+                ..
+            } => Some(StoredIntegerFit {
+                source_width_bits: symbolic.width_bits,
+                stored_width_bits: u16::try_from(stored_width).map_err(|_| {
+                    MaterializationDiagnostic(format!(
+                        "symbolic field `{}` has an invalid stored-integer width",
+                        symbolic.field
+                    ))
+                })?,
+                interpretation,
+            }),
+            LayoutPlacementReport::At { .. } | LayoutPlacementReport::Bits { .. } => None,
+        },
     })
 }
 
@@ -1615,6 +1683,62 @@ fn validate_stored_integer_bits(
     Ok(())
 }
 
+fn validate_write_source_value(
+    write: &MaterializationWrite,
+    source_value: u64,
+    value_kind: &str,
+) -> Result<(), MaterializationDiagnostic> {
+    let Some(fit) = write.stored_integer_fit else {
+        return Ok(());
+    };
+    validate_stored_integer_fit(&write.field, fit, source_value, value_kind)
+}
+
+fn validate_stored_integer_fit(
+    field: &str,
+    fit: StoredIntegerFit,
+    source_value: u64,
+    value_kind: &str,
+) -> Result<(), MaterializationDiagnostic> {
+    let StoredIntegerFit {
+        source_width_bits,
+        stored_width_bits,
+        interpretation,
+    } = fit;
+    if source_width_bits == 0 || source_width_bits > 64 {
+        return Err(MaterializationDiagnostic(format!(
+            "{value_kind} field `{field}` has an invalid {source_width_bits}-bit source width"
+        )));
+    }
+    if stored_width_bits == 0
+        || stored_width_bits > 64
+        || !stored_width_bits.is_multiple_of(8)
+        || source_width_bits < stored_width_bits
+    {
+        return Err(MaterializationDiagnostic(format!(
+            "{value_kind} field `{field}` has an invalid {stored_width_bits}-bit stored-integer fit constraint"
+        )));
+    }
+    let fits = match interpretation {
+        IntegerInterpretation::Signed => {
+            let semantic = signed_bits(source_value, source_width_bits);
+            let magnitude = 1_i128 << (stored_width_bits - 1);
+            semantic >= -magnitude && semantic < magnitude
+        }
+        IntegerInterpretation::Unsigned => source_value <= low_mask(stored_width_bits),
+    };
+    if !fits {
+        return Err(MaterializationDiagnostic(format!(
+            "{value_kind} field `{field}` value {source_value:#x} does not fit its {stored_width_bits}-bit {} storage",
+            match interpretation {
+                IntegerInterpretation::Signed => "signed",
+                IntegerInterpretation::Unsigned => "unsigned",
+            }
+        )));
+    }
+    Ok(())
+}
+
 fn signed_bits(value: u64, width: u16) -> i128 {
     let value = value & low_mask(width);
     if value & (1_u64 << (width - 1)) == 0 {
@@ -1691,7 +1815,19 @@ fn validate_write(
         write.destination_lsb,
         write.source_lsb,
         write.width,
-    )
+    )?;
+    if let Some(fit) = write.stored_integer_fit
+        && (fit.stored_width_bits != write.container_width_bits
+            || fit.stored_width_bits != write.width
+            || write.destination_lsb != 0
+            || write.source_lsb != 0)
+    {
+        return Err(MaterializationDiagnostic(format!(
+            "symbolic field `{}` has stored-integer fit evidence inconsistent with its write geometry",
+            write.field
+        )));
+    }
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -2304,6 +2440,7 @@ mod tests {
             destination_lsb: 0,
             source_lsb: 0,
             width: 32,
+            stored_integer_fit: None,
         };
         let writer = PostHandoffWriterPlan {
             byte_len: 8,
@@ -2393,6 +2530,7 @@ mod tests {
             destination_lsb: 0,
             source_lsb: 0,
             width: 64,
+            stored_integer_fit: None,
         };
         let invalid = MaterializationWrite {
             field: "outside".into(),
@@ -2455,7 +2593,7 @@ mod tests {
     }
 
     #[test]
-    fn symbolic_stored_integer_requires_a_resolved_fitting_value() {
+    fn symbolic_stored_integer_fit_is_enforced_before_each_consumption_phase() {
         let layout = LayoutPlanReport {
             schema_identity: 1,
             entries: vec![LayoutFieldEntryReport {
@@ -2499,9 +2637,9 @@ mod tests {
         .expect_err("an out-of-range symbolic value must reject");
         assert!(error.0.contains("does not fit"), "{}", error.0);
 
-        let error = derive_symbolic_materialization(
+        let post_handoff = derive_symbolic_materialization(
             &layout,
-            &[symbolic],
+            std::slice::from_ref(&symbolic),
             MaterializationContext {
                 consumption: ConsumptionInstant::AfterOmegaHandoff,
                 byte_order: ByteOrder::LittleEndian,
@@ -2510,12 +2648,42 @@ mod tests {
             },
             |_| None,
         )
-        .expect_err("an unresolved runtime address has no concrete fit proof");
-        assert!(
-            error.0.contains("without a concrete fit proof"),
-            "{}",
-            error.0
-        );
+        .expect("a post-handoff resolver can discharge stored-integer fit");
+        assert!(matches!(
+            post_handoff.actions.as_slice(),
+            [MaterializationAction::RuntimeWriter(write)]
+                if write.stored_integer_fit.is_some()
+        ));
+        let writer = post_handoff
+            .derive_post_handoff_writer()
+            .expect("stored-integer runtime action derives a writer");
+        let invocation = writer
+            .lower_reusable_fragment()
+            .expect("stored-integer fit remains invocation evidence");
+        assert_eq!(invocation.fit_constraints.len(), 1);
+
+        let site = PlacementSite {
+            base_address: 0,
+            phase: PlacementPhase::PostHandoff,
+            machine_regime: None,
+            installation_scope: None,
+        };
+        let mut bytes = [0xa5_u8; 4];
+        writer
+            .execute(&mut bytes, site, |_| Some(0x1234_5678))
+            .expect("resolved post-handoff value fits stored width");
+        assert_eq!(bytes, [0x78, 0x56, 0x34, 0x12]);
+
+        bytes.fill(0xa5);
+        let error = writer
+            .execute(&mut bytes, site, |_| Some(1_u64 << 32))
+            .expect_err("post-handoff resolution must reject an out-of-range value");
+        assert!(error.0.contains("does not fit"), "{}", error.0);
+        assert_eq!(bytes, [0xa5; 4], "fit rejection must precede every write");
+
+        let error = derive_symbolic_materialization(&layout, &[symbolic], context, |_| None)
+            .expect_err("a loader cannot defer stored-integer fit to Omega");
+        assert!(error.0.contains("before Omega entry"), "{}", error.0);
     }
 
     #[test]
