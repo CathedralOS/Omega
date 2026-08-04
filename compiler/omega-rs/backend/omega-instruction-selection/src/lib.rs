@@ -16,6 +16,8 @@ pub use entry::{
     derive_boundary_compiler_body_outbound_syscall_result_footprint,
     derive_boundary_compiler_body_outbound_syscall_result_storage_arguments_footprint,
     derive_boundary_compiler_body_outbound_syscall_storage_arguments_footprint,
+    derive_boundary_compiler_body_outbound_syscall_timespec_argument_footprint,
+    derive_boundary_compiler_body_outbound_syscall_timespec_result_footprint,
     derive_boundary_compiler_body_place_address_write_footprint,
     derive_boundary_compiler_body_place_binary_write_footprint,
     derive_boundary_compiler_body_place_bounded_buffer_write_footprint,

@@ -23,6 +23,8 @@ pub enum BoundaryFootprintFragmentOrigin {
     CompilerBodyOutboundSyscallResultDataArguments,
     CompilerBodyOutboundSyscallResultStorageArguments,
     CompilerBodyOutboundSyscallStorageArguments,
+    CompilerBodyOutboundSyscallTimespecArgument,
+    CompilerBodyOutboundSyscallTimespecResult,
     CompilerBodyStorageBitFieldWrite,
     CompilerBodyPlaceBoundedBufferWrite,
     CompilerBodyPlaceStringWrite,
@@ -74,7 +76,9 @@ impl BoundaryFootprintPlan {
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallResult
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallResultDataArguments
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallResultStorageArguments
-            | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallStorageArguments => {
+            | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallStorageArguments
+            | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallTimespecArgument
+            | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallTimespecResult => {
                 validate_outbound_call_footprint(boundary, &fragment.evidence)?
             }
             BoundaryFootprintFragmentOrigin::RuntimeValueGuardComparison
@@ -293,5 +297,20 @@ mod tests {
             .expect(
                 "result-bearing storage-argument outbound calls may use prescribed control state",
             );
+
+        for origin in [
+            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallTimespecArgument,
+            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallTimespecResult,
+        ] {
+            outbound
+                .retain_validated_fragment(
+                    &boundary,
+                    BoundaryFootprintFragment {
+                        origin,
+                        evidence: control_evidence(),
+                    },
+                )
+                .expect("timespec adapters may use their prescribed control state");
+        }
     }
 }

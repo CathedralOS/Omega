@@ -882,7 +882,7 @@ proves complete region coverage, and composes admitted leaves under their
 separate provenance. Do not add a second whole-image decoder/admission path.
 
 The existing single final-region artifact now carries the domain-separated
-`omega.final-footprint-certificate` schema, format version 73, and a certificate
+`omega.final-footprint-certificate` schema, format version 74, and a certificate
 fingerprint over its final placement binding, compiler-text derivation, and
 complete region inventory. Its explicit completeness flags remain false until
 compiler-body footprint decoding and admitted-leaf evidence land. The envelope
@@ -963,7 +963,14 @@ data-address operand; final replay permits otherwise-closed immediate or
 runtime-storage parameters in the same call, regenerates the complete mixed
 marshaller, and requires the exact data-symbol/storage-root relocation set
 under `CompilerBodyOutboundSyscallDataArguments` or
-`CompilerBodyOutboundSyscallResultDataArguments`. Composite adapters and
+`CompilerBodyOutboundSyscallResultDataArguments`. The Linux timespec result and
+argument adapters are now closed too. `clock_gettime` replay regenerates its
+private two-word stack result, fixed-input failure trap, nanosecond reduction,
+and exact semantic-result relocation; `nanosleep` replay regenerates the
+millisecond-to-request conversion and requires either zero relocations for an
+immediate or the exact runtime-scalar relocation. Their dedicated origins add
+balanced stack-pointer state and only the encoder's target-specific scratch to
+the plan-owned supervisor-call leaf. The remaining composite adapters and
 imported calls remain incomplete. Result-bearing runtime-storage-only calls
 continue to combine their argument relocations with the exact result-region
 relocation and offset-sensitive result-store scratch under
