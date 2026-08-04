@@ -1,0 +1,40 @@
+// Copying one referenced field into another referenced field is a
+// pointee-pair CopyPlaces operation. Both pointer slots are frame-held in the
+// callee, so final footprint replay has one shared frame-base relocation.
+use omega::language::std::console;
+
+data Big {
+    pad0: u64;
+    pad1: u64;
+    value: i32 in Wrapping;
+}
+
+data Main {
+    console: Console;
+    source: Big;
+    target: Big;
+}
+
+machine Main::main(&mut self) {
+    self.source.value = 42;
+    self.target.value = 7;
+    self.hold(&mut self.target, &mut self.source);
+    transition self.target.value == 42 {
+        true -> good()
+        false -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(42); }
+    state bad(&mut self) { self.console.exit_process(self.target.value as i32); }
+}
+
+machine Main::hold(&mut self, target: &mut Big, source: &mut Big) {
+    self.copy_value(target, source);
+    transition { _ -> done() }
+    state done(&mut self) { }
+}
+
+machine Main::copy_value(&mut self, target: &mut Big, source: &Big) {
+    target.value = source.value;
+    transition { _ -> done() }
+    state done(&mut self) { }
+}

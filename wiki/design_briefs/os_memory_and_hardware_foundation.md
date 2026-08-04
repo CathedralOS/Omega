@@ -1040,11 +1040,15 @@ checks every source and hidden-pointer relocation, and requires the resulting
 scratch union to equal the earlier `exit_indirect_result_copy` fragment.
 The first ordinary compiler-body write subset covers direct storage-pair
 `CopyPlaces` operations, direct-storage copies targeting a frame-held pointee,
-and frame-held pointee sources landing in direct storage. Selection retains
-their separate `compiler_body_place_copy` evidence only for the `Ordinary`
-role; final validation regenerates the same place-copy bytes, checks the storage
-and pointer-slot relocations, and requires the target scratch union to match.
-Other ordinary copy/write shapes and calls remain outside the partial proof.
+frame-held pointee sources landing in direct storage, and frame-held
+pointee-to-pointee copies. Selection retains their separate
+`compiler_body_place_copy` evidence only for the `Ordinary` role; final
+validation regenerates the same place-copy bytes, checks the storage and
+pointer-slot relocations, and requires the target scratch union to match. Other
+ordinary copy/write shapes and calls remain outside the partial proof. The
+pointee-pair selector resolves both reference operands before flat storage, so
+the source remains a dereference rather than being mistaken for pointer-slot
+contents.
 Direct-image emission also validates the fixed encoder-owned function-entry
 prologue and return epilogue against the exact relocated entry-region bytes on
 x86-64 and AArch64 before publication. The inventory names this narrow
@@ -1062,7 +1066,7 @@ relocation-envelope fingerprints plus their composed derivation identity. The
 boundary/placement binding includes that derivation identity, so a valid final
 inventory cannot be paired with evidence from a different encoded-to-final
 derivation. The single emitted artifact is now self-described as
-`omega.final-footprint-certificate` format v17, with a domain-separated
+`omega.final-footprint-certificate` format v18, with a domain-separated
 certificate fingerprint over its final placement binding, compiler-text
 derivation, and region inventory. It remains explicitly incomplete evidence,
 not an admission certificate, until the missing footprint classes close. The
