@@ -2,8 +2,8 @@ mod generated_writer;
 mod place_copy;
 pub use generated_writer::*;
 pub use place_copy::{
-    PLACE_COPY_MAX_SITES, PlaceCopySide, PlaceCopySites, copy_places_direct_clobbers,
-    copy_places_from_frame_base_double_indexed_clobbers,
+    PLACE_COPY_MAX_SITES, PlaceCopySide, PlaceCopySites, copy_places_clobbers,
+    copy_places_direct_clobbers, copy_places_from_frame_base_double_indexed_clobbers,
     copy_places_from_frame_base_indexed_clobbers, copy_places_from_indexed_clobbers,
     copy_places_from_machine_double_indexed_clobbers, copy_places_from_machine_indexed_clobbers,
     copy_places_from_pointee_clobbers, copy_places_indexed_to_pointee_clobbers,
