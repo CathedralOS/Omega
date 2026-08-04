@@ -1,0 +1,43 @@
+// A field copied from a genuine shared-reference parameter into direct
+// machine storage must remain a dereferenced-source CopyPlaces operation.
+// The intermediate &mut hop forces a real pointer carrier rather than a
+// self-field alias. Both native targets compile this canary for final-byte
+// footprint replay; the host run exits 42.
+use omega::language::std::console;
+
+data Big {
+    pad0: u64;
+    pad1: u64;
+    value: i32 in Wrapping;
+}
+
+data Main {
+    console: Console;
+    big: Big;
+    got: i32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.big.pad0 = 111;
+    self.big.pad1 = 222;
+    self.big.value = 42;
+    self.hold(&mut self.big);
+    transition self.got == 42 {
+        true -> good()
+        false -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(42); }
+    state bad(&mut self) { self.console.exit_process(self.got as i32); }
+}
+
+machine Main::hold(&mut self, big: &mut Big) {
+    self.read(big);
+    transition { _ -> done() }
+    state done(&mut self) { }
+}
+
+machine Main::read(&mut self, r: &Big) {
+    self.got = r.value;
+    transition { _ -> done() }
+    state done(&mut self) { }
+}
