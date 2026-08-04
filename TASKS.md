@@ -882,7 +882,7 @@ proves complete region coverage, and composes admitted leaves under their
 separate provenance. Do not add a second whole-image decoder/admission path.
 
 The existing single final-region artifact now carries the domain-separated
-`omega.final-footprint-certificate` schema, format version 42, and a certificate
+`omega.final-footprint-certificate` schema, format version 43, and a certificate
 fingerprint over its final placement binding, compiler-text derivation, and
 complete region inventory. Its explicit completeness flags remain false until
 compiler-body footprint decoding and admitted-leaf evidence land. The envelope
@@ -976,7 +976,9 @@ indexed inline machine arrays are included too. Final validation regenerates
 the complete evaluator/store program, recursively derives every operand
 relocation, including cross-region index-base relocations, and requires the
 target's closed may-write ceiling to equal the retained
-`CompilerBodyPlaceBinaryWrite` fragment. Otherwise-general binary targets,
+`CompilerBodyPlaceBinaryWrite` fragment. The x86 general materializer also
+replays a frame-held descriptor indexed from machine storage. Other
+otherwise-general binary targets,
 conversion/string/bit-field writes, and calls remain incomplete. Pointee-pair
 selection now resolves both reference operands before the flat-storage fallback,
 preventing the source pointer bits from being copied as field data. The final

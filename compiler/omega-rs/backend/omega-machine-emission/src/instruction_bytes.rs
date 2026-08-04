@@ -493,7 +493,11 @@ fn compiler_instruction_validation_kind(
                 | omega_instruction_selection::WritePlaceShape::FrameBaseIndexed { .. }
                 | omega_instruction_selection::WritePlaceShape::MachineIndexed { .. }
                 | omega_instruction_selection::WritePlaceShape::MachineDoubleIndexed { .. }
-        ) =>
+        ) || (emission_context.target.architecture == omega_target::Architecture::X86_64
+            && matches!(
+                omega_instruction_selection::classify_write_place_shape(target),
+                omega_instruction_selection::WritePlaceShape::FrameIndexedByRegion { .. }
+            )) =>
         {
             Some(
                 CompilerInstructionValidationKind::CompilerBodyPlaceBinaryWrite {

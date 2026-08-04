@@ -1069,12 +1069,13 @@ writes into single- and double-runtime-indexed inline machine arrays are
 included too, including cross-region index-base relocations.
 Final validation regenerates the evaluator/store bytes, walks nested operand
 relocations, and matches the closed target may-write ceiling to the separately
-retained `CompilerBodyPlaceBinaryWrite` fragment.
+retained `CompilerBodyPlaceBinaryWrite` fragment. The x86 general materializer
+also replays a frame-held descriptor indexed from machine storage.
 Place-copy selection retains its separate `compiler_body_place_copy` evidence
 only for
 the `Ordinary` role; final validation regenerates the same place-copy bytes,
 checks the storage, pointer-slot, and index relocations, and requires the target
-scratch union to match. Otherwise-general binary targets,
+scratch union to match. Other otherwise-general binary targets,
 conversion/string/bit-field writes, and calls remain outside the partial
 proof. The pointee-pair selector resolves
 both reference operands before flat storage, so the source remains a
