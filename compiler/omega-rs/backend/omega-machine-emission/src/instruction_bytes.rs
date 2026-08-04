@@ -456,14 +456,12 @@ fn compiler_instruction_validation_kind(
         } if matches!(
             omega_instruction_selection::classify_write_place_shape(target),
             omega_instruction_selection::WritePlaceShape::Direct { .. }
+                | omega_instruction_selection::WritePlaceShape::Pointee { .. }
         ) =>
         {
             Some(
                 CompilerInstructionValidationKind::CompilerBodyPlaceIntegerWrite {
-                    storage_region: target.region,
-                    byte_offset: target
-                        .const_offset()
-                        .expect("direct write-place shape has one constant offset"),
+                    target: *target,
                     value: *value,
                     byte_size: *byte_size,
                 },

@@ -754,9 +754,10 @@ pub fn derive_boundary_compiler_body_place_copy_footprint<'instruction>(
     Ok(evidence)
 }
 
-/// Derive the exact scratch footprint of direct compiler-body immediate
-/// integer writes. Other place shapes remain separate until their retained
-/// target encoder publishes and tests an exact clobber contract.
+/// Derive the exact scratch footprint of compiler-body immediate integer
+/// writes whose final replay contracts have landed. Other place shapes remain
+/// separate until their retained target encoder publishes and tests an exact
+/// clobber contract.
 pub fn derive_boundary_compiler_body_place_integer_write_footprint<'instruction>(
     boundary: &ValidatedBoundaryEntryPlan,
     instructions: impl IntoIterator<Item = &'instruction SelectedInstructionKind>,
@@ -767,18 +768,27 @@ pub fn derive_boundary_compiler_body_place_integer_write_footprint<'instruction>
         let SelectedInstructionKind::WritePlaceInteger { target, .. } = instruction else {
             continue;
         };
-        let crate::WritePlaceShape::Direct { byte_offset } =
-            crate::classify_write_place_shape(target)
-        else {
-            continue;
-        };
-        let clobbers = match architecture {
-            omega_target::Architecture::X86_64 => {
-                omega_isa_x86_64::direct_place_integer_write_clobbers()
-            }
-            omega_target::Architecture::Aarch64 => {
-                omega_isa_aarch64::runtime_machine_integer_write_clobbers(byte_offset)
-            }
+        let shape = crate::classify_write_place_shape(target);
+        let clobbers = match (architecture, shape) {
+            (
+                omega_target::Architecture::X86_64,
+                crate::WritePlaceShape::Direct { .. } | crate::WritePlaceShape::Pointee { .. },
+            ) => omega_isa_x86_64::place_integer_write_clobbers(target),
+            (
+                omega_target::Architecture::Aarch64,
+                crate::WritePlaceShape::Direct { byte_offset },
+            ) => omega_isa_aarch64::runtime_machine_integer_write_clobbers(byte_offset),
+            (
+                omega_target::Architecture::Aarch64,
+                crate::WritePlaceShape::Pointee {
+                    pointer_byte_offset,
+                    field_byte_offset,
+                },
+            ) => omega_isa_aarch64::runtime_pointee_integer_write_clobbers(
+                pointer_byte_offset,
+                field_byte_offset,
+            ),
+            _ => continue,
         };
         registers.extend_from_slice(clobbers.as_slice());
     }
@@ -2639,6 +2649,41 @@ mod tests {
         let evidence =
             derive_boundary_compiler_body_place_integer_write_footprint(&boundary, [&instruction])
                 .expect("ordinary direct integer-write evidence");
+        assert_eq!(
+            evidence.registers().as_slice(),
+            &[
+                MachineRegister::Aarch64X(16),
+                MachineRegister::Aarch64X(17),
+                MachineRegister::Aarch64X(19),
+            ]
+        );
+    }
+
+    #[test]
+    fn compiler_body_pointee_integer_write_tracks_large_aarch64_offset_scratch() {
+        let boundary = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::Aapcs64,
+            &CallSignature {
+                parameters: Vec::new(),
+                result: None,
+            },
+        )
+        .expect("AAPCS64 boundary");
+        let target = omega_abstract_operations::Place::at(
+            omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+            5000,
+        )
+        .with_step(omega_abstract_operations::PlaceStep::Deref)
+        .and_then(|place| place.with_step(omega_abstract_operations::PlaceStep::ConstOffset(16)))
+        .expect("frame-held pointee target");
+        let instruction = SelectedInstructionKind::WritePlaceInteger {
+            target,
+            value: 7,
+            byte_size: 4,
+        };
+        let evidence =
+            derive_boundary_compiler_body_place_integer_write_footprint(&boundary, [&instruction])
+                .expect("ordinary pointee integer-write evidence");
         assert_eq!(
             evidence.registers().as_slice(),
             &[

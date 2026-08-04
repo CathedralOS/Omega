@@ -1407,6 +1407,21 @@ pub fn runtime_machine_integer_write_clobbers(byte_offset: usize) -> RegisterSet
     RegisterSet::new(registers)
 }
 
+/// Exact scratch footprint of an immediate integer write through a pointer
+/// held in the runtime frame. x16 materializes and dereferences the frame
+/// slot, x17 carries the value, and either large offset uses x19 through the
+/// shared constant-address helper.
+pub fn runtime_pointee_integer_write_clobbers(
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+) -> RegisterSet {
+    let mut registers = vec![MachineRegister::Aarch64X(16), MachineRegister::Aarch64X(17)];
+    if pointer_byte_offset > 4095 || field_byte_offset > 4095 {
+        registers.push(MachineRegister::Aarch64X(19));
+    }
+    RegisterSet::new(registers)
+}
+
 fn bit_width_mask(width: u16) -> Result<u64, Diagnostic> {
     match width {
         1..=63 => Ok((1_u64 << width) - 1),

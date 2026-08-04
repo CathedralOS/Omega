@@ -300,11 +300,19 @@ pub fn encode_place_integer_write(
     Ok((bytes, sites))
 }
 
-/// Exact register writes of a direct place integer write: r15 materializes
-/// the destination base and rax carries the immediate value into the sized
-/// store.
-pub fn direct_place_integer_write_clobbers() -> RegisterSet {
-    RegisterSet::new([MachineRegister::X86Rax, MachineRegister::X86R15])
+/// Exact register writes of the generic place integer-write materializer.
+/// r15 materializes the destination, r11/r10 carry its first/second runtime
+/// indices, and rax carries the immediate value into the sized store.
+pub fn place_integer_write_clobbers(target: &Place) -> RegisterSet {
+    let indices = target.scaled_index_regions().count();
+    let mut registers = vec![MachineRegister::X86Rax, MachineRegister::X86R15];
+    if indices > 0 {
+        registers.push(MachineRegister::X86R11);
+    }
+    if indices > 1 {
+        registers.push(MachineRegister::X86R10);
+    }
+    RegisterSet::new(registers)
 }
 
 /// The BINARY-write materializer entry (Binary rung 1a): evaluate
@@ -1112,10 +1120,37 @@ mod tests {
     }
 
     #[test]
-    fn direct_integer_write_clobbers_cover_base_and_value() {
+    fn place_integer_write_clobbers_follow_target_index_depth() {
+        let direct = Place::at(RuntimeStorageRegion::RuntimeFrame, 16);
         assert_eq!(
-            direct_place_integer_write_clobbers().as_slice(),
+            place_integer_write_clobbers(&direct).as_slice(),
             &[MachineRegister::X86Rax, MachineRegister::X86R15]
+        );
+
+        let indexed = direct
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::RuntimeFrame,
+                index_offset: 64,
+                index_byte_size: 8,
+                element_byte_size: 24,
+            })
+            .and_then(|place| {
+                place.with_step(PlaceStep::ScaledIndex {
+                    index_region: RuntimeStorageRegion::Machine,
+                    index_offset: 80,
+                    index_byte_size: 4,
+                    element_byte_size: 8,
+                })
+            })
+            .expect("double-indexed target");
+        assert_eq!(
+            place_integer_write_clobbers(&indexed).as_slice(),
+            &[
+                MachineRegister::X86Rax,
+                MachineRegister::X86R10,
+                MachineRegister::X86R11,
+                MachineRegister::X86R15,
+            ]
         );
     }
 

@@ -402,9 +402,7 @@ fn retain_exit_footprints(
         boundary,
         instructions.iter().map(|instruction| &instruction.kind),
     )
-    .expect(
-        "selected compiler-body direct integer writes must fit the validated entry state ceiling",
-    );
+    .expect("selected compiler-body integer writes must fit the validated entry state ceiling");
     if !evidence.registers().as_slice().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -413,7 +411,7 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body direct integer-write footprint must name the entry boundary contract");
+        .expect("retained compiler-body integer-write footprint must name the entry boundary contract");
     }
     if input.runtime_storage.entry_indirect_result_pointer_size != 8 {
         return;
