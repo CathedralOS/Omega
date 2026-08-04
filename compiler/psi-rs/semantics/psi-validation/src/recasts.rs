@@ -443,11 +443,13 @@ fn judge_scalar_recast(
         // target. The same normalized representation supplies size/alignment
         // and scalar-leaf facts; this is the top-level-array continuation of
         // the array fields records already admit.
-        let target_representation = if mutable_recast {
-            mutable_type_representation(program, cast.target_type)
-        } else {
-            shared_projection_type_representation(program, cast.target_type)
-        };
+        // Stored-width integer leaves are admissible in a mutable BYTE-REGION
+        // view because every concrete assignment remains a proved-fit lowering
+        // obligation. Typed aggregate aliases still reject them below: those
+        // require one representation valid for arbitrary writes in both
+        // directions, not per-write encoding evidence.
+        let target_representation =
+            shared_projection_type_representation(program, cast.target_type);
         if let Some(target_representation) = target_representation {
             if program.normalized_type_identity(let_referee)
                 != program.normalized_type_identity(cast.target_type)

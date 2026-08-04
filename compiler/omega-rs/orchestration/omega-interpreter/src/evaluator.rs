@@ -542,6 +542,13 @@ enum MutableRecordProjectionStep {
     Index(ExpressionHandle),
 }
 
+#[derive(Clone, Copy)]
+struct MutableRecordProjection {
+    offset: usize,
+    type_reference: TypeReferenceHandle,
+    stored_integer: Option<psi_typed_trees::PlanLaidIntegerField>,
+}
+
 /// A lexical scope: parameter / local bindings by name, plus the receiver (`self`) cell.
 /// `locals` is behind a `RefCell` so `let` bindings can be added while the frame is
 /// shared by `&` during statement execution.
@@ -6318,7 +6325,7 @@ impl<'program> Evaluator<'program> {
             }
             return Ok(Some(Value::Int((remaining / stride) as i64)));
         }
-        let Some((field_offset, field_type)) =
+        let Some(projection) =
             self.record_view_type_projection(target_type, &path, offset, cells.len(), frame)?
         else {
             return trap(format!(
@@ -6327,7 +6334,22 @@ impl<'program> Evaluator<'program> {
                 self.program.display_type_reference(target_type),
             ));
         };
-        self.assemble_record_view_type(field_type, &cells, field_offset)
+        if let Some(integer) = projection.stored_integer {
+            let primitive = self
+                .program
+                .primitive_type_reference(projection.type_reference)
+                .ok_or_else(|| Halt::Trap("stored-integer projection is not scalar".to_owned()))?;
+            return self
+                .assemble_stored_integer_byte_region(
+                    &cells,
+                    projection.offset,
+                    primitive,
+                    integer.stored_width_bits,
+                    integer.interpretation,
+                )
+                .map(Some);
+        }
+        self.assemble_record_view_type(projection.type_reference, &cells, projection.offset)
     }
 
     fn write_mutable_record_recast_target(
@@ -6364,7 +6386,7 @@ impl<'program> Evaluator<'program> {
             }
             return Ok(true);
         }
-        let Some((field_offset, field_type)) =
+        let Some(projection) =
             self.record_view_type_projection(target_type, &path, offset, cells.len(), frame)?
         else {
             return trap(format!(
@@ -6373,7 +6395,23 @@ impl<'program> Evaluator<'program> {
                 self.program.display_type_reference(target_type),
             ));
         };
-        self.write_record_view_type(field_type, &cells, field_offset, value)?;
+        if let Some(integer) = projection.stored_integer {
+            self.write_stored_integer_byte_region(
+                &cells,
+                projection.offset,
+                projection.type_reference,
+                integer.stored_width_bits,
+                integer.interpretation,
+                value,
+            )?;
+        } else {
+            self.write_record_view_type(
+                projection.type_reference,
+                &cells,
+                projection.offset,
+                value,
+            )?;
+        }
         if let Some((source, source_type)) = typed_source {
             self.commit_typed_value_bytes(&source, source_type, &cells)?;
         }
@@ -7224,6 +7262,62 @@ impl<'program> Evaluator<'program> {
         Ok(())
     }
 
+    fn write_stored_integer_byte_region(
+        &self,
+        cells: &[Cell],
+        offset: usize,
+        target_type: TypeReferenceHandle,
+        stored_width_bits: u16,
+        interpretation: psi_layout_plans::IntegerInterpretation,
+        value: Value,
+    ) -> EvalResult<()> {
+        if stored_width_bits == 0 || stored_width_bits > 64 || stored_width_bits % 8 != 0 {
+            return trap("invalid stored-integer width reached mutable record view");
+        }
+        let primitive = self
+            .program
+            .primitive_type_reference(target_type)
+            .ok_or_else(|| Halt::Trap("stored-integer projection is not scalar".to_owned()))?;
+        let domain = self
+            .program
+            .arithmetic_domain_for_type_reference(target_type);
+        let value = self.coerce_scalar_with(value, primitive, domain)?;
+        let integer = value
+            .as_int()
+            .ok_or_else(|| Halt::Trap("stored-integer recast write is not integer".to_owned()))?;
+        let bit_count = u32::from(stored_width_bits);
+        let fits = match interpretation {
+            psi_layout_plans::IntegerInterpretation::Signed => {
+                let magnitude = 1_i128 << (bit_count - 1);
+                i128::from(integer) >= -magnitude && i128::from(integer) < magnitude
+            }
+            psi_layout_plans::IntegerInterpretation::Unsigned => {
+                i128::from(integer) >= 0 && i128::from(integer) < (1_i128 << bit_count)
+            }
+        };
+        if !fits {
+            return trap(format!(
+                "stored-integer recast write value {integer} does not fit {stored_width_bits}-bit {} storage",
+                match interpretation {
+                    psi_layout_plans::IntegerInterpretation::Signed => "signed",
+                    psi_layout_plans::IntegerInterpretation::Unsigned => "unsigned",
+                }
+            ));
+        }
+        let stored_byte_count = usize::from(stored_width_bits / 8);
+        let bits = integer as u64;
+        for byte_index in 0..stored_byte_count {
+            let cell = cells.get(offset + byte_index).ok_or_else(|| {
+                Halt::Trap(format!(
+                    "mutable stored-integer recast writes byte {} past the region",
+                    offset + byte_index
+                ))
+            })?;
+            *cell.borrow_mut() = Value::Int(((bits >> (8 * byte_index)) & 0xFF) as i64);
+        }
+        Ok(())
+    }
+
     /// Rung C2's record view: decode fixed records little-endian from the same
     /// geometry native lowering consumes. Ordinary records use natural
     /// packing; plan-laid records use their validated offsets. Named fields
@@ -7549,7 +7643,14 @@ impl<'program> Evaluator<'program> {
     fn record_view_fields(
         &self,
         type_name: &str,
-    ) -> Option<Vec<(String, TypeReferenceHandle, usize)>> {
+    ) -> Option<
+        Vec<(
+            String,
+            TypeReferenceHandle,
+            usize,
+            Option<psi_typed_trees::PlanLaidIntegerField>,
+        )>,
+    > {
         let data = self.find_data_by_name(type_name)?;
         let mut fields = Vec::new();
         let mut layouts = Vec::new();
@@ -7561,16 +7662,16 @@ impl<'program> Evaluator<'program> {
             fields.push((field.name.as_str().to_owned(), field.type_reference));
             layouts.push(layout);
         }
-        let offsets = if let Some(plan) = self
+        let (offsets, integer_fields) = if let Some(plan) = self
             .program
             .plan_laid_layouts
             .iter()
             .find(|plan| plan.data_name == type_name)
         {
-            if !plan.integer_fields.is_empty() || plan.offsets.len() != fields.len() {
+            if plan.offsets.len() != fields.len() {
                 return None;
             }
-            plan.offsets.clone()
+            (plan.offsets.clone(), plan.integer_fields.clone())
         } else {
             let mut offsets = Vec::with_capacity(fields.len());
             let mut offset = 0usize;
@@ -7579,13 +7680,20 @@ impl<'program> Evaluator<'program> {
                 offsets.push(offset);
                 offset = offset.checked_add(size)?;
             }
-            offsets
+            (offsets, Vec::new())
         };
         Some(
             fields
                 .into_iter()
                 .zip(offsets)
-                .map(|((name, type_reference), offset)| (name, type_reference, offset))
+                .enumerate()
+                .map(|(field_index, ((name, type_reference), offset))| {
+                    let stored_integer = integer_fields
+                        .iter()
+                        .find(|integer| integer.field_index == field_index)
+                        .copied();
+                    (name, type_reference, offset, stored_integer)
+                })
                 .collect(),
         )
     }
@@ -7597,16 +7705,16 @@ impl<'program> Evaluator<'program> {
         base_offset: usize,
         region_len: usize,
         frame: &Frame,
-    ) -> EvalResult<Option<(usize, TypeReferenceHandle)>> {
+    ) -> EvalResult<Option<MutableRecordProjection>> {
         let Some((MutableRecordProjectionStep::Field(field_name), rest)) = path.split_first()
         else {
             return Ok(None);
         };
-        let (_, field_type, field_offset) = self
+        let (_, field_type, field_offset, stored_integer) = self
             .record_view_fields(type_name)
             .unwrap_or_default()
             .into_iter()
-            .find(|(name, _, _)| name == field_name)
+            .find(|(name, _, _, _)| name == field_name)
             .ok_or_else(|| {
                 Halt::Trap(format!(
                     "record view `{type_name}` has no field `{field_name}`"
@@ -7615,6 +7723,13 @@ impl<'program> Evaluator<'program> {
         let offset = base_offset
             .checked_add(field_offset)
             .ok_or_else(|| Halt::Trap("record-view field offset overflow".to_owned()))?;
+        if stored_integer.is_some() {
+            return Ok(rest.is_empty().then_some(MutableRecordProjection {
+                offset,
+                type_reference: field_type,
+                stored_integer,
+            }));
+        }
         self.record_view_type_projection(field_type, rest, offset, region_len, frame)
     }
 
@@ -7625,9 +7740,13 @@ impl<'program> Evaluator<'program> {
         base_offset: usize,
         region_len: usize,
         frame: &Frame,
-    ) -> EvalResult<Option<(usize, TypeReferenceHandle)>> {
+    ) -> EvalResult<Option<MutableRecordProjection>> {
         if path.is_empty() {
-            return Ok(Some((base_offset, type_reference)));
+            return Ok(Some(MutableRecordProjection {
+                offset: base_offset,
+                type_reference,
+                stored_integer: None,
+            }));
         }
         let (step, rest) = path.split_first().expect("nonempty projection path");
         match step {
@@ -7713,7 +7832,7 @@ impl<'program> Evaluator<'program> {
                 "cannot lay out mutable record recast `{type_name}`"
             ));
         };
-        for (name, type_reference, field_offset) in field_specs {
+        for (name, type_reference, field_offset, stored_integer) in field_specs {
             let Some(field_cell) = fields.get(&name) else {
                 return trap(format!(
                     "record value written through `{type_name}` has no field `{name}`"
@@ -7723,7 +7842,18 @@ impl<'program> Evaluator<'program> {
                 .checked_add(field_offset)
                 .ok_or_else(|| Halt::Trap("mutable record recast offset overflow".to_owned()))?;
             let field_value = field_cell.borrow().clone();
-            self.write_record_view_type(type_reference, cells, offset, field_value)?;
+            if let Some(integer) = stored_integer {
+                self.write_stored_integer_byte_region(
+                    cells,
+                    offset,
+                    type_reference,
+                    integer.stored_width_bits,
+                    integer.interpretation,
+                    field_value,
+                )?;
+            } else {
+                self.write_record_view_type(type_reference, cells, offset, field_value)?;
+            }
         }
         Ok(())
     }

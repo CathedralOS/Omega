@@ -2120,9 +2120,13 @@ ordinary code never receives a raw executable address.
   Windows target policies retain their physical widths; both Linux kernel
   layouts validate through the cross-target fstat canary. Native Linux runtime
   confirmation remains platform-gated.
-  Ordinary scalar resolution still rejects stored-width fields rather than
-  treating them as `At`; mutable recasts and by-value boundary classification
-  stay fail-closed until those consumers use the dedicated encoding metadata.
+  Mutable raw-byte record recasts now retain `IntegerAt` metadata through
+  validation, interpreter projection and write-back, native pointee lowering,
+  and relocation. Each assignment still requires total-write evidence or a
+  Psi-proved fitting value; an unconstrained recast write rejects. Typed
+  aggregate aliases still require identical representations. Ordinary scalar
+  resolution and by-value boundary classification stay fail-closed until those
+  consumers use the dedicated encoding metadata.
   Linux `read_dir` now retains the real three-argument `getdents64`
   plan, omits the Darwin-only cursor at selection, and decodes the Linux record
   offsets in both target packages. Direct syscall failures now flow as explicit

@@ -206,6 +206,23 @@ pub fn encode_write_place_convert(
         )
         .map(|(bytes, _)| bytes),
         Architecture::Aarch64 => match classify_write_place_shape(target) {
+            WritePlaceShape::Pointee {
+                pointer_byte_offset,
+                field_byte_offset,
+            } => aarch64::encode_runtime_pointee_convert_write(
+                runtime_value_operands,
+                pointer_byte_offset,
+                field_byte_offset,
+                target_byte_size,
+                source,
+                source_byte_size,
+                source_is_float,
+                target_is_float,
+                source_signed,
+                target_signed,
+                trapping,
+                saturating,
+            ),
             WritePlaceShape::MachineIndexed {
                 base_byte_offset,
                 index_region,
@@ -232,7 +249,7 @@ pub fn encode_write_place_convert(
                 saturating,
             ),
             _ => Err(Diagnostic::error(
-                "WritePlaceConvert on aarch64 currently serves machine-indexed targets only",
+                "WritePlaceConvert on aarch64 currently serves pointee and machine-indexed targets only",
             )),
         },
     }

@@ -439,10 +439,14 @@ range wholly fits the stored encoding. Every resolvable assignment receives a
 range-analysis row without creating a new language obligation. The checked
 value fact retains its use-site type reference and BigInt discharge interval,
 including stable incoming guards and boundary witnesses; Omega consumes that
-fact and keeps unproved values fail-closed. Ordinary scalar resolution, mutable
-recasts, and by-value boundary
-classification reject rather than treating `IntegerAt` as `At` or truncating
-through the scalar materializer.
+fact and keeps unproved values fail-closed. Mutable raw-byte record recasts now
+retain `IntegerAt` metadata through validation,
+interpreter projection and write-back, native pointee lowering, and relocation.
+They write the exact physical bytes only when total-write evidence or a
+Psi-proved fitting value authorizes the assignment; unconstrained writes reject.
+Typed aggregate aliases still require identical representations. Ordinary
+scalar resolution and by-value boundary classification reject rather than
+treating `IntegerAt` as `At` or truncating through the scalar materializer.
 The admitted `compact_binary` realization now derives bounded repeated framing
 from carrier semantics: `[T; N]` contributes exactly `N` elements and
 `FixedVec<T, N>` contributes its intrinsic live length up to `N`; the retired

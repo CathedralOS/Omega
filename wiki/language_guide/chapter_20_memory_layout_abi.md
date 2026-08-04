@@ -645,6 +645,14 @@ and BigInt discharge interval, including stable incoming guards and boundary
 witnesses, so lowering consumes a Psi fact rather than inferring proof from
 storage shape. Unproved values remain fail closed. Ordinary scalar consumers do
 not make `IntegerAt` interchangeable with ordinary `At`.
+
+A mutable raw-byte record recast preserves each field's `IntegerAt` encoding.
+Reads decode the exact physical bytes, and every write must either be total for
+that encoding or carry a Psi proof that its value fits; the write then touches
+only those physical bytes. This does not make differently represented typed
+records aliases of one another: mutable typed aggregate recasts still require
+identical representations.
+
 Encodability alone does not authorize a transfer: sub-unit mutation must also
 have a legal implementation. Stable exclusive storage may use one bounded
 read-patch-write sequence. External storage requires a whole-container or
