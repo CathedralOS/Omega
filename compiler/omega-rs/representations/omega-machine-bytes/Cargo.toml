@@ -13,4 +13,5 @@ omega-control-flow = { path = "../omega-control-flow" }
 psi-arena = { path = "../../../psi-rs/foundation/psi-arena" }
 psi-language-core = { path = "../../../psi-rs/foundation/psi-language-core" }
 omega-machine-instructions = { path = "../omega-machine-instructions" }
+omega-target-operations = { path = "../omega-target-operations" }
 omega-target = { path = "../../foundation/omega-target" }

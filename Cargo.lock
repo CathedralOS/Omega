@@ -558,6 +558,7 @@ dependencies = [
  "omega-machine-bytes",
  "omega-object-file",
  "omega-target",
+ "omega-target-operations",
  "psi-arena",
  "psi-diagnostics",
  "psi-language-core",
@@ -709,6 +710,7 @@ dependencies = [
  "omega-control-flow",
  "omega-machine-instructions",
  "omega-target",
+ "omega-target-operations",
  "psi-arena",
  "psi-language-core",
 ]
