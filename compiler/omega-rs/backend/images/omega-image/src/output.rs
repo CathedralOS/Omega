@@ -31,6 +31,36 @@ pub struct EmittedImageOutput {
     pub final_image_relocations: usize,
     pub executable_regions: crate::PlacedExecutableRegionInventory,
     pub compiler_text_validation: Option<CompilerTextValidationEvidence>,
+    pub compiler_function_validation: Option<CompilerFunctionValidationEvidence>,
+}
+
+/// Exact final-byte binding for the compiler function/instruction partition.
+/// This proves complete instruction-boundary enumeration; individual ordinary
+/// instruction footprint decoding remains a separate certificate class.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CompilerFunctionValidationEvidence {
+    pub function_count: usize,
+    pub instruction_count: usize,
+    pub zero_width_instruction_count: usize,
+    pub validation_fingerprint: u64,
+}
+
+impl CompilerFunctionValidationEvidence {
+    pub fn evidence_fingerprint(self) -> u64 {
+        let mut hash = 0xcbf2_9ce4_8422_2325u64;
+        for bytes in [
+            self.validation_fingerprint.to_le_bytes(),
+            (self.function_count as u64).to_le_bytes(),
+            (self.instruction_count as u64).to_le_bytes(),
+            (self.zero_width_instruction_count as u64).to_le_bytes(),
+        ] {
+            for byte in bytes {
+                hash ^= u64::from(byte);
+                hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+            }
+        }
+        hash
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -68,5 +98,6 @@ pub fn emitted_direct_executable_output(output: ExecutableImageOutput) -> Emitte
         final_image_relocations: output.relocations,
         executable_regions: output.executable_regions,
         compiler_text_validation: None,
+        compiler_function_validation: None,
     }
 }

@@ -131,6 +131,23 @@ mod tests {
             encoded.semantics.values.values.len(),
             machine_instructions.semantics.values.values.len()
         );
+        let encoded_function = encoded
+            .code
+            .functions
+            .iter()
+            .next()
+            .map(|(_, function)| function)
+            .expect("encoded function");
+        assert_eq!(encoded_function.instructions.len(), 2);
+        assert_eq!(
+            encoded
+                .code
+                .instructions
+                .span(encoded_function.instructions)
+                .expect("encoded function instruction rows")
+                .len(),
+            2
+        );
         assert_eq!(
             encoded.semantics.boundaries.source_edges.len(),
             machine_instructions.semantics.boundaries.source_edges.len()
