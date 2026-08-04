@@ -845,6 +845,62 @@ pub fn derive_boundary_compiler_body_place_integer_write_footprint<'instruction>
     Ok(evidence)
 }
 
+/// Derive the closed encoder-family footprint for direct compiler-body binary
+/// writes. The retained operand arena is the one byte emission consumes, so
+/// nested evaluator stack/control-state needs cannot drift from this evidence.
+pub fn derive_boundary_compiler_body_place_binary_write_footprint<'instruction>(
+    boundary: &ValidatedBoundaryEntryPlan,
+    runtime_value_operands: &impl omega_target_operations::RuntimeValueOperandSource,
+    instructions: impl IntoIterator<Item = &'instruction SelectedInstructionKind>,
+) -> Result<StateFootprintEvidence, PlanDiagnostic> {
+    let architecture = boundary.plan().call.policy.architecture();
+    let mut registers = Vec::new();
+    let mut additional_state = MachineStateSet::empty();
+    for instruction in instructions {
+        let SelectedInstructionKind::WritePlaceBinary {
+            target,
+            left,
+            operator,
+            right,
+            ..
+        } = instruction
+        else {
+            continue;
+        };
+        if !matches!(
+            crate::classify_write_place_shape(target),
+            crate::WritePlaceShape::Direct { .. }
+        ) {
+            continue;
+        }
+        let (writes, state) = match architecture {
+            omega_target::Architecture::X86_64 => (
+                omega_isa_x86_64::place_binary_write_register_write_ceiling(),
+                omega_isa_x86_64::place_binary_write_additional_machine_state(
+                    runtime_value_operands,
+                    *left,
+                    *operator,
+                    *right,
+                ),
+            ),
+            omega_target::Architecture::Aarch64 => (
+                omega_isa_aarch64::place_binary_write_register_write_ceiling(),
+                omega_isa_aarch64::place_binary_write_additional_machine_state(
+                    runtime_value_operands,
+                    *left,
+                    *operator,
+                    *right,
+                ),
+            ),
+        };
+        registers.extend_from_slice(writes.as_slice());
+        additional_state = additional_state.union(state);
+    }
+    let evidence = StateFootprintEvidence::new(RegisterSet::new(registers), additional_state);
+    validate_runtime_value_guard_footprint(boundary, &evidence)?;
+    Ok(evidence)
+}
+
 /// Derive result placement and exit control for a compiler-owned entry stub.
 /// This consumes the complete plan so result lowering cannot accidentally
 /// accept placements from a carrier whose state obligations are invalid.

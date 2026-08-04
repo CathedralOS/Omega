@@ -716,6 +716,7 @@ dependencies = [
  "omega-target-operations",
  "psi-arena",
  "psi-language-core",
+ "psi-numerics",
 ]
 
 [[package]]

@@ -15,6 +15,7 @@ pub enum BoundaryFootprintFragmentOrigin {
     ExitIndirectResultCopy,
     CompilerBodyPlaceCopy,
     CompilerBodyPlaceIntegerWrite,
+    CompilerBodyPlaceBinaryWrite,
     CallReturnMechanics,
     DispatchScaffold,
     StaticGuardComparison,
@@ -55,7 +56,8 @@ impl BoundaryFootprintPlan {
             BoundaryFootprintFragmentOrigin::CallReturnMechanics => {
                 validate_call_return_mechanics_footprint(boundary, &fragment.evidence)?
             }
-            BoundaryFootprintFragmentOrigin::RuntimeValueGuardComparison => {
+            BoundaryFootprintFragmentOrigin::RuntimeValueGuardComparison
+            | BoundaryFootprintFragmentOrigin::CompilerBodyPlaceBinaryWrite => {
                 validate_runtime_value_guard_footprint(boundary, &fragment.evidence)?
             }
             _ => validate_state_footprint(boundary, &fragment.evidence)?,

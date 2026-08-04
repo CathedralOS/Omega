@@ -1127,7 +1127,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         executable_regions.contains(
             "\"certificate_schema\": \"omega.final-footprint-certificate\""
         )
-            && executable_regions.contains("\"certificate_format_version\": 36")
+            && executable_regions.contains("\"certificate_format_version\": 37")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
             && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")
@@ -2128,6 +2128,55 @@ fn compiler_body_direct_integer_write_footprints_reach_x86_and_aarch64_artifacts
                 && footprints.contains(expected_register)
                 && footprints.contains("\"enumeration_complete\": false"),
             "{target} artifact must retain the direct integer-write footprint without claiming completeness"
+        );
+        let _ = fs::remove_dir_all(&scratch);
+    }
+}
+
+#[test]
+fn compiler_body_direct_binary_write_footprints_reach_x86_and_aarch64_artifacts() {
+    // The left-associative f32 chain retains nested Binary operand roots, so
+    // this covers both the outer target relocation and recursive evaluator
+    // relocation/footprint replay on each architecture.
+    let canary = pass_canary("expressions/f32_deep_chain_binary");
+    for (target, expected_register) in [
+        ("linux_x64", "\"X86R14\""),
+        ("linux_arm64", "\"Aarch64X(16)\""),
+    ] {
+        let scratch = std::env::temp_dir().join(format!(
+            "omega-compiler-body-direct-binary-write-footprint-{target}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&scratch);
+        let source = scratch.join("src");
+        let output = scratch.join("out");
+        fs::create_dir_all(&source)
+            .expect("create compiler-body direct binary-write source directory");
+        fs::copy(canary.join("main.omg"), source.join("main.omg"))
+            .expect("copy compiler-body direct binary-write canary");
+        fs::write(
+            source.join("build.omg"),
+            format!("target {target} {{\n}}\n"),
+        )
+        .expect("write compiler-body direct binary-write target");
+        compile(CompileOptions {
+            root_path: source.join("main.omg"),
+            build_dir: Some(output.clone()),
+            target_name: Some(target.into()),
+            write_output: true,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "compiler-body direct binary writes should compile for {target}: {diagnostics:?}"
+            )
+        });
+        let footprints = fs::read_to_string(output.join("08_boundary_footprints.json"))
+            .expect("compiler-body direct binary-write footprint evidence should be written");
+        assert!(
+            footprints.contains("\"origin\": \"compiler_body_place_binary_write\"")
+                && footprints.contains(expected_register)
+                && footprints.contains("\"enumeration_complete\": false"),
+            "{target} artifact must retain the direct binary-write footprint without claiming completeness"
         );
         let _ = fs::remove_dir_all(&scratch);
     }
@@ -7129,6 +7178,26 @@ fn runtime_guarded_binary_operand_exit_canary_runs() {
     );
 
     let _ = fs::remove_dir_all(&build_dir);
+
+    let arm_scratch = std::env::temp_dir().join(format!(
+        "omega-guarded-bin-operand-arm-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&arm_scratch);
+    let arm_source = arm_scratch.join("src");
+    fs::create_dir_all(&arm_source).expect("guarded binary arm source directory");
+    fs::copy(canary.join("main.omg"), arm_source.join("main.omg"))
+        .expect("copy guarded binary arm canary");
+    fs::write(arm_source.join("build.omg"), "target linux_arm64 {\n}\n")
+        .expect("write guarded binary arm target manifest");
+    compile(CompileOptions {
+        root_path: arm_source.join("main.omg"),
+        build_dir: Some(arm_scratch.join("out")),
+        target_name: Some("linux_arm64".to_owned()),
+        write_output: true,
+    })
+    .expect("guarded direct binary write should cross-compile for linux_arm64");
+    let _ = fs::remove_dir_all(&arm_scratch);
 }
 
 // The guarded-COPY narrowing: an UNRANGED `yv` copied into `y: [0..=9]` under

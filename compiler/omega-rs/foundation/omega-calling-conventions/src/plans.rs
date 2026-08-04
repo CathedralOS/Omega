@@ -740,10 +740,11 @@ pub fn validate_call_return_mechanics_footprint(
     )
 }
 
-/// Validate the recursive runtime-value guard evaluator. Its x86 lowering may
-/// use balanced push/pop pairs while evaluating nested `Binary` operands; that
-/// stack effect is prescribed only for an ordinary call-return activation.
-/// Every other state class remains under the boundary's transitive ceiling.
+/// Validate a recursive runtime-value evaluator used by guards or ordinary
+/// binary writes. Its x86 lowering may use balanced push/pop pairs while
+/// evaluating `Binary` operands; that stack effect is prescribed only for an
+/// ordinary call-return activation. Every other state class remains under the
+/// boundary's transitive ceiling.
 pub fn validate_runtime_value_guard_footprint(
     validated: &ValidatedBoundaryEntryPlan,
     evidence: &StateFootprintEvidence,

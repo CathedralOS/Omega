@@ -107,6 +107,16 @@ pub enum CompilerInstructionValidationKind {
         value: i64,
         byte_size: usize,
     },
+    CompilerBodyPlaceBinaryWrite {
+        target: Place,
+        byte_size: usize,
+        left: omega_target_operations::RuntimeValueOperandHandle,
+        operator: StateGuardOperator,
+        right: omega_target_operations::RuntimeValueOperandHandle,
+        is_float: bool,
+        domain: psi_numerics::arithmetic::ArithmeticDomain,
+        target_signed: bool,
+    },
     DispatchStateWrite {
         dispatch_index: u32,
         case_leave_byte_distance: isize,

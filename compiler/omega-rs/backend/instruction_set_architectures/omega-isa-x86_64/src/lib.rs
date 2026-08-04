@@ -8038,6 +8038,17 @@ pub fn runtime_value_compare_register_write_ceiling() -> RegisterSet {
     ])
 }
 
+/// Closed may-write ceiling of a place-shaped binary write. Recursive operand
+/// evaluation owns the runtime-value bank; r14 additionally preserves the
+/// materialized destination while those operands reload r15.
+pub fn place_binary_write_register_write_ceiling() -> RegisterSet {
+    let mut registers = runtime_value_compare_register_write_ceiling()
+        .as_slice()
+        .to_vec();
+    registers.push(MachineRegister::X86R14);
+    RegisterSet::new(registers)
+}
+
 fn runtime_value_operand_uses_stack(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     operand: RuntimeValueOperandHandle,
@@ -8096,6 +8107,44 @@ pub fn runtime_value_compare_additional_machine_state(
         state = state.union(MachineStateSet::new([MachineState::StackPointer]));
     }
     if runtime_value_operand_uses_control_state(runtime_value_operands, left)
+        || runtime_value_operand_uses_control_state(runtime_value_operands, right)
+    {
+        state = state.union(MachineStateSet::new([MachineState::ControlState]));
+    }
+    state
+}
+
+/// Machine state touched by a place-shaped binary write. Its outer evaluator
+/// always balances one push/pop pair, integer policy/comparison paths may
+/// write flags, and directed floating operations temporarily change the
+/// floating control word before restoring it.
+pub fn place_binary_write_additional_machine_state(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    left: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
+    right: RuntimeValueOperandHandle,
+) -> MachineStateSet {
+    let mut state = MachineStateSet::new([MachineState::Flags, MachineState::StackPointer]);
+    let operator_uses_control_state = matches!(
+        operator,
+        StateGuardOperator::AddTowardZero
+            | StateGuardOperator::AddTowardPositive
+            | StateGuardOperator::AddTowardNegative
+            | StateGuardOperator::SubtractTowardZero
+            | StateGuardOperator::SubtractTowardPositive
+            | StateGuardOperator::SubtractTowardNegative
+            | StateGuardOperator::MultiplyTowardZero
+            | StateGuardOperator::MultiplyTowardPositive
+            | StateGuardOperator::MultiplyTowardNegative
+            | StateGuardOperator::DivideTowardZero
+            | StateGuardOperator::DivideTowardPositive
+            | StateGuardOperator::DivideTowardNegative
+            | StateGuardOperator::SqrtTowardZero
+            | StateGuardOperator::SqrtTowardPositive
+            | StateGuardOperator::SqrtTowardNegative
+    );
+    if operator_uses_control_state
+        || runtime_value_operand_uses_control_state(runtime_value_operands, left)
         || runtime_value_operand_uses_control_state(runtime_value_operands, right)
     {
         state = state.union(MachineStateSet::new([MachineState::ControlState]));
