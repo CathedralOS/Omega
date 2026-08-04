@@ -42271,6 +42271,13 @@ fn plan_laid_integer_at_total_write_exit_canary_runs_and_cross_compiles() {
 #[test]
 fn plan_laid_integer_at_proved_write_exit_canary_runs_and_cross_compiles() {
     let canary = pass_canary("layouts/runtime_plan_laid_integer_at_proved_write_exit");
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
+        .expect("proved-fit IntegerAt mutation canary should compile to checked trees");
+    let interpreted = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        interpreted.exit_code, 72,
+        "interpreter must preserve proved-fit direct and mutable-recast IntegerAt writes"
+    );
     let build_dir = std::env::temp_dir().join(format!(
         "omega-plan-laid-integer-at-proved-write-{}",
         std::process::id()
@@ -42342,6 +42349,33 @@ fn plan_laid_integer_at_unproved_write_stays_rejected() {
         write_output: true,
     })
     .expect_err("an unconstrained value must not narrow into IntegerAt storage");
+    let _ = fs::remove_dir_all(&temp_dir);
+}
+
+#[test]
+fn plan_laid_integer_at_unproved_mutable_recast_write_stays_rejected() {
+    let canary = pass_canary("layouts/runtime_plan_laid_integer_at_proved_write_exit");
+    let source = fs::read_to_string(canary.join("main.omg"))
+        .expect("read proved-fit IntegerAt canary")
+        .replace("source: i64 [-128..=127];", "source: i64;")
+        .replace("    self.source = -9;\n", "")
+        .replace("    self.packed.value = self.source;\n", "");
+    let temp_dir = std::env::temp_dir().join(format!(
+        "omega-plan-laid-integer-at-unproved-recast-write-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&temp_dir);
+    fs::create_dir_all(&temp_dir).expect("create unproved IntegerAt recast source directory");
+    let main_path = temp_dir.join("main.omg");
+    fs::write(&main_path, source).expect("write unproved IntegerAt recast source");
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(temp_dir.join("build")),
+        target_name: None,
+        write_output: true,
+    })
+    .expect_err("an unconstrained value must not narrow through an IntegerAt mutable recast");
     let _ = fs::remove_dir_all(&temp_dir);
 }
 

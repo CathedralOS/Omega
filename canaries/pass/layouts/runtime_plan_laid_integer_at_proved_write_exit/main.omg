@@ -45,11 +45,13 @@ machine SignedByte::plan(&mut self, schema: Schema) -> Plan {
 }
 
 data PortableByte { value: i64; }
+data RawView { value: SignedByte<PortableByte>; }
 data Main {
     console: Console;
     packed: SignedByte<PortableByte>;
     source: i64 [-128..=127];
     flow_source: i64;
+    bytes: [u8; 1];
 }
 
 machine Main::main(&mut self) {
@@ -62,7 +64,11 @@ machine Main::main(&mut self) {
 
     state guarded_write(&mut self) {
         self.packed.value = self.flow_source;
-        transition self.packed.value == 0 {
+        let view: &mut RawView = &mut self.bytes[0] as &mut RawView;
+        view.value.value = self.source;
+        transition self.packed.value == 0
+            && self.bytes[0] == 247
+            && view.value.value == -9 {
             true -> good()
             _ -> bad()
         }
