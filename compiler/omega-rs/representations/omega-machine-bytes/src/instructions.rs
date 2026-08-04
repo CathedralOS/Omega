@@ -1,3 +1,4 @@
+use omega_target_operations::{RuntimeStorageRegion, StateGuardOperator};
 use psi_arena::HandleSpan;
 
 /// Fixed compiler-owned instruction programs whose final encodings can be
@@ -12,6 +13,15 @@ pub enum CompilerInstructionValidationKind {
     DispatchCaseEnter {
         dispatch_index: u32,
         skip_byte_distance: isize,
+    },
+    DispatchStaticGuard {
+        operator: StateGuardOperator,
+        storage_region: RuntimeStorageRegion,
+        byte_offset: usize,
+        byte_size: usize,
+        expected_value: i64,
+        skip_byte_distance: isize,
+        is_float: bool,
     },
     DispatchStateWrite {
         dispatch_index: u32,

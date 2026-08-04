@@ -21,3 +21,4 @@ omega-isa-x86_64 = { path = "../../instruction_set_architectures/omega-isa-x86_6
 omega-machine-bytes = { path = "../../../representations/omega-machine-bytes" }
 omega-object-file = { path = "../../object/omega-object-file" }
 omega-target = { path = "../../../foundation/omega-target" }
+omega-target-operations = { path = "../../../representations/omega-target-operations" }

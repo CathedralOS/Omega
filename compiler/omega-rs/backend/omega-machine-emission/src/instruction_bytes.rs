@@ -178,6 +178,27 @@ fn compiler_instruction_validation_kind(
                 )?,
             })
         }
+        SelectedInstructionKind::EvaluateDispatchGuard {
+            guard_lowering: StateGuardLowering::CompareStaticValue,
+            operator,
+            storage_region,
+            byte_offset,
+            byte_size,
+            expected_value,
+            has_storage: true,
+            is_float,
+        } => Some(CompilerInstructionValidationKind::DispatchStaticGuard {
+            operator: *operator,
+            storage_region: *storage_region,
+            byte_offset: *byte_offset,
+            byte_size: *byte_size,
+            expected_value: *expected_value,
+            skip_byte_distance: branch_distances::byte_distance_to_next_dispatch_action_end(
+                laid_out_instructions,
+                machine_instruction_index,
+            )?,
+            is_float: *is_float,
+        }),
         SelectedInstructionKind::SetDispatchState { dispatch_index } => {
             Some(CompilerInstructionValidationKind::DispatchStateWrite {
                 dispatch_index: *dispatch_index,
