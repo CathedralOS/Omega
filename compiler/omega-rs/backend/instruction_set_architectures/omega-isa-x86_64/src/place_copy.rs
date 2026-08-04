@@ -769,6 +769,12 @@ pub fn copy_places_to_machine_indexed_clobbers(byte_count: usize) -> RegisterSet
     copy_places_from_indexed_clobbers(byte_count)
 }
 
+/// Exact scratch footprint of an inline frame-array double-indexed read. Both
+/// indices reuse r11 during the source walk.
+pub fn copy_places_from_frame_base_double_indexed_clobbers(byte_count: usize) -> RegisterSet {
+    copy_places_from_indexed_clobbers(byte_count)
+}
+
 /// Exact scratch footprint of a direct place-pair copy. Both address bases are
 /// materialized unconditionally; non-empty copies stage chunks through rax.
 pub fn copy_places_direct_clobbers(byte_count: usize) -> RegisterSet {

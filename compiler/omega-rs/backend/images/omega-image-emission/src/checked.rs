@@ -256,6 +256,17 @@ enum CompilerBodyPlaceCopyShape {
         element_byte_size: usize,
         field_byte_offset: usize,
     },
+    FromFrameBaseDoubleIndexed {
+        base_byte_offset: usize,
+        outer_index_offset: usize,
+        outer_index_byte_size: usize,
+        outer_stride: usize,
+        inner_index_offset: usize,
+        inner_index_byte_size: usize,
+        inner_stride: usize,
+        field_byte_offset: usize,
+        target_offset: usize,
+    },
 }
 
 fn validate_compiler_function_instruction_boundaries(
@@ -1008,6 +1019,28 @@ fn validate_compiler_function_instruction_boundaries(
                                         field_byte_offset,
                                         byte_count,
                                     )?,
+                                    CompilerBodyPlaceCopyShape::FromFrameBaseDoubleIndexed {
+                                        base_byte_offset,
+                                        outer_index_offset,
+                                        outer_index_byte_size,
+                                        outer_stride,
+                                        inner_index_offset,
+                                        inner_index_byte_size,
+                                        inner_stride,
+                                        field_byte_offset,
+                                        target_offset,
+                                    } => omega_isa_aarch64::encode_runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage(
+                                        base_byte_offset,
+                                        outer_index_offset,
+                                        outer_index_byte_size,
+                                        outer_stride,
+                                        inner_index_offset,
+                                        inner_index_byte_size,
+                                        inner_stride,
+                                        field_byte_offset,
+                                        target_offset,
+                                        byte_count,
+                                    )?,
                                 },
                             },
                             21u8,
@@ -1636,6 +1669,11 @@ fn compiler_instruction_footprint(
                         CompilerBodyPlaceCopyShape::ToMachineIndexed { .. } => {
                             omega_isa_x86_64::copy_places_to_machine_indexed_clobbers(byte_count)
                         }
+                        CompilerBodyPlaceCopyShape::FromFrameBaseDoubleIndexed { .. } => {
+                            omega_isa_x86_64::copy_places_from_frame_base_double_indexed_clobbers(
+                                byte_count,
+                            )
+                        }
                     },
                     Architecture::Aarch64 => match shape {
                         CompilerBodyPlaceCopyShape::Direct {
@@ -1692,6 +1730,9 @@ fn compiler_instruction_footprint(
                         }
                         CompilerBodyPlaceCopyShape::ToMachineIndexed { .. } => {
                             omega_isa_aarch64::runtime_storage_copy_to_runtime_machine_indexed_clobbers()
+                        }
+                        CompilerBodyPlaceCopyShape::FromFrameBaseDoubleIndexed { .. } => {
+                            omega_isa_aarch64::runtime_storage_copy_from_runtime_frame_base_double_indexed_clobbers()
                         }
                     },
                 },
@@ -2111,6 +2152,13 @@ fn compiler_place_copy_address_sites(
                 ));
                 Ok(sites)
             }
+            CompilerBodyPlaceCopyShape::FromFrameBaseDoubleIndexed { .. } => Ok(vec![
+                (0, source.region),
+                (
+                    omega_isa_aarch64::runtime_storage_copy_from_runtime_frame_base_double_indexed_target_base_offset(),
+                    target.region,
+                ),
+            ]),
             _ => Ok(vec![(0, source.region), (8, target.region)]),
         },
     }
@@ -2249,6 +2297,30 @@ fn compiler_body_place_copy_shape(
             index_byte_size,
             element_byte_size,
             field_byte_offset,
+        });
+    }
+    if let Ok((
+        base_byte_offset,
+        outer_index_offset,
+        outer_index_byte_size,
+        outer_stride,
+        inner_index_offset,
+        inner_index_byte_size,
+        inner_stride,
+        field_byte_offset,
+        target_offset,
+    )) = compiler_place_copy_from_frame_base_double_indexed_offsets(source, target)
+    {
+        return Ok(CompilerBodyPlaceCopyShape::FromFrameBaseDoubleIndexed {
+            base_byte_offset,
+            outer_index_offset,
+            outer_index_byte_size,
+            outer_stride,
+            inner_index_offset,
+            inner_index_byte_size,
+            inner_stride,
+            field_byte_offset,
+            target_offset,
         });
     }
     let (
@@ -2392,6 +2464,89 @@ fn compiler_place_copy_to_machine_indexed_offsets(
         index_byte_size,
         element_byte_size,
         field_byte_offset,
+    ))
+}
+
+fn compiler_place_copy_from_frame_base_double_indexed_offsets(
+    source: &omega_target_operations::Place,
+    target: &omega_target_operations::Place,
+) -> Result<
+    (
+        usize,
+        usize,
+        usize,
+        usize,
+        usize,
+        usize,
+        usize,
+        usize,
+        usize,
+    ),
+    Diagnostic,
+> {
+    let target_offset = target.const_offset().ok_or_else(|| {
+        Diagnostic::error("final frame-double-indexed copy target is not direct storage")
+    })?;
+    if source.region != omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
+        return Err(Diagnostic::error(
+            "final frame-double-indexed copy source is not frame storage",
+        ));
+    }
+    let mut base_byte_offset = 0usize;
+    let mut field_byte_offset = 0usize;
+    let mut indices = Vec::new();
+    for step in source.steps() {
+        match step {
+            omega_target_operations::PlaceStep::ConstOffset(offset) if indices.is_empty() => {
+                base_byte_offset += *offset;
+            }
+            omega_target_operations::PlaceStep::ConstOffset(offset) => {
+                field_byte_offset += *offset;
+            }
+            omega_target_operations::PlaceStep::ScaledIndex {
+                index_region,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+            } if indices.len() < 2 => indices.push((
+                *index_region,
+                *index_offset,
+                *index_byte_size,
+                *element_byte_size,
+            )),
+            _ => {
+                return Err(Diagnostic::error(
+                    "final frame-double-indexed copy source is not doubly indexed inline storage",
+                ));
+            }
+        }
+    }
+    let [
+        (outer_region, outer_offset, outer_size, outer_stride),
+        (inner_region, inner_offset, inner_size, inner_stride),
+    ] = indices.as_slice()
+    else {
+        return Err(Diagnostic::error(
+            "final frame-double-indexed copy source does not have two indices",
+        ));
+    };
+    if *outer_region != omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+        || *inner_region != omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+    {
+        return Err(Diagnostic::error(
+            "final frame-double-indexed copy indices are not captured in the runtime frame",
+        ));
+    }
+    Ok((
+        base_byte_offset,
+        *outer_offset,
+        *outer_size,
+        *outer_stride,
+        *inner_offset,
+        *inner_size,
+        *inner_stride,
+        field_byte_offset,
+        target_offset,
     ))
 }
 
