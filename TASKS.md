@@ -882,7 +882,7 @@ proves complete region coverage, and composes admitted leaves under their
 separate provenance. Do not add a second whole-image decoder/admission path.
 
 The existing single final-region artifact now carries the domain-separated
-`omega.final-footprint-certificate` schema, format version 13, and a certificate
+`omega.final-footprint-certificate` schema, format version 14, and a certificate
 fingerprint over its final placement binding, compiler-text derivation, and
 complete region inventory. Its explicit completeness flags remain false until
 compiler-body footprint decoding and admitted-leaf evidence land. The envelope
@@ -923,8 +923,8 @@ canonical operand arena carried by encoded machine code. Final validation
 regenerates the complete evaluator program, independently walks nested
 binary/conversion/index/text-equality operands to require the exact relocation
 set, and admits the target's closed `RuntimeValueGuardComparison` may-write
-ceiling with operand-sensitive stack/control state. Ordinary writes/calls remain
-incomplete. Direct exit-result materialization now replays immediate writes and
+ceiling with operand-sensitive stack/control state. Direct exit-result
+materialization now replays immediate writes and
 storage-to-result-register loads, including exact storage relocations, and
 requires their derived clobber union to equal the retained
 `ExitResultRegisters` fragment. The final validator now also
@@ -939,6 +939,12 @@ ordinary pointee copy cannot acquire ABI evidence by matching the same shape;
 validation regenerates the exact place-copy program and relocation set and
 requires its clobber union to equal `ExitIndirectResultCopy`. The final
 validator now also
+replays the first ordinary compiler-body write subset: direct-storage
+`CopyPlaces` operations targeting a frame-held pointee. Their explicit
+`Ordinary` role prevents overlap with the indirect-result fragment; the exact
+place-copy bytes, source/pointer relocations, and target scratch union must
+equal the retained `CompilerBodyPlaceCopy` evidence. Other ordinary copy/write
+shapes and calls remain incomplete. The final validator now also
 re-derives the dispatch/static-guard register and machine-state unions from
 those successfully replayed rows, requires exact equality with their earlier
 `StatePlan`-validated semantic fragments (including the complete place-guard
@@ -955,6 +961,10 @@ claim for the remaining body.
   evidence outside it.
 - Extend general compiler-function body decoding; do not add an
   interrupt-specific validator.
+- Fix the macOS host multi-function inventory mismatch: affected canaries reach
+  final validation with encoded compiler text shorter than the placed compiler
+  prefix (`compiler function enumeration does not cover the complete final
+  compiler text`), while their explicit Linux x64/AArch64 direct images pass.
 
 Acceptance: forbidden register classes introduced anywhere in the final
 transitive artifact reject, while two legal realizations with the same ceiling

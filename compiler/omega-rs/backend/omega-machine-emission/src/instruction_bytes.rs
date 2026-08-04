@@ -392,6 +392,22 @@ fn compiler_instruction_validation_kind(
             target: *target,
             byte_count: *byte_count,
         }),
+        SelectedInstructionKind::CopyPlaces {
+            source,
+            target,
+            byte_count,
+            role: CopyPlacesRole::Ordinary,
+        } if matches!(
+            omega_instruction_selection::classify_copy_places_shape(source, target),
+            omega_instruction_selection::CopyPlacesShape::ToPointee { .. }
+        ) =>
+        {
+            Some(CompilerInstructionValidationKind::CompilerBodyPlaceCopy {
+                source: *source,
+                target: *target,
+                byte_count: *byte_count,
+            })
+        }
         SelectedInstructionKind::SetDispatchState { dispatch_index } => {
             Some(CompilerInstructionValidationKind::DispatchStateWrite {
                 dispatch_index: *dispatch_index,

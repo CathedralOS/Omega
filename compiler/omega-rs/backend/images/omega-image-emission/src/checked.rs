@@ -757,6 +757,37 @@ fn validate_compiler_function_instruction_boundaries(
                             },
                         )
                     }
+                    omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyPlaceCopy {
+                        source,
+                        target,
+                        byte_count,
+                    } => {
+                        let (source_offset, pointer_byte_offset, field_byte_offset) =
+                            compiler_place_copy_to_pointee_offsets(&source, &target)?;
+                        (
+                            None,
+                            match architecture {
+                                Architecture::X86_64 => omega_isa_x86_64::encode_copy_places(
+                                    &source,
+                                    &target,
+                                    byte_count,
+                                )?
+                                .0,
+                                Architecture::Aarch64 => omega_isa_aarch64::encode_runtime_storage_copy_to_runtime_pointee(
+                                    source_offset,
+                                    pointer_byte_offset,
+                                    field_byte_offset,
+                                    byte_count,
+                                )?,
+                            },
+                            21u8,
+                            CompilerInstructionRelocationRecipe::PlaceCopy {
+                                source,
+                                target,
+                                byte_count,
+                            },
+                        )
+                    }
                     omega_machine_bytes::CompilerInstructionValidationKind::DispatchStateWrite {
                         dispatch_index,
                         case_leave_byte_distance,
@@ -1331,6 +1362,34 @@ fn compiler_instruction_footprint(
                 MachineStateSet::empty(),
             )
         }
+        CompilerInstructionValidationKind::CompilerBodyPlaceCopy {
+            source,
+            target,
+            byte_count,
+        } => {
+            let Ok((source_offset, pointer_byte_offset, field_byte_offset)) =
+                compiler_place_copy_to_pointee_offsets(&source, &target)
+            else {
+                return None;
+            };
+            (
+                BoundaryFootprintFragmentOrigin::CompilerBodyPlaceCopy,
+                match architecture {
+                    Architecture::X86_64 => {
+                        omega_isa_x86_64::copy_places_to_pointee_clobbers(byte_count)
+                    }
+                    Architecture::Aarch64 => {
+                        omega_isa_aarch64::runtime_storage_copy_to_runtime_pointee_clobbers(
+                            source_offset,
+                            pointer_byte_offset,
+                            field_byte_offset,
+                            byte_count,
+                        )
+                    }
+                },
+                MachineStateSet::empty(),
+            )
+        }
         CompilerInstructionValidationKind::DispatchStateWrite { .. } => (
             BoundaryFootprintFragmentOrigin::DispatchScaffold,
             match architecture {
@@ -1377,6 +1436,7 @@ fn validate_compiler_body_specification_footprints(
                 | BoundaryFootprintFragmentOrigin::EntryStorage
                 | BoundaryFootprintFragmentOrigin::EntrySliceDescriptor
                 | BoundaryFootprintFragmentOrigin::ExitIndirectResultCopy
+                | BoundaryFootprintFragmentOrigin::CompilerBodyPlaceCopy
         )
     });
     let boundary_contract_fingerprint = if !has_body_rows {
@@ -1413,6 +1473,7 @@ fn validate_compiler_body_specification_footprints(
         (7u8, BoundaryFootprintFragmentOrigin::EntryStorage),
         (8u8, BoundaryFootprintFragmentOrigin::EntrySliceDescriptor),
         (9u8, BoundaryFootprintFragmentOrigin::ExitIndirectResultCopy),
+        (10u8, BoundaryFootprintFragmentOrigin::CompilerBodyPlaceCopy),
     ] {
         let evidence_rows = derived
             .iter()
@@ -1657,22 +1718,22 @@ fn compiler_place_copy_address_sites(
                 .collect()
         }
         Architecture::Aarch64 => {
-            compiler_exit_indirect_result_copy_offsets(&source, &target)?;
+            compiler_place_copy_to_pointee_offsets(&source, &target)?;
             Ok(vec![(0, source.region), (8, target.region)])
         }
     }
 }
 
-fn compiler_exit_indirect_result_copy_offsets(
+fn compiler_place_copy_to_pointee_offsets(
     source: &omega_target_operations::Place,
     target: &omega_target_operations::Place,
-) -> Result<(usize, usize), Diagnostic> {
+) -> Result<(usize, usize, usize), Diagnostic> {
     let source_offset = source.const_offset().ok_or_else(|| {
-        Diagnostic::error("final indirect-result copy source is not direct runtime storage")
+        Diagnostic::error("final pointee-copy source is not direct runtime storage")
     })?;
     if target.region != omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
         return Err(Diagnostic::error(
-            "final indirect-result copy pointer is not captured in the runtime frame",
+            "final pointee-copy pointer is not captured in the runtime frame",
         ));
     }
     let (pointer_byte_offset, field_byte_offset) = match target.steps() {
@@ -1687,10 +1748,19 @@ fn compiler_exit_indirect_result_copy_offsets(
         ] => (*pointer_byte_offset, *field_byte_offset),
         _ => {
             return Err(Diagnostic::error(
-                "final indirect-result copy target is not a frame-held pointee",
+                "final pointee-copy target is not a frame-held pointee",
             ));
         }
     };
+    Ok((source_offset, pointer_byte_offset, field_byte_offset))
+}
+
+fn compiler_exit_indirect_result_copy_offsets(
+    source: &omega_target_operations::Place,
+    target: &omega_target_operations::Place,
+) -> Result<(usize, usize), Diagnostic> {
+    let (source_offset, pointer_byte_offset, field_byte_offset) =
+        compiler_place_copy_to_pointee_offsets(source, target)?;
     if field_byte_offset != 0 {
         return Err(Diagnostic::error(
             "final indirect-result copy does not begin at the result destination",
