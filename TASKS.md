@@ -885,7 +885,10 @@ The existing single final-region artifact now carries the domain-separated
 `omega.final-footprint-certificate` schema, format version 1, and a certificate
 fingerprint over its final placement binding, compiler-text derivation, and
 complete region inventory. Its explicit completeness flags remain false until
-compiler-body footprint decoding and admitted-leaf evidence land.
+compiler-body footprint decoding and admitted-leaf evidence land. The envelope
+is now a typed `omega-image` boundary with a closed class vocabulary,
+strictly-normalized coverage rows, region-completeness/gap checks, and internal
+identity replay; compiler output serializes only after that object validates.
 
 - Finish enumeration of compiler-generated entry/body regions.
 - Validate final placed bytes after relocation, thunks, veneers, and generated

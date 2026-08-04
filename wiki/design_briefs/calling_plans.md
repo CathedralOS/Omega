@@ -354,6 +354,13 @@ supported path. Admitted leaves join only through explicit accepted rows with
 their own provider provenance. Static and dynamically loaded artifacts use the
 same certificate and checker boundary.
 
+The first v1 envelope is a typed `omega-image` value rather than a report-only
+JSON convention. Its closed class vocabulary, normalized coverage rows,
+completeness flags, final placement binding, compiler-text derivation, and
+region inventory all enter one replayed identity. The current producer remains
+explicitly partial while compiler-body footprint decoding and admitted-leaf
+rows are missing; serialization occurs only after internal identity validation.
+
 Exit realization is a second implementation-evidence axis. The external-root
 admission path now checks the realized return-control mechanism against
 `CallPlan::entry_control` and the exact restored-state set against `StatePlan`.
