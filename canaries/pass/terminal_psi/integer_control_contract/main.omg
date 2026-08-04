@@ -268,6 +268,38 @@ ensures true == true
     state selected_false(value: bool) -> bool { value }
 }
 
+machine terminal_boolean_conditional_short_circuit_arms(
+    condition: bool,
+    when_true: bool,
+    when_false: bool
+) -> bool
+requires true == true
+ensures true == true
+{
+    transition condition {
+        true -> selected_true(when_true)
+        _ -> selected_false(when_false)
+    }
+    state selected_true(value: bool) -> bool { value && !value }
+    state selected_false(value: bool) -> bool { value || !value }
+}
+
+machine terminal_boolean_conditional_short_circuit_guard(
+    first: bool,
+    second: bool,
+    fallback: bool
+) -> bool
+requires true == true
+ensures true == true
+{
+    transition first && second {
+        true -> selected_true(first)
+        _ -> selected_false(fallback)
+    }
+    state selected_true(value: bool) -> bool { value }
+    state selected_false(value: bool) -> bool { value }
+}
+
 machine terminal_runtime_saturating_add(value: u8 in Saturating) -> u8 in Saturating
 requires 255u8 == 255u8
 ensures 255u8 == 255u8

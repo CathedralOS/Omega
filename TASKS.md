@@ -1178,8 +1178,10 @@ improvements do not change public identity.
   parameters to exactly typed branch parameters, then returns a recursively
   nested landed-literal/parameter add/subtract/multiply expression in a settled
   Wrapping or Saturating domain. A fifth exact form lowers the same ordered
-  conditional shape for ordinary Boolean entry/branch parameters and literal
-  or parameter Boolean returns.
+  conditional shape for ordinary Boolean entry/branch parameters. Its positive
+  guard and both branch returns accept the recursive Boolean vocabulary,
+  including short-circuit control; guard decisions target the selected branch
+  directly, and branch-local decision trees return only from the selected arm.
   It emits the module and
   proof bundle separately; real-source canaries cover all six versioned integer
   policy operations in constant-fed and runtime-fed forms, Boolean literal,
@@ -1365,9 +1367,10 @@ improvements do not change public identity.
   short-circuit fuel and execute natively. Linear Boolean state chains now use
   the same decision trees for both carried jump bindings and final returns;
   canonical Boolean leaves converge through ordinary block-parameter bindings.
-  Short-circuit forms nested inside equality and the explicit-conditional
-  producer shape remain bounded implementation work, not language-design
-  blockers. The
+  Explicit Boolean conditionals compose the same control in both their guard
+  and return arms while preserving branch bindings and selected-path fuel.
+  Short-circuit forms nested inside equality remain bounded implementation
+  work, not a language-design blocker. The
   initial vocabulary now has canonical semantic bytes and a domain-separated
   semantic fingerprint as well: decoding rejects alternate encodings, invalid
   modules, and trailing data, while a golden identity test freezes the format.
