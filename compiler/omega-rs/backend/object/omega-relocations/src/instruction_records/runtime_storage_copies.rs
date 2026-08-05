@@ -206,6 +206,9 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                         | omega_instruction_selection::CopyPlacesShape::FrameBaseIndexedPair {
                             ..
                         }
+                        | omega_instruction_selection::CopyPlacesShape::FrameBaseDoubleIndexedPair {
+                            ..
+                        }
                         | omega_instruction_selection::CopyPlacesShape::FromFrameBaseIndexed {
                             ..
                         } => {

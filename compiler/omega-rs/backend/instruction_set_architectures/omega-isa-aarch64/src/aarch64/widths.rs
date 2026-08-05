@@ -2372,6 +2372,15 @@ pub fn runtime_storage_copy_frame_base_indexed_to_frame_base_indexed_width(
         + 8 * runtime_copy_chunk_pair_count(byte_count)
 }
 
+/// Width of an all-frame double-indexed pair copy: one shared frame pair,
+/// one preserved root, two fixed 2D address walks, a source-address stash,
+/// a target-root reset, and the exact chunked representation copy.
+pub fn runtime_storage_copy_frame_base_double_indexed_to_frame_base_double_indexed_width(
+    byte_count: usize,
+) -> usize {
+    8 + 4 + 36 + 4 + 4 + 36 + runtime_storage_copy_data_width(0, 0, byte_count)
+}
+
 /// Offset of the SECOND relocated machine-base `adrp` inside the dual-indexed
 /// copy (the target half): the first base pair (8) + the source element
 /// address + the x24 stash (4).

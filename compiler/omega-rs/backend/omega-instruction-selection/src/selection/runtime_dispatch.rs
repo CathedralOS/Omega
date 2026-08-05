@@ -1771,6 +1771,60 @@ pub(crate) fn copy_places_from_frame_base_double_indexed(
     }
 }
 
+/// `grid[a][b] = grid[i][j]` on all-frame inline 2D arrays. Both
+/// collections and all four runtime index slots share the runtime frame.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn copy_places_frame_base_double_indexed_pair(
+    source_base_byte_offset: usize,
+    source_outer_index_offset: usize,
+    source_outer_index_byte_size: usize,
+    source_outer_stride: usize,
+    source_inner_index_offset: usize,
+    source_inner_index_byte_size: usize,
+    source_inner_stride: usize,
+    source_field_byte_offset: usize,
+    target_base_byte_offset: usize,
+    target_outer_index_offset: usize,
+    target_outer_index_byte_size: usize,
+    target_outer_stride: usize,
+    target_inner_index_offset: usize,
+    target_inner_index_byte_size: usize,
+    target_inner_stride: usize,
+    target_field_byte_offset: usize,
+    byte_count: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::CopyPlaces {
+        source: double_indexed_place(
+            RuntimeStorageRegion::RuntimeFrame,
+            source_base_byte_offset,
+            RuntimeStorageRegion::RuntimeFrame,
+            source_outer_index_offset,
+            source_outer_index_byte_size,
+            source_outer_stride,
+            RuntimeStorageRegion::RuntimeFrame,
+            source_inner_index_offset,
+            source_inner_index_byte_size,
+            source_inner_stride,
+            source_field_byte_offset,
+        ),
+        target: double_indexed_place(
+            RuntimeStorageRegion::RuntimeFrame,
+            target_base_byte_offset,
+            RuntimeStorageRegion::RuntimeFrame,
+            target_outer_index_offset,
+            target_outer_index_byte_size,
+            target_outer_stride,
+            RuntimeStorageRegion::RuntimeFrame,
+            target_inner_index_offset,
+            target_inner_index_byte_size,
+            target_inner_stride,
+            target_field_byte_offset,
+        ),
+        byte_count,
+        role: omega_abstract_operations::CopyPlacesRole::Ordinary,
+    }
+}
+
 /// Rung 2c-vii: the retired machine inline-array element READ.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn copy_places_from_machine_indexed(

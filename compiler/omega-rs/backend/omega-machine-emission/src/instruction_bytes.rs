@@ -490,10 +490,14 @@ fn compiler_instruction_validation_kind(
                     | omega_instruction_selection::CopyPlacesShape::FromMachineIndexed { .. }
                     | omega_instruction_selection::CopyPlacesShape::ToMachineIndexed { .. }
                     | omega_instruction_selection::CopyPlacesShape::FromFrameBaseDoubleIndexed { .. }
+                    | omega_instruction_selection::CopyPlacesShape::FrameBaseDoubleIndexedToPointee { .. }
+                    | omega_instruction_selection::CopyPlacesShape::PointeeToFrameBaseDoubleIndexed { .. }
                     | omega_instruction_selection::CopyPlacesShape::ToFrameBaseDoubleIndexed { .. }
                     | omega_instruction_selection::CopyPlacesShape::FromMachineDoubleIndexed { .. }
                     | omega_instruction_selection::CopyPlacesShape::ToMachineDoubleIndexed { .. }
                     | omega_instruction_selection::CopyPlacesShape::MachineIndexedPair { .. }
+                    | omega_instruction_selection::CopyPlacesShape::FrameBaseIndexedPair { .. }
+                    | omega_instruction_selection::CopyPlacesShape::FrameBaseDoubleIndexedPair { .. }
             )
             || (emission_context.target.architecture == omega_target::Architecture::X86_64
                 && matches!(
