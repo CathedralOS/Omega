@@ -1056,7 +1056,10 @@ machine-array write-side mirror, the all-frame AArch64 write from direct frame
 or machine storage, and the machine-inline `arr[i] = arr[j]` pair are covered.
 The all-frame read and write copy complete aggregate byte spans rather than
 only scalar widths, share one frame relocation across the collection and both
-indices, and add a distinct source relocation only for machine storage.
+indices, and add a distinct source relocation only for machine storage. An
+all-frame double-indexed source may also target a frame-held pointee: the
+collection, both indices, and pointer slot reuse that one frame root, and the
+copy covers the complete value representation.
 The x86 general place materializer also replays every
 remaining otherwise-unclassified `CopyPlaces` path with scratch derived from
 the retained places' exact index depths.
