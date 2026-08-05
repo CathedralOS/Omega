@@ -2601,6 +2601,7 @@ enum CompilerBodyPlaceCopyShape {
     },
     FrameBaseIndexedToPointee {
         base_byte_offset: usize,
+        index_region: omega_target_operations::RuntimeStorageRegion,
         index_offset: usize,
         index_byte_size: usize,
         element_byte_size: usize,
@@ -2612,6 +2613,7 @@ enum CompilerBodyPlaceCopyShape {
         pointer_byte_offset: usize,
         source_field_byte_offset: usize,
         base_byte_offset: usize,
+        index_region: omega_target_operations::RuntimeStorageRegion,
         index_offset: usize,
         index_byte_size: usize,
         element_byte_size: usize,
@@ -3661,6 +3663,7 @@ fn validate_compiler_function_instruction_boundaries(
                                     )?,
                                     CompilerBodyPlaceCopyShape::FrameBaseIndexedToPointee {
                                         base_byte_offset,
+                                        index_region,
                                         index_offset,
                                         index_byte_size,
                                         element_byte_size,
@@ -3669,6 +3672,7 @@ fn validate_compiler_function_instruction_boundaries(
                                         target_field_byte_offset,
                                     } => omega_isa_aarch64::encode_runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_pointee(
                                         base_byte_offset,
+                                        index_region,
                                         index_offset,
                                         index_byte_size,
                                         element_byte_size,
@@ -3681,6 +3685,7 @@ fn validate_compiler_function_instruction_boundaries(
                                         pointer_byte_offset,
                                         source_field_byte_offset,
                                         base_byte_offset,
+                                        index_region,
                                         index_offset,
                                         index_byte_size,
                                         element_byte_size,
@@ -3689,6 +3694,7 @@ fn validate_compiler_function_instruction_boundaries(
                                         pointer_byte_offset,
                                         source_field_byte_offset,
                                         base_byte_offset,
+                                        index_region,
                                         index_offset,
                                         index_byte_size,
                                         element_byte_size,
@@ -9840,10 +9846,20 @@ fn compiler_place_copy_address_sites(
             }
             CompilerBodyPlaceCopyShape::ToIndexed { .. }
             | CompilerBodyPlaceCopyShape::IndexedToPointee { .. }
-            | CompilerBodyPlaceCopyShape::FromFrameBaseIndexed { .. }
-            | CompilerBodyPlaceCopyShape::FrameBaseIndexedToPointee { .. }
-            | CompilerBodyPlaceCopyShape::PointeeToFrameBaseIndexed { .. } => {
+            | CompilerBodyPlaceCopyShape::FromFrameBaseIndexed { .. } => {
                 Ok(vec![(0, source.region)])
+            }
+            CompilerBodyPlaceCopyShape::FrameBaseIndexedToPointee {
+                index_region, ..
+            }
+            | CompilerBodyPlaceCopyShape::PointeeToFrameBaseIndexed {
+                index_region, ..
+            } => {
+                let mut sites = vec![(0, source.region)];
+                if index_region == omega_target_operations::RuntimeStorageRegion::Machine {
+                    sites.push((12, index_region));
+                }
+                Ok(sites)
             }
             CompilerBodyPlaceCopyShape::ToFrameBaseIndexed {
                 base_byte_offset,
@@ -10305,12 +10321,12 @@ fn compiler_body_place_copy_shape(
             element_byte_size,
             source_field_byte_offset,
         )) = compiler_single_direct_indexed_place_offsets(source)
-        && index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
         && let Ok((pointer_byte_offset, target_field_byte_offset)) =
             compiler_frame_pointee_offsets(target)
     {
         return Ok(CompilerBodyPlaceCopyShape::FrameBaseIndexedToPointee {
             base_byte_offset,
+            index_region,
             index_offset,
             index_byte_size,
             element_byte_size,
@@ -10331,12 +10347,12 @@ fn compiler_body_place_copy_shape(
             element_byte_size,
             target_field_byte_offset,
         )) = compiler_single_direct_indexed_place_offsets(target)
-        && index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
     {
         return Ok(CompilerBodyPlaceCopyShape::PointeeToFrameBaseIndexed {
             pointer_byte_offset,
             source_field_byte_offset,
             base_byte_offset,
+            index_region,
             index_offset,
             index_byte_size,
             element_byte_size,
@@ -17154,6 +17170,57 @@ mod tests {
             )
             .expect("final reverse all-frame indexed pointee sites"),
             vec![(0, RuntimeStorageRegion::RuntimeFrame)]
+        );
+
+        let cross_frame_indexed_source = Place::at(RuntimeStorageRegion::RuntimeFrame, 208)
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::Machine,
+                index_offset: 152,
+                index_byte_size: 8,
+                element_byte_size: 12,
+            })
+            .expect("machine-indexed frame source");
+        assert!(matches!(
+            compiler_body_place_copy_shape(&cross_frame_indexed_source, &target)
+                .expect("classify final cross-region frame indexed pointee copy"),
+            CompilerBodyPlaceCopyShape::FrameBaseIndexedToPointee {
+                index_region: RuntimeStorageRegion::Machine,
+                ..
+            }
+        ));
+        assert_eq!(
+            compiler_place_copy_address_sites(
+                omega_target::Architecture::Aarch64,
+                cross_frame_indexed_source.clone(),
+                target.clone(),
+                12,
+            )
+            .expect("cross-region frame indexed pointee sites"),
+            vec![
+                (0, RuntimeStorageRegion::RuntimeFrame),
+                (12, RuntimeStorageRegion::Machine),
+            ]
+        );
+        assert!(matches!(
+            compiler_body_place_copy_shape(&target, &cross_frame_indexed_source)
+                .expect("classify final reverse cross-region frame indexed pointee copy"),
+            CompilerBodyPlaceCopyShape::PointeeToFrameBaseIndexed {
+                index_region: RuntimeStorageRegion::Machine,
+                ..
+            }
+        ));
+        assert_eq!(
+            compiler_place_copy_address_sites(
+                omega_target::Architecture::Aarch64,
+                target.clone(),
+                cross_frame_indexed_source,
+                12,
+            )
+            .expect("reverse cross-region frame indexed pointee sites"),
+            vec![
+                (0, RuntimeStorageRegion::RuntimeFrame),
+                (12, RuntimeStorageRegion::Machine),
+            ]
         );
 
         let machine_source = Place::at(RuntimeStorageRegion::Machine, 32)

@@ -6360,6 +6360,7 @@ pub fn runtime_storage_copy_from_runtime_frame_base_double_indexed_clobbers() ->
 #[allow(clippy::too_many_arguments)]
 pub fn encode_runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_pointee(
     base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
     index_offset: usize,
     index_byte_size: usize,
     element_byte_size: usize,
@@ -6369,6 +6370,7 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_po
     byte_count: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
     let expected_width = super::widths::runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_pointee_width(
+        index_region,
         pointer_byte_offset,
         target_field_byte_offset,
         byte_count,
@@ -6377,9 +6379,17 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_po
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
     bytes.extend(encode_move_x_register(20, 16));
+    if index_region == omega_target_operations::RuntimeStorageRegion::Machine {
+        bytes.extend(encode_adrp_placeholder(15));
+        bytes.extend(encode_add_page_offset_placeholder(15));
+    }
     append_single_index_address_math(
         &mut bytes,
-        16,
+        if index_region == omega_target_operations::RuntimeStorageRegion::Machine {
+            15
+        } else {
+            16
+        },
         index_offset,
         index_byte_size,
         element_byte_size,
@@ -6415,6 +6425,7 @@ pub fn encode_runtime_storage_copy_from_runtime_pointee_to_runtime_frame_base_in
     pointer_byte_offset: usize,
     source_field_byte_offset: usize,
     base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
     index_offset: usize,
     index_byte_size: usize,
     element_byte_size: usize,
@@ -6422,6 +6433,7 @@ pub fn encode_runtime_storage_copy_from_runtime_pointee_to_runtime_frame_base_in
     byte_count: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
     let expected_width = super::widths::runtime_storage_copy_from_runtime_pointee_to_runtime_frame_base_indexed_width(
+        index_region,
         pointer_byte_offset,
         source_field_byte_offset,
         byte_count,
@@ -6430,9 +6442,17 @@ pub fn encode_runtime_storage_copy_from_runtime_pointee_to_runtime_frame_base_in
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
     bytes.extend(encode_move_x_register(20, 16));
+    if index_region == omega_target_operations::RuntimeStorageRegion::Machine {
+        bytes.extend(encode_adrp_placeholder(15));
+        bytes.extend(encode_add_page_offset_placeholder(15));
+    }
     append_single_index_address_math(
         &mut bytes,
-        16,
+        if index_region == omega_target_operations::RuntimeStorageRegion::Machine {
+            15
+        } else {
+            16
+        },
         index_offset,
         index_byte_size,
         element_byte_size,
@@ -12109,13 +12129,13 @@ mod tests {
 
         let frame_indexed_to_pointee =
             encode_runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_pointee(
-                24, 72, 8, 12, 0, 104, 4, 12,
+                24, frame, 72, 8, 12, 0, 104, 4, 12,
             )
             .expect("encode all-frame indexed aggregate copy to pointee");
         assert_eq!(
             frame_indexed_to_pointee.len(),
             widths::runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_pointee_width(
-                104, 4, 12,
+                frame, 104, 4, 12,
             )
         );
         assert_eq!(
@@ -12129,18 +12149,50 @@ mod tests {
 
         let pointee_to_frame_indexed =
             encode_runtime_storage_copy_from_runtime_pointee_to_runtime_frame_base_indexed(
-                104, 4, 24, 72, 8, 12, 0, 12,
+                104, 4, 24, frame, 72, 8, 12, 0, 12,
             )
             .expect("encode pointee aggregate copy to all-frame indexed storage");
         assert_eq!(
             pointee_to_frame_indexed.len(),
             widths::runtime_storage_copy_from_runtime_pointee_to_runtime_frame_base_indexed_width(
-                104, 4, 12,
+                frame, 104, 4, 12,
             )
         );
         assert_eq!(
             runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_pointee_clobbers(),
             runtime_storage_copy_from_runtime_pointee_to_runtime_frame_base_indexed_clobbers(),
+        );
+
+        let cross_indexed_to_pointee =
+            encode_runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_pointee(
+                24, machine, 72, 8, 12, 0, 104, 4, 12,
+            )
+            .expect("encode machine-indexed frame aggregate copy to pointee");
+        assert_eq!(
+            cross_indexed_to_pointee.len(),
+            widths::runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_pointee_width(
+                machine, 104, 4, 12,
+            )
+        );
+        assert_eq!(
+            &cross_indexed_to_pointee[12..20],
+            [
+                encode_adrp_placeholder(15),
+                encode_add_page_offset_placeholder(15)
+            ]
+            .concat(),
+            "a machine-held index owns the second base after the preserved frame root"
+        );
+        let pointee_to_cross_indexed =
+            encode_runtime_storage_copy_from_runtime_pointee_to_runtime_frame_base_indexed(
+                104, 4, 24, machine, 72, 8, 12, 0, 12,
+            )
+            .expect("encode pointee copy to machine-indexed frame aggregate");
+        assert_eq!(
+            pointee_to_cross_indexed.len(),
+            widths::runtime_storage_copy_from_runtime_pointee_to_runtime_frame_base_indexed_width(
+                machine, 104, 4, 12,
+            )
         );
 
         let machine_to_pointee =

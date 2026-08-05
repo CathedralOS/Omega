@@ -567,7 +567,6 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indirect_copy_in_t
             expressions,
             target,
         )
-        && indexed_target.index_region == RuntimeStorageRegion::RuntimeFrame
         && pointer_source.pointee_byte_size == indexed_target.byte_count
         && indexed_target.byte_count > 0
     {
@@ -576,6 +575,7 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indirect_copy_in_t
                 pointer_source.pointer_byte_offset,
                 pointer_source.field_byte_offset,
                 indexed_target.base_byte_offset,
+                indexed_target.index_region,
                 indexed_target.index_offset,
                 indexed_target.index_byte_size,
                 indexed_target.element_byte_size,
@@ -919,13 +919,13 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indexed_source_cop
             expressions,
             value,
         )
-        && indexed_source.index_region == RuntimeStorageRegion::RuntimeFrame
         && pointer_target.pointee_byte_size == indexed_source.byte_count
         && indexed_source.byte_count > 0
     {
         return Some(
             crate::selection::runtime_dispatch::copy_places_frame_base_indexed_to_pointee(
                 indexed_source.base_byte_offset,
+                indexed_source.index_region,
                 indexed_source.index_offset,
                 indexed_source.index_byte_size,
                 indexed_source.element_byte_size,

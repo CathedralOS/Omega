@@ -1073,7 +1073,8 @@ recipe. A mutable indexed reference is established by a distinct address write
 before any value copy may dereference its frame slot.
 Single-indexed all-frame aggregate copies through a frame-held pointee use one
 frame root for the inline array, index, and pointer slot in either direction;
-the exact complete value representation is replayed.
+the exact complete value representation is replayed. A machine-held index
+retains one exact second root beside that frame root.
 The x86 general place materializer also replays every
 remaining otherwise-unclassified `CopyPlaces` path with scratch derived from
 the retained places' exact index depths.

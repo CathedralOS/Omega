@@ -2108,6 +2108,7 @@ pub(crate) fn copy_places_from_machine_indexed(
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn copy_places_frame_base_indexed_to_pointee(
     base_byte_offset: usize,
+    index_region: RuntimeStorageRegion,
     index_offset: usize,
     index_byte_size: usize,
     element_byte_size: usize,
@@ -2117,8 +2118,9 @@ pub(crate) fn copy_places_frame_base_indexed_to_pointee(
     byte_count: usize,
 ) -> SelectedInstructionKind {
     SelectedInstructionKind::CopyPlaces {
-        source: frame_base_indexed_place(
+        source: frame_base_indexed_place_with_index_region(
             base_byte_offset,
+            index_region,
             index_offset,
             index_byte_size,
             element_byte_size,
@@ -2135,6 +2137,7 @@ pub(crate) fn copy_places_pointee_to_frame_base_indexed(
     pointer_byte_offset: usize,
     source_field_byte_offset: usize,
     base_byte_offset: usize,
+    index_region: RuntimeStorageRegion,
     index_offset: usize,
     index_byte_size: usize,
     element_byte_size: usize,
@@ -2143,8 +2146,9 @@ pub(crate) fn copy_places_pointee_to_frame_base_indexed(
 ) -> SelectedInstructionKind {
     SelectedInstructionKind::CopyPlaces {
         source: pointee_place(pointer_byte_offset, source_field_byte_offset),
-        target: frame_base_indexed_place(
+        target: frame_base_indexed_place_with_index_region(
             base_byte_offset,
+            index_region,
             index_offset,
             index_byte_size,
             element_byte_size,
