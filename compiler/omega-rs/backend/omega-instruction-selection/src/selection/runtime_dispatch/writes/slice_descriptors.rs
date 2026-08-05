@@ -10,8 +10,10 @@ use psi_checked_trees::expression::{ExpressionHandle, ExpressionNode, Expression
 
 use super::super::super::storage_places::{
     RuntimeStoragePlace, descriptor_is_fat_slice, resolve_fixed_array_length,
-    resolve_fixed_array_length_in_table, resolve_runtime_frame_base_indexed_target,
-    resolve_runtime_frame_base_indexed_target_in_table, resolve_runtime_frame_fixed_indexed_target,
+    resolve_fixed_array_length_in_table,
+    resolve_runtime_frame_base_indexed_target_with_index_region,
+    resolve_runtime_frame_base_indexed_target_with_index_region_in_table,
+    resolve_runtime_frame_fixed_indexed_target,
     resolve_runtime_frame_fixed_indexed_target_in_table,
     resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_place,
     resolve_runtime_storage_place_in_table,
@@ -1232,7 +1234,7 @@ pub(in crate::selection) fn emit_runtime_frame_slot_slice_descriptor_write_in_ta
             );
             return true;
         }
-        if let Some(indexed_target) = resolve_runtime_frame_base_indexed_target(
+        if let Some(indexed_target) = resolve_runtime_frame_base_indexed_target_with_index_region(
             input,
             dispatch_index,
             value_source_key,
@@ -1253,6 +1255,7 @@ pub(in crate::selection) fn emit_runtime_frame_slot_slice_descriptor_write_in_ta
                 statement_index,
                 slot,
                 indexed_target.base_byte_offset,
+                indexed_target.index_region,
                 indexed_target.index_offset,
                 indexed_target.index_byte_size,
                 indexed_target.element_byte_size,
@@ -1295,13 +1298,15 @@ pub(in crate::selection) fn emit_runtime_frame_slot_slice_descriptor_write_in_ta
         return true;
     };
 
-    if let Some(indexed_target) = resolve_runtime_frame_base_indexed_target_in_table(
-        input,
-        dispatch_index,
-        value_source_key,
-        expressions,
-        call.receiver,
-    ) {
+    if let Some(indexed_target) =
+        resolve_runtime_frame_base_indexed_target_with_index_region_in_table(
+            input,
+            dispatch_index,
+            value_source_key,
+            expressions,
+            call.receiver,
+        )
+    {
         let Some(length) = resolve_fixed_array_length_in_table(
             input,
             dispatch_index,
@@ -1318,6 +1323,7 @@ pub(in crate::selection) fn emit_runtime_frame_slot_slice_descriptor_write_in_ta
             statement_index,
             slot,
             indexed_target.base_byte_offset,
+            indexed_target.index_region,
             indexed_target.index_offset,
             indexed_target.index_byte_size,
             indexed_target.element_byte_size,
@@ -1392,6 +1398,7 @@ fn emit_indexed_slice_descriptor(
     statement_index: usize,
     slot: &omega_runtime_storage::RuntimeFrameSlot,
     base_byte_offset: usize,
+    index_region: RuntimeStorageRegion,
     index_offset: usize,
     index_byte_size: usize,
     element_byte_size: usize,
@@ -1400,14 +1407,16 @@ fn emit_indexed_slice_descriptor(
     selected_instructions: &mut SelectedInstructionSink,
 ) {
     selected_instructions.push(SelectedInstruction {
-        kind: crate::selection::runtime_dispatch::write_place_address_base_indexed(
-            base_byte_offset,
-            index_offset,
-            index_byte_size,
-            element_byte_size,
-            field_byte_offset,
-            slot.byte_offset,
-        ),
+        kind:
+            crate::selection::runtime_dispatch::write_place_address_base_indexed_with_index_region(
+                base_byte_offset,
+                index_region,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+                slot.byte_offset,
+            ),
         source_key: value_source_key,
         source_statement: statement_index,
     });

@@ -1316,8 +1316,10 @@ pub(crate) fn write_place_address_frame_indexed_deref(
     }
 }
 
-pub(crate) fn write_place_address_base_indexed(
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn write_place_address_base_indexed_with_index_region(
     base_byte_offset: usize,
+    index_region: RuntimeStorageRegion,
     index_offset: usize,
     index_byte_size: usize,
     element_byte_size: usize,
@@ -1330,7 +1332,7 @@ pub(crate) fn write_place_address_base_indexed(
             base_byte_offset,
         )
         .with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
-            index_region: RuntimeStorageRegion::RuntimeFrame,
+            index_region,
             index_offset,
             index_byte_size,
             element_byte_size,

@@ -5,6 +5,7 @@ use crate::selection::storage_places::{
     descriptor_is_bounded_byte_buffer, enum_variant_value_in_table,
     resolve_runtime_frame_base_double_indexed_source_in_table,
     resolve_runtime_frame_base_indexed_target_in_table,
+    resolve_runtime_frame_base_indexed_target_with_index_region_in_table,
     resolve_runtime_frame_fixed_indexed_target_in_table,
     resolve_runtime_frame_indexed_target_in_table,
     resolve_runtime_frame_indexed_target_near_slot_in_table,
@@ -758,16 +759,19 @@ fn select_runtime_frame_slot_address_write_in_table(
             );
         }
 
-        if let Some(indexed_target) = resolve_runtime_frame_base_indexed_target_in_table(
-            input,
-            dispatch_index,
-            value_source_key,
-            expressions,
-            call.receiver,
-        ) {
+        if let Some(indexed_target) =
+            resolve_runtime_frame_base_indexed_target_with_index_region_in_table(
+                input,
+                dispatch_index,
+                value_source_key,
+                expressions,
+                call.receiver,
+            )
+        {
             return Some(
-                crate::selection::runtime_dispatch::write_place_address_base_indexed(
+                crate::selection::runtime_dispatch::write_place_address_base_indexed_with_index_region(
                     indexed_target.base_byte_offset,
+                    indexed_target.index_region,
                     indexed_target.index_offset,
                     indexed_target.index_byte_size,
                     indexed_target.element_byte_size,
@@ -871,7 +875,7 @@ fn select_runtime_frame_slot_place_address_write_in_table(
         );
     }
 
-    if let Some(target) = resolve_runtime_frame_base_indexed_target_in_table(
+    if let Some(target) = resolve_runtime_frame_base_indexed_target_with_index_region_in_table(
         input,
         dispatch_index,
         value_source_key,
@@ -879,8 +883,9 @@ fn select_runtime_frame_slot_place_address_write_in_table(
         referent,
     ) {
         return Some(
-            crate::selection::runtime_dispatch::write_place_address_base_indexed(
+            crate::selection::runtime_dispatch::write_place_address_base_indexed_with_index_region(
                 target.base_byte_offset,
+                target.index_region,
                 target.index_offset,
                 target.index_byte_size,
                 target.element_byte_size,

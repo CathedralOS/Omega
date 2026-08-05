@@ -1114,6 +1114,9 @@ Compiler-body place-address writes retain their canonical source `Place` and
 target runtime-frame slot. Final validation replays the exact target address
 materializer, independently derives every source, index, and target-frame
 relocation, and matches dedicated `CompilerBodyPlaceAddressWrite` evidence.
+Inline-frame AArch64 sources accept frame- or machine-held indices, including
+the exact second-base relocation and additional address scratch for a cross-
+region machine index.
 Place-copy selection retains its separate `compiler_body_place_copy` evidence
 only for
 the `Ordinary` role; final validation regenerates the same place-copy bytes,

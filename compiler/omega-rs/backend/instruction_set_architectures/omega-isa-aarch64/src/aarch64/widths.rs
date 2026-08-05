@@ -1869,17 +1869,40 @@ pub fn runtime_frame_fixed_indexed_address_to_runtime_frame_write_width(
 pub fn runtime_frame_base_indexed_address_to_runtime_frame_write_width(
     base_byte_offset: usize,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     target_offset: usize,
 ) -> usize {
-    16 + add_constant_width(base_byte_offset)
-        // Index is loaded as a 32-bit (4-byte) value, see
-        // append_runtime_frame_base_index_target_address.
-        + load_data_offset_width(index_offset, 4)
-        + scale_index_width(element_byte_size)
-        + add_constant_width(field_byte_offset)
-        + store_x_offset_width(target_offset)
+    runtime_frame_base_indexed_address_to_runtime_frame_write_with_index_region_width(
+        base_byte_offset,
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+        target_offset,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn runtime_frame_base_indexed_address_to_runtime_frame_write_with_index_region_width(
+    base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+) -> usize {
+    runtime_frame_base_indexed_operand_start_width_with_index_region(
+        base_byte_offset,
+        index_region,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+    ) + store_x_offset_width(target_offset)
 }
 
 /// Extra bytes the line-read's result-descriptor store spends when the String field's

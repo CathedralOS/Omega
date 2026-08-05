@@ -59,7 +59,12 @@ pub(super) fn collect_runtime_storage_address_relocations(
                     // The transitional decompose: the SAME classifier (plus the
                     // shared deref-indexed helper) the encoder uses picks the
                     // retained shape, so the relocs always describe the bytes.
-                    match omega_instruction_selection::classify_write_place_shape(source) {
+                    let shape = omega_instruction_selection::classify_write_place_shape(source);
+                    let frame_indexed =
+                        omega_instruction_selection::classify_frame_base_indexed_address_shape(
+                            source,
+                        );
+                    match shape {
                         omega_instruction_selection::WritePlaceShape::Direct { byte_offset } => {
                             context.insert_data_address_at_instruction_start(
                                 context.storage_region_symbol_handle(source.region),
@@ -129,6 +134,26 @@ pub(super) fn collect_runtime_storage_address_relocations(
                                 ),
                                 context.runtime_frame_symbol_handle(),
                             );
+                        }
+                        omega_instruction_selection::WritePlaceShape::Unsupported
+                            if frame_indexed.is_some() =>
+                        {
+                            let frame_indexed = frame_indexed
+                                .expect("guarded frame-base-indexed place-address source");
+                            context.insert_data_address_at_instruction_start(
+                                context.runtime_frame_symbol_handle(),
+                            );
+                            if frame_indexed.index_region
+                                == omega_target_operations::RuntimeStorageRegion::Machine
+                            {
+                                context.insert_data_address_at_relative_offset(
+                                    omega_instruction_selection::runtime_frame_base_indexed_machine_index_base_offset(
+                                        context.input.target.architecture,
+                                        frame_indexed.base_byte_offset,
+                                    ),
+                                    context.machine_storage_symbol_handle(),
+                                );
+                            }
                         }
                         _ => {
                             if let Some((_, index_region, ..)) =
