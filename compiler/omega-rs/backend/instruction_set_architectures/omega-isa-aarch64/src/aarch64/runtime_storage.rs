@@ -7319,17 +7319,19 @@ pub fn runtime_storage_copy_machine_indexed_to_machine_indexed_clobbers() -> Reg
     ])
 }
 
-/// Copy `frame[j] -> frame[i]` where both inline arrays and both runtime index
-/// slots share the runtime frame. The source address is stashed in x24 while
-/// x16 is reset to the one relocated frame root for the target walk.
+/// Copy `frame[j] -> frame[i]` between frame-inline arrays. x20 preserves the
+/// relocated frame root, one optional x15 root supplies every machine-held
+/// index, and x24 preserves the completed source address between walks.
 #[allow(clippy::too_many_arguments)]
 pub fn encode_runtime_storage_copy_frame_base_indexed_to_frame_base_indexed(
     source_base_byte_offset: usize,
+    source_index_region: omega_target_operations::RuntimeStorageRegion,
     source_index_offset: usize,
     source_index_byte_size: usize,
     source_element_byte_size: usize,
     source_field_byte_offset: usize,
     target_base_byte_offset: usize,
+    target_index_region: omega_target_operations::RuntimeStorageRegion,
     target_index_offset: usize,
     target_index_byte_size: usize,
     target_element_byte_size: usize,
@@ -7338,15 +7340,26 @@ pub fn encode_runtime_storage_copy_frame_base_indexed_to_frame_base_indexed(
 ) -> Result<Vec<u8>, Diagnostic> {
     let expected_width =
         super::widths::runtime_storage_copy_frame_base_indexed_to_frame_base_indexed_width(
+            source_index_region,
+            target_index_region,
             byte_count,
         );
     let mut bytes = Vec::with_capacity(expected_width);
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
-    append_fixed_shape_index_element_address(
+    bytes.extend(encode_move_x_register(20, 16));
+    let machine = omega_target_operations::RuntimeStorageRegion::Machine;
+    if source_index_region == machine || target_index_region == machine {
+        bytes.extend(encode_adrp_placeholder(15));
+        bytes.extend(encode_add_page_offset_placeholder(15));
+    }
+    append_single_index_address_math(
         &mut bytes,
-        16,
-        omega_target_operations::RuntimeStorageRegion::Machine,
+        if source_index_region == machine {
+            15
+        } else {
+            20
+        },
         source_index_offset,
         source_index_byte_size,
         source_element_byte_size,
@@ -7354,10 +7367,14 @@ pub fn encode_runtime_storage_copy_frame_base_indexed_to_frame_base_indexed(
     )?;
     bytes.extend(encode_move_x_register(24, 16));
     bytes.extend(encode_move_x_register(16, 20));
-    append_fixed_shape_index_element_address(
+    bytes.extend(encode_move_x_register(20, 16));
+    append_single_index_address_math(
         &mut bytes,
-        16,
-        omega_target_operations::RuntimeStorageRegion::Machine,
+        if target_index_region == machine {
+            15
+        } else {
+            20
+        },
         target_index_offset,
         target_index_byte_size,
         target_element_byte_size,
@@ -7380,8 +7397,20 @@ pub fn encode_runtime_storage_copy_frame_base_indexed_to_frame_base_indexed(
     Ok(bytes)
 }
 
-pub fn runtime_storage_copy_frame_base_indexed_to_frame_base_indexed_clobbers() -> RegisterSet {
-    runtime_storage_copy_machine_indexed_to_machine_indexed_clobbers()
+pub fn runtime_storage_copy_frame_base_indexed_to_frame_base_indexed_clobbers(
+    source_index_region: omega_target_operations::RuntimeStorageRegion,
+    target_index_region: omega_target_operations::RuntimeStorageRegion,
+) -> RegisterSet {
+    let mut registers = runtime_storage_copy_machine_indexed_to_machine_indexed_clobbers()
+        .as_slice()
+        .iter()
+        .copied()
+        .collect::<Vec<_>>();
+    let machine = omega_target_operations::RuntimeStorageRegion::Machine;
+    if source_index_region == machine || target_index_region == machine {
+        registers.push(MachineRegister::Aarch64X(15));
+    }
+    RegisterSet::new(registers)
 }
 
 /// Copy `frame[source_outer][source_inner]` to
@@ -12498,12 +12527,14 @@ mod tests {
         );
 
         let indexed_pair = encode_runtime_storage_copy_frame_base_indexed_to_frame_base_indexed(
-            24, 64, 8, 12, 0, 128, 72, 8, 12, 0, 12,
+            24, frame, 64, 8, 12, 0, 128, frame, 72, 8, 12, 0, 12,
         )
         .expect("encode all-frame indexed aggregate pair copy");
         assert_eq!(
             indexed_pair.len(),
-            widths::runtime_storage_copy_frame_base_indexed_to_frame_base_indexed_width(12)
+            widths::runtime_storage_copy_frame_base_indexed_to_frame_base_indexed_width(
+                frame, frame, 12,
+            )
         );
         assert_eq!(
             &indexed_pair[..8],
@@ -12513,6 +12544,26 @@ mod tests {
             ]
             .concat(),
             "both arrays and both index slots share the opening frame base"
+        );
+
+        let mixed_frame_indexed_pair =
+            encode_runtime_storage_copy_frame_base_indexed_to_frame_base_indexed(
+                24, machine, 64, 8, 12, 0, 128, frame, 72, 8, 12, 0, 12,
+            )
+            .expect("encode mixed-index frame aggregate pair copy");
+        assert_eq!(
+            mixed_frame_indexed_pair.len(),
+            widths::runtime_storage_copy_frame_base_indexed_to_frame_base_indexed_width(
+                machine, frame, 12,
+            )
+        );
+        assert_eq!(
+            &mixed_frame_indexed_pair[12..20],
+            [
+                encode_adrp_placeholder(15),
+                encode_add_page_offset_placeholder(15)
+            ]
+            .concat()
         );
 
         let double_pair =
