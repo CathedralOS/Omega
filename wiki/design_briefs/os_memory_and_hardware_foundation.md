@@ -1071,6 +1071,9 @@ complete aggregate span, and replays both exact relocations.
 Single-indexed machine-rooted elements use the same bidirectional two-root
 recipe. A mutable indexed reference is established by a distinct address write
 before any value copy may dereference its frame slot.
+Single-indexed all-frame aggregate copies through a frame-held pointee use one
+frame root for the inline array, index, and pointer slot in either direction;
+the exact complete value representation is replayed.
 The x86 general place materializer also replays every
 remaining otherwise-unclassified `CopyPlaces` path with scratch derived from
 the retained places' exact index depths.

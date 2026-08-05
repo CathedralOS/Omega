@@ -1,7 +1,9 @@
 // DUAL-indexed copies with BOTH indices FRAME-resident params. The machine
 // array (`self.arr[k] = self.arr[j]`) retains its independent machine roots;
 // the local aggregate array (`local[k] = local[j]`) shares one frame root
-// across both array walks and both index slots.
+// across both array walks and both index slots. Whole-Triple values also cross
+// a frame-held pointee in both directions while the array, index, and pointer
+// slot retain that one frame root.
 use omega::language::std::console;
 data Triple { first: i32; second: i32; third: i32; }
 data Main {
@@ -19,9 +21,26 @@ machine Main::copy_elem(&mut self, k: u64 [0..=3], j: u64 [0..=3]) {
         Triple { first: 4, second: 5, third: 6 },
         Triple { first: 7, second: 8, third: 9 }
     ];
+    let source: [Triple; 4] = [
+        Triple { first: 31, second: 32, third: 33 },
+        Triple { first: 40, second: 50, third: 60 },
+        Triple { first: 34, second: 35, third: 36 },
+        Triple { first: 37, second: 38, third: 39 }
+    ];
+    let target: [Triple; 4] = [
+        Triple { first: 71, second: 72, third: 73 },
+        Triple { first: 74, second: 75, third: 76 },
+        Triple { first: 77, second: 78, third: 79 },
+        Triple { first: 80, second: 81, third: 82 }
+    ];
     local[k] = local[j];
+    let selected: &mut Triple = &mut target[k];
+    selected = source[j];
+    let reverse: &mut Triple = &mut source[k];
+    reverse = Triple { first: 90, second: 91, third: 92 };
+    target[j] = reverse;
     self.arr[k] = self.arr[j];
-    transition self.arr[3] == 77 && local[3].first == 10 && local[3].second == 20 && local[3].third == 30 {
+    transition self.arr[3] == 77 && local[3].first == 10 && local[3].second == 20 && local[3].third == 30 && target[3].first == 40 && target[3].second == 50 && target[3].third == 60 && target[1].first == 90 && target[1].second == 91 && target[1].third == 92 {
         true -> yes()
         false -> no()
     }
