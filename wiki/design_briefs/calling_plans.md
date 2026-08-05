@@ -1276,7 +1276,9 @@ target, uses the same one-root geometry and complete aggregate span.
 Machine-rooted double-indexed elements can cross a frame-held pointee in either
 direction too. AArch64 keeps the collection's machine root separate from one
 frame root shared by the pointer slot and any frame-held indices, and copies the
-complete aggregate span. The x86 general place
+complete aggregate span. Single-indexed machine-rooted elements now use the
+same bidirectional two-root contract; constructing the reference remains an
+address write rather than a referent copy. The x86 general place
 materializer also replays every remaining otherwise-unclassified `CopyPlaces`
 path with scratch derived from each retained place's exact index depth.
 Direct-place immediate integer writes, writes through a frame-held pointer or

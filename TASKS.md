@@ -882,7 +882,7 @@ proves complete region coverage, and composes admitted leaves under their
 separate provenance. Do not add a second whole-image decoder/admission path.
 
 The existing single final-region artifact now carries the domain-separated
-`omega.final-footprint-certificate` schema, format version 120, and a certificate
+`omega.final-footprint-certificate` schema, format version 121, and a certificate
 fingerprint over its final placement binding, compiler-text derivation, and
 complete region inventory. Its explicit completeness flags remain false until
 compiler-body footprint decoding and admitted-leaf evidence land. The envelope
@@ -1079,6 +1079,9 @@ Machine-rooted double-indexed elements now cross a frame-held pointee in both
 directions as well. AArch64 retains the machine collection root and one frame
 root for the pointer slot plus any frame-held indices, copies the complete
 aggregate span, and final replay requires both exact relocations and clobbers.
+The single-indexed machine-rooted forms now have the same bidirectional
+coverage and two-root replay. Mutable indexed reference construction remains a
+separate address write and cannot be consumed by the value-copy selector.
 The retained x86 general place materializer now replays all
 otherwise-unclassified `CopyPlaces` paths with index-depth-derived scratch.
 Their explicit `Ordinary` role prevents overlap with the indirect-result

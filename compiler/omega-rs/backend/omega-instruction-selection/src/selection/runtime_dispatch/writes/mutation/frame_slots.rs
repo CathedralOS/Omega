@@ -805,6 +805,26 @@ fn select_runtime_frame_slot_address_write_in_table(
             );
         }
 
+        if let Some(target) = resolve_runtime_machine_indexed_target_in_table(
+            input,
+            dispatch_index,
+            value_source_key,
+            expressions,
+            call.receiver,
+        ) {
+            return Some(
+                crate::selection::runtime_dispatch::write_place_address_machine_indexed(
+                    target.base_byte_offset,
+                    target.index_region,
+                    target.index_offset,
+                    target.index_byte_size,
+                    target.element_byte_size,
+                    target.field_byte_offset,
+                    slot.byte_offset,
+                ),
+            );
+        }
+
         if let Some(indexed_target) =
             resolve_runtime_frame_base_indexed_target_with_index_region_in_table(
                 input,
@@ -961,6 +981,26 @@ fn select_runtime_frame_slot_place_address_write_in_table(
                 target.inner_index_offset,
                 target.inner_index_byte_size,
                 target.inner_stride,
+                target.field_byte_offset,
+                slot.byte_offset,
+            ),
+        );
+    }
+
+    if let Some(target) = resolve_runtime_machine_indexed_target_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        referent,
+    ) {
+        return Some(
+            crate::selection::runtime_dispatch::write_place_address_machine_indexed(
+                target.base_byte_offset,
+                target.index_region,
+                target.index_offset,
+                target.index_byte_size,
+                target.element_byte_size,
                 target.field_byte_offset,
                 slot.byte_offset,
             ),

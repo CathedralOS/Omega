@@ -5508,6 +5508,110 @@ pub fn runtime_storage_copy_to_runtime_machine_indexed_clobbers() -> RegisterSet
     runtime_storage_copy_from_runtime_machine_indexed_clobbers()
 }
 
+/// Copy a machine-rooted inline array element through a frame-held pointer.
+/// x16 retains the machine root while x15 supplies the pointer and any
+/// frame-held index.
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_storage_copy_machine_indexed_to_runtime_pointee(
+    base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    source_field_byte_offset: usize,
+    pointer_byte_offset: usize,
+    target_field_byte_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let expected_width =
+        super::widths::runtime_storage_copy_machine_indexed_to_runtime_pointee_width(
+            pointer_byte_offset,
+            target_field_byte_offset,
+            byte_count,
+        );
+    let frame = omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
+    let mut bytes = Vec::with_capacity(expected_width);
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    bytes.extend(encode_adrp_placeholder(15));
+    bytes.extend(encode_add_page_offset_placeholder(15));
+    append_single_index_address_math(
+        &mut bytes,
+        if index_region == frame { 15 } else { 16 },
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        base_byte_offset + source_field_byte_offset,
+    )?;
+    append_load_data_from_x_offset(&mut bytes, 20, 15, pointer_byte_offset, 8, 19)?;
+    append_add_constant_to_x_register(&mut bytes, 20, target_field_byte_offset)?;
+    for_each_runtime_copy_chunk(0, 0, byte_count, |offset, chunk_size| {
+        append_load_data_from_x_offset(&mut bytes, 17, 16, offset, chunk_size, 26)?;
+        append_store_data_to_x_offset(&mut bytes, 17, 20, offset, chunk_size, 19)?;
+        Ok(())
+    })?;
+    debug_assert_eq!(bytes.len(), expected_width);
+    Ok(bytes)
+}
+
+pub fn runtime_storage_copy_machine_indexed_to_runtime_pointee_clobbers() -> RegisterSet {
+    RegisterSet::new([
+        MachineRegister::Aarch64X(15),
+        MachineRegister::Aarch64X(16),
+        MachineRegister::Aarch64X(17),
+        MachineRegister::Aarch64X(19),
+        MachineRegister::Aarch64X(20),
+        MachineRegister::Aarch64X(26),
+    ])
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_storage_copy_runtime_pointee_to_machine_indexed(
+    pointer_byte_offset: usize,
+    source_field_byte_offset: usize,
+    base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    target_field_byte_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let expected_width =
+        super::widths::runtime_storage_copy_runtime_pointee_to_machine_indexed_width(
+            pointer_byte_offset,
+            source_field_byte_offset,
+            byte_count,
+        );
+    let frame = omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
+    let mut bytes = Vec::with_capacity(expected_width);
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    bytes.extend(encode_adrp_placeholder(15));
+    bytes.extend(encode_add_page_offset_placeholder(15));
+    append_single_index_address_math(
+        &mut bytes,
+        if index_region == frame { 15 } else { 16 },
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        base_byte_offset + target_field_byte_offset,
+    )?;
+    append_load_data_from_x_offset(&mut bytes, 20, 15, pointer_byte_offset, 8, 19)?;
+    append_add_constant_to_x_register(&mut bytes, 20, source_field_byte_offset)?;
+    for_each_runtime_copy_chunk(0, 0, byte_count, |offset, chunk_size| {
+        append_load_data_from_x_offset(&mut bytes, 17, 20, offset, chunk_size, 26)?;
+        append_store_data_to_x_offset(&mut bytes, 17, 16, offset, chunk_size, 19)?;
+        Ok(())
+    })?;
+    debug_assert_eq!(bytes.len(), expected_width);
+    Ok(bytes)
+}
+
+pub fn runtime_storage_copy_runtime_pointee_to_machine_indexed_clobbers() -> RegisterSet {
+    runtime_storage_copy_machine_indexed_to_runtime_pointee_clobbers()
+}
+
 /// Write-side mirror of
 /// [`encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage`].
 /// x86_64-only for now; aarch64 emits nothing real.
@@ -5876,6 +5980,33 @@ fn append_fixed_shape_index_element_address(
         base_register,
         combined_byte_offset,
     )?);
+    Ok(())
+}
+
+fn append_single_index_address_math(
+    bytes: &mut Vec<u8>,
+    index_base_register: u8,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    combined_byte_offset: usize,
+) -> Result<(), Diagnostic> {
+    if element_byte_size > 0xffff {
+        return Err(Diagnostic::error(format!(
+            "AArch64 MVP encoder cannot scale a runtime index by element size `{element_byte_size}` yet"
+        )));
+    }
+    append_direct_unsigned_index_load(
+        bytes,
+        17,
+        index_base_register,
+        index_offset,
+        index_byte_size,
+    )?;
+    bytes.extend(encode_movz(26, element_byte_size as u16));
+    bytes.extend(encode_mul_x_register(26, 17, 26));
+    bytes.extend(encode_add_x_register(16, 16, 26));
+    bytes.extend(encode_add_x_immediate(16, 16, combined_byte_offset)?);
     Ok(())
 }
 
@@ -11924,6 +12055,40 @@ mod tests {
         assert_eq!(
             runtime_storage_copy_machine_double_indexed_to_runtime_pointee_clobbers(),
             runtime_storage_copy_runtime_pointee_to_machine_double_indexed_clobbers(),
+        );
+
+        let machine_indexed_to_pointee =
+            encode_runtime_storage_copy_machine_indexed_to_runtime_pointee(
+                24, frame, 72, 8, 12, 0, 104, 4, 12,
+            )
+            .expect("encode machine indexed aggregate copy to pointee");
+        assert_eq!(
+            machine_indexed_to_pointee.len(),
+            widths::runtime_storage_copy_machine_indexed_to_runtime_pointee_width(104, 4, 12)
+        );
+        assert_eq!(
+            &machine_indexed_to_pointee[..16],
+            [
+                encode_adrp_placeholder(16),
+                encode_add_page_offset_placeholder(16),
+                encode_adrp_placeholder(15),
+                encode_add_page_offset_placeholder(15),
+            ]
+            .concat()
+        );
+
+        let pointee_to_machine_indexed =
+            encode_runtime_storage_copy_runtime_pointee_to_machine_indexed(
+                104, 4, 24, machine, 72, 8, 12, 0, 12,
+            )
+            .expect("encode pointee aggregate copy to machine indexed storage");
+        assert_eq!(
+            pointee_to_machine_indexed.len(),
+            widths::runtime_storage_copy_runtime_pointee_to_machine_indexed_width(104, 4, 12)
+        );
+        assert_eq!(
+            runtime_storage_copy_machine_indexed_to_runtime_pointee_clobbers(),
+            runtime_storage_copy_runtime_pointee_to_machine_indexed_clobbers(),
         );
 
         let indexed_pair = encode_runtime_storage_copy_frame_base_indexed_to_frame_base_indexed(

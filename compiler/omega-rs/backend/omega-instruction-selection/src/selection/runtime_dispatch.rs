@@ -1700,6 +1700,60 @@ pub(crate) fn copy_places_machine_indexed_pair(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn copy_places_machine_indexed_to_pointee(
+    base_byte_offset: usize,
+    index_region: RuntimeStorageRegion,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    source_field_byte_offset: usize,
+    pointer_byte_offset: usize,
+    target_field_byte_offset: usize,
+    byte_count: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::CopyPlaces {
+        source: machine_indexed_place(
+            base_byte_offset,
+            index_region,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            source_field_byte_offset,
+        ),
+        target: pointee_place(pointer_byte_offset, target_field_byte_offset),
+        byte_count,
+        role: omega_abstract_operations::CopyPlacesRole::Ordinary,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn copy_places_pointee_to_machine_indexed(
+    pointer_byte_offset: usize,
+    source_field_byte_offset: usize,
+    base_byte_offset: usize,
+    index_region: RuntimeStorageRegion,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    target_field_byte_offset: usize,
+    byte_count: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::CopyPlaces {
+        source: pointee_place(pointer_byte_offset, source_field_byte_offset),
+        target: machine_indexed_place(
+            base_byte_offset,
+            index_region,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            target_field_byte_offset,
+        ),
+        byte_count,
+        role: omega_abstract_operations::CopyPlacesRole::Ordinary,
+    }
+}
+
 /// `arr[i] = arr[j]` on all-frame inline arrays -- one runtime index each
 /// side, with the arrays and index slots sharing the runtime frame.
 #[allow(clippy::too_many_arguments)]

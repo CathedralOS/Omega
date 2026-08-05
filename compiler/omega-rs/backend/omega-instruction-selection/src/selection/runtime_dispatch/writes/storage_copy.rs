@@ -527,6 +527,36 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indirect_copy_in_t
         value_source_key,
         expressions,
         value,
+    ) && let Some(indexed_target) = resolve_runtime_machine_indexed_target_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        expressions,
+        target,
+    ) && pointer_source.pointee_byte_size == indexed_target.byte_count
+        && indexed_target.byte_count > 0
+    {
+        return Some(
+            crate::selection::runtime_dispatch::copy_places_pointee_to_machine_indexed(
+                pointer_source.pointer_byte_offset,
+                pointer_source.field_byte_offset,
+                indexed_target.base_byte_offset,
+                indexed_target.index_region,
+                indexed_target.index_offset,
+                indexed_target.index_byte_size,
+                indexed_target.element_byte_size,
+                indexed_target.field_byte_offset,
+                indexed_target.byte_count,
+            ),
+        );
+    }
+
+    if let Some(pointer_source) = resolve_runtime_pointee_slot_offset_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        value,
     ) && let Some(double_target) = resolve_runtime_machine_double_indexed_source_in_table(
         input,
         dispatch_index,
@@ -656,6 +686,15 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indexed_source_cop
     target: ExpressionHandle,
     value: ExpressionHandle,
 ) -> Option<SelectedInstructionKind> {
+    // `&mut array[i]` constructs a reference value; it is not a value copy
+    // from the indexed element into an already-established pointee. Leave the
+    // explicit Mutable wrapper for the address-write selector.
+    if matches!(
+        expressions.expression(value),
+        psi_checked_trees::expression::ExpressionNode::Mutable(_)
+    ) {
+        return None;
+    }
     if let Some(double_target) = resolve_runtime_machine_double_indexed_source_in_table(
         input,
         dispatch_index,
@@ -814,6 +853,36 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indexed_source_cop
     // reference slot is treated as inline data (`out_slot + field`) and the value
     // is written INTO the pointer instead of through it. (The dungeon `out.field =
     // rooms[index].field` shape.)
+    if let Some(pointer_target) = resolve_runtime_pointee_slot_offset_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        expressions,
+        target,
+    ) && let Some(indexed_source) = resolve_runtime_machine_indexed_target_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        value,
+    ) && pointer_target.pointee_byte_size == indexed_source.byte_count
+        && indexed_source.byte_count > 0
+    {
+        return Some(
+            crate::selection::runtime_dispatch::copy_places_machine_indexed_to_pointee(
+                indexed_source.base_byte_offset,
+                indexed_source.index_region,
+                indexed_source.index_offset,
+                indexed_source.index_byte_size,
+                indexed_source.element_byte_size,
+                indexed_source.field_byte_offset,
+                pointer_target.pointer_byte_offset,
+                pointer_target.field_byte_offset,
+                indexed_source.byte_count,
+            ),
+        );
+    }
+
     if let Some(pointer_target) = resolve_runtime_pointee_slot_offset_in_table(
         input,
         dispatch_index,

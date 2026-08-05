@@ -6,8 +6,10 @@
 // machine-place source, frame-place source with frame indices, machine-rooted
 // double-indexed pair copies in both mixed-index directions, and a
 // double-indexed read-back. Whole-Triple copies also cross a frame-held
-// pointer in both directions while retaining mixed machine/frame indices --
-// neighbor-clobber validated throughout.
+// pointer in both directions while retaining mixed machine/frame indices.
+// Single-indexed Triple arrays exercise the same two pointee directions and
+// keep reference construction distinct from referent copying -- neighbor-
+// clobber validated throughout.
 // Direct RMW (`grid[i][j] = grid[i][j] + 1`) is covered separately by
 // runtime_double_indexed_rmw_exit; this canary isolates copy/immediate writes.
 use omega::language::std::console;
@@ -23,6 +25,9 @@ data Main {
     target_triples: [[Triple; 4]; 3];
     triple_i: u64 [0..=2];
     triple_j: u64 [0..=3];
+    source_line: [Triple; 4];
+    target_line: [Triple; 4];
+    line_i: u64 [0..=3];
 }
 machine Main::main(&mut self) {
     self.grid[1][3] = 9;
@@ -32,6 +37,9 @@ machine Main::main(&mut self) {
     self.triple_j = 1;
     self.source_triples[1][2] = Triple { first: 10, second: 20, third: 30 };
     self.target_triples[2][1] = Triple { first: 1, second: 2, third: 3 };
+    self.line_i = 1;
+    self.source_line[2] = Triple { first: 11, second: 22, third: 33 };
+    self.target_line[1] = Triple { first: 4, second: 5, third: 6 };
     self.grid[self.i][self.j] = 70;
     let selected: &mut i32 = &mut self.grid[self.i][self.j];
     selected = 71;
@@ -152,6 +160,59 @@ machine Main::main(&mut self) {
     state verify_reverse_third(&mut self) {
         self.got = self.target_triples[2][1].third;
         transition self.got == 60 {
+            true -> indexed_forward(2)
+            false -> no()
+        }
+    }
+    state indexed_forward(&mut self, source_i: u64 [0..=3]) {
+        let selected: &mut Triple = &mut self.target_line[self.line_i];
+        selected = self.source_line[source_i];
+        transition { _ -> verify_indexed_forward(source_i) }
+    }
+    state verify_indexed_forward(&mut self, source_i: u64 [0..=3]) {
+        self.got = self.target_line[1].first;
+        transition self.got == 11 {
+            true -> verify_indexed_forward_second(source_i)
+            false -> no()
+        }
+    }
+    state verify_indexed_forward_second(&mut self, source_i: u64 [0..=3]) {
+        self.got = self.target_line[1].second;
+        transition self.got == 22 {
+            true -> verify_indexed_forward_third(source_i)
+            false -> no()
+        }
+    }
+    state verify_indexed_forward_third(&mut self, source_i: u64 [0..=3]) {
+        self.got = self.target_line[1].third;
+        transition self.got == 33 {
+            true -> indexed_reverse(source_i)
+            false -> no()
+        }
+    }
+    state indexed_reverse(&mut self, target_i: u64 [0..=3]) {
+        let selected: &mut Triple = &mut self.source_line[self.line_i];
+        selected = Triple { first: 44, second: 55, third: 66 };
+        self.target_line[target_i] = selected;
+        transition { _ -> verify_indexed_reverse() }
+    }
+    state verify_indexed_reverse(&mut self) {
+        self.got = self.target_line[2].first;
+        transition self.got == 44 {
+            true -> verify_indexed_reverse_second()
+            false -> no()
+        }
+    }
+    state verify_indexed_reverse_second(&mut self) {
+        self.got = self.target_line[2].second;
+        transition self.got == 55 {
+            true -> verify_indexed_reverse_third()
+            false -> no()
+        }
+    }
+    state verify_indexed_reverse_third(&mut self) {
+        self.got = self.target_line[2].third;
+        transition self.got == 66 {
             true -> yes()
             false -> no()
         }
