@@ -2,6 +2,13 @@ use omega_target_operations::{Place, RuntimeStorageRegion, StateGuardOperator};
 use psi_arena::HandleSpan;
 use std::sync::Arc;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CompilerRuntimeImportSubcall {
+    pub library: Arc<str>,
+    pub symbol: Arc<str>,
+    pub plan: omega_calling_conventions::CallPlan,
+}
+
 /// Fixed compiler-owned instruction programs whose final encodings can be
 /// replayed directly from the target specification.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -224,6 +231,25 @@ pub enum CompilerInstructionValidationKind {
         library: Arc<str>,
         symbol: Arc<str>,
         plan: omega_calling_conventions::CallPlan,
+    },
+    CompilerBodyRuntimeByteRead {
+        operation_key: omega_calling_conventions::HostOperationKey,
+        target_region: RuntimeStorageRegion,
+        target_offset: usize,
+        payload_offset: usize,
+        mechanism: omega_calling_conventions::HostBindingMechanism,
+        plan: omega_calling_conventions::CallPlan,
+        get_std_handle: Option<CompilerRuntimeImportSubcall>,
+    },
+    CompilerBodyRuntimeByteWrite {
+        operation_key: omega_calling_conventions::HostOperationKey,
+        source_region: RuntimeStorageRegion,
+        source_offset: usize,
+        literal_symbol: Arc<str>,
+        source_is_place: bool,
+        mechanism: omega_calling_conventions::HostBindingMechanism,
+        plan: omega_calling_conventions::CallPlan,
+        get_std_handle: Option<CompilerRuntimeImportSubcall>,
     },
     CompilerBodyOutboundStorageImport {
         operation_key: omega_calling_conventions::HostOperationKey,

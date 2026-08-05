@@ -1297,6 +1297,127 @@ pub fn derive_boundary_compiler_body_outbound_open_create_import_footprint(
     )
 }
 
+/// Derive the retained stdin byte adapter. This is a composite implementation
+/// leaf, not a second language boundary: Linux owns one normalized read
+/// syscall plan, Darwin one AAPCS64 read plan, and Win64 the complete
+/// GetStdHandle + ReadFile pair.
+pub fn derive_boundary_compiler_body_runtime_byte_read_footprint(
+    boundary: &ValidatedBoundaryEntryPlan,
+    input: &crate::InstructionSelectionInput<'_>,
+    instructions: &[omega_abstract_operations::AbstractOperation],
+) -> Result<StateFootprintEvidence, PlanDiagnostic> {
+    derive_boundary_compiler_body_runtime_byte_footprint(boundary, input, instructions, true)
+}
+
+/// Derive the retained stdout byte adapter under the same target-owned plan
+/// rules as [`derive_boundary_compiler_body_runtime_byte_read_footprint`].
+pub fn derive_boundary_compiler_body_runtime_byte_write_footprint(
+    boundary: &ValidatedBoundaryEntryPlan,
+    input: &crate::InstructionSelectionInput<'_>,
+    instructions: &[omega_abstract_operations::AbstractOperation],
+) -> Result<StateFootprintEvidence, PlanDiagnostic> {
+    derive_boundary_compiler_body_runtime_byte_footprint(boundary, input, instructions, false)
+}
+
+fn derive_boundary_compiler_body_runtime_byte_footprint(
+    boundary: &ValidatedBoundaryEntryPlan,
+    input: &crate::InstructionSelectionInput<'_>,
+    instructions: &[omega_abstract_operations::AbstractOperation],
+    read: bool,
+) -> Result<StateFootprintEvidence, PlanDiagnostic> {
+    use omega_abstract_operations::AbstractOperationKind;
+    use omega_calling_conventions::{
+        HostBindingMechanism, HostCapability, HostOperation, HostOperationKey, MachineRegister,
+    };
+
+    let operation_key = HostOperationKey::new(
+        if read {
+            HostCapability::Stdin
+        } else {
+            HostCapability::Stdout
+        },
+        if read {
+            HostOperation::Read
+        } else {
+            HostOperation::Write
+        },
+    );
+    let binding = input
+        .host_abi
+        .bindings
+        .iter()
+        .find_map(|(_, binding)| (binding.operation_key == operation_key).then_some(binding));
+    let mut registers = Vec::new();
+    let mut has_adapter = false;
+    let mut has_import = false;
+    for instruction in instructions {
+        let source_offset = match (&instruction.kind, read) {
+            (AbstractOperationKind::ReadRuntimeByte { .. }, true) => Some(0),
+            (AbstractOperationKind::WriteRuntimeByte { source_offset, .. }, false) => {
+                Some(*source_offset)
+            }
+            _ => None,
+        };
+        let Some(source_offset) = source_offset else {
+            continue;
+        };
+        let Some(binding) = binding else {
+            continue;
+        };
+        if !matches!(
+            binding.mechanism,
+            HostBindingMechanism::Import { .. } | HostBindingMechanism::Syscall { .. }
+        ) {
+            continue;
+        }
+        has_adapter = true;
+        has_import |= matches!(binding.mechanism, HostBindingMechanism::Import { .. });
+        registers.extend_from_slice(binding.call_plan().ordinary_clobbers.as_slice());
+        match input.target.architecture {
+            omega_target::Architecture::X86_64 => {
+                registers.push(MachineRegister::X86R14);
+                if matches!(binding.mechanism, HostBindingMechanism::Import { .. }) {
+                    registers.push(MachineRegister::X86Rsp);
+                    let get_std_handle_key = HostOperationKey::new(
+                        operation_key.capability,
+                        HostOperation::GetStdHandle,
+                    );
+                    if let Some(handle_binding) =
+                        input.host_abi.bindings.iter().find_map(|(_, candidate)| {
+                            (candidate.operation_key == get_std_handle_key).then_some(candidate)
+                        })
+                    {
+                        registers.extend_from_slice(
+                            handle_binding.call_plan().ordinary_clobbers.as_slice(),
+                        );
+                    }
+                }
+            }
+            omega_target::Architecture::Aarch64 => {
+                registers.push(MachineRegister::Aarch64X(20));
+                if read || source_offset > 4095 {
+                    registers.push(MachineRegister::Aarch64X(9));
+                }
+            }
+        }
+    }
+    let mut machine_state = if has_adapter {
+        MachineStateSet::new([
+            MachineState::Flags,
+            MachineState::InstructionPointer,
+            MachineState::ControlState,
+        ])
+    } else {
+        MachineStateSet::empty()
+    };
+    if has_import {
+        machine_state = machine_state.union(MachineStateSet::new([MachineState::StackPointer]));
+    }
+    let evidence = StateFootprintEvidence::new(RegisterSet::new(registers), machine_state);
+    omega_calling_conventions::validate_outbound_call_footprint(boundary, &evidence)?;
+    Ok(evidence)
+}
+
 /// Derive integer-result built-in imports with one or more runtime-scalar
 /// arguments. The leading runtime scalar remains the post-call result store;
 /// only the trailing operands are wire arguments.
