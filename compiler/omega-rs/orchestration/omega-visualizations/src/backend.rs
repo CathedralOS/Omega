@@ -120,6 +120,9 @@ pub fn boundary_footprint_fragments_json(plan: &EncodedMachinePlan) -> String {
                 omega_abstract_operations::BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscall => {
                     "compiler_body_outbound_syscall"
                 }
+                omega_abstract_operations::BoundaryFootprintFragmentOrigin::CompilerBodyOutboundImmediateImport => {
+                    "compiler_body_outbound_immediate_import"
+                }
                 omega_abstract_operations::BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallDataArguments => {
                     "compiler_body_outbound_syscall_data_arguments"
                 }

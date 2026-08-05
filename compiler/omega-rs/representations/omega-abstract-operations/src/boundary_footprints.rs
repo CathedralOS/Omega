@@ -17,6 +17,7 @@ pub enum BoundaryFootprintFragmentOrigin {
     CompilerBodyPlaceIntegerWrite,
     CompilerBodyPlaceAddressWrite,
     CompilerBodyConstantHostResult,
+    CompilerBodyOutboundImmediateImport,
     CompilerBodyOutboundSyscall,
     CompilerBodyOutboundSyscallDataArguments,
     CompilerBodyOutboundSyscallResult,
@@ -71,7 +72,8 @@ impl BoundaryFootprintPlan {
             BoundaryFootprintFragmentOrigin::CallReturnMechanics => {
                 validate_call_return_mechanics_footprint(boundary, &fragment.evidence)?
             }
-            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscall
+            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundImmediateImport
+            | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscall
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallDataArguments
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallResult
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallResultDataArguments
@@ -232,6 +234,16 @@ mod tests {
             .expect("call-return mechanics may use their prescribed control state");
 
         let mut outbound = BoundaryFootprintPlan::default();
+        outbound
+            .retain_validated_fragment(
+                &boundary,
+                BoundaryFootprintFragment {
+                    origin: BoundaryFootprintFragmentOrigin::CompilerBodyOutboundImmediateImport,
+                    evidence: control_evidence(),
+                },
+            )
+            .expect("immediate imports may use their prescribed control state");
+
         outbound
             .retain_validated_fragment(
                 &boundary,
