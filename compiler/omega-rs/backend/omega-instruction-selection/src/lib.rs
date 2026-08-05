@@ -40,6 +40,8 @@ pub use entry::{
     derive_boundary_compiler_body_place_copy_footprint,
     derive_boundary_compiler_body_place_integer_write_footprint,
     derive_boundary_compiler_body_place_string_write_footprint,
+    derive_boundary_compiler_body_runtime_byte_read_footprint,
+    derive_boundary_compiler_body_runtime_byte_write_footprint,
     derive_boundary_compiler_body_storage_bit_field_write_footprint,
     derive_boundary_compiler_body_storage_convert_write_footprint,
     derive_boundary_compiler_body_text_assembly_write_footprint,

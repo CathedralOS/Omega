@@ -529,6 +529,114 @@ fn compiler_instruction_validation_kind(
                 target_offset: *target_offset,
             },
         ),
+        SelectedInstructionKind::ReadRuntimeByte {
+            target_region,
+            target_offset,
+            payload_offset,
+            source: omega_target_operations::RuntimeTextReadSource::HostOperation { operation_key },
+        } => {
+            let binding = crate::host_bindings::host_binding(emission_context, *operation_key)
+                .ok_or_else(|| {
+                    Diagnostic::error("compiler runtime byte read lost its host binding")
+                })?;
+            let get_std_handle = if emission_context.target.architecture
+                == omega_target::Architecture::X86_64
+                && matches!(
+                    binding.mechanism,
+                    omega_calling_conventions::HostBindingMechanism::Import { .. }
+                ) {
+                let key = omega_calling_conventions::HostOperationKey::new(
+                    operation_key.capability,
+                    omega_calling_conventions::HostOperation::GetStdHandle,
+                );
+                let handle_binding = crate::host_bindings::host_binding(emission_context, key)
+                    .ok_or_else(|| {
+                        Diagnostic::error(
+                            "compiler runtime byte read lost its GetStdHandle binding",
+                        )
+                    })?;
+                let omega_calling_conventions::HostBindingMechanism::Import { library, symbol } =
+                    &handle_binding.mechanism
+                else {
+                    return Err(Diagnostic::error(
+                        "compiler runtime byte read retained a non-import GetStdHandle binding",
+                    ));
+                };
+                Some(omega_machine_bytes::CompilerRuntimeImportSubcall {
+                    library: Arc::clone(library),
+                    symbol: Arc::clone(symbol),
+                    plan: handle_binding.call_plan().clone(),
+                })
+            } else {
+                None
+            };
+            Some(
+                CompilerInstructionValidationKind::CompilerBodyRuntimeByteRead {
+                    operation_key: *operation_key,
+                    target_region: *target_region,
+                    target_offset: *target_offset,
+                    payload_offset: *payload_offset,
+                    mechanism: binding.mechanism.clone(),
+                    plan: binding.call_plan().clone(),
+                    get_std_handle,
+                },
+            )
+        }
+        SelectedInstructionKind::WriteRuntimeByte {
+            source_region,
+            source_offset,
+            literal,
+            source_is_place,
+            source: omega_target_operations::RuntimeTextReadSource::HostOperation { operation_key },
+        } => {
+            let binding = crate::host_bindings::host_binding(emission_context, *operation_key)
+                .ok_or_else(|| {
+                    Diagnostic::error("compiler runtime byte write lost its host binding")
+                })?;
+            let get_std_handle = if emission_context.target.architecture
+                == omega_target::Architecture::X86_64
+                && matches!(
+                    binding.mechanism,
+                    omega_calling_conventions::HostBindingMechanism::Import { .. }
+                ) {
+                let key = omega_calling_conventions::HostOperationKey::new(
+                    operation_key.capability,
+                    omega_calling_conventions::HostOperation::GetStdHandle,
+                );
+                let handle_binding = crate::host_bindings::host_binding(emission_context, key)
+                    .ok_or_else(|| {
+                        Diagnostic::error(
+                            "compiler runtime byte write lost its GetStdHandle binding",
+                        )
+                    })?;
+                let omega_calling_conventions::HostBindingMechanism::Import { library, symbol } =
+                    &handle_binding.mechanism
+                else {
+                    return Err(Diagnostic::error(
+                        "compiler runtime byte write retained a non-import GetStdHandle binding",
+                    ));
+                };
+                Some(omega_machine_bytes::CompilerRuntimeImportSubcall {
+                    library: Arc::clone(library),
+                    symbol: Arc::clone(symbol),
+                    plan: handle_binding.call_plan().clone(),
+                })
+            } else {
+                None
+            };
+            Some(
+                CompilerInstructionValidationKind::CompilerBodyRuntimeByteWrite {
+                    operation_key: *operation_key,
+                    source_region: *source_region,
+                    source_offset: *source_offset,
+                    literal_symbol: Arc::clone(&emission_context.data.objects.get(*literal).symbol),
+                    source_is_place: *source_is_place,
+                    mechanism: binding.mechanism.clone(),
+                    plan: binding.call_plan().clone(),
+                    get_std_handle,
+                },
+            )
+        }
         SelectedInstructionKind::HostOperation {
             operation_key,
             operands,

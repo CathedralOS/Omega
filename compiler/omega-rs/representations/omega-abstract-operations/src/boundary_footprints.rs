@@ -31,6 +31,8 @@ pub enum BoundaryFootprintFragmentOrigin {
     CompilerBodyOutboundAuthoredAggregateImportResult,
     CompilerBodyOutboundAuthoredAggregateResult,
     CompilerBodyOutboundOpenCreateImport,
+    CompilerBodyRuntimeByteRead,
+    CompilerBodyRuntimeByteWrite,
     CompilerBodyOutboundStorageImport,
     CompilerBodyOutboundStorageImportResult,
     CompilerBodyOutboundSyscall,
@@ -101,6 +103,8 @@ impl BoundaryFootprintPlan {
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredAggregateImportResult
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredAggregateResult
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundOpenCreateImport
+            | BoundaryFootprintFragmentOrigin::CompilerBodyRuntimeByteRead
+            | BoundaryFootprintFragmentOrigin::CompilerBodyRuntimeByteWrite
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImport
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImportResult
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscall

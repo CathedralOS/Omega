@@ -882,7 +882,7 @@ proves complete region coverage, and composes admitted leaves under their
 separate provenance. Do not add a second whole-image decoder/admission path.
 
 The existing single final-region artifact now carries the domain-separated
-`omega.final-footprint-certificate` schema, format version 86, and a certificate
+`omega.final-footprint-certificate` schema, format version 87, and a certificate
 fingerprint over its final placement binding, compiler-text derivation, and
 complete region inventory. Its explicit completeness flags remain false until
 compiler-body footprint decoding and admitted-leaf evidence land. The envelope
@@ -1016,7 +1016,14 @@ the exact result root and any argument roots accompany the imported call.
 Darwin `open_create` now uses a sixteenth origin. Replay regenerates its concrete
 Apple variadic `open(path, flags, mode)` subcall, including the anonymous I32
 mode at outgoing stack offset zero, the exact result/path/optional-flags roots,
-and the imported call. Runtime byte/line composite adapters remain incomplete.
+and the imported call. Runtime byte reads and writes now use seventeenth and
+eighteenth origins. Final replay consumes the retained three-word syscall plan
+on Linux, the retained AAPCS64 direct-import plan on Darwin, or the complete
+GetStdHandle + ReadFile/WriteFile plan pair on Windows. It regenerates the exact
+composite program and foreign-control envelope, requires the sole addressed
+storage/data root plus zero, one, or two exact call relocations as appropriate,
+and matches adapter scratch and control state to StatePlan evidence. Runtime
+line-read composite adapters remain incomplete.
 Result-bearing runtime-storage-only calls
 continue to combine their argument relocations with the exact result-region
 relocation and offset-sensitive result-store scratch under

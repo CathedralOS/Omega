@@ -1150,7 +1150,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         executable_regions.contains(
             "\"certificate_schema\": \"omega.final-footprint-certificate\""
         )
-            && executable_regions.contains("\"certificate_format_version\": 86")
+            && executable_regions.contains("\"certificate_format_version\": 87")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
             && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")
@@ -18467,6 +18467,38 @@ fn runtime_console_byte_literal_exit_canary_runs() {
     assert_eq!(output.status.code(), Some(70));
     assert_eq!(output.stdout, b"7\n".to_vec(), "native literal bytes");
     let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_console_byte_replay_cross_target_canary_compiles() {
+    // The final-byte certificate must replay both byte composites under each
+    // settled target adapter: Linux syscall, Darwin direct import, and the
+    // complete Win64 GetStdHandle + file-I/O import pair.
+    let canary = pass_canary("host/runtime_console_byte_echo_exit");
+    for target in ["linux_x64", "linux_arm64", "macos_arm64", "windows_x64"] {
+        let scratch = std::env::temp_dir().join(format!(
+            "omega-console-byte-replay-{target}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&scratch);
+        let src_dir = scratch.join("src");
+        fs::create_dir_all(&src_dir).expect("runtime byte replay scratch source");
+        fs::copy(canary.join("main.omg"), src_dir.join("main.omg"))
+            .expect("copy runtime byte replay canary");
+        fs::write(
+            src_dir.join("build.omg"),
+            format!("target {target} {{\n}}\n"),
+        )
+        .expect("write runtime byte replay target manifest");
+        compile(CompileOptions {
+            root_path: src_dir.join("main.omg"),
+            build_dir: Some(scratch.join("out")),
+            target_name: Some(target.to_owned()),
+            write_output: true,
+        })
+        .unwrap_or_else(|error| panic!("runtime byte replay must compile for {target}: {error:?}"));
+        let _ = fs::remove_dir_all(&scratch);
+    }
 }
 
 #[test]

@@ -174,6 +174,10 @@ enum CompilerInstructionRelocationRecipe {
         library: std::sync::Arc<str>,
         symbol: std::sync::Arc<str>,
     },
+    RuntimeByteBoundary {
+        call_sites: Vec<(usize, std::sync::Arc<str>, std::sync::Arc<str>)>,
+        address_sites: Vec<(usize, OutboundCallRelocationTarget)>,
+    },
     OutboundSyscallStorage {
         address_sites: Vec<(usize, omega_target_operations::RuntimeStorageRegion)>,
     },
@@ -1758,6 +1762,249 @@ fn outbound_syscall_replay_registers(
         result,
         number: number_register,
         immediate,
+    })
+}
+
+fn validate_aarch64_runtime_import_replay_plan(
+    plan: &omega_calling_conventions::CallPlan,
+) -> Result<(), Diagnostic> {
+    use omega_calling_conventions::{
+        CallSignature, CallingPolicy, MachineRegister, ValueLocation, ValueShape,
+    };
+
+    let word = ValueShape::integer(8, 8);
+    omega_calling_conventions::validate_call_plan(
+        plan,
+        &CallSignature {
+            parameters: vec![word; 3],
+            result: Some(word),
+        },
+    )
+    .map_err(|error| {
+        Diagnostic::error(format!(
+            "final runtime-byte import replay retained an incompatible native read/write plan: {error}"
+        ))
+    })?;
+    if plan.policy != CallingPolicy::Aapcs64 {
+        return Err(Diagnostic::error(
+            "final AArch64 runtime-byte import replay requires AAPCS64",
+        ));
+    }
+    for (index, placement) in plan.parameters.iter().enumerate() {
+        let expected = MachineRegister::Aarch64X(index as u8);
+        if !matches!(
+            placement.locations.as_slice(),
+            [ValueLocation::Register {
+                register,
+                value_byte_offset: 0,
+                byte_size: 8,
+            }] if *register == expected
+        ) {
+            return Err(Diagnostic::error(format!(
+                "final AArch64 runtime-byte import parameter {index} lost its canonical x{index} placement"
+            )));
+        }
+    }
+    if !matches!(
+        plan.result
+            .as_ref()
+            .map(|result| result.locations.as_slice()),
+        Some([ValueLocation::Register {
+            register: MachineRegister::Aarch64X(0),
+            value_byte_offset: 0,
+            byte_size: 8,
+        }])
+    ) {
+        return Err(Diagnostic::error(
+            "final AArch64 runtime-byte import result lost its canonical x0 placement",
+        ));
+    }
+    Ok(())
+}
+
+struct RuntimeByteReplay {
+    bytes: Vec<u8>,
+    call_sites: Vec<(usize, std::sync::Arc<str>, std::sync::Arc<str>)>,
+    address_sites: Vec<(usize, OutboundCallRelocationTarget)>,
+}
+
+#[allow(clippy::too_many_arguments)]
+fn encode_runtime_byte_replay(
+    architecture: Architecture,
+    read: bool,
+    target_or_source_offset: usize,
+    payload_offset: usize,
+    address_target: OutboundCallRelocationTarget,
+    mechanism: &omega_calling_conventions::HostBindingMechanism,
+    plan: &omega_calling_conventions::CallPlan,
+    get_std_handle: Option<&omega_machine_bytes::CompilerRuntimeImportSubcall>,
+) -> Result<RuntimeByteReplay, Diagnostic> {
+    use omega_calling_conventions::HostBindingMechanism;
+
+    let (mut bytes, mut call_sites) = match (architecture, mechanism) {
+        (Architecture::Aarch64, HostBindingMechanism::Import { library, symbol }) => {
+            if get_std_handle.is_some() {
+                return Err(Diagnostic::error(
+                    "final AArch64 runtime-byte replay unexpectedly retained GetStdHandle",
+                ));
+            }
+            validate_aarch64_runtime_import_replay_plan(plan)?;
+            let (bytes, call_site) = if read {
+                (
+                    omega_isa_aarch64::aarch64::encode_runtime_byte_read_import(
+                        target_or_source_offset,
+                        payload_offset,
+                    )?,
+                    omega_isa_aarch64::aarch64::runtime_byte_read_import_call_offset(),
+                )
+            } else {
+                (
+                    omega_isa_aarch64::aarch64::encode_runtime_byte_write_import(
+                        target_or_source_offset,
+                    )?,
+                    omega_isa_aarch64::aarch64::runtime_byte_write_import_call_offset(
+                        target_or_source_offset,
+                    ),
+                )
+            };
+            (
+                bytes,
+                vec![(
+                    call_site,
+                    std::sync::Arc::clone(library),
+                    std::sync::Arc::clone(symbol),
+                )],
+            )
+        }
+        (Architecture::X86_64, HostBindingMechanism::Import { library, symbol }) => {
+            let handle = get_std_handle.ok_or_else(|| {
+                Diagnostic::error("final Win64 runtime-byte replay lost its GetStdHandle call plan")
+            })?;
+            omega_isa_x86_64::validate_win64_runtime_file_adapter_plans(&handle.plan, plan)?;
+            let (bytes, handle_site, file_site) = if read {
+                (
+                    omega_isa_x86_64::encode_runtime_byte_read_import(
+                        target_or_source_offset,
+                        payload_offset,
+                    )?,
+                    omega_isa_x86_64::runtime_byte_read_get_std_handle_offset(),
+                    omega_isa_x86_64::runtime_byte_read_read_file_offset(),
+                )
+            } else {
+                (
+                    omega_isa_x86_64::encode_runtime_byte_write_import(target_or_source_offset)?,
+                    omega_isa_x86_64::runtime_byte_write_get_std_handle_offset(),
+                    omega_isa_x86_64::runtime_byte_write_write_file_offset(),
+                )
+            };
+            (
+                bytes,
+                vec![
+                    (
+                        handle_site,
+                        std::sync::Arc::clone(&handle.library),
+                        std::sync::Arc::clone(&handle.symbol),
+                    ),
+                    (
+                        file_site,
+                        std::sync::Arc::clone(library),
+                        std::sync::Arc::clone(symbol),
+                    ),
+                ],
+            )
+        }
+        (architecture, HostBindingMechanism::Syscall { number, .. }) => {
+            if get_std_handle.is_some() {
+                return Err(Diagnostic::error(
+                    "final runtime-byte syscall replay unexpectedly retained GetStdHandle",
+                ));
+            }
+            let registers = outbound_syscall_replay_registers(architecture, plan, 3)?;
+            let bytes = match (architecture, read) {
+                (Architecture::Aarch64, true) => {
+                    omega_isa_aarch64::aarch64::encode_runtime_byte_read_syscall(
+                        target_or_source_offset,
+                        payload_offset,
+                        *number,
+                        &registers.parameters,
+                        registers.result,
+                        registers.number,
+                        registers.immediate,
+                    )?
+                }
+                (Architecture::Aarch64, false) => {
+                    omega_isa_aarch64::aarch64::encode_runtime_byte_write_syscall(
+                        target_or_source_offset,
+                        *number,
+                        &registers.parameters,
+                        registers.result,
+                        registers.number,
+                        registers.immediate,
+                    )?
+                }
+                (Architecture::X86_64, true) => omega_isa_x86_64::encode_runtime_byte_read_syscall(
+                    target_or_source_offset,
+                    payload_offset,
+                    *number,
+                    &registers.parameters,
+                    registers.result,
+                    registers.number,
+                    registers.immediate,
+                )?,
+                (Architecture::X86_64, false) => {
+                    omega_isa_x86_64::encode_runtime_byte_write_syscall(
+                        target_or_source_offset,
+                        *number,
+                        &registers.parameters,
+                        registers.result,
+                        registers.number,
+                        registers.immediate,
+                    )?
+                }
+            };
+            (bytes, Vec::new())
+        }
+        (
+            _,
+            HostBindingMechanism::VtableSlot { .. }
+            | HostBindingMechanism::VtableField { .. }
+            | HostBindingMechanism::TableFunction { .. },
+        ) => {
+            return Err(Diagnostic::error(
+                "final runtime-byte replay retained a non-import/non-syscall mechanism",
+            ));
+        }
+    };
+
+    let mut address_sites = vec![(0, address_target)];
+    if mechanism.requires_float_control_restore() {
+        let (prefix, suffix) = match architecture {
+            Architecture::X86_64 => (
+                omega_isa_x86_64::encode_foreign_float_control_prefix_bytes().to_vec(),
+                omega_isa_x86_64::encode_foreign_float_control_suffix_bytes().to_vec(),
+            ),
+            Architecture::Aarch64 => (
+                omega_isa_aarch64::aarch64::encode_foreign_float_control_prefix_bytes().to_vec(),
+                omega_isa_aarch64::aarch64::encode_foreign_float_control_suffix_bytes().to_vec(),
+            ),
+        };
+        let prefix_width = prefix.len();
+        let mut wrapped = Vec::with_capacity(prefix.len() + bytes.len() + suffix.len());
+        wrapped.extend(prefix);
+        wrapped.extend(bytes);
+        wrapped.extend(suffix);
+        bytes = wrapped;
+        for (site, _, _) in &mut call_sites {
+            *site += prefix_width;
+        }
+        for (site, _) in &mut address_sites {
+            *site += prefix_width;
+        }
+    }
+    Ok(RuntimeByteReplay {
+        bytes,
+        call_sites,
+        address_sites,
     })
 }
 
@@ -3653,6 +3900,70 @@ fn validate_compiler_function_instruction_boundaries(
                             },
                         )
                     }
+                    omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyRuntimeByteRead {
+                        target_region,
+                        target_offset,
+                        payload_offset,
+                        mechanism,
+                        plan,
+                        get_std_handle,
+                        ..
+                    } => {
+                        let replay = encode_runtime_byte_replay(
+                            architecture,
+                            true,
+                            target_offset,
+                            payload_offset,
+                            OutboundCallRelocationTarget::Storage(target_region),
+                            &mechanism,
+                            &plan,
+                            get_std_handle.as_ref(),
+                        )?;
+                        (
+                            None,
+                            replay.bytes,
+                            59u8,
+                            CompilerInstructionRelocationRecipe::RuntimeByteBoundary {
+                                call_sites: replay.call_sites,
+                                address_sites: replay.address_sites,
+                            },
+                        )
+                    }
+                    omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyRuntimeByteWrite {
+                        source_region,
+                        source_offset,
+                        literal_symbol,
+                        source_is_place,
+                        mechanism,
+                        plan,
+                        get_std_handle,
+                        ..
+                    } => {
+                        let address_target = if source_is_place {
+                            OutboundCallRelocationTarget::Storage(source_region)
+                        } else {
+                            OutboundCallRelocationTarget::Data(literal_symbol)
+                        };
+                        let replay = encode_runtime_byte_replay(
+                            architecture,
+                            false,
+                            source_offset,
+                            0,
+                            address_target,
+                            &mechanism,
+                            &plan,
+                            get_std_handle.as_ref(),
+                        )?;
+                        (
+                            None,
+                            replay.bytes,
+                            60u8,
+                            CompilerInstructionRelocationRecipe::RuntimeByteBoundary {
+                                call_sites: replay.call_sites,
+                                address_sites: replay.address_sites,
+                            },
+                        )
+                    }
                     omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyOutboundStorageImport {
                         operation_key,
                         operands,
@@ -5322,6 +5633,34 @@ fn validate_compiler_function_instruction_boundaries(
                                     .collect::<Vec<_>>(),
                             )
                     }
+                    CompilerInstructionRelocationRecipe::RuntimeByteBoundary {
+                        call_sites,
+                        address_sites,
+                    } => {
+                        validate_compiler_runtime_byte_relocations(
+                            architecture,
+                            object,
+                            relocations,
+                            instruction.selected_instruction_index,
+                            instruction_byte_offset,
+                            &call_sites,
+                            &address_sites,
+                        )?;
+                        encoded_instruction_bytes == expected_bytes
+                            && compiler_instruction_composite_non_relocation_bits_match(
+                                architecture,
+                                &expected_bytes,
+                                final_instruction_bytes,
+                                &call_sites
+                                    .iter()
+                                    .map(|(site, _, _)| *site)
+                                    .collect::<Vec<_>>(),
+                                &address_sites
+                                    .iter()
+                                    .map(|(site, _)| *site)
+                                    .collect::<Vec<_>>(),
+                            )
+                    }
                     CompilerInstructionRelocationRecipe::OutboundSyscallStorage {
                         address_sites,
                     } => {
@@ -6948,6 +7287,92 @@ fn compiler_instruction_footprint(
                 ]),
             )
         }
+        CompilerInstructionValidationKind::CompilerBodyRuntimeByteRead {
+            mechanism,
+            plan,
+            get_std_handle,
+            ..
+        } => {
+            let mut registers = plan.ordinary_clobbers.as_slice().to_vec();
+            match architecture {
+                Architecture::X86_64 => {
+                    registers.push(MachineRegister::X86R14);
+                    if matches!(
+                        mechanism,
+                        omega_calling_conventions::HostBindingMechanism::Import { .. }
+                    ) {
+                        registers.push(MachineRegister::X86Rsp);
+                        if let Some(handle) = get_std_handle {
+                            registers.extend_from_slice(handle.plan.ordinary_clobbers.as_slice());
+                        }
+                    }
+                }
+                Architecture::Aarch64 => {
+                    registers.extend([MachineRegister::Aarch64X(20), MachineRegister::Aarch64X(9)]);
+                }
+            }
+            let mut states = vec![
+                MachineState::Flags,
+                MachineState::InstructionPointer,
+                MachineState::ControlState,
+            ];
+            if matches!(
+                mechanism,
+                omega_calling_conventions::HostBindingMechanism::Import { .. }
+            ) {
+                states.push(MachineState::StackPointer);
+            }
+            (
+                BoundaryFootprintFragmentOrigin::CompilerBodyRuntimeByteRead,
+                RegisterSet::new(registers),
+                MachineStateSet::new(states),
+            )
+        }
+        CompilerInstructionValidationKind::CompilerBodyRuntimeByteWrite {
+            source_offset,
+            mechanism,
+            plan,
+            get_std_handle,
+            ..
+        } => {
+            let mut registers = plan.ordinary_clobbers.as_slice().to_vec();
+            match architecture {
+                Architecture::X86_64 => {
+                    registers.push(MachineRegister::X86R14);
+                    if matches!(
+                        mechanism,
+                        omega_calling_conventions::HostBindingMechanism::Import { .. }
+                    ) {
+                        registers.push(MachineRegister::X86Rsp);
+                        if let Some(handle) = get_std_handle {
+                            registers.extend_from_slice(handle.plan.ordinary_clobbers.as_slice());
+                        }
+                    }
+                }
+                Architecture::Aarch64 => {
+                    registers.push(MachineRegister::Aarch64X(20));
+                    if source_offset > 4095 {
+                        registers.push(MachineRegister::Aarch64X(9));
+                    }
+                }
+            }
+            let mut states = vec![
+                MachineState::Flags,
+                MachineState::InstructionPointer,
+                MachineState::ControlState,
+            ];
+            if matches!(
+                mechanism,
+                omega_calling_conventions::HostBindingMechanism::Import { .. }
+            ) {
+                states.push(MachineState::StackPointer);
+            }
+            (
+                BoundaryFootprintFragmentOrigin::CompilerBodyRuntimeByteWrite,
+                RegisterSet::new(registers),
+                MachineStateSet::new(states),
+            )
+        }
         CompilerInstructionValidationKind::CompilerBodyOutboundStorageImport { plan, .. } => (
             BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImport,
             RegisterSet::new(plan.ordinary_clobbers.as_slice().iter().copied().chain(
@@ -7623,6 +8048,8 @@ fn validate_compiler_body_specification_footprints(
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredAggregateImportResult
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredAggregateResult
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundOpenCreateImport
+                | BoundaryFootprintFragmentOrigin::CompilerBodyRuntimeByteRead
+                | BoundaryFootprintFragmentOrigin::CompilerBodyRuntimeByteWrite
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImport
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImportResult
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscall
@@ -7807,6 +8234,14 @@ fn validate_compiler_body_specification_footprints(
         (
             43u8,
             BoundaryFootprintFragmentOrigin::CompilerBodyOutboundOpenCreateImport,
+        ),
+        (
+            44u8,
+            BoundaryFootprintFragmentOrigin::CompilerBodyRuntimeByteRead,
+        ),
+        (
+            45u8,
+            BoundaryFootprintFragmentOrigin::CompilerBodyRuntimeByteWrite,
         ),
     ] {
         let evidence_rows = derived
@@ -11490,6 +11925,106 @@ fn validate_compiler_planned_import_relocations(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
+fn validate_compiler_runtime_byte_relocations(
+    architecture: Architecture,
+    object: &omega_object_file::ObjectPlan,
+    relocations: &RelocationPlan,
+    selected_instruction_index: u32,
+    instruction_byte_offset: usize,
+    call_sites: &[(usize, std::sync::Arc<str>, std::sync::Arc<str>)],
+    address_sites: &[(usize, OutboundCallRelocationTarget)],
+) -> Result<(), Diagnostic> {
+    enum ExpectedTarget<'target> {
+        Import(&'target str, &'target str),
+        Address(&'target OutboundCallRelocationTarget),
+    }
+
+    let mut actual = relocations
+        .records()
+        .filter_map(|(_, relocation)| {
+            (relocation.section == SectionKind::Text
+                && relocation.origin.selected_instruction_index()
+                    == Some(selected_instruction_index))
+            .then_some(relocation)
+        })
+        .collect::<Vec<_>>();
+    actual.sort_unstable_by_key(|relocation| relocation.offset);
+    let mut expected = Vec::new();
+    for (site, library, symbol) in call_sites {
+        let kind = match architecture {
+            Architecture::X86_64 => RelocationKind::X86_64Relative32,
+            Architecture::Aarch64 => RelocationKind::Aarch64Branch26,
+        };
+        expected.push((
+            instruction_byte_offset + site,
+            kind,
+            4usize,
+            ExpectedTarget::Import(library, symbol),
+        ));
+    }
+    for (site, target) in address_sites {
+        match architecture {
+            Architecture::X86_64 => expected.push((
+                instruction_byte_offset + site + 2,
+                RelocationKind::Absolute64,
+                8usize,
+                ExpectedTarget::Address(target),
+            )),
+            Architecture::Aarch64 => {
+                expected.push((
+                    instruction_byte_offset + site,
+                    RelocationKind::Aarch64Page21,
+                    4usize,
+                    ExpectedTarget::Address(target),
+                ));
+                expected.push((
+                    instruction_byte_offset + site + 4,
+                    RelocationKind::Aarch64PageOffset12,
+                    4usize,
+                    ExpectedTarget::Address(target),
+                ));
+            }
+        }
+    }
+    expected.sort_unstable_by_key(|(offset, _, _, _)| *offset);
+    let matches = actual.len() == expected.len()
+        && actual
+            .iter()
+            .zip(&expected)
+            .all(|(relocation, (offset, kind, width, target))| {
+                let target_matches = match target {
+                    ExpectedTarget::Import(library, symbol) => compiler_import_symbol_matches(
+                        object,
+                        relocation.symbol_handle,
+                        library,
+                        symbol,
+                    ),
+                    ExpectedTarget::Address(OutboundCallRelocationTarget::Storage(region)) => {
+                        compiler_storage_symbol_matches(object, relocation.symbol_handle, *region)
+                    }
+                    ExpectedTarget::Address(OutboundCallRelocationTarget::Data(symbol)) => {
+                        compiler_data_object_symbol_matches(
+                            object,
+                            relocation.symbol_handle,
+                            symbol,
+                        )
+                    }
+                };
+                relocation.offset == *offset
+                    && relocation.kind == *kind
+                    && relocation.byte_width == *width
+                    && relocation.addend == 0
+                    && target_matches
+            });
+    if !matches {
+        return Err(Diagnostic::error(format!(
+            "compiler runtime-byte instruction #{selected_instruction_index} does not retain its exact call/address relocation set"
+        )));
+    }
+    Ok(())
+}
+
 fn validate_compiler_outbound_syscall_relocations(
     architecture: Architecture,
     object: &omega_object_file::ObjectPlan,
@@ -11783,6 +12318,46 @@ fn compiler_instruction_import_non_relocation_bits_match(
             let address_mask = address_sites.iter().fold(0u8, |mask, site| {
                 mask | match architecture {
                     Architecture::X86_64 if (*site..site + 8).contains(&offset) => 0xff,
+                    Architecture::Aarch64 if (*site..site + 4).contains(&offset) => {
+                        [0xe0, 0xff, 0xff, 0x60][offset - site]
+                    }
+                    Architecture::Aarch64 if (site + 4..site + 8).contains(&offset) => {
+                        [0x00, 0xfc, 0x3f, 0x00][offset - site - 4]
+                    }
+                    _ => 0,
+                }
+            });
+            (expected ^ final_byte) & !(call_mask | address_mask) == 0
+        })
+}
+
+fn compiler_instruction_composite_non_relocation_bits_match(
+    architecture: Architecture,
+    expected: &[u8],
+    final_bytes: &[u8],
+    call_sites: &[usize],
+    address_sites: &[usize],
+) -> bool {
+    if expected.len() != final_bytes.len() {
+        return false;
+    }
+    expected
+        .iter()
+        .zip(final_bytes)
+        .enumerate()
+        .all(|(offset, (expected, final_byte))| {
+            let call_mask = call_sites.iter().fold(0u8, |mask, site| {
+                mask | match architecture {
+                    Architecture::X86_64 if (*site..site + 4).contains(&offset) => 0xff,
+                    Architecture::Aarch64 if (*site..site + 4).contains(&offset) => {
+                        [0xff, 0xff, 0xff, 0x03][offset - site]
+                    }
+                    _ => 0,
+                }
+            });
+            let address_mask = address_sites.iter().fold(0u8, |mask, site| {
+                mask | match architecture {
+                    Architecture::X86_64 if (site + 2..site + 10).contains(&offset) => 0xff,
                     Architecture::Aarch64 if (*site..site + 4).contains(&offset) => {
                         [0xe0, 0xff, 0xff, 0x60][offset - site]
                     }
