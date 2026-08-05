@@ -1124,6 +1124,40 @@ pub fn derive_boundary_compiler_body_outbound_dereferenced_import_result_footpri
     )
 }
 
+/// Derive no-result built-in imports whose ordinary scalar parameter list
+/// includes at least one compiler-owned static data address.
+pub fn derive_boundary_compiler_body_outbound_data_import_footprint(
+    boundary: &ValidatedBoundaryEntryPlan,
+    input: &crate::InstructionSelectionInput<'_>,
+    operands: &psi_arena::Arena<omega_abstract_operations::InstructionOperand>,
+    instructions: &[omega_abstract_operations::AbstractOperation],
+) -> Result<StateFootprintEvidence, PlanDiagnostic> {
+    derive_boundary_compiler_body_outbound_direct_import_footprint(
+        boundary,
+        input,
+        operands,
+        instructions,
+        DirectImportArgumentClass::Data,
+    )
+}
+
+/// Derive direct-integer-result built-in imports whose ordinary scalar
+/// parameter list includes at least one compiler-owned static data address.
+pub fn derive_boundary_compiler_body_outbound_data_import_result_footprint(
+    boundary: &ValidatedBoundaryEntryPlan,
+    input: &crate::InstructionSelectionInput<'_>,
+    operands: &psi_arena::Arena<omega_abstract_operations::InstructionOperand>,
+    instructions: &[omega_abstract_operations::AbstractOperation],
+) -> Result<StateFootprintEvidence, PlanDiagnostic> {
+    derive_boundary_compiler_body_outbound_direct_import_footprint(
+        boundary,
+        input,
+        operands,
+        instructions,
+        DirectImportArgumentClass::DataResult,
+    )
+}
+
 /// Derive integer-result built-in imports with one or more runtime-scalar
 /// arguments. The leading runtime scalar remains the post-call result store;
 /// only the trailing operands are wire arguments.
@@ -1149,6 +1183,8 @@ enum DirectImportArgumentClass {
     ImmediateResult,
     FloatResult,
     DereferencedResult,
+    Data,
+    DataResult,
     StorageResult,
 }
 
@@ -1297,6 +1333,44 @@ fn derive_boundary_compiler_body_outbound_direct_import_footprint(
                             Some(InstructionOperandKind::RuntimeScalarInteger { .. })
                         )
                 }
+                DirectImportArgumentClass::Data => {
+                    binding.call_plan().result.is_some()
+                        || binding.call_plan().parameters.len() != selected_operands.len()
+                        || !selected_operands.iter().any(|operand| {
+                            matches!(operand.kind, InstructionOperandKind::DataAddress { .. })
+                        })
+                        || !selected_operands.iter().all(|operand| {
+                            matches!(
+                                operand.kind,
+                                InstructionOperandKind::ImmediateInteger(_)
+                                    | InstructionOperandKind::RuntimeScalarInteger { .. }
+                                    | InstructionOperandKind::DataAddress { .. }
+                            )
+                        })
+                }
+                DirectImportArgumentClass::DataResult => {
+                    !binding.call_plan().result.as_ref().is_some_and(|result| {
+                        matches!(
+                            result.shape.class,
+                            omega_calling_conventions::ValueClass::Integer
+                        )
+                    }) || binding.call_plan().parameters.len() + 1 != selected_operands.len()
+                        || !matches!(
+                            selected_operands.first().map(|operand| &operand.kind),
+                            Some(InstructionOperandKind::RuntimeScalarInteger { .. })
+                        )
+                        || !selected_operands[1..].iter().any(|operand| {
+                            matches!(operand.kind, InstructionOperandKind::DataAddress { .. })
+                        })
+                        || !selected_operands[1..].iter().all(|operand| {
+                            matches!(
+                                operand.kind,
+                                InstructionOperandKind::ImmediateInteger(_)
+                                    | InstructionOperandKind::RuntimeScalarInteger { .. }
+                                    | InstructionOperandKind::DataAddress { .. }
+                            )
+                        })
+                }
                 DirectImportArgumentClass::StorageResult => {
                     !binding.call_plan().result.as_ref().is_some_and(|result| {
                         matches!(
@@ -1337,6 +1411,7 @@ fn derive_boundary_compiler_body_outbound_direct_import_footprint(
                     DirectImportArgumentClass::ImmediateResult
                         | DirectImportArgumentClass::FloatResult
                         | DirectImportArgumentClass::DereferencedResult
+                        | DirectImportArgumentClass::DataResult
                         | DirectImportArgumentClass::StorageResult
                 ) && let Some(omega_abstract_operations::InstructionOperand {
                     kind:

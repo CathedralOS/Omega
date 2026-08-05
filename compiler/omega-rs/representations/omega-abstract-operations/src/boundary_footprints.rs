@@ -21,6 +21,8 @@ pub enum BoundaryFootprintFragmentOrigin {
     CompilerBodyOutboundImmediateImportResult,
     CompilerBodyOutboundFloatImportResult,
     CompilerBodyOutboundDereferencedImportResult,
+    CompilerBodyOutboundDataImport,
+    CompilerBodyOutboundDataImportResult,
     CompilerBodyOutboundStorageImport,
     CompilerBodyOutboundStorageImportResult,
     CompilerBodyOutboundSyscall,
@@ -81,6 +83,8 @@ impl BoundaryFootprintPlan {
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundImmediateImportResult
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundFloatImportResult
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundDereferencedImportResult
+            | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundDataImport
+            | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundDataImportResult
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImport
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImportResult
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscall
@@ -285,6 +289,26 @@ mod tests {
                 },
             )
             .expect("dereferenced-result imports may use their prescribed control state");
+
+        outbound
+            .retain_validated_fragment(
+                &boundary,
+                BoundaryFootprintFragment {
+                    origin: BoundaryFootprintFragmentOrigin::CompilerBodyOutboundDataImport,
+                    evidence: control_evidence(),
+                },
+            )
+            .expect("data-address imports may use their prescribed control state");
+
+        outbound
+            .retain_validated_fragment(
+                &boundary,
+                BoundaryFootprintFragment {
+                    origin: BoundaryFootprintFragmentOrigin::CompilerBodyOutboundDataImportResult,
+                    evidence: control_evidence(),
+                },
+            )
+            .expect("result-bearing data-address imports may use their prescribed control state");
 
         outbound
             .retain_validated_fragment(

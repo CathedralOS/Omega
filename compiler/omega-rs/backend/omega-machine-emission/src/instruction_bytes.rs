@@ -630,6 +630,55 @@ fn compiler_instruction_validation_kind(
                         },
                     ));
                 }
+                let result_operand_count = usize::from(binding.call_plan().result.is_some());
+                let arguments = operands.get(result_operand_count..).unwrap_or_default();
+                if arguments
+                    .iter()
+                    .any(|operand| operand.data_address().is_some())
+                    && binding.call_plan().parameters.len() == arguments.len()
+                    && arguments.iter().all(|operand| {
+                        operand.immediate_integer().is_some()
+                            || operand.runtime_scalar_integer().is_some()
+                            || operand.data_address().is_some()
+                    })
+                {
+                    let data_symbols =
+                        assigned_outbound_syscall_data_symbols(emission_context, arguments);
+                    let validation = match binding.call_plan().result.as_ref() {
+                        None if result_operand_count == 0 => {
+                            CompilerInstructionValidationKind::CompilerBodyOutboundDataImport {
+                                operation_key: *operation_key,
+                                operands: operands.to_vec(),
+                                data_symbols,
+                                library: std::sync::Arc::clone(library),
+                                symbol: std::sync::Arc::clone(symbol),
+                                plan: binding.call_plan().clone(),
+                            }
+                        }
+                        Some(result)
+                            if matches!(
+                                result.shape.class,
+                                omega_calling_conventions::ValueClass::Integer
+                            ) && matches!(
+                                operands.first().map(|operand| &operand.kind),
+                                Some(
+                                    omega_assigned_target_operations::InstructionOperandKind::RuntimeScalarInteger { .. }
+                                )
+                            ) =>
+                        {
+                            CompilerInstructionValidationKind::CompilerBodyOutboundDataImportResult {
+                                operation_key: *operation_key,
+                                operands: operands.to_vec(),
+                                data_symbols,
+                                library: std::sync::Arc::clone(library),
+                                symbol: std::sync::Arc::clone(symbol),
+                                plan: binding.call_plan().clone(),
+                            }
+                        }
+                        _ => return Ok(None),
+                    };
+                    return Ok(Some(validation));
+                }
                 if operation_key.capability
                     == omega_calling_conventions::HostCapability::Math
                     && binding.call_plan().result.as_ref().is_some_and(|result| {
