@@ -499,6 +499,7 @@ fn compiler_instruction_validation_kind(
                     | omega_instruction_selection::CopyPlacesShape::ToMachineDoubleIndexed { .. }
                     | omega_instruction_selection::CopyPlacesShape::MachineIndexedPair { .. }
                     | omega_instruction_selection::CopyPlacesShape::FrameBaseIndexedPair { .. }
+                    | omega_instruction_selection::CopyPlacesShape::CrossRegionIndexedPair { .. }
                     | omega_instruction_selection::CopyPlacesShape::FrameBaseDoubleIndexedPair { .. }
                     | omega_instruction_selection::CopyPlacesShape::MachineDoubleIndexedPair { .. }
                     | omega_instruction_selection::CopyPlacesShape::MachineIndexedToPointee { .. }

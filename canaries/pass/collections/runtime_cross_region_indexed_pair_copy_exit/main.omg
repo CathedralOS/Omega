@@ -1,0 +1,30 @@
+// Whole-aggregate indexed copies between a machine-rooted array and a
+// frame-rooted local array in both directions. Each walk deliberately uses an
+// index stored in the opposite region from its collection.
+use omega::language::std::console;
+data Triple { first: i32; second: i32; third: i32; }
+data Main {
+    console: Console;
+    values: [Triple; 4];
+    index: u64 [0..=3];
+}
+machine Main::main(&mut self) {
+    self.index = 2;
+    transition { _ -> self.copy(1) }
+}
+machine Main::copy(&mut self, j: u64 [0..=3]) {
+    let local: [Triple; 4] = [
+        Triple { first: 1, second: 2, third: 3 },
+        Triple { first: 10, second: 20, third: 30 },
+        Triple { first: 4, second: 5, third: 6 },
+        Triple { first: 7, second: 8, third: 9 }
+    ];
+    self.values[j] = local[self.index];
+    local[self.index] = self.values[j];
+    transition self.values[1].first == 4 && self.values[1].second == 5 && self.values[1].third == 6 && local[2].first == 4 && local[2].second == 5 && local[2].third == 6 {
+        true -> yes()
+        false -> no()
+    }
+    state yes(&mut self) { self.console.exit_process(1); }
+    state no(&mut self) { self.console.exit_process(2); }
+}

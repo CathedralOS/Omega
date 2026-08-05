@@ -1794,6 +1794,58 @@ pub(crate) fn copy_places_frame_base_indexed_pair(
     }
 }
 
+/// `target[j] = source[i]` across one machine-inline and one frame-inline
+/// array. Each runtime index retains its own storage region.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn copy_places_cross_region_indexed_pair(
+    source_region: RuntimeStorageRegion,
+    source_base_byte_offset: usize,
+    source_index_region: RuntimeStorageRegion,
+    source_index_offset: usize,
+    source_index_byte_size: usize,
+    source_element_byte_size: usize,
+    source_field_byte_offset: usize,
+    target_region: RuntimeStorageRegion,
+    target_base_byte_offset: usize,
+    target_index_region: RuntimeStorageRegion,
+    target_index_offset: usize,
+    target_index_byte_size: usize,
+    target_element_byte_size: usize,
+    target_field_byte_offset: usize,
+    byte_count: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::CopyPlaces {
+        source: omega_abstract_operations::Place::at(source_region, source_base_byte_offset)
+            .with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+                index_region: source_index_region,
+                index_offset: source_index_offset,
+                index_byte_size: source_index_byte_size,
+                element_byte_size: source_element_byte_size,
+            })
+            .and_then(|place| {
+                place.with_step(omega_abstract_operations::PlaceStep::ConstOffset(
+                    source_field_byte_offset,
+                ))
+            })
+            .expect("a cross-region indexed source is within PLACE_MAX_STEPS"),
+        target: omega_abstract_operations::Place::at(target_region, target_base_byte_offset)
+            .with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+                index_region: target_index_region,
+                index_offset: target_index_offset,
+                index_byte_size: target_index_byte_size,
+                element_byte_size: target_element_byte_size,
+            })
+            .and_then(|place| {
+                place.with_step(omega_abstract_operations::PlaceStep::ConstOffset(
+                    target_field_byte_offset,
+                ))
+            })
+            .expect("a cross-region indexed target is within PLACE_MAX_STEPS"),
+        byte_count,
+        role: omega_abstract_operations::CopyPlacesRole::Ordinary,
+    }
+}
+
 /// Rung 2c-x: a frame-inline 2D-array element read with independently placed
 /// runtime indices.
 #[allow(clippy::too_many_arguments)]
