@@ -386,6 +386,44 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                                 );
                             }
                         }
+                        omega_instruction_selection::CopyPlacesShape::MachineDoubleIndexedPair {
+                            source_outer_index_region,
+                            source_inner_index_region,
+                            target_outer_index_region,
+                            target_inner_index_region,
+                            ..
+                        } => {
+                            let frame =
+                                omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
+                            if source_outer_index_region == frame
+                                || source_inner_index_region == frame
+                            {
+                                context.insert_data_address_at_relative_offset(
+                                    runtime_storage_copy_from_runtime_machine_double_indexed_frame_base_offset(
+                                        context.input.target.architecture,
+                                    ),
+                                    context.runtime_frame_symbol_handle(),
+                                );
+                            }
+                            context.insert_data_address_at_relative_offset(
+                                omega_instruction_selection::aarch64_runtime_storage_copy_machine_double_indexed_pair_second_base_offset(
+                                    source_outer_index_region,
+                                    source_inner_index_region,
+                                ),
+                                context.machine_storage_symbol_handle(),
+                            );
+                            if target_outer_index_region == frame
+                                || target_inner_index_region == frame
+                            {
+                                context.insert_data_address_at_relative_offset(
+                                    omega_instruction_selection::aarch64_runtime_storage_copy_machine_double_indexed_pair_target_frame_base_offset(
+                                        source_outer_index_region,
+                                        source_inner_index_region,
+                                    ),
+                                    context.runtime_frame_symbol_handle(),
+                                );
+                            }
+                        }
                         omega_instruction_selection::CopyPlacesShape::FromMachineIndexed {
                             base_byte_offset,
                             index_region,

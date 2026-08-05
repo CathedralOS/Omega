@@ -2906,6 +2906,26 @@ pub fn runtime_storage_copy_machine_indexed_frame_index_offset(
     }
 }
 
+pub fn aarch64_runtime_storage_copy_machine_double_indexed_pair_second_base_offset(
+    source_outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    source_inner_index_region: omega_target_operations::RuntimeStorageRegion,
+) -> usize {
+    aarch64::runtime_storage_copy_machine_double_indexed_pair_second_base_offset(
+        source_outer_index_region,
+        source_inner_index_region,
+    )
+}
+
+pub fn aarch64_runtime_storage_copy_machine_double_indexed_pair_target_frame_base_offset(
+    source_outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    source_inner_index_region: omega_target_operations::RuntimeStorageRegion,
+) -> usize {
+    aarch64::runtime_storage_copy_machine_double_indexed_pair_target_frame_base_offset(
+        source_outer_index_region,
+        source_inner_index_region,
+    )
+}
+
 pub fn runtime_storage_copy_from_runtime_machine_double_indexed_to_runtime_storage_width(
     architecture: Architecture,
     outer_index_region: omega_target_operations::RuntimeStorageRegion,

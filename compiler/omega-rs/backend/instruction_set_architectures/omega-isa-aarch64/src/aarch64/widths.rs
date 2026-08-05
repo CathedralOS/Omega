@@ -2381,6 +2381,41 @@ pub fn runtime_storage_copy_frame_base_double_indexed_to_frame_base_double_index
     8 + 4 + 36 + 4 + 4 + 36 + runtime_storage_copy_data_width(0, 0, byte_count)
 }
 
+/// Width of a machine-rooted double-indexed pair copy. Each side owns its
+/// machine pair and fixed 2D walk; a side with either frame-held index also
+/// owns one frame pair. The source address is stashed between the walks.
+pub fn runtime_storage_copy_machine_double_indexed_to_machine_double_indexed_width(
+    source_outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    source_inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    target_outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    target_inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    byte_count: usize,
+) -> usize {
+    double_indexed_base_width(source_outer_index_region, source_inner_index_region)
+        + 36
+        + 4
+        + double_indexed_base_width(target_outer_index_region, target_inner_index_region)
+        + 36
+        + runtime_storage_copy_data_width(0, 0, byte_count)
+}
+
+pub fn runtime_storage_copy_machine_double_indexed_pair_second_base_offset(
+    source_outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    source_inner_index_region: omega_target_operations::RuntimeStorageRegion,
+) -> usize {
+    double_indexed_base_width(source_outer_index_region, source_inner_index_region) + 36 + 4
+}
+
+pub fn runtime_storage_copy_machine_double_indexed_pair_target_frame_base_offset(
+    source_outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    source_inner_index_region: omega_target_operations::RuntimeStorageRegion,
+) -> usize {
+    runtime_storage_copy_machine_double_indexed_pair_second_base_offset(
+        source_outer_index_region,
+        source_inner_index_region,
+    ) + 8
+}
+
 /// Offset of the SECOND relocated machine-base `adrp` inside the dual-indexed
 /// copy (the target half): the first base pair (8) + the source element
 /// address + the x24 stash (4).

@@ -3414,6 +3414,50 @@ pub fn encode_copy_places(
                 target_field_byte_offset,
                 byte_count,
             ),
+            CopyPlacesShape::MachineDoubleIndexedPair {
+                source_base_byte_offset,
+                source_outer_index_region,
+                source_outer_index_offset,
+                source_outer_index_byte_size,
+                source_outer_stride,
+                source_inner_index_region,
+                source_inner_index_offset,
+                source_inner_index_byte_size,
+                source_inner_stride,
+                source_field_byte_offset,
+                target_base_byte_offset,
+                target_outer_index_region,
+                target_outer_index_offset,
+                target_outer_index_byte_size,
+                target_outer_stride,
+                target_inner_index_region,
+                target_inner_index_offset,
+                target_inner_index_byte_size,
+                target_inner_stride,
+                target_field_byte_offset,
+            } => aarch64::encode_runtime_storage_copy_machine_double_indexed_to_machine_double_indexed(
+                source_base_byte_offset,
+                source_outer_index_region,
+                source_outer_index_offset,
+                source_outer_index_byte_size,
+                source_outer_stride,
+                source_inner_index_region,
+                source_inner_index_offset,
+                source_inner_index_byte_size,
+                source_inner_stride,
+                source_field_byte_offset,
+                target_base_byte_offset,
+                target_outer_index_region,
+                target_outer_index_offset,
+                target_outer_index_byte_size,
+                target_outer_stride,
+                target_inner_index_region,
+                target_inner_index_offset,
+                target_inner_index_byte_size,
+                target_inner_stride,
+                target_field_byte_offset,
+                byte_count,
+            ),
             CopyPlacesShape::PointeePair { .. }
             | CopyPlacesShape::FromIndexed { .. }
             | CopyPlacesShape::ToIndexed { .. }
@@ -3694,6 +3738,30 @@ pub enum CopyPlacesShape {
         target_inner_stride: usize,
         target_field_byte_offset: usize,
     },
+    /// `grid[a][b] = grid[i][j]` on machine-rooted inline 2D arrays. Each
+    /// runtime index retains its own frame-or-machine storage region.
+    MachineDoubleIndexedPair {
+        source_base_byte_offset: usize,
+        source_outer_index_region: omega_target_operations::RuntimeStorageRegion,
+        source_outer_index_offset: usize,
+        source_outer_index_byte_size: usize,
+        source_outer_stride: usize,
+        source_inner_index_region: omega_target_operations::RuntimeStorageRegion,
+        source_inner_index_offset: usize,
+        source_inner_index_byte_size: usize,
+        source_inner_stride: usize,
+        source_field_byte_offset: usize,
+        target_base_byte_offset: usize,
+        target_outer_index_region: omega_target_operations::RuntimeStorageRegion,
+        target_outer_index_offset: usize,
+        target_outer_index_byte_size: usize,
+        target_outer_stride: usize,
+        target_inner_index_region: omega_target_operations::RuntimeStorageRegion,
+        target_inner_index_offset: usize,
+        target_inner_index_byte_size: usize,
+        target_inner_stride: usize,
+        target_field_byte_offset: usize,
+    },
     /// Anything else (multi-index, multi-deref): x86_64-materializer only.
     General,
 }
@@ -3709,6 +3777,33 @@ pub fn classify_copy_places_shape(
     // The DOUBLE-indexed inline 2D-array reads first (a double path is
     // never a single path -- the recognizers refuse each other's shapes).
     if let Some(double) = direct_double_indexed_path(source) {
+        if let Some(target_double) = direct_double_indexed_path(target)
+            && source.region == omega_target_operations::RuntimeStorageRegion::Machine
+            && target.region == omega_target_operations::RuntimeStorageRegion::Machine
+        {
+            return CopyPlacesShape::MachineDoubleIndexedPair {
+                source_base_byte_offset: double.base_offset,
+                source_outer_index_region: double.outer_region,
+                source_outer_index_offset: double.outer_offset,
+                source_outer_index_byte_size: double.outer_byte_size,
+                source_outer_stride: double.outer_stride,
+                source_inner_index_region: double.inner_region,
+                source_inner_index_offset: double.inner_offset,
+                source_inner_index_byte_size: double.inner_byte_size,
+                source_inner_stride: double.inner_stride,
+                source_field_byte_offset: double.field_offset,
+                target_base_byte_offset: target_double.base_offset,
+                target_outer_index_region: target_double.outer_region,
+                target_outer_index_offset: target_double.outer_offset,
+                target_outer_index_byte_size: target_double.outer_byte_size,
+                target_outer_stride: target_double.outer_stride,
+                target_inner_index_region: target_double.inner_region,
+                target_inner_index_offset: target_double.inner_offset,
+                target_inner_index_byte_size: target_double.inner_byte_size,
+                target_inner_stride: target_double.inner_stride,
+                target_field_byte_offset: target_double.field_offset,
+            };
+        }
         if let Some(target_double) = direct_double_indexed_path(target)
             && source.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
             && double.outer_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
@@ -4594,6 +4689,62 @@ mod tests {
         assert_eq!(
             double_pair.len(),
             omega_isa_aarch64::runtime_storage_copy_frame_base_double_indexed_to_frame_base_double_indexed_width(12)
+        );
+
+        let machine_source = Place::at(RuntimeStorageRegion::Machine, 32)
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::Machine,
+                index_offset: 104,
+                index_byte_size: 8,
+                element_byte_size: 36,
+            })
+            .and_then(|place| {
+                place.with_step(PlaceStep::ScaledIndex {
+                    index_region: RuntimeStorageRegion::RuntimeFrame,
+                    index_offset: 112,
+                    index_byte_size: 8,
+                    element_byte_size: 12,
+                })
+            })
+            .expect("mixed-index machine double source");
+        let machine_target = Place::at(RuntimeStorageRegion::Machine, 160)
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::RuntimeFrame,
+                index_offset: 128,
+                index_byte_size: 8,
+                element_byte_size: 36,
+            })
+            .and_then(|place| {
+                place.with_step(PlaceStep::ScaledIndex {
+                    index_region: RuntimeStorageRegion::Machine,
+                    index_offset: 136,
+                    index_byte_size: 8,
+                    element_byte_size: 12,
+                })
+            })
+            .expect("mixed-index machine double target");
+        assert!(matches!(
+            classify_copy_places_shape(&machine_source, &machine_target),
+            CopyPlacesShape::MachineDoubleIndexedPair {
+                source_outer_index_region: RuntimeStorageRegion::Machine,
+                source_inner_index_region: RuntimeStorageRegion::RuntimeFrame,
+                target_outer_index_region: RuntimeStorageRegion::RuntimeFrame,
+                target_inner_index_region: RuntimeStorageRegion::Machine,
+                ..
+            }
+        ));
+        let machine_double_pair =
+            encode_copy_places(Architecture::Aarch64, &machine_source, &machine_target, 12)
+                .expect("encode retained machine double-indexed pair");
+        assert_eq!(
+            machine_double_pair.len(),
+            omega_isa_aarch64::runtime_storage_copy_machine_double_indexed_to_machine_double_indexed_width(
+                RuntimeStorageRegion::Machine,
+                RuntimeStorageRegion::RuntimeFrame,
+                RuntimeStorageRegion::RuntimeFrame,
+                RuntimeStorageRegion::Machine,
+                12,
+            )
         );
 
         let indexed_source = Place::at(RuntimeStorageRegion::RuntimeFrame, 32)
