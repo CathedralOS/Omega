@@ -3938,6 +3938,63 @@ pub fn runtime_frame_base_indexed_address_to_runtime_frame_write_clobbers_with_i
     RegisterSet::new(registers)
 }
 
+/// Materialize the address of `grid[i][j]` when the inline 2D array and both
+/// runtime index slots share the frame, then store that address in a frame-held
+/// reference slot. X20 retains the unbiased frame base while x16 walks to the
+/// element, so one relocated base pair serves the entire operation.
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_frame_base_double_indexed_address_to_runtime_frame_write(
+    base_byte_offset: usize,
+    outer_index_offset: usize,
+    outer_index_byte_size: usize,
+    outer_stride: usize,
+    inner_index_offset: usize,
+    inner_index_byte_size: usize,
+    inner_stride: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let expected_width =
+        super::widths::runtime_frame_base_double_indexed_address_to_runtime_frame_write_width(
+            target_offset,
+        );
+    let mut bytes = Vec::with_capacity(expected_width);
+    bytes.extend(encode_adrp_placeholder(20));
+    bytes.extend(encode_add_page_offset_placeholder(20));
+    bytes.extend(encode_move_x_register(16, 20));
+    append_double_index_address_math(
+        &mut bytes,
+        20,
+        outer_index_offset,
+        outer_index_byte_size,
+        outer_stride,
+        20,
+        inner_index_offset,
+        inner_index_byte_size,
+        inner_stride,
+        base_byte_offset + field_byte_offset,
+    )?;
+    append_store_x_to_x_offset(&mut bytes, 16, 20, target_offset)?;
+    debug_assert_eq!(bytes.len(), expected_width);
+    Ok(bytes)
+}
+
+pub fn runtime_frame_base_double_indexed_address_to_runtime_frame_write_clobbers(
+    target_offset: usize,
+) -> RegisterSet {
+    let mut registers = vec![
+        MachineRegister::Aarch64X(14),
+        MachineRegister::Aarch64X(16),
+        MachineRegister::Aarch64X(17),
+        MachineRegister::Aarch64X(20),
+        MachineRegister::Aarch64X(26),
+    ];
+    if !target_offset.is_multiple_of(8) || target_offset / 8 > 4095 {
+        registers.push(MachineRegister::Aarch64X(19));
+    }
+    RegisterSet::new(registers)
+}
+
 pub fn encode_runtime_storage_copy(
     source_offset: usize,
     target_offset: usize,
@@ -10748,6 +10805,38 @@ mod tests {
         assert_eq!(
             runtime_frame_base_double_indexed_integer_write_clobbers(),
             runtime_storage_copy_from_runtime_frame_base_double_indexed_clobbers()
+        );
+    }
+
+    #[test]
+    fn frame_base_double_indexed_address_write_uses_one_shared_frame_base() {
+        let bytes = encode_runtime_frame_base_double_indexed_address_to_runtime_frame_write(
+            24, 64, 8, 12, 72, 8, 4, 0, 96,
+        )
+        .expect("encode all-frame double-indexed address write");
+
+        assert_eq!(
+            bytes.len(),
+            widths::runtime_frame_base_double_indexed_address_to_runtime_frame_write_width(96)
+        );
+        assert_eq!(
+            &bytes[..8],
+            [
+                encode_adrp_placeholder(20),
+                encode_add_page_offset_placeholder(20)
+            ]
+            .concat(),
+            "the collection, both index slots, and reference target share one frame base"
+        );
+        assert_eq!(
+            runtime_frame_base_double_indexed_address_to_runtime_frame_write_clobbers(96),
+            RegisterSet::new([
+                MachineRegister::Aarch64X(14),
+                MachineRegister::Aarch64X(16),
+                MachineRegister::Aarch64X(17),
+                MachineRegister::Aarch64X(20),
+                MachineRegister::Aarch64X(26),
+            ])
         );
     }
 

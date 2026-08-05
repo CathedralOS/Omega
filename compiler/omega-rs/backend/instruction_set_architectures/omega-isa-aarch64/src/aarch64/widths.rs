@@ -1905,6 +1905,15 @@ pub fn runtime_frame_base_indexed_address_to_runtime_frame_write_with_index_regi
     ) + store_x_offset_width(target_offset)
 }
 
+/// One shared frame base supplies the inline 2D array, both runtime indices,
+/// and the destination reference slot: page pair + base copy + fixed double-
+/// index address math + the final pointer store.
+pub fn runtime_frame_base_double_indexed_address_to_runtime_frame_write_width(
+    target_offset: usize,
+) -> usize {
+    8 + 4 + 36 + store_x_offset_width(target_offset)
+}
+
 /// Extra bytes the line-read's result-descriptor store spends when the String field's
 /// offset is too large for the STR scaled immediate: the two stores (ptr@target_offset,
 /// len@target_offset+8) go DIRECT when both fit (offset in the immediate = free);

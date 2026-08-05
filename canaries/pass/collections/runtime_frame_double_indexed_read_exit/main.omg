@@ -1,7 +1,7 @@
 // FRAME-resident 2D arrays, both-runtime reads and binary writes
 // (CopyRuntimeFrameBaseDoubleIndexedToRuntimeStorage and the canonical
 // all-frame double-indexed CopyPlaces target + WritePlaceConvert +
-// WritePlaceInteger + WritePlaceBinary):
+// WritePlaceInteger + WritePlaceBinary + WritePlaceAddress):
 // local arrays in entry
 // and PARAM states via LET consumers, the MACHINE-FIELD target face
 // (`self.got = g2[a][b]` -- the tree route, which needs the aggregate slot
@@ -23,8 +23,10 @@ machine Main::main(&mut self) {
         g[i][j] = wide as i32 in Wrapping;
         g[i][j] = 6;
         g[i][j] = g[i][j] + 1;
+        let selected: &mut i32 in Wrapping = &mut g[i][j];
+        selected = 8;
         let picked: i32 in Wrapping = g[i][j];
-        transition picked == 7 {
+        transition picked == 8 {
             true -> machine_target()
             false -> no()
         }

@@ -1347,6 +1347,47 @@ pub(crate) fn write_place_address_base_indexed_with_index_region(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn write_place_address_base_double_indexed(
+    base_byte_offset: usize,
+    outer_index_offset: usize,
+    outer_index_byte_size: usize,
+    outer_stride: usize,
+    inner_index_offset: usize,
+    inner_index_byte_size: usize,
+    inner_stride: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::WritePlaceAddress {
+        source: omega_abstract_operations::Place::at(
+            RuntimeStorageRegion::RuntimeFrame,
+            base_byte_offset,
+        )
+        .with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+            index_region: RuntimeStorageRegion::RuntimeFrame,
+            index_offset: outer_index_offset,
+            index_byte_size: outer_index_byte_size,
+            element_byte_size: outer_stride,
+        })
+        .and_then(|place| {
+            place.with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::RuntimeFrame,
+                index_offset: inner_index_offset,
+                index_byte_size: inner_index_byte_size,
+                element_byte_size: inner_stride,
+            })
+        })
+        .and_then(|place| {
+            place.with_step(omega_abstract_operations::PlaceStep::ConstOffset(
+                field_byte_offset,
+            ))
+        })
+        .expect("a base-double-indexed place is four steps, within PLACE_MAX_STEPS"),
+        target_offset,
+    }
+}
+
 pub(crate) fn write_place_address_region_indexed(
     base_region: RuntimeStorageRegion,
     base_byte_offset: usize,

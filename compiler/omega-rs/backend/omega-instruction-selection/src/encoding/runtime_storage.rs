@@ -1378,6 +1378,12 @@ pub fn classify_frame_base_double_indexed_convert_shape(
     classify_frame_base_double_indexed_shape(target)
 }
 
+pub fn classify_frame_base_double_indexed_address_shape(
+    source: &omega_target_operations::Place,
+) -> Option<FrameBaseDoubleIndexedShape> {
+    classify_frame_base_double_indexed_shape(source)
+}
+
 fn classify_frame_base_double_indexed_shape(
     target: &omega_target_operations::Place,
 ) -> Option<FrameBaseDoubleIndexedShape> {
@@ -1729,6 +1735,21 @@ pub fn encode_write_place_address(
     target_offset: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
     if architecture == Architecture::Aarch64
+        && let Some(double) = classify_frame_base_double_indexed_address_shape(source)
+    {
+        return aarch64::encode_runtime_frame_base_double_indexed_address_to_runtime_frame_write(
+            double.base_byte_offset,
+            double.outer_index_offset,
+            double.outer_index_byte_size,
+            double.outer_stride,
+            double.inner_index_offset,
+            double.inner_index_byte_size,
+            double.inner_stride,
+            double.field_byte_offset,
+            target_offset,
+        );
+    }
+    if architecture == Architecture::Aarch64
         && let Some(frame_indexed) = classify_frame_base_indexed_address_shape(source)
     {
         return aarch64::encode_runtime_frame_base_indexed_address_to_runtime_frame_write_with_index_region(
@@ -1842,6 +1863,15 @@ pub fn write_place_address_register_writes(
     source: &omega_target_operations::Place,
     target_offset: usize,
 ) -> Result<omega_calling_conventions::RegisterSet, Diagnostic> {
+    if architecture == Architecture::Aarch64
+        && classify_frame_base_double_indexed_address_shape(source).is_some()
+    {
+        return Ok(
+            aarch64::runtime_frame_base_double_indexed_address_to_runtime_frame_write_clobbers(
+                target_offset,
+            ),
+        );
+    }
     if architecture == Architecture::Aarch64
         && let Some(frame_indexed) = classify_frame_base_indexed_address_shape(source)
     {
