@@ -476,6 +476,13 @@ fn compiler_instruction_validation_kind(
                 == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
                 && target.region
                     == omega_target_operations::RuntimeStorageRegion::RuntimeFrame)
+            || (matches!(
+                omega_instruction_selection::classify_copy_places_shape(source, target),
+                omega_instruction_selection::CopyPlacesShape::IndexedToPointeeByRegion { .. }
+            ) && source.region
+                == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+                && target.region
+                    == omega_target_operations::RuntimeStorageRegion::RuntimeFrame)
             || matches!(
                 omega_instruction_selection::classify_copy_places_shape(source, target),
                 omega_instruction_selection::CopyPlacesShape::FromFrameBaseIndexed { .. }

@@ -1043,8 +1043,9 @@ The first ordinary compiler-body write subset covers direct storage-pair
 frame-held pointee sources landing in direct storage, and frame-held
 pointee-to-pointee copies. Single runtime-indexed sources with frame-held
 descriptor/index slots landing in direct frame or machine storage are included
-too, along with their direct-frame-source to frame-indexed-target mirror.
-The frame-indexed-source to frame-held-pointee form is included as well.
+too, along with their cross-region direct-storage-source to frame-indexed-target
+mirror. The frame-indexed-source to frame-held-pointee form also accepts a
+machine-storage index and retains its distinct base relocation and scratch.
 Runtime-indexed reads from inline frame arrays into direct frame storage are
 also covered, as are inline machine-array reads into direct frame or machine
 storage and direct-storage writes into runtime-indexed machine-array elements.
