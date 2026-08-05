@@ -398,6 +398,110 @@ pub fn encode_place_convert_write(
     Ok((bytes, sites))
 }
 
+/// Materialize a scratch text buffer through any x86 place walk. The target
+/// descriptor remains in r15 while r14 carries the compiler-owned buffer; the
+/// returned buffer site and place sites are emitted by this same byte recipe.
+pub fn encode_place_text_buffer_materialize(
+    target: &Place,
+) -> Result<(Vec<u8>, PlaceCopySites, usize), Diagnostic> {
+    let mut bytes = Vec::new();
+    let mut sites = PlaceCopySites::default();
+    let displacement =
+        materialize_place_address(&mut bytes, &mut sites, target, AddressRegister::Target)?;
+    let buffer_site = bytes.len();
+    super::append_mov_r14_imm64(&mut bytes, 0);
+    super::append_load_rax_from_r15(&mut bytes, displacement)?;
+    super::append_load_rcx_from_r15(&mut bytes, displacement + 8)?;
+    super::append_mov_r11_rcx(&mut bytes);
+    super::append_mov_r10_r14(&mut bytes);
+    super::append_mov_rsi_rax(&mut bytes);
+    super::append_mov_rdi_r10(&mut bytes);
+    super::append_rep_movsb(&mut bytes);
+    super::append_store_r14_to_r15(&mut bytes, displacement)?;
+    super::append_store_r11_to_r15(&mut bytes, displacement + 8)?;
+    Ok((bytes, sites, buffer_site))
+}
+
+pub fn place_text_buffer_materialize_register_writes() -> RegisterSet {
+    super::runtime_text_buffer_materialize_register_writes()
+}
+
+pub fn place_text_buffer_materialize_additional_machine_state(target: &Place) -> MachineStateSet {
+    if target.scaled_index_regions().next().is_some() {
+        MachineStateSet::new([MachineState::Flags])
+    } else {
+        MachineStateSet::empty()
+    }
+}
+
+/// Append immediate bytes to the scratch buffer owned by a text descriptor
+/// addressed through any x86 place walk.
+pub fn encode_place_text_literal_append(
+    target: &Place,
+    literal: &str,
+) -> Result<(Vec<u8>, PlaceCopySites, usize), Diagnostic> {
+    let mut bytes = Vec::new();
+    let mut sites = PlaceCopySites::default();
+    let displacement =
+        materialize_place_address(&mut bytes, &mut sites, target, AddressRegister::Target)?;
+    let buffer_site = bytes.len();
+    super::append_mov_r14_imm64(&mut bytes, 0);
+    super::append_load_r11_from_r15(&mut bytes, displacement + 8)?;
+    for byte in literal.as_bytes() {
+        bytes.extend([0xb1, *byte]); // mov cl, imm8
+        bytes.extend([0x43, 0x88, 0x0c, 0x1e]); // mov [r14+r11], cl
+        bytes.extend([0x49, 0xff, 0xc3]); // inc r11
+    }
+    super::append_store_r14_to_r15(&mut bytes, displacement)?;
+    super::append_store_r11_to_r15(&mut bytes, displacement + 8)?;
+    Ok((bytes, sites, buffer_site))
+}
+
+pub fn place_text_literal_append_register_writes(target: &Place) -> RegisterSet {
+    let mut registers = vec![
+        MachineRegister::X86Rcx,
+        MachineRegister::X86R11,
+        MachineRegister::X86R14,
+        MachineRegister::X86R15,
+    ];
+    if target.scaled_index_regions().count() > 1 {
+        registers.push(MachineRegister::X86R10);
+    }
+    RegisterSet::new(registers)
+}
+
+/// Append one stored `{ptr,len}` source to the scratch buffer owned by a text
+/// descriptor addressed through any x86 place walk.
+pub fn encode_place_text_stored_append(
+    target: &Place,
+    source_offset: usize,
+) -> Result<(Vec<u8>, PlaceCopySites, usize, usize), Diagnostic> {
+    let mut bytes = Vec::new();
+    let mut sites = PlaceCopySites::default();
+    let displacement =
+        materialize_place_address(&mut bytes, &mut sites, target, AddressRegister::Target)?;
+    let buffer_site = bytes.len();
+    super::append_mov_r14_imm64(&mut bytes, 0);
+    super::append_load_r11_from_r15(&mut bytes, displacement + 8)?;
+    super::append_mov_r10_r14(&mut bytes);
+    super::append_add_r10_r11(&mut bytes);
+    let source_site = bytes.len();
+    super::append_mov_rcx_imm64(&mut bytes, 0);
+    super::append_load_rax_from_rcx(&mut bytes, source_offset)?;
+    super::append_load_rcx_from_rcx(&mut bytes, source_offset + 8)?;
+    super::append_add_r11_rcx(&mut bytes);
+    super::append_store_r14_to_r15(&mut bytes, displacement)?;
+    super::append_store_r11_to_r15(&mut bytes, displacement + 8)?;
+    super::append_mov_rsi_rax(&mut bytes);
+    super::append_mov_rdi_r10(&mut bytes);
+    super::append_rep_movsb(&mut bytes);
+    Ok((bytes, sites, buffer_site, source_site))
+}
+
+pub fn place_text_stored_append_register_writes() -> RegisterSet {
+    super::runtime_text_stored_place_append_register_writes()
+}
+
 /// The DETERMINISTIC base-relocation positions of a place binary write's
 /// prefix: the target base mov at 0, then each CROSS-REGION index's own
 /// base mov at its prep position (index preps run in place order BEFORE the
@@ -1881,5 +1985,52 @@ mod tests {
                 "index width {index_byte_size}"
             );
         }
+    }
+
+    #[test]
+    fn general_text_assembly_walks_two_cross_region_target_indices() {
+        let target = Place::at(RuntimeStorageRegion::RuntimeFrame, 32)
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::Machine,
+                index_offset: 8,
+                index_byte_size: 4,
+                element_byte_size: 24,
+            })
+            .unwrap()
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::Machine,
+                index_offset: 12,
+                index_byte_size: 4,
+                element_byte_size: 8,
+            })
+            .unwrap();
+
+        let assert_sites = |sites: PlaceCopySites| {
+            let sides = sites.iter().map(|(_, side)| side).collect::<Vec<_>>();
+            assert_eq!(
+                sides,
+                vec![
+                    PlaceCopySide::Target,
+                    PlaceCopySide::TargetIndex,
+                    PlaceCopySide::TargetIndex2,
+                ]
+            );
+        };
+
+        let (materialize, sites, buffer_site) =
+            encode_place_text_buffer_materialize(&target).expect("materialize general target");
+        assert_sites(sites);
+        assert_eq!(&materialize[buffer_site..buffer_site + 2], &[0x49, 0xbe]);
+
+        let (literal, sites, buffer_site) =
+            encode_place_text_literal_append(&target, "ok").expect("append literal");
+        assert_sites(sites);
+        assert_eq!(&literal[buffer_site..buffer_site + 2], &[0x49, 0xbe]);
+
+        let (stored, sites, buffer_site, source_site) =
+            encode_place_text_stored_append(&target, 48).expect("append stored source");
+        assert_sites(sites);
+        assert_eq!(&stored[buffer_site..buffer_site + 2], &[0x49, 0xbe]);
+        assert_eq!(&stored[source_site..source_site + 2], &[0x48, 0xb9]);
     }
 }

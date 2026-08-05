@@ -1078,17 +1078,17 @@ Composed-place conversion writes share that fragment and exact recipe for all
 x86 materializer targets and every classified AArch64 target: direct, pointee,
 frame-descriptor-indexed, inline-frame-indexed, and single- or double-runtime-
 indexed machine places.
-Text-buffer materialization is inside the partial proof for its direct,
-pointee, and frame-indexed forms on x86; AArch64 also replays cross-region frame
-indices and transient inline-frame indexed destinations. The retained row
-binds the exact buffer data-object identity and target place, replays the target
-encoder and mixed data/storage relocation set, and matches a dedicated
+Text-buffer materialization is inside the partial proof for every x86 target
+accepted by the general place materializer, including double-indexed transient
+frame destinations; AArch64 also replays cross-region frame indices and
+transient inline-frame indexed destinations. The retained row binds the exact
+buffer data-object identity and target place, replays the target encoder and
+mixed data/storage/index relocation set, and matches a dedicated
 `CompilerBodyTextAssemblyWrite` footprint. Literal and stored-source appends
-share that fragment for those ordinary forms and transient inline-frame indexed
-AArch64 destinations, retaining the exact literal or source storage, buffer,
-place, encoder, and relocation set. Persistent machine destinations are not a
-scratch-buffer assembly target because the borrowed view cannot outlive the
-buffer. Segmented literal writes retain their exact
+share all x86 materializer targets and the classified AArch64 coverage,
+retaining the exact literal or source storage, buffer, place, encoder, and
+relocation set. Persistent machine destinations remain source-rejected because
+the borrowed view cannot outlive the buffer. Segmented literal writes retain their exact
 buffer symbol, byte offset, literal, encoder, and sole data relocation under
 the same text-assembly fragment. Segmented stored-suffix appends retain the
 exact buffer and source/target storage identities, offsets, length delta,

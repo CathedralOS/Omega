@@ -396,9 +396,8 @@ pub fn encode_runtime_text_stored_place_append_to_place(
             element_byte_size,
             field_byte_offset,
         ),
-        (Architecture::X86_64, _) => Err(Diagnostic::error(
-            "AppendTextStoredToPlace on x86_64 serves direct, pointee, and frame-indexed targets",
-        )),
+        (Architecture::X86_64, _) => x86_64::encode_place_text_stored_append(target, source_offset)
+            .map(|(bytes, _, _, _)| bytes),
         (Architecture::Aarch64, _) => Err(Diagnostic::error(
             "AppendTextStoredToPlace on aarch64 serves transient direct, pointee, frame-indexed, and frame-base-indexed targets",
         )),
@@ -544,9 +543,9 @@ pub fn encode_runtime_text_literal_append_to_place(
             field_byte_offset,
             literal,
         ),
-        (Architecture::X86_64, _) => Err(Diagnostic::error(
-            "AppendTextLiteralToPlace on x86_64 serves direct, pointee, and frame-indexed targets",
-        )),
+        (Architecture::X86_64, _) => {
+            x86_64::encode_place_text_literal_append(target, literal).map(|(bytes, _, _)| bytes)
+        }
         (Architecture::Aarch64, _) => Err(Diagnostic::error(
             "AppendTextLiteralToPlace on aarch64 serves transient direct, pointee, frame-indexed, and frame-base-indexed targets",
         )),
@@ -648,9 +647,8 @@ pub fn encode_runtime_text_buffer_materialize_to_place(
             element_byte_size,
             field_byte_offset,
         ),
-        (Architecture::X86_64, _) => Err(Diagnostic::error(
-            "MaterializeTextBufferToPlace on x86_64 serves direct, pointee, and frame-indexed targets",
-        )),
+        (Architecture::X86_64, _) => x86_64::encode_place_text_buffer_materialize(target)
+            .map(|(bytes, _, _)| bytes),
         (Architecture::Aarch64, WritePlaceShape::Direct { byte_offset }) => {
             aarch64::encode_runtime_text_buffer_materialize(byte_offset)
         }
@@ -723,6 +721,26 @@ pub fn encode_runtime_text_buffer_materialize_to_place(
             "MaterializeTextBufferToPlace on aarch64 serves transient direct, pointee, frame-indexed, and frame-base-indexed targets",
         )),
     }
+}
+
+pub fn x86_64_encode_runtime_text_buffer_materialize_to_place_with_sites(
+    target: &omega_target_operations::Place,
+) -> Result<(Vec<u8>, x86_64::PlaceCopySites, usize), Diagnostic> {
+    x86_64::encode_place_text_buffer_materialize(target)
+}
+
+pub fn x86_64_encode_runtime_text_literal_append_to_place_with_sites(
+    target: &omega_target_operations::Place,
+    literal: &str,
+) -> Result<(Vec<u8>, x86_64::PlaceCopySites, usize), Diagnostic> {
+    x86_64::encode_place_text_literal_append(target, literal)
+}
+
+pub fn x86_64_encode_runtime_text_stored_append_to_place_with_sites(
+    target: &omega_target_operations::Place,
+    source_offset: usize,
+) -> Result<(Vec<u8>, x86_64::PlaceCopySites, usize, usize), Diagnostic> {
+    x86_64::encode_place_text_stored_append(target, source_offset)
 }
 
 /// One stdin byte into a `ByteRead` sum slot (std console `read_byte()`).

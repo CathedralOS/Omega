@@ -55,6 +55,28 @@ pub(super) fn collect_runtime_text_materialize_relocations(
                         buffer_symbol,
                     );
                 }
+                (omega_target::Architecture::X86_64, _) => {
+                    let (_, sites, buffer_site) = omega_instruction_selection::x86_64_encode_runtime_text_buffer_materialize_to_place_with_sites(target)
+                        .expect("general x86 text materialization reached relocation after successful layout");
+                    for (byte_offset, side) in sites.iter() {
+                        let region = match side {
+                            omega_instruction_selection::PlaceCopySide::Target => target.region,
+                            omega_instruction_selection::PlaceCopySide::TargetIndex => target
+                                .scaled_index_region()
+                                .expect("target index site implies an index"),
+                            omega_instruction_selection::PlaceCopySide::TargetIndex2 => target
+                                .scaled_index_regions()
+                                .nth(1)
+                                .expect("second target index site implies two indices"),
+                            _ => unreachable!("text materialization walks only its target"),
+                        };
+                        context.insert_data_address_at_relative_offset(
+                            byte_offset,
+                            context.storage_region_symbol_handle(region),
+                        );
+                    }
+                    context.insert_data_address_at_relative_offset(buffer_site, buffer_symbol);
+                }
                 (
                     omega_target::Architecture::Aarch64,
                     omega_instruction_selection::WritePlaceShape::FrameIndexed { .. }

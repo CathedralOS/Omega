@@ -1150,7 +1150,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         executable_regions.contains(
             "\"certificate_schema\": \"omega.final-footprint-certificate\""
         )
-            && executable_regions.contains("\"certificate_format_version\": 89")
+            && executable_regions.contains("\"certificate_format_version\": 90")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
             && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")
@@ -2925,6 +2925,43 @@ fn compiler_body_string_write_footprints_reach_x86_and_aarch64_artifacts() {
         );
         let _ = fs::remove_dir_all(&scratch);
     }
+}
+
+#[test]
+fn compiler_body_general_x86_text_assembly_reaches_the_final_artifact() {
+    let canary = pass_canary("text/runtime_x86_general_double_indexed_string_concat_compile");
+    let scratch = std::env::temp_dir().join(format!(
+        "omega-general-x86-text-assembly-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&scratch);
+    let output = scratch.join("out");
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(output.clone()),
+        target_name: Some("linux_x64".into()),
+        write_output: true,
+    })
+    .expect("general double-indexed x86 text assembly should compile");
+
+    let footprints = fs::read_to_string(output.join("08_boundary_footprints.json"))
+        .expect("general x86 text-assembly footprint evidence should be written");
+    assert!(
+        footprints.contains("\"origin\": \"compiler_body_text_assembly_write\"")
+            && footprints.contains("\"X86R10\"")
+            && footprints.contains("\"X86R15\""),
+        "general x86 text assembly must retain its two-index materializer footprint"
+    );
+    let regions = fs::read_to_string(output.join("13_executable_regions.json"))
+        .expect("general x86 final executable-region evidence should be written");
+    assert!(
+        regions.contains("\"certificate_format_version\": 90")
+            && regions.contains("\"compiler_function_body_specification_subset\""),
+        "general x86 text assembly must reach final-image validation"
+    );
+    let elf = fs::read(output.join("omega-program")).expect("linux_x64 ELF emitted");
+    assert_eq!(&elf[..4], b"\x7fELF");
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]

@@ -5029,6 +5029,9 @@ fn validate_compiler_function_instruction_boundaries(
                                 element_byte_size,
                                 field_byte_offset,
                             )?,
+                            (Architecture::X86_64, _) => {
+                                omega_isa_x86_64::encode_place_text_buffer_materialize(&target)?.0
+                            }
                             (
                                 Architecture::Aarch64,
                                 CompilerBodyPlaceIntegerWriteShape::Direct { byte_offset },
@@ -5138,6 +5141,9 @@ fn validate_compiler_function_instruction_boundaries(
                                 field_byte_offset,
                                 &literal,
                             )?,
+                            (Architecture::X86_64, _) => {
+                                omega_isa_x86_64::encode_place_text_literal_append(&target, &literal)?.0
+                            }
                             (
                                 Architecture::Aarch64,
                                 CompilerBodyPlaceIntegerWriteShape::Direct { byte_offset },
@@ -5255,6 +5261,9 @@ fn validate_compiler_function_instruction_boundaries(
                                 element_byte_size,
                                 field_byte_offset,
                             )?,
+                            (Architecture::X86_64, _) => {
+                                omega_isa_x86_64::encode_place_text_stored_append(&target, source_offset)?.0
+                            }
                             (
                                 Architecture::Aarch64,
                                 CompilerBodyPlaceIntegerWriteShape::Direct { byte_offset },
@@ -8169,6 +8178,12 @@ fn compiler_instruction_footprint(
                     omega_isa_x86_64::runtime_text_buffer_materialize_to_runtime_frame_indexed_register_writes(),
                     omega_isa_x86_64::runtime_text_buffer_materialize_additional_machine_state(),
                 ),
+                (Architecture::X86_64, _) => (
+                    omega_isa_x86_64::place_text_buffer_materialize_register_writes(),
+                    omega_isa_x86_64::place_text_buffer_materialize_additional_machine_state(
+                        &target,
+                    ),
+                ),
                 (
                     Architecture::Aarch64,
                     CompilerBodyPlaceIntegerWriteShape::Direct { .. },
@@ -8217,6 +8232,10 @@ fn compiler_instruction_footprint(
                     omega_isa_x86_64::runtime_text_literal_append_to_runtime_frame_indexed_register_writes(),
                     omega_isa_x86_64::runtime_text_literal_append_additional_machine_state(),
                 ),
+                (Architecture::X86_64, _) => (
+                    omega_isa_x86_64::place_text_literal_append_register_writes(&target),
+                    omega_isa_x86_64::runtime_text_literal_append_additional_machine_state(),
+                ),
                 (
                     Architecture::Aarch64,
                     CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. },
@@ -8257,6 +8276,10 @@ fn compiler_instruction_footprint(
                     CompilerBodyPlaceIntegerWriteShape::FrameIndexed { .. },
                 ) => (
                     omega_isa_x86_64::runtime_text_stored_place_append_to_runtime_frame_indexed_register_writes(),
+                    omega_isa_x86_64::runtime_text_stored_place_append_additional_machine_state(),
+                ),
+                (Architecture::X86_64, _) => (
+                    omega_isa_x86_64::place_text_stored_append_register_writes(),
                     omega_isa_x86_64::runtime_text_stored_place_append_additional_machine_state(),
                 ),
                 (
@@ -11540,6 +11563,29 @@ fn validate_compiler_text_buffer_materialize_relocations(
                 ExpectedTarget::Buffer,
             ),
         ],
+        (Architecture::X86_64, _) => {
+            let (_, encoded_sites, buffer_site) =
+                omega_isa_x86_64::encode_place_text_buffer_materialize(&target)?;
+            let mut sites = encoded_sites
+                .iter()
+                .map(|(site, side)| {
+                    let region = match side {
+                        omega_isa_x86_64::PlaceCopySide::Target => target.region,
+                        omega_isa_x86_64::PlaceCopySide::TargetIndex => target
+                            .scaled_index_region()
+                            .expect("target index site implies an index"),
+                        omega_isa_x86_64::PlaceCopySide::TargetIndex2 => target
+                            .scaled_index_regions()
+                            .nth(1)
+                            .expect("second target index site implies two indices"),
+                        _ => unreachable!("text materialization walks only its target"),
+                    };
+                    (site, ExpectedTarget::Storage(region))
+                })
+                .collect::<Vec<_>>();
+            sites.push((buffer_site, ExpectedTarget::Buffer));
+            sites
+        }
         (
             Architecture::Aarch64,
             CompilerBodyPlaceIntegerWriteShape::Direct { .. }
@@ -11669,6 +11715,29 @@ fn validate_compiler_text_literal_append_relocations(
                 ExpectedTarget::Buffer,
             ),
         ],
+        (Architecture::X86_64, _) => {
+            let (_, encoded_sites, buffer_site) =
+                omega_isa_x86_64::encode_place_text_literal_append(&target, "")?;
+            let mut sites = encoded_sites
+                .iter()
+                .map(|(site, side)| {
+                    let region = match side {
+                        omega_isa_x86_64::PlaceCopySide::Target => target.region,
+                        omega_isa_x86_64::PlaceCopySide::TargetIndex => target
+                            .scaled_index_region()
+                            .expect("target index site implies an index"),
+                        omega_isa_x86_64::PlaceCopySide::TargetIndex2 => target
+                            .scaled_index_regions()
+                            .nth(1)
+                            .expect("second target index site implies two indices"),
+                        _ => unreachable!("literal append walks only its target"),
+                    };
+                    (site, ExpectedTarget::Storage(region))
+                })
+                .collect::<Vec<_>>();
+            sites.push((buffer_site, ExpectedTarget::Buffer));
+            sites
+        }
         (
             Architecture::Aarch64,
             CompilerBodyPlaceIntegerWriteShape::Direct { .. }
@@ -11844,6 +11913,30 @@ fn validate_compiler_text_stored_append_relocations(
                 ExpectedTarget::Storage(source_region),
             ),
         ],
+        (Architecture::X86_64, _) => {
+            let (_, encoded_sites, buffer_site, source_site) =
+                omega_isa_x86_64::encode_place_text_stored_append(&target, 0)?;
+            let mut sites = encoded_sites
+                .iter()
+                .map(|(site, side)| {
+                    let region = match side {
+                        omega_isa_x86_64::PlaceCopySide::Target => target.region,
+                        omega_isa_x86_64::PlaceCopySide::TargetIndex => target
+                            .scaled_index_region()
+                            .expect("target index site implies an index"),
+                        omega_isa_x86_64::PlaceCopySide::TargetIndex2 => target
+                            .scaled_index_regions()
+                            .nth(1)
+                            .expect("second target index site implies two indices"),
+                        _ => unreachable!("stored-text append walks only its target"),
+                    };
+                    (site, ExpectedTarget::Storage(region))
+                })
+                .collect::<Vec<_>>();
+            sites.push((buffer_site, ExpectedTarget::Buffer));
+            sites.push((source_site, ExpectedTarget::Storage(source_region)));
+            sites
+        }
         (Architecture::Aarch64, CompilerBodyPlaceIntegerWriteShape::Direct { .. }) => vec![
             (0usize, ExpectedTarget::Buffer),
             (8usize, ExpectedTarget::Storage(target.region)),

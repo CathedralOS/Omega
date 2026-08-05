@@ -104,9 +104,9 @@ pub enum AbstractOperationKind {
     },
 
     /// Task #132 (op-set shrink): materialize a text-buffer descriptor into
-    /// a place-shaped target -- the Materialize x {direct, pointee,
-    /// frame-indexed} crossing collapses onto this one. Encoding decomposes
-    /// by place shape to the retained encoders on BOTH architectures.
+    /// a place-shaped target -- the former shape crossing collapses onto this
+    /// one. X86 uses its general place materializer; AArch64 decomposes into
+    /// the retained classified encoders.
     MaterializeTextBufferToPlace {
         buffer: AbstractDataObjectHandle,
         target: Place,

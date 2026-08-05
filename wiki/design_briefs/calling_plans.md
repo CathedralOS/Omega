@@ -1290,17 +1290,17 @@ indexed machine places.
 Final validation replays the exact target encoder
 and relocation set and matches the derived scratch union to the
 respective retained `CompilerBodyPlaceCopy` or
-`CompilerBodyPlaceIntegerWrite` fragment. Unclassified AArch64 place shapes,
-persistent-machine text assembly, and calls remain unreplayed. Text-buffer materialization replays its direct,
-pointee, and frame-indexed forms on x86; AArch64 additionally covers
-cross-region frame indices and transient inline-frame indexed destinations.
-The exact buffer data object and target storage relocations bind to a dedicated
+`CompilerBodyPlaceIntegerWrite` fragment. Unclassified AArch64 place shapes
+and calls remain unreplayed. Text-buffer materialization replays every x86
+target accepted by the general place materializer, including double-indexed
+transient frame destinations; AArch64 additionally covers cross-region frame
+indices and transient inline-frame indexed destinations. The exact buffer data
+object and target/index relocations bind to a dedicated
 `CompilerBodyTextAssemblyWrite` footprint. Literal and stored-source appends
-share that fragment for the same ordinary forms plus transient inline-frame
-indexed AArch64 destinations, retaining their exact literal or source storage,
-buffer, place, encoder, and mixed relocation recipe. Persistent machine
-destinations remain outside scratch-buffer assembly because the borrowed view
-cannot outlive its buffer. Segmented literal-buffer writes share the
+share all x86 materializer targets and the classified AArch64 coverage,
+retaining their exact literal or source storage, buffer, place, encoder, and
+mixed relocation recipe. Persistent machine destinations remain source-
+rejected because the borrowed view cannot outlive its buffer. Segmented literal-buffer writes share the
 text-assembly fragment as well,
 retaining their exact buffer symbol, byte offset, literal, encoder, and sole
 data-object relocation. Segmented stored-suffix appends share it too, retaining

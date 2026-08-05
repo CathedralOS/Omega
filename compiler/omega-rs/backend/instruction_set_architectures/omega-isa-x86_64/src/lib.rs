@@ -14,7 +14,8 @@ pub use place_copy::{
     encode_place_bounded_buffer_literal_append, encode_place_bounded_buffer_source_append,
     encode_place_bounded_buffer_write, encode_place_compare, encode_place_convert_write,
     encode_place_copy, encode_place_copy_shared_base, encode_place_integer_write,
-    encode_place_string_write, encode_place_value_compare,
+    encode_place_string_write, encode_place_text_buffer_materialize,
+    encode_place_text_literal_append, encode_place_text_stored_append, encode_place_value_compare,
     place_address_write_additional_machine_state, place_address_write_register_writes,
     place_binary_index_base_positions, place_binary_operand_start_width,
     place_bounded_buffer_literal_append_additional_machine_state,
@@ -25,7 +26,10 @@ pub use place_copy::{
     place_bounded_buffer_write_register_writes, place_compare_additional_machine_state,
     place_compare_register_writes, place_integer_write_clobbers,
     place_string_write_additional_machine_state, place_string_write_register_writes,
-    place_value_compare_additional_machine_state, place_value_compare_register_writes,
+    place_text_buffer_materialize_additional_machine_state,
+    place_text_buffer_materialize_register_writes, place_text_literal_append_register_writes,
+    place_text_stored_append_register_writes, place_value_compare_additional_machine_state,
+    place_value_compare_register_writes,
 };
 
 use omega_calling_conventions::{
