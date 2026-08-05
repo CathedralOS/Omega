@@ -9,7 +9,9 @@
 // an aggregate-literal alias must not substitute into an indexed collection
 // position, the third fold layer), and a by-value param array through a
 // value machine. An all-frame nested record array also writes a string
-// descriptor through both runtime indices. All value-validated.
+// descriptor through both runtime indices. Whole-Triple values also cross a
+// frame-held pointee in both directions from distinct local 2D arrays. All
+// value-validated.
 domain [u8]::Utf8
 requires
     valid_utf8(self);
@@ -68,7 +70,20 @@ machine Main::main(&mut self) {
         let replaced: Triple = triples[i][j];
         triples[i][j] = triples[source_i][source_j];
         let copied: Triple = triples[i][j];
-        transition picked == 8 && rooms[1][2].description == "omega" && labels[1][2].text == "omega" && replaced.first == 10 && replaced.second == 20 && replaced.third == 30 && copied.first == 4 && copied.second == 5 && copied.third == 6 {
+        let source_triples: [[Triple; 3]; 2] = [
+            [Triple { first: 1, second: 2, third: 3 }, Triple { first: 40, second: 50, third: 60 }, Triple { first: 7, second: 8, third: 9 }],
+            [Triple { first: 11, second: 12, third: 13 }, Triple { first: 14, second: 15, third: 16 }, Triple { first: 17, second: 18, third: 19 }]
+        ];
+        let target_triples: [[Triple; 3]; 2] = [
+            [Triple { first: 21, second: 22, third: 23 }, Triple { first: 24, second: 25, third: 26 }, Triple { first: 27, second: 28, third: 29 }],
+            [Triple { first: 31, second: 32, third: 33 }, Triple { first: 34, second: 35, third: 36 }, Triple { first: 37, second: 38, third: 39 }]
+        ];
+        let through: &mut Triple = &mut target_triples[i][j];
+        through = source_triples[source_i][source_j];
+        let reverse: &mut Triple = &mut source_triples[i][j];
+        reverse = Triple { first: 70, second: 80, third: 90 };
+        target_triples[source_i][source_j] = reverse;
+        transition picked == 8 && rooms[1][2].description == "omega" && labels[1][2].text == "omega" && replaced.first == 10 && replaced.second == 20 && replaced.third == 30 && copied.first == 4 && copied.second == 5 && copied.third == 6 && target_triples[1][2].first == 40 && target_triples[1][2].second == 50 && target_triples[1][2].third == 60 && target_triples[0][1].first == 70 && target_triples[0][1].second == 80 && target_triples[0][1].third == 90 {
             true -> machine_target()
             false -> no()
         }
