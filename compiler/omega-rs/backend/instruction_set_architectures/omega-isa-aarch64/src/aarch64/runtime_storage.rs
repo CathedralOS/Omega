@@ -4279,17 +4279,47 @@ pub fn encode_runtime_storage_copy_to_runtime_frame_indexed(
     field_byte_offset: usize,
     byte_count: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(
+    encode_runtime_storage_copy_to_runtime_frame_indexed_with_regions(
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+        source_offset,
+        descriptor_offset,
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+        byte_count,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_storage_copy_to_runtime_frame_indexed_with_regions(
+    source_region: omega_target_operations::RuntimeStorageRegion,
+    source_offset: usize,
+    descriptor_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let needs_source_machine_base = source_region
+        == omega_target_operations::RuntimeStorageRegion::Machine
+        && index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
+    let expected_width =
         super::widths::runtime_storage_copy_to_runtime_frame_indexed_width(
             source_offset,
             element_byte_size,
             field_byte_offset,
             byte_count,
-        ),
-    );
-    append_runtime_frame_index_target_address(
+        ) + usize::from(index_region == omega_target_operations::RuntimeStorageRegion::Machine) * 8
+            + usize::from(needs_source_machine_base) * 8;
+    let mut bytes = Vec::with_capacity(expected_width);
+    append_runtime_frame_index_target_address_with_index_region(
         &mut bytes,
         16,
+        index_region,
         descriptor_offset,
         index_offset,
         index_byte_size,
@@ -4298,14 +4328,28 @@ pub fn encode_runtime_storage_copy_to_runtime_frame_indexed(
         17,
         26,
     )?;
-    append_add_constant_to_x_register(&mut bytes, 20, source_offset)?;
+    let source_base = match source_region {
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame => 20,
+        omega_target_operations::RuntimeStorageRegion::Machine
+            if index_region == omega_target_operations::RuntimeStorageRegion::Machine =>
+        {
+            15
+        }
+        omega_target_operations::RuntimeStorageRegion::Machine => {
+            bytes.extend(encode_adrp_placeholder(15));
+            bytes.extend(encode_add_page_offset_placeholder(15));
+            15
+        }
+    };
+    append_add_constant_to_x_register(&mut bytes, source_base, source_offset)?;
 
     for_each_runtime_copy_chunk(0, 0, byte_count, |offset, chunk_size| {
-        append_load_data_from_x_offset(&mut bytes, 17, 20, offset, chunk_size, 26)?;
+        append_load_data_from_x_offset(&mut bytes, 17, source_base, offset, chunk_size, 26)?;
         append_store_data_to_x_offset(&mut bytes, 17, 16, offset, chunk_size, 19)?;
         Ok(())
     })?;
 
+    debug_assert_eq!(bytes.len(), expected_width);
     Ok(bytes)
 }
 
@@ -4470,7 +4514,24 @@ pub fn runtime_storage_copy_from_runtime_frame_indexed_with_index_region_clobber
 /// encoder. Its address formation and copy use the same closed set as the
 /// indexed-source mirror.
 pub fn runtime_storage_copy_to_runtime_frame_indexed_clobbers() -> RegisterSet {
-    runtime_storage_copy_from_runtime_frame_indexed_clobbers()
+    runtime_storage_copy_to_runtime_frame_indexed_with_regions_clobbers(
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+    )
+}
+
+pub fn runtime_storage_copy_to_runtime_frame_indexed_with_regions_clobbers(
+    source_region: omega_target_operations::RuntimeStorageRegion,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+) -> RegisterSet {
+    let mut registers =
+        runtime_storage_copy_from_runtime_frame_indexed_with_index_region_clobbers(index_region)
+            .as_slice()
+            .to_vec();
+    if source_region == omega_target_operations::RuntimeStorageRegion::Machine {
+        registers.push(MachineRegister::Aarch64X(15));
+    }
+    RegisterSet::new(registers)
 }
 
 /// Exact scratch footprint of the frame-indexed-source to frame-held-pointee
@@ -10212,6 +10273,65 @@ mod tests {
             )
             .contains(MachineRegister::Aarch64X(15)),
             "the exact footprint must retain the cross-region base register"
+        );
+    }
+
+    #[test]
+    fn frame_indexed_copy_write_reuses_or_materializes_the_machine_source_base() {
+        let ordinary = encode_runtime_storage_copy_to_runtime_frame_indexed(56, 24, 40, 8, 4, 0, 4)
+            .expect("encode all-frame indexed copy write");
+        let shared_machine = encode_runtime_storage_copy_to_runtime_frame_indexed_with_regions(
+            omega_target_operations::RuntimeStorageRegion::Machine,
+            56,
+            24,
+            omega_target_operations::RuntimeStorageRegion::Machine,
+            40,
+            8,
+            4,
+            0,
+            4,
+        )
+        .expect("encode indexed copy write sharing one machine base");
+        let distinct_machine = encode_runtime_storage_copy_to_runtime_frame_indexed_with_regions(
+            omega_target_operations::RuntimeStorageRegion::Machine,
+            56,
+            24,
+            omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+            40,
+            8,
+            4,
+            0,
+            4,
+        )
+        .expect("encode indexed copy write with a distinct machine source base");
+
+        assert_eq!(shared_machine.len(), ordinary.len() + 8);
+        assert_eq!(distinct_machine.len(), ordinary.len() + 8);
+        assert_eq!(
+            &shared_machine[32..40],
+            [
+                encode_adrp_placeholder(15),
+                encode_add_page_offset_placeholder(15)
+            ]
+            .concat(),
+            "a machine index must materialize the reusable machine base at the shared site"
+        );
+        let distinct_site = widths::runtime_frame_index_setup_width(4, 0);
+        assert_eq!(
+            &distinct_machine[distinct_site..distinct_site + 8],
+            [
+                encode_adrp_placeholder(15),
+                encode_add_page_offset_placeholder(15)
+            ]
+            .concat(),
+            "a machine source with a frame index needs its own post-address-setup base"
+        );
+        assert!(
+            runtime_storage_copy_to_runtime_frame_indexed_with_regions_clobbers(
+                omega_target_operations::RuntimeStorageRegion::Machine,
+                omega_target_operations::RuntimeStorageRegion::Machine,
+            )
+            .contains(MachineRegister::Aarch64X(15))
         );
     }
 

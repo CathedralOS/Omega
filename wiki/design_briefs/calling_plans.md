@@ -1252,7 +1252,9 @@ subset. Single runtime-indexed sources with frame-held descriptor/index slots
 and a direct frame or machine target are included too, along with their
 cross-region machine-indexed form and exact second-base relocation. Their
 direct-frame-source to frame-indexed-target mirror and frame-indexed-source to
-frame-held-pointee forms are included too. Runtime-indexed reads from inline
+frame-held-pointee forms are included too; the direct-source mirror also
+accepts machine-storage sources or indices with an exact reused or distinct
+machine-base relocation. Runtime-indexed reads from inline
 frame arrays into
 direct frame storage and from inline machine arrays into direct frame or
 machine storage are included too, together with direct-storage writes into

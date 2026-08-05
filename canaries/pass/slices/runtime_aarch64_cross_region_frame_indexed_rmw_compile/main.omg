@@ -15,8 +15,12 @@ machine Main::main(&mut self) {
     self.value = 40;
     let s: &mut [i32 in Wrapping] = self.arr.as_mut_slice();
     transition self.i < s.len {
-        true -> work(s)
+        true -> seed(s)
         false -> no()
+    }
+    state seed(&mut self, s: &mut [i32 in Wrapping]) {
+        s[self.i] = self.value;
+        transition true { _ -> work(s) }
     }
     state work(&mut self, s: &mut [i32 in Wrapping]) {
         s[self.i] = self.value + 2;

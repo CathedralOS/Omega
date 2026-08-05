@@ -653,12 +653,27 @@ pub fn derive_boundary_compiler_body_place_copy_footprint<'instruction>(
             {
                 omega_isa_x86_64::copy_places_to_indexed_clobbers(*byte_count)
             }
+            (
+                omega_target::Architecture::X86_64,
+                crate::CopyPlacesShape::ToIndexedByRegion { .. },
+            ) => omega_isa_x86_64::copy_places_clobbers(source, target, *byte_count),
             (omega_target::Architecture::Aarch64, crate::CopyPlacesShape::ToIndexed { .. })
                 if source.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
                     && target.region
                         == omega_target_operations::RuntimeStorageRegion::RuntimeFrame =>
             {
                 omega_isa_aarch64::runtime_storage_copy_to_runtime_frame_indexed_clobbers()
+            }
+            (
+                omega_target::Architecture::Aarch64,
+                crate::CopyPlacesShape::ToIndexedByRegion { index_region, .. },
+            ) if target.region
+                == omega_target_operations::RuntimeStorageRegion::RuntimeFrame =>
+            {
+                omega_isa_aarch64::runtime_storage_copy_to_runtime_frame_indexed_with_regions_clobbers(
+                    source.region,
+                    index_region,
+                )
             }
             (omega_target::Architecture::X86_64, crate::CopyPlacesShape::IndexedToPointee { .. })
                 if source.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
