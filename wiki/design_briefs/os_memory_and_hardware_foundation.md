@@ -1132,9 +1132,10 @@ targets and every classified AArch64 place target, including indexed and
 double-indexed owned carriers, their target/literal/relocation walk, and the
 dedicated footprint fragment. Inline-frame AArch64 targets accept frame- or
 machine-held indices with the exact second-base relocation. Literal appends
-replay all x86 targets and every
-classified AArch64 target with a separate encoder and relocation recipe.
-Source-carrier appends share it too: x86 replays both general place walks;
+replay all x86 targets and every classified AArch64 target with a separate
+encoder and relocation recipe, including inline-frame targets whose index is
+frame- or machine-held and the exact second-base relocation. Source-carrier
+appends share that target set too: x86 replays both general place walks;
 AArch64 serves every classified target with a direct or pointee source and
 replays the indexed target walk, source walk, and copy-loop state.
 String-descriptor writes are inside the proof for all x86 targets and the

@@ -1442,7 +1442,11 @@ fn compiler_instruction_validation_kind(
                         | omega_instruction_selection::WritePlaceShape::FrameBaseIndexed { .. }
                         | omega_instruction_selection::WritePlaceShape::MachineIndexed { .. }
                         | omega_instruction_selection::WritePlaceShape::MachineDoubleIndexed { .. }
-                ) =>
+                )
+                || omega_instruction_selection::classify_frame_base_indexed_bounded_buffer_literal_append_shape(
+                    target,
+                )
+                .is_some() =>
         {
             Some(
                 CompilerInstructionValidationKind::CompilerBodyPlaceBoundedBufferLiteralAppend {
@@ -1453,14 +1457,21 @@ fn compiler_instruction_validation_kind(
         }
         SelectedInstructionKind::AppendPlaceBoundedBufferSource { target, source }
             if emission_context.target.architecture == omega_target::Architecture::X86_64
-                || (!matches!(
+                || ((!matches!(
                     omega_instruction_selection::classify_write_place_shape(target),
                     omega_instruction_selection::WritePlaceShape::Unsupported
                 ) && matches!(
                     omega_instruction_selection::classify_write_place_shape(source),
                     omega_instruction_selection::WritePlaceShape::Direct { .. }
                         | omega_instruction_selection::WritePlaceShape::Pointee { .. }
-                )) =>
+                )) || (omega_instruction_selection::classify_frame_base_indexed_bounded_buffer_source_append_shape(
+                    target,
+                )
+                .is_some() && matches!(
+                    omega_instruction_selection::classify_write_place_shape(source),
+                    omega_instruction_selection::WritePlaceShape::Direct { .. }
+                        | omega_instruction_selection::WritePlaceShape::Pointee { .. }
+                ))) =>
         {
             Some(
                 CompilerInstructionValidationKind::CompilerBodyPlaceBoundedBufferSourceAppend {

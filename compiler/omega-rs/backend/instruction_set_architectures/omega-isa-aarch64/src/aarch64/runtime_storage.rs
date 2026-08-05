@@ -2985,9 +2985,31 @@ pub fn encode_runtime_frame_base_indexed_bounded_buffer_literal_append(
     field_byte_offset: usize,
     literal: &str,
 ) -> Result<Vec<u8>, Diagnostic> {
+    encode_runtime_frame_base_indexed_bounded_buffer_literal_append_with_index_region(
+        base_byte_offset,
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+        literal,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_frame_base_indexed_bounded_buffer_literal_append_with_index_region(
+    base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    literal: &str,
+) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::with_capacity(
-        super::widths::runtime_frame_base_indexed_bounded_buffer_literal_append_width(
+        super::widths::runtime_frame_base_indexed_bounded_buffer_literal_append_with_index_region_width(
             base_byte_offset,
+            index_region,
             index_offset,
             index_byte_size,
             element_byte_size,
@@ -2995,10 +3017,11 @@ pub fn encode_runtime_frame_base_indexed_bounded_buffer_literal_append(
             literal,
         ),
     );
-    append_runtime_frame_base_index_target_address(
+    append_runtime_frame_base_index_target_address_with_index_region(
         &mut bytes,
         16,
         base_byte_offset,
+        index_region,
         index_offset,
         index_byte_size,
         element_byte_size,
@@ -3009,8 +3032,9 @@ pub fn encode_runtime_frame_base_indexed_bounded_buffer_literal_append(
     append_bounded_buffer_literal_to_x16(&mut bytes, literal)?;
     debug_assert_eq!(
         bytes.len(),
-        super::widths::runtime_frame_base_indexed_bounded_buffer_literal_append_width(
+        super::widths::runtime_frame_base_indexed_bounded_buffer_literal_append_with_index_region_width(
             base_byte_offset,
+            index_region,
             index_offset,
             index_byte_size,
             element_byte_size,
@@ -3163,11 +3187,39 @@ pub fn encode_runtime_frame_base_indexed_bounded_buffer_source_append(
     ),
     Diagnostic,
 > {
+    encode_runtime_frame_base_indexed_bounded_buffer_source_append_with_index_region(
+        base_byte_offset,
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+        source,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_frame_base_indexed_bounded_buffer_source_append_with_index_region(
+    base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    source: &omega_target_operations::Place,
+) -> Result<
+    (
+        Vec<u8>,
+        super::place_bounded_buffer::BoundedBufferPlaceSites,
+    ),
+    Diagnostic,
+> {
     let mut bytes = Vec::new();
-    append_runtime_frame_base_index_target_address(
+    append_runtime_frame_base_index_target_address_with_index_region(
         &mut bytes,
         16,
         base_byte_offset,
+        index_region,
         index_offset,
         index_byte_size,
         element_byte_size,
@@ -9609,6 +9661,28 @@ mod tests {
             )
         );
 
+        let cross_region_frame_base =
+            encode_runtime_frame_base_indexed_bounded_buffer_literal_append_with_index_region(
+                24, machine, 8, 8, 16, 0, "te",
+            )
+            .expect("cross-region frame-base-indexed bounded-buffer literal append");
+        assert_eq!(
+            cross_region_frame_base.len(),
+            super::super::widths::runtime_frame_base_indexed_bounded_buffer_literal_append_with_index_region_width(
+                24, machine, 8, 8, 16, 0, "te",
+            )
+        );
+        let index_site = widths::runtime_frame_base_indexed_machine_index_base_offset(24);
+        assert_eq!(
+            &cross_region_frame_base[index_site..index_site + 8],
+            [
+                encode_adrp_placeholder(15),
+                encode_add_page_offset_placeholder(15)
+            ]
+            .concat(),
+            "the machine-held literal-append index must own an x15 base pair"
+        );
+
         for (outer_region, inner_region) in [
             (machine, machine),
             (frame, machine),
@@ -9684,6 +9758,23 @@ mod tests {
         )
         .expect("frame-base-indexed bounded-buffer source append");
         assert_eq!(sites.iter().count(), 1);
+
+        let (cross_region, sites) =
+            encode_runtime_frame_base_indexed_bounded_buffer_source_append_with_index_region(
+                24, machine, 8, 8, 16, 0, &source,
+            )
+            .expect("cross-region frame-base-indexed bounded-buffer source append");
+        assert_eq!(sites.iter().count(), 1);
+        let index_site = widths::runtime_frame_base_indexed_machine_index_base_offset(24);
+        assert_eq!(
+            &cross_region[index_site..index_site + 8],
+            [
+                encode_adrp_placeholder(15),
+                encode_add_page_offset_placeholder(15)
+            ]
+            .concat(),
+            "the machine-held source-append index must own an x15 base pair"
+        );
 
         for (outer_region, inner_region) in [
             (machine, machine),

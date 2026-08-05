@@ -2,7 +2,9 @@
 // elements. The target frame base stays distinct while a copied source can
 // reuse the index's machine base; immediate, binary, and conversion writes use
 // that same index relocation independently. A string-descriptor field write
-// exercises the same cross-region address shape with a data-object relocation.
+// exercises the same cross-region address shape with a data-object relocation;
+// owned-carrier write plus direct-source and literal appends cover the carrier
+// mutation family at that target too.
 domain [u8]::Utf8
 requires
     valid_utf8(self);
@@ -23,6 +25,7 @@ data Main {
     left: i64 [0..=50];
     right: i64 [0..=50];
     source: i64 [0..=100];
+    prefix: [u8; 8] in Utf8;
 }
 machine Main::main(&mut self) {
     self.index = 2;
@@ -30,6 +33,7 @@ machine Main::main(&mut self) {
     self.left = 20;
     self.right = 30;
     self.source = 61;
+    self.prefix = "ome";
     transition { _ -> self.pick() }
 }
 machine Main::pick(&mut self) {
@@ -53,6 +57,7 @@ machine Main::pick(&mut self) {
         Label { text: "old" }
     ];
     labels[self.index].text = "omega";
+    labels[self.index].text = self.prefix + "ga";
     let v: i64 = a[2];
     let w: i64 = b[2];
     let x: i64 = c[2];

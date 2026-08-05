@@ -1154,10 +1154,12 @@ frame- or machine-held indices for inline-frame targets. Their exact second-base
 relocation, target, literal, and relocation walk bind a separate
 `CompilerBodyPlaceBoundedBufferWrite` footprint. Literal appends now replay all
 x86 targets and every classified AArch64 target with their own exact encoder
-and relocation recipe. Source-carrier appends now share it as well: x86 retains
-both general place walks, while AArch64 serves every classified target with a
-direct or pointee source and replays the indexed target walk, source walk, and
-copy-loop state. Immediate compact bit-field writes
+and relocation recipe, including inline-frame targets whose index is held in
+the frame or machine region and the exact second-base relocation. Source-carrier
+appends now share that target coverage as well: x86 retains both general place
+walks, while AArch64 serves every classified target with a direct or pointee
+source and replays the indexed target walk, source walk, and copy-loop state.
+Immediate compact bit-field writes
 now retain their exact storage region, base offset, fragment layout, and value;
 final validation replays the target encoder and sole destination relocation
 against a separate `CompilerBodyStorageBitFieldWrite` footprint. Pointee-pair
