@@ -39,17 +39,20 @@ There are exactly two ways anything becomes trustworthy.
 - **Trust by checking** — "this is good because I checked it, and I do not care
   who made it." The producer can be a vast LLM-grown compiler, or malware, or
   Rust — irrelevant *to whether the output is correct* — because it must hand over
-  **evidence** that its output is correct, and one tiny thing we *do* trust
-  validates that evidence. Bad evidence is rejected. The producer is never
-  trusted; only the checker is. ("Irrelevant to correctness" is not "fine to keep
-  forever" — see [Two roles for Rust](#two-roles-for-rust-and-why-it-still-dies).)
+  **evidence** that its output is correct, and a deliberately small verification
+  base validates both the required claims and their derivations. Bad evidence is
+  rejected. The producer is not trusted; the artifact verifier, proof kernel,
+  canonical semantics, and disclosed admissions are. ("Irrelevant to correctness"
+  is not "fine to keep forever" — see
+  [Two roles for Rust](#two-roles-for-rust-and-why-it-still-dies).)
 
 The asymmetry is the whole game:
 
 - Pedigree: you must trust *everything that ever touched the artifact*.
-- Checking: you must trust *one small checker plus the meaning it checks
-  against*. The compiler, the build host, the supply chain, the implementation
-  language — all may be hostile and the result is still sound.
+- Checking: you must trust *one small verification stack plus the meaning it
+  checks against*. The compiler, the build host, the supply chain, and the
+  producer's implementation language may be hostile and the result is still
+  sound.
 
 Trust-by-checking is a single answer to every threat we care about: **Thompson**
 (the backdoored self-hoster's output fails the check), **supply-chain** (a
@@ -101,7 +104,7 @@ These are different budgets and must be tracked separately.
 
 The trustworthy core grows, but its lower layers stay frozen and comprehensible.
 
-## Two stacks, joined only by a checker
+## Two stacks, joined by artifact verification
 
 Build two parallel stacks.
 
@@ -111,14 +114,16 @@ Build two parallel stacks.
 - The **machine stack** is the actual stuff: source text, the real (untrusted)
   compiler, real bytes, real silicon.
 
-They touch only through the checker: a producer emits output **plus a
-certificate**; the checker validates the certificate against the meaning; only
-checked output ships.
+They touch through two deliberately separate checks. An **artifact verifier**
+reads the canonical artifact and independently reconstructs the exact claims
+that artifact must establish. The **proof kernel** then checks the supplied
+derivations of those claims. A producer emits output plus evidence, but it does
+not choose which claims count as sufficient; only fully verified output ships.
 
 ```text
    MEANING (reference route, slow)        MACHINE (fast, untrusted)
    ------------------------------         -------------------------
-   what a program means         <—— check —— compiler output + certificate
+   what a program means     <—— verify artifact + check proofs —— output + evidence
         |                                          |
    ...defined by interpreters                 ...produced by any tooling
         |                                          |
@@ -248,11 +253,11 @@ the soundness of a checked artifact*. That is true and liberating — but it is
 **not** "Rust is fine forever." Two different guarantees are in play, and Rust
 threatens one of them regardless of checking:
 
-- **Semantic correctness of an artifact** — given a sound checker, independent of
-  the producer. A Rust-built Omega compiler whose output is checked can at worst
-  produce output that *fails* the check; it cannot produce wrong-but-accepted
-  output (it cannot forge a certificate the checker accepts). For this,
-  Rust-as-producer is genuinely irrelevant.
+- **Semantic correctness of an artifact** — given a sound artifact verifier and
+  proof kernel, independent of the producer. A Rust-built Omega compiler whose
+  output is checked can at worst produce output that *fails* verification; it
+  cannot choose an easier obligation or forge a derivation the kernel accepts.
+  For this, Rust-as-producer is genuinely irrelevant.
 - **Bootstrappability / self-sufficiency** — that the whole toolchain traces to an
   audited seed with no external unaudited dependency. Checking does nothing for
   this. A checked artifact built by an unaudited Rust+LLVM blob is sound but not
@@ -262,25 +267,22 @@ threatens one of them regardless of checking:
 So Rust dies completely; checking only sets the **order**, because Rust plays two
 different roles:
 
-- **Rust as the checker or the meaning** (the reference interpreters, the
-  semantics, today's contract-entailment engine) is the **trusted base itself**.
-  If the checker is a Rust program, Rust *is* your trusted base — Thompson and
-  supply-chain risk back in full. This must die **first**, and moving it onto the
-  audited-seed lineage is *the entire reason the lattice exists*. The checker is a
-  [Gamma](rungs/gamma.md) program run down the reference route to the
-  hand-assembled [Alpha](rungs/alpha.md) seed — depending on {Alpha, Beta, Gamma},
-  none of which is Rust.
+- **Rust as the artifact verifier, proof kernel, or meaning implementation** is
+  part of the trusted base. The generic proof kernel already has Beta and Gamma
+  implementations on the audited-seed lineage. The canonical interpreter and
+  Psi-aware obligation reconstruction must reach the same standard or be named
+  explicitly as remaining trusted components.
 - **Rust as the producer** (`omega-rs`, the optimizing compiler) is, once a
-  checker exists, *outside the soundness base*. It still dies — for
-  self-sufficiency — but it is the **deferrable** kill; a checked, Rust-built
-  compiler is a fine interim state.
+  complete verifier-plus-kernel route exists, *outside the soundness base*. It
+  still dies — for self-sufficiency — but it is the **deferrable** kill; a
+  verified, Rust-built compiler output is a fine interim state.
 
-**Where the repo is today:** the differential-oracle reference interpreter and the
-entailment engine are both Rust, and there is no checker — so Rust is currently
-deep in the de-facto trusted base. Removing it from the *trusted* parts (checker +
-meaning) is the urgent job; removing it from the *producer* is the cosmetic, later
-one. Treat any framing that calls Rust "merely a producer" as describing the
-*end-state after the checker exists*, not today.
+**Where the repo is today:** the low proof kernel exists in Beta and Gamma. The
+current terminal-Psi artifact verifier, terminal interpreter, source proof
+engine, and production compiler are still Rust. Rust therefore remains in the
+de-facto trusted path until obligation reconstruction and canonical execution
+have an audited closure. Removing Rust from the producer remains necessary for
+self-sufficiency, but it is not the same task.
 
 ## Honest edges
 
@@ -330,8 +332,14 @@ The places this architecture glides over real cost. Build with eyes open.
   the interpreters refine it? (Honest edge #1.)
 - **The diversity plan** — how many independent alpha implementations, on which
   ISAs, authored how, to make the diamonds real Thompson resistance?
-- **Certificate format** — the shared shape a producer emits and the proof kernel
-  reads. (Tracked also as proof-engine-north-star open question #3.)
+- **Terminal-Psi verification placement** — whether the final Psi-aware artifact
+  verifier has a low-rung reference implementation, emits a low-kernel-checkable
+  obligation-derivation certificate, or remains an explicitly trusted Psi
+  component. The obligation-reconstruction semantics are settled; their final
+  trust placement is not.
+- **Certificate format** — the shared, versioned proposition and derivation shape
+  that all proof-kernel implementations decide identically, including its exact
+  binding to terminal-Psi identity and reconstructed obligation identity.
 - **Reconciling current gamma** — today's compiler-first imperative gamma vs the
   interpreter-first functional/total gamma this architecture wants.
 - **Delta sufficiency** — the exact subset required to host the complete Psi/Omega

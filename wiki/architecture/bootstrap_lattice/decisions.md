@@ -57,11 +57,18 @@ changing “meaning = reference interpreter.”
 
 ## D3 — Trust flows through PROOFS, not through trusting native binaries. Native-code trust ends at translation validation.
 
-The provable chain seed → Psi/Omega is **proof-carrying**: a producer ships a
-certificate which the Rust-free, independently implemented proof kernel checks. A
-backdoored *producer* can at worst emit output that **fails** the check — it cannot
-forge a certificate the kernel accepts. So the soundness of a *proof about source* never
-depends on the compiler.
+The provable chain seed → Psi/Omega is **proof-carrying**: the artifact verifier
+reconstructs the claims required by the exact fingerprinted artifact, and the
+producer ships derivations which the Rust-free, independently implemented proof
+kernel checks. A backdoored *producer* can at worst emit output that **fails**
+verification — it cannot select an easier claim, omit a generated obligation, or
+forge a derivation the kernel accepts. The soundness of a proof about the
+fingerprinted artifact never depends on the proof-producing compiler. A separate
+checked-source-to-artifact or artifact-to-native refinement claim is required
+before transferring that result across a compilation boundary. The final trust
+placement of the Psi-aware
+obligation-reconstruction implementation remains explicit open work; kernel
+acceptance alone is not artifact verification.
 
 For **native-code** trust (Cathedral running real binaries, where the compiler is
 the isolation boundary), the endpoint is **translation validation**: the backend

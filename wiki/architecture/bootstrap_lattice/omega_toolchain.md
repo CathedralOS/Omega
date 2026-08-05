@@ -13,8 +13,9 @@ The distinction is architectural:
 - Alpha, Beta, Gamma, and Delta form the language chain used to rebuild the
   toolchain from the audited seed.
 - Psi and Omega are the real compiler products built by that chain.
-- The [proof kernel](proof_kernel.md) independently checks certificates emitted
-  alongside terminal Psi and lower artifacts.
+- The Psi-aware artifact verifier reconstructs the obligations imposed by an
+  exact terminal-Psi module; the [proof kernel](proof_kernel.md) independently
+  checks the certificate derivations that discharge those obligations.
 
 ## Current repository roles
 
@@ -29,9 +30,19 @@ toolchain dependencies and gives the project a reproducible path from the audite
 seed. Semantic correctness comes from the canonical meaning route, proof
 obligations, and independent certificate checking.
 
+The current Rust `psi-terminal-verifier` demonstrates the artifact-aware half:
+it validates canonical terminal Psi, reconstructs its exact obligation set,
+rejects missing or extra evidence, and produces `VerifiedTerminalModule`. It is
+not interchangeable with the generic proof kernel. The final hosted architecture
+must either place an auditable reference verifier on the bootstrap spine, make
+the Psi verifier emit a reconstruction derivation checked by the low kernel, or
+list the Psi verifier explicitly in the trusted base.
+
 ## Open work
 
 - Move the full Psi/Omega implementation onto Delta without weakening the
   canonical terminal-Psi contract.
 - Emit and check per-compilation refinement evidence for native artifacts.
+- Connect terminal-Psi obligation reconstruction to the low-rung proof-kernel
+  route and close its final trust-placement decision.
 - Keep production optimization outside the trusted proof kernel.

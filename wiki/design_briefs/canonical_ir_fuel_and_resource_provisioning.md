@@ -623,6 +623,21 @@ and fixed-fuel certificates without trusting the producing compiler. Native
 lowering/refinement certificates have a different subject and TCB and remain a
 separate future lane.
 
+Terminal-Psi verification has two compositional judgments. The artifact-aware
+judgment canonical-decodes the module and reconstructs the complete obligation
+set from its operations, edges, contracts, and authorized admission sites. The
+generic proof-kernel judgment checks derivations of the resulting propositions.
+The module determines what must be proved; a proof bundle only discharges that
+set and is rejected for missing, extra, mismatched, or differently bound
+evidence.
+
+The semantic split is settled even though final implementation placement is
+deliberately deferred. The Psi-aware judgment may gain a low-rung reference
+implementation, emit a reconstruction derivation checked by the low kernel, or
+remain an explicitly named trusted component. A Psi-hosted implementation of the
+generic kernel is useful for speed or a further independent diamond, but cannot
+by itself establish that the right obligations were reconstructed.
+
 ## Implementation sequence
 
 1. Establish the proposition IR, small proof kernel, closed total judgments,
@@ -639,6 +654,8 @@ separate future lane.
    backend work on explicit instantiated values.
 5. Define deterministic serialization, semantic/module fingerprints, proof and
    installation section hashes, and version migration tests.
+   Bind every evidence row to the exact semantic and reconstructed-obligation
+   identities; a certificate-provided proposition is never authoritative.
 6. Define the separately versioned logical fuel schedule and interpreter meter.
 7. Feed build-time evaluation usage, progress, warnings, and optional policy
    from that meter.
