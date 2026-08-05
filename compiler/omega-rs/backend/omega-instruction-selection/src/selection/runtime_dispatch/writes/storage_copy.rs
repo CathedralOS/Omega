@@ -3,7 +3,6 @@ use omega_control_flow::StateKey;
 use psi_checked_trees::expression::{Expression, ExpressionHandle, ExpressionTable};
 
 use super::super::super::storage_places::{
-    resolve_runtime_frame_base_double_indexed_source_in_table,
     resolve_runtime_frame_base_double_indexed_source_with_index_regions,
     resolve_runtime_frame_base_double_indexed_source_with_index_regions_in_table,
     resolve_runtime_frame_base_indexed_target_with_index_region,
@@ -865,35 +864,43 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indexed_source_cop
         );
     }
 
-    if let Some(double_target) = resolve_runtime_frame_base_double_indexed_source_in_table(
-        input,
-        dispatch_index,
-        target_source_key,
-        expressions,
-        target,
-    ) && let Some(double_source) = resolve_runtime_frame_base_double_indexed_source_in_table(
-        input,
-        dispatch_index,
-        value_source_key,
-        expressions,
-        value,
-    ) && double_source.byte_count == double_target.byte_count
+    if let Some(double_target) =
+        resolve_runtime_frame_base_double_indexed_source_with_index_regions_in_table(
+            input,
+            dispatch_index,
+            target_source_key,
+            expressions,
+            target,
+        )
+        && let Some(double_source) =
+            resolve_runtime_frame_base_double_indexed_source_with_index_regions_in_table(
+                input,
+                dispatch_index,
+                value_source_key,
+                expressions,
+                value,
+            )
+        && double_source.byte_count == double_target.byte_count
         && double_target.byte_count > 0
     {
         return Some(
             crate::selection::runtime_dispatch::copy_places_frame_base_double_indexed_pair(
                 double_source.base_byte_offset,
+                double_source.outer_index_region,
                 double_source.outer_index_offset,
                 double_source.outer_index_byte_size,
                 double_source.outer_stride,
+                double_source.inner_index_region,
                 double_source.inner_index_offset,
                 double_source.inner_index_byte_size,
                 double_source.inner_stride,
                 double_source.field_byte_offset,
                 double_target.base_byte_offset,
+                double_target.outer_index_region,
                 double_target.outer_index_offset,
                 double_target.outer_index_byte_size,
                 double_target.outer_stride,
+                double_target.inner_index_region,
                 double_target.inner_index_offset,
                 double_target.inner_index_byte_size,
                 double_target.inner_stride,

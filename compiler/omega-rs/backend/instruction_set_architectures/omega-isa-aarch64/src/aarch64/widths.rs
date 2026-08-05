@@ -2487,13 +2487,33 @@ pub fn runtime_storage_copy_frame_base_indexed_to_frame_base_indexed_width(
         + 8 * runtime_copy_chunk_pair_count(byte_count)
 }
 
-/// Width of an all-frame double-indexed pair copy: one shared frame pair,
-/// one preserved root, two fixed 2D address walks, a source-address stash,
-/// a target-root reset, and the exact chunked representation copy.
+/// Width of a frame-inline double-indexed pair copy: one shared frame pair,
+/// one optional shared machine-index pair, one preserved root, two fixed 2D
+/// address walks, a source-address stash, a target-root reset, and the exact
+/// representation copy.
 pub fn runtime_storage_copy_frame_base_double_indexed_to_frame_base_double_indexed_width(
+    source_outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    source_inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    target_outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    target_inner_index_region: omega_target_operations::RuntimeStorageRegion,
     byte_count: usize,
 ) -> usize {
-    8 + 4 + 36 + 4 + 4 + 36 + runtime_storage_copy_data_width(0, 0, byte_count)
+    let machine = omega_target_operations::RuntimeStorageRegion::Machine;
+    8 + 4
+        + if source_outer_index_region == machine
+            || source_inner_index_region == machine
+            || target_outer_index_region == machine
+            || target_inner_index_region == machine
+        {
+            8
+        } else {
+            0
+        }
+        + 36
+        + 4
+        + 4
+        + 36
+        + runtime_storage_copy_data_width(0, 0, byte_count)
 }
 
 /// Width of a machine-rooted double-indexed pair copy. Each side owns its
