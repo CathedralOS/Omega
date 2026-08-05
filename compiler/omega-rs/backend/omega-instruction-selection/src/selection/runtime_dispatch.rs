@@ -1700,6 +1700,42 @@ pub(crate) fn copy_places_machine_indexed_pair(
     }
 }
 
+/// `arr[i] = arr[j]` on all-frame inline arrays -- one runtime index each
+/// side, with the arrays and index slots sharing the runtime frame.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn copy_places_frame_base_indexed_pair(
+    source_base_byte_offset: usize,
+    source_index_offset: usize,
+    source_index_byte_size: usize,
+    source_element_byte_size: usize,
+    source_field_byte_offset: usize,
+    target_base_byte_offset: usize,
+    target_index_offset: usize,
+    target_index_byte_size: usize,
+    target_element_byte_size: usize,
+    target_field_byte_offset: usize,
+    byte_count: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::CopyPlaces {
+        source: frame_base_indexed_place(
+            source_base_byte_offset,
+            source_index_offset,
+            source_index_byte_size,
+            source_element_byte_size,
+            source_field_byte_offset,
+        ),
+        target: frame_base_indexed_place(
+            target_base_byte_offset,
+            target_index_offset,
+            target_index_byte_size,
+            target_element_byte_size,
+            target_field_byte_offset,
+        ),
+        byte_count,
+        role: omega_abstract_operations::CopyPlacesRole::Ordinary,
+    }
+}
+
 /// Rung 2c-x: the frame inline 2D-array element READ (all-frame).
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn copy_places_from_frame_base_double_indexed(

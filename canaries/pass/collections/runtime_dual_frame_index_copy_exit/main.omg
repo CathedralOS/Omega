@@ -1,7 +1,9 @@
-// DUAL-indexed copy with BOTH indices FRAME-resident params
-// (`self.arr[k] = self.arr[j]`): used to be a clean encoder error. Each side
-// now loads its index off its own frame-base relocation. arr[3]=arr[1]=77 -> 1.
+// DUAL-indexed copies with BOTH indices FRAME-resident params. The machine
+// array (`self.arr[k] = self.arr[j]`) retains its independent machine roots;
+// the local aggregate array (`local[k] = local[j]`) shares one frame root
+// across both array walks and both index slots.
 use omega::language::std::console;
+data Triple { first: i32; second: i32; third: i32; }
 data Main {
     console: Console;
     arr: [i32; 4];
@@ -11,8 +13,15 @@ machine Main::main(&mut self) {
     transition { _ -> self.copy_elem(3, 1) }
 }
 machine Main::copy_elem(&mut self, k: u64 [0..=3], j: u64 [0..=3]) {
+    let local: [Triple; 4] = [
+        Triple { first: 1, second: 2, third: 3 },
+        Triple { first: 10, second: 20, third: 30 },
+        Triple { first: 4, second: 5, third: 6 },
+        Triple { first: 7, second: 8, third: 9 }
+    ];
+    local[k] = local[j];
     self.arr[k] = self.arr[j];
-    transition self.arr[3] == 77 {
+    transition self.arr[3] == 77 && local[3].first == 10 && local[3].second == 20 && local[3].third == 30 {
         true -> yes()
         false -> no()
     }

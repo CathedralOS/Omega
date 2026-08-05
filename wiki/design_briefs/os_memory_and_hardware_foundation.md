@@ -1053,7 +1053,9 @@ array elements. An inline-frame target may take its index from frame or machine
 storage and reuses the machine index base for a machine-resident source.
 Double-runtime-indexed reads from inline frame or machine arrays, the
 machine-array write-side mirror, the all-frame AArch64 write from direct frame
-or machine storage, and the machine-inline `arr[i] = arr[j]` pair are covered.
+or machine storage, and both machine-inline and all-frame `arr[i] = arr[j]`
+pairs are covered. The all-frame pair shares one frame root across both array
+walks and both index slots.
 The all-frame read and write copy complete aggregate byte spans rather than
 only scalar widths, share one frame relocation across the collection and both
 indices, and add a distinct source relocation only for machine storage. An
