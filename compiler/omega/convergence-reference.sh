@@ -1,11 +1,11 @@
 #!/usr/bin/env sh
 # RUST-FREE REFERENCE-ROUTE CONVERGENCE — the proof-carrying loop with NO Rust anywhere.
 #
-# epsilon-rs/convergence-reference.sh runs a certifier down the MEANING route, but its epsilon->gamma
-# translator is `EPS_EMIT=gamma` (Rust gamma_emit.rs). This is the same loop with that last Rust step
+# delta-rs/convergence-reference.sh runs a certifier down the MEANING route, but its delta->gamma
+# translator is `DELTA_EMIT=gamma` (Rust gamma_emit.rs). This is the same loop with that last Rust step
 # removed: `omega2gamma.beta` (Rust-free, alpha->beta->bc) translates the certifier to gamma,
-# `gamma/interp.beta` (Rust-free) EXECUTES it and emits the certificate, and `delta/check.beta` (Rust-free)
-# accepts it. Every artifact in the loop is in the hand-audited alpha-rooted lineage — so a real epsilon
+# `gamma/interp.beta` (Rust-free) EXECUTES it and emits the certificate, and `proof-kernel/check.beta` (Rust-free)
+# accepts it. Every artifact in the loop is in the hand-audited alpha-rooted lineage — so a real delta
 # program's MEANING is computed, and its emitted proof checked, with zero Rust in the chain.
 #
 #   certify-add '2 3'  --(omega2gamma.beta)-->  gamma  --(interp.beta)-->  (= (p (s (s z)) ...) ...) (refl ...)
@@ -27,9 +27,9 @@ ASM=../beta/$BETA_SEED
 ( cd ../beta-lang-rs && sh build.sh ../beta-lang/bc.beta >/dev/null ) || { echo "convergence-reference(rust-free) FAIL — bc build"; exit 1; }
 b() { ../beta-lang-rs/build/bc.exe < "$1" > "$T/x.asm" 2>/dev/null && "$ASM" < "$T/x.asm" > "$T/x.tape" 2>/dev/null && stamp_seed "$T/x.tape" "$SEED" "$2" >/dev/null 2>&1; }
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
-b omega2gamma.beta      "$T/e2g.exe"    || { echo "convergence-reference(rust-free) FAIL — build omega2gamma.beta"; exit 1; }
+b omega2gamma.beta      "$T/omega2gamma.exe"    || { echo "convergence-reference(rust-free) FAIL — build omega2gamma.beta"; exit 1; }
 b ../gamma/interp.beta  "$T/interp.exe" || { echo "convergence-reference(rust-free) FAIL — build interp.beta"; exit 1; }
-b ../delta/check.beta   "$T/check.exe"  || { echo "convergence-reference(rust-free) FAIL — build check.beta"; exit 1; }
+b ../proof-kernel/check.beta   "$T/check.exe"  || { echo "convergence-reference(rust-free) FAIL — build check.beta"; exit 1; }
 
 PASS=0; FAIL=0
 # _emit SAMPLE "ascii-stdin" : omega2gamma translates the certifier; interp.beta runs it with that stdin
@@ -38,7 +38,7 @@ _emit() {
   bytes=$(printf '%s' "$2" | od -An -tu1 | tr ' ' '\n' | grep -vE '^$')
   rev=""; for x in $bytes; do rev="$x $rev"; done
   list="Nil"; for x in $rev; do list="(Cons $x $list)"; done
-  "$T/e2g.exe" < "../epsilon-rs/samples/$1.alp" 2>/dev/null | sed "s/STDIN/$list/" | "$T/interp.exe" 2>/dev/null \
+  "$T/omega2gamma.exe" < "../delta-rs/samples/$1.alp" 2>/dev/null | sed "s/STDIN/$list/" | "$T/interp.exe" 2>/dev/null \
     | grep -oE '[0-9]+' | awk '{printf "%c",$1}'
 }
 # ref SAMPLE "ascii" EXPECT : the cert check.beta emits must be EXPECT.

@@ -1,10 +1,10 @@
-; omega2gamma.beta — the Omega -> gamma MEANING translator (covers the Omega KERNEL SUBSET, née epsilon), written in Beta (Rust-FREE).
+; omega2gamma.beta — the Omega -> gamma MEANING translator (covers the Omega KERNEL SUBSET, née delta), written in Beta (Rust-FREE).
 ;
-; Rust-free counterpart to epsilon-rs/src/gamma_emit.rs. rungs/epsilon.md: epsilon's meaning is defined
+; Rust-free counterpart to delta-rs/src/gamma_emit.rs. rungs/delta.md: delta's meaning is defined
 ; by the reference interpreter, not the native backend. gamma_emit.rs pins that meaning but is RUST; this
-; removes it — reads epsilon SOURCE on stdin, prints a gamma s-expr on stdout, which the Rust-free
+; removes it — reads delta SOURCE on stdin, prints a gamma s-expr on stdout, which the Rust-free
 ; reference interpreter (gamma/interp.beta) runs. Both halves of the meaning route are now Rust-free.
-; It ALSO understands the shared OMEGA machine surface (epsilon is omega's on-ramp): dotted field paths
+; It ALSO understands the shared OMEGA machine surface (delta is omega's on-ramp): dotted field paths
 ; `self.state.n` (each path = one threaded slot), subjectless `transition { _ -> x() }` (subject := 0),
 ; `state name(&mut self)` headers, state-body lets (collected machine-wide, deduped), `use` decls, data
 ; attributes, and `in Domain` annotations (tolerated; domains are semantic no-ops while values stay in
@@ -23,8 +23,8 @@
 ; nth/setl helper defs are prepended when the entry uses arrays.
 ; read_byte: stdin threads as list slot `inp`; `x = read_byte()` -> two lets: x=head `(match inp (Nil
 ; (- 0 1)) ((Cons h t) h))`, inp=tail `(match inp (Nil Nil) ((Cons h t) t))`. The stream's INITIAL value in
-; the entry call is a `STDIN` placeholder (eps2gamma is a pure stdin->stdout filter, no env access); the
-; runner/diamond substitutes the `(Cons b0 .. Nil)` byte list — the analog of the Rust route's EPS_GAMMA_INPUT.
+; the entry call is a `STDIN` placeholder (omega2gamma is a pure stdin->stdout filter, no env access); the
+; runner/diamond substitutes the `(Cons b0 .. Nil)` byte list — the analog of the Rust route's DELTA_GAMMA_INPUT.
 ; FEATURE SET (grown over the 2026-07 producer arc; each lands with meaning-gate + termination-canary
 ; coverage): scalars/arrays/record-arrays (Pair-tuple elements), string carriers (+ .len, write_line of
 ; fields), case data (integer tags; (Pair tag payload) payloads with by-name field mapping), slices

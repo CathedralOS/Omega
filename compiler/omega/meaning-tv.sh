@@ -5,7 +5,7 @@
 # omega-meaning.sh checks each sample's meaning-route exit against its documented intent by comparing
 # numbers in the shell. This gate makes that a certificate: gamma2claim.py (UNTRUSTED, the tv-encode
 # precedent) abstract-executes the omega2gamma translation into an UNFOLDED kernel arithmetic term — every
-# + and * in the computation is a p/m node — and delta/check.beta accepts
+# + and * in the computation is a p/m node — and proof-kernel/check.beta accepts
 #       (= <meaning term> <unary exit>) (refl <unary exit>)
 # only by RE-COMPUTING the sample's entire arithmetic in its own conversion. The exit is cross-checked
 # three ways first (encoder = interpreter run = documented intent), and a perturbed certificate (exit+1)
@@ -46,15 +46,15 @@ ASM=../beta/$BETA_SEED
 ( cd ../beta-lang-rs && sh build.sh ../beta-lang/bc.beta >/dev/null 2>&1 ) || { echo "meaning-tv FAIL — bc build"; exit 1; }
 b() { ../beta-lang-rs/build/bc.exe < "$1" > "$T/x.asm" 2>/dev/null && "$ASM" < "$T/x.asm" > "$T/x.tape" 2>/dev/null && stamp_seed "$T/x.tape" "$SEED" "$2" >/dev/null 2>&1; }
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
-b omega2gamma.beta     "$T/e2g.exe"    || { echo "meaning-tv FAIL — build omega2gamma.beta"; exit 1; }
+b omega2gamma.beta     "$T/omega2gamma.exe"    || { echo "meaning-tv FAIL — build omega2gamma.beta"; exit 1; }
 b ../gamma/interp.beta "$T/interp.exe" || { echo "meaning-tv FAIL — build interp.beta"; exit 1; }
-b ../delta/check.beta  "$T/check.exe"  || { echo "meaning-tv FAIL — build check.beta"; exit 1; }
+b ../proof-kernel/check.beta  "$T/check.exe"  || { echo "meaning-tv FAIL — build check.beta"; exit 1; }
 
 PASS=0; FAIL=0; VCTOT=0
 tv() {
   src="../lattice-corpus/$1/main.omg"
   want=$(grep -oE 'Expected exit: [0-9]+' "$src" | head -1 | grep -oE '[0-9]+')
-  "$T/e2g.exe" < "$src" > "$T/g" 2>/dev/null
+  "$T/omega2gamma.exe" < "$src" > "$T/g" 2>/dev/null
   "$T/interp.exe" < "$T/g" > "$T/istdout" 2>/dev/null; got=$?
   case "$(head -c 6 "$T/istdout")" in '(Pair ')                   # dual-channel: exit rides the pair
     got=$(head -1 "$T/istdout" | sed 's/^(Pair \([0-9]*\) .*/\1/');; esac

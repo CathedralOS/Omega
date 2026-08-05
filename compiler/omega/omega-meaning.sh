@@ -3,7 +3,7 @@
 #
 # The lattice's meaning-by-elaboration route (decision D2) now reaches the SUMMIT rung: an Omega
 # program is translated to gamma by `omega2gamma.beta` (which understands the shared
-# epsilon/omega machine surface — dotted field paths `self.state.n`, subjectless transitions,
+# delta/omega machine surface — dotted field paths `self.state.n`, subjectless transitions,
 # `state name(&mut self)` headers, state-body lets) and EXECUTED by `gamma/interp.beta`. Both are
 # Rust-free (alpha->beta->bc lineage). Each sample's exit code must equal the "Expected exit: N"
 # its header documents — the language's stated intent for that program.
@@ -19,7 +19,7 @@ ASM=../beta/$BETA_SEED
 ( cd ../beta-lang-rs && sh build.sh ../beta-lang/bc.beta >/dev/null ) || { echo "omega-meaning FAIL — bc build"; exit 1; }
 b() { ../beta-lang-rs/build/bc.exe < "$1" > "$T/x.asm" 2>/dev/null && "$ASM" < "$T/x.asm" > "$T/x.tape" 2>/dev/null && stamp_seed "$T/x.tape" "$SEED" "$2" >/dev/null 2>&1; }
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
-b omega2gamma.beta          "$T/e2g.exe"    || { echo "omega-meaning FAIL — build omega2gamma.beta"; exit 1; }
+b omega2gamma.beta          "$T/omega2gamma.exe"    || { echo "omega-meaning FAIL — build omega2gamma.beta"; exit 1; }
 b ../gamma/interp.beta      "$T/interp.exe" || { echo "omega-meaning FAIL — build interp.beta"; exit 1; }
 
 PASS=0; FAIL=0
@@ -30,7 +30,7 @@ om() {
   src="../lattice-corpus/$1/main.omg"
   want=$(grep -oE 'Expected exit: [0-9]+' "$src" | head -1 | grep -oE '[0-9]+')
   [ -n "$want" ] || { FAIL=$((FAIL+1)); echo "  FAIL $1 : no documented exit"; return; }
-  "$T/e2g.exe" < "$src" 2>/dev/null | "$T/interp.exe" > "$T/mo.out" 2>&1; got=$?
+  "$T/omega2gamma.exe" < "$src" 2>/dev/null | "$T/interp.exe" > "$T/mo.out" 2>&1; got=$?
   case "$(head -c 6 "$T/mo.out")" in '(Pair ')                    # dual-channel: exit rides the pair
     got=$(head -1 "$T/mo.out" | sed 's/^(Pair \([0-9]*\) .*/\1/');; esac
   if [ "$got" = "$want" ]; then PASS=$((PASS+1)); else
@@ -41,7 +41,7 @@ om() {
 omt() {
   src="tests/$1.omg"
   want=$(grep -oE 'Expected exit: [0-9]+' "$src" | head -1 | grep -oE '[0-9]+')
-  "$T/e2g.exe" < "$src" 2>/dev/null | "$T/interp.exe" > "$T/mo.out" 2>&1; got=$?
+  "$T/omega2gamma.exe" < "$src" 2>/dev/null | "$T/interp.exe" > "$T/mo.out" 2>&1; got=$?
   case "$(head -c 6 "$T/mo.out")" in '(Pair ')                    # dual-channel: exit rides the pair
     got=$(head -1 "$T/mo.out" | sed 's/^(Pair \([0-9]*\) .*/\1/');; esac
   if [ "$got" = "$want" ]; then PASS=$((PASS+1)); else

@@ -39,7 +39,7 @@ shape with *its own trust story* — obligations discharged by certificates the 
    work is substantial).
 3. **Obligation generation.** `omega-rs` attaches obligations during compilation. The lattice's analogue is
    the elaboration route (D2): `omega2gamma` should eventually *emit certificates alongside code* the way
-   epsilon's convergence certifiers do — the proof-carrying-Omega target. Today's TV gate re-evaluates
+   delta's convergence certifiers do — the proof-carrying-Omega target. Today's TV gate re-evaluates
    results; the climb is from "results checked" to "compilation obligations discharged."
 
 ## Execution order (long view)
@@ -53,7 +53,7 @@ shape with *its own trust story* — obligations discharged by certificates the 
    constructors + carry-passing badd / shift-and-add bmul user funs), engaged per sample when unary
    magnitudes overflow, O(bits) kernel reductions. With it, `meaning-tv.sh` proves ALL 19 omega-meaning
    samples.*
-3. **Obligation-emitting elaboration**: port epsilon's certify-* pattern up to omega2gamma, one obligation
+3. **Obligation-emitting elaboration**: port delta's certify-* pattern up to omega2gamma, one obligation
    class at a time, each with its three-checker diamond. *Status: four classes live in `meaning-tv.sh` —
    division safety, array bounds, arithmetic witnesses (pins + chunked literal certificates), and DOMAIN
    ERASURE (the translator drops `in Saturating`/`Wrapping` annotations; every subtraction site carries a

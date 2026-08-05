@@ -1,101 +1,55 @@
-# Rung: Delta — evidence
+# Rung: Delta — compiler-host systems language
 
-[Lattice overview](../bootstrap_lattice.md) | Prev: [Gamma](gamma.md) | Next: [Epsilon](epsilon.md)
+[Lattice overview](../bootstrap_lattice.md) | Prev: [Gamma](gamma.md) | Next: —
 
-> **Status: DIRECTION + a first prototype.** The target checker (a Gamma program,
-> with a real soundness bridge) does not exist yet. But a minimal **Beta prototype**
-> now runs: [`compiler/delta/check.beta`](../../../../compiler/delta/check.beta) is
-> a natural-deduction proof checker (implication + conjunction; by Curry-Howard a
-> simply-typed-lambda type checker) — compiled by the self-hosting `bc`, run on the
-> seed, accepting valid certificates and rejecting invalid ones. It demonstrates
-> the checker architecture (tiny trusted checker, unbounded untrusted producer) end
-> to end, and its hand-encoded term/type trees are the concrete pull for the Gamma
-> rung. This is the rung where the whole trust-by-checking architecture earns its
-> keep: proof objects first appear here.
+> **Status: WORKING ON-RAMP.** `compiler/delta-rs/` is the disposable Rust
+> implementation. Its native corpus, self-hosting compiler, and Delta-to-Gamma
+> meaning diamond exist today. The implementation is still being moved fully
+> onto the audited bootstrap lineage.
 
-Delta introduces a small logical calculus and the **certificate checker** that
-validates evidence. It is the second hand-audited trust anchor in the system —
-the analogue of Lean's kernel.
-
-## Adds
-
-A small set of inference rules, e.g.:
+Delta is the terminal language rung in the bootstrap spine:
 
 ```text
-If A is true, and A implies B, then B is true.
+Alpha → Beta → Gamma → Delta
 ```
 
-…and a checker `check : Proposition × Certificate -> Accept | Reject`.
+It adds the systems machinery needed to host the real Psi/Omega toolchain:
+mutable storage, state machines, ownership and regions, effects, boundary
+operations, and the compiler-scale data structures built from them. Delta may be
+slow and conservatively lowered; its job is to make the production toolchain
+buildable from the audited seed without Rust or another external compiler.
 
-A separate **proof-search engine** may be arbitrarily sophisticated (and
-LLM-driven), but it has **no authority** — it only *generates* certificates for
-the small delta checker to validate. A buggy or hostile search engine cannot get
-a false proposition past the checker.
+## Implementation
 
-## Written in
+- `compiler/delta-rs/` is the current Rust on-ramp and executable specification.
+- `compiler/delta-rs/samples/lowermachine.alp` is the self-hosting compiler
+  written in the language.
+- `DELTA_EMIT=gamma` exposes the reference meaning path. The
+  `delta-meaning-diamond.sh` gate compares that path with native execution.
+- `compiler/delta/` contains the checked-in bootstrap binaries produced by this
+  work.
 
-The **certificate checker is a Gamma program** — small, audited, frozen. The
-proof-search engine is unconstrained and untrusted.
+## Relationship to Psi and Omega
 
-## Meaning
+Delta is a bootstrap language, not the product language. Psi owns the front end
+and terminal portable IR; Omega consumes terminal Psi and performs target
+realization and code generation. The Psi/Omega implementations are intended to
+be hosted in Delta once the rung is sufficient.
 
-The delta checker *is* the definition of "a valid proof": a certificate is valid
-iff the checker accepts it. The checker's correctness is therefore established by
-**audit** (it is small) and by lattice diamonds — not by proof (that would be
-circular), exactly as a proof-kernel's soundness is audited, not derived.
+## Proofs
 
-## The bootstrap (reference) route
+Delta programs may emit proof certificates, but proof checking is not a Delta
+language feature or a fifth rung. The cross-cutting [proof kernel](../proof_kernel.md)
+checks certificates using independent Beta and Gamma implementations.
 
-To use delta foundationally, run the checker through the slow downward route, not
-a delta/omega-compiled fast path:
+## Trust boundary
 
-```text
-Delta checker (Gamma)
-  interpreted by the Gamma interpreter (Beta)
-  interpreted by the Beta interpreter (Alpha)
-  executed by the native Alpha VM
-```
+Most Delta facilities erase into lower-rung computation. Native hardware
+operations—atomics, fences, MMIO, interrupt entry, and platform runtime calls—are
+explicit boundary surfaces and remain in the platform trust ledger.
 
-**This route now runs end to end** (propositional fragment):
-[`compiler/gamma/checker.gamma`](../../../../compiler/gamma/checker.gamma) is the
-simply-typed-lambda checker as ~6 Gamma functions (ADTs + pattern matching),
-interpreted by [`interp.beta`](../../../../compiler/gamma/interp.beta) (the Gamma
-reference interpreter in Beta), compiled by the self-hosting `bc`, run on the seed
-— accepting valid proofs, rejecting invalid ones (`compiler/gamma/test-checker.sh`).
-The Beta version [`check.beta`](../../../../compiler/delta/check.beta) (the same
-checker hand-encoded with tagged memory nodes) is the faster path; the Gamma one is
-the small, auditable reference. Catastrophically slow, and that does not matter — it
-is the reference route.
-Later, produce a fast native delta checker and reconcile it against the slow
-reference (by proof that the fast one refines the slow one, or by per-run
-double-execution). **This reconciliation is an honest open cost** — "just certify
-fast against slow" hides that you need either a refinement theorem or per-artifact
-double-execution.
+## Open work
 
-## The hard part (honest edge #1)
-
-A proof has to be *about* something. The delta checker validates that a
-certificate proves a proposition — but connecting "the proposition" to "what the
-program actually does per the [Gamma](gamma.md) reference interpreter" is a
-**soundness theorem** at the gamma/delta seam (`provable ⟹ true-about-execution`).
-That bridge — not the checker itself — is the core of the proof ambition. Without
-it, "Omega proves things" rests on "the propositions happen to mean what we
-intended."
-
-## Must not contain
-
-No automation authority (search engines are untrusted producers). No systems
-features (mutable memory, ownership, effects — those are [Epsilon](epsilon.md)).
-The checker stays as small as it can possibly be.
-
-## Open questions
-
-- The term language and inference rule set: how small can the checker be while
-  expressing the math we want?
-- The certificate format shared with producers (also proof-engine-north-star open
-  question #2).
-- The soundness bridge to the reference interpreter's operational semantics.
-- Reconciling the fast native checker against the slow reference route.
-- Relationship to the existing `omega-rs` contract-entailment engine, which today
-  *is* the trusted base ("the engine IS the trusted base") and emits no
-  certificate — delta is where it stops being self-trusting.
+- Complete the Rust-free Delta implementation and keep its self-host fixed point.
+- Make the rung sufficient to host the production Psi/Omega compiler sources.
+- Continue widening the Delta-to-Gamma meaning route and its differential gates.

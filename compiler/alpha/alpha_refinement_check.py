@@ -25,7 +25,7 @@ import refinement_nested_gen                            # random NESTED loops (r
 import refinement_fork_gen                              # random BRANCHING programs (conditional terms)
 from bc2 import lex, Parser
 ALPHA_REF = os.path.join(HERE, 'alpha_ref.py')
-PROVER = os.path.join(HERE, '..', 'delta', 'prover.py')
+PROVER = os.path.join(HERE, '..', 'proof-kernel', 'prover.py')
 CHECK = sys.argv[1]
 BC = sys.argv[2] if len(sys.argv) > 2 else None       # bc.exe — enables the real-bc-output samples
 ASM = sys.argv[3] if len(sys.argv) > 3 else None      # the beta assembler exe

@@ -5,7 +5,7 @@
 # instantiates that function over the sample's documented INPUT-GRID: each vector substitutes the
 # omega2gamma entry's STDIN placeholder (substitution CLOSES the program, so the whole existing
 # meaning-proof pipe applies unchanged per vector), the interpreter exit must match the grid's
-# documented exit, and delta/check.beta must accept the encoder's claim with the perturbed control
+# documented exit, and proof-kernel/check.beta must accept the encoder's claim with the perturbed control
 # rejected. The grid rides in the sample header as `//   "VEC" -> EXIT` lines under INPUT-GRID.
 # This is per-vector proof — the stepping stone toward symbolic (for-all-inputs) summit refinement.
 cd "$(dirname "$0")"
@@ -16,14 +16,14 @@ ASM=../beta/$BETA_SEED
 ( cd ../beta-lang-rs && sh build.sh ../beta-lang/bc.beta >/dev/null 2>&1 ) || { echo "input-tv FAIL — bc build"; exit 1; }
 b() { ../beta-lang-rs/build/bc.exe < "$1" > "$T/x.asm" 2>/dev/null && "$ASM" < "$T/x.asm" > "$T/x.tape" 2>/dev/null && stamp_seed "$T/x.tape" "$SEED" "$2" >/dev/null 2>&1; }
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
-b omega2gamma.beta     "$T/e2g.exe"    || { echo "input-tv FAIL — build omega2gamma.beta"; exit 1; }
+b omega2gamma.beta     "$T/omega2gamma.exe"    || { echo "input-tv FAIL — build omega2gamma.beta"; exit 1; }
 b ../gamma/interp.beta "$T/interp.exe" || { echo "input-tv FAIL — build interp.beta"; exit 1; }
-b ../delta/check.beta  "$T/check.exe"  || { echo "input-tv FAIL — build check.beta"; exit 1; }
+b ../proof-kernel/check.beta  "$T/check.exe"  || { echo "input-tv FAIL — build check.beta"; exit 1; }
 
 PASS=0; FAIL=0
 tv() {
   src="../lattice-corpus/$1/main.omg"
-  "$T/e2g.exe" < "$src" > "$T/g" 2>/dev/null
+  "$T/omega2gamma.exe" < "$src" > "$T/g" 2>/dev/null
   grep -q 'STDIN' "$T/g" || { FAIL=$((FAIL+1)); echo "  FAIL $1 : no STDIN placeholder (not input-taking?)"; return; }
   grep -A100 'INPUT-GRID:' "$src" | grep -oE '"[^"]*" -> [0-9]+' | while IFS= read -r row; do
     vec=$(printf '%s' "$row" | sed 's/^"\(.*\)" -> .*/\1/')

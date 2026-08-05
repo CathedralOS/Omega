@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
-# The Delta checker, REWRITTEN IN GAMMA (checker.gamma), run on the Gamma reference
+# The proof kernel, REWRITTEN IN GAMMA (checker.gamma), run on the Gamma reference
 # interpreter (interp.beta, itself compiled Rust-free by bc and run on the seed).
-# Same proofs as compiler/delta/test.sh — valid -> 1, invalid -> 0 — but the
+# Same proofs as compiler/proof-kernel/test.sh — valid -> 1, invalid -> 0 — but the
 # checker is now ~6 functions of ADTs + pattern matching instead of tagged memory.
 cd "$(dirname "$0")"
 . ../alpha/seed_env.sh
@@ -39,5 +39,5 @@ ck "no ex falso"         "(check (Lam Bot (Hyp 0)) (Arrow Bot (Atom 0)))" 0
 # equality + the conversion rule (Peano: Ze Su Pl)
 ck "refl 2+2=4"          "(check (Refl (Su (Su (Su (Su Ze))))) (Eq (Pl (Su (Su Ze)) (Su (Su Ze))) (Su (Su (Su (Su Ze))))))" 1
 ck "reject 2+2=5"        "(check (Refl (Su (Su (Su (Su Ze))))) (Eq (Pl (Su (Su Ze)) (Su (Su Ze))) (Su (Su (Su (Su (Su Ze)))))))" 0
-echo "delta-checker-in-gamma: $PASS passed, $FAIL failed"
+echo "proof-kernel-in-gamma: $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1

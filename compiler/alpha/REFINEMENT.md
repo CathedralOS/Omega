@@ -21,13 +21,13 @@ meaning differs, and the proof would fail.
 
 ## Architecture — two independent symbolic evaluators, kernel-checked equal
 
-The certificate is a diamond with the trust anchor (`delta/check.beta`) at the point:
+The certificate is a diamond with the trust anchor (`proof-kernel/check.beta`) at the point:
 
 ```
       Beta source P ──beta_symbolic──▶  M = ⟦P⟧_Beta  (a closed-form term over the inputs)
             │                                   │
             │ bc + assembler                    │  prove  (= C M)  ∀ inputs
-            ▼                                   │  via delta/prover.py → check.beta
+            ▼                                   │  via proof-kernel/prover.py → check.beta
       alpha bytecode ──alpha_symbolic──▶ C = ⟦bc(P)⟧_alpha
             │                                   │
             └── pinned to alpha_ref.py          └── pinned to beta_interp.py
@@ -271,5 +271,5 @@ A symbolic trip count `n` can't be unrolled. Both sides recognize the loop and r
 ## Reference producers (never run in the trusted lineage)
 
 `alpha_ref.py` (the alpha VM in Python) and `beta_interp.py` (the Beta interpreter) are the ground-truth
-references the two symbolic evaluators are pinned against. `delta/prover.py` searches for the equality proof;
-`delta/check.beta` (the trust anchor) validates it.
+references the two symbolic evaluators are pinned against. `proof-kernel/prover.py` searches for the equality proof;
+`proof-kernel/check.beta` (the trust anchor) validates it.

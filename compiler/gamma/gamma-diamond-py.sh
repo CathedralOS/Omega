@@ -1,8 +1,8 @@
 #!/usr/bin/env sh
 # GAMMA MEANING DIAMOND — the independent reference evaluator (gamma_ref.py) agrees with interp.beta.
 #
-# interp.beta is the canonical definition of what Gamma programs MEAN; delta proves theorems ABOUT that
-# meaning, so its correctness underpins the proof edifice. Its arithmetic is cross-checked against delta's
+# interp.beta is the canonical definition of what Gamma programs MEAN; the proof kernel proves theorems ABOUT that
+# meaning, so its correctness underpins the proof edifice. Its arithmetic is cross-checked against the proof kernel's
 # normalizer (seam-fuzz.sh) and it is checked on the omega samples (kernel-diamond) — but its ADT / match /
 # recursion EVALUATION has no independent implementation to diamond against. gamma_ref.py is that
 # implementation; this gate runs random Gamma programs (gamma-fuzz-gen.py) through BOTH and asserts they

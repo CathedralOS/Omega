@@ -8,7 +8,7 @@
 # and check.beta must ACCEPT — the trust anchor's own conversion rule RE-COMPUTES the meaning, so
 # acceptance certifies "this compilation produced the source's meaning" inside the kernel, not in a
 # shell. A MISCOMPILATION (simulated by validating against E±1) yields a claim conversion cannot
-# reach, and delta REJECTS it — a wrong compilation cannot be validated.
+# reach, and the proof kernel REJECTS it — a wrong compilation cannot be validated.
 #
 # Trust boundary (stated, per the honest-edges discipline): the encoder is untrusted; a bad encoding
 # either fails outright or mis-states the meaning, and meaning-fidelity is independently pinned by the
@@ -33,15 +33,15 @@ ASM=../beta/$BETA_SEED
 ( cd ../beta-lang-rs && sh build.sh ../beta-lang/bc.beta >/dev/null ) || { echo "translation-validation FAIL — bc build"; exit 1; }
 b() { ../beta-lang-rs/build/bc.exe < "$1" > "$T/x.asm" 2>/dev/null && "$ASM" < "$T/x.asm" > "$T/x.tape" 2>/dev/null && stamp_seed "$T/x.tape" "$SEED" "$2" >/dev/null 2>&1; }
 b omega2gamma.beta     "$T/o2g.exe"   || { echo "translation-validation FAIL — build omega2gamma.beta"; exit 1; }
-b ../delta/check.beta  "$T/check.exe" || { echo "translation-validation FAIL — build check.beta"; exit 1; }
-( cd ../epsilon-rs && cargo build -q 2>/dev/null ) || { echo "translation-validation FAIL — cargo build"; exit 1; }
-BE=../epsilon-rs/target/debug/beta
+b ../proof-kernel/check.beta  "$T/check.exe" || { echo "translation-validation FAIL — build check.beta"; exit 1; }
+( cd ../delta-rs && cargo build -q 2>/dev/null ) || { echo "translation-validation FAIL — cargo build"; exit 1; }
+BE=../delta-rs/target/debug/delta
 
 PASS=0; FAIL=0
 # tvcore DESC : the .alp program is already at $T/p.alp — compile natively, run it, and have delta certify
 # that the observed exit IS the source's meaning; then require the MISCOMPILE simulation (exit+1) REJECTED.
 tvcore() {
-  EPS_ARCH=aarch64 "$BE" "$T/p.alp" "$T/p" >/dev/null 2>&1 || { FAIL=$((FAIL+1)); echo "  FAIL $1 : native compile"; return; }
+  DELTA_ARCH=aarch64 "$BE" "$T/p.alp" "$T/p" >/dev/null 2>&1 || { FAIL=$((FAIL+1)); echo "  FAIL $1 : native compile"; return; }
   chmod +x "$T/p"
   set +e; "$T/p"; nat=$?; set -e
   g=$("$T/o2g.exe" < "$T/p.alp" 2>/dev/null)

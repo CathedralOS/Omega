@@ -40,7 +40,7 @@ if [ -x "$BC" ]; then
   gen cmps 'proc main(){ let a=5 return (a<8)*7 + (a>8) + (a==5) }'
   gen mem  'proc main(){ let b=2097152 word[b]=42 return word[b] }'
   # the big one: the checker (assemble bc''s compilation of check.beta both ways)
-  if [ -f ../delta/check.beta ] && "$BC" < ../delta/check.beta > "$T/check.asm" 2>/dev/null; then
+  if [ -f ../proof-kernel/check.beta ] && "$BC" < ../proof-kernel/check.beta > "$T/check.asm" 2>/dev/null; then
     cmp_asm "bc: check.beta (the trust anchor)" "$T/check.asm"; fi
 else
   echo "  (skipped bc-compiled cases — bc not available)"

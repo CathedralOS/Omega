@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # meaning_cert_diamond.py — driver for the MEANING-CERT DIAMOND: every certificate in the meaning-TV
 # stream (meaning claims, negative controls, safety/witness obligations) must be decided IDENTICALLY by
-# delta/check.beta (the built alpha binary) AND delta/check_ref.py (the independent reference checker),
+# proof-kernel/check.beta (the built alpha binary) AND proof-kernel/check_ref.py (the independent reference checker),
 # and the verdict must be the structurally expected one: line 1 accept, line 2 (the perturbed control)
 # reject, every VC line accept. `#render` lines are the structural-result pin, not certs — skipped.
 #
@@ -62,7 +62,7 @@ def gamma_verdict(cert, interp_exe, defs):
 def main():
     check_exe, interp_exe, defs_path = sys.argv[1], sys.argv[2], sys.argv[3]
     defs = open(defs_path).read()
-    sys.path.insert(0, '../delta')
+    sys.path.insert(0, '../proof-kernel')
     import check_ref
     total, bad, undec = 0, 0, 0
     for spec in sys.argv[4:]:
