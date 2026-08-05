@@ -2320,6 +2320,26 @@ pub fn encode_write_place_binary(
                     operator,
                     right,
                 ),
+                WritePlaceShape::FrameIndexedByRegion {
+                    descriptor_offset,
+                    index_region,
+                    index_offset,
+                    index_byte_size,
+                    element_byte_size,
+                    field_byte_offset,
+                } => aarch64::encode_runtime_frame_indexed_binary_write_with_index_region(
+                    runtime_value_operands,
+                    descriptor_offset,
+                    index_region,
+                    index_offset,
+                    index_byte_size,
+                    element_byte_size,
+                    field_byte_offset,
+                    byte_size,
+                    left,
+                    operator,
+                    right,
+                ),
                 WritePlaceShape::FrameBaseIndexed {
                     base_byte_offset,
                     index_offset,
@@ -2386,13 +2406,12 @@ pub fn encode_write_place_binary(
                     operator,
                     right,
                 ),
-                WritePlaceShape::FrameIndexedByRegion { .. } | WritePlaceShape::Unsupported => {
-                    Err(Diagnostic::error(
-                        "WritePlaceBinary on aarch64 serves direct, pointee, frame-indexed, \
-                     frame-base-indexed, machine-indexed, and machine-double-indexed \
-                     place shapes only until the aarch64 place materializer lands",
-                    ))
-                }
+                WritePlaceShape::Unsupported => Err(Diagnostic::error(
+                    "WritePlaceBinary on aarch64 serves direct, pointee, frame-indexed, \
+                     cross-region frame-indexed, frame-base-indexed, machine-indexed, and \
+                     machine-double-indexed place shapes only until the aarch64 place \
+                     materializer lands",
+                )),
             }
         }
     }
