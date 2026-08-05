@@ -20,6 +20,7 @@ pub enum BoundaryFootprintFragmentOrigin {
     CompilerBodyOutboundImmediateImport,
     CompilerBodyOutboundImmediateImportResult,
     CompilerBodyOutboundFloatImportResult,
+    CompilerBodyOutboundDereferencedImportResult,
     CompilerBodyOutboundStorageImport,
     CompilerBodyOutboundStorageImportResult,
     CompilerBodyOutboundSyscall,
@@ -79,6 +80,7 @@ impl BoundaryFootprintPlan {
             BoundaryFootprintFragmentOrigin::CompilerBodyOutboundImmediateImport
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundImmediateImportResult
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundFloatImportResult
+            | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundDereferencedImportResult
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImport
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImportResult
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscall
@@ -272,6 +274,17 @@ mod tests {
                 },
             )
             .expect("result-bearing float imports may use their prescribed control state");
+
+        outbound
+            .retain_validated_fragment(
+                &boundary,
+                BoundaryFootprintFragment {
+                    origin:
+                        BoundaryFootprintFragmentOrigin::CompilerBodyOutboundDereferencedImportResult,
+                    evidence: control_evidence(),
+                },
+            )
+            .expect("dereferenced-result imports may use their prescribed control state");
 
         outbound
             .retain_validated_fragment(

@@ -584,15 +584,15 @@ fn compiler_instruction_validation_kind(
                     operation_key.capability,
                     omega_calling_conventions::HostCapability::Custom(_)
                         | omega_calling_conventions::HostCapability::Unknown
-                ) || operation_key.dereferences_result()
-                    || (emission_context.target.architecture == omega_target::Architecture::Aarch64
-                        && matches!(
-                            (operation_key.capability, operation_key.operation),
-                            (
-                                omega_calling_conventions::HostCapability::Filesystem,
-                                omega_calling_conventions::HostOperation::OpenCreate
-                            )
-                        ))
+                ) || (emission_context.target.architecture
+                    == omega_target::Architecture::Aarch64
+                    && matches!(
+                        (operation_key.capability, operation_key.operation),
+                        (
+                            omega_calling_conventions::HostCapability::Filesystem,
+                            omega_calling_conventions::HostOperation::OpenCreate
+                        )
+                    ))
                 {
                     return Ok(None);
                 }
@@ -602,6 +602,34 @@ fn compiler_instruction_validation_kind(
                     .ok_or_else(|| {
                         Diagnostic::error("compiler outbound import lost its assigned operand span")
                     })?;
+                if operation_key.dereferences_result() {
+                    if !binding.call_plan().parameters.is_empty()
+                        || !binding.call_plan().result.as_ref().is_some_and(|result| {
+                            matches!(
+                                result.shape.class,
+                                omega_calling_conventions::ValueClass::Integer
+                            )
+                        })
+                        || operands.len() != 1
+                        || !matches!(
+                            operands.first().map(|operand| &operand.kind),
+                            Some(
+                                omega_assigned_target_operations::InstructionOperandKind::RuntimeScalarInteger { .. }
+                            )
+                        )
+                    {
+                        return Ok(None);
+                    }
+                    return Ok(Some(
+                        CompilerInstructionValidationKind::CompilerBodyOutboundDereferencedImportResult {
+                            operation_key: *operation_key,
+                            operands: operands.to_vec(),
+                            library: std::sync::Arc::clone(library),
+                            symbol: std::sync::Arc::clone(symbol),
+                            plan: binding.call_plan().clone(),
+                        },
+                    ));
+                }
                 if operation_key.capability
                     == omega_calling_conventions::HostCapability::Math
                     && binding.call_plan().result.as_ref().is_some_and(|result| {
