@@ -848,6 +848,19 @@ pub fn derive_boundary_compiler_body_place_copy_footprint<'instruction>(
                 target_outer_index_region,
                 target_inner_index_region,
             ),
+            (
+                omega_target::Architecture::X86_64,
+                crate::CopyPlacesShape::MachineDoubleIndexedToPointee { .. }
+                | crate::CopyPlacesShape::PointeeToMachineDoubleIndexed { .. },
+            ) => omega_isa_x86_64::copy_places_clobbers(source, target, *byte_count),
+            (
+                omega_target::Architecture::Aarch64,
+                crate::CopyPlacesShape::MachineDoubleIndexedToPointee { .. },
+            ) => omega_isa_aarch64::runtime_storage_copy_machine_double_indexed_to_runtime_pointee_clobbers(),
+            (
+                omega_target::Architecture::Aarch64,
+                crate::CopyPlacesShape::PointeeToMachineDoubleIndexed { .. },
+            ) => omega_isa_aarch64::runtime_storage_copy_runtime_pointee_to_machine_double_indexed_clobbers(),
             (omega_target::Architecture::X86_64, crate::CopyPlacesShape::General) => {
                 omega_isa_x86_64::copy_places_clobbers(source, target, *byte_count)
             }

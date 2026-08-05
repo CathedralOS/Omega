@@ -98,6 +98,9 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                         }
                         | omega_instruction_selection::CopyPlacesShape::ToIndexedByRegion {
                             ..
+                        }
+                        | omega_instruction_selection::CopyPlacesShape::PointeeToMachineDoubleIndexed {
+                            ..
                         } => target.region,
                         _ => source.region,
                     };
@@ -215,6 +218,17 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                             // Frame-rooted on both sides (the decompose's
                             // precondition): one frame base serves the
                             // array/descriptor, index, and the other side.
+                        }
+                        omega_instruction_selection::CopyPlacesShape::MachineDoubleIndexedToPointee {
+                            ..
+                        }
+                        | omega_instruction_selection::CopyPlacesShape::PointeeToMachineDoubleIndexed {
+                            ..
+                        } => {
+                            context.insert_data_address_at_relative_offset(
+                                8,
+                                context.runtime_frame_symbol_handle(),
+                            );
                         }
                         omega_instruction_selection::CopyPlacesShape::ToFrameBaseIndexed {
                             base_byte_offset,

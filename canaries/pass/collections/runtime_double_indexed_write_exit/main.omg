@@ -5,10 +5,13 @@
 // for a mutable reference to the exact element. Faces: const value,
 // machine-place source, frame-place source with frame indices, machine-rooted
 // double-indexed pair copies in both mixed-index directions, and a
-// double-indexed read-back -- neighbor-clobber validated throughout.
+// double-indexed read-back. Whole-Triple copies also cross a frame-held
+// pointer in both directions while retaining mixed machine/frame indices --
+// neighbor-clobber validated throughout.
 // Direct RMW (`grid[i][j] = grid[i][j] + 1`) is covered separately by
 // runtime_double_indexed_rmw_exit; this canary isolates copy/immediate writes.
 use omega::language::std::console;
+data Triple { first: i32; second: i32; third: i32; }
 data Main {
     console: Console;
     grid: [[i32; 4]; 3];
@@ -16,11 +19,19 @@ data Main {
     j: u64 [0..=3];
     v: i32;
     got: i32;
+    source_triples: [[Triple; 4]; 3];
+    target_triples: [[Triple; 4]; 3];
+    triple_i: u64 [0..=2];
+    triple_j: u64 [0..=3];
 }
 machine Main::main(&mut self) {
     self.grid[1][3] = 9;
     self.i = 1;
     self.j = 2;
+    self.triple_i = 1;
+    self.triple_j = 1;
+    self.source_triples[1][2] = Triple { first: 10, second: 20, third: 30 };
+    self.target_triples[2][1] = Triple { first: 1, second: 2, third: 3 };
     self.grid[self.i][self.j] = 70;
     let selected: &mut i32 = &mut self.grid[self.i][self.j];
     selected = 71;
@@ -68,6 +79,79 @@ machine Main::main(&mut self) {
     state read_back(&mut self) {
         self.got = self.grid[self.i][self.j];
         transition self.got == 55 {
+            true -> aggregate_forward(2, 2)
+            false -> no()
+        }
+    }
+    state aggregate_forward(
+        &mut self,
+        target_i: u64 [0..=2],
+        source_j: u64 [0..=3]
+    ) {
+        let selected: &mut Triple = &mut self.target_triples[target_i][self.triple_j];
+        selected = self.source_triples[self.triple_i][source_j];
+        transition { _ -> verify_forward(target_i, source_j) }
+    }
+    state verify_forward(
+        &mut self,
+        target_i: u64 [0..=2],
+        source_j: u64 [0..=3]
+    ) {
+        self.got = self.target_triples[2][1].first;
+        transition self.got == 10 {
+            true -> verify_forward_second(target_i, source_j)
+            false -> no()
+        }
+    }
+    state verify_forward_second(
+        &mut self,
+        target_i: u64 [0..=2],
+        source_j: u64 [0..=3]
+    ) {
+        self.got = self.target_triples[2][1].second;
+        transition self.got == 20 {
+            true -> verify_forward_third(target_i, source_j)
+            false -> no()
+        }
+    }
+    state verify_forward_third(
+        &mut self,
+        target_i: u64 [0..=2],
+        source_j: u64 [0..=3]
+    ) {
+        self.got = self.target_triples[2][1].third;
+        transition self.got == 30 {
+            true -> aggregate_reverse(target_i, source_j)
+            false -> no()
+        }
+    }
+    state aggregate_reverse(
+        &mut self,
+        target_i: u64 [0..=2],
+        source_j: u64 [0..=3]
+    ) {
+        let selected: &mut Triple = &mut self.source_triples[self.triple_i][source_j];
+        selected = Triple { first: 40, second: 50, third: 60 };
+        self.target_triples[target_i][self.triple_j] = selected;
+        transition { _ -> verify_reverse() }
+    }
+    state verify_reverse(&mut self) {
+        self.got = self.target_triples[2][1].first;
+        transition self.got == 40 {
+            true -> verify_reverse_second()
+            false -> no()
+        }
+    }
+    state verify_reverse_second(&mut self) {
+        self.got = self.target_triples[2][1].second;
+        transition self.got == 50 {
+            true -> verify_reverse_third()
+            false -> no()
+        }
+    }
+    state verify_reverse_third(&mut self) {
+        self.got = self.target_triples[2][1].third;
+        transition self.got == 60 {
             true -> yes()
             false -> no()
         }

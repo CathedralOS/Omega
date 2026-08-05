@@ -1272,7 +1272,11 @@ only for machine storage. An all-frame double-indexed source can also target a
 frame-held pointee, sharing the same frame root across the collection, both
 indices, and pointer slot while copying the complete value representation. Its
 reverse, from a frame-held source pointee into an all-frame double-indexed
-target, uses the same one-root geometry and complete aggregate span. The x86 general place
+target, uses the same one-root geometry and complete aggregate span.
+Machine-rooted double-indexed elements can cross a frame-held pointee in either
+direction too. AArch64 keeps the collection's machine root separate from one
+frame root shared by the pointer slot and any frame-held indices, and copies the
+complete aggregate span. The x86 general place
 materializer also replays every remaining otherwise-unclassified `CopyPlaces`
 path with scratch derived from each retained place's exact index depth.
 Direct-place immediate integer writes, writes through a frame-held pointer or
