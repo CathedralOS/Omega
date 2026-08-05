@@ -6999,6 +6999,130 @@ pub fn runtime_storage_copy_frame_base_double_indexed_to_frame_base_double_index
     ])
 }
 
+/// Copy between two machine-rooted inline 2D array elements. Each address
+/// walk begins from its own relocated machine root; a side whose outer or
+/// inner runtime index is frame-held materializes one frame root in x15.
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_storage_copy_machine_double_indexed_to_machine_double_indexed(
+    source_base_byte_offset: usize,
+    source_outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    source_outer_index_offset: usize,
+    source_outer_index_byte_size: usize,
+    source_outer_stride: usize,
+    source_inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    source_inner_index_offset: usize,
+    source_inner_index_byte_size: usize,
+    source_inner_stride: usize,
+    source_field_byte_offset: usize,
+    target_base_byte_offset: usize,
+    target_outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    target_outer_index_offset: usize,
+    target_outer_index_byte_size: usize,
+    target_outer_stride: usize,
+    target_inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    target_inner_index_offset: usize,
+    target_inner_index_byte_size: usize,
+    target_inner_stride: usize,
+    target_field_byte_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let expected_width =
+        super::widths::runtime_storage_copy_machine_double_indexed_to_machine_double_indexed_width(
+            source_outer_index_region,
+            source_inner_index_region,
+            target_outer_index_region,
+            target_inner_index_region,
+            byte_count,
+        );
+    let frame = omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
+    let mut bytes = Vec::with_capacity(expected_width);
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    if source_outer_index_region == frame || source_inner_index_region == frame {
+        bytes.extend(encode_adrp_placeholder(15));
+        bytes.extend(encode_add_page_offset_placeholder(15));
+    }
+    append_double_index_address_math(
+        &mut bytes,
+        if source_outer_index_region == frame {
+            15
+        } else {
+            16
+        },
+        source_outer_index_offset,
+        source_outer_index_byte_size,
+        source_outer_stride,
+        if source_inner_index_region == frame {
+            15
+        } else {
+            16
+        },
+        source_inner_index_offset,
+        source_inner_index_byte_size,
+        source_inner_stride,
+        source_base_byte_offset + source_field_byte_offset,
+    )?;
+    bytes.extend(encode_move_x_register(24, 16));
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    if target_outer_index_region == frame || target_inner_index_region == frame {
+        bytes.extend(encode_adrp_placeholder(15));
+        bytes.extend(encode_add_page_offset_placeholder(15));
+    }
+    append_double_index_address_math(
+        &mut bytes,
+        if target_outer_index_region == frame {
+            15
+        } else {
+            16
+        },
+        target_outer_index_offset,
+        target_outer_index_byte_size,
+        target_outer_stride,
+        if target_inner_index_region == frame {
+            15
+        } else {
+            16
+        },
+        target_inner_index_offset,
+        target_inner_index_byte_size,
+        target_inner_stride,
+        target_base_byte_offset + target_field_byte_offset,
+    )?;
+    for_each_runtime_copy_chunk(0, 0, byte_count, |offset, chunk_size| {
+        append_load_data_from_x_offset(&mut bytes, 17, 24, offset, chunk_size, 26)?;
+        append_store_data_to_x_offset(&mut bytes, 17, 16, offset, chunk_size, 19)?;
+        Ok(())
+    })?;
+    debug_assert_eq!(bytes.len(), expected_width);
+    Ok(bytes)
+}
+
+pub fn runtime_storage_copy_machine_double_indexed_to_machine_double_indexed_clobbers(
+    source_outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    source_inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    target_outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    target_inner_index_region: omega_target_operations::RuntimeStorageRegion,
+) -> RegisterSet {
+    let mut registers = vec![
+        MachineRegister::Aarch64X(14),
+        MachineRegister::Aarch64X(16),
+        MachineRegister::Aarch64X(17),
+        MachineRegister::Aarch64X(19),
+        MachineRegister::Aarch64X(24),
+        MachineRegister::Aarch64X(26),
+    ];
+    let frame = omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
+    if source_outer_index_region == frame
+        || source_inner_index_region == frame
+        || target_outer_index_region == frame
+        || target_inner_index_region == frame
+    {
+        registers.push(MachineRegister::Aarch64X(15));
+    }
+    RegisterSet::new(registers)
+}
+
 fn append_runtime_machine_index_target_address(
     bytes: &mut Vec<u8>,
     base_byte_offset: usize,
@@ -11663,6 +11787,33 @@ mod tests {
             ]
             .concat(),
             "both 2D arrays and all four index slots share the opening frame base"
+        );
+
+        let machine_double_pair =
+            encode_runtime_storage_copy_machine_double_indexed_to_machine_double_indexed(
+                24, machine, 64, 8, 12, frame, 72, 8, 4, 0, 128, frame, 80, 8, 12, machine, 88, 8,
+                4, 0, 12,
+            )
+            .expect("encode mixed-index machine double pair copy");
+        assert_eq!(
+            machine_double_pair.len(),
+            widths::runtime_storage_copy_machine_double_indexed_to_machine_double_indexed_width(
+                machine, frame, frame, machine, 12,
+            )
+        );
+        assert_eq!(
+            runtime_storage_copy_machine_double_indexed_to_machine_double_indexed_clobbers(
+                machine, frame, frame, machine,
+            ),
+            RegisterSet::new([
+                MachineRegister::Aarch64X(14),
+                MachineRegister::Aarch64X(15),
+                MachineRegister::Aarch64X(16),
+                MachineRegister::Aarch64X(17),
+                MachineRegister::Aarch64X(19),
+                MachineRegister::Aarch64X(24),
+                MachineRegister::Aarch64X(26),
+            ])
         );
     }
 

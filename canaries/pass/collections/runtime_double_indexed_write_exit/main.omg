@@ -3,7 +3,8 @@
 // the value loaded into r14 BEFORE the base register is biased) +
 // WriteRuntimeMachineDoubleIndexedInteger (const value) plus an address write
 // for a mutable reference to the exact element. Faces: const value,
-// machine-place source, frame-place source with frame indices, and a
+// machine-place source, frame-place source with frame indices, machine-rooted
+// double-indexed pair copies in both mixed-index directions, and a
 // double-indexed read-back -- neighbor-clobber validated throughout.
 // Direct RMW (`grid[i][j] = grid[i][j] + 1`) is covered separately by
 // runtime_double_indexed_rmw_exit; this canary isolates copy/immediate writes.
@@ -48,9 +49,21 @@ machine Main::main(&mut self) {
         self.grid[fi][fj] = fv;
         self.got = self.grid[2][0];
         transition self.got == 33 {
-            true -> read_back()
+            true -> pair_copy(fi, fj)
             false -> no()
         }
+    }
+    state pair_copy(&mut self, target_i: u64 [0..=2], target_j: u64 [0..=3]) {
+        self.grid[target_i][target_j] = self.grid[self.i][self.j];
+        self.got = self.grid[2][0];
+        transition self.got == 55 {
+            true -> pair_reverse(target_i, target_j)
+            false -> no()
+        }
+    }
+    state pair_reverse(&mut self, source_i: u64 [0..=2], source_j: u64 [0..=3]) {
+        self.grid[self.i][self.j] = self.grid[source_i][source_j];
+        transition { _ -> read_back() }
     }
     state read_back(&mut self) {
         self.got = self.grid[self.i][self.j];
