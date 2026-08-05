@@ -1373,9 +1373,10 @@ pub(crate) fn write_place_integer_base_indexed(
     }
 }
 
-/// Machine 2D inline array element (`grid[i][j] = v`).
+/// Frame- or machine-resident 2D inline array element (`grid[i][j] = v`).
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn write_place_integer_double_indexed(
+    region: RuntimeStorageRegion,
     base_byte_offset: usize,
     outer_index_region: RuntimeStorageRegion,
     outer_index_offset: usize,
@@ -1391,7 +1392,7 @@ pub(crate) fn write_place_integer_double_indexed(
 ) -> SelectedInstructionKind {
     SelectedInstructionKind::WritePlaceInteger {
         target: double_indexed_place(
-            RuntimeStorageRegion::Machine,
+            region,
             base_byte_offset,
             outer_index_region,
             outer_index_offset,

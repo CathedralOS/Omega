@@ -522,7 +522,11 @@ fn compiler_instruction_validation_kind(
             && matches!(
                 omega_instruction_selection::classify_write_place_shape(target),
                 omega_instruction_selection::WritePlaceShape::Unsupported
-            )) =>
+            ))
+            || omega_instruction_selection::classify_frame_base_double_indexed_integer_shape(
+                target,
+            )
+            .is_some() =>
         {
             Some(
                 CompilerInstructionValidationKind::CompilerBodyPlaceIntegerWrite {

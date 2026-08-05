@@ -1795,6 +1795,12 @@ pub fn runtime_machine_double_indexed_integer_write_width(
         + 4
 }
 
+/// The frame-rooted twin uses one shared frame pair for its collection and
+/// both runtime index slots, followed by the fixed address program.
+pub fn runtime_frame_base_double_indexed_integer_write_width(value: i64) -> usize {
+    8 + 36 + unsigned_immediate_width(value as u64) + 4
+}
+
 /// Width of the double-indexed storage write `grid[i][j] = slot`: bases (the
 /// shared frame pair also serves a frame-resident source) + the source load +
 /// the 36-byte address math + the element store.

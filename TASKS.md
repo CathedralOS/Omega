@@ -882,7 +882,7 @@ proves complete region coverage, and composes admitted leaves under their
 separate provenance. Do not add a second whole-image decoder/admission path.
 
 The existing single final-region artifact now carries the domain-separated
-`omega.final-footprint-certificate` schema, format version 95, and a certificate
+`omega.final-footprint-certificate` schema, format version 96, and a certificate
 fingerprint over its final placement binding, compiler-text derivation, and
 complete region inventory. Its explicit completeness flags remain false until
 compiler-body footprint decoding and admitted-leaf evidence land. The envelope
@@ -1072,9 +1072,11 @@ indexed descriptor, and runtime-indexed writes into inline frame arrays now
 retain their own ordinary-body fragment and replay exact target `Place`, value,
 width, every storage/index relocation, and target scratch. Runtime-indexed
 immediate writes into single- and double-indexed inline machine arrays are
-included as well. The x86 general place materializer replays the remaining
-otherwise-unclassified immediate integer-write paths with exact index-depth
-scratch and relocation sites.
+included as well. AArch64 also replays literal integer writes into
+all-frame double-runtime-indexed inline arrays using one shared frame
+relocation. The x86 general place materializer replays the remaining otherwise-
+unclassified immediate integer-write paths with exact index-depth scratch and
+relocation sites.
 Direct-target binary writes, exact-integer writes through a frame-held
 pointer, and runtime-indexed writes through a frame-held descriptor now retain
 the exact operator, width, float mode, arithmetic policy, signedness, and roots

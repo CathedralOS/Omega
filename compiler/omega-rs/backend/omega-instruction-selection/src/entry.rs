@@ -804,6 +804,7 @@ pub fn derive_boundary_compiler_body_place_integer_write_footprint<'instruction>
             continue;
         };
         let shape = crate::classify_write_place_shape(target);
+        let frame_double = crate::classify_frame_base_double_indexed_integer_shape(target);
         let clobbers = match (architecture, shape) {
             (
                 omega_target::Architecture::X86_64,
@@ -869,6 +870,11 @@ pub fn derive_boundary_compiler_body_place_integer_write_footprint<'instruction>
             ) => omega_isa_x86_64::place_integer_write_clobbers(target),
             (omega_target::Architecture::X86_64, crate::WritePlaceShape::Unsupported) => {
                 omega_isa_x86_64::place_integer_write_clobbers(target)
+            }
+            (omega_target::Architecture::Aarch64, crate::WritePlaceShape::Unsupported)
+                if frame_double.is_some() =>
+            {
+                omega_isa_aarch64::runtime_frame_base_double_indexed_integer_write_clobbers()
             }
             _ => continue,
         };

@@ -3697,6 +3697,27 @@ fn validate_compiler_function_instruction_boundaries(
                                     byte_size,
                                     value,
                                 )?,
+                                CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed {
+                                    base_byte_offset,
+                                    outer_index_offset,
+                                    outer_index_byte_size,
+                                    outer_stride,
+                                    inner_index_offset,
+                                    inner_index_byte_size,
+                                    inner_stride,
+                                    field_byte_offset,
+                                } => omega_isa_aarch64::encode_runtime_frame_base_double_indexed_integer_write(
+                                    base_byte_offset,
+                                    outer_index_offset,
+                                    outer_index_byte_size,
+                                    outer_stride,
+                                    inner_index_offset,
+                                    inner_index_byte_size,
+                                    inner_stride,
+                                    field_byte_offset,
+                                    byte_size,
+                                    value,
+                                )?,
                                 CompilerBodyPlaceIntegerWriteShape::MachineIndexed {
                                     base_byte_offset,
                                     index_region,
@@ -3739,8 +3760,7 @@ fn validate_compiler_function_instruction_boundaries(
                                     byte_size,
                                     value,
                                 )?,
-                                CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed { .. }
-                                | CompilerBodyPlaceIntegerWriteShape::General => {
+                                CompilerBodyPlaceIntegerWriteShape::General => {
                                     return Err(Diagnostic::error(
                                         "final aarch64 compiler-body integer write reached the x86-only general materializer class",
                                     ));
@@ -7254,6 +7274,9 @@ fn compiler_instruction_footprint(
                         CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. } => {
                             omega_isa_aarch64::runtime_frame_base_indexed_integer_write_clobbers()
                         }
+                        CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed { .. } => {
+                            omega_isa_aarch64::runtime_frame_base_double_indexed_integer_write_clobbers()
+                        }
                         CompilerBodyPlaceIntegerWriteShape::MachineIndexed { .. } => {
                             omega_isa_aarch64::runtime_machine_indexed_integer_write_clobbers()
                         }
@@ -7267,8 +7290,7 @@ fn compiler_instruction_footprint(
                                 inner_index_region,
                             )
                         }
-                        CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed { .. }
-                        | CompilerBodyPlaceIntegerWriteShape::General => return None,
+                        CompilerBodyPlaceIntegerWriteShape::General => return None,
                     },
                 },
                 MachineStateSet::empty(),
