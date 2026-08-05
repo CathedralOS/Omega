@@ -2037,6 +2037,56 @@ pub(crate) fn copy_places_from_machine_indexed(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn copy_places_frame_base_indexed_to_pointee(
+    base_byte_offset: usize,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    source_field_byte_offset: usize,
+    pointer_byte_offset: usize,
+    target_field_byte_offset: usize,
+    byte_count: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::CopyPlaces {
+        source: frame_base_indexed_place(
+            base_byte_offset,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            source_field_byte_offset,
+        ),
+        target: pointee_place(pointer_byte_offset, target_field_byte_offset),
+        byte_count,
+        role: omega_abstract_operations::CopyPlacesRole::Ordinary,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn copy_places_pointee_to_frame_base_indexed(
+    pointer_byte_offset: usize,
+    source_field_byte_offset: usize,
+    base_byte_offset: usize,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    target_field_byte_offset: usize,
+    byte_count: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::CopyPlaces {
+        source: pointee_place(pointer_byte_offset, source_field_byte_offset),
+        target: frame_base_indexed_place(
+            base_byte_offset,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            target_field_byte_offset,
+        ),
+        byte_count,
+        role: omega_abstract_operations::CopyPlacesRole::Ordinary,
+    }
+}
+
 /// Rung 2c-vii: the retired machine inline-array element WRITE.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn copy_places_to_machine_indexed(

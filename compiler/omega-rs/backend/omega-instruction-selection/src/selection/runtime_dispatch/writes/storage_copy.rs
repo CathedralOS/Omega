@@ -527,6 +527,38 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indirect_copy_in_t
         value_source_key,
         expressions,
         value,
+    ) && let Some(indexed_target) =
+        resolve_runtime_frame_base_indexed_target_with_index_region_in_table(
+            input,
+            dispatch_index,
+            target_source_key,
+            expressions,
+            target,
+        )
+        && indexed_target.index_region == RuntimeStorageRegion::RuntimeFrame
+        && pointer_source.pointee_byte_size == indexed_target.byte_count
+        && indexed_target.byte_count > 0
+    {
+        return Some(
+            crate::selection::runtime_dispatch::copy_places_pointee_to_frame_base_indexed(
+                pointer_source.pointer_byte_offset,
+                pointer_source.field_byte_offset,
+                indexed_target.base_byte_offset,
+                indexed_target.index_offset,
+                indexed_target.index_byte_size,
+                indexed_target.element_byte_size,
+                indexed_target.field_byte_offset,
+                indexed_target.byte_count,
+            ),
+        );
+    }
+
+    if let Some(pointer_source) = resolve_runtime_pointee_slot_offset_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        value,
     ) && let Some(indexed_target) = resolve_runtime_machine_indexed_target_in_table(
         input,
         dispatch_index,
@@ -805,6 +837,38 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indexed_source_cop
                 pointer_target.pointer_byte_offset,
                 pointer_target.field_byte_offset,
                 double_source.byte_count,
+            ),
+        );
+    }
+
+    if let Some(pointer_target) = resolve_runtime_pointee_slot_offset_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        expressions,
+        target,
+    ) && let Some(indexed_source) =
+        resolve_runtime_frame_base_indexed_target_with_index_region_in_table(
+            input,
+            dispatch_index,
+            value_source_key,
+            expressions,
+            value,
+        )
+        && indexed_source.index_region == RuntimeStorageRegion::RuntimeFrame
+        && pointer_target.pointee_byte_size == indexed_source.byte_count
+        && indexed_source.byte_count > 0
+    {
+        return Some(
+            crate::selection::runtime_dispatch::copy_places_frame_base_indexed_to_pointee(
+                indexed_source.base_byte_offset,
+                indexed_source.index_offset,
+                indexed_source.index_byte_size,
+                indexed_source.element_byte_size,
+                indexed_source.field_byte_offset,
+                pointer_target.pointer_byte_offset,
+                pointer_target.field_byte_offset,
+                indexed_source.byte_count,
             ),
         );
     }

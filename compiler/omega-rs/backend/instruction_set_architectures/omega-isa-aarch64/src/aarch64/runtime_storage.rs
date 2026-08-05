@@ -6354,6 +6354,106 @@ pub fn runtime_storage_copy_from_runtime_frame_base_double_indexed_clobbers() ->
     ])
 }
 
+/// Copy an all-frame single-indexed element through a target pointer held in
+/// the same frame. One relocated root supplies the collection, index, and
+/// pointer slot; the pointee itself is reached through the loaded pointer.
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_pointee(
+    base_byte_offset: usize,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    source_field_byte_offset: usize,
+    pointer_byte_offset: usize,
+    target_field_byte_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let expected_width = super::widths::runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_pointee_width(
+        pointer_byte_offset,
+        target_field_byte_offset,
+        byte_count,
+    );
+    let mut bytes = Vec::with_capacity(expected_width);
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    bytes.extend(encode_move_x_register(20, 16));
+    append_single_index_address_math(
+        &mut bytes,
+        16,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        base_byte_offset + source_field_byte_offset,
+    )?;
+    append_load_data_from_x_offset(&mut bytes, 20, 20, pointer_byte_offset, 8, 15)?;
+    append_add_constant_to_x_register(&mut bytes, 20, target_field_byte_offset)?;
+    for_each_runtime_copy_chunk(0, 0, byte_count, |offset, chunk_size| {
+        append_load_data_from_x_offset(&mut bytes, 17, 16, offset, chunk_size, 26)?;
+        append_store_data_to_x_offset(&mut bytes, 17, 20, offset, chunk_size, 19)?;
+        Ok(())
+    })?;
+    debug_assert_eq!(bytes.len(), expected_width);
+    Ok(bytes)
+}
+
+pub fn runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_pointee_clobbers()
+-> RegisterSet {
+    RegisterSet::new([
+        MachineRegister::Aarch64X(15),
+        MachineRegister::Aarch64X(16),
+        MachineRegister::Aarch64X(17),
+        MachineRegister::Aarch64X(19),
+        MachineRegister::Aarch64X(20),
+        MachineRegister::Aarch64X(26),
+    ])
+}
+
+/// Copy through a frame-held source pointer into an all-frame single-indexed
+/// element. The pointer slot, collection, and index share one frame root.
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_storage_copy_from_runtime_pointee_to_runtime_frame_base_indexed(
+    pointer_byte_offset: usize,
+    source_field_byte_offset: usize,
+    base_byte_offset: usize,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    target_field_byte_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let expected_width = super::widths::runtime_storage_copy_from_runtime_pointee_to_runtime_frame_base_indexed_width(
+        pointer_byte_offset,
+        source_field_byte_offset,
+        byte_count,
+    );
+    let mut bytes = Vec::with_capacity(expected_width);
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    bytes.extend(encode_move_x_register(20, 16));
+    append_single_index_address_math(
+        &mut bytes,
+        16,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        base_byte_offset + target_field_byte_offset,
+    )?;
+    append_load_data_from_x_offset(&mut bytes, 20, 20, pointer_byte_offset, 8, 15)?;
+    append_add_constant_to_x_register(&mut bytes, 20, source_field_byte_offset)?;
+    for_each_runtime_copy_chunk(0, 0, byte_count, |offset, chunk_size| {
+        append_load_data_from_x_offset(&mut bytes, 17, 20, offset, chunk_size, 26)?;
+        append_store_data_to_x_offset(&mut bytes, 17, 16, offset, chunk_size, 19)?;
+        Ok(())
+    })?;
+    debug_assert_eq!(bytes.len(), expected_width);
+    Ok(bytes)
+}
+
+pub fn runtime_storage_copy_from_runtime_pointee_to_runtime_frame_base_indexed_clobbers()
+-> RegisterSet {
+    runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_pointee_clobbers()
+}
+
 /// Copy an all-frame double-indexed element through a target pointer held in
 /// the same frame. One relocated root supplies the collection, both indices,
 /// and the pointer slot; the pointee itself is reached through the loaded
@@ -12005,6 +12105,42 @@ mod tests {
             ]
             .concat(),
             "the pointer slot, target, and both indices share the opening frame base"
+        );
+
+        let frame_indexed_to_pointee =
+            encode_runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_pointee(
+                24, 72, 8, 12, 0, 104, 4, 12,
+            )
+            .expect("encode all-frame indexed aggregate copy to pointee");
+        assert_eq!(
+            frame_indexed_to_pointee.len(),
+            widths::runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_pointee_width(
+                104, 4, 12,
+            )
+        );
+        assert_eq!(
+            &frame_indexed_to_pointee[..8],
+            [
+                encode_adrp_placeholder(16),
+                encode_add_page_offset_placeholder(16)
+            ]
+            .concat()
+        );
+
+        let pointee_to_frame_indexed =
+            encode_runtime_storage_copy_from_runtime_pointee_to_runtime_frame_base_indexed(
+                104, 4, 24, 72, 8, 12, 0, 12,
+            )
+            .expect("encode pointee aggregate copy to all-frame indexed storage");
+        assert_eq!(
+            pointee_to_frame_indexed.len(),
+            widths::runtime_storage_copy_from_runtime_pointee_to_runtime_frame_base_indexed_width(
+                104, 4, 12,
+            )
+        );
+        assert_eq!(
+            runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_pointee_clobbers(),
+            runtime_storage_copy_from_runtime_pointee_to_runtime_frame_base_indexed_clobbers(),
         );
 
         let machine_to_pointee =

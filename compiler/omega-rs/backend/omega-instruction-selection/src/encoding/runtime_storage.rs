@@ -3220,6 +3220,42 @@ pub fn encode_copy_places(
                 field_byte_offset,
                 byte_count,
             ),
+            CopyPlacesShape::FrameBaseIndexedToPointee {
+                base_byte_offset,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                source_field_byte_offset,
+                pointer_byte_offset,
+                target_field_byte_offset,
+            } => aarch64::encode_runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_pointee(
+                base_byte_offset,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                source_field_byte_offset,
+                pointer_byte_offset,
+                target_field_byte_offset,
+                byte_count,
+            ),
+            CopyPlacesShape::PointeeToFrameBaseIndexed {
+                pointer_byte_offset,
+                source_field_byte_offset,
+                base_byte_offset,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                target_field_byte_offset,
+            } => aarch64::encode_runtime_storage_copy_from_runtime_pointee_to_runtime_frame_base_indexed(
+                pointer_byte_offset,
+                source_field_byte_offset,
+                base_byte_offset,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                target_field_byte_offset,
+                byte_count,
+            ),
             CopyPlacesShape::FromMachineDoubleIndexed {
                 base_byte_offset,
                 outer_index_region,
@@ -3718,6 +3754,28 @@ pub enum CopyPlacesShape {
         element_byte_size: usize,
         field_byte_offset: usize,
     },
+    /// An all-frame inline-array element copied through a frame-held target
+    /// pointer. The array, index, and pointer slot share one frame base.
+    FrameBaseIndexedToPointee {
+        base_byte_offset: usize,
+        index_offset: usize,
+        index_byte_size: usize,
+        element_byte_size: usize,
+        source_field_byte_offset: usize,
+        pointer_byte_offset: usize,
+        target_field_byte_offset: usize,
+    },
+    /// A frame-held source pointee copied into an all-frame inline-array
+    /// element. The pointer slot, array, and index share one frame base.
+    PointeeToFrameBaseIndexed {
+        pointer_byte_offset: usize,
+        source_field_byte_offset: usize,
+        base_byte_offset: usize,
+        index_offset: usize,
+        index_byte_size: usize,
+        element_byte_size: usize,
+        target_field_byte_offset: usize,
+    },
     /// A MACHINE inline 2D-array element read (`m[i][j]` -- no deref):
     /// the double-indexed copy. Index-slot regions vary per index.
     FromMachineDoubleIndexed {
@@ -4206,6 +4264,21 @@ pub fn classify_copy_places_shape(
         if source.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
             && indexed.index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
             && target.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+            && let Some((pointer_byte_offset, target_field_byte_offset)) = single_deref_path(target)
+        {
+            return CopyPlacesShape::FrameBaseIndexedToPointee {
+                base_byte_offset: indexed.pointer_offset,
+                index_offset: indexed.index_offset,
+                index_byte_size: indexed.index_byte_size,
+                element_byte_size: indexed.element_byte_size,
+                source_field_byte_offset: indexed.field_offset,
+                pointer_byte_offset,
+                target_field_byte_offset,
+            };
+        }
+        if source.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+            && indexed.index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+            && target.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
             && let Some(target_offset) = target.const_offset()
         {
             return CopyPlacesShape::FromFrameBaseIndexed {
@@ -4229,6 +4302,21 @@ pub fn classify_copy_places_shape(
                 source_field_byte_offset,
                 base_byte_offset: indexed.pointer_offset,
                 index_region: indexed.index_region,
+                index_offset: indexed.index_offset,
+                index_byte_size: indexed.index_byte_size,
+                element_byte_size: indexed.element_byte_size,
+                target_field_byte_offset: indexed.field_offset,
+            };
+        }
+        if source.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+            && target.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+            && indexed.index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+            && let Some((pointer_byte_offset, source_field_byte_offset)) = single_deref_path(source)
+        {
+            return CopyPlacesShape::PointeeToFrameBaseIndexed {
+                pointer_byte_offset,
+                source_field_byte_offset,
+                base_byte_offset: indexed.pointer_offset,
                 index_offset: indexed.index_offset,
                 index_byte_size: indexed.index_byte_size,
                 element_byte_size: indexed.element_byte_size,
@@ -4869,6 +4957,50 @@ mod tests {
             omega_isa_aarch64::runtime_storage_copy_from_runtime_pointee_to_runtime_frame_base_double_indexed_width(
                 120, 8, 12,
             )
+        );
+
+        let single_source = Place::at(RuntimeStorageRegion::RuntimeFrame, 40)
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::RuntimeFrame,
+                index_offset: 96,
+                index_byte_size: 8,
+                element_byte_size: 12,
+            })
+            .and_then(|place| place.with_step(PlaceStep::ConstOffset(4)))
+            .expect("all-frame indexed source");
+        assert!(matches!(
+            classify_copy_places_shape(&single_source, &target),
+            CopyPlacesShape::FrameBaseIndexedToPointee {
+                base_byte_offset: 40,
+                index_offset: 96,
+                source_field_byte_offset: 4,
+                pointer_byte_offset: 120,
+                target_field_byte_offset: 8,
+                ..
+            }
+        ));
+        assert!(matches!(
+            classify_copy_places_shape(&target, &single_source),
+            CopyPlacesShape::PointeeToFrameBaseIndexed {
+                pointer_byte_offset: 120,
+                source_field_byte_offset: 8,
+                base_byte_offset: 40,
+                index_offset: 96,
+                target_field_byte_offset: 4,
+                ..
+            }
+        ));
+        assert_eq!(
+            encode_copy_places(Architecture::Aarch64, &single_source, &target, 12)
+                .expect("encode all-frame indexed pointee copy")
+                .len(),
+            omega_isa_aarch64::runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_pointee_width(120, 8, 12)
+        );
+        assert_eq!(
+            encode_copy_places(Architecture::Aarch64, &target, &single_source, 12)
+                .expect("encode reverse all-frame indexed pointee copy")
+                .len(),
+            omega_isa_aarch64::runtime_storage_copy_from_runtime_pointee_to_runtime_frame_base_indexed_width(120, 8, 12)
         );
 
         let double_target = Place::at(RuntimeStorageRegion::RuntimeFrame, 160)
