@@ -882,7 +882,7 @@ proves complete region coverage, and composes admitted leaves under their
 separate provenance. Do not add a second whole-image decoder/admission path.
 
 The existing single final-region artifact now carries the domain-separated
-`omega.final-footprint-certificate` schema, format version 124, and a certificate
+`omega.final-footprint-certificate` schema, format version 125, and a certificate
 fingerprint over its final placement binding, compiler-text derivation, and
 complete region inventory. Its explicit completeness flags remain false until
 compiler-body footprint decoding and admitted-leaf evidence land. The envelope
@@ -1070,6 +1070,12 @@ indexed pair copies are included too. Each all-frame pair shares one frame root
 across both array walks and all of its index slots. The all-frame read and write copy
 complete aggregate byte spans rather than only scalar widths, reuse one frame relocation for the collection and
 both indices, and add a distinct source relocation only for machine storage.
+Frame-inline double-indexed direct reads and writes now also retain mixed
+machine/frame indices. A read uses the frame collection root at byte 0, one
+machine-index root at byte 8 when needed, and its shifted direct-target root;
+a write uses the frame target root at byte 0 and one shared machine root at
+byte 12 for a machine source and/or either machine-held index. Both directions
+copy the complete aggregate span.
 An all-frame double-indexed source may also land through a frame-held target
 pointer; the collection, both indices, and pointer slot share that one frame
 root while the complete value representation is copied to the pointee. The

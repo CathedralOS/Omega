@@ -2139,28 +2139,41 @@ pub fn runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_frame_wid
         + 8 * chunk_pairs
 }
 
-/// Width of the frame-resident 2D read: frame pair + 36-byte math + target pair
-/// and an exact chunked representation copy.
+/// Width of the frame-resident 2D read: frame pair, one optional shared machine
+/// index pair, 36-byte math, target pair, and an exact representation copy.
 pub fn runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage_width(
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
     target_offset: usize,
     byte_count: usize,
 ) -> usize {
-    8 + 36
+    8 + if outer_index_region == omega_target_operations::RuntimeStorageRegion::Machine
+        || inner_index_region == omega_target_operations::RuntimeStorageRegion::Machine
+    {
+        8
+    } else {
+        0
+    } + 36
         + 8
         + add_constant_width(target_offset)
         + runtime_storage_copy_data_width(0, 0, byte_count)
 }
 
-/// Width of the all-frame double-indexed write. The target and both indices
-/// use one frame pair; x20 preserves the frame source base and a machine-
-/// resident source adds one independent base pair before the chunked copy.
+/// Width of the frame-inline double-indexed write. The target and frame-held
+/// indices use one frame pair; x20 preserves a frame source, while one shared
+/// machine pair supplies a machine source and/or machine-held indices.
 pub fn runtime_storage_copy_to_runtime_frame_base_double_indexed_from_runtime_storage_width(
     source_region: omega_target_operations::RuntimeStorageRegion,
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
     source_offset: usize,
     byte_count: usize,
 ) -> usize {
     8 + 4
-        + if source_region == omega_target_operations::RuntimeStorageRegion::Machine {
+        + if source_region == omega_target_operations::RuntimeStorageRegion::Machine
+            || outer_index_region == omega_target_operations::RuntimeStorageRegion::Machine
+            || inner_index_region == omega_target_operations::RuntimeStorageRegion::Machine
+        {
             8
         } else {
             0
@@ -2176,8 +2189,17 @@ pub fn runtime_storage_copy_to_runtime_frame_base_double_indexed_source_base_off
 }
 
 /// The frame-2D read's relocated target pair follows the frame pair and math.
-pub fn runtime_storage_copy_from_runtime_frame_base_double_indexed_target_base_offset() -> usize {
-    44
+pub fn runtime_storage_copy_from_runtime_frame_base_double_indexed_target_base_offset(
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+) -> usize {
+    44 + if outer_index_region == omega_target_operations::RuntimeStorageRegion::Machine
+        || inner_index_region == omega_target_operations::RuntimeStorageRegion::Machine
+    {
+        8
+    } else {
+        0
+    }
 }
 
 pub fn runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_pointee_width(

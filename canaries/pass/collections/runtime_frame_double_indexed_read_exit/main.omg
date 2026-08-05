@@ -10,8 +10,9 @@
 // position, the third fold layer), and a by-value param array through a
 // value machine. An all-frame nested record array also writes a string
 // descriptor through both runtime indices. Whole-Triple values also cross a
-// frame-held pointee in both directions from distinct local 2D arrays, with
-// both all-frame and mixed machine/frame indices. All value-validated.
+// frame-held pointee and direct storage in both directions from distinct local
+// 2D arrays, with both all-frame and mixed machine/frame indices. All
+// value-validated.
 domain [u8]::Utf8
 requires
     valid_utf8(self);
@@ -89,7 +90,9 @@ machine Main::main(&mut self) {
         let mixed_reverse: &mut Triple = &mut source_triples[i][j];
         mixed_reverse = Triple { first: 100, second: 110, third: 120 };
         target_triples[self.index][source_j] = mixed_reverse;
-        transition picked == 8 && rooms[1][2].description == "omega" && labels[1][2].text == "omega" && replaced.first == 10 && replaced.second == 20 && replaced.third == 30 && copied.first == 4 && copied.second == 5 && copied.third == 6 && target_triples[1][2].first == 40 && target_triples[1][2].second == 50 && target_triples[1][2].third == 60 && target_triples[0][1].first == 100 && target_triples[0][1].second == 110 && target_triples[0][1].third == 120 {
+        let mixed_direct: Triple = source_triples[self.index][source_j];
+        target_triples[self.index][j] = mixed_direct;
+        transition picked == 8 && rooms[1][2].description == "omega" && labels[1][2].text == "omega" && replaced.first == 10 && replaced.second == 20 && replaced.third == 30 && copied.first == 4 && copied.second == 5 && copied.third == 6 && target_triples[1][2].first == 40 && target_triples[1][2].second == 50 && target_triples[1][2].third == 60 && target_triples[0][1].first == 100 && target_triples[0][1].second == 110 && target_triples[0][1].third == 120 && mixed_direct.first == 40 && mixed_direct.second == 50 && mixed_direct.third == 60 && target_triples[0][2].first == 40 && target_triples[0][2].second == 50 && target_triples[0][2].third == 60 {
             true -> machine_target()
             false -> no()
         }

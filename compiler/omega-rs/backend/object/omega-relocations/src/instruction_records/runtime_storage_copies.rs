@@ -349,31 +349,55 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                             );
                         }
                         omega_instruction_selection::CopyPlacesShape::FromFrameBaseDoubleIndexed {
+                            outer_index_region,
+                            inner_index_region,
                             ..
                         } => {
-                            // ONE frame base (the start relocation) serves the
-                            // array and both indices; the target-region base
-                            // relocates at the pre-store mov.
+                            // The start frame root serves the array and any
+                            // frame indices. One machine root serves either
+                            // or both machine indices before the address walk.
+                            if outer_index_region
+                                == omega_target_operations::RuntimeStorageRegion::Machine
+                                || inner_index_region
+                                    == omega_target_operations::RuntimeStorageRegion::Machine
+                            {
+                                context.insert_data_address_at_relative_offset(
+                                    8,
+                                    context.storage_region_symbol_handle(
+                                        omega_target_operations::RuntimeStorageRegion::Machine,
+                                    ),
+                                );
+                            }
                             context.insert_data_address_at_relative_offset(
                                 runtime_storage_copy_from_runtime_frame_base_double_indexed_target_base_offset(
                                     context.input.target.architecture,
+                                    outer_index_region,
+                                    inner_index_region,
                                 ),
                                 context.storage_region_symbol_handle(target.region),
                             );
                         }
                         omega_instruction_selection::CopyPlacesShape::ToFrameBaseDoubleIndexed {
+                            outer_index_region,
+                            inner_index_region,
                             ..
                         } => {
-                            // The target frame base at the start also serves
-                            // both index slots and a frame source. A machine
-                            // source owns one additional pair after the
-                            // frame-base preservation move.
+                            // The target frame root at the start also serves
+                            // frame indices and a frame source. One machine
+                            // root serves the source and/or either machine
+                            // index after the frame-base preservation move.
                             if source.region
                                 == omega_target_operations::RuntimeStorageRegion::Machine
+                                || outer_index_region
+                                    == omega_target_operations::RuntimeStorageRegion::Machine
+                                || inner_index_region
+                                    == omega_target_operations::RuntimeStorageRegion::Machine
                             {
                                 context.insert_data_address_at_relative_offset(
                                     omega_instruction_selection::runtime_storage_copy_to_runtime_frame_base_double_indexed_source_base_offset(),
-                                    context.storage_region_symbol_handle(source.region),
+                                    context.storage_region_symbol_handle(
+                                        omega_target_operations::RuntimeStorageRegion::Machine,
+                                    ),
                                 );
                             }
                         }

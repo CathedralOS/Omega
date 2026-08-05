@@ -6294,15 +6294,17 @@ pub fn runtime_storage_copy_to_runtime_machine_double_indexed_clobbers(
 }
 
 /// Read `g[i][j]` from a FRAME-resident 2D array (a `let`/param local): one
-/// frame pair serves the array and both indices, then the shared address math,
-/// then the relocated target pair and an exact chunked copy of the complete
-/// value representation.
+/// frame pair serves the array and frame-held indices, one optional machine
+/// pair serves either or both machine-held indices, then the relocated target
+/// pair and an exact copy of the complete value representation.
 #[allow(clippy::too_many_arguments)]
 pub fn encode_runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage(
     base_byte_offset: usize,
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
     outer_index_offset: usize,
     outer_index_byte_size: usize,
     outer_stride: usize,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
     inner_index_offset: usize,
     inner_index_byte_size: usize,
     inner_stride: usize,
@@ -6312,25 +6314,41 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_base_double_indexed_to_run
 ) -> Result<Vec<u8>, Diagnostic> {
     let expected_width =
         super::widths::runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage_width(
+            outer_index_region,
+            inner_index_region,
             target_offset,
             byte_count,
         );
     let mut bytes = Vec::with_capacity(expected_width);
     bytes.extend(encode_adrp_placeholder(16)); // frame base [reloc @ 0]
     bytes.extend(encode_add_page_offset_placeholder(16));
+    if outer_index_region == omega_target_operations::RuntimeStorageRegion::Machine
+        || inner_index_region == omega_target_operations::RuntimeStorageRegion::Machine
+    {
+        bytes.extend(encode_adrp_placeholder(15)); // machine indices [reloc @ 8]
+        bytes.extend(encode_add_page_offset_placeholder(15));
+    }
     append_double_index_address_math(
         &mut bytes,
-        16,
+        if outer_index_region == omega_target_operations::RuntimeStorageRegion::Machine {
+            15
+        } else {
+            16
+        },
         outer_index_offset,
         outer_index_byte_size,
         outer_stride,
-        16,
+        if inner_index_region == omega_target_operations::RuntimeStorageRegion::Machine {
+            15
+        } else {
+            16
+        },
         inner_index_offset,
         inner_index_byte_size,
         inner_stride,
         base_byte_offset + field_byte_offset,
     )?;
-    bytes.extend(encode_adrp_placeholder(20)); // target base [reloc @ 44]
+    bytes.extend(encode_adrp_placeholder(20)); // target base [reloc @ 44/52]
     bytes.extend(encode_add_page_offset_placeholder(20));
     append_add_constant_to_x_register(&mut bytes, 20, target_offset)?;
     for_each_runtime_copy_chunk(0, 0, byte_count, |offset, chunk_size| {
@@ -6342,16 +6360,25 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_base_double_indexed_to_run
     Ok(bytes)
 }
 
-/// Exact scratch footprint of an all-frame double-indexed element read.
-pub fn runtime_storage_copy_from_runtime_frame_base_double_indexed_clobbers() -> RegisterSet {
-    RegisterSet::new([
+/// Exact scratch footprint of a frame-inline double-indexed element read.
+pub fn runtime_storage_copy_from_runtime_frame_base_double_indexed_clobbers(
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+) -> RegisterSet {
+    let mut registers = vec![
         MachineRegister::Aarch64X(14),
         MachineRegister::Aarch64X(16),
         MachineRegister::Aarch64X(17),
         MachineRegister::Aarch64X(19),
         MachineRegister::Aarch64X(20),
         MachineRegister::Aarch64X(26),
-    ])
+    ];
+    if outer_index_region == omega_target_operations::RuntimeStorageRegion::Machine
+        || inner_index_region == omega_target_operations::RuntimeStorageRegion::Machine
+    {
+        registers.push(MachineRegister::Aarch64X(15));
+    }
+    RegisterSet::new(registers)
 }
 
 /// Copy an all-frame single-indexed element through a target pointer held in
@@ -6754,18 +6781,19 @@ pub fn runtime_storage_copy_from_runtime_pointee_to_runtime_frame_base_double_in
     runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_pointee_clobbers()
 }
 
-/// Write a direct storage slot into `g[i][j]` where the inline 2D array and
-/// both runtime indices live in the frame. The target frame pair leads the
-/// instruction and remains in x16; x20 preserves the frame source base while
-/// a machine source gets its own x15 pair.
+/// Write a direct storage slot into frame-inline `g[i][j]`. The target frame
+/// pair leads the instruction and remains in x16; x20 preserves a frame source
+/// while one x15 pair supplies a machine source and/or machine-held indices.
 #[allow(clippy::too_many_arguments)]
 pub fn encode_runtime_storage_copy_to_runtime_frame_base_double_indexed_from_runtime_storage(
     source_region: omega_target_operations::RuntimeStorageRegion,
     source_offset: usize,
     base_byte_offset: usize,
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
     outer_index_offset: usize,
     outer_index_byte_size: usize,
     outer_stride: usize,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
     inner_index_offset: usize,
     inner_index_byte_size: usize,
     inner_stride: usize,
@@ -6774,6 +6802,8 @@ pub fn encode_runtime_storage_copy_to_runtime_frame_base_double_indexed_from_run
 ) -> Result<Vec<u8>, Diagnostic> {
     let expected_width = super::widths::runtime_storage_copy_to_runtime_frame_base_double_indexed_from_runtime_storage_width(
         source_region,
+        outer_index_region,
+        inner_index_region,
         source_offset,
         byte_count,
     );
@@ -6781,21 +6811,34 @@ pub fn encode_runtime_storage_copy_to_runtime_frame_base_double_indexed_from_run
     bytes.extend(encode_adrp_placeholder(16)); // target frame base [reloc @ 0]
     bytes.extend(encode_add_page_offset_placeholder(16));
     bytes.extend(encode_move_x_register(20, 16));
+    if source_region == omega_target_operations::RuntimeStorageRegion::Machine
+        || outer_index_region == omega_target_operations::RuntimeStorageRegion::Machine
+        || inner_index_region == omega_target_operations::RuntimeStorageRegion::Machine
+    {
+        bytes.extend(encode_adrp_placeholder(15)); // shared machine base [reloc @ 12]
+        bytes.extend(encode_add_page_offset_placeholder(15));
+    }
     let source_base =
         if source_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
             20
         } else {
-            bytes.extend(encode_adrp_placeholder(15)); // machine source [reloc @ 12]
-            bytes.extend(encode_add_page_offset_placeholder(15));
             15
         };
     append_double_index_address_math(
         &mut bytes,
-        16,
+        if outer_index_region == omega_target_operations::RuntimeStorageRegion::Machine {
+            15
+        } else {
+            16
+        },
         outer_index_offset,
         outer_index_byte_size,
         outer_stride,
-        16,
+        if inner_index_region == omega_target_operations::RuntimeStorageRegion::Machine {
+            15
+        } else {
+            16
+        },
         inner_index_offset,
         inner_index_byte_size,
         inner_stride,
@@ -6819,6 +6862,8 @@ pub fn encode_runtime_storage_copy_to_runtime_frame_base_double_indexed_from_run
 
 pub fn runtime_storage_copy_to_runtime_frame_base_double_indexed_clobbers(
     source_region: omega_target_operations::RuntimeStorageRegion,
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
 ) -> RegisterSet {
     let mut registers = vec![
         MachineRegister::Aarch64X(14),
@@ -6829,7 +6874,10 @@ pub fn runtime_storage_copy_to_runtime_frame_base_double_indexed_clobbers(
         MachineRegister::Aarch64X(24),
         MachineRegister::Aarch64X(26),
     ];
-    if source_region == omega_target_operations::RuntimeStorageRegion::Machine {
+    if source_region == omega_target_operations::RuntimeStorageRegion::Machine
+        || outer_index_region == omega_target_operations::RuntimeStorageRegion::Machine
+        || inner_index_region == omega_target_operations::RuntimeStorageRegion::Machine
+    {
         registers.push(MachineRegister::Aarch64X(15));
     }
     RegisterSet::new(registers)
@@ -12072,9 +12120,11 @@ mod tests {
                 source_region,
                 88,
                 24,
+                frame,
                 64,
                 8,
                 12,
+                frame,
                 72,
                 8,
                 4,
@@ -12086,6 +12136,8 @@ mod tests {
                 bytes.len(),
                 widths::runtime_storage_copy_to_runtime_frame_base_double_indexed_from_runtime_storage_width(
                     source_region,
+                    frame,
+                    frame,
                     88,
                     12,
                 )
@@ -12114,14 +12166,62 @@ mod tests {
 
         let read =
             encode_runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage(
-                24, 64, 8, 12, 72, 8, 4, 0, 104, 12,
+                24, frame, 64, 8, 12, frame, 72, 8, 4, 0, 104, 12,
             )
             .expect("encode all-frame double-indexed aggregate read");
         assert_eq!(
             read.len(),
             widths::runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage_width(
-                104, 12,
+                frame, frame, 104, 12,
             )
+        );
+
+        let mixed_write =
+            encode_runtime_storage_copy_to_runtime_frame_base_double_indexed_from_runtime_storage(
+                frame, 88, 24, machine, 64, 8, 12, frame, 72, 8, 4, 0, 12,
+            )
+            .expect("encode mixed-index frame double storage write");
+        assert_eq!(
+            mixed_write.len(),
+            widths::runtime_storage_copy_to_runtime_frame_base_double_indexed_from_runtime_storage_width(
+                frame, machine, frame, 88, 12,
+            )
+        );
+        assert_eq!(
+            &mixed_write[12..20],
+            [
+                encode_adrp_placeholder(15),
+                encode_add_page_offset_placeholder(15)
+            ]
+            .concat()
+        );
+
+        let mixed_read =
+            encode_runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage(
+                24, frame, 64, 8, 12, machine, 72, 8, 4, 0, 104, 12,
+            )
+            .expect("encode mixed-index frame double aggregate read");
+        assert_eq!(
+            mixed_read.len(),
+            widths::runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage_width(
+                frame, machine, 104, 12,
+            )
+        );
+        assert_eq!(
+            &mixed_read[8..16],
+            [
+                encode_adrp_placeholder(15),
+                encode_add_page_offset_placeholder(15)
+            ]
+            .concat()
+        );
+        assert_eq!(
+            &mixed_read[52..60],
+            [
+                encode_adrp_placeholder(20),
+                encode_add_page_offset_placeholder(20)
+            ]
+            .concat()
         );
 
         let pointee =

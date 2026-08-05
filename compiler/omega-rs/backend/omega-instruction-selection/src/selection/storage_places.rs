@@ -3476,6 +3476,23 @@ pub(super) fn resolve_runtime_frame_base_double_indexed_source(
     )
 }
 
+pub(super) fn resolve_runtime_frame_base_double_indexed_source_with_index_regions(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expression: &Expression,
+) -> Option<RuntimeFrameBaseDoubleIndexedTarget> {
+    let mut delegated_expressions = ExpressionTable::default();
+    let delegated_expression = delegated_expressions.insert_tree(expression);
+    resolve_runtime_frame_base_double_indexed_source_with_index_regions_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        &delegated_expressions,
+        delegated_expression,
+    )
+}
+
 pub(super) fn resolve_runtime_pointee_slot_offset(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,

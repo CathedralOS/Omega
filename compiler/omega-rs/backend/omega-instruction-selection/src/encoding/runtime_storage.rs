@@ -3288,9 +3288,11 @@ pub fn encode_copy_places(
             ),
             CopyPlacesShape::FromFrameBaseDoubleIndexed {
                 base_byte_offset,
+                outer_index_region,
                 outer_index_offset,
                 outer_index_byte_size,
                 outer_stride,
+                inner_index_region,
                 inner_index_offset,
                 inner_index_byte_size,
                 inner_stride,
@@ -3298,9 +3300,11 @@ pub fn encode_copy_places(
                 target_offset,
             } => aarch64::encode_runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage(
                 base_byte_offset,
+                outer_index_region,
                 outer_index_offset,
                 outer_index_byte_size,
                 outer_stride,
+                inner_index_region,
                 inner_index_offset,
                 inner_index_byte_size,
                 inner_stride,
@@ -3423,9 +3427,11 @@ pub fn encode_copy_places(
             CopyPlacesShape::ToFrameBaseDoubleIndexed {
                 source_offset,
                 base_byte_offset,
+                outer_index_region,
                 outer_index_offset,
                 outer_index_byte_size,
                 outer_stride,
+                inner_index_region,
                 inner_index_offset,
                 inner_index_byte_size,
                 inner_stride,
@@ -3434,9 +3440,11 @@ pub fn encode_copy_places(
                 source.region,
                 source_offset,
                 base_byte_offset,
+                outer_index_region,
                 outer_index_offset,
                 outer_index_byte_size,
                 outer_stride,
+                inner_index_region,
                 inner_index_offset,
                 inner_index_byte_size,
                 inner_stride,
@@ -3805,13 +3813,15 @@ pub enum CopyPlacesShape {
         field_byte_offset: usize,
         target_offset: usize,
     },
-    /// A FRAME inline 2D-array element read into a frame slot: all-frame,
-    /// two indices, no deref.
+    /// A FRAME inline 2D-array element read into direct storage. Each runtime
+    /// index retains its own storage region.
     FromFrameBaseDoubleIndexed {
         base_byte_offset: usize,
+        outer_index_region: omega_target_operations::RuntimeStorageRegion,
         outer_index_offset: usize,
         outer_index_byte_size: usize,
         outer_stride: usize,
+        inner_index_region: omega_target_operations::RuntimeStorageRegion,
         inner_index_offset: usize,
         inner_index_byte_size: usize,
         inner_stride: usize,
@@ -3884,15 +3894,16 @@ pub enum CopyPlacesShape {
         inner_stride: usize,
         target_field_byte_offset: usize,
     },
-    /// A direct storage slot written into an all-frame inline 2D-array
-    /// element. The collection and both runtime indices share the frame base;
-    /// the source may be frame- or machine-resident.
+    /// A direct storage slot written into a frame-inline 2D-array element.
+    /// Each runtime index retains its own storage region.
     ToFrameBaseDoubleIndexed {
         source_offset: usize,
         base_byte_offset: usize,
+        outer_index_region: omega_target_operations::RuntimeStorageRegion,
         outer_index_offset: usize,
         outer_index_byte_size: usize,
         outer_stride: usize,
+        inner_index_region: omega_target_operations::RuntimeStorageRegion,
         inner_index_offset: usize,
         inner_index_byte_size: usize,
         inner_stride: usize,
@@ -4096,17 +4107,14 @@ pub fn classify_copy_places_shape(
             // Any const-offset target serves: the retained encoder is
             // ..._to_runtime_storage and the walker patches the target
             // base by its own region.
-            if source.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
-                && double.outer_region
-                    == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
-                && double.inner_region
-                    == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
-            {
+            if source.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
                 return CopyPlacesShape::FromFrameBaseDoubleIndexed {
                     base_byte_offset: double.base_offset,
+                    outer_index_region: double.outer_region,
                     outer_index_offset: double.outer_offset,
                     outer_index_byte_size: double.outer_byte_size,
                     outer_stride: double.outer_stride,
+                    inner_index_region: double.inner_region,
                     inner_index_offset: double.inner_offset,
                     inner_index_byte_size: double.inner_byte_size,
                     inner_stride: double.inner_stride,
@@ -4176,16 +4184,16 @@ pub fn classify_copy_places_shape(
             };
         }
         if target.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
-            && double.outer_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
-            && double.inner_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
             && let Some(source_offset) = source.const_offset()
         {
             return CopyPlacesShape::ToFrameBaseDoubleIndexed {
                 source_offset,
                 base_byte_offset: double.base_offset,
+                outer_index_region: double.outer_region,
                 outer_index_offset: double.outer_offset,
                 outer_index_byte_size: double.outer_byte_size,
                 outer_stride: double.outer_stride,
+                inner_index_region: double.inner_region,
                 inner_index_offset: double.inner_offset,
                 inner_index_byte_size: double.inner_byte_size,
                 inner_stride: double.inner_stride,
@@ -5014,6 +5022,47 @@ mod tests {
                 ..
             }
         ));
+
+        let direct = Place::at(RuntimeStorageRegion::RuntimeFrame, 168);
+        assert!(matches!(
+            classify_copy_places_shape(&mixed_source, &direct),
+            CopyPlacesShape::FromFrameBaseDoubleIndexed {
+                outer_index_region: RuntimeStorageRegion::Machine,
+                inner_index_region: RuntimeStorageRegion::RuntimeFrame,
+                ..
+            }
+        ));
+        let direct_read = encode_copy_places(Architecture::Aarch64, &mixed_source, &direct, 12)
+            .expect("encode mixed-index frame-double direct read");
+        assert_eq!(
+            direct_read.len(),
+            omega_isa_aarch64::runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage_width(
+                RuntimeStorageRegion::Machine,
+                RuntimeStorageRegion::RuntimeFrame,
+                168,
+                12,
+            )
+        );
+        assert!(matches!(
+            classify_copy_places_shape(&direct, &mixed_source),
+            CopyPlacesShape::ToFrameBaseDoubleIndexed {
+                outer_index_region: RuntimeStorageRegion::Machine,
+                inner_index_region: RuntimeStorageRegion::RuntimeFrame,
+                ..
+            }
+        ));
+        let direct_write = encode_copy_places(Architecture::Aarch64, &direct, &mixed_source, 12)
+            .expect("encode mixed-index frame-double direct write");
+        assert_eq!(
+            direct_write.len(),
+            omega_isa_aarch64::runtime_storage_copy_to_runtime_frame_base_double_indexed_from_runtime_storage_width(
+                RuntimeStorageRegion::RuntimeFrame,
+                RuntimeStorageRegion::Machine,
+                RuntimeStorageRegion::RuntimeFrame,
+                168,
+                12,
+            )
+        );
 
         let single_source = Place::at(RuntimeStorageRegion::RuntimeFrame, 40)
             .with_step(PlaceStep::ScaledIndex {
