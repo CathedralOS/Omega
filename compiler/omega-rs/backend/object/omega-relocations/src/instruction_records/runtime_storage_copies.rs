@@ -514,6 +514,10 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                     // instruction start; the machine-indexed shapes add
                     // their frame-index relocations.
                     let shape = omega_instruction_selection::classify_write_place_shape(target);
+                    let frame_indexed =
+                        omega_instruction_selection::classify_frame_base_indexed_integer_shape(
+                            target,
+                        );
                     let frame_double =
                         omega_instruction_selection::classify_frame_base_double_indexed_integer_shape(
                             target,
@@ -578,6 +582,19 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                                     context.runtime_frame_symbol_handle(),
                                 );
                             }
+                        }
+                        omega_instruction_selection::WritePlaceShape::Unsupported
+                            if frame_indexed.is_some() =>
+                        {
+                            let frame_indexed = frame_indexed
+                                .expect("the guarded frame-base-indexed shape must be retained");
+                            context.insert_data_address_at_relative_offset(
+                                omega_instruction_selection::runtime_frame_base_indexed_machine_index_base_offset(
+                                    context.input.target.architecture,
+                                    frame_indexed.base_byte_offset,
+                                ),
+                                context.storage_region_symbol_handle(frame_indexed.index_region),
+                            );
                         }
                         omega_instruction_selection::WritePlaceShape::Unsupported
                             if frame_double.is_some() => {}

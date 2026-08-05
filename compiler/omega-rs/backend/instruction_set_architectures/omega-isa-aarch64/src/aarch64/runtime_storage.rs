@@ -42,7 +42,8 @@ use super::primitives::{
 use super::widths::{
     add_constant_width, bit_fragment_container_bytes,
     runtime_frame_base_indexed_address_to_runtime_frame_write_width,
-    runtime_frame_base_indexed_binary_write_width, runtime_frame_base_indexed_integer_write_width,
+    runtime_frame_base_indexed_binary_write_width,
+    runtime_frame_base_indexed_integer_write_with_index_region_width,
     runtime_frame_base_indexed_string_write_width,
     runtime_frame_fixed_indexed_address_to_runtime_frame_write_width,
     runtime_frame_indexed_address_to_runtime_frame_write_width,
@@ -3909,18 +3910,45 @@ pub fn encode_runtime_frame_base_indexed_integer_write(
     byte_size: usize,
     value: i64,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(runtime_frame_base_indexed_integer_write_width(
+    encode_runtime_frame_base_indexed_integer_write_with_index_region(
         base_byte_offset,
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
         index_offset,
         index_byte_size,
         element_byte_size,
         field_byte_offset,
         byte_size,
-    ));
-    append_runtime_frame_base_index_target_address(
+        value,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_frame_base_indexed_integer_write_with_index_region(
+    base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    value: i64,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(
+        runtime_frame_base_indexed_integer_write_with_index_region_width(
+            base_byte_offset,
+            index_region,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+        ),
+    );
+    append_runtime_frame_base_index_target_address_with_index_region(
         &mut bytes,
         16,
         base_byte_offset,
+        index_region,
         index_offset,
         index_byte_size,
         element_byte_size,
@@ -3951,13 +3979,25 @@ pub fn encode_runtime_frame_base_indexed_integer_write(
 /// x17 the index/value, x26 the scaled index, and the shared scale helper
 /// writes x19.
 pub fn runtime_frame_base_indexed_integer_write_clobbers() -> RegisterSet {
-    RegisterSet::new([
+    runtime_frame_base_indexed_integer_write_with_index_region_clobbers(
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+    )
+}
+
+pub fn runtime_frame_base_indexed_integer_write_with_index_region_clobbers(
+    index_region: omega_target_operations::RuntimeStorageRegion,
+) -> RegisterSet {
+    let mut registers = vec![
         MachineRegister::Aarch64X(16),
         MachineRegister::Aarch64X(17),
         MachineRegister::Aarch64X(19),
         MachineRegister::Aarch64X(20),
         MachineRegister::Aarch64X(26),
-    ])
+    ];
+    if index_region == omega_target_operations::RuntimeStorageRegion::Machine {
+        registers.push(MachineRegister::Aarch64X(15));
+    }
+    RegisterSet::new(registers)
 }
 
 /// The machine-indexed ADDRESS write: `frame[target] = &machine[base + idx*size
@@ -10541,33 +10581,53 @@ mod tests {
     /// write width must agree with the encoder.
     #[test]
     fn frame_base_indexed_integer_write_width_matches_emission() {
-        for &(base, index_off, element_size, field, value_size) in &[
-            (0x20usize, 0x48usize, 4usize, 0usize, 4usize),
-            (0x20, 0x48, 8, 8, 8),
-            (0x20, 0x40, 16, 0, 1),
+        for index_region in [
+            omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+            omega_target_operations::RuntimeStorageRegion::Machine,
         ] {
-            let bytes = encode_runtime_frame_base_indexed_integer_write(
-                base,
-                index_off,
-                4,
-                element_size,
-                field,
-                value_size,
-                7,
-            )
-            .unwrap();
-            assert_eq!(
-                bytes.len(),
-                widths::runtime_frame_base_indexed_integer_write_width(
+            for &(base, index_off, element_size, field, value_size) in &[
+                (0x20usize, 0x48usize, 4usize, 0usize, 4usize),
+                (0x20, 0x48, 8, 8, 8),
+                (0x20, 0x40, 16, 0, 1),
+            ] {
+                let bytes = encode_runtime_frame_base_indexed_integer_write_with_index_region(
                     base,
+                    index_region,
                     index_off,
                     4,
                     element_size,
                     field,
                     value_size,
-                ),
-                "value_size={value_size}"
-            );
+                    7,
+                )
+                .unwrap();
+                assert_eq!(
+                    bytes.len(),
+                    widths::runtime_frame_base_indexed_integer_write_with_index_region_width(
+                        base,
+                        index_region,
+                        index_off,
+                        4,
+                        element_size,
+                        field,
+                        value_size,
+                    ),
+                    "index_region={index_region:?}, value_size={value_size}"
+                );
+                if index_region == omega_target_operations::RuntimeStorageRegion::Machine {
+                    let index_site =
+                        widths::runtime_frame_base_indexed_machine_index_base_offset(base);
+                    assert_eq!(
+                        &bytes[index_site..index_site + 8],
+                        [
+                            encode_adrp_placeholder(15),
+                            encode_add_page_offset_placeholder(15)
+                        ]
+                        .concat(),
+                        "the machine-held index owns an x15 base pair"
+                    );
+                }
+            }
         }
     }
 

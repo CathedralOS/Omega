@@ -12,11 +12,12 @@ use psi_checked_trees::expression::{
 };
 use psi_symbols::{BuiltinFunction, SymbolHandle};
 
-use super::super::super::storage_places::resolve_runtime_frame_base_indexed_target_in_table;
 use super::super::super::storage_places::{
     clamp_runtime_case_comparison_operands_in_table, classify_scalar_value_type_in_table,
     resolve_binary_operand_arithmetic_domain_in_table,
     resolve_binary_operation_arithmetic_domain_in_table, resolve_runtime_bit_field_place_in_table,
+    resolve_runtime_frame_base_indexed_target_in_table,
+    resolve_runtime_frame_base_indexed_target_with_index_region_in_table,
     resolve_runtime_frame_fixed_indexed_target_in_table,
     resolve_runtime_frame_indexed_target_in_table, resolve_runtime_machine_indexed_target_in_table,
     resolve_runtime_pointee_fixed_indexed_target_in_table,
@@ -926,19 +927,21 @@ fn select_runtime_static_mutation_write_in_table(
         );
     }
 
-    if let Some(indexed_target) = resolve_runtime_frame_base_indexed_target_in_table(
-        input,
-        dispatch_index,
-        source_key,
-        expressions,
-        target,
-    ) && supports_scalar_integer_write(indexed_target.byte_count)
+    if let Some(indexed_target) =
+        resolve_runtime_frame_base_indexed_target_with_index_region_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            target,
+        )
+        && supports_scalar_integer_write(indexed_target.byte_count)
     {
         return Some(
             crate::selection::runtime_dispatch::write_place_integer_base_indexed(
                 omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
                 indexed_target.base_byte_offset,
-                omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                indexed_target.index_region,
                 indexed_target.index_offset,
                 indexed_target.index_byte_size,
                 indexed_target.element_byte_size,
