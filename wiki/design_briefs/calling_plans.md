@@ -1318,8 +1318,9 @@ respective retained `CompilerBodyPlaceCopy` or
 and calls remain unreplayed. Text-buffer materialization replays every x86
 target accepted by the general place materializer, including double-indexed
 transient frame destinations; AArch64 additionally covers cross-region frame
-indices and transient inline-frame indexed destinations. The exact buffer data
-object and target/index relocations bind to a dedicated
+indices, transient inline-frame indexed destinations, and all-frame double-
+runtime-indexed destinations. The latter reuses one frame relocation for the
+collection and both indices. The exact buffer data object and target/index relocations bind to a dedicated
 `CompilerBodyTextAssemblyWrite` footprint. Literal and stored-source appends
 share all x86 materializer targets and the classified AArch64 coverage,
 retaining their exact literal or source storage, buffer, place, encoder, and

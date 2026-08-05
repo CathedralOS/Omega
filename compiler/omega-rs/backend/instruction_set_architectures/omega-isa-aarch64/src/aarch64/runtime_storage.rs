@@ -5886,7 +5886,7 @@ fn append_fixed_shape_index_element_address(
 /// element is fixed width so the relocated adrp positions around it are
 /// constants. Clobbers x14/x17/x26.
 #[allow(clippy::too_many_arguments)]
-fn append_double_index_address_math(
+pub(in crate::aarch64) fn append_double_index_address_math(
     bytes: &mut Vec<u8>,
     outer_base_register: u8,
     outer_index_offset: usize,

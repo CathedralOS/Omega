@@ -432,6 +432,25 @@ pub(in crate::selection) fn runtime_text_builder_write_without_aliases_emit(
                             target.field_byte_offset,
                         ),
                     });
+                } else if let Some(target) = target.frame_base_double_indexed.as_ref() {
+                    emit(SelectedInstructionKind::AppendTextStoredToPlace {
+                        buffer,
+                        source_region: source_place.region,
+                        source_offset: source_place.byte_offset,
+                        target: crate::selection::runtime_dispatch::double_indexed_place(
+                            RuntimeStorageRegion::RuntimeFrame,
+                            target.base_byte_offset,
+                            RuntimeStorageRegion::RuntimeFrame,
+                            target.outer_index_offset,
+                            target.outer_index_byte_size,
+                            target.outer_stride,
+                            RuntimeStorageRegion::RuntimeFrame,
+                            target.inner_index_offset,
+                            target.inner_index_byte_size,
+                            target.inner_stride,
+                            target.field_byte_offset,
+                        ),
+                    });
                 } else {
                     return false;
                 }
@@ -832,6 +851,25 @@ fn emit_runtime_text_builder_segments_with_handle_resolver(
                             target.field_byte_offset,
                         ),
                     });
+                } else if let Some(target) = target.frame_base_double_indexed.as_ref() {
+                    emit(SelectedInstructionKind::AppendTextStoredToPlace {
+                        buffer,
+                        source_region: source_place.region,
+                        source_offset: source_place.byte_offset,
+                        target: crate::selection::runtime_dispatch::double_indexed_place(
+                            RuntimeStorageRegion::RuntimeFrame,
+                            target.base_byte_offset,
+                            RuntimeStorageRegion::RuntimeFrame,
+                            target.outer_index_offset,
+                            target.outer_index_byte_size,
+                            target.outer_stride,
+                            RuntimeStorageRegion::RuntimeFrame,
+                            target.inner_index_offset,
+                            target.inner_index_byte_size,
+                            target.inner_stride,
+                            target.field_byte_offset,
+                        ),
+                    });
                 } else {
                     return false;
                 }
@@ -949,24 +987,23 @@ fn append_runtime_text_literal_to_target(
             literal,
         });
     } else if let Some(target) = target_frame_base_double_indexed {
-        let data = string_literal_data_handle(input, source_key, statement_index, &literal);
-        if !data.is_valid() {
-            return false;
-        }
-        emit(
-            crate::selection::runtime_dispatch::write_place_string_frame_base_double_indexed(
+        emit(SelectedInstructionKind::AppendTextLiteralToPlace {
+            buffer,
+            target: crate::selection::runtime_dispatch::double_indexed_place(
+                RuntimeStorageRegion::RuntimeFrame,
                 target.base_byte_offset,
+                RuntimeStorageRegion::RuntimeFrame,
                 target.outer_index_offset,
                 target.outer_index_byte_size,
                 target.outer_stride,
+                RuntimeStorageRegion::RuntimeFrame,
                 target.inner_index_offset,
                 target.inner_index_byte_size,
                 target.inner_stride,
                 target.field_byte_offset,
-                data,
-                literal.len(),
             ),
-        );
+            literal,
+        });
     } else if let Some(target) = target_machine_indexed {
         let data = string_literal_data_handle(input, source_key, statement_index, &literal);
         if !data.is_valid() {

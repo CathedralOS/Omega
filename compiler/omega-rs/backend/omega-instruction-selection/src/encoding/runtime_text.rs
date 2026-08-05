@@ -342,6 +342,23 @@ pub fn encode_runtime_text_stored_place_append_to_place(
 ) -> Result<Vec<u8>, Diagnostic> {
     use crate::{WritePlaceShape, classify_write_place_shape};
 
+    if architecture == Architecture::Aarch64
+        && let Some(shape) = crate::classify_frame_base_double_indexed_text_assembly_shape(target)
+    {
+        return aarch64::encode_runtime_text_stored_place_append_to_runtime_frame_base_double_indexed(
+            0,
+            source_offset,
+            shape.base_byte_offset,
+            shape.outer_index_offset,
+            shape.outer_index_byte_size,
+            shape.outer_stride,
+            shape.inner_index_offset,
+            shape.inner_index_byte_size,
+            shape.inner_stride,
+            shape.field_byte_offset,
+        );
+    }
+
     match (architecture, classify_write_place_shape(target)) {
         (architecture, WritePlaceShape::Direct { byte_offset }) => {
             encode_runtime_text_stored_place_append(architecture, 0, source_offset, byte_offset)
@@ -489,6 +506,23 @@ pub fn encode_runtime_text_literal_append_to_place(
 ) -> Result<Vec<u8>, Diagnostic> {
     use crate::{WritePlaceShape, classify_write_place_shape};
 
+    if architecture == Architecture::Aarch64
+        && let Some(shape) = crate::classify_frame_base_double_indexed_text_assembly_shape(target)
+    {
+        return aarch64::encode_runtime_text_literal_append_to_runtime_frame_base_double_indexed(
+            0,
+            shape.base_byte_offset,
+            shape.outer_index_offset,
+            shape.outer_index_byte_size,
+            shape.outer_stride,
+            shape.inner_index_offset,
+            shape.inner_index_byte_size,
+            shape.inner_stride,
+            shape.field_byte_offset,
+            literal,
+        );
+    }
+
     match (architecture, classify_write_place_shape(target)) {
         (architecture, WritePlaceShape::Direct { byte_offset }) => {
             encode_runtime_text_literal_append(architecture, 0, byte_offset, literal)
@@ -616,6 +650,21 @@ pub fn encode_runtime_text_buffer_materialize_to_place(
     target: &omega_target_operations::Place,
 ) -> Result<Vec<u8>, Diagnostic> {
     use crate::{WritePlaceShape, classify_write_place_shape};
+
+    if architecture == Architecture::Aarch64
+        && let Some(shape) = crate::classify_frame_base_double_indexed_text_assembly_shape(target)
+    {
+        return aarch64::encode_runtime_text_buffer_materialize_to_runtime_frame_base_double_indexed(
+            shape.base_byte_offset,
+            shape.outer_index_offset,
+            shape.outer_index_byte_size,
+            shape.outer_stride,
+            shape.inner_index_offset,
+            shape.inner_index_byte_size,
+            shape.inner_stride,
+            shape.field_byte_offset,
+        );
+    }
 
     match (architecture, classify_write_place_shape(target)) {
         (Architecture::X86_64, WritePlaceShape::Direct { byte_offset }) => {
