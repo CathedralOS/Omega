@@ -1150,7 +1150,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         executable_regions.contains(
             "\"certificate_schema\": \"omega.final-footprint-certificate\""
         )
-            && executable_regions.contains("\"certificate_format_version\": 99")
+            && executable_regions.contains("\"certificate_format_version\": 100")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
             && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")
@@ -2958,7 +2958,7 @@ fn compiler_body_general_x86_text_assembly_reaches_the_final_artifact() {
     let regions = fs::read_to_string(output.join("13_executable_regions.json"))
         .expect("general x86 final executable-region evidence should be written");
     assert!(
-        regions.contains("\"certificate_format_version\": 99")
+        regions.contains("\"certificate_format_version\": 100")
             && regions.contains("\"compiler_function_body_specification_subset\""),
         "general x86 text assembly must reach final-image validation"
     );
@@ -2996,7 +2996,7 @@ fn aarch64_frame_descriptor_ops_with_machine_index_reach_the_final_artifact() {
     let regions = fs::read_to_string(output.join("13_executable_regions.json"))
         .expect("cross-region AArch64 final executable-region evidence should be written");
     assert!(
-        regions.contains("\"certificate_format_version\": 99")
+        regions.contains("\"certificate_format_version\": 100")
             && regions.contains("\"compiler_function_body_specification_subset\""),
         "cross-region AArch64 frame-descriptor operations must reach final-image validation"
     );
@@ -8948,7 +8948,7 @@ stderr:
     let _ = fs::remove_dir_all(&build_dir);
 }
 
-// Inline LOCAL array write/read at a runtime (param) index with 8-byte elements.
+// Inline LOCAL array write at a machine-field runtime index with 8-byte elements.
 #[test]
 fn runtime_frame_indexed_local_read_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_frame_indexed_local_read_exit");

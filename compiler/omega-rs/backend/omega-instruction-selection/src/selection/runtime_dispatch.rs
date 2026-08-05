@@ -315,6 +315,7 @@ pub(crate) fn copy_places_to_frame_base_indexed(
     source_region: RuntimeStorageRegion,
     source_offset: usize,
     base_byte_offset: usize,
+    index_region: RuntimeStorageRegion,
     index_offset: usize,
     index_byte_size: usize,
     element_byte_size: usize,
@@ -323,13 +324,22 @@ pub(crate) fn copy_places_to_frame_base_indexed(
 ) -> SelectedInstructionKind {
     SelectedInstructionKind::CopyPlaces {
         source: omega_abstract_operations::Place::at(source_region, source_offset),
-        target: frame_base_indexed_place(
+        target: omega_abstract_operations::Place::at(
+            RuntimeStorageRegion::RuntimeFrame,
             base_byte_offset,
+        )
+        .with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+            index_region,
             index_offset,
             index_byte_size,
             element_byte_size,
-            field_byte_offset,
-        ),
+        })
+        .and_then(|place| {
+            place.with_step(omega_abstract_operations::PlaceStep::ConstOffset(
+                field_byte_offset,
+            ))
+        })
+        .expect("a frame-base-indexed place is three steps, within PLACE_MAX_STEPS"),
         byte_count,
         role: omega_abstract_operations::CopyPlacesRole::Ordinary,
     }

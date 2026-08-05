@@ -2336,6 +2336,23 @@ pub(super) fn resolve_runtime_frame_base_indexed_target(
     )
 }
 
+pub(super) fn resolve_runtime_frame_base_indexed_target_with_index_region(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expression: &Expression,
+) -> Option<RuntimeFrameBaseIndexedTarget> {
+    let mut delegated_expressions = ExpressionTable::default();
+    let delegated_expression = delegated_expressions.insert_tree(expression);
+    resolve_runtime_frame_base_indexed_target_with_index_region_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        &delegated_expressions,
+        delegated_expression,
+    )
+}
+
 pub(super) fn resolve_runtime_frame_indexed_target_in_table(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
@@ -2809,6 +2826,23 @@ pub(super) fn resolve_runtime_frame_base_indexed_target_in_table(
     expressions: &ExpressionTable,
     expression: ExpressionHandle,
 ) -> Option<RuntimeFrameBaseIndexedTarget> {
+    let target = resolve_runtime_frame_base_indexed_target_with_index_region_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+    )?;
+    (target.index_region == RuntimeStorageRegion::RuntimeFrame).then_some(target)
+}
+
+pub(super) fn resolve_runtime_frame_base_indexed_target_with_index_region_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<RuntimeFrameBaseIndexedTarget> {
     let indexed = indexed_target_path_in_table(expressions, expression)?;
     let collection_slot = runtime_frame_slot_for_expression_in_table(
         input,
@@ -2866,10 +2900,6 @@ pub(super) fn resolve_runtime_frame_base_indexed_target_in_table(
         expressions,
         indexed.index,
     )?;
-    if index_place.region != RuntimeStorageRegion::RuntimeFrame {
-        return None;
-    }
-
     let element_layout = descriptor_layout(input, element_descriptor);
     let root_field = FieldLayout {
         symbol: collection_slot.symbol,
@@ -2891,6 +2921,7 @@ pub(super) fn resolve_runtime_frame_base_indexed_target_in_table(
 
     Some(RuntimeFrameBaseIndexedTarget {
         base_byte_offset: collection_slot.byte_offset + array_prefix_offset,
+        index_region: index_place.region,
         index_offset: index_place.byte_offset,
         index_byte_size: index_place.byte_count,
         element_byte_size: element_layout.size,

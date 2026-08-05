@@ -1,19 +1,21 @@
-// Inline LOCAL array write/read at a runtime (param) index with 8-byte elements.
-// The write copies a machine field into `a[k]`, exercising the frame-base-
-// indexed CopyPlaces target and its distinct machine-source relocation.
+// Inline LOCAL array write/read at a machine-field runtime index with 8-byte
+// elements. The target frame base stays distinct while the index and copied
+// source reuse one machine-base relocation.
 use omega::language::std::console;
 data Main {
     console: Console;
+    index: u64 [0..=2];
     value: i64;
 }
 machine Main::main(&mut self) {
+    self.index = 2;
     self.value = 44;
-    transition { _ -> self.pick(2) }
+    transition { _ -> self.pick() }
 }
-machine Main::pick(&mut self, k: u64 [0..=2]) {
+machine Main::pick(&mut self) {
     let a: [i64; 3] = [11, 22, 33];
-    a[k] = self.value;
-    let v: i64 = a[k];
+    a[self.index] = self.value;
+    let v: i64 = a[2];
     transition v == 44 {
         true -> yes()
         false -> no()

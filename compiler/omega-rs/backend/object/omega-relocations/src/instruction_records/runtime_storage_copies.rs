@@ -206,19 +206,31 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                         }
                         omega_instruction_selection::CopyPlacesShape::ToFrameBaseIndexed {
                             base_byte_offset,
+                            index_region,
                             index_offset,
                             index_byte_size,
                             element_byte_size,
                             field_byte_offset,
                             ..
                         } => {
-                            if source.region
+                            if index_region
                                 == omega_target_operations::RuntimeStorageRegion::Machine
                             {
                                 context.insert_data_address_at_relative_offset(
-                                    omega_instruction_selection::runtime_frame_base_indexed_operand_start_width(
+                                    omega_instruction_selection::runtime_frame_base_indexed_machine_index_base_offset(
                                         context.input.target.architecture,
                                         base_byte_offset,
+                                    ),
+                                    context.storage_region_symbol_handle(index_region),
+                                );
+                            } else if source.region
+                                == omega_target_operations::RuntimeStorageRegion::Machine
+                            {
+                                context.insert_data_address_at_relative_offset(
+                                    omega_instruction_selection::runtime_frame_base_indexed_operand_start_width_with_index_region(
+                                        context.input.target.architecture,
+                                        base_byte_offset,
+                                        index_region,
                                         index_offset,
                                         index_byte_size,
                                         element_byte_size,
