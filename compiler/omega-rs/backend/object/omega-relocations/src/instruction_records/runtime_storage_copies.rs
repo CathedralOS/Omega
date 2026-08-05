@@ -101,6 +101,9 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                         }
                         | omega_instruction_selection::CopyPlacesShape::PointeeToMachineDoubleIndexed {
                             ..
+                        }
+                        | omega_instruction_selection::CopyPlacesShape::PointeeToMachineIndexed {
+                            ..
                         } => target.region,
                         _ => source.region,
                     };
@@ -223,6 +226,12 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                             ..
                         }
                         | omega_instruction_selection::CopyPlacesShape::PointeeToMachineDoubleIndexed {
+                            ..
+                        }
+                        | omega_instruction_selection::CopyPlacesShape::MachineIndexedToPointee {
+                            ..
+                        }
+                        | omega_instruction_selection::CopyPlacesShape::PointeeToMachineIndexed {
                             ..
                         } => {
                             context.insert_data_address_at_relative_offset(

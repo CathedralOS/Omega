@@ -1068,6 +1068,9 @@ Machine-rooted double-indexed elements also cross a frame-held pointee in both
 directions. Their AArch64 recipe retains a machine collection root plus one
 frame root shared by the pointer slot and any frame-held indices, copies the
 complete aggregate span, and replays both exact relocations.
+Single-indexed machine-rooted elements use the same bidirectional two-root
+recipe. A mutable indexed reference is established by a distinct address write
+before any value copy may dereference its frame slot.
 The x86 general place materializer also replays every
 remaining otherwise-unclassified `CopyPlaces` path with scratch derived from
 the retained places' exact index depths.
