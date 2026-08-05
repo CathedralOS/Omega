@@ -882,7 +882,7 @@ proves complete region coverage, and composes admitted leaves under their
 separate provenance. Do not add a second whole-image decoder/admission path.
 
 The existing single final-region artifact now carries the domain-separated
-`omega.final-footprint-certificate` schema, format version 128, and a certificate
+`omega.final-footprint-certificate` schema, format version 129, and a certificate
 fingerprint over its final placement binding, compiler-text derivation, and
 complete region inventory. Its explicit completeness flags remain false until
 compiler-body footprint decoding and admitted-leaf evidence land. The envelope
@@ -1078,6 +1078,11 @@ Cross-region single-indexed pair copies now move complete aggregate spans
 between machine-inline and frame-inline arrays in either direction. The source
 collection root is relocated at byte 0, the target collection root at byte 8,
 and each independently placed index reuses the matching machine or frame root.
+Cross-region double-indexed pair copies now provide the same bidirectional
+coverage for machine-inline and frame-inline 2D arrays. The two collection
+roots remain at bytes 0 and 8, all four independently placed indices reuse the
+root for their own region, and final replay validates the complete aggregate
+span and exact scratch set.
 Frame-inline double-indexed direct reads and writes now also retain mixed
 machine/frame indices. A read uses the frame collection root at byte 0, one
 machine-index root at byte 8 when needed, and its shifted direct-target root;
@@ -1113,6 +1118,12 @@ frame-inline array's index lives in machine storage, replay retains its exact
 second root in both directions.
 The retained x86 general place materializer now replays all
 otherwise-unclassified `CopyPlaces` paths with index-depth-derived scratch.
+
+- **CONST-DOUBLE-INDEX-GUARD — IMPLEMENTATION WORK:** a static guard over a
+  constant nested projection such as `grid[0][1].field` currently reads the
+  transposed element on the native path, while the equivalent runtime-indexed
+  copy and scalar-projection paths are correct. Unify the constant nested-index
+  guard geometry with the canonical place walk and add a differential canary.
 Their explicit `Ordinary` role prevents overlap with the indirect-result
 fragment; the exact place-copy bytes, storage/pointer/index relocations, and
 target scratch union must equal the retained `CompilerBodyPlaceCopy` evidence.

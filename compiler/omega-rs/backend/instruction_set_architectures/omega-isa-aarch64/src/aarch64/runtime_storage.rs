@@ -7502,6 +7502,105 @@ pub fn runtime_storage_copy_cross_region_indexed_pair_clobbers() -> RegisterSet 
     ])
 }
 
+/// Double-indexed aggregate copy across one machine-inline and one frame-inline
+/// array. The source and target roots are materialized once and reused by all
+/// four independently placed indices.
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_storage_copy_cross_region_double_indexed_pair(
+    source_region: omega_target_operations::RuntimeStorageRegion,
+    source_base_byte_offset: usize,
+    source_outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    source_outer_index_offset: usize,
+    source_outer_index_byte_size: usize,
+    source_outer_stride: usize,
+    source_inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    source_inner_index_offset: usize,
+    source_inner_index_byte_size: usize,
+    source_inner_stride: usize,
+    source_field_byte_offset: usize,
+    target_region: omega_target_operations::RuntimeStorageRegion,
+    target_base_byte_offset: usize,
+    target_outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    target_outer_index_offset: usize,
+    target_outer_index_byte_size: usize,
+    target_outer_stride: usize,
+    target_inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    target_inner_index_offset: usize,
+    target_inner_index_byte_size: usize,
+    target_inner_stride: usize,
+    target_field_byte_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    if source_region == target_region {
+        return Err(Diagnostic::error(
+            "cross-region double-indexed pair copy requires distinct roots",
+        ));
+    }
+    let expected_width =
+        super::widths::runtime_storage_copy_cross_region_double_indexed_pair_width(byte_count);
+    let mut bytes = Vec::with_capacity(expected_width);
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    bytes.extend(encode_adrp_placeholder(15));
+    bytes.extend(encode_add_page_offset_placeholder(15));
+    bytes.extend(encode_move_x_register(20, 16));
+    let source_index_base = |region| if region == source_region { 20 } else { 15 };
+    append_double_index_address_math(
+        &mut bytes,
+        source_index_base(source_outer_index_region),
+        source_outer_index_offset,
+        source_outer_index_byte_size,
+        source_outer_stride,
+        source_index_base(source_inner_index_region),
+        source_inner_index_offset,
+        source_inner_index_byte_size,
+        source_inner_stride,
+        source_base_byte_offset + source_field_byte_offset,
+    )?;
+    bytes.extend(encode_move_x_register(24, 16));
+    bytes.extend(encode_move_x_register(16, 15));
+    let target_index_base = |region| if region == target_region { 15 } else { 20 };
+    append_double_index_address_math(
+        &mut bytes,
+        target_index_base(target_outer_index_region),
+        target_outer_index_offset,
+        target_outer_index_byte_size,
+        target_outer_stride,
+        target_index_base(target_inner_index_region),
+        target_inner_index_offset,
+        target_inner_index_byte_size,
+        target_inner_stride,
+        target_base_byte_offset + target_field_byte_offset,
+    )?;
+    for_each_runtime_copy_chunk(0, 0, byte_count, |offset, chunk_size| {
+        match chunk_size {
+            8 => {
+                bytes.extend(encode_load_x_from_x(17, 24, offset)?);
+                bytes.extend(encode_store_x_to_x(17, 16, offset)?);
+            }
+            _ => {
+                bytes.extend(encode_load_w_from_x(17, 24, offset, chunk_size)?);
+                bytes.extend(encode_store_w_to_x(17, 16, offset, chunk_size)?);
+            }
+        }
+        Ok(())
+    })?;
+    debug_assert_eq!(bytes.len(), expected_width);
+    Ok(bytes)
+}
+
+pub fn runtime_storage_copy_cross_region_double_indexed_pair_clobbers() -> RegisterSet {
+    RegisterSet::new([
+        MachineRegister::Aarch64X(14),
+        MachineRegister::Aarch64X(15),
+        MachineRegister::Aarch64X(16),
+        MachineRegister::Aarch64X(17),
+        MachineRegister::Aarch64X(20),
+        MachineRegister::Aarch64X(24),
+        MachineRegister::Aarch64X(26),
+    ])
+}
+
 /// Copy `frame[source_outer][source_inner]` to
 /// `frame[target_outer][target_inner]`. x20 preserves the relocated frame root,
 /// one optional x15 root supplies every machine-held index, and x24 preserves
@@ -12672,6 +12771,39 @@ mod tests {
                 encode_add_page_offset_placeholder(15),
             ]
             .concat()
+        );
+
+        let cross_region_double_indexed_pair =
+            encode_runtime_storage_copy_cross_region_double_indexed_pair(
+                machine, 24, frame, 64, 8, 24, machine, 72, 8, 12, 0, frame, 128, machine, 80, 8,
+                24, frame, 88, 8, 12, 0, 12,
+            )
+            .expect("encode cross-region double-indexed aggregate pair copy");
+        assert_eq!(
+            cross_region_double_indexed_pair.len(),
+            widths::runtime_storage_copy_cross_region_double_indexed_pair_width(12)
+        );
+        assert_eq!(
+            &cross_region_double_indexed_pair[..16],
+            [
+                encode_adrp_placeholder(16),
+                encode_add_page_offset_placeholder(16),
+                encode_adrp_placeholder(15),
+                encode_add_page_offset_placeholder(15),
+            ]
+            .concat()
+        );
+        assert_eq!(
+            runtime_storage_copy_cross_region_double_indexed_pair_clobbers(),
+            RegisterSet::new([
+                MachineRegister::Aarch64X(14),
+                MachineRegister::Aarch64X(15),
+                MachineRegister::Aarch64X(16),
+                MachineRegister::Aarch64X(17),
+                MachineRegister::Aarch64X(20),
+                MachineRegister::Aarch64X(24),
+                MachineRegister::Aarch64X(26),
+            ])
         );
 
         let double_pair =

@@ -1276,7 +1276,11 @@ is copied and replayed. Cross-region single-indexed pair copies move complete
 aggregate spans between machine-inline and frame-inline arrays in either
 direction. The source collection root is relocated at byte 0, the target root
 at byte 8, and each independently placed index reuses the matching machine or
-frame root. Frame-inline double-indexed direct reads and writes
+frame root. Cross-region double-indexed pair copies provide the same
+bidirectional coverage for machine-inline and frame-inline 2D arrays. The two
+collection roots remain at bytes 0 and 8, all four independently placed
+indices reuse the matching root, and the complete aggregate span is replayed.
+Frame-inline double-indexed direct reads and writes
 also retain mixed machine/frame indices. A read uses the frame collection root
 at byte 0, one machine-index root at byte 8 when needed, and its shifted direct-
 target root; a write uses the frame target root at byte 0 and one shared

@@ -226,6 +226,9 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                         }
                         omega_instruction_selection::CopyPlacesShape::CrossRegionIndexedPair {
                             ..
+                        }
+                        | omega_instruction_selection::CopyPlacesShape::CrossRegionDoubleIndexedPair {
+                            ..
                         } => {
                             context.insert_data_address_at_relative_offset(
                                 8,
