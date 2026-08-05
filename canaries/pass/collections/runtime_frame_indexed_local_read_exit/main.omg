@@ -6,9 +6,15 @@
 domain [u8]::Utf8
 requires
     valid_utf8(self);
+domain [u8; 8]::Utf8
+requires
+    valid_utf8(self);
 use omega::language::std::console;
 data Room {
     description: &[u8] in Utf8;
+}
+data Label {
+    text: [u8; 8] in Utf8;
 }
 data Main {
     console: Console;
@@ -41,11 +47,17 @@ machine Main::pick(&mut self) {
         Room { description: "old" }
     ];
     rooms[self.index].description = "omega";
+    let labels: [Label; 3] = [
+        Label { text: "one" },
+        Label { text: "two" },
+        Label { text: "old" }
+    ];
+    labels[self.index].text = "omega";
     let v: i64 = a[2];
     let w: i64 = b[2];
     let x: i64 = c[2];
     let y: i32 = d[2];
-    transition v == 44 && w == 55 && x == 50 && y == 61 && rooms[2].description == "omega" {
+    transition v == 44 && w == 55 && x == 50 && y == 61 && rooms[2].description == "omega" && labels[2].text == "omega" {
         true -> yes()
         false -> no()
     }

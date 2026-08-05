@@ -2806,7 +2806,9 @@ pub fn derive_boundary_compiler_body_place_bounded_buffer_write_footprint<'instr
                         crate::WritePlaceShape::Direct { .. }
                             | crate::WritePlaceShape::Pointee { .. }
                     )
-                }));
+                }))
+            || (append_kind == 0
+                && crate::classify_frame_base_indexed_bounded_buffer_shape(target).is_some());
         if !supported {
             continue;
         }

@@ -4746,7 +4746,7 @@ fn validate_compiler_function_instruction_boundaries(
                         target,
                         literal,
                     } => {
-                        let shape = compiler_body_place_integer_write_shape(&target)?;
+                        let shape = compiler_body_place_bounded_buffer_write_shape(&target)?;
                         if architecture == Architecture::Aarch64
                             && !matches!(
                                 shape,
@@ -4805,13 +4805,14 @@ fn validate_compiler_function_instruction_boundaries(
                                     )?,
                                     CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed {
                                         base_byte_offset,
-                                        index_region: _,
+                                        index_region,
                                         index_offset,
                                         index_byte_size,
                                         element_byte_size,
                                         field_byte_offset,
-                                    } => omega_isa_aarch64::encode_runtime_frame_base_indexed_bounded_buffer_write(
+                                    } => omega_isa_aarch64::encode_runtime_frame_base_indexed_bounded_buffer_write_with_index_region(
                                         base_byte_offset,
+                                        index_region,
                                         index_offset,
                                         index_byte_size,
                                         element_byte_size,
@@ -8318,7 +8319,7 @@ fn compiler_instruction_footprint(
             ),
             Architecture::Aarch64 => {
                 if !matches!(
-                    compiler_body_place_integer_write_shape(&target).ok()?,
+                    compiler_body_place_bounded_buffer_write_shape(&target).ok()?,
                     CompilerBodyPlaceIntegerWriteShape::Direct { .. }
                         | CompilerBodyPlaceIntegerWriteShape::Pointee { .. }
                         | CompilerBodyPlaceIntegerWriteShape::FrameIndexed { .. }
@@ -9943,6 +9944,12 @@ fn compiler_body_place_convert_write_shape(
 }
 
 fn compiler_body_place_string_write_shape(
+    target: &omega_target_operations::Place,
+) -> Result<CompilerBodyPlaceIntegerWriteShape, Diagnostic> {
+    compiler_body_place_write_shape_with_cross_region_frame_base(target)
+}
+
+fn compiler_body_place_bounded_buffer_write_shape(
     target: &omega_target_operations::Place,
 ) -> Result<CompilerBodyPlaceIntegerWriteShape, Diagnostic> {
     compiler_body_place_write_shape_with_cross_region_frame_base(target)
@@ -11786,10 +11793,23 @@ fn aarch64_bounded_buffer_write_relocation_sites(
     use omega_target_operations::RuntimeStorageRegion;
 
     let mut sites = vec![(0, target.region)];
-    match compiler_body_place_integer_write_shape(&target)? {
+    match compiler_body_place_bounded_buffer_write_shape(&target)? {
         CompilerBodyPlaceIntegerWriteShape::Direct { .. }
-        | CompilerBodyPlaceIntegerWriteShape::Pointee { .. }
-        | CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. } => {}
+        | CompilerBodyPlaceIntegerWriteShape::Pointee { .. } => {}
+        CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed {
+            base_byte_offset,
+            index_region,
+            ..
+        } => {
+            if index_region == RuntimeStorageRegion::Machine {
+                sites.push((
+                    omega_isa_aarch64::runtime_frame_base_indexed_machine_index_base_offset(
+                        base_byte_offset,
+                    ),
+                    index_region,
+                ));
+            }
+        }
         CompilerBodyPlaceIntegerWriteShape::FrameIndexed { index_region, .. } => {
             if index_region == RuntimeStorageRegion::Machine {
                 sites.push((
