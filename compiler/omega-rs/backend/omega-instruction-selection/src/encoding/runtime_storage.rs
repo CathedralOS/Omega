@@ -2611,6 +2611,31 @@ pub fn encode_copy_places(
                     byte_count,
                 )
             }
+            CopyPlacesShape::IndexedToPointeeByRegion {
+                descriptor_offset,
+                index_region,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                source_field_byte_offset,
+                pointer_byte_offset,
+                target_field_byte_offset,
+            } if source.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+                && target.region
+                    == omega_target_operations::RuntimeStorageRegion::RuntimeFrame =>
+            {
+                aarch64::encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee_with_index_region(
+                    descriptor_offset,
+                    index_region,
+                    index_offset,
+                    index_byte_size,
+                    element_byte_size,
+                    source_field_byte_offset,
+                    pointer_byte_offset,
+                    target_field_byte_offset,
+                    byte_count,
+                )
+            }
             // The machine inline-array decomposes: the encoders take the
             // index region themselves (a frame-resident index reloads the
             // frame base mid-sequence).
@@ -2774,6 +2799,7 @@ pub fn encode_copy_places(
             | CopyPlacesShape::ToIndexed { .. }
             | CopyPlacesShape::ToIndexedByRegion { .. }
             | CopyPlacesShape::IndexedToPointee { .. }
+            | CopyPlacesShape::IndexedToPointeeByRegion { .. }
             | CopyPlacesShape::General => Err(Diagnostic::error(
                 "CopyPlaces on aarch64 serves direct, single-pointee, pointee-pair, \
                  frame-rooted single-indexed, and inline-array place shapes only \
@@ -2852,6 +2878,16 @@ pub enum CopyPlacesShape {
     /// Runtime-indexed source landing through a pointer slot.
     IndexedToPointee {
         descriptor_offset: usize,
+        index_offset: usize,
+        index_byte_size: usize,
+        element_byte_size: usize,
+        source_field_byte_offset: usize,
+        pointer_byte_offset: usize,
+        target_field_byte_offset: usize,
+    },
+    IndexedToPointeeByRegion {
+        descriptor_offset: usize,
+        index_region: omega_target_operations::RuntimeStorageRegion,
         index_offset: usize,
         index_byte_size: usize,
         element_byte_size: usize,
@@ -3120,6 +3156,21 @@ pub fn classify_copy_places_shape(
                     target_field_byte_offset,
                 };
             }
+        }
+        if source.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+            && target.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+            && let Some((pointer_byte_offset, target_field_byte_offset)) = single_deref_path(target)
+        {
+            return CopyPlacesShape::IndexedToPointeeByRegion {
+                descriptor_offset: indexed.pointer_offset,
+                index_region: indexed.index_region,
+                index_offset: indexed.index_offset,
+                index_byte_size: indexed.index_byte_size,
+                element_byte_size: indexed.element_byte_size,
+                source_field_byte_offset: indexed.field_offset,
+                pointer_byte_offset,
+                target_field_byte_offset,
+            };
         }
         return CopyPlacesShape::General;
     }

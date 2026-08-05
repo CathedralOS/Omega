@@ -882,7 +882,7 @@ proves complete region coverage, and composes admitted leaves under their
 separate provenance. Do not add a second whole-image decoder/admission path.
 
 The existing single final-region artifact now carries the domain-separated
-`omega.final-footprint-certificate` schema, format version 93, and a certificate
+`omega.final-footprint-certificate` schema, format version 94, and a certificate
 fingerprint over its final placement binding, compiler-text derivation, and
 complete region inventory. Its explicit completeness flags remain false until
 compiler-body footprint decoding and admitted-leaf evidence land. The envelope
@@ -1053,8 +1053,9 @@ descriptor/index slots landing in direct frame or machine storage are included
 too; the index may live in frame or machine storage, with its distinct base
 relocation and scratch evidence. The direct-storage-source to frame-indexed-target
 mirror now also accepts a machine-storage source or index with the exact reused
-or distinct machine-base relocation; the frame-indexed-source to frame-held-
-pointee form remains the shared-frame subset.
+or distinct machine-base relocation. The frame-indexed-source to frame-held-
+pointee form now also accepts a machine-storage index with its exact second-base
+relocation and scratch evidence.
 Runtime-indexed reads from
 inline frame arrays into direct frame storage and from inline machine arrays
 into direct frame or machine storage are included as well, together with

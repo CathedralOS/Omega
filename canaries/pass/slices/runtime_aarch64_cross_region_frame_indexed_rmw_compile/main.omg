@@ -4,28 +4,29 @@
 use omega::language::std::console;
 data Main {
     console: Console;
-    arr: [i32 in Wrapping; 4];
+    arr: [i32; 4];
     i: u64 [0..=3];
-    value: i32 in Wrapping;
-    got: i32 in Wrapping;
+    value: i32 [0..=100];
+    got: i32;
 }
 machine Main::main(&mut self) {
     self.arr[2] = 40;
     self.i = 2;
     self.value = 40;
-    let s: &mut [i32 in Wrapping] = self.arr.as_mut_slice();
+    let s: &mut [i32] = self.arr.as_mut_slice();
+    let out: &mut i32 = &mut self.got;
     transition self.i < s.len {
-        true -> seed(s)
+        true -> seed(s, out)
         false -> no()
     }
-    state seed(&mut self, s: &mut [i32 in Wrapping]) {
+    state seed(&mut self, s: &mut [i32], out: &mut i32) {
         s[self.i] = self.value;
-        transition true { _ -> work(s) }
+        transition true { _ -> work(s, out) }
     }
-    state work(&mut self, s: &mut [i32 in Wrapping]) {
+    state work(&mut self, s: &mut [i32], out: &mut i32) {
         s[self.i] = self.value + 2;
-        self.got = s[self.i];
-        transition self.got == 42 && self.arr[2] == 42 {
+        out = s[self.i];
+        transition out == 42 && self.arr[2] == 42 {
             true -> yes()
             false -> no()
         }

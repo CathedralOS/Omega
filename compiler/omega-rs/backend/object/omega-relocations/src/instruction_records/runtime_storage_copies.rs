@@ -198,6 +198,17 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                             // precondition): one frame base serves the
                             // array/descriptor, index, and the other side.
                         }
+                        omega_instruction_selection::CopyPlacesShape::IndexedToPointeeByRegion {
+                            index_region,
+                            ..
+                        } => {
+                            context.insert_data_address_at_relative_offset(
+                                omega_instruction_selection::frame_indexed_operand_machine_index_base_offset(
+                                    context.input.target.architecture,
+                                ),
+                                context.storage_region_symbol_handle(index_region),
+                            );
+                        }
                         omega_instruction_selection::CopyPlacesShape::FromMachineDoubleIndexed {
                             outer_index_region,
                             inner_index_region,

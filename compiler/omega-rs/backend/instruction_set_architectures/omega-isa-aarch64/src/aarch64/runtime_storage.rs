@@ -4539,7 +4539,15 @@ pub fn runtime_storage_copy_to_runtime_frame_indexed_with_regions_clobbers(
 /// pointee, without introducing another scratch register.
 pub fn runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee_clobbers() -> RegisterSet
 {
-    runtime_storage_copy_from_runtime_frame_indexed_clobbers()
+    runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee_with_index_region_clobbers(
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+    )
+}
+
+pub fn runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee_with_index_region_clobbers(
+    index_region: omega_target_operations::RuntimeStorageRegion,
+) -> RegisterSet {
+    runtime_storage_copy_from_runtime_frame_indexed_with_index_region_clobbers(index_region)
 }
 
 /// Exact scratch footprint of the frame-resident inline-array read. x16 walks
@@ -4717,19 +4725,45 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee
     target_field_byte_offset: usize,
     byte_count: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(
+    encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee_with_index_region(
+        descriptor_offset,
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        source_field_byte_offset,
+        pointer_byte_offset,
+        target_field_byte_offset,
+        byte_count,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee_with_index_region(
+    descriptor_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    source_field_byte_offset: usize,
+    pointer_byte_offset: usize,
+    target_field_byte_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let expected_width =
         super::widths::runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee_width(
             element_byte_size,
             source_field_byte_offset,
             target_field_byte_offset,
             byte_count,
-        ),
-    );
+        ) + usize::from(index_region == omega_target_operations::RuntimeStorageRegion::Machine) * 8;
+    let mut bytes = Vec::with_capacity(expected_width);
     // x16 = element source-field address (`*(frame[descriptor]) + index*elem +
     // source_field`); leaves x20 = frame base.
-    append_runtime_frame_index_target_address(
+    append_runtime_frame_index_target_address_with_index_region(
         &mut bytes,
         16,
+        index_region,
         descriptor_offset,
         index_offset,
         index_byte_size,
@@ -4748,6 +4782,7 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee
         Ok(())
     })?;
 
+    debug_assert_eq!(bytes.len(), expected_width);
     Ok(bytes)
 }
 
@@ -5035,35 +5070,10 @@ fn for_each_runtime_copy_chunk(
     Ok(())
 }
 
-fn append_runtime_frame_index_target_address(
-    bytes: &mut Vec<u8>,
-    address_register: u8,
-    descriptor_offset: usize,
-    index_offset: usize,
-    index_byte_size: usize,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-    index_scratch: u8,
-    scale_scratch: u8,
-) -> Result<(), Diagnostic> {
-    append_runtime_frame_index_target_address_with_index_region(
-        bytes,
-        address_register,
-        omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
-        descriptor_offset,
-        index_offset,
-        index_byte_size,
-        element_byte_size,
-        field_byte_offset,
-        index_scratch,
-        scale_scratch,
-    )
-}
-
 /// Machine-storage flavor: a MACHINE-resident index (a subslice start held in a
-/// machine field) materializes its own page pair into x21 at the CONSTANT
-/// offset 32 (after the frame pair + the fixed-width descriptor load), which
-/// the relocation record patches to the machine symbol.
+/// machine field) materializes its own page pair into a dedicated base scratch
+/// at the CONSTANT offset 32 (after the frame pair + the fixed-width descriptor
+/// load), which the relocation record patches to the machine symbol.
 pub(in crate::aarch64) fn append_runtime_frame_index_target_address_with_index_region(
     bytes: &mut Vec<u8>,
     address_register: u8,
@@ -9735,9 +9745,10 @@ mod tests {
         for &(element_size, field_offset) in &[(1usize, 0usize), (4, 0), (8, 8), (24, 16), (40, 0)]
         {
             let mut bytes = Vec::new();
-            append_runtime_frame_index_target_address(
+            append_runtime_frame_index_target_address_with_index_region(
                 &mut bytes,
                 16,
+                omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
                 0x10,
                 0x40,
                 4,
@@ -9819,6 +9830,45 @@ mod tests {
                 "element_size={element_size}, source_field={source_field}, pointer_offset={pointer_offset}, target_field={target_field}, byte_count={byte_count}"
             );
         }
+    }
+
+    #[test]
+    fn frame_indexed_to_pointee_copy_materializes_a_machine_index_base() {
+        let ordinary = encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee(
+            24, 40, 8, 4, 0, 56, 0, 4,
+        )
+        .expect("encode all-frame indexed-to-pointee copy");
+        let cross_region =
+            encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee_with_index_region(
+                24,
+                omega_target_operations::RuntimeStorageRegion::Machine,
+                40,
+                8,
+                4,
+                0,
+                56,
+                0,
+                4,
+            )
+            .expect("encode machine-indexed frame-descriptor-to-pointee copy");
+
+        assert_eq!(cross_region.len(), ordinary.len() + 8);
+        assert_eq!(
+            &cross_region[32..40],
+            [
+                encode_adrp_placeholder(15),
+                encode_add_page_offset_placeholder(15)
+            ]
+            .concat(),
+            "the published second-base site must materialize MACHINE storage"
+        );
+        assert!(
+            runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee_with_index_region_clobbers(
+                omega_target_operations::RuntimeStorageRegion::Machine,
+            )
+            .contains(MachineRegister::Aarch64X(15)),
+            "the exact footprint must retain the cross-region base register"
+        );
     }
 
     /// The value compare materializes the expected value into a register and
