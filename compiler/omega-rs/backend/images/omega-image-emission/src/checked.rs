@@ -2703,6 +2703,18 @@ enum CompilerBodyPlaceCopyShape {
         target_element_byte_size: usize,
         target_field_byte_offset: usize,
     },
+    FrameBaseIndexedPair {
+        source_base_byte_offset: usize,
+        source_index_offset: usize,
+        source_index_byte_size: usize,
+        source_element_byte_size: usize,
+        source_field_byte_offset: usize,
+        target_base_byte_offset: usize,
+        target_index_offset: usize,
+        target_index_byte_size: usize,
+        target_element_byte_size: usize,
+        target_field_byte_offset: usize,
+    },
     General,
 }
 
@@ -3746,6 +3758,30 @@ fn validate_compiler_function_instruction_boundaries(
                                         target_base_byte_offset,
                                         target_index_offset,
                                         target_index_region,
+                                        target_index_byte_size,
+                                        target_element_byte_size,
+                                        target_field_byte_offset,
+                                        byte_count,
+                                    )?,
+                                    CompilerBodyPlaceCopyShape::FrameBaseIndexedPair {
+                                        source_base_byte_offset,
+                                        source_index_offset,
+                                        source_index_byte_size,
+                                        source_element_byte_size,
+                                        source_field_byte_offset,
+                                        target_base_byte_offset,
+                                        target_index_offset,
+                                        target_index_byte_size,
+                                        target_element_byte_size,
+                                        target_field_byte_offset,
+                                    } => omega_isa_aarch64::encode_runtime_storage_copy_frame_base_indexed_to_frame_base_indexed(
+                                        source_base_byte_offset,
+                                        source_index_offset,
+                                        source_index_byte_size,
+                                        source_element_byte_size,
+                                        source_field_byte_offset,
+                                        target_base_byte_offset,
+                                        target_index_offset,
                                         target_index_byte_size,
                                         target_element_byte_size,
                                         target_field_byte_offset,
@@ -7472,6 +7508,9 @@ fn compiler_instruction_footprint(
                         CompilerBodyPlaceCopyShape::MachineIndexedPair { .. } => {
                             omega_isa_x86_64::copy_places_machine_indexed_pair_clobbers(byte_count)
                         }
+                        CompilerBodyPlaceCopyShape::FrameBaseIndexedPair { .. } => {
+                            omega_isa_x86_64::copy_places_clobbers(&source, &target, byte_count)
+                        }
                         CompilerBodyPlaceCopyShape::General => {
                             omega_isa_x86_64::copy_places_clobbers(&source, &target, byte_count)
                         }
@@ -7584,6 +7623,9 @@ fn compiler_instruction_footprint(
                         ),
                         CompilerBodyPlaceCopyShape::MachineIndexedPair { .. } => {
                             omega_isa_aarch64::runtime_storage_copy_machine_indexed_to_machine_indexed_clobbers()
+                        }
+                        CompilerBodyPlaceCopyShape::FrameBaseIndexedPair { .. } => {
+                            omega_isa_aarch64::runtime_storage_copy_frame_base_indexed_to_frame_base_indexed_clobbers()
                         }
                         CompilerBodyPlaceCopyShape::General => return None,
                     },
@@ -9646,6 +9688,9 @@ fn compiler_place_copy_address_sites(
                 }
                 Ok(sites)
             }
+            CompilerBodyPlaceCopyShape::FrameBaseIndexedPair { .. } => {
+                Ok(vec![(0, source.region)])
+            }
             CompilerBodyPlaceCopyShape::General => Err(Diagnostic::error(
                 "final aarch64 place-copy relocation replay reached the x86-only general materializer class",
             )),
@@ -10029,6 +10074,40 @@ fn compiler_body_place_copy_shape(
             inner_index_byte_size,
             inner_stride,
             field_byte_offset,
+        });
+    }
+    if source.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+        && target.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+        && let Ok((
+            source_base_byte_offset,
+            source_index_region,
+            source_index_offset,
+            source_index_byte_size,
+            source_element_byte_size,
+            source_field_byte_offset,
+        )) = compiler_single_direct_indexed_place_offsets(source)
+        && source_index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+        && let Ok((
+            target_base_byte_offset,
+            target_index_region,
+            target_index_offset,
+            target_index_byte_size,
+            target_element_byte_size,
+            target_field_byte_offset,
+        )) = compiler_single_direct_indexed_place_offsets(target)
+        && target_index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+    {
+        return Ok(CompilerBodyPlaceCopyShape::FrameBaseIndexedPair {
+            source_base_byte_offset,
+            source_index_offset,
+            source_index_byte_size,
+            source_element_byte_size,
+            source_field_byte_offset,
+            target_base_byte_offset,
+            target_index_offset,
+            target_index_byte_size,
+            target_element_byte_size,
+            target_field_byte_offset,
         });
     }
     if let Ok((
@@ -16336,6 +16415,44 @@ mod tests {
                 12,
             )
             .expect("final reverse relocation sites"),
+            vec![(0, RuntimeStorageRegion::RuntimeFrame)]
+        );
+
+        let indexed_source = Place::at(RuntimeStorageRegion::RuntimeFrame, 32)
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::RuntimeFrame,
+                index_offset: 104,
+                index_byte_size: 8,
+                element_byte_size: 12,
+            })
+            .expect("all-frame indexed source");
+        let indexed_target = Place::at(RuntimeStorageRegion::RuntimeFrame, 160)
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::RuntimeFrame,
+                index_offset: 112,
+                index_byte_size: 8,
+                element_byte_size: 12,
+            })
+            .expect("all-frame indexed target");
+        assert!(matches!(
+            compiler_body_place_copy_shape(&indexed_source, &indexed_target)
+                .expect("classify final all-frame indexed pair"),
+            CompilerBodyPlaceCopyShape::FrameBaseIndexedPair {
+                source_base_byte_offset: 32,
+                source_index_offset: 104,
+                target_base_byte_offset: 160,
+                target_index_offset: 112,
+                ..
+            }
+        ));
+        assert_eq!(
+            compiler_place_copy_address_sites(
+                omega_target::Architecture::Aarch64,
+                indexed_source,
+                indexed_target,
+                12,
+            )
+            .expect("final all-frame indexed-pair sites"),
             vec![(0, RuntimeStorageRegion::RuntimeFrame)]
         );
     }

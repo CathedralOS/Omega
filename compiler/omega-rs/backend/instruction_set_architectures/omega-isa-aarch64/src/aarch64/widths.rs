@@ -2356,6 +2356,22 @@ pub fn runtime_storage_copy_machine_indexed_to_machine_indexed_width(
         + 8 * runtime_copy_chunk_pair_count(byte_count)
 }
 
+/// Width of an all-frame indexed pair copy: one shared frame pair, two
+/// fixed-shape element addresses, one source-address stash, one target-base
+/// reset, and one load/store pair per copy chunk.
+pub fn runtime_storage_copy_frame_base_indexed_to_frame_base_indexed_width(
+    byte_count: usize,
+) -> usize {
+    8 + fixed_shape_index_element_address_width(
+        omega_target_operations::RuntimeStorageRegion::Machine,
+    ) + 4
+        + 4
+        + fixed_shape_index_element_address_width(
+            omega_target_operations::RuntimeStorageRegion::Machine,
+        )
+        + 8 * runtime_copy_chunk_pair_count(byte_count)
+}
+
 /// Offset of the SECOND relocated machine-base `adrp` inside the dual-indexed
 /// copy (the target half): the first base pair (8) + the source element
 /// address + the x24 stash (4).
