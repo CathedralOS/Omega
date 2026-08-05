@@ -882,7 +882,7 @@ proves complete region coverage, and composes admitted leaves under their
 separate provenance. Do not add a second whole-image decoder/admission path.
 
 The existing single final-region artifact now carries the domain-separated
-`omega.final-footprint-certificate` schema, format version 123, and a certificate
+`omega.final-footprint-certificate` schema, format version 124, and a certificate
 fingerprint over its final placement binding, compiler-text derivation, and
 complete region inventory. Its explicit completeness flags remain false until
 compiler-body footprint decoding and admitted-leaf evidence land. The envelope
@@ -1075,6 +1075,11 @@ pointer; the collection, both indices, and pointer slot share that one frame
 root while the complete value representation is copied to the pointee. The
 reverse copy from a frame-held source pointee into an all-frame double-indexed
 target uses the same one-root geometry and complete aggregate span.
+Frame-inline double-indexed elements also cross a frame-held pointee when one
+or both indices live in machine storage. The frame root still supplies the
+collection and pointer slot, while one exact machine root at byte 12 supplies
+every machine-held index in either direction; the complete aggregate span is
+copied and replayed.
 Machine-rooted double-indexed elements now cross a frame-held pointee in both
 directions as well. AArch64 retains the machine collection root and one frame
 root for the pointer slot plus any frame-held indices, copies the complete

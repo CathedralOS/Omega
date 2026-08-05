@@ -6474,16 +6474,19 @@ pub fn runtime_storage_copy_from_runtime_pointee_to_runtime_frame_base_indexed_c
     runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_pointee_clobbers()
 }
 
-/// Copy an all-frame double-indexed element through a target pointer held in
-/// the same frame. One relocated root supplies the collection, both indices,
-/// and the pointer slot; the pointee itself is reached through the loaded
-/// pointer value.
+/// Copy a frame-inline double-indexed element through a target pointer held in
+/// the same frame. One relocated frame root supplies the collection, pointer
+/// slot, and frame-held indices; one additional machine root supplies either
+/// or both machine-held indices. The pointee itself is reached through the
+/// loaded pointer value.
 #[allow(clippy::too_many_arguments)]
 pub fn encode_runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_pointee(
     base_byte_offset: usize,
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
     outer_index_offset: usize,
     outer_index_byte_size: usize,
     outer_stride: usize,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
     inner_index_offset: usize,
     inner_index_byte_size: usize,
     inner_stride: usize,
@@ -6493,6 +6496,8 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_base_double_indexed_to_run
     byte_count: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
     let expected_width = super::widths::runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_pointee_width(
+        outer_index_region,
+        inner_index_region,
         pointer_byte_offset,
         target_field_byte_offset,
         byte_count,
@@ -6501,13 +6506,27 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_base_double_indexed_to_run
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
     bytes.extend(encode_move_x_register(20, 16));
+    if outer_index_region == omega_target_operations::RuntimeStorageRegion::Machine
+        || inner_index_region == omega_target_operations::RuntimeStorageRegion::Machine
+    {
+        bytes.extend(encode_adrp_placeholder(15));
+        bytes.extend(encode_add_page_offset_placeholder(15));
+    }
     append_double_index_address_math(
         &mut bytes,
-        16,
+        if outer_index_region == omega_target_operations::RuntimeStorageRegion::Machine {
+            15
+        } else {
+            16
+        },
         outer_index_offset,
         outer_index_byte_size,
         outer_stride,
-        16,
+        if inner_index_region == omega_target_operations::RuntimeStorageRegion::Machine {
+            15
+        } else {
+            16
+        },
         inner_index_offset,
         inner_index_byte_size,
         inner_stride,
@@ -6661,17 +6680,21 @@ pub fn runtime_storage_copy_runtime_pointee_to_machine_double_indexed_clobbers()
     runtime_storage_copy_machine_double_indexed_to_runtime_pointee_clobbers()
 }
 
-/// Copy through a frame-held source pointer into an all-frame double-indexed
-/// element. One relocated root supplies the pointer slot, collection, and both
-/// indices; the pointee itself is reached through the loaded pointer value.
+/// Copy through a frame-held source pointer into a frame-inline double-indexed
+/// element. One relocated frame root supplies the pointer slot, collection,
+/// and frame-held indices; one additional machine root supplies either or both
+/// machine-held indices. The pointee itself is reached through the loaded
+/// pointer value.
 #[allow(clippy::too_many_arguments)]
 pub fn encode_runtime_storage_copy_from_runtime_pointee_to_runtime_frame_base_double_indexed(
     pointer_byte_offset: usize,
     source_field_byte_offset: usize,
     base_byte_offset: usize,
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
     outer_index_offset: usize,
     outer_index_byte_size: usize,
     outer_stride: usize,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
     inner_index_offset: usize,
     inner_index_byte_size: usize,
     inner_stride: usize,
@@ -6679,6 +6702,8 @@ pub fn encode_runtime_storage_copy_from_runtime_pointee_to_runtime_frame_base_do
     byte_count: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
     let expected_width = super::widths::runtime_storage_copy_from_runtime_pointee_to_runtime_frame_base_double_indexed_width(
+        outer_index_region,
+        inner_index_region,
         pointer_byte_offset,
         source_field_byte_offset,
         byte_count,
@@ -6687,13 +6712,27 @@ pub fn encode_runtime_storage_copy_from_runtime_pointee_to_runtime_frame_base_do
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
     bytes.extend(encode_move_x_register(20, 16));
+    if outer_index_region == omega_target_operations::RuntimeStorageRegion::Machine
+        || inner_index_region == omega_target_operations::RuntimeStorageRegion::Machine
+    {
+        bytes.extend(encode_adrp_placeholder(15));
+        bytes.extend(encode_add_page_offset_placeholder(15));
+    }
     append_double_index_address_math(
         &mut bytes,
-        16,
+        if outer_index_region == omega_target_operations::RuntimeStorageRegion::Machine {
+            15
+        } else {
+            16
+        },
         outer_index_offset,
         outer_index_byte_size,
         outer_stride,
-        16,
+        if inner_index_region == omega_target_operations::RuntimeStorageRegion::Machine {
+            15
+        } else {
+            16
+        },
         inner_index_offset,
         inner_index_byte_size,
         inner_stride,
@@ -12087,13 +12126,13 @@ mod tests {
 
         let pointee =
             encode_runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_pointee(
-                24, 64, 8, 12, 72, 8, 4, 0, 104, 4, 12,
+                24, frame, 64, 8, 12, frame, 72, 8, 4, 0, 104, 4, 12,
             )
             .expect("encode all-frame double-indexed aggregate copy to pointee");
         assert_eq!(
             pointee.len(),
             widths::runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_pointee_width(
-                104, 4, 12,
+                frame, frame, 104, 4, 12,
             )
         );
         assert_eq!(
@@ -12108,13 +12147,13 @@ mod tests {
 
         let from_pointee =
             encode_runtime_storage_copy_from_runtime_pointee_to_runtime_frame_base_double_indexed(
-                104, 4, 24, 64, 8, 12, 72, 8, 4, 0, 12,
+                104, 4, 24, frame, 64, 8, 12, frame, 72, 8, 4, 0, 12,
             )
             .expect("encode aggregate pointee copy to all-frame double-indexed storage");
         assert_eq!(
             from_pointee.len(),
             widths::runtime_storage_copy_from_runtime_pointee_to_runtime_frame_base_double_indexed_width(
-                104, 4, 12,
+                frame, frame, 104, 4, 12,
             )
         );
         assert_eq!(
@@ -12125,6 +12164,37 @@ mod tests {
             ]
             .concat(),
             "the pointer slot, target, and both indices share the opening frame base"
+        );
+
+        let cross_double_to_pointee =
+            encode_runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_pointee(
+                24, machine, 64, 8, 12, frame, 72, 8, 4, 0, 104, 4, 12,
+            )
+            .expect("encode mixed-index frame double aggregate copy to pointee");
+        assert_eq!(
+            cross_double_to_pointee.len(),
+            widths::runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_pointee_width(
+                machine, frame, 104, 4, 12,
+            )
+        );
+        assert_eq!(
+            &cross_double_to_pointee[12..20],
+            [
+                encode_adrp_placeholder(15),
+                encode_add_page_offset_placeholder(15)
+            ]
+            .concat()
+        );
+        let pointee_to_cross_double =
+            encode_runtime_storage_copy_from_runtime_pointee_to_runtime_frame_base_double_indexed(
+                104, 4, 24, frame, 64, 8, 12, machine, 72, 8, 4, 0, 12,
+            )
+            .expect("encode pointee copy to mixed-index frame double aggregate");
+        assert_eq!(
+            pointee_to_cross_double.len(),
+            widths::runtime_storage_copy_from_runtime_pointee_to_runtime_frame_base_double_indexed_width(
+                frame, machine, 104, 4, 12,
+            )
         );
 
         let frame_indexed_to_pointee =

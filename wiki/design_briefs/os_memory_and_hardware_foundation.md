@@ -1064,6 +1064,11 @@ collection, both indices, and pointer slot reuse that one frame root, and the
 copy covers the complete value representation. The reverse copy from a
 frame-held source pointee into an all-frame double-indexed target has the same
 one-root geometry and complete aggregate span.
+Frame-inline double-indexed elements also cross a frame-held pointee when one
+or both indices live in machine storage. The frame root continues to supply
+the collection and pointer slot, while one exact machine root at byte 12
+supplies every machine-held index in either direction; the complete aggregate
+span is copied and replayed.
 Machine-rooted double-indexed elements also cross a frame-held pointee in both
 directions. Their AArch64 recipe retains a machine collection root plus one
 frame root shared by the pointer slot and any frame-held indices, copies the

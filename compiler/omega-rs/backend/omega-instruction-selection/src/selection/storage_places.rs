@@ -2937,9 +2937,11 @@ pub(super) fn resolve_runtime_frame_base_indexed_target_with_index_region_in_tab
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct RuntimeFrameBaseDoubleIndexedTarget {
     pub(super) base_byte_offset: usize,
+    pub(super) outer_index_region: RuntimeStorageRegion,
     pub(super) outer_index_offset: usize,
     pub(super) outer_index_byte_size: usize,
     pub(super) outer_stride: usize,
+    pub(super) inner_index_region: RuntimeStorageRegion,
     pub(super) inner_index_offset: usize,
     pub(super) inner_index_byte_size: usize,
     pub(super) inner_stride: usize,
@@ -2952,9 +2954,11 @@ pub(super) struct RuntimeFrameBaseDoubleIndexedTarget {
 /// indices runtime. A member suffix above the element is folded into the
 /// fixed field offset. `None` for every other shape: single runtime level (the
 /// frame single-index resolver), member links between the index levels,
-/// non-frame-resident indices (the encoder serves the whole address off the
-/// ONE frame base), machine collections (the machine double resolver).
-pub(super) fn resolve_runtime_frame_base_double_indexed_source_in_table(
+/// machine collections (the machine double resolver). The region-aware form
+/// retains frame- or machine-held indices; the compatibility wrapper below
+/// admits only the historical all-frame subset for operation families whose
+/// encoders have not opted into mixed roots.
+pub(super) fn resolve_runtime_frame_base_double_indexed_source_with_index_regions_in_table(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     source_key: StateKey,
@@ -3027,17 +3031,13 @@ pub(super) fn resolve_runtime_frame_base_double_indexed_source_in_table(
         expressions,
         outer_indexed.index,
     )?;
-    for place in [&outer_place, &inner_place] {
-        if place.region != RuntimeStorageRegion::RuntimeFrame {
-            return None;
-        }
-    }
-
     Some(RuntimeFrameBaseDoubleIndexedTarget {
         base_byte_offset: collection_slot.byte_offset,
+        outer_index_region: outer_place.region,
         outer_index_offset: outer_place.byte_offset,
         outer_index_byte_size: outer_place.byte_count,
         outer_stride: row_layout.size,
+        inner_index_region: inner_place.region,
         inner_index_offset: inner_place.byte_offset,
         inner_index_byte_size: inner_place.byte_count,
         inner_stride: element_layout.size,
@@ -3045,6 +3045,28 @@ pub(super) fn resolve_runtime_frame_base_double_indexed_source_in_table(
         byte_count: leaf_layout.size,
         is_bounded_byte_buffer: descriptor_is_bounded_byte_buffer(&leaf_descriptor),
     })
+}
+
+pub(super) fn resolve_runtime_frame_base_double_indexed_source_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<RuntimeFrameBaseDoubleIndexedTarget> {
+    let target = resolve_runtime_frame_base_double_indexed_source_with_index_regions_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+    )?;
+    if target.outer_index_region != RuntimeStorageRegion::RuntimeFrame
+        || target.inner_index_region != RuntimeStorageRegion::RuntimeFrame
+    {
+        return None;
+    }
+    Some(target)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
