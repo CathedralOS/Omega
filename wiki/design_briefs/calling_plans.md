@@ -1111,7 +1111,7 @@ relocation, and data relocation now consume that complete plan. Their former
 manual `+8`/`+12` stack accounting and trailing-mode operation classifier are
 retired; the operation key only selects the concrete adapter subcall.
 
-Final footprint certificate format v77 now retains an exact
+Final footprint certificate format v78 now retains an exact
 function-to-instruction partition in the encoded carrier. Checked image
 emission replays every contiguous function
 and instruction boundary over relocated final bytes, rejects gaps, overlaps,
@@ -1173,8 +1173,10 @@ clobbers together with the envelope's stack/control state and target scratch.
 Integer-result built-in imports whose source arguments are all immediate
 integers, including no-argument calls, now retain a third fragment. Checked
 replay requires the exact result-region relocation beside the imported call
-and includes AArch64's offset-sensitive result-store scratch. Result-bearing
-imports with runtime arguments, float or dereferenced results, data-address
+and includes AArch64's offset-sensitive result-store scratch. Integer-result
+built-in imports with one or more runtime-scalar source arguments use a fourth
+fragment whose final recipe requires every argument root and the result root
+beside the exact imported call. Float or dereferenced results, data-address
 arguments, authored imports, and composite import adapters remain unfinished. Result-
 bearing runtime-storage-only syscalls continue
 to combine their argument relocation set with the exact result-region

@@ -434,7 +434,7 @@ fn encode_no_result_import(
     ))
 }
 
-fn encode_immediate_result_import(
+fn encode_integer_result_import(
     architecture: Architecture,
     operation_key: omega_calling_conventions::HostOperationKey,
     operands: &[omega_target_operations::InstructionOperand],
@@ -443,7 +443,7 @@ fn encode_immediate_result_import(
     (
         Vec<u8>,
         usize,
-        (usize, omega_target_operations::RuntimeStorageRegion),
+        Vec<(usize, omega_target_operations::RuntimeStorageRegion)>,
     ),
     Diagnostic,
 > {
@@ -464,15 +464,15 @@ fn encode_immediate_result_import(
         result.shape.class,
         omega_calling_conventions::ValueClass::Integer
     ) || plan.parameters.len() + 1 != operands.len()
-        || operands[1..]
-            .iter()
-            .any(|operand| operand.immediate_integer().is_none())
+        || !operands[1..].iter().all(|operand| {
+            operand.immediate_integer().is_some() || operand.runtime_scalar_integer().is_some()
+        })
     {
         return Err(Diagnostic::error(
-            "final immediate-result import replay requires one integer result and immediate arguments",
+            "final integer-result import replay requires one integer result and immediate/runtime-scalar arguments",
         ));
     }
-    let (inner, inner_call_site, inner_result_site) = match architecture {
+    let (inner, inner_call_site, inner_storage_sites) = match architecture {
         Architecture::X86_64 => {
             let bytes = omega_isa_x86_64::encode_host_call_sequence_with_plan(
                 plan.policy,
@@ -505,7 +505,36 @@ fn encode_immediate_result_import(
                 )
             })?
             .byte_offset;
-            (bytes, call_site, result_site)
+            let storage_sites = operands
+                .iter()
+                .enumerate()
+                .filter_map(|(index, operand)| {
+                    operand.runtime_scalar_integer().map(|(region, _, _)| {
+                        omega_isa_x86_64::host_call_data_relocation_site_with_plan(
+                            plan.policy,
+                            operation_key,
+                            operands,
+                            index,
+                            plan,
+                        )
+                        .map(|site| (site.byte_offset, region))
+                    })
+                })
+                .collect::<Option<Vec<_>>>()
+                .ok_or_else(|| {
+                    Diagnostic::error(
+                        "final x86 integer-result import replay lost a retained-plan storage site",
+                    )
+                })?;
+            if !storage_sites
+                .iter()
+                .any(|(site, region)| *site == result_site && *region == result_region)
+            {
+                return Err(Diagnostic::error(
+                    "final x86 integer-result import replay lost its result storage site",
+                ));
+            }
+            (bytes, call_site, storage_sites)
         }
         Architecture::Aarch64 => {
             let call_operands = operands
@@ -547,7 +576,23 @@ fn encode_immediate_result_import(
                 *result_register,
                 usize::from(result.shape.byte_size),
             )?;
-            (bytes, call_site, result_site)
+            let mut storage_sites = vec![(result_site, result_region)];
+            storage_sites.extend(operands[1..].iter().enumerate().filter_map(
+                |(parameter_index, operand)| {
+                    operand.runtime_scalar_integer().map(|(region, _, _)| {
+                        let site = call_operands[1..1 + parameter_index]
+                            .iter()
+                            .map(omega_isa_aarch64::operand_width)
+                            .sum::<usize>()
+                            + omega_isa_aarch64::host_call_stack_prefix_width_for_placements(
+                                &plan.parameters,
+                                parameter_index,
+                            );
+                        (site, region)
+                    })
+                },
+            ));
+            (bytes, call_site, storage_sites)
         }
     };
     let mut bytes = Vec::new();
@@ -573,7 +618,10 @@ fn encode_immediate_result_import(
     Ok((
         bytes,
         prefix_width + inner_call_site,
-        (prefix_width + inner_result_site, result_region),
+        inner_storage_sites
+            .into_iter()
+            .map(|(site, region)| (prefix_width + site, region))
+            .collect(),
     ))
 }
 
@@ -2333,19 +2381,24 @@ fn validate_compiler_function_instruction_boundaries(
                         symbol,
                         plan,
                     } => {
-                        let (bytes, call_site, result_site) = encode_immediate_result_import(
+                        let (bytes, call_site, storage_sites) = encode_integer_result_import(
                             architecture,
                             operation_key,
                             &operands,
                             &plan,
                         )?;
+                        if storage_sites.len() != 1 {
+                            return Err(Diagnostic::error(
+                                "final immediate-result import replay unexpectedly retained argument storage sites",
+                            ));
+                        }
                         (
                             None,
                             bytes,
                             45u8,
                             CompilerInstructionRelocationRecipe::StorageImport {
                                 call_site,
-                                storage_sites: vec![result_site],
+                                storage_sites,
                                 library,
                                 symbol,
                             },
@@ -2373,6 +2426,36 @@ fn validate_compiler_function_instruction_boundaries(
                             None,
                             bytes,
                             44u8,
+                            CompilerInstructionRelocationRecipe::StorageImport {
+                                call_site,
+                                storage_sites,
+                                library,
+                                symbol,
+                            },
+                        )
+                    }
+                    omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyOutboundStorageImportResult {
+                        operation_key,
+                        operands,
+                        library,
+                        symbol,
+                        plan,
+                    } => {
+                        let (bytes, call_site, storage_sites) = encode_integer_result_import(
+                            architecture,
+                            operation_key,
+                            &operands,
+                            &plan,
+                        )?;
+                        if storage_sites.len() < 2 {
+                            return Err(Diagnostic::error(
+                                "final result-bearing storage import replay lost its argument sites",
+                            ));
+                        }
+                        (
+                            None,
+                            bytes,
+                            46u8,
                             CompilerInstructionRelocationRecipe::StorageImport {
                                 call_site,
                                 storage_sites,
@@ -5249,6 +5332,44 @@ fn compiler_instruction_footprint(
                 MachineState::ControlState,
             ]),
         ),
+        CompilerInstructionValidationKind::CompilerBodyOutboundStorageImportResult {
+            operands,
+            plan,
+            ..
+        } => {
+            let (_, result_offset, result_byte_size) =
+                operands.first()?.runtime_scalar_integer()?;
+            let envelope_and_store_scratch = match architecture {
+                Architecture::X86_64 => vec![MachineRegister::X86Rsp],
+                Architecture::Aarch64 => Vec::from_iter(
+                    [MachineRegister::Aarch64X(16)].into_iter().chain(
+                        omega_isa_aarch64::constant_host_result_clobbers(
+                            result_offset,
+                            result_byte_size,
+                        )
+                        .as_slice()
+                        .iter()
+                        .copied(),
+                    ),
+                ),
+            };
+            (
+                BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImportResult,
+                RegisterSet::new(
+                    plan.ordinary_clobbers
+                        .as_slice()
+                        .iter()
+                        .copied()
+                        .chain(envelope_and_store_scratch),
+                ),
+                MachineStateSet::new([
+                    MachineState::Flags,
+                    MachineState::InstructionPointer,
+                    MachineState::StackPointer,
+                    MachineState::ControlState,
+                ]),
+            )
+        }
         CompilerInstructionValidationKind::CompilerBodyOutboundSyscall { plan, .. } => (
             BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscall,
             plan.ordinary_clobbers,
@@ -5860,6 +5981,7 @@ fn validate_compiler_body_specification_footprints(
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundImmediateImport
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundImmediateImportResult
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImport
+                | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImportResult
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscall
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallDataArguments
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallResult
@@ -5961,34 +6083,38 @@ fn validate_compiler_body_specification_footprints(
         ),
         (
             23u8,
-            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscall,
+            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImportResult,
         ),
         (
             24u8,
-            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallResult,
+            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscall,
         ),
         (
             25u8,
-            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallStorageArguments,
+            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallResult,
         ),
         (
             26u8,
-            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallResultStorageArguments,
+            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallStorageArguments,
         ),
         (
             27u8,
-            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallDataArguments,
+            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallResultStorageArguments,
         ),
         (
             28u8,
-            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallResultDataArguments,
+            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallDataArguments,
         ),
         (
             29u8,
-            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallTimespecArgument,
+            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallResultDataArguments,
         ),
         (
             30u8,
+            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallTimespecArgument,
+        ),
+        (
+            31u8,
             BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallTimespecResult,
         ),
     ] {

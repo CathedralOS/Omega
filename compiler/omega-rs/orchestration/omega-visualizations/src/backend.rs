@@ -129,6 +129,9 @@ pub fn boundary_footprint_fragments_json(plan: &EncodedMachinePlan) -> String {
                 omega_abstract_operations::BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImport => {
                     "compiler_body_outbound_storage_import"
                 }
+                omega_abstract_operations::BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImportResult => {
+                    "compiler_body_outbound_storage_import_result"
+                }
                 omega_abstract_operations::BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallDataArguments => {
                     "compiler_body_outbound_syscall_data_arguments"
                 }
