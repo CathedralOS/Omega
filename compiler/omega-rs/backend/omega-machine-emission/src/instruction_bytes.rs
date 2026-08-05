@@ -612,6 +612,10 @@ fn compiler_instruction_validation_kind(
                             operand.immediate_integer().is_some()
                                 || operand.runtime_scalar_integer().is_some()
                                 || operand.runtime_scalar_float().is_some()
+                                || operand.runtime_homogeneous_float_aggregate().is_some()
+                                || operand.runtime_system_v_aggregate().is_some()
+                                || operand.runtime_small_aggregate().is_some()
+                                || operand.runtime_large_aggregate().is_some()
                                 || operand.data_address().is_some()
                         })
                     {
@@ -622,7 +626,23 @@ fn compiler_instruction_validation_kind(
                     let has_float_argument = arguments
                         .iter()
                         .any(|operand| operand.runtime_scalar_float().is_some());
+                    let has_aggregate_argument = arguments.iter().any(|operand| {
+                        operand.runtime_homogeneous_float_aggregate().is_some()
+                            || operand.runtime_system_v_aggregate().is_some()
+                            || operand.runtime_small_aggregate().is_some()
+                            || operand.runtime_large_aggregate().is_some()
+                    });
                     let validation = match binding.call_plan().result.as_ref() {
+                        None if result_operand_count == 0 && has_aggregate_argument => {
+                            CompilerInstructionValidationKind::CompilerBodyOutboundAuthoredAggregateImport {
+                                operation_key: *operation_key,
+                                operands: operands.to_vec(),
+                                data_symbols,
+                                library: std::sync::Arc::clone(library),
+                                symbol: std::sync::Arc::clone(symbol),
+                                plan: binding.call_plan().clone(),
+                            }
+                        }
                         None if result_operand_count == 0 && has_float_argument => {
                             CompilerInstructionValidationKind::CompilerBodyOutboundAuthoredFloatImport {
                                 operation_key: *operation_key,
@@ -635,6 +655,33 @@ fn compiler_instruction_validation_kind(
                         }
                         None if result_operand_count == 0 => {
                             CompilerInstructionValidationKind::CompilerBodyOutboundAuthoredImport {
+                                operation_key: *operation_key,
+                                operands: operands.to_vec(),
+                                data_symbols,
+                                library: std::sync::Arc::clone(library),
+                                symbol: std::sync::Arc::clone(symbol),
+                                plan: binding.call_plan().clone(),
+                            }
+                        }
+                        Some(result)
+                            if has_aggregate_argument
+                                && match result.shape.class {
+                                    omega_calling_conventions::ValueClass::Integer => matches!(
+                                        operands.first().map(|operand| &operand.kind),
+                                        Some(
+                                            omega_assigned_target_operations::InstructionOperandKind::RuntimeScalarInteger { .. }
+                                        )
+                                    ),
+                                    omega_calling_conventions::ValueClass::Float => matches!(
+                                        operands.first().map(|operand| &operand.kind),
+                                        Some(
+                                            omega_assigned_target_operations::InstructionOperandKind::RuntimeScalarFloat { .. }
+                                        )
+                                    ),
+                                    _ => false,
+                                } =>
+                        {
+                            CompilerInstructionValidationKind::CompilerBodyOutboundAuthoredAggregateImportResult {
                                 operation_key: *operation_key,
                                 operands: operands.to_vec(),
                                 data_symbols,

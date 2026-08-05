@@ -150,6 +150,12 @@ pub fn boundary_footprint_fragments_json(plan: &EncodedMachinePlan) -> String {
                 omega_abstract_operations::BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredFloatImportResult => {
                     "compiler_body_outbound_authored_float_import_result"
                 }
+                omega_abstract_operations::BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredAggregateImport => {
+                    "compiler_body_outbound_authored_aggregate_import"
+                }
+                omega_abstract_operations::BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredAggregateImportResult => {
+                    "compiler_body_outbound_authored_aggregate_import_result"
+                }
                 omega_abstract_operations::BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImport => {
                     "compiler_body_outbound_storage_import"
                 }
