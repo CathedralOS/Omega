@@ -4,6 +4,7 @@ use crate::{
     derive_boundary_compiler_body_outbound_immediate_import_footprint,
     derive_boundary_compiler_body_outbound_immediate_import_result_footprint,
     derive_boundary_compiler_body_outbound_storage_import_footprint,
+    derive_boundary_compiler_body_outbound_storage_import_result_footprint,
     derive_boundary_compiler_body_outbound_syscall_data_arguments_footprint,
     derive_boundary_compiler_body_outbound_syscall_footprint,
     derive_boundary_compiler_body_outbound_syscall_result_data_arguments_footprint,
@@ -519,6 +520,23 @@ fn retain_exit_footprints(
             },
         )
         .expect("retained compiler-body storage-import footprint must name the entry boundary contract");
+    }
+    let evidence = derive_boundary_compiler_body_outbound_storage_import_result_footprint(
+        boundary,
+        input,
+        operands,
+        instructions,
+    )
+    .expect("selected compiler-body result-bearing storage imports must fit the validated entry state ceiling");
+    if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
+        plan.retain_validated_fragment(
+            boundary,
+            omega_abstract_operations::BoundaryFootprintFragment {
+                origin: omega_abstract_operations::BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImportResult,
+                evidence,
+            },
+        )
+        .expect("retained compiler-body result-bearing storage-import footprint must name the entry boundary contract");
     }
     let evidence = derive_boundary_compiler_body_outbound_syscall_footprint(
         boundary,

@@ -1139,7 +1139,7 @@ relocation-envelope fingerprints plus their composed derivation identity. The
 boundary/placement binding includes that derivation identity, so a valid final
 inventory cannot be paired with evidence from a different encoded-to-final
 derivation. The single emitted artifact is now self-described as
-`omega.final-footprint-certificate` format v77, with a domain-separated
+`omega.final-footprint-certificate` format v78, with a domain-separated
 certificate fingerprint over its final placement binding, compiler-text
 derivation, and region inventory. It remains explicitly incomplete evidence,
 not an admission certificate, until the missing footprint classes close. The
@@ -1179,8 +1179,10 @@ call clobbers plus the envelope's stack/control state and target scratch.
 Integer-result built-in imports whose source arguments are all immediate
 integers, including no-argument calls, now use a third origin whose replay
 requires the exact result-region relocation beside the imported call and
-AArch64's offset-sensitive result-store scratch. Result-bearing imports with
-runtime arguments, float or dereferenced results, data-address arguments,
+AArch64's offset-sensitive result-store scratch. Integer-result built-in
+imports with one or more runtime-scalar source arguments use a fourth origin
+whose final recipe requires every argument root and the result root beside the
+exact imported call. Float or dereferenced results, data-address arguments,
 authored imports, and composite import adapters remain outside this
 subset. Result-bearing runtime-storage-only syscalls
 continue to combine their argument relocation set with the exact result-region

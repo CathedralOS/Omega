@@ -606,24 +606,39 @@ fn compiler_instruction_validation_kind(
                                 omega_assigned_target_operations::InstructionOperandKind::RuntimeScalarInteger { .. }
                             )
                         )
-                        || operands[1..].iter().any(|operand| {
-                            !matches!(
+                        || !operands[1..].iter().all(|operand| {
+                            matches!(
                                 operand.kind,
                                 omega_assigned_target_operations::InstructionOperandKind::ImmediateInteger(_)
+                                    | omega_assigned_target_operations::InstructionOperandKind::RuntimeScalarInteger { .. }
                             )
                         })
                     {
                         return Ok(None);
                     }
-                    return Ok(Some(
+                    let validation = if operands[1..].iter().any(|operand| {
+                        matches!(
+                            operand.kind,
+                            omega_assigned_target_operations::InstructionOperandKind::RuntimeScalarInteger { .. }
+                        )
+                    }) {
+                        CompilerInstructionValidationKind::CompilerBodyOutboundStorageImportResult {
+                            operation_key: *operation_key,
+                            operands: operands.to_vec(),
+                            library: std::sync::Arc::clone(library),
+                            symbol: std::sync::Arc::clone(symbol),
+                            plan: binding.call_plan().clone(),
+                        }
+                    } else {
                         CompilerInstructionValidationKind::CompilerBodyOutboundImmediateImportResult {
                             operation_key: *operation_key,
                             operands: operands.to_vec(),
                             library: std::sync::Arc::clone(library),
                             symbol: std::sync::Arc::clone(symbol),
                             plan: binding.call_plan().clone(),
-                        },
-                    ));
+                        }
+                    };
+                    return Ok(Some(validation));
                 }
                 if binding.call_plan().result.is_some() {
                     return Ok(None);

@@ -882,7 +882,7 @@ proves complete region coverage, and composes admitted leaves under their
 separate provenance. Do not add a second whole-image decoder/admission path.
 
 The existing single final-region artifact now carries the domain-separated
-`omega.final-footprint-certificate` schema, format version 77, and a certificate
+`omega.final-footprint-certificate` schema, format version 78, and a certificate
 fingerprint over its final placement binding, compiler-text derivation, and
 complete region inventory. Its explicit completeness flags remain false until
 compiler-body footprint decoding and admitted-leaf evidence land. The envelope
@@ -983,9 +983,11 @@ and target scratch. Integer-result built-in imports whose source arguments are
 all immediate integers, including no-argument calls, now form a third closed
 origin. Final replay requires the exact result-region relocation beside the
 library/symbol call and includes AArch64's offset-sensitive result-store
-scratch. Result-bearing imports with runtime arguments, float or dereferenced
-results, data-address arguments, authored imports, and composite import
-adapters remain incomplete. Result-bearing
+scratch. Integer-result built-in imports with one or more runtime-scalar source
+arguments use a fourth origin. Its final recipe requires every argument root
+and the result root beside the exact imported call, while retaining the same
+post-call scratch. Float or dereferenced results, data-address arguments,
+authored imports, and composite import adapters remain incomplete. Result-bearing
 runtime-storage-only calls
 continue to combine their argument relocations with the exact result-region
 relocation and offset-sensitive result-store scratch under
