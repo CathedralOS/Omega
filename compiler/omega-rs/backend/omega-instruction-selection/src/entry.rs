@@ -2710,6 +2710,7 @@ pub fn derive_boundary_compiler_body_place_binary_write_footprint<'instruction>(
                     | crate::WritePlaceShape::MachineIndexed { .. }
                     | crate::WritePlaceShape::MachineDoubleIndexed { .. },
             )
+            || crate::classify_frame_base_indexed_binary_shape(target).is_some()
             || crate::classify_frame_base_double_indexed_binary_shape(target).is_some();
         if !supported {
             continue;

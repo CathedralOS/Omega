@@ -42,7 +42,6 @@ use super::primitives::{
 use super::widths::{
     add_constant_width, bit_fragment_container_bytes,
     runtime_frame_base_indexed_address_to_runtime_frame_write_width,
-    runtime_frame_base_indexed_binary_write_width,
     runtime_frame_base_indexed_integer_write_with_index_region_width,
     runtime_frame_base_indexed_string_write_width,
     runtime_frame_fixed_indexed_address_to_runtime_frame_write_width,
@@ -4245,9 +4244,10 @@ pub fn encode_runtime_frame_base_indexed_binary_write(
     operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(runtime_frame_base_indexed_binary_write_width(
+    encode_runtime_frame_base_indexed_binary_write_with_index_region(
         runtime_value_operands,
         base_byte_offset,
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
         index_offset,
         index_byte_size,
         element_byte_size,
@@ -4256,11 +4256,43 @@ pub fn encode_runtime_frame_base_indexed_binary_write(
         left,
         operator,
         right,
-    ));
-    append_runtime_frame_base_index_target_address(
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_frame_base_indexed_binary_write_with_index_region(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    left: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
+    right: RuntimeValueOperandHandle,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(
+        super::widths::runtime_frame_base_indexed_binary_write_with_index_region_width(
+            runtime_value_operands,
+            base_byte_offset,
+            index_region,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+            left,
+            operator,
+            right,
+        ),
+    );
+    append_runtime_frame_base_index_target_address_with_index_region(
         &mut bytes,
         16,
         base_byte_offset,
+        index_region,
         index_offset,
         index_byte_size,
         element_byte_size,
@@ -10946,6 +10978,51 @@ mod tests {
             ]
             .concat(),
             "the extra pair at the published relocation offset must materialize MACHINE storage"
+        );
+    }
+
+    #[test]
+    fn frame_base_indexed_binary_write_materializes_a_machine_index_base() {
+        let (arena, left, right) = immediate_pair(40, 2);
+        let bytes = encode_runtime_frame_base_indexed_binary_write_with_index_region(
+            &arena,
+            24,
+            omega_target_operations::RuntimeStorageRegion::Machine,
+            64,
+            8,
+            8,
+            0,
+            8,
+            left,
+            StateGuardOperator::Add,
+            right,
+        )
+        .expect("encode cross-region inline-frame binary write");
+        assert_eq!(
+            bytes.len(),
+            widths::runtime_frame_base_indexed_binary_write_with_index_region_width(
+                &arena,
+                24,
+                omega_target_operations::RuntimeStorageRegion::Machine,
+                64,
+                8,
+                8,
+                0,
+                8,
+                left,
+                StateGuardOperator::Add,
+                right,
+            )
+        );
+        let index_site = widths::runtime_frame_base_indexed_machine_index_base_offset(24);
+        assert_eq!(
+            &bytes[index_site..index_site + 8],
+            [
+                encode_adrp_placeholder(15),
+                encode_add_page_offset_placeholder(15)
+            ]
+            .concat(),
+            "the machine-held index must own an x15 base pair"
         );
     }
 

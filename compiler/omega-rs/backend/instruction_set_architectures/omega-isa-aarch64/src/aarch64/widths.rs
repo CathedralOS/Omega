@@ -1227,10 +1227,40 @@ pub fn runtime_frame_base_indexed_binary_write_width(
     operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
 ) -> usize {
+    runtime_frame_base_indexed_binary_write_with_index_region_width(
+        runtime_value_operands,
+        base_byte_offset,
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+        byte_size,
+        left,
+        operator,
+        right,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn runtime_frame_base_indexed_binary_write_with_index_region_width(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    left: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
+    right: RuntimeValueOperandHandle,
+) -> usize {
     16 + add_constant_width(base_byte_offset)
         + load_data_offset_width(index_offset, index_byte_size)
         + scale_index_width(element_byte_size)
         + add_constant_width(field_byte_offset)
+        + usize::from(index_region == omega_target_operations::RuntimeStorageRegion::Machine) * 8
         + runtime_value_operand_width(runtime_value_operands, left)
         + runtime_value_operand_width(runtime_value_operands, right)
         + runtime_binary_operation_width(

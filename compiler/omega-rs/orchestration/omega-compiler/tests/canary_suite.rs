@@ -1150,7 +1150,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         executable_regions.contains(
             "\"certificate_schema\": \"omega.final-footprint-certificate\""
         )
-            && executable_regions.contains("\"certificate_format_version\": 101")
+            && executable_regions.contains("\"certificate_format_version\": 102")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
             && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")
@@ -1805,12 +1805,14 @@ fn compiler_body_cross_region_frame_base_indexed_write_footprints_reach_artifact
             .expect("compiler-body frame-base-indexed footprint evidence should be written");
         assert!(
             abstract_operations.contains("CopyPlaces")
-                && abstract_operations.contains("WritePlaceInteger"),
-            "{target} canary must exercise frame-base-indexed copy and immediate writes"
+                && abstract_operations.contains("WritePlaceInteger")
+                && abstract_operations.contains("WritePlaceBinary"),
+            "{target} canary must exercise frame-base-indexed copy, immediate, and binary writes"
         );
         assert!(
             footprints.contains("\"origin\": \"compiler_body_place_copy\"")
                 && footprints.contains("\"origin\": \"compiler_body_place_integer_write\"")
+                && footprints.contains("\"origin\": \"compiler_body_place_binary_write\"")
                 && footprints.contains(expected_register)
                 && footprints.contains("\"enumeration_complete\": false"),
             "{target} artifact must retain both ordinary frame-base-indexed footprints without claiming completeness"
@@ -2960,7 +2962,7 @@ fn compiler_body_general_x86_text_assembly_reaches_the_final_artifact() {
     let regions = fs::read_to_string(output.join("13_executable_regions.json"))
         .expect("general x86 final executable-region evidence should be written");
     assert!(
-        regions.contains("\"certificate_format_version\": 101")
+        regions.contains("\"certificate_format_version\": 102")
             && regions.contains("\"compiler_function_body_specification_subset\""),
         "general x86 text assembly must reach final-image validation"
     );
@@ -2998,7 +3000,7 @@ fn aarch64_frame_descriptor_ops_with_machine_index_reach_the_final_artifact() {
     let regions = fs::read_to_string(output.join("13_executable_regions.json"))
         .expect("cross-region AArch64 final executable-region evidence should be written");
     assert!(
-        regions.contains("\"certificate_format_version\": 101")
+        regions.contains("\"certificate_format_version\": 102")
             && regions.contains("\"compiler_function_body_specification_subset\""),
         "cross-region AArch64 frame-descriptor operations must reach final-image validation"
     );
@@ -8974,7 +8976,7 @@ fn runtime_frame_indexed_local_read_exit_canary_runs() {
     assert_eq!(
         output.status.code(),
         Some(1),
-        "expected machine-indexed inline-frame copy and immediate writes to read back and exit 1, got {:?}
+        "expected machine-indexed inline-frame copy, immediate, and binary writes to read back and exit 1, got {:?}
 stderr:
 {}",
         output.status.code(),
