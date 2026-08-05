@@ -1279,7 +1279,9 @@ relocations, and matches the closed target may-write ceiling to the separately
 retained `CompilerBodyPlaceBinaryWrite` fragment. The x86 general materializer
 replays every otherwise-general binary target, including double-indexed inline
 frame destinations, with index-depth-derived scratch and exact target/index
-relocations. AArch64 remains limited to its explicitly classified shapes.
+relocations. AArch64 also replays frame-held slice descriptors whose dynamic
+index lives in machine storage, including the distinct index-base relocation;
+its remaining unclassified shapes are still incomplete.
 Direct runtime-storage numeric conversion writes retain their complete cast
 policy and source-operand root, replay exact conversion/store bytes and nested
 relocations, and match a separate `CompilerBodyStorageConvertWrite` fragment.

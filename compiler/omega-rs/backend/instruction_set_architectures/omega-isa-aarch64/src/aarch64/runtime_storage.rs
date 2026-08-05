@@ -4047,18 +4047,50 @@ pub fn encode_runtime_frame_indexed_binary_write(
     operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(runtime_frame_indexed_binary_write_width(
+    encode_runtime_frame_indexed_binary_write_with_index_region(
         runtime_value_operands,
+        descriptor_offset,
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+        index_offset,
+        index_byte_size,
         element_byte_size,
         field_byte_offset,
         byte_size,
         left,
         operator,
         right,
-    ));
-    append_runtime_frame_index_target_address(
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_frame_indexed_binary_write_with_index_region(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    descriptor_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    left: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
+    right: RuntimeValueOperandHandle,
+) -> Result<Vec<u8>, Diagnostic> {
+    let expected_width =
+        runtime_frame_indexed_binary_write_width(
+            runtime_value_operands,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+            left,
+            operator,
+            right,
+        ) + usize::from(index_region == omega_target_operations::RuntimeStorageRegion::Machine) * 8;
+    let mut bytes = Vec::with_capacity(expected_width);
+    append_runtime_frame_index_target_address_with_index_region(
         &mut bytes,
         16,
+        index_region,
         descriptor_offset,
         index_offset,
         index_byte_size,
@@ -4095,6 +4127,7 @@ pub fn encode_runtime_frame_indexed_binary_write(
         ),
     )?;
     append_runtime_storage_result_write(&mut bytes, 0, byte_size)?;
+    debug_assert_eq!(bytes.len(), expected_width);
     Ok(bytes)
 }
 
@@ -10036,6 +10069,49 @@ mod tests {
             right,
         ));
         (arena, left, right)
+    }
+
+    #[test]
+    fn frame_indexed_binary_write_materializes_a_machine_index_base() {
+        let (arena, left, right) = immediate_pair(40, 2);
+        let ordinary = encode_runtime_frame_indexed_binary_write(
+            &arena,
+            24,
+            40,
+            8,
+            4,
+            0,
+            4,
+            left,
+            StateGuardOperator::Add,
+            right,
+        )
+        .expect("encode frame-local index binary write");
+        let cross_region = encode_runtime_frame_indexed_binary_write_with_index_region(
+            &arena,
+            24,
+            omega_target_operations::RuntimeStorageRegion::Machine,
+            40,
+            8,
+            4,
+            0,
+            4,
+            left,
+            StateGuardOperator::Add,
+            right,
+        )
+        .expect("encode machine-indexed frame-descriptor binary write");
+
+        assert_eq!(cross_region.len(), ordinary.len() + 8);
+        assert_eq!(
+            &cross_region[32..40],
+            [
+                encode_adrp_placeholder(15),
+                encode_add_page_offset_placeholder(15)
+            ]
+            .concat(),
+            "the extra pair at the published relocation offset must materialize MACHINE storage"
+        );
     }
 
     /// The saturating/trapping add/sub/mul encoder length must equal its width

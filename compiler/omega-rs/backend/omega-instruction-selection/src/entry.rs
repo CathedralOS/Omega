@@ -2631,6 +2631,7 @@ pub fn derive_boundary_compiler_body_place_binary_write_footprint<'instruction>(
                 crate::WritePlaceShape::Direct { .. }
                     | crate::WritePlaceShape::Pointee { .. }
                     | crate::WritePlaceShape::FrameIndexed { .. }
+                    | crate::WritePlaceShape::FrameIndexedByRegion { .. }
                     | crate::WritePlaceShape::FrameBaseIndexed { .. }
                     | crate::WritePlaceShape::MachineIndexed { .. }
                     | crate::WritePlaceShape::MachineDoubleIndexed { .. },

@@ -5464,14 +5464,15 @@ fn validate_compiler_function_instruction_boundaries(
                                 )?,
                                 CompilerBodyPlaceIntegerWriteShape::FrameIndexed {
                                     descriptor_offset,
+                                    index_region,
                                     index_offset,
                                     index_byte_size,
                                     element_byte_size,
                                     field_byte_offset,
-                                    ..
-                                } => omega_isa_aarch64::encode_runtime_frame_indexed_binary_write(
+                                } => omega_isa_aarch64::encode_runtime_frame_indexed_binary_write_with_index_region(
                                     &code.runtime_value_operands,
                                     descriptor_offset,
+                                    index_region,
                                     index_offset,
                                     index_byte_size,
                                     element_byte_size,
@@ -10680,14 +10681,19 @@ fn compiler_place_binary_write_address_sites(
                 field_byte_offset,
             ),
             CompilerBodyPlaceIntegerWriteShape::FrameIndexed {
+                index_region,
                 element_byte_size,
                 field_byte_offset,
                 ..
-            } => omega_isa_aarch64::runtime_frame_indexed_integer_write_width(
-                element_byte_size,
-                field_byte_offset,
-                0,
-            ),
+            } => {
+                omega_isa_aarch64::runtime_frame_indexed_integer_write_width(
+                    element_byte_size,
+                    field_byte_offset,
+                    0,
+                ) + usize::from(
+                    index_region == omega_target_operations::RuntimeStorageRegion::Machine,
+                ) * 8
+            }
             CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed {
                 base_byte_offset,
                 index_offset,
@@ -10732,6 +10738,12 @@ fn compiler_place_binary_write_address_sites(
     let mut sites = vec![(0, target.region)];
     if architecture == Architecture::X86_64 {
         sites.extend(omega_isa_x86_64::place_binary_index_base_positions(&target));
+    }
+    if architecture == Architecture::Aarch64
+        && let CompilerBodyPlaceIntegerWriteShape::FrameIndexed { index_region, .. } = shape
+        && index_region == omega_target_operations::RuntimeStorageRegion::Machine
+    {
+        sites.push((32, omega_target_operations::RuntimeStorageRegion::Machine));
     }
     if architecture == Architecture::Aarch64
         && let CompilerBodyPlaceIntegerWriteShape::MachineIndexed {

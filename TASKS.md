@@ -882,7 +882,7 @@ proves complete region coverage, and composes admitted leaves under their
 separate provenance. Do not add a second whole-image decoder/admission path.
 
 The existing single final-region artifact now carries the domain-separated
-`omega.final-footprint-certificate` schema, format version 90, and a certificate
+`omega.final-footprint-certificate` schema, format version 91, and a certificate
 fingerprint over its final placement binding, compiler-text derivation, and
 complete region inventory. Its explicit completeness flags remain false until
 compiler-body footprint decoding and admitted-leaf evidence land. The envelope
@@ -1082,7 +1082,9 @@ target's closed may-write ceiling to equal the retained
 `CompilerBodyPlaceBinaryWrite` fragment. The x86 general materializer now
 replays every otherwise-general binary target, including double-indexed inline
 frame destinations, with index-depth-derived scratch and exact target/index
-relocations. AArch64 remains limited to its explicitly classified shapes.
+relocations. AArch64 also replays frame-held slice descriptors whose dynamic
+index lives in machine storage, including the distinct index-base relocation;
+its remaining unclassified shapes are still incomplete.
 Direct runtime-storage numeric conversion writes now retain source/target
 width, float and signedness identity, trapping/saturating policy, the source
 operand root, and their own `CompilerBodyStorageConvertWrite` footprint; final

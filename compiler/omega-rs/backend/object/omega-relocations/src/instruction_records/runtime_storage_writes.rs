@@ -49,9 +49,9 @@ pub(super) fn collect_runtime_storage_write_relocations(
             // each CROSS-REGION index's own base at its deterministic prefix
             // position, operands at place_binary_operand_start_width -- all
             // walk-summed from the materializer's own widths (no drift).
-            // aarch64 is served by shape decompose at ENCODING; its reloc
-            // arm lands with the producers (zero exist yet) -- refuse loudly
-            // rather than silently under-patch.
+            // AArch64 is served by the same retained shape decomposition used
+            // by encoding, including the extra MACHINE index base for a
+            // frame-held descriptor indexed from machine storage.
             match context.input.target.architecture {
                 Architecture::X86_64 => {
                     context.insert_data_address_at_instruction_start(
@@ -113,6 +113,26 @@ pub(super) fn collect_runtime_storage_write_relocations(
                             element_byte_size,
                             field_byte_offset,
                         ),
+                        omega_instruction_selection::WritePlaceShape::FrameIndexedByRegion {
+                            index_region,
+                            index_byte_size,
+                            element_byte_size,
+                            field_byte_offset,
+                            ..
+                        } => {
+                            context.insert_data_address_at_relative_offset(
+                                omega_instruction_selection::frame_indexed_operand_machine_index_base_offset(
+                                    context.input.target.architecture,
+                                ),
+                                context.storage_region_symbol_handle(index_region),
+                            );
+                            runtime_frame_indexed_binary_left_operand_offset(
+                                context.input.target.architecture,
+                                index_byte_size,
+                                element_byte_size,
+                                field_byte_offset,
+                            ) + 8
+                        }
                         omega_instruction_selection::WritePlaceShape::FrameBaseIndexed {
                             base_byte_offset,
                             index_offset,
@@ -178,10 +198,7 @@ pub(super) fn collect_runtime_storage_write_relocations(
                                 inner_index_byte_size,
                             )
                         }
-                        omega_instruction_selection::WritePlaceShape::FrameIndexedByRegion {
-                            ..
-                        }
-                        | omega_instruction_selection::WritePlaceShape::Unsupported => {
+                        omega_instruction_selection::WritePlaceShape::Unsupported => {
                             unreachable!(
                                 "an unsupported WritePlaceBinary shape refuses at \
                                  aarch64 encoding; layout would have failed first"
