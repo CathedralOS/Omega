@@ -87,6 +87,9 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                         omega_instruction_selection::CopyPlacesShape::ToMachineIndexed {
                             ..
                         }
+                        | omega_instruction_selection::CopyPlacesShape::ToFrameBaseIndexed {
+                            ..
+                        }
                         | omega_instruction_selection::CopyPlacesShape::ToMachineDoubleIndexed {
                             ..
                         }
@@ -200,6 +203,30 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                             // Frame-rooted on both sides (the decompose's
                             // precondition): one frame base serves the
                             // array/descriptor, index, and the other side.
+                        }
+                        omega_instruction_selection::CopyPlacesShape::ToFrameBaseIndexed {
+                            base_byte_offset,
+                            index_offset,
+                            index_byte_size,
+                            element_byte_size,
+                            field_byte_offset,
+                            ..
+                        } => {
+                            if source.region
+                                == omega_target_operations::RuntimeStorageRegion::Machine
+                            {
+                                context.insert_data_address_at_relative_offset(
+                                    omega_instruction_selection::runtime_frame_base_indexed_operand_start_width(
+                                        context.input.target.architecture,
+                                        base_byte_offset,
+                                        index_offset,
+                                        index_byte_size,
+                                        element_byte_size,
+                                        field_byte_offset,
+                                    ),
+                                    context.storage_region_symbol_handle(source.region),
+                                );
+                            }
                         }
                         omega_instruction_selection::CopyPlacesShape::IndexedToPointeeByRegion {
                             index_region,

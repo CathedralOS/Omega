@@ -2802,6 +2802,23 @@ pub fn encode_copy_places(
                 target_offset,
                 byte_count,
             ),
+            CopyPlacesShape::ToFrameBaseIndexed {
+                source_offset,
+                base_byte_offset,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+            } => aarch64::encode_runtime_storage_copy_to_runtime_frame_base_indexed_from_runtime_storage(
+                source.region,
+                source_offset,
+                base_byte_offset,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+                byte_count,
+            ),
             CopyPlacesShape::FromMachineDoubleIndexed {
                 base_byte_offset,
                 outer_index_region,
@@ -3061,6 +3078,16 @@ pub enum CopyPlacesShape {
         field_byte_offset: usize,
         target_offset: usize,
     },
+    /// A direct storage slot written into a frame-resident inline array at a
+    /// frame-resident runtime index.
+    ToFrameBaseIndexed {
+        source_offset: usize,
+        base_byte_offset: usize,
+        index_offset: usize,
+        index_byte_size: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+    },
     /// A MACHINE inline 2D-array element read (`m[i][j]` -- no deref):
     /// the double-indexed copy. Index-slot regions vary per index.
     FromMachineDoubleIndexed {
@@ -3277,6 +3304,19 @@ pub fn classify_copy_places_shape(
         return CopyPlacesShape::General;
     }
     if let Some(indexed) = direct_indexed_path(target) {
+        if target.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+            && indexed.index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+            && let Some(source_offset) = source.const_offset()
+        {
+            return CopyPlacesShape::ToFrameBaseIndexed {
+                source_offset,
+                base_byte_offset: indexed.pointer_offset,
+                index_offset: indexed.index_offset,
+                index_byte_size: indexed.index_byte_size,
+                element_byte_size: indexed.element_byte_size,
+                field_byte_offset: indexed.field_offset,
+            };
+        }
         if target.region == omega_target_operations::RuntimeStorageRegion::Machine
             && let Some(source_offset) = source.const_offset()
         {

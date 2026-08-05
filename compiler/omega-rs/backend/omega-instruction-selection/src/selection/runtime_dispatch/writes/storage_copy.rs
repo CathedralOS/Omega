@@ -5,6 +5,7 @@ use psi_checked_trees::expression::{Expression, ExpressionHandle, ExpressionTabl
 use super::super::super::storage_places::{
     resolve_runtime_frame_base_double_indexed_source,
     resolve_runtime_frame_base_double_indexed_source_in_table,
+    resolve_runtime_frame_base_indexed_target, resolve_runtime_frame_base_indexed_target_in_table,
     resolve_runtime_frame_fixed_indexed_target,
     resolve_runtime_frame_fixed_indexed_target_in_table, resolve_runtime_frame_indexed_target,
     resolve_runtime_frame_indexed_target_in_table,
@@ -442,6 +443,25 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indirect_copy(
         ));
     }
 
+    if let Some(indexed_target) =
+        resolve_runtime_frame_base_indexed_target(input, dispatch_index, target_source_key, target)
+        && source_place.byte_count == indexed_target.byte_count
+        && source_place.byte_count > 0
+    {
+        return Some(
+            crate::selection::runtime_dispatch::copy_places_to_frame_base_indexed(
+                source_place.region,
+                source_place.byte_offset,
+                indexed_target.base_byte_offset,
+                indexed_target.index_offset,
+                indexed_target.index_byte_size,
+                indexed_target.element_byte_size,
+                indexed_target.field_byte_offset,
+                indexed_target.byte_count,
+            ),
+        );
+    }
+
     let indexed_target =
         resolve_runtime_frame_indexed_target(input, dispatch_index, target_source_key, target)?;
     if source_place.byte_count != indexed_target.byte_count {
@@ -536,6 +556,29 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indirect_copy_in_t
             pointer_target.field_byte_offset,
             source_place.byte_count,
         ));
+    }
+
+    if let Some(indexed_target) = resolve_runtime_frame_base_indexed_target_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        expressions,
+        target,
+    ) && source_place.byte_count == indexed_target.byte_count
+        && source_place.byte_count > 0
+    {
+        return Some(
+            crate::selection::runtime_dispatch::copy_places_to_frame_base_indexed(
+                source_place.region,
+                source_place.byte_offset,
+                indexed_target.base_byte_offset,
+                indexed_target.index_offset,
+                indexed_target.index_byte_size,
+                indexed_target.element_byte_size,
+                indexed_target.field_byte_offset,
+                indexed_target.byte_count,
+            ),
+        );
     }
 
     let indexed_target = resolve_runtime_frame_indexed_target_in_table(

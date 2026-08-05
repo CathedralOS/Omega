@@ -1087,6 +1087,31 @@ pub fn runtime_frame_base_indexed_operand_start_width(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
+pub fn runtime_storage_copy_to_runtime_frame_base_indexed_from_runtime_storage_width(
+    source_region: omega_target_operations::RuntimeStorageRegion,
+    source_offset: usize,
+    base_byte_offset: usize,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_count: usize,
+) -> usize {
+    runtime_frame_base_index_setup_width_with_index_width(
+        base_byte_offset,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+    ) + if source_region == omega_target_operations::RuntimeStorageRegion::Machine {
+        8
+    } else {
+        0
+    } + load_data_offset_width(source_offset, byte_count)
+        + 4
+}
+
 pub fn runtime_machine_indexed_integer_write_width(
     base_byte_offset: usize,
     index_region: omega_target_operations::RuntimeStorageRegion,

@@ -2590,6 +2590,14 @@ enum CompilerBodyPlaceCopyShape {
         field_byte_offset: usize,
         target_offset: usize,
     },
+    ToFrameBaseIndexed {
+        source_offset: usize,
+        base_byte_offset: usize,
+        index_offset: usize,
+        index_byte_size: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+    },
     FromMachineIndexed {
         base_byte_offset: usize,
         index_region: omega_target_operations::RuntimeStorageRegion,
@@ -3486,6 +3494,23 @@ fn validate_compiler_function_instruction_boundaries(
                                         element_byte_size,
                                         field_byte_offset,
                                         target_offset,
+                                        byte_count,
+                                    )?,
+                                    CompilerBodyPlaceCopyShape::ToFrameBaseIndexed {
+                                        source_offset,
+                                        base_byte_offset,
+                                        index_offset,
+                                        index_byte_size,
+                                        element_byte_size,
+                                        field_byte_offset,
+                                    } => omega_isa_aarch64::encode_runtime_storage_copy_to_runtime_frame_base_indexed_from_runtime_storage(
+                                        source.region,
+                                        source_offset,
+                                        base_byte_offset,
+                                        index_offset,
+                                        index_byte_size,
+                                        element_byte_size,
+                                        field_byte_offset,
                                         byte_count,
                                     )?,
                                     CompilerBodyPlaceCopyShape::FromMachineIndexed {
@@ -7185,6 +7210,9 @@ fn compiler_instruction_footprint(
                                 byte_count,
                             )
                         }
+                        CompilerBodyPlaceCopyShape::ToFrameBaseIndexed { .. } => {
+                            omega_isa_x86_64::copy_places_clobbers(&source, &target, byte_count)
+                        }
                         CompilerBodyPlaceCopyShape::FromMachineIndexed { .. } => {
                             omega_isa_x86_64::copy_places_from_machine_indexed_clobbers(byte_count)
                         }
@@ -7278,6 +7306,11 @@ fn compiler_instruction_footprint(
                         ),
                         CompilerBodyPlaceCopyShape::FromFrameBaseIndexed { .. } => {
                             omega_isa_aarch64::runtime_storage_copy_from_runtime_frame_base_indexed_clobbers()
+                        }
+                        CompilerBodyPlaceCopyShape::ToFrameBaseIndexed { .. } => {
+                            omega_isa_aarch64::runtime_storage_copy_to_runtime_frame_base_indexed_clobbers(
+                                source.region,
+                            )
                         }
                         CompilerBodyPlaceCopyShape::FromMachineIndexed { .. } => {
                             omega_isa_aarch64::runtime_storage_copy_from_runtime_machine_indexed_clobbers()
@@ -9125,6 +9158,29 @@ fn compiler_place_copy_address_sites(
             | CompilerBodyPlaceCopyShape::FromFrameBaseIndexed { .. } => {
                 Ok(vec![(0, source.region)])
             }
+            CompilerBodyPlaceCopyShape::ToFrameBaseIndexed {
+                base_byte_offset,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+                ..
+            } => {
+                let mut sites = vec![(0, target.region)];
+                if source.region == omega_target_operations::RuntimeStorageRegion::Machine {
+                    sites.push((
+                        omega_isa_aarch64::runtime_frame_base_indexed_operand_start_width(
+                            base_byte_offset,
+                            index_offset,
+                            index_byte_size,
+                            element_byte_size,
+                            field_byte_offset,
+                        ),
+                        source.region,
+                    ));
+                }
+                Ok(sites)
+            }
             CompilerBodyPlaceCopyShape::IndexedToPointeeByRegion { index_region, .. } => {
                 Ok(vec![(0, source.region), (32, index_region)])
             }
@@ -9450,6 +9506,27 @@ fn compiler_body_place_copy_shape(
             element_byte_size,
             field_byte_offset,
             target_offset,
+        });
+    }
+    if let Some(source_offset) = source.const_offset()
+        && target.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+        && let Ok((
+            base_byte_offset,
+            index_region,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+        )) = compiler_single_direct_indexed_place_offsets(target)
+        && index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+    {
+        return Ok(CompilerBodyPlaceCopyShape::ToFrameBaseIndexed {
+            source_offset,
+            base_byte_offset,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
         });
     }
     if let Ok((
