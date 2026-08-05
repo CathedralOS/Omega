@@ -759,8 +759,15 @@ pub fn derive_boundary_compiler_body_place_copy_footprint<'instruction>(
             ) => omega_isa_x86_64::copy_places_from_frame_base_double_indexed_clobbers(*byte_count),
             (
                 omega_target::Architecture::Aarch64,
-                crate::CopyPlacesShape::FromFrameBaseDoubleIndexed { .. },
-            ) => omega_isa_aarch64::runtime_storage_copy_from_runtime_frame_base_double_indexed_clobbers(),
+                crate::CopyPlacesShape::FromFrameBaseDoubleIndexed {
+                    outer_index_region,
+                    inner_index_region,
+                    ..
+                },
+            ) => omega_isa_aarch64::runtime_storage_copy_from_runtime_frame_base_double_indexed_clobbers(
+                outer_index_region,
+                inner_index_region,
+            ),
             (
                 omega_target::Architecture::Aarch64,
                 crate::CopyPlacesShape::FrameBaseDoubleIndexedToPointee { .. },
@@ -771,9 +778,15 @@ pub fn derive_boundary_compiler_body_place_copy_footprint<'instruction>(
             ) => omega_isa_aarch64::runtime_storage_copy_from_runtime_pointee_to_runtime_frame_base_double_indexed_clobbers(),
             (
                 omega_target::Architecture::Aarch64,
-                crate::CopyPlacesShape::ToFrameBaseDoubleIndexed { .. },
+                crate::CopyPlacesShape::ToFrameBaseDoubleIndexed {
+                    outer_index_region,
+                    inner_index_region,
+                    ..
+                },
             ) => omega_isa_aarch64::runtime_storage_copy_to_runtime_frame_base_double_indexed_clobbers(
                 source.region,
+                outer_index_region,
+                inner_index_region,
             ),
             (
                 omega_target::Architecture::X86_64,

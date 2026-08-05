@@ -1790,13 +1790,16 @@ pub(crate) fn copy_places_frame_base_indexed_pair(
     }
 }
 
-/// Rung 2c-x: the frame inline 2D-array element READ (all-frame).
+/// Rung 2c-x: a frame-inline 2D-array element read with independently placed
+/// runtime indices.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn copy_places_from_frame_base_double_indexed(
     base_byte_offset: usize,
+    outer_index_region: RuntimeStorageRegion,
     outer_index_offset: usize,
     outer_index_byte_size: usize,
     outer_stride: usize,
+    inner_index_region: RuntimeStorageRegion,
     inner_index_offset: usize,
     inner_index_byte_size: usize,
     inner_stride: usize,
@@ -1809,17 +1812,55 @@ pub(crate) fn copy_places_from_frame_base_double_indexed(
         source: double_indexed_place(
             RuntimeStorageRegion::RuntimeFrame,
             base_byte_offset,
-            RuntimeStorageRegion::RuntimeFrame,
+            outer_index_region,
             outer_index_offset,
             outer_index_byte_size,
             outer_stride,
-            RuntimeStorageRegion::RuntimeFrame,
+            inner_index_region,
             inner_index_offset,
             inner_index_byte_size,
             inner_stride,
             field_byte_offset,
         ),
         target: omega_abstract_operations::Place::at(target_region, target_offset),
+        byte_count,
+        role: omega_abstract_operations::CopyPlacesRole::Ordinary,
+    }
+}
+
+/// A direct storage value copied into a frame-inline 2D-array element with
+/// independently placed runtime indices.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn copy_places_to_frame_base_double_indexed(
+    source_region: RuntimeStorageRegion,
+    source_offset: usize,
+    base_byte_offset: usize,
+    outer_index_region: RuntimeStorageRegion,
+    outer_index_offset: usize,
+    outer_index_byte_size: usize,
+    outer_stride: usize,
+    inner_index_region: RuntimeStorageRegion,
+    inner_index_offset: usize,
+    inner_index_byte_size: usize,
+    inner_stride: usize,
+    field_byte_offset: usize,
+    byte_count: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::CopyPlaces {
+        source: omega_abstract_operations::Place::at(source_region, source_offset),
+        target: double_indexed_place(
+            RuntimeStorageRegion::RuntimeFrame,
+            base_byte_offset,
+            outer_index_region,
+            outer_index_offset,
+            outer_index_byte_size,
+            outer_stride,
+            inner_index_region,
+            inner_index_offset,
+            inner_index_byte_size,
+            inner_stride,
+            field_byte_offset,
+        ),
         byte_count,
         role: omega_abstract_operations::CopyPlacesRole::Ordinary,
     }

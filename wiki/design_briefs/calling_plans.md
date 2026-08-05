@@ -1268,8 +1268,14 @@ all-frame single- and double-indexed pair copies are included. Each all-frame
 pair shares one frame root across both array walks and all of its index slots.
 The all-frame read and write copy complete aggregate byte spans rather than only scalar widths, share one frame relocation
 across the collection and both indices, and add a separate source relocation
-only for machine storage. An all-frame double-indexed source can also target a
-frame-held pointee, sharing the same frame root across the collection, both
+only for machine storage. Frame-inline double-indexed direct reads and writes
+also retain mixed machine/frame indices. A read uses the frame collection root
+at byte 0, one machine-index root at byte 8 when needed, and its shifted direct-
+target root; a write uses the frame target root at byte 0 and one shared
+machine root at byte 12 for a machine source and/or either machine-held index.
+Both directions copy the complete aggregate span. An all-frame double-indexed
+source can also target a frame-held pointee, sharing the same frame root across
+the collection, both
 indices, and pointer slot while copying the complete value representation. Its
 reverse, from a frame-held source pointee into an all-frame double-indexed
 target, uses the same one-root geometry and complete aggregate span.

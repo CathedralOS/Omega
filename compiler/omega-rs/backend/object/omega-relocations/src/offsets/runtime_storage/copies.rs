@@ -185,9 +185,13 @@ pub(crate) fn runtime_storage_copy_from_runtime_machine_double_indexed_target_ba
 /// double-indexed read.
 pub(crate) fn runtime_storage_copy_from_runtime_frame_base_double_indexed_target_base_offset(
     architecture: Architecture,
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
 ) -> usize {
     omega_instruction_selection::runtime_storage_copy_from_runtime_frame_base_double_indexed_target_base_offset(
         architecture,
+        outer_index_region,
+        inner_index_region,
     )
 }
 
