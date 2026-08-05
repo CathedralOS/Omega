@@ -4,7 +4,8 @@
 // that same index relocation independently. A string-descriptor field write
 // exercises the same cross-region address shape with a data-object relocation;
 // owned-carrier write plus direct-source and literal appends cover the carrier
-// mutation family at that target too.
+// mutation family at that target too, and a mutable reference materializes the
+// exact element address through the same cross-region index before updating it.
 domain [u8]::Utf8
 requires
     valid_utf8(self);
@@ -62,7 +63,9 @@ machine Main::pick(&mut self) {
     let w: i64 = b[2];
     let x: i64 = c[2];
     let y: i32 = d[2];
-    transition v == 44 && w == 55 && x == 50 && y == 61 && rooms[2].description == "omega" && labels[2].text == "omega" {
+    let selected: &mut Label = &mut labels[self.index];
+    selected.text = "proof";
+    transition v == 44 && w == 55 && x == 50 && y == 61 && rooms[2].description == "omega" && labels[2].text == "proof" {
         true -> yes()
         false -> no()
     }

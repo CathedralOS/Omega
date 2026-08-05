@@ -1332,8 +1332,10 @@ their exact buffer and source/target storage identities, offsets, length delta,
 encoder, and mixed relocation set. Compiler-body place-address writes retain
 their canonical source `Place` and target runtime-frame slot, replay the exact
 target address materializer and source/index/target-frame relocation set, and
-match dedicated `CompilerBodyPlaceAddressWrite` evidence. String-
-descriptor writes replay all x86 targets and every classified AArch64 target:
+match dedicated `CompilerBodyPlaceAddressWrite` evidence. Inline-frame AArch64
+sources accept frame- or machine-held indices, including the exact second-base
+relocation and additional address scratch for a cross-region machine index.
+String-descriptor writes replay all x86 targets and every classified AArch64 target:
 direct, pointee, frame-indexed, cross-region frame-indexed, inline-frame-indexed,
 and single- or double-runtime-indexed machine storage, including
 frame- or machine-held indices for the inline-frame shape and its exact second-

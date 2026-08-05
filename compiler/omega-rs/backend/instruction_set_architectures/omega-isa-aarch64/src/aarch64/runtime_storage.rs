@@ -41,7 +41,6 @@ use super::primitives::{
 };
 use super::widths::{
     add_constant_width, bit_fragment_container_bytes,
-    runtime_frame_base_indexed_address_to_runtime_frame_write_width,
     runtime_frame_base_indexed_integer_write_with_index_region_width,
     runtime_frame_base_indexed_string_write_with_index_region_width,
     runtime_frame_fixed_indexed_address_to_runtime_frame_write_width,
@@ -3869,19 +3868,43 @@ pub fn encode_runtime_frame_base_indexed_address_to_runtime_frame_write(
     field_byte_offset: usize,
     target_offset: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
+    encode_runtime_frame_base_indexed_address_to_runtime_frame_write_with_index_region(
+        base_byte_offset,
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+        target_offset,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_frame_base_indexed_address_to_runtime_frame_write_with_index_region(
+    base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::with_capacity(
-        runtime_frame_base_indexed_address_to_runtime_frame_write_width(
+        super::widths::runtime_frame_base_indexed_address_to_runtime_frame_write_with_index_region_width(
             base_byte_offset,
+            index_region,
             index_offset,
+            index_byte_size,
             element_byte_size,
             field_byte_offset,
             target_offset,
         ),
     );
-    append_runtime_frame_base_index_target_address(
+    append_runtime_frame_base_index_target_address_with_index_region(
         &mut bytes,
         16,
         base_byte_offset,
+        index_region,
         index_offset,
         index_byte_size,
         element_byte_size,
@@ -3894,13 +3917,25 @@ pub fn encode_runtime_frame_base_indexed_address_to_runtime_frame_write(
 }
 
 pub fn runtime_frame_base_indexed_address_to_runtime_frame_write_clobbers() -> RegisterSet {
-    RegisterSet::new([
+    runtime_frame_base_indexed_address_to_runtime_frame_write_clobbers_with_index_region(
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+    )
+}
+
+pub fn runtime_frame_base_indexed_address_to_runtime_frame_write_clobbers_with_index_region(
+    index_region: omega_target_operations::RuntimeStorageRegion,
+) -> RegisterSet {
+    let mut registers = vec![
         MachineRegister::Aarch64X(16),
         MachineRegister::Aarch64X(17),
         MachineRegister::Aarch64X(19),
         MachineRegister::Aarch64X(20),
         MachineRegister::Aarch64X(26),
-    ])
+    ];
+    if index_region == omega_target_operations::RuntimeStorageRegion::Machine {
+        registers.push(MachineRegister::Aarch64X(15));
+    }
+    RegisterSet::new(registers)
 }
 
 pub fn encode_runtime_storage_copy(
@@ -9804,6 +9839,37 @@ mod tests {
     fn string_descriptor_write_materializes_large_machine_offsets() {
         encode_runtime_machine_string_write(37_024, 12)
             .expect("large String descriptor offset encodes");
+    }
+
+    #[test]
+    fn frame_base_indexed_address_write_materializes_a_machine_index_base() {
+        let machine = omega_target_operations::RuntimeStorageRegion::Machine;
+        let bytes =
+            encode_runtime_frame_base_indexed_address_to_runtime_frame_write_with_index_region(
+                24, machine, 8, 8, 16, 0, 40,
+            )
+            .expect("cross-region frame-base-indexed address write");
+        assert_eq!(
+            bytes.len(),
+            super::super::widths::runtime_frame_base_indexed_address_to_runtime_frame_write_with_index_region_width(
+                24, machine, 8, 8, 16, 0, 40,
+            )
+        );
+        let index_site = widths::runtime_frame_base_indexed_machine_index_base_offset(24);
+        assert_eq!(
+            &bytes[index_site..index_site + 8],
+            [
+                encode_adrp_placeholder(15),
+                encode_add_page_offset_placeholder(15)
+            ]
+            .concat()
+        );
+        assert!(
+            runtime_frame_base_indexed_address_to_runtime_frame_write_clobbers_with_index_region(
+                machine,
+            )
+            .contains(MachineRegister::Aarch64X(15))
+        );
     }
 
     #[test]

@@ -1319,6 +1319,12 @@ pub fn classify_frame_base_indexed_string_shape(
     classify_frame_base_indexed_shape(target)
 }
 
+pub fn classify_frame_base_indexed_address_shape(
+    source: &omega_target_operations::Place,
+) -> Option<FrameBaseIndexedShape> {
+    classify_frame_base_indexed_shape(source)
+}
+
 pub fn classify_frame_base_indexed_bounded_buffer_shape(
     target: &omega_target_operations::Place,
 ) -> Option<FrameBaseIndexedShape> {
@@ -1722,6 +1728,19 @@ pub fn encode_write_place_address(
     source: &omega_target_operations::Place,
     target_offset: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
+    if architecture == Architecture::Aarch64
+        && let Some(frame_indexed) = classify_frame_base_indexed_address_shape(source)
+    {
+        return aarch64::encode_runtime_frame_base_indexed_address_to_runtime_frame_write_with_index_region(
+            frame_indexed.base_byte_offset,
+            frame_indexed.index_region,
+            frame_indexed.index_offset,
+            frame_indexed.index_byte_size,
+            frame_indexed.element_byte_size,
+            frame_indexed.field_byte_offset,
+            target_offset,
+        );
+    }
     match architecture {
         Architecture::X86_64 => {
             x86_64::encode_place_address_write(source, target_offset).map(|(bytes, _)| bytes)
@@ -1823,6 +1842,15 @@ pub fn write_place_address_register_writes(
     source: &omega_target_operations::Place,
     target_offset: usize,
 ) -> Result<omega_calling_conventions::RegisterSet, Diagnostic> {
+    if architecture == Architecture::Aarch64
+        && let Some(frame_indexed) = classify_frame_base_indexed_address_shape(source)
+    {
+        return Ok(
+            aarch64::runtime_frame_base_indexed_address_to_runtime_frame_write_clobbers_with_index_region(
+                frame_indexed.index_region,
+            ),
+        );
+    }
     match architecture {
         Architecture::X86_64 => Ok(x86_64::place_address_write_register_writes(source)),
         Architecture::Aarch64 => match classify_write_place_shape(source) {
