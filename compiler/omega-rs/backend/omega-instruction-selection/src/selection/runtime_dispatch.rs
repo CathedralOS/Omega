@@ -1883,6 +1883,78 @@ pub(crate) fn copy_places_machine_double_indexed_pair(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn copy_places_machine_double_indexed_to_pointee(
+    base_byte_offset: usize,
+    outer_index_region: RuntimeStorageRegion,
+    outer_index_offset: usize,
+    outer_index_byte_size: usize,
+    outer_stride: usize,
+    inner_index_region: RuntimeStorageRegion,
+    inner_index_offset: usize,
+    inner_index_byte_size: usize,
+    inner_stride: usize,
+    source_field_byte_offset: usize,
+    pointer_byte_offset: usize,
+    target_field_byte_offset: usize,
+    byte_count: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::CopyPlaces {
+        source: double_indexed_place(
+            RuntimeStorageRegion::Machine,
+            base_byte_offset,
+            outer_index_region,
+            outer_index_offset,
+            outer_index_byte_size,
+            outer_stride,
+            inner_index_region,
+            inner_index_offset,
+            inner_index_byte_size,
+            inner_stride,
+            source_field_byte_offset,
+        ),
+        target: pointee_place(pointer_byte_offset, target_field_byte_offset),
+        byte_count,
+        role: omega_abstract_operations::CopyPlacesRole::Ordinary,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn copy_places_pointee_to_machine_double_indexed(
+    pointer_byte_offset: usize,
+    source_field_byte_offset: usize,
+    base_byte_offset: usize,
+    outer_index_region: RuntimeStorageRegion,
+    outer_index_offset: usize,
+    outer_index_byte_size: usize,
+    outer_stride: usize,
+    inner_index_region: RuntimeStorageRegion,
+    inner_index_offset: usize,
+    inner_index_byte_size: usize,
+    inner_stride: usize,
+    target_field_byte_offset: usize,
+    byte_count: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::CopyPlaces {
+        source: pointee_place(pointer_byte_offset, source_field_byte_offset),
+        target: double_indexed_place(
+            RuntimeStorageRegion::Machine,
+            base_byte_offset,
+            outer_index_region,
+            outer_index_offset,
+            outer_index_byte_size,
+            outer_stride,
+            inner_index_region,
+            inner_index_offset,
+            inner_index_byte_size,
+            inner_stride,
+            target_field_byte_offset,
+        ),
+        byte_count,
+        role: omega_abstract_operations::CopyPlacesRole::Ordinary,
+    }
+}
+
 /// Rung 2c-vii: the retired machine inline-array element READ.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn copy_places_from_machine_indexed(

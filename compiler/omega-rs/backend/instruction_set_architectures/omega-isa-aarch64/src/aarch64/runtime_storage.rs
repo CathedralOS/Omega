@@ -6286,6 +6286,130 @@ pub fn runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_po
     ])
 }
 
+/// Copy a machine-rooted inline 2D array element through a pointer held in
+/// the runtime frame. The machine root walks x16; one frame root in x15 serves
+/// every frame-held index and the pointer slot.
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_storage_copy_machine_double_indexed_to_runtime_pointee(
+    base_byte_offset: usize,
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    outer_index_offset: usize,
+    outer_index_byte_size: usize,
+    outer_stride: usize,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_offset: usize,
+    inner_index_byte_size: usize,
+    inner_stride: usize,
+    source_field_byte_offset: usize,
+    pointer_byte_offset: usize,
+    target_field_byte_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let expected_width =
+        super::widths::runtime_storage_copy_machine_double_indexed_to_runtime_pointee_width(
+            pointer_byte_offset,
+            target_field_byte_offset,
+            byte_count,
+        );
+    let frame = omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
+    let mut bytes = Vec::with_capacity(expected_width);
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    bytes.extend(encode_adrp_placeholder(15));
+    bytes.extend(encode_add_page_offset_placeholder(15));
+    append_double_index_address_math(
+        &mut bytes,
+        if outer_index_region == frame { 15 } else { 16 },
+        outer_index_offset,
+        outer_index_byte_size,
+        outer_stride,
+        if inner_index_region == frame { 15 } else { 16 },
+        inner_index_offset,
+        inner_index_byte_size,
+        inner_stride,
+        base_byte_offset + source_field_byte_offset,
+    )?;
+    append_load_data_from_x_offset(&mut bytes, 20, 15, pointer_byte_offset, 8, 19)?;
+    append_add_constant_to_x_register(&mut bytes, 20, target_field_byte_offset)?;
+    for_each_runtime_copy_chunk(0, 0, byte_count, |offset, chunk_size| {
+        append_load_data_from_x_offset(&mut bytes, 17, 16, offset, chunk_size, 26)?;
+        append_store_data_to_x_offset(&mut bytes, 17, 20, offset, chunk_size, 19)?;
+        Ok(())
+    })?;
+    debug_assert_eq!(bytes.len(), expected_width);
+    Ok(bytes)
+}
+
+pub fn runtime_storage_copy_machine_double_indexed_to_runtime_pointee_clobbers() -> RegisterSet {
+    RegisterSet::new([
+        MachineRegister::Aarch64X(14),
+        MachineRegister::Aarch64X(15),
+        MachineRegister::Aarch64X(16),
+        MachineRegister::Aarch64X(17),
+        MachineRegister::Aarch64X(19),
+        MachineRegister::Aarch64X(20),
+        MachineRegister::Aarch64X(26),
+    ])
+}
+
+/// Copy through a frame-held pointer into a machine-rooted inline 2D array
+/// element. The target machine root opens the instruction; one frame root
+/// supplies the source pointer and any frame-held indices.
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_storage_copy_runtime_pointee_to_machine_double_indexed(
+    pointer_byte_offset: usize,
+    source_field_byte_offset: usize,
+    base_byte_offset: usize,
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    outer_index_offset: usize,
+    outer_index_byte_size: usize,
+    outer_stride: usize,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_offset: usize,
+    inner_index_byte_size: usize,
+    inner_stride: usize,
+    target_field_byte_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let expected_width =
+        super::widths::runtime_storage_copy_runtime_pointee_to_machine_double_indexed_width(
+            pointer_byte_offset,
+            source_field_byte_offset,
+            byte_count,
+        );
+    let frame = omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
+    let mut bytes = Vec::with_capacity(expected_width);
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    bytes.extend(encode_adrp_placeholder(15));
+    bytes.extend(encode_add_page_offset_placeholder(15));
+    append_double_index_address_math(
+        &mut bytes,
+        if outer_index_region == frame { 15 } else { 16 },
+        outer_index_offset,
+        outer_index_byte_size,
+        outer_stride,
+        if inner_index_region == frame { 15 } else { 16 },
+        inner_index_offset,
+        inner_index_byte_size,
+        inner_stride,
+        base_byte_offset + target_field_byte_offset,
+    )?;
+    append_load_data_from_x_offset(&mut bytes, 20, 15, pointer_byte_offset, 8, 19)?;
+    append_add_constant_to_x_register(&mut bytes, 20, source_field_byte_offset)?;
+    for_each_runtime_copy_chunk(0, 0, byte_count, |offset, chunk_size| {
+        append_load_data_from_x_offset(&mut bytes, 17, 20, offset, chunk_size, 26)?;
+        append_store_data_to_x_offset(&mut bytes, 17, 16, offset, chunk_size, 19)?;
+        Ok(())
+    })?;
+    debug_assert_eq!(bytes.len(), expected_width);
+    Ok(bytes)
+}
+
+pub fn runtime_storage_copy_runtime_pointee_to_machine_double_indexed_clobbers() -> RegisterSet {
+    runtime_storage_copy_machine_double_indexed_to_runtime_pointee_clobbers()
+}
+
 /// Copy through a frame-held source pointer into an all-frame double-indexed
 /// element. One relocated root supplies the pointer slot, collection, and both
 /// indices; the pointee itself is reached through the loaded pointer value.
@@ -11750,6 +11874,56 @@ mod tests {
             ]
             .concat(),
             "the pointer slot, target, and both indices share the opening frame base"
+        );
+
+        let machine_to_pointee =
+            encode_runtime_storage_copy_machine_double_indexed_to_runtime_pointee(
+                24, machine, 64, 8, 12, frame, 72, 8, 4, 0, 104, 4, 12,
+            )
+            .expect("encode machine double-indexed aggregate copy to pointee");
+        assert_eq!(
+            machine_to_pointee.len(),
+            widths::runtime_storage_copy_machine_double_indexed_to_runtime_pointee_width(
+                104, 4, 12,
+            )
+        );
+        assert_eq!(
+            &machine_to_pointee[..16],
+            [
+                encode_adrp_placeholder(16),
+                encode_add_page_offset_placeholder(16),
+                encode_adrp_placeholder(15),
+                encode_add_page_offset_placeholder(15),
+            ]
+            .concat(),
+            "the machine collection and frame pointer/index slots keep separate roots"
+        );
+
+        let pointee_to_machine =
+            encode_runtime_storage_copy_runtime_pointee_to_machine_double_indexed(
+                104, 4, 24, frame, 64, 8, 12, machine, 72, 8, 4, 0, 12,
+            )
+            .expect("encode pointee aggregate copy to machine double-indexed storage");
+        assert_eq!(
+            pointee_to_machine.len(),
+            widths::runtime_storage_copy_runtime_pointee_to_machine_double_indexed_width(
+                104, 4, 12,
+            )
+        );
+        assert_eq!(
+            &pointee_to_machine[..16],
+            [
+                encode_adrp_placeholder(16),
+                encode_add_page_offset_placeholder(16),
+                encode_adrp_placeholder(15),
+                encode_add_page_offset_placeholder(15),
+            ]
+            .concat(),
+            "the machine target and frame pointer/index slots keep separate roots"
+        );
+        assert_eq!(
+            runtime_storage_copy_machine_double_indexed_to_runtime_pointee_clobbers(),
+            runtime_storage_copy_runtime_pointee_to_machine_double_indexed_clobbers(),
         );
 
         let indexed_pair = encode_runtime_storage_copy_frame_base_indexed_to_frame_base_indexed(

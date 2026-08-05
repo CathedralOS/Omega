@@ -2192,6 +2192,30 @@ pub fn runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_po
         + runtime_storage_copy_data_width(0, 0, byte_count)
 }
 
+pub fn runtime_storage_copy_machine_double_indexed_to_runtime_pointee_width(
+    pointer_byte_offset: usize,
+    target_field_byte_offset: usize,
+    byte_count: usize,
+) -> usize {
+    8 + 8
+        + 36
+        + load_data_offset_width(pointer_byte_offset, 8)
+        + add_constant_width(target_field_byte_offset)
+        + runtime_storage_copy_data_width(0, 0, byte_count)
+}
+
+pub fn runtime_storage_copy_runtime_pointee_to_machine_double_indexed_width(
+    pointer_byte_offset: usize,
+    source_field_byte_offset: usize,
+    byte_count: usize,
+) -> usize {
+    runtime_storage_copy_machine_double_indexed_to_runtime_pointee_width(
+        pointer_byte_offset,
+        source_field_byte_offset,
+        byte_count,
+    )
+}
+
 pub fn runtime_storage_copy_from_runtime_pointee_to_runtime_frame_base_double_indexed_width(
     pointer_byte_offset: usize,
     source_field_byte_offset: usize,

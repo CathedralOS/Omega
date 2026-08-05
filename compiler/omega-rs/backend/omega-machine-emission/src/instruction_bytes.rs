@@ -499,6 +499,8 @@ fn compiler_instruction_validation_kind(
                     | omega_instruction_selection::CopyPlacesShape::FrameBaseIndexedPair { .. }
                     | omega_instruction_selection::CopyPlacesShape::FrameBaseDoubleIndexedPair { .. }
                     | omega_instruction_selection::CopyPlacesShape::MachineDoubleIndexedPair { .. }
+                    | omega_instruction_selection::CopyPlacesShape::MachineDoubleIndexedToPointee { .. }
+                    | omega_instruction_selection::CopyPlacesShape::PointeeToMachineDoubleIndexed { .. }
             )
             || (emission_context.target.architecture == omega_target::Architecture::X86_64
                 && matches!(

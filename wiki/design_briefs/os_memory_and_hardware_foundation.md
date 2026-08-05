@@ -1064,6 +1064,10 @@ collection, both indices, and pointer slot reuse that one frame root, and the
 copy covers the complete value representation. The reverse copy from a
 frame-held source pointee into an all-frame double-indexed target has the same
 one-root geometry and complete aggregate span.
+Machine-rooted double-indexed elements also cross a frame-held pointee in both
+directions. Their AArch64 recipe retains a machine collection root plus one
+frame root shared by the pointer slot and any frame-held indices, copies the
+complete aggregate span, and replays both exact relocations.
 The x86 general place materializer also replays every
 remaining otherwise-unclassified `CopyPlaces` path with scratch derived from
 the retained places' exact index depths.
@@ -1128,10 +1132,10 @@ the exact second-base relocation and additional address scratch for a cross-
 region machine index.
 All-frame double-runtime-indexed sources reuse one frame relocation for the
 inline array, both indices, and the destination reference slot. Machine-rooted
-double-runtime-indexed sources retain the exact machine-root relocation plus
-one frame relocation: the frame base is introduced at the first frame-held
-index, or after the address walk when both indices are machine-held, and is
-then reused to address the destination reference slot.
+double-runtime-indexed elements crossing a frame-held reference in either
+direction retain the exact machine-root relocation plus one frame relocation:
+the frame base supplies every frame-held index and the reference slot while the
+complete aggregate value moves between the computed element and pointee.
 Place-copy selection retains its separate `compiler_body_place_copy` evidence
 only for
 the `Ordinary` role; final validation regenerates the same place-copy bytes,
