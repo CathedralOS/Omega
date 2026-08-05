@@ -3,14 +3,14 @@ use crate::selection::storage_places::{
     RuntimeStoragePlace, clamp_runtime_case_comparison_operands_in_table,
     classify_scalar_value_type_in_table, descriptor_primitive_type,
     resolve_binary_operation_arithmetic_domain_in_table,
-    resolve_runtime_frame_indexed_target_in_table, resolve_runtime_machine_indexed_target_in_table,
+    resolve_runtime_frame_indexed_target_in_table,
     resolve_runtime_pointee_fixed_indexed_target_in_table,
     resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_is_signed_in_table,
     resolve_runtime_storage_place_in_table, resolve_runtime_storage_primitive_type_in_table,
     runtime_storage_target_is_atomic_in_table,
 };
 use omega_abstract_operations::{
-    Place, PlaceStep, RuntimeStorageRegion, RuntimeValueOperand, RuntimeValueOperandHandle,
+    Place, RuntimeStorageRegion, RuntimeValueOperand, RuntimeValueOperandHandle,
     SelectedInstructionKind, StateGuardOperator,
 };
 use omega_control_flow::StateKey;
@@ -1482,21 +1482,18 @@ fn runtime_indexed_convert_target_place(
     expressions: &ExpressionTable,
     target: ExpressionHandle,
 ) -> Option<Place> {
-    let indexed = resolve_runtime_machine_indexed_target_in_table(
+    let (place, _) = super::super::resolve_struct_target_place(
         input,
         dispatch_index,
         source_key,
         expressions,
         target,
     )?;
-    Place::at(RuntimeStorageRegion::Machine, indexed.base_byte_offset)
-        .with_step(PlaceStep::ScaledIndex {
-            index_region: indexed.index_region,
-            index_offset: indexed.index_offset,
-            index_byte_size: indexed.index_byte_size,
-            element_byte_size: indexed.element_byte_size,
-        })
-        .and_then(|place| place.with_step(PlaceStep::ConstOffset(indexed.field_byte_offset)))
+    // Direct places retain the compact WriteRuntimeStorageConvert operation.
+    // Every walked place uses the canonical target algebra assembled by the
+    // shared mutation resolver, so conversion targeting cannot lag integer,
+    // copy, and binary writes by independently re-enumerating the grammar.
+    place.const_offset().is_none().then_some(place)
 }
 
 /// A numeric `as` cast assigned to a frame slot (`let n: i32 = c as i32`, where the

@@ -1083,7 +1083,9 @@ relocations, and match a separate `CompilerBodyStorageConvertWrite` fragment.
 Composed-place conversion writes share that fragment and exact recipe for all
 x86 materializer targets and every classified AArch64 target: direct, pointee,
 frame-descriptor-indexed, inline-frame-indexed, and single- or double-runtime-
-indexed machine places.
+indexed machine places. AArch64 also replays all-frame double-runtime-indexed
+conversion targets with one shared frame relocation. The conversion selector
+uses the same canonical walked-target resolver as the other mutation families.
 Text-buffer materialization is inside the partial proof for every x86 target
 accepted by the general place materializer, including double-indexed transient
 frame destinations; AArch64 also replays cross-region frame indices and

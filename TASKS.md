@@ -882,7 +882,7 @@ proves complete region coverage, and composes admitted leaves under their
 separate provenance. Do not add a second whole-image decoder/admission path.
 
 The existing single final-region artifact now carries the domain-separated
-`omega.final-footprint-certificate` schema, format version 96, and a certificate
+`omega.final-footprint-certificate` schema, format version 97, and a certificate
 fingerprint over its final placement binding, compiler-text derivation, and
 complete region inventory. Its explicit completeness flags remain false until
 compiler-body footprint decoding and admitted-leaf evidence land. The envelope
@@ -1104,8 +1104,12 @@ validation regenerates the exact conversion/store bytes and recursive source
 relocations. Composed-place conversion writes now share that fragment and exact
 recipe for all x86 materializer targets and every classified AArch64 target:
 direct, pointee, frame-descriptor-indexed, inline-frame-indexed, and single- or
-double-runtime-indexed machine places. Unclassified AArch64 place shapes and
-the remaining call classes remain incomplete. X86 text-buffer materialization
+double-runtime-indexed machine places. AArch64 also replays all-frame double-
+runtime-indexed conversion targets with one shared frame relocation. The
+conversion selector now consumes the same canonical walked-target resolver as
+other mutation families instead of re-enumerating only machine-indexed targets.
+Unclassified AArch64 place shapes and the remaining call classes remain
+incomplete. X86 text-buffer materialization
 now replays every target accepted by its general place materializer, including
 double-indexed transient frame destinations, retaining the exact buffer symbol,
 target/index relocation walk, and target place. AArch64 additionally replays

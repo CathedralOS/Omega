@@ -1116,6 +1116,68 @@ pub fn encode_runtime_machine_double_indexed_convert_write(
     Ok(bytes)
 }
 
+/// Convert one runtime value into an all-frame double-indexed element. The
+/// collection and both index slots share the one relocated frame base in x16;
+/// operand evaluation starts after the fixed 36-byte address program.
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_frame_base_double_indexed_convert_write(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    base_byte_offset: usize,
+    outer_index_offset: usize,
+    outer_index_byte_size: usize,
+    outer_stride: usize,
+    inner_index_offset: usize,
+    inner_index_byte_size: usize,
+    inner_stride: usize,
+    field_byte_offset: usize,
+    target_byte_size: usize,
+    source: RuntimeValueOperandHandle,
+    source_byte_size: usize,
+    source_is_float: bool,
+    target_is_float: bool,
+    source_signed: bool,
+    target_signed: bool,
+    trapping: bool,
+    saturating: bool,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::new();
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    append_double_index_address_math(
+        &mut bytes,
+        16,
+        outer_index_offset,
+        outer_index_byte_size,
+        outer_stride,
+        16,
+        inner_index_offset,
+        inner_index_byte_size,
+        inner_stride,
+        base_byte_offset + field_byte_offset,
+    )?;
+    append_runtime_value_operand(
+        runtime_value_operands,
+        &mut bytes,
+        17,
+        RUNTIME_VALUE_LEFT_SCRATCH_REGISTERS,
+        source,
+    )?;
+    append_runtime_convert_operation(
+        &mut bytes,
+        17,
+        source_byte_size,
+        target_byte_size,
+        source_is_float,
+        target_is_float,
+        source_signed,
+        target_signed,
+        trapping,
+        saturating,
+    )?;
+    append_runtime_storage_result_write(&mut bytes, 0, target_byte_size)?;
+    Ok(bytes)
+}
+
 /// Convert the value whose raw bits are in `register` between integer/float
 /// representations, leaving the converted result back in `register`. Uses FP
 /// register 0 (`S0`/`D0`) as the scratch FP bank. See
@@ -10016,6 +10078,30 @@ mod tests {
         assert_eq!(
             runtime_frame_base_double_indexed_integer_write_clobbers(),
             runtime_storage_copy_from_runtime_frame_base_double_indexed_clobbers()
+        );
+    }
+
+    #[test]
+    fn frame_base_double_indexed_convert_write_uses_one_shared_frame_base() {
+        let (operands, source, _) = immediate_pair(70, 0);
+        let bytes = encode_runtime_frame_base_double_indexed_convert_write(
+            &operands, 24, 64, 8, 12, 72, 8, 4, 0, 4, source, 8, false, false, true, true, false,
+            false,
+        )
+        .expect("encode all-frame double-indexed conversion write");
+
+        assert_eq!(
+            &bytes[..8],
+            [
+                encode_adrp_placeholder(16),
+                encode_add_page_offset_placeholder(16)
+            ]
+            .concat(),
+            "the collection and both index slots must share the opening frame base"
+        );
+        assert!(
+            bytes.len() > widths::runtime_frame_base_double_indexed_convert_operand_offset(),
+            "the conversion operand and store must follow the fixed address prefix"
         );
     }
 

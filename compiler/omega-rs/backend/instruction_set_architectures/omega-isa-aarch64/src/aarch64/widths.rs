@@ -1927,6 +1927,10 @@ pub fn runtime_frame_base_double_indexed_binary_left_operand_offset() -> usize {
     44
 }
 
+pub fn runtime_frame_base_double_indexed_convert_operand_offset() -> usize {
+    44
+}
+
 pub fn runtime_machine_double_indexed_string_data_address_offset(
     outer_index_region: omega_target_operations::RuntimeStorageRegion,
     inner_index_region: omega_target_operations::RuntimeStorageRegion,
