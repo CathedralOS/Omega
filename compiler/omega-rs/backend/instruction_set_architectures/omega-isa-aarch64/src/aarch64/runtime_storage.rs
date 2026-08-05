@@ -4625,6 +4625,81 @@ pub fn runtime_storage_copy_from_runtime_frame_base_indexed_clobbers() -> Regist
     ])
 }
 
+/// Write a direct storage slot into a frame-resident inline array. The target,
+/// index, and any frame source share x20's leading frame base; a machine source
+/// receives a distinct x15 pair after the target address is formed.
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_storage_copy_to_runtime_frame_base_indexed_from_runtime_storage(
+    source_region: omega_target_operations::RuntimeStorageRegion,
+    source_offset: usize,
+    base_byte_offset: usize,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    if !matches!(byte_count, 1 | 2 | 4 | 8) {
+        return Err(Diagnostic::error(format!(
+            "AArch64 MVP encoder cannot write {byte_count}-byte frame-indexed values yet"
+        )));
+    }
+    let expected_width = super::widths::runtime_storage_copy_to_runtime_frame_base_indexed_from_runtime_storage_width(
+        source_region,
+        source_offset,
+        base_byte_offset,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+        byte_count,
+    );
+    let mut bytes = Vec::with_capacity(expected_width);
+    append_runtime_frame_base_index_target_address(
+        &mut bytes,
+        16,
+        base_byte_offset,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+        17,
+        26,
+    )?;
+    let source_base =
+        if source_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
+            20
+        } else {
+            bytes.extend(encode_adrp_placeholder(15));
+            bytes.extend(encode_add_page_offset_placeholder(15));
+            15
+        };
+    append_load_data_from_x_offset(&mut bytes, 24, source_base, source_offset, byte_count, 19)?;
+    match byte_count {
+        8 => bytes.extend(encode_store_x_to_x(24, 16, 0)?),
+        _ => bytes.extend(encode_store_w_to_x(24, 16, 0, byte_count)?),
+    }
+    debug_assert_eq!(bytes.len(), expected_width);
+    Ok(bytes)
+}
+
+pub fn runtime_storage_copy_to_runtime_frame_base_indexed_clobbers(
+    source_region: omega_target_operations::RuntimeStorageRegion,
+) -> RegisterSet {
+    let mut registers = vec![
+        MachineRegister::Aarch64X(16),
+        MachineRegister::Aarch64X(17),
+        MachineRegister::Aarch64X(19),
+        MachineRegister::Aarch64X(20),
+        MachineRegister::Aarch64X(24),
+        MachineRegister::Aarch64X(26),
+    ];
+    if source_region == omega_target_operations::RuntimeStorageRegion::Machine {
+        registers.push(MachineRegister::Aarch64X(15));
+    }
+    RegisterSet::new(registers)
+}
+
 /// Offset of the second page-pair in the to-runtime-storage variant. A
 /// frame-to-frame copy reuses the opening frame base and has no second site.
 pub fn runtime_storage_copy_from_runtime_frame_indexed_target_address_offset(
@@ -10134,6 +10209,52 @@ mod tests {
             .contains(MachineRegister::Aarch64X(15)),
             "the exact footprint must retain the cross-region base register"
         );
+    }
+
+    #[test]
+    fn frame_base_indexed_storage_write_separates_machine_source_base() {
+        let frame = omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
+        let machine = omega_target_operations::RuntimeStorageRegion::Machine;
+        for source_region in [frame, machine] {
+            let bytes =
+                encode_runtime_storage_copy_to_runtime_frame_base_indexed_from_runtime_storage(
+                    source_region,
+                    88,
+                    24,
+                    64,
+                    8,
+                    8,
+                    0,
+                    8,
+                )
+                .expect("encode frame-base-indexed storage write");
+            assert_eq!(
+                bytes.len(),
+                widths::runtime_storage_copy_to_runtime_frame_base_indexed_from_runtime_storage_width(
+                    source_region,
+                    88,
+                    24,
+                    64,
+                    8,
+                    8,
+                    0,
+                    8,
+                )
+            );
+            if source_region == machine {
+                let source_site =
+                    widths::runtime_frame_base_indexed_operand_start_width(24, 64, 8, 8, 0);
+                assert_eq!(
+                    &bytes[source_site..source_site + 8],
+                    [
+                        encode_adrp_placeholder(15),
+                        encode_add_page_offset_placeholder(15)
+                    ]
+                    .concat(),
+                    "a machine source owns an independent base pair"
+                );
+            }
+        }
     }
 
     #[test]

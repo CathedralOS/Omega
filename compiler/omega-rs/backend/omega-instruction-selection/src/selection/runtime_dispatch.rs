@@ -310,6 +310,31 @@ pub(crate) fn frame_base_indexed_place(
         .expect("a frame-base-indexed place is three steps, within PLACE_MAX_STEPS")
 }
 
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn copy_places_to_frame_base_indexed(
+    source_region: RuntimeStorageRegion,
+    source_offset: usize,
+    base_byte_offset: usize,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_count: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::CopyPlaces {
+        source: omega_abstract_operations::Place::at(source_region, source_offset),
+        target: frame_base_indexed_place(
+            base_byte_offset,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+        ),
+        byte_count,
+        role: omega_abstract_operations::CopyPlacesRole::Ordinary,
+    }
+}
+
 /// Rung 2c-x: an inline 2D-array element path (`arr[i][j].field`, no
 /// deref): `[Const(base), SI(outer), SI(inner), Const(field)]`.
 pub(crate) fn double_indexed_place(

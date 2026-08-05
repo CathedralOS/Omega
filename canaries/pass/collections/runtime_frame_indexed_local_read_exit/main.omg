@@ -1,16 +1,20 @@
-// Inline LOCAL array read at a runtime (param) index with 8-byte elements
-// (`let a: [i64; 3] = [...]; a[k]`). a=[11,22,33], k=2 -> 33 -> exit 1.
+// Inline LOCAL array write/read at a runtime (param) index with 8-byte elements.
+// The write copies a machine field into `a[k]`, exercising the frame-base-
+// indexed CopyPlaces target and its distinct machine-source relocation.
 use omega::language::std::console;
 data Main {
     console: Console;
+    value: i64;
 }
 machine Main::main(&mut self) {
+    self.value = 44;
     transition { _ -> self.pick(2) }
 }
 machine Main::pick(&mut self, k: u64 [0..=2]) {
     let a: [i64; 3] = [11, 22, 33];
+    a[k] = self.value;
     let v: i64 = a[k];
-    transition v == 33 {
+    transition v == 44 {
         true -> yes()
         false -> no()
     }
