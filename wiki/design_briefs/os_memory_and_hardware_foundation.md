@@ -1138,8 +1138,8 @@ replays the indexed target walk, source walk, and copy-loop state.
 String-descriptor writes are inside the proof for all x86 targets and the
 direct, pointee, frame-indexed, cross-region frame-indexed, inline-frame-
 indexed, and single- or double-runtime-indexed machine-storage AArch64 shapes,
-with
-exact rodata and storage/index relocation identity.
+with frame- or machine-held indices for the inline-frame shape, the exact
+second-base relocation, and exact rodata and storage/index relocation identity.
 Direct-image emission also validates the fixed encoder-owned function-entry
 prologue and return epilogue against the exact relocated entry-region bytes on
 x86-64 and AArch64 before publication. The inventory names this narrow

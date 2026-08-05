@@ -1,5 +1,6 @@
 use super::super::offsets::{
     runtime_frame_base_indexed_string_data_address_offset,
+    runtime_frame_base_indexed_string_data_address_offset_with_index_region,
     runtime_frame_indexed_string_data_address_offset,
     runtime_frame_indexed_string_data_address_offset_with_index_region,
     runtime_machine_double_indexed_string_data_address_offset,
@@ -65,7 +66,12 @@ pub(super) fn collect_runtime_storage_string_relocations(
                     // The transitional decompose: the SAME classifier the
                     // encoder uses picks the retained shape, so the relocs
                     // always describe the emitted bytes.
-                    match omega_instruction_selection::classify_write_place_shape(target) {
+                    let shape = omega_instruction_selection::classify_write_place_shape(target);
+                    let frame_indexed =
+                        omega_instruction_selection::classify_frame_base_indexed_string_shape(
+                            target,
+                        );
+                    match shape {
                         omega_instruction_selection::WritePlaceShape::Direct { .. } => {
                             context.insert_data_address_at_instruction_start(data_symbol);
                             context.insert_data_address_at_relative_offset(
@@ -212,6 +218,38 @@ pub(super) fn collect_runtime_storage_string_relocations(
                                     context.input.target.architecture,
                                     outer_index_region,
                                     inner_index_region,
+                                ),
+                                data_symbol,
+                            );
+                        }
+                        omega_instruction_selection::WritePlaceShape::Unsupported
+                            if frame_indexed.is_some() =>
+                        {
+                            let frame_indexed =
+                                frame_indexed.expect("guarded frame-base-indexed string target");
+                            context.insert_data_address_at_instruction_start(
+                                context.storage_region_symbol_handle(target.region),
+                            );
+                            if frame_indexed.index_region
+                                == omega_target_operations::RuntimeStorageRegion::Machine
+                            {
+                                context.insert_data_address_at_relative_offset(
+                                    omega_instruction_selection::runtime_frame_base_indexed_machine_index_base_offset(
+                                        context.input.target.architecture,
+                                        frame_indexed.base_byte_offset,
+                                    ),
+                                    context.machine_storage_symbol_handle(),
+                                );
+                            }
+                            context.insert_data_address_at_relative_offset(
+                                runtime_frame_base_indexed_string_data_address_offset_with_index_region(
+                                    context.input.target.architecture,
+                                    frame_indexed.base_byte_offset,
+                                    frame_indexed.index_region,
+                                    frame_indexed.index_offset,
+                                    frame_indexed.index_byte_size,
+                                    frame_indexed.element_byte_size,
+                                    frame_indexed.field_byte_offset,
                                 ),
                                 data_symbol,
                             );

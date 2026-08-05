@@ -1336,7 +1336,8 @@ match dedicated `CompilerBodyPlaceAddressWrite` evidence. String-
 descriptor writes replay all x86 targets and every classified AArch64 target:
 direct, pointee, frame-indexed, cross-region frame-indexed, inline-frame-indexed,
 and single- or double-runtime-indexed machine storage, including
-exact rodata and storage/index relocations plus a separate
+frame- or machine-held indices for the inline-frame shape and its exact second-
+base relocation. Exact rodata and storage/index relocations bind a separate
 `CompilerBodyPlaceStringWrite` footprint. Immediate bounded-buffer literal
 writes replay all x86 targets and every classified AArch64 place target,
 including indexed and double-indexed owned carriers and the exact target,

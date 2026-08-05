@@ -43,7 +43,7 @@ use super::widths::{
     add_constant_width, bit_fragment_container_bytes,
     runtime_frame_base_indexed_address_to_runtime_frame_write_width,
     runtime_frame_base_indexed_integer_write_with_index_region_width,
-    runtime_frame_base_indexed_string_write_width,
+    runtime_frame_base_indexed_string_write_with_index_region_width,
     runtime_frame_fixed_indexed_address_to_runtime_frame_write_width,
     runtime_frame_indexed_address_to_runtime_frame_write_width,
     runtime_frame_indexed_binary_write_width, runtime_frame_indexed_integer_write_width,
@@ -3437,18 +3437,43 @@ pub fn encode_runtime_frame_base_indexed_string_write(
     field_byte_offset: usize,
     byte_length: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(runtime_frame_base_indexed_string_write_width(
+    encode_runtime_frame_base_indexed_string_write_with_index_region(
         base_byte_offset,
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
         index_offset,
         index_byte_size,
         element_byte_size,
         field_byte_offset,
         byte_length,
-    ));
-    append_runtime_frame_base_index_target_address(
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_frame_base_indexed_string_write_with_index_region(
+    base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_length: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(
+        runtime_frame_base_indexed_string_write_with_index_region_width(
+            base_byte_offset,
+            index_region,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+            byte_length,
+        ),
+    );
+    append_runtime_frame_base_index_target_address_with_index_region(
         &mut bytes,
         16,
         base_byte_offset,
+        index_region,
         index_offset,
         index_byte_size,
         element_byte_size,
@@ -3463,8 +3488,9 @@ pub fn encode_runtime_frame_base_indexed_string_write(
     bytes.extend(encode_store_x_to_x(17, 16, 8)?);
     debug_assert_eq!(
         bytes.len(),
-        runtime_frame_base_indexed_string_write_width(
+        runtime_frame_base_indexed_string_write_with_index_region_width(
             base_byte_offset,
+            index_region,
             index_offset,
             index_byte_size,
             element_byte_size,
@@ -9651,7 +9677,14 @@ mod tests {
                     .expect("frame-base-indexed string descriptor write");
             assert_eq!(
                 bytes.len(),
-                runtime_frame_base_indexed_string_write_width(24, 8, index_byte_size, 16, 0, 7,)
+                widths::runtime_frame_base_indexed_string_write_width(
+                    24,
+                    8,
+                    index_byte_size,
+                    16,
+                    0,
+                    7,
+                )
             );
             let data_site =
                 super::super::widths::runtime_frame_base_indexed_string_data_address_offset(
@@ -9663,6 +9696,52 @@ mod tests {
                 );
             assert_eq!(bytes.len() - data_site, 20);
         }
+    }
+
+    #[test]
+    fn frame_base_indexed_string_write_materializes_a_machine_index_base() {
+        let bytes = encode_runtime_frame_base_indexed_string_write_with_index_region(
+            24,
+            omega_target_operations::RuntimeStorageRegion::Machine,
+            64,
+            8,
+            16,
+            0,
+            7,
+        )
+        .expect("cross-region frame-base-indexed string descriptor write");
+        assert_eq!(
+            bytes.len(),
+            widths::runtime_frame_base_indexed_string_write_with_index_region_width(
+                24,
+                omega_target_operations::RuntimeStorageRegion::Machine,
+                64,
+                8,
+                16,
+                0,
+                7,
+            )
+        );
+        let index_site = widths::runtime_frame_base_indexed_machine_index_base_offset(24);
+        assert_eq!(
+            &bytes[index_site..index_site + 8],
+            [
+                encode_adrp_placeholder(15),
+                encode_add_page_offset_placeholder(15)
+            ]
+            .concat(),
+            "the machine-held string index must own an x15 base pair"
+        );
+        let data_site =
+            widths::runtime_frame_base_indexed_string_data_address_offset_with_index_region(
+                24,
+                omega_target_operations::RuntimeStorageRegion::Machine,
+                64,
+                8,
+                16,
+                0,
+            );
+        assert_eq!(bytes.len() - data_site, 20);
     }
 
     #[test]
