@@ -7385,41 +7385,68 @@ pub fn runtime_storage_copy_frame_base_indexed_to_frame_base_indexed_clobbers() 
 }
 
 /// Copy `frame[source_outer][source_inner]` to
-/// `frame[target_outer][target_inner]` when both inline arrays and all four
-/// runtime index slots share one runtime frame. x20 preserves the relocated
-/// frame root and x24 preserves the completed source address between walks.
+/// `frame[target_outer][target_inner]`. x20 preserves the relocated frame root,
+/// one optional x15 root supplies every machine-held index, and x24 preserves
+/// the completed source address between walks.
 #[allow(clippy::too_many_arguments)]
 pub fn encode_runtime_storage_copy_frame_base_double_indexed_to_frame_base_double_indexed(
     source_base_byte_offset: usize,
+    source_outer_index_region: omega_target_operations::RuntimeStorageRegion,
     source_outer_index_offset: usize,
     source_outer_index_byte_size: usize,
     source_outer_stride: usize,
+    source_inner_index_region: omega_target_operations::RuntimeStorageRegion,
     source_inner_index_offset: usize,
     source_inner_index_byte_size: usize,
     source_inner_stride: usize,
     source_field_byte_offset: usize,
     target_base_byte_offset: usize,
+    target_outer_index_region: omega_target_operations::RuntimeStorageRegion,
     target_outer_index_offset: usize,
     target_outer_index_byte_size: usize,
     target_outer_stride: usize,
+    target_inner_index_region: omega_target_operations::RuntimeStorageRegion,
     target_inner_index_offset: usize,
     target_inner_index_byte_size: usize,
     target_inner_stride: usize,
     target_field_byte_offset: usize,
     byte_count: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let expected_width = super::widths::runtime_storage_copy_frame_base_double_indexed_to_frame_base_double_indexed_width(byte_count);
+    let expected_width = super::widths::runtime_storage_copy_frame_base_double_indexed_to_frame_base_double_indexed_width(
+        source_outer_index_region,
+        source_inner_index_region,
+        target_outer_index_region,
+        target_inner_index_region,
+        byte_count,
+    );
     let mut bytes = Vec::with_capacity(expected_width);
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
     bytes.extend(encode_move_x_register(20, 16));
+    let machine = omega_target_operations::RuntimeStorageRegion::Machine;
+    if source_outer_index_region == machine
+        || source_inner_index_region == machine
+        || target_outer_index_region == machine
+        || target_inner_index_region == machine
+    {
+        bytes.extend(encode_adrp_placeholder(15));
+        bytes.extend(encode_add_page_offset_placeholder(15));
+    }
     append_double_index_address_math(
         &mut bytes,
-        16,
+        if source_outer_index_region == machine {
+            15
+        } else {
+            16
+        },
         source_outer_index_offset,
         source_outer_index_byte_size,
         source_outer_stride,
-        16,
+        if source_inner_index_region == machine {
+            15
+        } else {
+            16
+        },
         source_inner_index_offset,
         source_inner_index_byte_size,
         source_inner_stride,
@@ -7429,11 +7456,19 @@ pub fn encode_runtime_storage_copy_frame_base_double_indexed_to_frame_base_doubl
     bytes.extend(encode_move_x_register(16, 20));
     append_double_index_address_math(
         &mut bytes,
-        16,
+        if target_outer_index_region == machine {
+            15
+        } else {
+            16
+        },
         target_outer_index_offset,
         target_outer_index_byte_size,
         target_outer_stride,
-        16,
+        if target_inner_index_region == machine {
+            15
+        } else {
+            16
+        },
         target_inner_index_offset,
         target_inner_index_byte_size,
         target_inner_stride,
@@ -7448,9 +7483,13 @@ pub fn encode_runtime_storage_copy_frame_base_double_indexed_to_frame_base_doubl
     Ok(bytes)
 }
 
-pub fn runtime_storage_copy_frame_base_double_indexed_to_frame_base_double_indexed_clobbers()
--> RegisterSet {
-    RegisterSet::new([
+pub fn runtime_storage_copy_frame_base_double_indexed_to_frame_base_double_indexed_clobbers(
+    source_outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    source_inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    target_outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    target_inner_index_region: omega_target_operations::RuntimeStorageRegion,
+) -> RegisterSet {
+    let mut registers = vec![
         MachineRegister::Aarch64X(14),
         MachineRegister::Aarch64X(16),
         MachineRegister::Aarch64X(17),
@@ -7458,7 +7497,16 @@ pub fn runtime_storage_copy_frame_base_double_indexed_to_frame_base_double_index
         MachineRegister::Aarch64X(20),
         MachineRegister::Aarch64X(24),
         MachineRegister::Aarch64X(26),
-    ])
+    ];
+    let machine = omega_target_operations::RuntimeStorageRegion::Machine;
+    if source_outer_index_region == machine
+        || source_inner_index_region == machine
+        || target_outer_index_region == machine
+        || target_inner_index_region == machine
+    {
+        registers.push(MachineRegister::Aarch64X(15));
+    }
+    RegisterSet::new(registers)
 }
 
 /// Copy between two machine-rooted inline 2D array elements. Each address
@@ -12469,12 +12517,15 @@ mod tests {
 
         let double_pair =
             encode_runtime_storage_copy_frame_base_double_indexed_to_frame_base_double_indexed(
-                24, 64, 8, 12, 72, 8, 4, 0, 128, 80, 8, 12, 88, 8, 4, 0, 12,
+                24, frame, 64, 8, 12, frame, 72, 8, 4, 0, 128, frame, 80, 8, 12, frame, 88, 8, 4,
+                0, 12,
             )
             .expect("encode all-frame double-indexed aggregate pair copy");
         assert_eq!(
             double_pair.len(),
-            widths::runtime_storage_copy_frame_base_double_indexed_to_frame_base_double_indexed_width(12)
+            widths::runtime_storage_copy_frame_base_double_indexed_to_frame_base_double_indexed_width(
+                frame, frame, frame, frame, 12,
+            )
         );
         assert_eq!(
             &double_pair[..8],
@@ -12484,6 +12535,27 @@ mod tests {
             ]
             .concat(),
             "both 2D arrays and all four index slots share the opening frame base"
+        );
+
+        let mixed_frame_double_pair =
+            encode_runtime_storage_copy_frame_base_double_indexed_to_frame_base_double_indexed(
+                24, machine, 64, 8, 12, frame, 72, 8, 4, 0, 128, frame, 80, 8, 12, machine, 88, 8,
+                4, 0, 12,
+            )
+            .expect("encode mixed-index frame double aggregate pair copy");
+        assert_eq!(
+            mixed_frame_double_pair.len(),
+            widths::runtime_storage_copy_frame_base_double_indexed_to_frame_base_double_indexed_width(
+                machine, frame, frame, machine, 12,
+            )
+        );
+        assert_eq!(
+            &mixed_frame_double_pair[12..20],
+            [
+                encode_adrp_placeholder(15),
+                encode_add_page_offset_placeholder(15)
+            ]
+            .concat()
         );
 
         let machine_double_pair =
