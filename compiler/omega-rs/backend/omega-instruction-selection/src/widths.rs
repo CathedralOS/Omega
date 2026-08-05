@@ -2971,6 +2971,10 @@ pub fn runtime_frame_base_double_indexed_binary_left_operand_offset() -> usize {
     aarch64::runtime_frame_base_double_indexed_binary_left_operand_offset()
 }
 
+pub fn runtime_frame_base_double_indexed_convert_operand_offset() -> usize {
+    aarch64::runtime_frame_base_double_indexed_convert_operand_offset()
+}
+
 pub fn runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage_width(
     architecture: Architecture,
 ) -> usize {

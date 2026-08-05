@@ -1692,7 +1692,11 @@ fn compiler_instruction_validation_kind(
                     | omega_instruction_selection::WritePlaceShape::FrameBaseIndexed { .. }
                     | omega_instruction_selection::WritePlaceShape::MachineIndexed { .. }
                     | omega_instruction_selection::WritePlaceShape::MachineDoubleIndexed { .. }
-            ) =>
+            )
+            || omega_instruction_selection::classify_frame_base_double_indexed_convert_shape(
+                target,
+            )
+            .is_some() =>
         {
             Some(
                 CompilerInstructionValidationKind::CompilerBodyPlaceConvertWrite {

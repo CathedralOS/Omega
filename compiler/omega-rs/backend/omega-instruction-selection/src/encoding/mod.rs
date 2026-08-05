@@ -54,6 +54,7 @@ pub use runtime_storage::{
     aarch64_encode_append_place_bounded_buffer_source_with_sites,
     append_place_bounded_buffer_literal_width, append_place_bounded_buffer_source_width,
     classify_copy_places_shape, classify_frame_base_double_indexed_binary_shape,
+    classify_frame_base_double_indexed_convert_shape,
     classify_frame_base_double_indexed_integer_shape, classify_write_place_shape,
     encode_append_place_bounded_buffer_literal, encode_append_place_bounded_buffer_source,
     encode_atomic_compare_exchange, encode_atomic_fetch_add, encode_atomic_fetch_and,

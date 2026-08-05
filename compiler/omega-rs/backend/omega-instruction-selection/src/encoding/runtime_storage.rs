@@ -190,6 +190,30 @@ pub fn encode_write_place_convert(
     trapping: bool,
     saturating: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
+    if architecture == Architecture::Aarch64
+        && let Some(frame_double) = classify_frame_base_double_indexed_convert_shape(target)
+    {
+        return aarch64::encode_runtime_frame_base_double_indexed_convert_write(
+            runtime_value_operands,
+            frame_double.base_byte_offset,
+            frame_double.outer_index_offset,
+            frame_double.outer_index_byte_size,
+            frame_double.outer_stride,
+            frame_double.inner_index_offset,
+            frame_double.inner_index_byte_size,
+            frame_double.inner_stride,
+            frame_double.field_byte_offset,
+            target_byte_size,
+            source,
+            source_byte_size,
+            source_is_float,
+            target_is_float,
+            source_signed,
+            target_signed,
+            trapping,
+            saturating,
+        );
+    }
     match architecture {
         Architecture::X86_64 => x86_64::encode_place_convert_write(
             runtime_value_operands,
@@ -1241,6 +1265,12 @@ pub fn classify_frame_base_double_indexed_binary_shape(
 }
 
 pub fn classify_frame_base_double_indexed_integer_shape(
+    target: &omega_target_operations::Place,
+) -> Option<FrameBaseDoubleIndexedShape> {
+    classify_frame_base_double_indexed_shape(target)
+}
+
+pub fn classify_frame_base_double_indexed_convert_shape(
     target: &omega_target_operations::Place,
 ) -> Option<FrameBaseDoubleIndexedShape> {
     classify_frame_base_double_indexed_shape(target)
@@ -3742,6 +3772,11 @@ mod tests {
             classify_frame_base_double_indexed_integer_shape(&target),
             Some(shape),
             "integer writes opt into the same closed address shape"
+        );
+        assert_eq!(
+            classify_frame_base_double_indexed_convert_shape(&target),
+            Some(shape),
+            "conversion writes opt into the same closed address shape"
         );
     }
 }

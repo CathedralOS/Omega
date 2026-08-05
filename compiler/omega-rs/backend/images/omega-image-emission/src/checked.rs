@@ -5749,6 +5749,7 @@ fn validate_compiler_function_instruction_boundaries(
                                     | CompilerBodyPlaceIntegerWriteShape::Pointee { .. }
                                     | CompilerBodyPlaceIntegerWriteShape::FrameIndexed { .. }
                                     | CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. }
+                                    | CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed { .. }
                                     | CompilerBodyPlaceIntegerWriteShape::MachineIndexed { .. }
                                     | CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed { .. }
                             )
@@ -5842,6 +5843,35 @@ fn validate_compiler_function_instruction_boundaries(
                                         index_offset,
                                         index_byte_size,
                                         element_byte_size,
+                                        field_byte_offset,
+                                        target_byte_size,
+                                        source,
+                                        source_byte_size,
+                                        source_is_float,
+                                        target_is_float,
+                                        source_signed,
+                                        target_signed,
+                                        trapping,
+                                        saturating,
+                                    )?,
+                                    CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed {
+                                        base_byte_offset,
+                                        outer_index_offset,
+                                        outer_index_byte_size,
+                                        outer_stride,
+                                        inner_index_offset,
+                                        inner_index_byte_size,
+                                        inner_stride,
+                                        field_byte_offset,
+                                    } => omega_isa_aarch64::encode_runtime_frame_base_double_indexed_convert_write(
+                                        &code.runtime_value_operands,
+                                        base_byte_offset,
+                                        outer_index_offset,
+                                        outer_index_byte_size,
+                                        outer_stride,
+                                        inner_index_offset,
+                                        inner_index_byte_size,
+                                        inner_stride,
                                         field_byte_offset,
                                         target_byte_size,
                                         source,
@@ -11221,6 +11251,9 @@ fn compiler_place_convert_write_address_sites(
                 element_byte_size,
                 field_byte_offset,
             ),
+            CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed { .. } => {
+                omega_isa_aarch64::runtime_frame_base_double_indexed_convert_operand_offset()
+            }
             CompilerBodyPlaceIntegerWriteShape::MachineIndexed {
                 base_byte_offset,
                 index_region,

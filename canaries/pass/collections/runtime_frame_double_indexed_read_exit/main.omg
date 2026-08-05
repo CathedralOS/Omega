@@ -1,6 +1,7 @@
 // FRAME-resident 2D arrays, both-runtime reads and binary writes
 // (CopyRuntimeFrameBaseDoubleIndexedToRuntimeStorage and the canonical
-// all-frame double-indexed WritePlaceInteger + WritePlaceBinary): local arrays in entry
+// all-frame double-indexed WritePlaceConvert + WritePlaceInteger + WritePlaceBinary):
+// local arrays in entry
 // and PARAM states via LET consumers, the MACHINE-FIELD target face
 // (`self.got = g2[a][b]` -- the tree route, which needs the aggregate slot
 // kept for assignment-value consumers AND the selection-layer alias guard:
@@ -13,9 +14,10 @@ machine Main::pick(&self, m: [[i32; 3]; 2], i: u64 [0..=1], j: u64 [0..=2]) -> i
     transition { _ -> (m[i][j]) }
 }
 machine Main::main(&mut self) {
-    transition { _ -> let_face(1, 2) }
-    state let_face(&mut self, i: u64 [0..=1], j: u64 [0..=2]) {
+    transition { _ -> let_face(1, 2, 70) }
+    state let_face(&mut self, i: u64 [0..=1], j: u64 [0..=2], wide: i64) {
         let g: [[i32 in Wrapping; 3]; 2] = [[1, 2, 3], [4, 5, 6]];
+        g[i][j] = wide as i32 in Wrapping;
         g[i][j] = 6;
         g[i][j] = g[i][j] + 1;
         let picked: i32 in Wrapping = g[i][j];
