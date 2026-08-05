@@ -636,10 +636,15 @@ pub fn derive_boundary_compiler_body_place_copy_footprint<'instruction>(
             {
                 omega_isa_x86_64::copy_places_from_indexed_clobbers(*byte_count)
             }
-            (omega_target::Architecture::Aarch64, crate::CopyPlacesShape::FromIndexed { .. })
+            (
+                omega_target::Architecture::Aarch64,
+                crate::CopyPlacesShape::FromIndexed { index_region, .. },
+            )
                 if source.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame =>
             {
-                omega_isa_aarch64::runtime_storage_copy_from_runtime_frame_indexed_clobbers()
+                omega_isa_aarch64::runtime_storage_copy_from_runtime_frame_indexed_with_index_region_clobbers(
+                    index_region,
+                )
             }
             (omega_target::Architecture::X86_64, crate::CopyPlacesShape::ToIndexed { .. })
                 if source.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
