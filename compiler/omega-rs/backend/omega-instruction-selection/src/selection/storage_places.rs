@@ -2945,6 +2945,7 @@ pub(super) struct RuntimeFrameBaseDoubleIndexedTarget {
     pub(super) inner_stride: usize,
     pub(super) field_byte_offset: usize,
     pub(super) byte_count: usize,
+    pub(super) is_bounded_byte_buffer: bool,
 }
 
 /// Resolve `g[i][j]` -- a frame-resident 2D fixed array read with BOTH
@@ -3003,13 +3004,14 @@ pub(super) fn resolve_runtime_frame_base_double_indexed_source_in_table(
         type_descriptor: element_type.clone(),
         layout: element_layout,
     };
-    let (field_byte_offset, leaf_layout, _) = resolve_indexed_target_suffix_layout_in_table(
-        input,
-        &element_field,
-        expressions,
-        expression,
-        outer,
-    )?;
+    let (field_byte_offset, leaf_layout, leaf_descriptor) =
+        resolve_indexed_target_suffix_layout_in_table(
+            input,
+            &element_field,
+            expressions,
+            expression,
+            outer,
+        )?;
 
     let outer_place = resolve_runtime_storage_place_in_table(
         input,
@@ -3041,6 +3043,7 @@ pub(super) fn resolve_runtime_frame_base_double_indexed_source_in_table(
         inner_stride: element_layout.size,
         field_byte_offset,
         byte_count: leaf_layout.size,
+        is_bounded_byte_buffer: descriptor_is_bounded_byte_buffer(&leaf_descriptor),
     })
 }
 

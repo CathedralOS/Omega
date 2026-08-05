@@ -13,8 +13,12 @@
 domain [u8]::Utf8
 requires
     valid_utf8(self);
+domain [u8; 8]::Utf8
+requires
+    valid_utf8(self);
 use omega::language::std::console;
 data Room { description: &[u8] in Utf8; }
+data Label { text: [u8; 8] in Utf8; }
 data Main { console: Console; got: i32; }
 machine Main::pick(&self, m: [[i32; 3]; 2], i: u64 [0..=1], j: u64 [0..=2]) -> i32 {
     transition { _ -> (m[i][j]) }
@@ -36,7 +40,12 @@ machine Main::main(&mut self) {
             [Room { description: "d" }, Room { description: "e" }, Room { description: "old" }]
         ];
         rooms[i][j].description = "omega";
-        transition picked == 8 && rooms[1][2].description == "omega" {
+        let labels: [[Label; 3]; 2] = [
+            [Label { text: "a" }, Label { text: "b" }, Label { text: "c" }],
+            [Label { text: "d" }, Label { text: "e" }, Label { text: "old" }]
+        ];
+        labels[i][j].text = "omega";
+        transition picked == 8 && rooms[1][2].description == "omega" && labels[1][2].text == "omega" {
             true -> machine_target()
             false -> no()
         }

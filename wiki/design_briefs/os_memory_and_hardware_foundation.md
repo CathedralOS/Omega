@@ -1140,7 +1140,9 @@ Immediate bounded-buffer literal writes are also inside the proof for all x86
 targets and every classified AArch64 place target, including indexed and
 double-indexed owned carriers, their target/literal/relocation walk, and the
 dedicated footprint fragment. Inline-frame AArch64 targets accept frame- or
-machine-held indices with the exact second-base relocation. Literal appends
+machine-held indices with the exact second-base relocation. All-frame double-
+runtime-indexed carriers reuse one frame relocation for the collection and both
+indices. Literal appends
 replay all x86 targets and every classified AArch64 target with a separate
 encoder and relocation recipe, including inline-frame targets whose index is
 frame- or machine-held and the exact second-base relocation. Source-carrier

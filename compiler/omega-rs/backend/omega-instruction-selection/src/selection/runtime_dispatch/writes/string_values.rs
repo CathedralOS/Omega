@@ -80,6 +80,29 @@ pub(super) fn select_runtime_string_mutation_write_in_table(
     let value = expressions.string_literal_value(value)?;
     let data = string_literal_data_handle(input, operation_source_key, statement_index, &value);
 
+    if let Some(indexed_target) = resolve_runtime_frame_base_double_indexed_source_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        expressions,
+        target,
+    ) && indexed_target.is_bounded_byte_buffer
+    {
+        return Some(
+            crate::selection::runtime_dispatch::write_place_bounded_buffer_frame_base_double_indexed(
+                indexed_target.base_byte_offset,
+                indexed_target.outer_index_offset,
+                indexed_target.outer_index_byte_size,
+                indexed_target.outer_stride,
+                indexed_target.inner_index_offset,
+                indexed_target.inner_index_byte_size,
+                indexed_target.inner_stride,
+                indexed_target.field_byte_offset,
+                std::sync::Arc::from(value.to_string()),
+            ),
+        );
+    }
+
     if let Some(indexed_target) =
         resolve_runtime_frame_base_indexed_target_with_index_region_in_table(
             input,

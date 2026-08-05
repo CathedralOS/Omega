@@ -1179,6 +1179,36 @@ pub(crate) fn write_place_string_frame_base_double_indexed(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn write_place_bounded_buffer_frame_base_double_indexed(
+    base_byte_offset: usize,
+    outer_index_offset: usize,
+    outer_index_byte_size: usize,
+    outer_stride: usize,
+    inner_index_offset: usize,
+    inner_index_byte_size: usize,
+    inner_stride: usize,
+    field_byte_offset: usize,
+    literal: std::sync::Arc<str>,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::WritePlaceBoundedBuffer {
+        target: double_indexed_place(
+            RuntimeStorageRegion::RuntimeFrame,
+            base_byte_offset,
+            RuntimeStorageRegion::RuntimeFrame,
+            outer_index_offset,
+            outer_index_byte_size,
+            outer_stride,
+            RuntimeStorageRegion::RuntimeFrame,
+            inner_index_offset,
+            inner_index_byte_size,
+            inner_stride,
+            field_byte_offset,
+        ),
+        literal,
+    }
+}
+
 /// Task #132: the text-crossing constructors (the nine retired
 /// Materialize/AppendStored/AppendLiteral spellings as places).
 pub(crate) fn text_place_direct(
