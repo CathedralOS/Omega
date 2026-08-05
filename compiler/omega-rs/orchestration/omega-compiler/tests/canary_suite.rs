@@ -1150,7 +1150,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         executable_regions.contains(
             "\"certificate_schema\": \"omega.final-footprint-certificate\""
         )
-            && executable_regions.contains("\"certificate_format_version\": 80")
+            && executable_regions.contains("\"certificate_format_version\": 81")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
             && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")
@@ -5421,6 +5421,10 @@ fn dereferenced_result_imports_compile_on_windows_and_darwin() {
             footprints
                 .contains("\"origin\": \"compiler_body_outbound_dereferenced_import_result\""),
             "{target} errno imports must retain their final dereference replay footprint"
+        );
+        assert!(
+            footprints.contains("\"origin\": \"compiler_body_outbound_data_import_result\""),
+            "{target} literal-path imports must retain their final data-address replay footprint"
         );
         let _ = fs::remove_dir_all(&scratch);
     }
