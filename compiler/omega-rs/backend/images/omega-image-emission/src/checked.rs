@@ -2554,6 +2554,15 @@ enum CompilerBodyPlaceCopyShape {
         element_byte_size: usize,
         field_byte_offset: usize,
     },
+    ToIndexedByRegion {
+        source_offset: usize,
+        descriptor_offset: usize,
+        index_region: omega_target_operations::RuntimeStorageRegion,
+        index_offset: usize,
+        index_byte_size: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+    },
     IndexedToPointee {
         descriptor_offset: usize,
         index_offset: usize,
@@ -3369,6 +3378,25 @@ fn validate_compiler_function_instruction_boundaries(
                                     } => omega_isa_aarch64::encode_runtime_storage_copy_to_runtime_frame_indexed(
                                         source_offset,
                                         descriptor_offset,
+                                        index_offset,
+                                        index_byte_size,
+                                        element_byte_size,
+                                        field_byte_offset,
+                                        byte_count,
+                                    )?,
+                                    CompilerBodyPlaceCopyShape::ToIndexedByRegion {
+                                        source_offset,
+                                        descriptor_offset,
+                                        index_region,
+                                        index_offset,
+                                        index_byte_size,
+                                        element_byte_size,
+                                        field_byte_offset,
+                                    } => omega_isa_aarch64::encode_runtime_storage_copy_to_runtime_frame_indexed_with_regions(
+                                        source.region,
+                                        source_offset,
+                                        descriptor_offset,
+                                        index_region,
                                         index_offset,
                                         index_byte_size,
                                         element_byte_size,
@@ -6992,6 +7020,9 @@ fn compiler_instruction_footprint(
                         CompilerBodyPlaceCopyShape::ToIndexed { .. } => {
                             omega_isa_x86_64::copy_places_to_indexed_clobbers(byte_count)
                         }
+                        CompilerBodyPlaceCopyShape::ToIndexedByRegion { .. } => {
+                            omega_isa_x86_64::copy_places_clobbers(&source, &target, byte_count)
+                        }
                         CompilerBodyPlaceCopyShape::IndexedToPointee { .. } => {
                             omega_isa_x86_64::copy_places_indexed_to_pointee_clobbers(byte_count)
                         }
@@ -7074,6 +7105,12 @@ fn compiler_instruction_footprint(
                         CompilerBodyPlaceCopyShape::ToIndexed { .. } => {
                             omega_isa_aarch64::runtime_storage_copy_to_runtime_frame_indexed_clobbers()
                         }
+                        CompilerBodyPlaceCopyShape::ToIndexedByRegion {
+                            index_region, ..
+                        } => omega_isa_aarch64::runtime_storage_copy_to_runtime_frame_indexed_with_regions_clobbers(
+                            source.region,
+                            index_region,
+                        ),
                         CompilerBodyPlaceCopyShape::IndexedToPointee { .. } => {
                             omega_isa_aarch64::runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee_clobbers()
                         }
@@ -8917,6 +8954,28 @@ fn compiler_place_copy_address_sites(
             | CompilerBodyPlaceCopyShape::FromFrameBaseIndexed { .. } => {
                 Ok(vec![(0, source.region)])
             }
+            CompilerBodyPlaceCopyShape::ToIndexedByRegion {
+                index_region,
+                element_byte_size,
+                field_byte_offset,
+                ..
+            } => {
+                let mut sites = vec![(0, target.region)];
+                if index_region == omega_target_operations::RuntimeStorageRegion::Machine {
+                    sites.push((32, index_region));
+                } else if source.region
+                    == omega_target_operations::RuntimeStorageRegion::Machine
+                {
+                    sites.push((
+                        omega_isa_aarch64::runtime_storage_copy_from_runtime_frame_indexed_target_address_offset(
+                            element_byte_size,
+                            field_byte_offset,
+                        ),
+                        source.region,
+                    ));
+                }
+                Ok(sites)
+            }
             CompilerBodyPlaceCopyShape::FromMachineIndexed {
                 base_byte_offset,
                 index_region,
@@ -9143,6 +9202,26 @@ fn compiler_body_place_copy_shape(
         return Ok(CompilerBodyPlaceCopyShape::ToIndexed {
             source_offset,
             descriptor_offset,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+        });
+    }
+    if let Ok((
+        source_offset,
+        descriptor_offset,
+        index_region,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+    )) = compiler_place_copy_to_indexed_by_region_offsets(source, target)
+    {
+        return Ok(CompilerBodyPlaceCopyShape::ToIndexedByRegion {
+            source_offset,
+            descriptor_offset,
+            index_region,
             index_offset,
             index_byte_size,
             element_byte_size,
@@ -10213,6 +10292,55 @@ fn compiler_place_copy_to_indexed_offsets(
     Ok((
         source_offset,
         descriptor_offset,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+    ))
+}
+
+fn compiler_place_copy_to_indexed_by_region_offsets(
+    source: &omega_target_operations::Place,
+    target: &omega_target_operations::Place,
+) -> Result<
+    (
+        usize,
+        usize,
+        omega_target_operations::RuntimeStorageRegion,
+        usize,
+        usize,
+        usize,
+        usize,
+    ),
+    Diagnostic,
+> {
+    let source_offset = source.const_offset().ok_or_else(|| {
+        Diagnostic::error("final cross-region to-indexed source is not direct storage")
+    })?;
+    if target.region != omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
+        return Err(Diagnostic::error(
+            "final cross-region to-indexed descriptor is not captured in the runtime frame",
+        ));
+    }
+    let (
+        descriptor_offset,
+        index_region,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+    ) = compiler_single_indexed_place_offsets(target)?;
+    if source.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+        && index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+    {
+        return Err(Diagnostic::error(
+            "final to-indexed copy uses the shared runtime-frame recipe",
+        ));
+    }
+    Ok((
+        source_offset,
+        descriptor_offset,
+        index_region,
         index_offset,
         index_byte_size,
         element_byte_size,

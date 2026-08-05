@@ -178,8 +178,8 @@ pub(crate) fn copy_places_from_fixed_indexed(
 }
 
 /// A RUNTIME-indexed element place: deref the frame-resident descriptor,
-/// scale the frame-resident index, walk to the field. Four steps -- the
-/// PLACE_MAX_STEPS shape (a zero field offset merges away).
+/// scale the index from its retained storage region, and walk to the field.
+/// Four steps -- the PLACE_MAX_STEPS shape (a zero field offset merges away).
 pub(crate) fn indexed_place(
     descriptor_offset: usize,
     index_region: RuntimeStorageRegion,

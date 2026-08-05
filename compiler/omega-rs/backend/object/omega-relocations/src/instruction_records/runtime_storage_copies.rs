@@ -89,6 +89,9 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                         }
                         | omega_instruction_selection::CopyPlacesShape::ToMachineDoubleIndexed {
                             ..
+                        }
+                        | omega_instruction_selection::CopyPlacesShape::ToIndexedByRegion {
+                            ..
                         } => target.region,
                         _ => source.region,
                     };
@@ -151,6 +154,36 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                                         field_byte_offset,
                                     ) + usize::from(index_region == omega_target_operations::RuntimeStorageRegion::Machine) * 8,
                                     context.storage_region_symbol_handle(target.region),
+                                );
+                            }
+                        }
+                        omega_instruction_selection::CopyPlacesShape::ToIndexedByRegion {
+                            index_region,
+                            index_byte_size,
+                            element_byte_size,
+                            field_byte_offset,
+                            ..
+                        } => {
+                            if index_region
+                                == omega_target_operations::RuntimeStorageRegion::Machine
+                            {
+                                context.insert_data_address_at_relative_offset(
+                                    omega_instruction_selection::frame_indexed_operand_machine_index_base_offset(
+                                        context.input.target.architecture,
+                                    ),
+                                    context.storage_region_symbol_handle(index_region),
+                                );
+                            } else if source.region
+                                == omega_target_operations::RuntimeStorageRegion::Machine
+                            {
+                                context.insert_data_address_at_relative_offset(
+                                    runtime_storage_copy_from_runtime_frame_indexed_target_address_offset(
+                                        context.input.target.architecture,
+                                        index_byte_size,
+                                        element_byte_size,
+                                        field_byte_offset,
+                                    ),
+                                    context.storage_region_symbol_handle(source.region),
                                 );
                             }
                         }

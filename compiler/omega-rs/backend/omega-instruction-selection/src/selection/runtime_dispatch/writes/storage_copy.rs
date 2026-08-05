@@ -444,9 +444,7 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indirect_copy(
 
     let indexed_target =
         resolve_runtime_frame_indexed_target(input, dispatch_index, target_source_key, target)?;
-    if source_place.region != RuntimeStorageRegion::RuntimeFrame
-        || source_place.byte_count != indexed_target.byte_count
-    {
+    if source_place.byte_count != indexed_target.byte_count {
         return None;
     }
 
@@ -547,9 +545,7 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indirect_copy_in_t
         expressions,
         target,
     )?;
-    if source_place.region != RuntimeStorageRegion::RuntimeFrame
-        || source_place.byte_count != indexed_target.byte_count
-    {
+    if source_place.byte_count != indexed_target.byte_count {
         return None;
     }
 

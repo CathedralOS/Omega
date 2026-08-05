@@ -2565,6 +2565,29 @@ pub fn encode_copy_places(
                     byte_count,
                 )
             }
+            CopyPlacesShape::ToIndexedByRegion {
+                source_offset,
+                descriptor_offset,
+                index_region,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+            } if target.region
+                == omega_target_operations::RuntimeStorageRegion::RuntimeFrame =>
+            {
+                aarch64::encode_runtime_storage_copy_to_runtime_frame_indexed_with_regions(
+                    source.region,
+                    source_offset,
+                    descriptor_offset,
+                    index_region,
+                    index_offset,
+                    index_byte_size,
+                    element_byte_size,
+                    field_byte_offset,
+                    byte_count,
+                )
+            }
             CopyPlacesShape::IndexedToPointee {
                 descriptor_offset,
                 index_offset,
@@ -2749,6 +2772,7 @@ pub fn encode_copy_places(
             CopyPlacesShape::PointeePair { .. }
             | CopyPlacesShape::FromIndexed { .. }
             | CopyPlacesShape::ToIndexed { .. }
+            | CopyPlacesShape::ToIndexedByRegion { .. }
             | CopyPlacesShape::IndexedToPointee { .. }
             | CopyPlacesShape::General => Err(Diagnostic::error(
                 "CopyPlaces on aarch64 serves direct, single-pointee, pointee-pair, \
@@ -2809,6 +2833,17 @@ pub enum CopyPlacesShape {
     ToIndexed {
         source_offset: usize,
         descriptor_offset: usize,
+        index_offset: usize,
+        index_byte_size: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+    },
+    /// Direct storage copied through a frame-held descriptor when either the
+    /// direct source or the dynamic index uses a distinct storage region.
+    ToIndexedByRegion {
+        source_offset: usize,
+        descriptor_offset: usize,
+        index_region: omega_target_operations::RuntimeStorageRegion,
         index_offset: usize,
         index_byte_size: usize,
         element_byte_size: usize,
@@ -3090,11 +3125,26 @@ pub fn classify_copy_places_shape(
     }
     if let Some(indexed) = single_indexed_path(target) {
         if indexed.index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+            && source.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+            && target.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
             && let Some(source_offset) = source.const_offset()
         {
             return CopyPlacesShape::ToIndexed {
                 source_offset,
                 descriptor_offset: indexed.pointer_offset,
+                index_offset: indexed.index_offset,
+                index_byte_size: indexed.index_byte_size,
+                element_byte_size: indexed.element_byte_size,
+                field_byte_offset: indexed.field_offset,
+            };
+        }
+        if target.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+            && let Some(source_offset) = source.const_offset()
+        {
+            return CopyPlacesShape::ToIndexedByRegion {
+                source_offset,
+                descriptor_offset: indexed.pointer_offset,
+                index_region: indexed.index_region,
                 index_offset: indexed.index_offset,
                 index_byte_size: indexed.index_byte_size,
                 element_byte_size: indexed.element_byte_size,
