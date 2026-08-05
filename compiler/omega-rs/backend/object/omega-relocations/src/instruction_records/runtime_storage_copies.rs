@@ -121,14 +121,25 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                             // relocation above is the only site.
                         }
                         omega_instruction_selection::CopyPlacesShape::FromIndexed {
+                            index_region,
                             index_byte_size,
                             element_byte_size,
                             field_byte_offset,
                             ..
                         } => {
-                            // Frame-to-frame reuses the one frame base; a
-                            // MACHINE target reloads its own base at the
-                            // retired to-storage offset.
+                            if index_region
+                                == omega_target_operations::RuntimeStorageRegion::Machine
+                            {
+                                context.insert_data_address_at_relative_offset(
+                                    omega_instruction_selection::frame_indexed_operand_machine_index_base_offset(
+                                        context.input.target.architecture,
+                                    ),
+                                    context.storage_region_symbol_handle(index_region),
+                                );
+                            }
+                            // Frame-to-frame reuses the descriptor base for
+                            // its target; a MACHINE target reloads its own
+                            // base after the complete indexed-source setup.
                             if target.region
                                 == omega_target_operations::RuntimeStorageRegion::Machine
                             {
@@ -138,7 +149,7 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                                         index_byte_size,
                                         element_byte_size,
                                         field_byte_offset,
-                                    ),
+                                    ) + usize::from(index_region == omega_target_operations::RuntimeStorageRegion::Machine) * 8,
                                     context.storage_region_symbol_handle(target.region),
                                 );
                             }

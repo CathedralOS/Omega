@@ -1250,8 +1250,10 @@ frame-held pointee, frame-held pointee sources landing in direct storage, and
 frame-held pointee-to-pointee copies are the first ordinary write rows in that
 subset. Single runtime-indexed sources with frame-held descriptor/index slots
 and a direct frame or machine target are included too, along with their
+cross-region machine-indexed form and exact second-base relocation. Their
 direct-frame-source to frame-indexed-target mirror and frame-indexed-source to
-frame-held-pointee form. Runtime-indexed reads from inline frame arrays into
+frame-held-pointee forms are included too. Runtime-indexed reads from inline
+frame arrays into
 direct frame storage and from inline machine arrays into direct frame or
 machine storage are included too, together with direct-storage writes into
 runtime-indexed machine-array elements and double-runtime-indexed reads from

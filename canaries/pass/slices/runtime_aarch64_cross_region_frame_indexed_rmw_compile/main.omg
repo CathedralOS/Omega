@@ -1,11 +1,13 @@
 // A frame-held slice descriptor indexed by a MACHINE field exercises the
-// AArch64 cross-region binary-write address recipe and its second relocation.
+// AArch64 cross-region binary-write and copy address recipes and their second
+// base relocations.
 use omega::language::std::console;
 data Main {
     console: Console;
     arr: [i32 in Wrapping; 4];
     i: u64 [0..=3];
     value: i32 in Wrapping;
+    got: i32 in Wrapping;
 }
 machine Main::main(&mut self) {
     self.arr[2] = 40;
@@ -18,7 +20,8 @@ machine Main::main(&mut self) {
     }
     state work(&mut self, s: &mut [i32 in Wrapping]) {
         s[self.i] = self.value + 2;
-        transition self.arr[2] == 42 {
+        self.got = s[self.i];
+        transition self.got == 42 && self.arr[2] == 42 {
             true -> yes()
             false -> no()
         }

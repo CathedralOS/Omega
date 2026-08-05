@@ -2505,11 +2505,12 @@ pub fn encode_copy_places(
                     byte_count,
                 )
             }
-            // The runtime-indexed decomposes: descriptor + index slots are
-            // frame-resident by classification; the place regions must match
-            // the retired encoders' frame assumptions or refuse loudly.
+            // The runtime-indexed decomposes: the descriptor is frame-held;
+            // the index may live in frame or machine storage. The place
+            // regions must still match the retained copy encoders.
             CopyPlacesShape::FromIndexed {
                 descriptor_offset,
+                index_region,
                 index_offset,
                 index_byte_size,
                 element_byte_size,
@@ -2518,8 +2519,9 @@ pub fn encode_copy_places(
             } if source.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame => {
                 match target.region {
                     omega_target_operations::RuntimeStorageRegion::RuntimeFrame => {
-                        aarch64::encode_runtime_storage_copy_from_runtime_frame_indexed(
+                        aarch64::encode_runtime_storage_copy_from_runtime_frame_indexed_with_index_region(
                             descriptor_offset,
+                            index_region,
                             index_offset,
                             index_byte_size,
                             element_byte_size,
@@ -2529,8 +2531,9 @@ pub fn encode_copy_places(
                         )
                     }
                     omega_target_operations::RuntimeStorageRegion::Machine => {
-                        aarch64::encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_storage(
+                        aarch64::encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_storage_with_index_region(
                             descriptor_offset,
+                            index_region,
                             index_offset,
                             index_byte_size,
                             element_byte_size,
@@ -2790,10 +2793,11 @@ pub enum CopyPlacesShape {
         target_field_byte_offset: usize,
     },
     /// Runtime-indexed source into a direct target: the retired
-    /// from-frame-indexed copies (the descriptor and index slots are
-    /// frame-resident in every producible instance).
+    /// from-frame-indexed copies. The descriptor is frame-held; the index
+    /// region is retained explicitly.
     FromIndexed {
         descriptor_offset: usize,
+        index_region: omega_target_operations::RuntimeStorageRegion,
         index_offset: usize,
         index_byte_size: usize,
         element_byte_size: usize,
@@ -3054,20 +3058,21 @@ pub fn classify_copy_places_shape(
     }
     // The indexed shapes first: an indexed path is NOT a single-deref path,
     // so these never shadow the pointee arms below. Frame-resident index
-    // slots only (the retired encoders' assumption); anything else falls to
-    // General.
+    // slots may live in frame or machine storage; the shared address helper
+    // materializes the distinct index base when required.
     if let Some(indexed) = single_indexed_path(source) {
+        if let Some(target_offset) = target.const_offset() {
+            return CopyPlacesShape::FromIndexed {
+                descriptor_offset: indexed.pointer_offset,
+                index_region: indexed.index_region,
+                index_offset: indexed.index_offset,
+                index_byte_size: indexed.index_byte_size,
+                element_byte_size: indexed.element_byte_size,
+                field_byte_offset: indexed.field_offset,
+                target_offset,
+            };
+        }
         if indexed.index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
-            if let Some(target_offset) = target.const_offset() {
-                return CopyPlacesShape::FromIndexed {
-                    descriptor_offset: indexed.pointer_offset,
-                    index_offset: indexed.index_offset,
-                    index_byte_size: indexed.index_byte_size,
-                    element_byte_size: indexed.element_byte_size,
-                    field_byte_offset: indexed.field_offset,
-                    target_offset,
-                };
-            }
             if let Some((pointer_byte_offset, target_field_byte_offset)) = single_deref_path(target)
             {
                 return CopyPlacesShape::IndexedToPointee {

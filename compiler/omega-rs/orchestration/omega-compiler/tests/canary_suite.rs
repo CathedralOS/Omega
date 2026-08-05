@@ -1150,7 +1150,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         executable_regions.contains(
             "\"certificate_schema\": \"omega.final-footprint-certificate\""
         )
-            && executable_regions.contains("\"certificate_format_version\": 91")
+            && executable_regions.contains("\"certificate_format_version\": 92")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
             && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")
@@ -2955,7 +2955,7 @@ fn compiler_body_general_x86_text_assembly_reaches_the_final_artifact() {
     let regions = fs::read_to_string(output.join("13_executable_regions.json"))
         .expect("general x86 final executable-region evidence should be written");
     assert!(
-        regions.contains("\"certificate_format_version\": 91")
+        regions.contains("\"certificate_format_version\": 92")
             && regions.contains("\"compiler_function_body_specification_subset\""),
         "general x86 text assembly must reach final-image validation"
     );
@@ -2965,7 +2965,7 @@ fn compiler_body_general_x86_text_assembly_reaches_the_final_artifact() {
 }
 
 #[test]
-fn aarch64_frame_descriptor_binary_write_with_machine_index_reaches_the_final_artifact() {
+fn aarch64_frame_descriptor_ops_with_machine_index_reach_the_final_artifact() {
     let canary = pass_canary("slices/runtime_aarch64_cross_region_frame_indexed_rmw_compile");
     let scratch = std::env::temp_dir().join(format!(
         "omega-aarch64-cross-region-frame-indexed-rmw-{}",
@@ -2985,15 +2985,17 @@ fn aarch64_frame_descriptor_binary_write_with_machine_index_reaches_the_final_ar
         .expect("cross-region AArch64 footprint evidence should be written");
     assert!(
         footprints.contains("\"origin\": \"compiler_body_place_binary_write\"")
+            && footprints.contains("\"origin\": \"compiler_body_place_copy\"")
+            && footprints.contains("\"Aarch64X(15)\"")
             && footprints.contains("\"Aarch64X(21)\""),
-        "cross-region frame-indexed binary replay must retain its address scratch footprint"
+        "cross-region frame-indexed writes and reads must retain their address scratch footprints"
     );
     let regions = fs::read_to_string(output.join("13_executable_regions.json"))
         .expect("cross-region AArch64 final executable-region evidence should be written");
     assert!(
-        regions.contains("\"certificate_format_version\": 91")
+        regions.contains("\"certificate_format_version\": 92")
             && regions.contains("\"compiler_function_body_specification_subset\""),
-        "cross-region AArch64 binary write must reach final-image validation"
+        "cross-region AArch64 frame-descriptor operations must reach final-image validation"
     );
     let elf = fs::read(output.join("omega-program")).expect("linux_arm64 ELF emitted");
     assert_eq!(&elf[..4], b"\x7fELF");
