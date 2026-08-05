@@ -580,19 +580,14 @@ fn compiler_instruction_validation_kind(
             if let omega_calling_conventions::HostBindingMechanism::Import { library, symbol } =
                 &binding.mechanism
             {
-                if matches!(
-                    operation_key.capability,
-                    omega_calling_conventions::HostCapability::Custom(_)
-                        | omega_calling_conventions::HostCapability::Unknown
-                ) || (emission_context.target.architecture
-                    == omega_target::Architecture::Aarch64
+                if emission_context.target.architecture == omega_target::Architecture::Aarch64
                     && matches!(
                         (operation_key.capability, operation_key.operation),
                         (
                             omega_calling_conventions::HostCapability::Filesystem,
                             omega_calling_conventions::HostOperation::OpenCreate
                         )
-                    ))
+                    )
                 {
                     return Ok(None);
                 }
@@ -602,6 +597,62 @@ fn compiler_instruction_validation_kind(
                     .ok_or_else(|| {
                         Diagnostic::error("compiler outbound import lost its assigned operand span")
                     })?;
+                if matches!(
+                    operation_key.capability,
+                    omega_calling_conventions::HostCapability::Custom(_)
+                        | omega_calling_conventions::HostCapability::Unknown
+                ) {
+                    let result_operand_count = usize::from(binding.call_plan().result.is_some());
+                    let Some(arguments) = operands.get(result_operand_count..) else {
+                        return Ok(None);
+                    };
+                    if (arguments.is_empty() && result_operand_count == 0)
+                        || binding.call_plan().parameters.len() != arguments.len()
+                        || !arguments.iter().all(|operand| {
+                            operand.immediate_integer().is_some()
+                                || operand.runtime_scalar_integer().is_some()
+                                || operand.data_address().is_some()
+                        })
+                    {
+                        return Ok(None);
+                    }
+                    let data_symbols =
+                        assigned_outbound_syscall_data_symbols(emission_context, arguments);
+                    let validation = match binding.call_plan().result.as_ref() {
+                        None if result_operand_count == 0 => {
+                            CompilerInstructionValidationKind::CompilerBodyOutboundAuthoredImport {
+                                operation_key: *operation_key,
+                                operands: operands.to_vec(),
+                                data_symbols,
+                                library: std::sync::Arc::clone(library),
+                                symbol: std::sync::Arc::clone(symbol),
+                                plan: binding.call_plan().clone(),
+                            }
+                        }
+                        Some(result)
+                            if matches!(
+                                result.shape.class,
+                                omega_calling_conventions::ValueClass::Integer
+                            ) && matches!(
+                                operands.first().map(|operand| &operand.kind),
+                                Some(
+                                    omega_assigned_target_operations::InstructionOperandKind::RuntimeScalarInteger { .. }
+                                )
+                            ) =>
+                        {
+                            CompilerInstructionValidationKind::CompilerBodyOutboundAuthoredImportResult {
+                                operation_key: *operation_key,
+                                operands: operands.to_vec(),
+                                data_symbols,
+                                library: std::sync::Arc::clone(library),
+                                symbol: std::sync::Arc::clone(symbol),
+                                plan: binding.call_plan().clone(),
+                            }
+                        }
+                        _ => return Ok(None),
+                    };
+                    return Ok(Some(validation));
+                }
                 if operation_key.dereferences_result() {
                     if !binding.call_plan().parameters.is_empty()
                         || !binding.call_plan().result.as_ref().is_some_and(|result| {

@@ -1150,7 +1150,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         executable_regions.contains(
             "\"certificate_schema\": \"omega.final-footprint-certificate\""
         )
-            && executable_regions.contains("\"certificate_format_version\": 81")
+            && executable_regions.contains("\"certificate_format_version\": 82")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
             && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")
@@ -5425,6 +5425,50 @@ fn dereferenced_result_imports_compile_on_windows_and_darwin() {
         assert!(
             footprints.contains("\"origin\": \"compiler_body_outbound_data_import_result\""),
             "{target} literal-path imports must retain their final data-address replay footprint"
+        );
+        let _ = fs::remove_dir_all(&scratch);
+    }
+}
+
+#[test]
+fn authored_scalar_imports_compile_on_windows_and_darwin() {
+    // Both sources call a `via Binding::DllImport` leaf with a direct integer
+    // result. Darwin supplies an immediate argument to `_exit`; Windows loads
+    // the runtime argument/result places around `abs`.
+    for (target, canary_name) in [
+        ("macos_arm64", "providers/runtime_import_call_argument_exit"),
+        ("windows_x64", "capabilities/windows_provides_import_exit"),
+    ] {
+        let canary = pass_canary(canary_name);
+        let scratch = std::env::temp_dir().join(format!(
+            "omega-authored-scalar-import-{target}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&scratch);
+        let source_dir = scratch.join("src");
+        let build_dir = scratch.join("out");
+        fs::create_dir_all(&source_dir).expect("authored scalar import source directory");
+        fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
+            .expect("copy authored scalar import source");
+        fs::write(
+            source_dir.join("build.omg"),
+            format!("target {target} {{\n}}\n"),
+        )
+        .expect("write authored scalar import target manifest");
+        compile(CompileOptions {
+            root_path: source_dir.join("main.omg"),
+            build_dir: Some(build_dir.clone()),
+            target_name: Some(target.into()),
+            write_output: true,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!("authored scalar import cross-compile failed for {target}: {diagnostics:#?}")
+        });
+        let footprints = fs::read_to_string(build_dir.join("08_boundary_footprints.json"))
+            .expect("authored scalar import footprints should be written");
+        assert!(
+            footprints.contains("\"origin\": \"compiler_body_outbound_authored_import_result\""),
+            "{target} authored scalar imports must retain their source-planned final replay footprint"
         );
         let _ = fs::remove_dir_all(&scratch);
     }
