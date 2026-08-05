@@ -1826,6 +1826,30 @@ pub fn encode_write_place_address(
                 field_byte_offset,
                 target_offset,
             ),
+            WritePlaceShape::MachineDoubleIndexed {
+                base_byte_offset,
+                outer_index_region,
+                outer_index_offset,
+                outer_index_byte_size,
+                outer_stride,
+                inner_index_region,
+                inner_index_offset,
+                inner_index_byte_size,
+                inner_stride,
+                field_byte_offset,
+            } => aarch64::encode_runtime_machine_double_indexed_address_to_runtime_frame_write(
+                base_byte_offset,
+                outer_index_region,
+                outer_index_offset,
+                outer_index_byte_size,
+                outer_stride,
+                inner_index_region,
+                inner_index_offset,
+                inner_index_byte_size,
+                inner_stride,
+                field_byte_offset,
+                target_offset,
+            ),
             _ => {
                 // The machine-index deref shape (classify refuses it for the
                 // value writes) has its own retained encoder.
@@ -1910,6 +1934,11 @@ pub fn write_place_address_register_writes(
             }
             WritePlaceShape::MachineIndexed { .. } => Ok(
                 aarch64::runtime_machine_indexed_address_to_runtime_frame_write_clobbers(
+                    target_offset,
+                ),
+            ),
+            WritePlaceShape::MachineDoubleIndexed { .. } => Ok(
+                aarch64::runtime_machine_double_indexed_address_to_runtime_frame_write_clobbers(
                     target_offset,
                 ),
             ),

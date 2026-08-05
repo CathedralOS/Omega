@@ -1914,6 +1914,28 @@ pub fn runtime_frame_base_double_indexed_address_to_runtime_frame_write_width(
     8 + 4 + 36 + store_x_offset_width(target_offset)
 }
 
+/// A machine-rooted 2D element address always needs one machine page pair and
+/// one frame page pair for the destination reference slot. The frame pair is
+/// shared with frame-held indices when present and otherwise follows the fixed
+/// double-index address program.
+pub fn runtime_machine_double_indexed_address_to_runtime_frame_write_width(
+    target_offset: usize,
+) -> usize {
+    8 + 8 + 36 + store_x_offset_width(target_offset)
+}
+
+pub fn runtime_machine_double_indexed_address_frame_base_offset(
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+) -> usize {
+    let frame = omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
+    if outer_index_region == frame || inner_index_region == frame {
+        8
+    } else {
+        8 + 36
+    }
+}
+
 /// Extra bytes the line-read's result-descriptor store spends when the String field's
 /// offset is too large for the STR scaled immediate: the two stores (ptr@target_offset,
 /// len@target_offset+8) go DIRECT when both fit (offset in the immediate = free);

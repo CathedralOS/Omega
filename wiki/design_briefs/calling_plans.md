@@ -1336,7 +1336,11 @@ match dedicated `CompilerBodyPlaceAddressWrite` evidence. Inline-frame AArch64
 sources accept frame- or machine-held indices, including the exact second-base
 relocation and additional address scratch for a cross-region machine index.
 All-frame double-runtime-indexed sources reuse one frame relocation for the
-inline array, both indices, and the destination reference slot.
+inline array, both indices, and the destination reference slot. Machine-rooted
+double-runtime-indexed sources retain the exact machine-root relocation plus
+one frame relocation: the frame base is introduced at the first frame-held
+index, or after the address walk when both indices are machine-held, and is
+then reused to address the destination reference slot.
 String-descriptor writes replay all x86 targets and every classified AArch64 target:
 direct, pointee, frame-indexed, cross-region frame-indexed, inline-frame-indexed,
 and single- or double-runtime-indexed machine storage, including

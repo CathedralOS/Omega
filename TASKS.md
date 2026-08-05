@@ -882,7 +882,7 @@ proves complete region coverage, and composes admitted leaves under their
 separate provenance. Do not add a second whole-image decoder/admission path.
 
 The existing single final-region artifact now carries the domain-separated
-`omega.final-footprint-certificate` schema, format version 108, and a certificate
+`omega.final-footprint-certificate` schema, format version 109, and a certificate
 fingerprint over its final placement binding, compiler-text derivation, and
 complete region inventory. Its explicit completeness flags remain false until
 compiler-body footprint decoding and admitted-leaf evidence land. The envelope
@@ -1143,7 +1143,11 @@ frame relocation site, and requires its clobber union to equal dedicated
 accept frame- or machine-held indices; cross-region machine indices retain the
 exact second-base relocation and its additional address scratch. All-frame
 double-runtime-indexed address sources reuse one frame relocation for the
-inline array, both indices, and the destination reference slot.
+inline array, both indices, and the destination reference slot. Machine-rooted
+double-runtime-indexed sources retain the exact machine-root relocation plus
+one frame relocation: the frame base is introduced at the first frame-held
+index, or after the address walk when both indices are machine-held, and is
+then reused to address the destination reference slot.
 String-descriptor writes now
 replay all x86 targets and every classified AArch64 target: direct, pointee,
 frame-indexed, cross-region frame-indexed, inline-frame-indexed, and single- or

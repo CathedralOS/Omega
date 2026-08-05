@@ -781,6 +781,30 @@ fn select_runtime_frame_slot_address_write_in_table(
             );
         }
 
+        if let Some(target) = resolve_runtime_machine_double_indexed_source_in_table(
+            input,
+            dispatch_index,
+            value_source_key,
+            expressions,
+            call.receiver,
+        ) {
+            return Some(
+                crate::selection::runtime_dispatch::write_place_address_machine_double_indexed(
+                    target.base_byte_offset,
+                    target.outer_index_region,
+                    target.outer_index_offset,
+                    target.outer_index_byte_size,
+                    target.outer_stride,
+                    target.inner_index_region,
+                    target.inner_index_offset,
+                    target.inner_index_byte_size,
+                    target.inner_stride,
+                    target.field_byte_offset,
+                    slot.byte_offset,
+                ),
+            );
+        }
+
         if let Some(indexed_target) =
             resolve_runtime_frame_base_indexed_target_with_index_region_in_table(
                 input,
@@ -910,6 +934,30 @@ fn select_runtime_frame_slot_place_address_write_in_table(
                 target.outer_index_offset,
                 target.outer_index_byte_size,
                 target.outer_stride,
+                target.inner_index_offset,
+                target.inner_index_byte_size,
+                target.inner_stride,
+                target.field_byte_offset,
+                slot.byte_offset,
+            ),
+        );
+    }
+
+    if let Some(target) = resolve_runtime_machine_double_indexed_source_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        referent,
+    ) {
+        return Some(
+            crate::selection::runtime_dispatch::write_place_address_machine_double_indexed(
+                target.base_byte_offset,
+                target.outer_index_region,
+                target.outer_index_offset,
+                target.outer_index_byte_size,
+                target.outer_stride,
+                target.inner_index_region,
                 target.inner_index_offset,
                 target.inner_index_byte_size,
                 target.inner_stride,

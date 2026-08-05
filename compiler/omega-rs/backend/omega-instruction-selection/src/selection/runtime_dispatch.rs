@@ -1388,6 +1388,38 @@ pub(crate) fn write_place_address_base_double_indexed(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn write_place_address_machine_double_indexed(
+    base_byte_offset: usize,
+    outer_index_region: RuntimeStorageRegion,
+    outer_index_offset: usize,
+    outer_index_byte_size: usize,
+    outer_stride: usize,
+    inner_index_region: RuntimeStorageRegion,
+    inner_index_offset: usize,
+    inner_index_byte_size: usize,
+    inner_stride: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::WritePlaceAddress {
+        source: double_indexed_place(
+            RuntimeStorageRegion::Machine,
+            base_byte_offset,
+            outer_index_region,
+            outer_index_offset,
+            outer_index_byte_size,
+            outer_stride,
+            inner_index_region,
+            inner_index_offset,
+            inner_index_byte_size,
+            inner_stride,
+            field_byte_offset,
+        ),
+        target_offset,
+    }
+}
+
 pub(crate) fn write_place_address_region_indexed(
     base_region: RuntimeStorageRegion,
     base_byte_offset: usize,

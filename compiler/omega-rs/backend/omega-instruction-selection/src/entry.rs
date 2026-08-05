@@ -5383,6 +5383,60 @@ mod tests {
     }
 
     #[test]
+    fn compiler_body_aarch64_place_address_tracks_machine_double_index_scratch() {
+        let boundary = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::Aapcs64,
+            &CallSignature {
+                parameters: Vec::new(),
+                result: None,
+            },
+        )
+        .expect("AAPCS64 boundary");
+        let source = omega_abstract_operations::Place::at(
+            omega_abstract_operations::RuntimeStorageRegion::Machine,
+            16,
+        )
+        .with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+            index_region: omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+            index_offset: 32,
+            index_byte_size: 8,
+            element_byte_size: 24,
+        })
+        .and_then(|place| {
+            place.with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+                index_region: omega_abstract_operations::RuntimeStorageRegion::Machine,
+                index_offset: 40,
+                index_byte_size: 8,
+                element_byte_size: 8,
+            })
+        })
+        .expect("machine-double-indexed source");
+        let instruction = SelectedInstructionKind::WritePlaceAddress {
+            source,
+            target_offset: 64,
+        };
+
+        let evidence =
+            derive_boundary_compiler_body_place_address_write_footprint(&boundary, [&instruction])
+                .expect("aarch64 machine-double-indexed place-address evidence");
+
+        assert_eq!(
+            evidence.registers().as_slice(),
+            &[
+                MachineRegister::Aarch64X(14),
+                MachineRegister::Aarch64X(15),
+                MachineRegister::Aarch64X(16),
+                MachineRegister::Aarch64X(17),
+                MachineRegister::Aarch64X(26),
+            ]
+        );
+        assert_eq!(
+            evidence.machine_state(),
+            MachineStateSet::new([MachineState::GeneralRegisters])
+        );
+    }
+
+    #[test]
     fn compiler_body_general_x86_integer_write_uses_materializer_clobbers() {
         let boundary = evaluate_ordinary_boundary_entry_plan(
             CallingPolicy::SystemVAMD64,

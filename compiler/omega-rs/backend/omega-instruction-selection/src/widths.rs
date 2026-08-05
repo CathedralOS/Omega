@@ -2906,6 +2906,22 @@ pub fn runtime_storage_copy_from_runtime_machine_double_indexed_frame_base_offse
     }
 }
 
+pub fn runtime_machine_double_indexed_address_frame_base_offset(
+    architecture: Architecture,
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+) -> usize {
+    assert_eq!(
+        architecture,
+        Architecture::Aarch64,
+        "the x86 place materializer reports its address sites directly"
+    );
+    aarch64::runtime_machine_double_indexed_address_frame_base_offset(
+        outer_index_region,
+        inner_index_region,
+    )
+}
+
 pub fn runtime_machine_double_indexed_string_data_address_offset(
     architecture: Architecture,
     outer_index_region: omega_target_operations::RuntimeStorageRegion,

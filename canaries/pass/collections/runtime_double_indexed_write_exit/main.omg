@@ -1,7 +1,8 @@
 // BOTH-RUNTIME double-indexed WRITES (`grid[i][j] = v`, both indices
 // runtime): CopyRuntimeStorageToRuntimeMachineDoubleIndexed (place source,
 // the value loaded into r14 BEFORE the base register is biased) +
-// WriteRuntimeMachineDoubleIndexedInteger (const value). Faces: const value,
+// WriteRuntimeMachineDoubleIndexedInteger (const value) plus an address write
+// for a mutable reference to the exact element. Faces: const value,
 // machine-place source, frame-place source with frame indices, and a
 // double-indexed read-back -- neighbor-clobber validated throughout.
 // Direct RMW (`grid[i][j] = grid[i][j] + 1`) is covered separately by
@@ -20,8 +21,10 @@ machine Main::main(&mut self) {
     self.i = 1;
     self.j = 2;
     self.grid[self.i][self.j] = 70;
+    let selected: &mut i32 = &mut self.grid[self.i][self.j];
+    selected = 71;
     self.got = self.grid[1][2];
-    transition self.got == 70 {
+    transition self.got == 71 {
         true -> neighbor()
         false -> no()
     }

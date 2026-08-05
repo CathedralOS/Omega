@@ -10069,8 +10069,31 @@ fn encode_compiler_place_address_write(
                 field_byte_offset,
                 target_offset,
             ),
-            CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed { .. }
-            | CompilerBodyPlaceIntegerWriteShape::General => Err(Diagnostic::error(
+            CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed {
+                base_byte_offset,
+                outer_index_region,
+                outer_index_offset,
+                outer_index_byte_size,
+                outer_stride,
+                inner_index_region,
+                inner_index_offset,
+                inner_index_byte_size,
+                inner_stride,
+                field_byte_offset,
+            } => omega_isa_aarch64::encode_runtime_machine_double_indexed_address_to_runtime_frame_write(
+                base_byte_offset,
+                outer_index_region,
+                outer_index_offset,
+                outer_index_byte_size,
+                outer_stride,
+                inner_index_region,
+                inner_index_offset,
+                inner_index_byte_size,
+                inner_stride,
+                field_byte_offset,
+                target_offset,
+            ),
+            CompilerBodyPlaceIntegerWriteShape::General => Err(Diagnostic::error(
                 "final aarch64 place-address row retained an unsupported source shape",
             )),
         },
@@ -10123,8 +10146,12 @@ fn compiler_place_address_write_register_writes(
                     target_offset,
                 ),
             ),
-            CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed { .. }
-            | CompilerBodyPlaceIntegerWriteShape::General => Err(Diagnostic::error(
+            CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed { .. } => Ok(
+                omega_isa_aarch64::runtime_machine_double_indexed_address_to_runtime_frame_write_clobbers(
+                    target_offset,
+                ),
+            ),
+            CompilerBodyPlaceIntegerWriteShape::General => Err(Diagnostic::error(
                 "final aarch64 place-address footprint retained an unsupported source shape",
             )),
         },
@@ -11337,8 +11364,21 @@ fn compiler_place_address_write_address_sites(
                 0,
                 omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
             )]),
-            CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed { .. }
-            | CompilerBodyPlaceIntegerWriteShape::General => Err(Diagnostic::error(
+            CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed {
+                outer_index_region,
+                inner_index_region,
+                ..
+            } => Ok(vec![
+                (0, omega_target_operations::RuntimeStorageRegion::Machine),
+                (
+                    omega_isa_aarch64::runtime_machine_double_indexed_address_frame_base_offset(
+                        outer_index_region,
+                        inner_index_region,
+                    ),
+                    omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                ),
+            ]),
+            CompilerBodyPlaceIntegerWriteShape::General => Err(Diagnostic::error(
                 "final aarch64 place-address recipe retained an unsupported source",
             )),
         },
