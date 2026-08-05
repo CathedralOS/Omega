@@ -3136,12 +3136,18 @@ pub fn runtime_frame_base_double_indexed_convert_operand_offset() -> usize {
 
 pub fn runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage_width(
     architecture: Architecture,
+    target_offset: usize,
+    byte_count: usize,
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => {
-            aarch64::runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage_width()
+            aarch64::runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage_width(
+                target_offset,
+                byte_count,
+            )
         }
         Architecture::X86_64 => {
+            let _ = (target_offset, byte_count);
             x86_64::runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage_width()
         }
     }

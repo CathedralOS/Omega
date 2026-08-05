@@ -299,8 +299,8 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                         } => {
                             // The target frame base at the start also serves
                             // both index slots and a frame source. A machine
-                            // source owns one additional pair immediately
-                            // after it.
+                            // source owns one additional pair after the
+                            // frame-base preservation move.
                             if source.region
                                 == omega_target_operations::RuntimeStorageRegion::Machine
                             {

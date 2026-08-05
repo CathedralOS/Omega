@@ -19,6 +19,7 @@ requires
 use omega::language::std::console;
 data Room { description: &[u8] in Utf8; }
 data Label { text: [u8; 8] in Utf8; }
+data Triple { first: i32; second: i32; third: i32; }
 data Main { console: Console; got: i32; }
 machine Main::pick(&self, m: [[i32; 3]; 2], i: u64 [0..=1], j: u64 [0..=2]) -> i32 {
     transition { _ -> (m[i][j]) }
@@ -51,7 +52,14 @@ machine Main::main(&mut self) {
         labels[i][j].text = "o";
         labels[i][j].text = labels[i][j].text + "me";
         labels[i][j].text = labels[i][j].text + suffix.text;
-        transition picked == 8 && rooms[1][2].description == "omega" && labels[1][2].text == "omega" {
+        let triples: [[Triple; 3]; 2] = [
+            [Triple { first: 1, second: 2, third: 3 }, Triple { first: 4, second: 5, third: 6 }, Triple { first: 7, second: 8, third: 9 }],
+            [Triple { first: 11, second: 12, third: 13 }, Triple { first: 14, second: 15, third: 16 }, Triple { first: 17, second: 18, third: 19 }]
+        ];
+        let replacement: Triple = Triple { first: 10, second: 20, third: 30 };
+        triples[i][j] = replacement;
+        let copied: Triple = triples[i][j];
+        transition picked == 8 && rooms[1][2].description == "omega" && labels[1][2].text == "omega" && copied.first == 10 && copied.second == 20 && copied.third == 30 {
             true -> machine_target()
             false -> no()
         }
