@@ -9806,6 +9806,39 @@ fn runtime_cross_region_double_indexed_pair_copy_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+#[test]
+fn constant_nested_index_guard_exit_canary_runs() {
+    let canary = pass_canary("collections/constant_nested_index_guard_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-constant-nested-index-guard-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("constant nested-index guard canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("constant nested-index guard canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected a constant nested-index guard to read the authored element, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // DUAL-indexed copies with MIXED index regions (frame/machine on opposite
 // sides, both directions).
 #[test]
