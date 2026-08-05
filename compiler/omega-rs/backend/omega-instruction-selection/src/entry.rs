@@ -1088,6 +1088,24 @@ pub fn derive_boundary_compiler_body_outbound_immediate_import_result_footprint(
     )
 }
 
+/// Derive built-in imports with one or more runtime float parameters and a
+/// direct scalar result. Integer-returning rounding and float-returning math
+/// operations share the same storage/control envelope.
+pub fn derive_boundary_compiler_body_outbound_float_import_result_footprint(
+    boundary: &ValidatedBoundaryEntryPlan,
+    input: &crate::InstructionSelectionInput<'_>,
+    operands: &psi_arena::Arena<omega_abstract_operations::InstructionOperand>,
+    instructions: &[omega_abstract_operations::AbstractOperation],
+) -> Result<StateFootprintEvidence, PlanDiagnostic> {
+    derive_boundary_compiler_body_outbound_direct_import_footprint(
+        boundary,
+        input,
+        operands,
+        instructions,
+        DirectImportArgumentClass::FloatResult,
+    )
+}
+
 /// Derive integer-result built-in imports with one or more runtime-scalar
 /// arguments. The leading runtime scalar remains the post-call result store;
 /// only the trailing operands are wire arguments.
@@ -1111,6 +1129,7 @@ enum DirectImportArgumentClass {
     Immediate,
     Storage,
     ImmediateResult,
+    FloatResult,
     StorageResult,
 }
 
@@ -1166,6 +1185,18 @@ fn derive_boundary_compiler_body_outbound_direct_import_footprint(
                 operation.operation_key.capability,
                 HostCapability::Custom(_) | HostCapability::Unknown
             )
+            || operation.operation_key.dereferences_result()
+            || (input.target.architecture == omega_target::Architecture::Aarch64
+                && matches!(
+                    (
+                        operation.operation_key.capability,
+                        operation.operation_key.operation,
+                    ),
+                    (
+                        HostCapability::Filesystem,
+                        omega_calling_conventions::HostOperation::OpenCreate
+                    )
+                ))
             || !matches!(binding.call_plan().entry_control, EntryControl::CallReturn)
             || selected_operands.is_empty()
             || match argument_class {
@@ -1208,6 +1239,28 @@ fn derive_boundary_compiler_body_outbound_direct_import_footprint(
                             !matches!(operand.kind, InstructionOperandKind::ImmediateInteger(_))
                         })
                 }
+                DirectImportArgumentClass::FloatResult => {
+                    operation.operation_key.capability != HostCapability::Math
+                        || !binding.call_plan().result.as_ref().is_some_and(|result| {
+                            matches!(
+                                result.shape.class,
+                                omega_calling_conventions::ValueClass::Integer
+                                    | omega_calling_conventions::ValueClass::Float
+                            )
+                        })
+                        || binding.call_plan().parameters.len() + 1 != selected_operands.len()
+                        || !matches!(
+                            selected_operands.first().map(|operand| &operand.kind),
+                            Some(InstructionOperandKind::RuntimeScalarInteger { .. })
+                        )
+                        || selected_operands[1..].is_empty()
+                        || !selected_operands[1..].iter().all(|operand| {
+                            matches!(
+                                operand.kind,
+                                InstructionOperandKind::RuntimeScalarFloat { .. }
+                            )
+                        })
+                }
                 DirectImportArgumentClass::StorageResult => {
                     !binding.call_plan().result.as_ref().is_some_and(|result| {
                         matches!(
@@ -1246,6 +1299,7 @@ fn derive_boundary_compiler_body_outbound_direct_import_footprint(
                 if matches!(
                     argument_class,
                     DirectImportArgumentClass::ImmediateResult
+                        | DirectImportArgumentClass::FloatResult
                         | DirectImportArgumentClass::StorageResult
                 ) && let Some(omega_abstract_operations::InstructionOperand {
                     kind:
