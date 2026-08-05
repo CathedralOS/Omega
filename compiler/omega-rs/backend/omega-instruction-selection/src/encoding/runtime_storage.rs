@@ -1325,6 +1325,18 @@ pub fn classify_frame_base_indexed_bounded_buffer_shape(
     classify_frame_base_indexed_shape(target)
 }
 
+pub fn classify_frame_base_indexed_bounded_buffer_literal_append_shape(
+    target: &omega_target_operations::Place,
+) -> Option<FrameBaseIndexedShape> {
+    classify_frame_base_indexed_shape(target)
+}
+
+pub fn classify_frame_base_indexed_bounded_buffer_source_append_shape(
+    target: &omega_target_operations::Place,
+) -> Option<FrameBaseIndexedShape> {
+    classify_frame_base_indexed_shape(target)
+}
+
 fn classify_frame_base_indexed_shape(
     target: &omega_target_operations::Place,
 ) -> Option<FrameBaseIndexedShape> {
@@ -2205,6 +2217,20 @@ pub fn encode_append_place_bounded_buffer_literal(
     target: &omega_target_operations::Place,
     literal: &str,
 ) -> Result<Vec<u8>, Diagnostic> {
+    if architecture == Architecture::Aarch64
+        && let Some(frame_indexed) =
+            classify_frame_base_indexed_bounded_buffer_literal_append_shape(target)
+    {
+        return aarch64::encode_runtime_frame_base_indexed_bounded_buffer_literal_append_with_index_region(
+            frame_indexed.base_byte_offset,
+            frame_indexed.index_region,
+            frame_indexed.index_offset,
+            frame_indexed.index_byte_size,
+            frame_indexed.element_byte_size,
+            frame_indexed.field_byte_offset,
+            literal,
+        );
+    }
     match architecture {
         Architecture::X86_64 => x86_64::encode_place_bounded_buffer_literal_append(target, literal)
             .map(|(bytes, _)| bytes),
@@ -2339,6 +2365,19 @@ pub fn aarch64_encode_append_place_bounded_buffer_source_with_sites(
         return Err(Diagnostic::error(
             "AppendPlaceBoundedBufferSource on aarch64 requires a direct or pointee source",
         ));
+    }
+    if let Some(frame_indexed) =
+        classify_frame_base_indexed_bounded_buffer_source_append_shape(target)
+    {
+        return aarch64::encode_runtime_frame_base_indexed_bounded_buffer_source_append_with_index_region(
+            frame_indexed.base_byte_offset,
+            frame_indexed.index_region,
+            frame_indexed.index_offset,
+            frame_indexed.index_byte_size,
+            frame_indexed.element_byte_size,
+            frame_indexed.field_byte_offset,
+            source,
+        );
     }
     match classify_write_place_shape(target) {
         WritePlaceShape::Direct { .. } | WritePlaceShape::Pointee { .. } => {

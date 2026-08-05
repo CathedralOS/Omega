@@ -1150,7 +1150,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         executable_regions.contains(
             "\"certificate_schema\": \"omega.final-footprint-certificate\""
         )
-            && executable_regions.contains("\"certificate_format_version\": 105")
+            && executable_regions.contains("\"certificate_format_version\": 106")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
             && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")
@@ -1809,8 +1809,10 @@ fn compiler_body_cross_region_frame_base_indexed_write_footprints_reach_artifact
                 && abstract_operations.contains("WritePlaceBinary")
                 && abstract_operations.contains("WritePlaceConvert")
                 && abstract_operations.contains("WritePlaceString")
-                && abstract_operations.contains("WritePlaceBoundedBuffer"),
-            "{target} canary must exercise frame-base-indexed copy, immediate, binary, conversion, string, and bounded-carrier writes"
+                && abstract_operations.contains("WritePlaceBoundedBuffer")
+                && abstract_operations.contains("AppendPlaceBoundedBufferSource")
+                && abstract_operations.contains("AppendPlaceBoundedBufferLiteral"),
+            "{target} canary must exercise frame-base-indexed copy, immediate, binary, conversion, string, and bounded-carrier write/append operations"
         );
         assert!(
             footprints.contains("\"origin\": \"compiler_body_place_copy\"")
@@ -2968,7 +2970,7 @@ fn compiler_body_general_x86_text_assembly_reaches_the_final_artifact() {
     let regions = fs::read_to_string(output.join("13_executable_regions.json"))
         .expect("general x86 final executable-region evidence should be written");
     assert!(
-        regions.contains("\"certificate_format_version\": 105")
+        regions.contains("\"certificate_format_version\": 106")
             && regions.contains("\"compiler_function_body_specification_subset\""),
         "general x86 text assembly must reach final-image validation"
     );
@@ -3006,7 +3008,7 @@ fn aarch64_frame_descriptor_ops_with_machine_index_reach_the_final_artifact() {
     let regions = fs::read_to_string(output.join("13_executable_regions.json"))
         .expect("cross-region AArch64 final executable-region evidence should be written");
     assert!(
-        regions.contains("\"certificate_format_version\": 105")
+        regions.contains("\"certificate_format_version\": 106")
             && regions.contains("\"compiler_function_body_specification_subset\""),
         "cross-region AArch64 frame-descriptor operations must reach final-image validation"
     );

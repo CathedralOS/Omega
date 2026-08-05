@@ -1,7 +1,6 @@
 use crate::InstructionSelectionInput;
 use crate::selection::instruction_sink::SelectedInstructionSink;
 use crate::selection::storage_places::{
-    resolve_runtime_frame_base_indexed_target,
     resolve_runtime_frame_base_indexed_target_with_index_region,
     resolve_runtime_frame_indexed_target, resolve_runtime_machine_double_indexed_source,
     resolve_runtime_machine_indexed_target, resolve_runtime_machine_indexed_target_in_table,
@@ -50,13 +49,17 @@ pub(in crate::selection) fn resolve_bounded_buffer_target_place(
             target.field_byte_offset,
         ));
     }
-    if let Some(target) =
-        resolve_runtime_frame_base_indexed_target(input, dispatch_index, source_key, expression)
-        && target.is_bounded_byte_buffer
+    if let Some(target) = resolve_runtime_frame_base_indexed_target_with_index_region(
+        input,
+        dispatch_index,
+        source_key,
+        expression,
+    ) && target.is_bounded_byte_buffer
     {
         return Some(
-            crate::selection::runtime_dispatch::frame_base_indexed_place(
+            crate::selection::runtime_dispatch::frame_base_indexed_place_with_index_region(
                 target.base_byte_offset,
+                target.index_region,
                 target.index_offset,
                 target.index_byte_size,
                 target.element_byte_size,
