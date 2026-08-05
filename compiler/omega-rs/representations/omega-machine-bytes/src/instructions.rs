@@ -251,6 +251,17 @@ pub enum CompilerInstructionValidationKind {
         plan: omega_calling_conventions::CallPlan,
         get_std_handle: Option<CompilerRuntimeImportSubcall>,
     },
+    CompilerBodyRuntimeLineRead {
+        operation_key: omega_calling_conventions::HostOperationKey,
+        buffer_symbol: Arc<str>,
+        target_region: RuntimeStorageRegion,
+        target_offset: usize,
+        byte_capacity: usize,
+        target: omega_target_operations::RuntimeTextReadTarget,
+        mechanism: omega_calling_conventions::HostBindingMechanism,
+        plan: omega_calling_conventions::CallPlan,
+        get_std_handle: Option<CompilerRuntimeImportSubcall>,
+    },
     CompilerBodyOutboundStorageImport {
         operation_key: omega_calling_conventions::HostOperationKey,
         operands: Vec<omega_target_operations::InstructionOperand>,

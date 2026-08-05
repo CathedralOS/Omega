@@ -1111,7 +1111,7 @@ relocation, and data relocation now consume that complete plan. Their former
 manual `+8`/`+12` stack accounting and trailing-mode operation classifier are
 retired; the operation key only selects the concrete adapter subcall.
 
-Final footprint certificate format v87 now retains an exact
+Final footprint certificate format v88 now retains an exact
 function-to-instruction partition in the encoded carrier. Checked image
 emission replays every contiguous function
 and instruction boundary over relocated final bytes, rejects gaps, overlaps,
@@ -1212,7 +1212,11 @@ Linux three-word syscall plan, Darwin AAPCS64 direct-import plan, or complete
 Win64 GetStdHandle + ReadFile/WriteFile pair; it regenerates the exact adapter
 and foreign-control envelope, proves its one address root and complete call
 relocation set, and matches target scratch/control evidence. Runtime line-read
-composites remain unfinished.
+composites now use a nineteenth fragment covering descriptor, bounded-carrier,
+and fixed-array destinations. Replay regenerates the byte-at-a-time loop,
+requires the exact detached-buffer/descriptor or direct-target roots and full
+target call set, and matches offset-sensitive adapter scratch. This closes the
+runtime byte/line composite family.
 Result-bearing runtime-storage-only syscalls continue
 to combine their argument relocation set with the exact result-region
 relocation and AArch64's offset-sensitive result-store scratch under a distinct

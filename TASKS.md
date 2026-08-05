@@ -882,7 +882,7 @@ proves complete region coverage, and composes admitted leaves under their
 separate provenance. Do not add a second whole-image decoder/admission path.
 
 The existing single final-region artifact now carries the domain-separated
-`omega.final-footprint-certificate` schema, format version 87, and a certificate
+`omega.final-footprint-certificate` schema, format version 88, and a certificate
 fingerprint over its final placement binding, compiler-text derivation, and
 complete region inventory. Its explicit completeness flags remain false until
 compiler-body footprint decoding and admitted-leaf evidence land. The envelope
@@ -1023,7 +1023,12 @@ GetStdHandle + ReadFile/WriteFile plan pair on Windows. It regenerates the exact
 composite program and foreign-control envelope, requires the sole addressed
 storage/data root plus zero, one, or two exact call relocations as appropriate,
 and matches adapter scratch and control state to StatePlan evidence. Runtime
-line-read composite adapters remain incomplete.
+line reads now use a nineteenth origin across descriptor, bounded-carrier, and
+fixed-array targets. Replay regenerates the complete byte-at-a-time loop from
+the same retained target plan, requires the exact detached-buffer/descriptor or
+direct-target address roots, and validates the target's zero-, one-, or two-call
+relocation set plus offset-sensitive scratch. This closes the runtime byte/line
+composite adapter footprint family.
 Result-bearing runtime-storage-only calls
 continue to combine their argument relocations with the exact result-region
 relocation and offset-sensitive result-store scratch under
