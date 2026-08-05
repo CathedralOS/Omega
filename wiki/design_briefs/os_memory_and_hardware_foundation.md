@@ -1139,7 +1139,7 @@ relocation-envelope fingerprints plus their composed derivation identity. The
 boundary/placement binding includes that derivation identity, so a valid final
 inventory cannot be paired with evidence from a different encoded-to-final
 derivation. The single emitted artifact is now self-described as
-`omega.final-footprint-certificate` format v79, with a domain-separated
+`omega.final-footprint-certificate` format v80, with a domain-separated
 certificate fingerprint over its final placement binding, compiler-text
 derivation, and region inventory. It remains explicitly incomplete evidence,
 not an admission certificate, until the missing footprint classes close. The
@@ -1185,9 +1185,11 @@ whose final recipe requires every argument root and the result root beside the
 exact imported call. Built-in Math imports with one or more runtime-float
 parameters and a direct integer or float result now use a fifth origin. Replay
 retains the plan-selected vector placements, exact result and argument storage
-relocations, and the AArch64 float-result move when present. Other
-float/aggregate shapes, dereferenced results, data-address arguments, authored
-imports, and composite import adapters remain outside this subset.
+relocations, and the AArch64 float-result move when present. The built-in
+no-argument errno accessor now uses a sixth origin whose replay
+retains the exact imported call, one pointer dereference, and the scalar result
+root. Other float/aggregate shapes, data-address arguments, authored imports,
+and composite import adapters remain outside this subset.
 Result-bearing runtime-storage-only syscalls
 continue to combine their argument relocation set with the exact result-region
 relocation and AArch64's offset-sensitive result-store scratch under a separate

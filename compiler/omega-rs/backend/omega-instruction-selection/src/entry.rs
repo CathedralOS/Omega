@@ -1106,6 +1106,24 @@ pub fn derive_boundary_compiler_body_outbound_float_import_result_footprint(
     )
 }
 
+/// Derive the built-in errno accessor shape whose imported pointer result is
+/// dereferenced once before its integer value is stored. The operation has no
+/// wire arguments; its leading runtime scalar is solely the result store.
+pub fn derive_boundary_compiler_body_outbound_dereferenced_import_result_footprint(
+    boundary: &ValidatedBoundaryEntryPlan,
+    input: &crate::InstructionSelectionInput<'_>,
+    operands: &psi_arena::Arena<omega_abstract_operations::InstructionOperand>,
+    instructions: &[omega_abstract_operations::AbstractOperation],
+) -> Result<StateFootprintEvidence, PlanDiagnostic> {
+    derive_boundary_compiler_body_outbound_direct_import_footprint(
+        boundary,
+        input,
+        operands,
+        instructions,
+        DirectImportArgumentClass::DereferencedResult,
+    )
+}
+
 /// Derive integer-result built-in imports with one or more runtime-scalar
 /// arguments. The leading runtime scalar remains the post-call result store;
 /// only the trailing operands are wire arguments.
@@ -1130,6 +1148,7 @@ enum DirectImportArgumentClass {
     Storage,
     ImmediateResult,
     FloatResult,
+    DereferencedResult,
     StorageResult,
 }
 
@@ -1186,6 +1205,10 @@ fn derive_boundary_compiler_body_outbound_direct_import_footprint(
                 HostCapability::Custom(_) | HostCapability::Unknown
             )
             || operation.operation_key.dereferences_result()
+                != matches!(
+                    argument_class,
+                    DirectImportArgumentClass::DereferencedResult
+                )
             || (input.target.architecture == omega_target::Architecture::Aarch64
                 && matches!(
                     (
@@ -1261,6 +1284,19 @@ fn derive_boundary_compiler_body_outbound_direct_import_footprint(
                             )
                         })
                 }
+                DirectImportArgumentClass::DereferencedResult => {
+                    !binding.call_plan().result.as_ref().is_some_and(|result| {
+                        matches!(
+                            result.shape.class,
+                            omega_calling_conventions::ValueClass::Integer
+                        )
+                    }) || !binding.call_plan().parameters.is_empty()
+                        || selected_operands.len() != 1
+                        || !matches!(
+                            selected_operands.first().map(|operand| &operand.kind),
+                            Some(InstructionOperandKind::RuntimeScalarInteger { .. })
+                        )
+                }
                 DirectImportArgumentClass::StorageResult => {
                     !binding.call_plan().result.as_ref().is_some_and(|result| {
                         matches!(
@@ -1300,6 +1336,7 @@ fn derive_boundary_compiler_body_outbound_direct_import_footprint(
                     argument_class,
                     DirectImportArgumentClass::ImmediateResult
                         | DirectImportArgumentClass::FloatResult
+                        | DirectImportArgumentClass::DereferencedResult
                         | DirectImportArgumentClass::StorageResult
                 ) && let Some(omega_abstract_operations::InstructionOperand {
                     kind:

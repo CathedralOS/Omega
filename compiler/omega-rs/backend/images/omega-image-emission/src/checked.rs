@@ -557,7 +557,8 @@ fn encode_integer_result_import(
                 );
             let result_site = argument_width
                 + omega_isa_aarch64::host_call_stack_total_width_for_placements(&plan.parameters)
-                + 4;
+                + 4
+                + usize::from(operation_key.dereferences_result()) * 4;
             let [
                 omega_calling_conventions::ValueLocation::Register {
                     register: result_register,
@@ -575,12 +576,21 @@ fn encode_integer_result_import(
                     "final AArch64 immediate-result import replay retained a partial result placement",
                 ));
             }
-            let bytes = omega_isa_aarch64::encode_host_call_sequence_value_returning_from_operands(
-                call_operands.iter().copied(),
-                &plan.parameters,
-                *result_register,
-                usize::from(result.shape.byte_size),
-            )?;
+            let bytes = if operation_key.dereferences_result() {
+                omega_isa_aarch64::encode_host_call_sequence_value_returning_deref_from_operands(
+                    call_operands.iter().copied(),
+                    &plan.parameters,
+                    *result_register,
+                    usize::from(result.shape.byte_size),
+                )?
+            } else {
+                omega_isa_aarch64::encode_host_call_sequence_value_returning_from_operands(
+                    call_operands.iter().copied(),
+                    &plan.parameters,
+                    *result_register,
+                    usize::from(result.shape.byte_size),
+                )?
+            };
             let mut storage_sites = vec![(result_site, result_region)];
             storage_sites.extend(operands[1..].iter().enumerate().filter_map(
                 |(parameter_index, operand)| {
@@ -2633,6 +2643,36 @@ fn validate_compiler_function_instruction_boundaries(
                             None,
                             bytes,
                             47u8,
+                            CompilerInstructionRelocationRecipe::StorageImport {
+                                call_site,
+                                storage_sites,
+                                library,
+                                symbol,
+                            },
+                        )
+                    }
+                    omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyOutboundDereferencedImportResult {
+                        operation_key,
+                        operands,
+                        library,
+                        symbol,
+                        plan,
+                    } => {
+                        let (bytes, call_site, storage_sites) = encode_integer_result_import(
+                            architecture,
+                            operation_key,
+                            &operands,
+                            &plan,
+                        )?;
+                        if storage_sites.len() != 1 {
+                            return Err(Diagnostic::error(
+                                "final dereferenced-result import replay unexpectedly retained argument storage sites",
+                            ));
+                        }
+                        (
+                            None,
+                            bytes,
+                            48u8,
                             CompilerInstructionRelocationRecipe::StorageImport {
                                 call_site,
                                 storage_sites,
@@ -5592,6 +5632,44 @@ fn compiler_instruction_footprint(
                 ]),
             )
         }
+        CompilerInstructionValidationKind::CompilerBodyOutboundDereferencedImportResult {
+            operands,
+            plan,
+            ..
+        } => {
+            let (_, result_offset, result_byte_size) =
+                operands.first()?.runtime_scalar_integer()?;
+            let envelope_and_store_scratch = match architecture {
+                Architecture::X86_64 => vec![MachineRegister::X86Rsp],
+                Architecture::Aarch64 => Vec::from_iter(
+                    [MachineRegister::Aarch64X(16)].into_iter().chain(
+                        omega_isa_aarch64::constant_host_result_clobbers(
+                            result_offset,
+                            result_byte_size,
+                        )
+                        .as_slice()
+                        .iter()
+                        .copied(),
+                    ),
+                ),
+            };
+            (
+                BoundaryFootprintFragmentOrigin::CompilerBodyOutboundDereferencedImportResult,
+                RegisterSet::new(
+                    plan.ordinary_clobbers
+                        .as_slice()
+                        .iter()
+                        .copied()
+                        .chain(envelope_and_store_scratch),
+                ),
+                MachineStateSet::new([
+                    MachineState::Flags,
+                    MachineState::InstructionPointer,
+                    MachineState::StackPointer,
+                    MachineState::ControlState,
+                ]),
+            )
+        }
         CompilerInstructionValidationKind::CompilerBodyOutboundStorageImport { plan, .. } => (
             BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImport,
             RegisterSet::new(plan.ordinary_clobbers.as_slice().iter().copied().chain(
@@ -6256,6 +6334,7 @@ fn validate_compiler_body_specification_footprints(
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundImmediateImport
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundImmediateImportResult
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundFloatImportResult
+                | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundDereferencedImportResult
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImport
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImportResult
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscall
@@ -6396,6 +6475,10 @@ fn validate_compiler_body_specification_footprints(
         (
             32u8,
             BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallTimespecResult,
+        ),
+        (
+            33u8,
+            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundDereferencedImportResult,
         ),
     ] {
         let evidence_rows = derived

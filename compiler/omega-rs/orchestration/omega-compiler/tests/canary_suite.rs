@@ -1150,7 +1150,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         executable_regions.contains(
             "\"certificate_schema\": \"omega.final-footprint-certificate\""
         )
-            && executable_regions.contains("\"certificate_format_version\": 79")
+            && executable_regions.contains("\"certificate_format_version\": 80")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
             && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")
@@ -5382,6 +5382,48 @@ fn float_parameter_result_imports_compile_on_darwin() {
         "Darwin float-parameter result imports must retain their final replay footprint"
     );
     let _ = fs::remove_dir_all(&scratch);
+}
+
+#[test]
+fn dereferenced_result_imports_compile_on_windows_and_darwin() {
+    // The same source reaches `_errno()` on Windows and `___error()` on Darwin;
+    // both return an integer pointer that the retained adapter dereferences
+    // before writing the Omega result place.
+    let canary = pass_canary("filesystem/native_errno");
+    for target in ["windows_x64", "macos_arm64"] {
+        let scratch = std::env::temp_dir().join(format!(
+            "omega-dereferenced-result-import-{target}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&scratch);
+        let source_dir = scratch.join("src");
+        let build_dir = scratch.join("out");
+        fs::create_dir_all(&source_dir).expect("dereferenced-result import source directory");
+        fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
+            .expect("copy dereferenced-result import source");
+        fs::write(
+            source_dir.join("build.omg"),
+            format!("target {target} {{\n}}\n"),
+        )
+        .expect("write dereferenced-result import target manifest");
+        compile(CompileOptions {
+            root_path: source_dir.join("main.omg"),
+            build_dir: Some(build_dir.clone()),
+            target_name: Some(target.into()),
+            write_output: true,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!("dereferenced-result import cross-compile failed for {target}: {diagnostics:#?}")
+        });
+        let footprints = fs::read_to_string(build_dir.join("08_boundary_footprints.json"))
+            .expect("dereferenced-result import footprints should be written");
+        assert!(
+            footprints
+                .contains("\"origin\": \"compiler_body_outbound_dereferenced_import_result\""),
+            "{target} errno imports must retain their final dereference replay footprint"
+        );
+        let _ = fs::remove_dir_all(&scratch);
+    }
 }
 
 #[test]
