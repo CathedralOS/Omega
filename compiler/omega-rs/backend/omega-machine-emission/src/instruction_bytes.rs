@@ -580,6 +580,12 @@ fn compiler_instruction_validation_kind(
             if let omega_calling_conventions::HostBindingMechanism::Import { library, symbol } =
                 &binding.mechanism
             {
+                let operands = emission_context
+                    .assigned_target_operations
+                    .instruction_operands(*operands)
+                    .ok_or_else(|| {
+                        Diagnostic::error("compiler outbound import lost its assigned operand span")
+                    })?;
                 if emission_context.target.architecture == omega_target::Architecture::Aarch64
                     && matches!(
                         (operation_key.capability, operation_key.operation),
@@ -589,14 +595,35 @@ fn compiler_instruction_validation_kind(
                         )
                     )
                 {
-                    return Ok(None);
+                    let Some([result, path, flags, mode]) = <&[_; 4]>::try_from(operands).ok()
+                    else {
+                        return Ok(None);
+                    };
+                    if result.runtime_scalar_integer().is_none()
+                        || !(path.data_address().is_some()
+                            || path.runtime_string_pointer().is_some()
+                            || path.runtime_pointee_string_pointer().is_some()
+                            || path.runtime_storage_address().is_some())
+                        || !(flags.immediate_integer().is_some()
+                            || flags.runtime_scalar_integer().is_some())
+                        || mode.immediate_integer().is_none()
+                    {
+                        return Ok(None);
+                    }
+                    return Ok(Some(
+                        CompilerInstructionValidationKind::CompilerBodyOutboundOpenCreateImport {
+                            operation_key: *operation_key,
+                            operands: operands.to_vec(),
+                            data_symbols: assigned_outbound_syscall_data_symbols(
+                                emission_context,
+                                &operands[1..],
+                            ),
+                            library: std::sync::Arc::clone(library),
+                            symbol: std::sync::Arc::clone(symbol),
+                            plan: binding.call_plan().clone(),
+                        },
+                    ));
                 }
-                let operands = emission_context
-                    .assigned_target_operations
-                    .instruction_operands(*operands)
-                    .ok_or_else(|| {
-                        Diagnostic::error("compiler outbound import lost its assigned operand span")
-                    })?;
                 if matches!(
                     operation_key.capability,
                     omega_calling_conventions::HostCapability::Custom(_)

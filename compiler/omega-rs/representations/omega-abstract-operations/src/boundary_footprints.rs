@@ -30,6 +30,7 @@ pub enum BoundaryFootprintFragmentOrigin {
     CompilerBodyOutboundAuthoredAggregateImport,
     CompilerBodyOutboundAuthoredAggregateImportResult,
     CompilerBodyOutboundAuthoredAggregateResult,
+    CompilerBodyOutboundOpenCreateImport,
     CompilerBodyOutboundStorageImport,
     CompilerBodyOutboundStorageImportResult,
     CompilerBodyOutboundSyscall,
@@ -99,6 +100,7 @@ impl BoundaryFootprintPlan {
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredAggregateImport
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredAggregateImportResult
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredAggregateResult
+            | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundOpenCreateImport
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImport
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImportResult
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscall
@@ -397,6 +399,16 @@ mod tests {
                 },
             )
             .expect("authored aggregate results may use their prescribed control state");
+
+        outbound
+            .retain_validated_fragment(
+                &boundary,
+                BoundaryFootprintFragment {
+                    origin: BoundaryFootprintFragmentOrigin::CompilerBodyOutboundOpenCreateImport,
+                    evidence: control_evidence(),
+                },
+            )
+            .expect("Darwin open-create imports may use their prescribed control state");
 
         outbound
             .retain_validated_fragment(

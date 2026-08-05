@@ -1280,6 +1280,23 @@ pub fn derive_boundary_compiler_body_outbound_authored_aggregate_result_footprin
     )
 }
 
+/// Derive Darwin's concrete variadic `open(path, flags, mode)` adapter. The
+/// retained call plan owns the fixed/anonymous boundary and outgoing mode slot.
+pub fn derive_boundary_compiler_body_outbound_open_create_import_footprint(
+    boundary: &ValidatedBoundaryEntryPlan,
+    input: &crate::InstructionSelectionInput<'_>,
+    operands: &psi_arena::Arena<omega_abstract_operations::InstructionOperand>,
+    instructions: &[omega_abstract_operations::AbstractOperation],
+) -> Result<StateFootprintEvidence, PlanDiagnostic> {
+    derive_boundary_compiler_body_outbound_direct_import_footprint(
+        boundary,
+        input,
+        operands,
+        instructions,
+        DirectImportArgumentClass::OpenCreate,
+    )
+}
+
 /// Derive integer-result built-in imports with one or more runtime-scalar
 /// arguments. The leading runtime scalar remains the post-call result store;
 /// only the trailing operands are wire arguments.
@@ -1314,6 +1331,7 @@ enum DirectImportArgumentClass {
     AuthoredAggregate,
     AuthoredAggregateResult,
     AuthoredAggregateReturning,
+    OpenCreate,
     StorageResult,
 }
 
@@ -1403,7 +1421,8 @@ fn derive_boundary_compiler_body_outbound_direct_import_footprint(
                         HostCapability::Filesystem,
                         omega_calling_conventions::HostOperation::OpenCreate
                     )
-                ))
+                )
+                && !matches!(argument_class, DirectImportArgumentClass::OpenCreate))
             || !matches!(binding.call_plan().entry_control, EntryControl::CallReturn)
             || selected_operands.is_empty()
             || match argument_class {
@@ -1684,6 +1703,47 @@ fn derive_boundary_compiler_body_outbound_direct_import_footprint(
                             )
                         })
                 }
+                DirectImportArgumentClass::OpenCreate => {
+                    input.target.architecture != omega_target::Architecture::Aarch64
+                        || !matches!(
+                            (
+                                operation.operation_key.capability,
+                                operation.operation_key.operation,
+                            ),
+                            (
+                                HostCapability::Filesystem,
+                                omega_calling_conventions::HostOperation::OpenCreate
+                            )
+                        )
+                        || !binding.call_plan().result.as_ref().is_some_and(|result| {
+                            matches!(
+                                result.shape.class,
+                                omega_calling_conventions::ValueClass::Integer
+                            )
+                        })
+                        || binding.call_plan().parameters.len() != 3
+                        || !matches!(
+                            selected_operands,
+                            [
+                                omega_abstract_operations::InstructionOperand {
+                                    kind: InstructionOperandKind::RuntimeScalarInteger { .. }
+                                },
+                                omega_abstract_operations::InstructionOperand {
+                                    kind: InstructionOperandKind::DataAddress { .. }
+                                        | InstructionOperandKind::RuntimeStringPointer { .. }
+                                        | InstructionOperandKind::RuntimePointeeStringPointer { .. }
+                                        | InstructionOperandKind::RuntimeStorageAddress { .. }
+                                },
+                                omega_abstract_operations::InstructionOperand {
+                                    kind: InstructionOperandKind::ImmediateInteger(_)
+                                        | InstructionOperandKind::RuntimeScalarInteger { .. }
+                                },
+                                omega_abstract_operations::InstructionOperand {
+                                    kind: InstructionOperandKind::ImmediateInteger(_)
+                                },
+                            ]
+                        )
+                }
                 DirectImportArgumentClass::StorageResult => {
                     !binding.call_plan().result.as_ref().is_some_and(|result| {
                         matches!(
@@ -1728,6 +1788,7 @@ fn derive_boundary_compiler_body_outbound_direct_import_footprint(
                         | DirectImportArgumentClass::AuthoredResult
                         | DirectImportArgumentClass::AuthoredFloatResult
                         | DirectImportArgumentClass::AuthoredAggregateResult
+                        | DirectImportArgumentClass::OpenCreate
                         | DirectImportArgumentClass::StorageResult
                 ) {
                     let result_range = selected_operands.first().and_then(|operand| match &operand
