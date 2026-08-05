@@ -1050,6 +1050,83 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indexed_source_cop
         );
     }
 
+    if let Some(indexed_target) =
+        resolve_runtime_frame_base_indexed_target_with_index_region_in_table(
+            input,
+            dispatch_index,
+            target_source_key,
+            expressions,
+            target,
+        )
+        && let Some(indexed_source) = resolve_runtime_machine_indexed_target_in_table(
+            input,
+            dispatch_index,
+            value_source_key,
+            expressions,
+            value,
+        )
+        && indexed_source.byte_count == indexed_target.byte_count
+        && indexed_target.byte_count > 0
+    {
+        return Some(
+            crate::selection::runtime_dispatch::copy_places_cross_region_indexed_pair(
+                RuntimeStorageRegion::Machine,
+                indexed_source.base_byte_offset,
+                indexed_source.index_region,
+                indexed_source.index_offset,
+                indexed_source.index_byte_size,
+                indexed_source.element_byte_size,
+                indexed_source.field_byte_offset,
+                RuntimeStorageRegion::RuntimeFrame,
+                indexed_target.base_byte_offset,
+                indexed_target.index_region,
+                indexed_target.index_offset,
+                indexed_target.index_byte_size,
+                indexed_target.element_byte_size,
+                indexed_target.field_byte_offset,
+                indexed_target.byte_count,
+            ),
+        );
+    }
+
+    if let Some(indexed_target) = resolve_runtime_machine_indexed_target_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        expressions,
+        target,
+    ) && let Some(indexed_source) =
+        resolve_runtime_frame_base_indexed_target_with_index_region_in_table(
+            input,
+            dispatch_index,
+            value_source_key,
+            expressions,
+            value,
+        )
+        && indexed_source.byte_count == indexed_target.byte_count
+        && indexed_target.byte_count > 0
+    {
+        return Some(
+            crate::selection::runtime_dispatch::copy_places_cross_region_indexed_pair(
+                RuntimeStorageRegion::RuntimeFrame,
+                indexed_source.base_byte_offset,
+                indexed_source.index_region,
+                indexed_source.index_offset,
+                indexed_source.index_byte_size,
+                indexed_source.element_byte_size,
+                indexed_source.field_byte_offset,
+                RuntimeStorageRegion::Machine,
+                indexed_target.base_byte_offset,
+                indexed_target.index_region,
+                indexed_target.index_offset,
+                indexed_target.index_byte_size,
+                indexed_target.element_byte_size,
+                indexed_target.field_byte_offset,
+                indexed_target.byte_count,
+            ),
+        );
+    }
+
     // `out.f = items[i].f` where `out` is a `&mut` parameter: the target is a
     // pointee (deref `out`) and the source a runtime-frame slice element. Resolve
     // the pointee target BEFORE the plain-place path below -- otherwise the

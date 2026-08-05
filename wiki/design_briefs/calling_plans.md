@@ -1272,7 +1272,11 @@ only for machine storage. Frame-inline single-indexed pair copies retain
 independently placed indices on both array walks. One frame root at byte 0
 supplies both collections and every frame-held index, while one exact machine
 root at byte 12 supplies either machine-held index; the complete aggregate span
-is copied and replayed. Frame-inline double-indexed direct reads and writes
+is copied and replayed. Cross-region single-indexed pair copies move complete
+aggregate spans between machine-inline and frame-inline arrays in either
+direction. The source collection root is relocated at byte 0, the target root
+at byte 8, and each independently placed index reuses the matching machine or
+frame root. Frame-inline double-indexed direct reads and writes
 also retain mixed machine/frame indices. A read uses the frame collection root
 at byte 0, one machine-index root at byte 8 when needed, and its shifted direct-
 target root; a write uses the frame target root at byte 0 and one shared

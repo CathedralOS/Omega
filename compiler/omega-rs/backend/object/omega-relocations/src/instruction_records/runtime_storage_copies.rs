@@ -224,6 +224,14 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                                 );
                             }
                         }
+                        omega_instruction_selection::CopyPlacesShape::CrossRegionIndexedPair {
+                            ..
+                        } => {
+                            context.insert_data_address_at_relative_offset(
+                                8,
+                                context.storage_region_symbol_handle(target.region),
+                            );
+                        }
                         omega_instruction_selection::CopyPlacesShape::FrameBaseDoubleIndexedPair {
                             source_outer_index_region,
                             source_inner_index_region,
