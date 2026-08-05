@@ -30,6 +30,39 @@ Proof search, elaboration, SMT integration, compilers, and other certificate
 producers remain untrusted: they gain no authority by producing a candidate
 certificate.
 
+## Proof checking is not artifact verification
+
+The proof kernel answers one deliberately small question:
+
+```text
+Does this certificate derive proposition P under these explicit premises?
+```
+
+It does not decide which proposition a terminal-Psi artifact ought to prove.
+That is the job of the Psi-aware artifact verifier:
+
+```text
+canonical Psi artifact
+    -> validate structure, identities, and contracts
+    -> reconstruct every operation, edge, and return obligation
+    -> validate every authorized admission against the consuming profile
+    -> require exactly one permitted discharge for every obligation
+    -> invoke the proof kernel for certificate-derived facts
+    -> VerifiedTerminalModule
+```
+
+The proof bundle may carry a proposition for decoding and checking, but that
+proposition must exactly match an obligation independently reconstructed from
+the fingerprinted artifact. A certificate cannot omit an access, weaken an
+author contract, reclassify a derivable fact as admitted, or prove an unrelated
+theorem and attach it to different code.
+
+The certificate is therefore self-contained as a derivation while remaining
+bound to the exact artifact and obligation identities. The small proof kernel
+need only understand the canonical proposition and derivation calculus. A
+component must still understand terminal Psi well enough to reconstruct the
+right propositions.
+
 ## Trust and meaning
 
 Kernel acceptance defines certificate validity, not program behavior. A separate
@@ -48,6 +81,13 @@ The kernel remains on the audited bootstrap lineage. The Beta and Gamma versions
 are independently implemented and compared, so moving the directory or removing
 its former rung name does not weaken its assurance role.
 
+A later Psi implementation may provide a faster third implementation of the
+same kernel. It joins the checker diamond only over the exact shared calculus
+and certificate semantics, and only when it is independently implemented; a
+port of an existing checker tests the compilation path but is not implementation
+diversity. The Beta and Gamma implementations remain the low-rung reference
+route unless a separately justified trust transition replaces them.
+
 ## Scope discipline
 
 - The kernel contains proof rules and deterministic certificate checking.
@@ -61,4 +101,7 @@ its former rung name does not weaken its assurance role.
 
 - Finish the formal soundness bridge to the canonical execution semantics.
 - Stabilize the certificate vocabulary consumed by terminal Psi.
+- Connect `psi-terminal-verifier` to the low-rung kernel format and decide the
+  final trust placement of terminal-Psi obligation reconstruction: low reference
+  verifier, checked derivation of reconstruction, or explicit trusted component.
 - Reconcile future fast native checkers against the small reference route.

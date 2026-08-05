@@ -492,8 +492,23 @@ derivations remain replaceable proof-bundle material.
 
 ## Verification boundary
 
-The verifier derives structural obligations from terminal Psi and checks the
-fingerprinted author contracts. Every accepted fact is:
+The artifact verifier, proof kernel, and proof producer have distinct jobs:
+
+```text
+producer            emits canonical terminal Psi plus candidate evidence
+artifact verifier   derives what that exact module is required to prove
+proof kernel        checks derivations of those required propositions
+```
+
+The artifact verifier canonical-decodes terminal Psi, validates its structure,
+derives structural obligations from every operation and edge, and retains the
+fingerprinted author contracts. It matches evidence only after reconstructing
+the complete obligation set. The proof bundle is not an obligation manifest and
+cannot choose what is sufficient. Missing obligations, extra evidence, changed
+propositions, wrong module/obligation identities, and unauthorized admission all
+reject.
+
+Every accepted fact is:
 
 - re-decided by a specified total kernel judgment;
 - discharged by a checked certificate, carried or reconstructed by a total
@@ -509,6 +524,21 @@ The semantic module, proof bundle, installation record, and debug/source maps
 remain separate. Proof improvements do not change semantic identity; provider
 selection and attached evidence do change their own section and container
 identities. One execution verifies and runs one complete Psi semantic version.
+
+`psi-terminal-verifier` is the current Rust implementation of the artifact-aware
+judgment; `psi-proof-kernel` implements its current proof checks. That is an
+implementation milestone, not the final trust placement. Before terminal-Psi
+PCC becomes the deployment authority, the project must choose and implement one
+of these auditable closures:
+
+- a low-rung reference artifact verifier that reconstructs the same obligations;
+- a Psi verifier that emits an obligation-reconstruction derivation accepted by
+  the low-rung proof kernel; or
+- an explicitly trusted Psi artifact verifier, named as such in the trust ledger.
+
+A future Psi-hosted proof-kernel implementation may accelerate or independently
+cross-check certificate validation. It does not by itself discharge the separate
+obligation-reconstruction trust question.
 
 ## Canonical semantic bytes (format v1)
 
