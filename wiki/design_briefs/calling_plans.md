@@ -1281,6 +1281,8 @@ same bidirectional two-root contract; constructing the reference remains an
 address write rather than a referent copy. All-frame single-indexed aggregates
 now cross a frame-held pointee in either direction using one shared frame root
 for the array, index, and pointer slot and copying the complete aggregate span.
+A machine-held index instead contributes one exact second root to either
+direction.
 The x86 general place
 materializer also replays every remaining otherwise-unclassified `CopyPlaces`
 path with scratch derived from each retained place's exact index depth.

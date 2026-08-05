@@ -2193,11 +2193,17 @@ pub fn runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_po
 }
 
 pub fn runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_pointee_width(
+    index_region: omega_target_operations::RuntimeStorageRegion,
     pointer_byte_offset: usize,
     target_field_byte_offset: usize,
     byte_count: usize,
 ) -> usize {
     8 + 4
+        + if index_region == omega_target_operations::RuntimeStorageRegion::Machine {
+            8
+        } else {
+            0
+        }
         + 20
         + load_data_offset_width(pointer_byte_offset, 8)
         + add_constant_width(target_field_byte_offset)
@@ -2205,11 +2211,13 @@ pub fn runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_pointee_w
 }
 
 pub fn runtime_storage_copy_from_runtime_pointee_to_runtime_frame_base_indexed_width(
+    index_region: omega_target_operations::RuntimeStorageRegion,
     pointer_byte_offset: usize,
     source_field_byte_offset: usize,
     byte_count: usize,
 ) -> usize {
     runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_pointee_width(
+        index_region,
         pointer_byte_offset,
         source_field_byte_offset,
         byte_count,
