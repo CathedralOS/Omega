@@ -228,6 +228,12 @@ admit `NoOrdering | Receive | GlobalOrder`, stores admit
 the complete vocabulary. Compare-exchange failure performs only a read, so its
 ordering may not publish and may not be stronger than the success ordering.
 
+Each legality relation is a nominal proposition over the proof-static ordering
+argument, such as `valid_store_order(order)`. A concrete operation discharges
+it by closed case analysis; generic code may carry it outward in `requires` or
+`ensures`. This is the same proposition-family surface used by quotient
+relations, without turning an ordering into a runtime policy choice.
+
 Decisive compare-exchange returns either `Exchanged` or
 `Mismatched(observed)`. Its target realization may retry unsuccessful
 load-linked/store-conditional attempts and carries the resulting

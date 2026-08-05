@@ -127,9 +127,10 @@ machine Kernel32::write_file(handle: WinHandle, bytes: &[u8]) -> WriteResult
 ```
 
 Proposition declarations have their own non-executable forms: `;` introduces a
-primitive fact, braces name one canonical carrierless evidence interface, and
-`=` defines a transparent logical expansion. None is a machine body or machine
-supply mode.
+primitive fact, a witness-bearing declaration publishes one canonical
+carrierless evidence interface, and `=` defines a transparent logical
+expansion. None is a machine body or machine supply mode. The exact dedicated
+source clause for the evidence interface remains `OWNER_QUESTIONS.md` Q5.
 
 The expression after `via` must be compile-time evaluable to a normalized
 `Binding` value. Its normalized identity enters the derived provider plan;

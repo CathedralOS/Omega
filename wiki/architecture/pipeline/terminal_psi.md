@@ -373,11 +373,13 @@ selection to interpret its meaning. It contains:
 - fingerprinted contracts, obligation schemas, authorized admission sites,
   trust attribution, and work identities.
 
-Nominal proposition declarations retain their binder telescopes and
-fact-only/witness-bearing classification in this fingerprinted vocabulary.
-Transparent proposition definitions expand before terminal production, have
-no independent semantic identity, and retain their source names only in debug
-maps.
+Nominal proposition declarations retain their binder telescopes,
+fact-only/witness-bearing classification, and any normalized carrierless
+evidence interface in this fingerprinted vocabulary. Changing that interface
+is a semantic proof-API revision even though the proposition keeps its nominal
+symbol. Transparent proposition definitions expand before terminal production,
+have no independent semantic identity, and retain their source names only in
+debug maps.
 
 Author-declared hardware geometry is semantic and may contain offsets, widths,
 and alignment. Omega begins where the target chooses native layout, stack and

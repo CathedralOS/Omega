@@ -104,3 +104,33 @@ packages, target-profile defaults, lock/trust identity, diagnostics for zero or
 multiple candidates, and the input to generated ABI stubs. Until it is settled,
 the compiler must not recognize `Main::run`, `main`, or any other export by
 name, and Cathedral's raw UEFI callable remains transitional.
+
+## Q5 — How does a witness-bearing proposition declare its evidence contract?
+
+A nominal witness-bearing proposition owns one canonical carrierless evidence
+interface. That interface determines what every establishing conformance must
+supply and what proof-only elimination may recover. The proposition symbol
+keeps its nominal identity when the evidence packaging is revised, but the
+normalized interface is fingerprinted semantic content: changing it is a
+breaking proof-interface revision.
+
+The declaration category, binders, and evidence semantics are settled. The
+remaining choice is the dedicated source position that publishes the
+interface:
+
+- use an explicit clause after the proposition signature, with a clause word
+  reserved for the one evidence interface; or
+- retain the domain-like brace form whose sole entry names that interface.
+
+The interface must not appear among ordinary `where` constraints: bounds
+restrict which applications are well formed, while this interface is
+identity-bearing public proof content. It also must not use `=`. A transparent
+`=` proposition expands logically, creates no nominal identity, and changes
+meaning when its right-hand side changes; a witness-bearing proposition is
+nominal and exposes an opaque introduction/elimination contract.
+
+The choice fixes parsing and diagnostics, canonical source rendering, the
+normalized proposition-declaration row, and how API review distinguishes an
+evidence contract from ordinary generic bounds. Until it is settled, the
+current brace-shaped syntax node is provisional and must not be treated as the
+permanent language spelling.
