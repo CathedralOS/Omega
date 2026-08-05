@@ -43,9 +43,10 @@ use super::super::super::storage_places::{
 use super::super::super::storage_places::{
     resolve_runtime_assignment_value_call_result_place_by_ordinal,
     resolve_runtime_call_argument_call_result_place_by_ordinal,
-    resolve_runtime_frame_base_indexed_target, resolve_runtime_frame_fixed_indexed_target,
-    resolve_runtime_frame_indexed_target, resolve_runtime_machine_double_indexed_source,
-    resolve_runtime_machine_indexed_target, resolve_runtime_pointee_slot_offset,
+    resolve_runtime_frame_base_double_indexed_source, resolve_runtime_frame_base_indexed_target,
+    resolve_runtime_frame_fixed_indexed_target, resolve_runtime_frame_indexed_target,
+    resolve_runtime_machine_double_indexed_source, resolve_runtime_machine_indexed_target,
+    resolve_runtime_pointee_slot_offset,
 };
 use super::super::guards::static_guard_conjunct_summary_in_table;
 use super::super::text_writes::{
@@ -2968,10 +2969,36 @@ fn select_runtime_binary_mutation_write(
         );
     }
 
-    // BOTH-RUNTIME nested target (`grid[i][j] = a OP b`, the direct-RMW face):
-    // the double-indexed binary write. The assignment-value hoist has already
-    // slotted any indexed READ on the RHS, so left/right resolve through the
-    // ordinary operand machinery.
+    // BOTH-RUNTIME nested target (`grid[i][j] = a OP b`): the double-indexed
+    // binary write. Ordinary operands already resolve here; frame-local
+    // double-indexed RHS hoisting remains a separate frontend slotting gap.
+    if let Some(double_target) = resolve_runtime_frame_base_double_indexed_source(
+        input,
+        dispatch_index,
+        target_source_key,
+        resolved_target,
+    ) {
+        return Some(
+            crate::selection::runtime_dispatch::write_place_binary_double_indexed(
+                omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                double_target.base_byte_offset,
+                omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                double_target.outer_index_offset,
+                double_target.outer_index_byte_size,
+                double_target.outer_stride,
+                omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                double_target.inner_index_offset,
+                double_target.inner_index_byte_size,
+                double_target.inner_stride,
+                double_target.field_byte_offset,
+                double_target.byte_count,
+                left,
+                operator,
+                right,
+            ),
+        );
+    }
+
     if let Some(double_target) = resolve_runtime_machine_double_indexed_source(
         input,
         dispatch_index,
@@ -2980,6 +3007,7 @@ fn select_runtime_binary_mutation_write(
     ) {
         return Some(
             crate::selection::runtime_dispatch::write_place_binary_double_indexed(
+                omega_target_operations::RuntimeStorageRegion::Machine,
                 double_target.base_byte_offset,
                 double_target.outer_index_region,
                 double_target.outer_index_offset,

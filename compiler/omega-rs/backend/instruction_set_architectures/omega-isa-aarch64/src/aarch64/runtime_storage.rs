@@ -5783,6 +5783,78 @@ pub fn encode_runtime_machine_double_indexed_binary_write(
     Ok(bytes)
 }
 
+/// Write a binary result into an all-frame double-indexed element. The
+/// collection and both index slots share the one relocated frame base in x16.
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_frame_base_double_indexed_binary_write(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    base_byte_offset: usize,
+    outer_index_offset: usize,
+    outer_index_byte_size: usize,
+    outer_stride: usize,
+    inner_index_offset: usize,
+    inner_index_byte_size: usize,
+    inner_stride: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    left: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
+    right: RuntimeValueOperandHandle,
+) -> Result<Vec<u8>, Diagnostic> {
+    let expected_width = super::widths::runtime_frame_base_double_indexed_binary_write_width(
+        runtime_value_operands,
+        byte_size,
+        left,
+        operator,
+        right,
+    );
+    let mut bytes = Vec::with_capacity(expected_width);
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    append_double_index_address_math(
+        &mut bytes,
+        16,
+        outer_index_offset,
+        outer_index_byte_size,
+        outer_stride,
+        16,
+        inner_index_offset,
+        inner_index_byte_size,
+        inner_stride,
+        base_byte_offset + field_byte_offset,
+    )?;
+    append_runtime_value_operand(
+        runtime_value_operands,
+        &mut bytes,
+        17,
+        RUNTIME_VALUE_LEFT_SCRATCH_REGISTERS,
+        left,
+    )?;
+    append_runtime_value_operand(
+        runtime_value_operands,
+        &mut bytes,
+        26,
+        RUNTIME_VALUE_RIGHT_SCRATCH_REGISTERS,
+        right,
+    )?;
+    append_runtime_binary_operation(
+        &mut bytes,
+        17,
+        operator,
+        26,
+        runtime_binary_operation_byte_size(
+            runtime_value_operands,
+            operator,
+            left,
+            right,
+            byte_size,
+        ),
+    )?;
+    append_runtime_storage_result_write(&mut bytes, 0, byte_size)?;
+    debug_assert_eq!(bytes.len(), expected_width);
+    Ok(bytes)
+}
+
 /// Copy `machine[j] -> machine[i]` where BOTH indices are runtime values
 /// (`arr[i] = arr[j]`): compute the source element address (fixed shape,
 /// stashed in x24), compute the target element address (a second relocated
@@ -9868,6 +9940,51 @@ mod tests {
             )
             .contains(MachineRegister::Aarch64X(15)),
             "the exact footprint must retain the cross-region base register"
+        );
+    }
+
+    #[test]
+    fn frame_base_double_indexed_binary_write_uses_one_shared_frame_base() {
+        let (operands, left, right) = immediate_pair(6, 1);
+        let bytes = encode_runtime_frame_base_double_indexed_binary_write(
+            &operands,
+            24,
+            64,
+            8,
+            12,
+            72,
+            8,
+            4,
+            0,
+            4,
+            left,
+            StateGuardOperator::Add,
+            right,
+        )
+        .expect("encode all-frame double-indexed binary write");
+
+        assert_eq!(
+            bytes.len(),
+            widths::runtime_frame_base_double_indexed_binary_write_width(
+                &operands,
+                4,
+                left,
+                StateGuardOperator::Add,
+                right,
+            )
+        );
+        assert_eq!(
+            &bytes[..8],
+            [
+                encode_adrp_placeholder(16),
+                encode_add_page_offset_placeholder(16)
+            ]
+            .concat(),
+            "the collection and both index slots must share the opening frame base"
+        );
+        assert_eq!(
+            widths::runtime_frame_base_double_indexed_binary_left_operand_offset(),
+            44
         );
     }
 

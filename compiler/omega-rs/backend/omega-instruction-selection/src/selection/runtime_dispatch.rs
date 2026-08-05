@@ -783,6 +783,7 @@ pub(crate) fn write_place_binary_base_indexed(
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn write_place_binary_double_indexed(
+    region: RuntimeStorageRegion,
     base_byte_offset: usize,
     outer_index_region: RuntimeStorageRegion,
     outer_index_offset: usize,
@@ -800,7 +801,7 @@ pub(crate) fn write_place_binary_double_indexed(
 ) -> SelectedInstructionKind {
     SelectedInstructionKind::WritePlaceBinary {
         target: double_indexed_place(
-            RuntimeStorageRegion::Machine,
+            region,
             base_byte_offset,
             outer_index_region,
             outer_index_offset,

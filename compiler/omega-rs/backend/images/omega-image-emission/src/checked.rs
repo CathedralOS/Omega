@@ -2686,6 +2686,16 @@ enum CompilerBodyPlaceIntegerWriteShape {
         element_byte_size: usize,
         field_byte_offset: usize,
     },
+    FrameBaseDoubleIndexed {
+        base_byte_offset: usize,
+        outer_index_offset: usize,
+        outer_index_byte_size: usize,
+        outer_stride: usize,
+        inner_index_offset: usize,
+        inner_index_byte_size: usize,
+        inner_stride: usize,
+        field_byte_offset: usize,
+    },
     MachineIndexed {
         base_byte_offset: usize,
         index_region: omega_target_operations::RuntimeStorageRegion,
@@ -3729,7 +3739,8 @@ fn validate_compiler_function_instruction_boundaries(
                                     byte_size,
                                     value,
                                 )?,
-                                CompilerBodyPlaceIntegerWriteShape::General => {
+                                CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed { .. }
+                                | CompilerBodyPlaceIntegerWriteShape::General => {
                                     return Err(Diagnostic::error(
                                         "final aarch64 compiler-body integer write reached the x86-only general materializer class",
                                     ));
@@ -4876,7 +4887,8 @@ fn validate_compiler_function_instruction_boundaries(
                                         field_byte_offset,
                                         &literal,
                                     )?,
-                                    CompilerBodyPlaceIntegerWriteShape::General => unreachable!(
+                                    CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed { .. }
+                                    | CompilerBodyPlaceIntegerWriteShape::General => unreachable!(
                                         "aarch64 bounded-buffer literal-append shape checked above"
                                     ),
                                 },
@@ -5478,6 +5490,7 @@ fn validate_compiler_function_instruction_boundaries(
                                 | CompilerBodyPlaceIntegerWriteShape::Pointee { .. }
                                 | CompilerBodyPlaceIntegerWriteShape::FrameIndexed { .. }
                                 | CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. }
+                                | CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed { .. }
                                 | CompilerBodyPlaceIntegerWriteShape::MachineIndexed { .. }
                                 | CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed { .. },
                             )
@@ -5518,6 +5531,30 @@ fn validate_compiler_function_instruction_boundaries(
                                 } => omega_isa_aarch64::encode_runtime_pointee_binary_write(
                                     &code.runtime_value_operands,
                                     pointer_byte_offset,
+                                    field_byte_offset,
+                                    byte_size,
+                                    left,
+                                    operator,
+                                    right,
+                                )?,
+                                CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed {
+                                    base_byte_offset,
+                                    outer_index_offset,
+                                    outer_index_byte_size,
+                                    outer_stride,
+                                    inner_index_offset,
+                                    inner_index_byte_size,
+                                    inner_stride,
+                                    field_byte_offset,
+                                } => omega_isa_aarch64::encode_runtime_frame_base_double_indexed_binary_write(
+                                    &code.runtime_value_operands,
+                                    base_byte_offset,
+                                    outer_index_offset,
+                                    outer_index_byte_size,
+                                    outer_stride,
+                                    inner_index_offset,
+                                    inner_index_byte_size,
+                                    inner_stride,
                                     field_byte_offset,
                                     byte_size,
                                     left,
@@ -7230,7 +7267,8 @@ fn compiler_instruction_footprint(
                                 inner_index_region,
                             )
                         }
-                        CompilerBodyPlaceIntegerWriteShape::General => return None,
+                        CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed { .. }
+                        | CompilerBodyPlaceIntegerWriteShape::General => return None,
                     },
                 },
                 MachineStateSet::empty(),
@@ -8075,6 +8113,7 @@ fn compiler_instruction_footprint(
                         | CompilerBodyPlaceIntegerWriteShape::Pointee { .. }
                         | CompilerBodyPlaceIntegerWriteShape::FrameIndexed { .. }
                         | CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. }
+                        | CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed { .. }
                         | CompilerBodyPlaceIntegerWriteShape::MachineIndexed { .. }
                         | CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed { .. },
                 )
@@ -9522,7 +9561,7 @@ fn compiler_body_place_integer_write_shape(
             inner_index_byte_size,
             inner_stride,
             field_byte_offset,
-        )) = compiler_machine_double_indexed_place_offsets(target)
+        )) = compiler_double_indexed_place_offsets(target)
     {
         return Ok(CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed {
             base_byte_offset,
@@ -9539,6 +9578,32 @@ fn compiler_body_place_integer_write_shape(
     }
     if target.region != omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
         return Ok(CompilerBodyPlaceIntegerWriteShape::General);
+    }
+    if let Ok((
+        base_byte_offset,
+        outer_index_region,
+        outer_index_offset,
+        outer_index_byte_size,
+        outer_stride,
+        inner_index_region,
+        inner_index_offset,
+        inner_index_byte_size,
+        inner_stride,
+        field_byte_offset,
+    )) = compiler_double_indexed_place_offsets(target)
+        && outer_index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+        && inner_index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+    {
+        return Ok(CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed {
+            base_byte_offset,
+            outer_index_offset,
+            outer_index_byte_size,
+            outer_stride,
+            inner_index_offset,
+            inner_index_byte_size,
+            inner_stride,
+            field_byte_offset,
+        });
     }
     if let Ok((
         base_byte_offset,
@@ -9667,7 +9732,8 @@ fn encode_compiler_place_address_write(
                 field_byte_offset,
                 target_offset,
             ),
-            CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed { .. }
+            CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed { .. }
+            | CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed { .. }
             | CompilerBodyPlaceIntegerWriteShape::General => Err(Diagnostic::error(
                 "final aarch64 place-address row retained an unsupported source shape",
             )),
@@ -9714,7 +9780,8 @@ fn compiler_place_address_write_register_writes(
                     target_offset,
                 ),
             ),
-            CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed { .. }
+            CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed { .. }
+            | CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed { .. }
             | CompilerBodyPlaceIntegerWriteShape::General => Err(Diagnostic::error(
                 "final aarch64 place-address footprint retained an unsupported source shape",
             )),
@@ -10211,7 +10278,7 @@ fn compiler_single_direct_indexed_place_offsets(
 }
 
 #[allow(clippy::type_complexity)]
-fn compiler_machine_double_indexed_place_offsets(
+fn compiler_double_indexed_place_offsets(
     place: &omega_target_operations::Place,
 ) -> Result<
     (
@@ -10228,11 +10295,6 @@ fn compiler_machine_double_indexed_place_offsets(
     ),
     Diagnostic,
 > {
-    if place.region != omega_target_operations::RuntimeStorageRegion::Machine {
-        return Err(Diagnostic::error(
-            "final double-indexed integer-write target is not machine storage",
-        ));
-    }
     let mut base_byte_offset = 0usize;
     let mut field_byte_offset = 0usize;
     let mut indices = Vec::new();
@@ -10261,7 +10323,7 @@ fn compiler_machine_double_indexed_place_offsets(
             )),
             _ => {
                 return Err(Diagnostic::error(
-                    "final integer-write target is not doubly indexed inline machine storage",
+                    "final integer-write target is not doubly indexed inline storage",
                 ));
             }
         }
@@ -10897,7 +10959,8 @@ fn compiler_place_address_write_address_sites(
                     ));
                 Ok(sites)
             }
-            CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed { .. }
+            CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed { .. }
+            | CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed { .. }
             | CompilerBodyPlaceIntegerWriteShape::General => Err(Diagnostic::error(
                 "final aarch64 place-address recipe retained an unsupported source",
             )),
@@ -10920,6 +10983,7 @@ fn compiler_place_binary_write_address_sites(
                 | CompilerBodyPlaceIntegerWriteShape::Pointee { .. }
                 | CompilerBodyPlaceIntegerWriteShape::FrameIndexed { .. }
                 | CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. }
+                | CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed { .. }
                 | CompilerBodyPlaceIntegerWriteShape::MachineIndexed { .. }
                 | CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed { .. },
         )
@@ -10967,6 +11031,9 @@ fn compiler_place_binary_write_address_sites(
                 field_byte_offset,
                 0,
             ),
+            CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed { .. } => {
+                omega_isa_aarch64::runtime_frame_base_double_indexed_binary_left_operand_offset()
+            }
             CompilerBodyPlaceIntegerWriteShape::MachineIndexed {
                 base_byte_offset,
                 index_region,
@@ -11424,7 +11491,8 @@ fn aarch64_bounded_buffer_write_relocation_sites(
                 ));
             }
         }
-        CompilerBodyPlaceIntegerWriteShape::General => {
+        CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed { .. }
+        | CompilerBodyPlaceIntegerWriteShape::General => {
             return Err(Diagnostic::error(
                 "final aarch64 bounded-buffer write retained an unsupported target",
             ));
@@ -11521,7 +11589,8 @@ fn encode_aarch64_bounded_buffer_source_append(
             field_byte_offset,
             source,
         ),
-        CompilerBodyPlaceIntegerWriteShape::General => Err(Diagnostic::error(
+        CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed { .. }
+        | CompilerBodyPlaceIntegerWriteShape::General => Err(Diagnostic::error(
             "final aarch64 bounded-buffer source append retained an unsupported target",
         )),
     }
@@ -15406,7 +15475,7 @@ mod tests {
             .expect("frame double-indexed target");
         assert!(matches!(
             compiler_body_place_integer_write_shape(&target).expect("classify final binary write"),
-            CompilerBodyPlaceIntegerWriteShape::General
+            CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed { .. }
         ));
 
         let mut operands = psi_arena::Arena::new();

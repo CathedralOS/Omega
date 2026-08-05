@@ -1150,7 +1150,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         executable_regions.contains(
             "\"certificate_schema\": \"omega.final-footprint-certificate\""
         )
-            && executable_regions.contains("\"certificate_format_version\": 94")
+            && executable_regions.contains("\"certificate_format_version\": 95")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
             && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")
@@ -1935,7 +1935,7 @@ fn compiler_body_to_machine_indexed_copy_footprints_reach_x86_and_aarch64_artifa
 }
 
 #[test]
-fn compiler_body_frame_double_indexed_copy_footprints_reach_x86_and_aarch64_artifacts() {
+fn compiler_body_frame_double_indexed_copy_and_binary_footprints_reach_both_artifacts() {
     let canary = pass_canary("collections/runtime_frame_double_indexed_read_exit");
     for (target, expected_register) in [
         ("linux_x64", "\"X86R11\""),
@@ -1964,15 +1964,16 @@ fn compiler_body_frame_double_indexed_copy_footprints_reach_x86_and_aarch64_arti
             write_output: true,
         })
         .unwrap_or_else(|diagnostics| {
-            panic!("compiler-body frame-double-indexed copy should compile for {target}: {diagnostics:?}")
+            panic!("compiler-body frame-double-indexed operations should compile for {target}: {diagnostics:?}")
         });
         let footprints = fs::read_to_string(output.join("08_boundary_footprints.json"))
             .expect("compiler-body frame-double-indexed footprint evidence should be written");
         assert!(
             footprints.contains("\"origin\": \"compiler_body_place_copy\"")
+                && footprints.contains("\"origin\": \"compiler_body_place_binary_write\"")
                 && footprints.contains(expected_register)
                 && footprints.contains("\"enumeration_complete\": false"),
-            "{target} artifact must retain the ordinary frame-double-indexed footprint without claiming completeness"
+            "{target} artifact must retain the frame-double-indexed copy and binary footprints without claiming completeness"
         );
         let _ = fs::remove_dir_all(&scratch);
     }
@@ -2955,7 +2956,7 @@ fn compiler_body_general_x86_text_assembly_reaches_the_final_artifact() {
     let regions = fs::read_to_string(output.join("13_executable_regions.json"))
         .expect("general x86 final executable-region evidence should be written");
     assert!(
-        regions.contains("\"certificate_format_version\": 94")
+        regions.contains("\"certificate_format_version\": 95")
             && regions.contains("\"compiler_function_body_specification_subset\""),
         "general x86 text assembly must reach final-image validation"
     );
@@ -2993,7 +2994,7 @@ fn aarch64_frame_descriptor_ops_with_machine_index_reach_the_final_artifact() {
     let regions = fs::read_to_string(output.join("13_executable_regions.json"))
         .expect("cross-region AArch64 final executable-region evidence should be written");
     assert!(
-        regions.contains("\"certificate_format_version\": 94")
+        regions.contains("\"certificate_format_version\": 95")
             && regions.contains("\"compiler_function_body_specification_subset\""),
         "cross-region AArch64 frame-descriptor operations must reach final-image validation"
     );
