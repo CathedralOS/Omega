@@ -5043,6 +5043,7 @@ fn validate_compiler_function_instruction_boundaries(
                                     | CompilerBodyPlaceIntegerWriteShape::Pointee { .. }
                                     | CompilerBodyPlaceIntegerWriteShape::FrameIndexed { .. }
                                     | CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. }
+                                    | CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed { .. }
                                     | CompilerBodyPlaceIntegerWriteShape::MachineIndexed { .. }
                                     | CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed { .. }
                             )
@@ -5100,6 +5101,26 @@ fn validate_compiler_function_instruction_boundaries(
                                     index_offset,
                                     index_byte_size,
                                     element_byte_size,
+                                    field_byte_offset,
+                                    byte_length,
+                                )?,
+                                CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed {
+                                    base_byte_offset,
+                                    outer_index_offset,
+                                    outer_index_byte_size,
+                                    outer_stride,
+                                    inner_index_offset,
+                                    inner_index_byte_size,
+                                    inner_stride,
+                                    field_byte_offset,
+                                } => omega_isa_aarch64::encode_runtime_frame_base_double_indexed_string_write(
+                                    base_byte_offset,
+                                    outer_index_offset,
+                                    outer_index_byte_size,
+                                    outer_stride,
+                                    inner_index_offset,
+                                    inner_index_byte_size,
+                                    inner_stride,
                                     field_byte_offset,
                                     byte_length,
                                 )?,
@@ -8417,6 +8438,7 @@ fn compiler_instruction_footprint(
                             | CompilerBodyPlaceIntegerWriteShape::Pointee { .. }
                             | CompilerBodyPlaceIntegerWriteShape::FrameIndexed { .. }
                             | CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. }
+                            | CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed { .. }
                             | CompilerBodyPlaceIntegerWriteShape::MachineIndexed { .. }
                             | CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed { .. }
                     ) {
@@ -12198,6 +12220,19 @@ fn validate_compiler_place_string_relocations(
                     omega_isa_aarch64::runtime_machine_double_indexed_string_data_address_offset(
                         outer_index_region,
                         inner_index_region,
+                    ),
+                    ExpectedTarget::Data,
+                ));
+            }
+            CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed { .. } => {
+                sites.push((
+                    0,
+                    ExpectedTarget::Storage(
+                        omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                    ),
+                ));
+                sites.push((
+                    omega_isa_aarch64::runtime_frame_base_double_indexed_string_data_address_offset(
                     ),
                     ExpectedTarget::Data,
                 ));

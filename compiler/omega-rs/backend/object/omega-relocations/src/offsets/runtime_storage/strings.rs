@@ -149,3 +149,11 @@ pub(crate) fn runtime_machine_double_indexed_string_data_address_offset(
         inner_index_region,
     )
 }
+
+pub(crate) fn runtime_frame_base_double_indexed_string_data_address_offset(
+    architecture: Architecture,
+) -> usize {
+    omega_instruction_selection::runtime_frame_base_double_indexed_string_data_address_offset(
+        architecture,
+    )
+}

@@ -2948,11 +2948,11 @@ pub(super) struct RuntimeFrameBaseDoubleIndexedTarget {
 }
 
 /// Resolve `g[i][j]` -- a frame-resident 2D fixed array read with BOTH
-/// indices runtime. `None` for every other shape: single runtime level (the
-/// frame single-index resolver), member links anywhere in the chain (not
-/// wired for the frame flavor yet), non-frame-resident indices (the encoder
-/// serves the whole address off the ONE frame base), machine collections
-/// (the machine double resolver).
+/// indices runtime. A member suffix above the element is folded into the
+/// fixed field offset. `None` for every other shape: single runtime level (the
+/// frame single-index resolver), member links between the index levels,
+/// non-frame-resident indices (the encoder serves the whole address off the
+/// ONE frame base), machine collections (the machine double resolver).
 pub(super) fn resolve_runtime_frame_base_double_indexed_source_in_table(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
@@ -2961,8 +2961,12 @@ pub(super) fn resolve_runtime_frame_base_double_indexed_source_in_table(
     expression: ExpressionHandle,
 ) -> Option<RuntimeFrameBaseDoubleIndexedTarget> {
     let mut outer = expression;
-    while let ExpressionNode::Mutable(next) = expressions.expression(outer) {
-        outer = *next;
+    loop {
+        match expressions.expression(outer) {
+            ExpressionNode::Mutable(next) => outer = *next,
+            ExpressionNode::Member(member) => outer = member.receiver,
+            _ => break,
+        }
     }
     let ExpressionNode::Indexed(outer_indexed) = expressions.expression(outer) else {
         return None;
@@ -2990,6 +2994,22 @@ pub(super) fn resolve_runtime_frame_base_double_indexed_source_in_table(
     let row_layout = descriptor_layout(input, row_type);
     let element_type = inline_fixed_array_element_type(row_type)?;
     let element_layout = descriptor_layout(input, element_type);
+    let element_field = FieldLayout {
+        symbol: SymbolHandle::invalid(),
+        name: "".into(),
+        offset: 0,
+        type_symbol: element_type.storage_symbol(),
+        type_name: "".into(),
+        type_descriptor: element_type.clone(),
+        layout: element_layout,
+    };
+    let (field_byte_offset, leaf_layout, _) = resolve_indexed_target_suffix_layout_in_table(
+        input,
+        &element_field,
+        expressions,
+        expression,
+        outer,
+    )?;
 
     let outer_place = resolve_runtime_storage_place_in_table(
         input,
@@ -3019,8 +3039,8 @@ pub(super) fn resolve_runtime_frame_base_double_indexed_source_in_table(
         inner_index_offset: inner_place.byte_offset,
         inner_index_byte_size: inner_place.byte_count,
         inner_stride: element_layout.size,
-        field_byte_offset: 0,
-        byte_count: element_layout.size,
+        field_byte_offset,
+        byte_count: leaf_layout.size,
     })
 }
 

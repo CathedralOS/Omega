@@ -9,6 +9,7 @@ use psi_arena::Arena;
 use psi_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 
 use super::super::super::storage_places::{
+    resolve_runtime_frame_base_double_indexed_source_in_table,
     resolve_runtime_frame_base_indexed_target_with_index_region_in_table,
     resolve_runtime_frame_fixed_indexed_target_in_table,
     resolve_runtime_frame_indexed_target_in_table,
@@ -199,6 +200,32 @@ pub(super) fn select_runtime_string_mutation_write_in_table(
                 indexed_target.index_offset,
                 indexed_target.index_byte_size,
                 indexed_target.element_byte_size,
+                indexed_target.field_byte_offset,
+                data,
+                value.len(),
+            ),
+        );
+    }
+
+    if data.is_valid()
+        && let Some(indexed_target) = resolve_runtime_frame_base_double_indexed_source_in_table(
+            input,
+            dispatch_index,
+            target_source_key,
+            expressions,
+            target,
+        )
+        && indexed_target.byte_count == input.runtime_abi.string_descriptor_size()
+    {
+        return Some(
+            crate::selection::runtime_dispatch::write_place_string_frame_base_double_indexed(
+                indexed_target.base_byte_offset,
+                indexed_target.outer_index_offset,
+                indexed_target.outer_index_byte_size,
+                indexed_target.outer_stride,
+                indexed_target.inner_index_offset,
+                indexed_target.inner_index_byte_size,
+                indexed_target.inner_stride,
                 indexed_target.field_byte_offset,
                 data,
                 value.len(),
