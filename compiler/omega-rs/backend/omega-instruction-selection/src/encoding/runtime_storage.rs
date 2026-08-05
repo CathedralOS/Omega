@@ -191,6 +191,28 @@ pub fn encode_write_place_convert(
     saturating: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
     if architecture == Architecture::Aarch64
+        && let Some(frame_indexed) = classify_frame_base_indexed_convert_shape(target)
+    {
+        return aarch64::encode_runtime_frame_base_indexed_convert_write_with_index_region(
+            runtime_value_operands,
+            frame_indexed.base_byte_offset,
+            frame_indexed.index_region,
+            frame_indexed.index_offset,
+            frame_indexed.index_byte_size,
+            frame_indexed.element_byte_size,
+            frame_indexed.field_byte_offset,
+            target_byte_size,
+            source,
+            source_byte_size,
+            source_is_float,
+            target_is_float,
+            source_signed,
+            target_signed,
+            trapping,
+            saturating,
+        );
+    }
+    if architecture == Architecture::Aarch64
         && let Some(frame_double) = classify_frame_base_double_indexed_convert_shape(target)
     {
         return aarch64::encode_runtime_frame_base_double_indexed_convert_write(
@@ -1259,10 +1281,10 @@ pub struct FrameBaseDoubleIndexedShape {
 }
 
 /// AArch64 per-operation rung for an inline frame array whose runtime index
-/// may live in either storage region. Immediate-integer and exact-binary
-/// writes opt in through separate classifiers; other operation families keep
-/// using the narrower shared write classifier until their replay contracts
-/// land.
+/// may live in either storage region. Immediate-integer, exact-binary, and
+/// conversion writes opt in through separate classifiers; other operation
+/// families keep using the narrower shared write classifier until their replay
+/// contracts land.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FrameBaseIndexedShape {
     pub base_byte_offset: usize,
@@ -1280,6 +1302,12 @@ pub fn classify_frame_base_indexed_integer_shape(
 }
 
 pub fn classify_frame_base_indexed_binary_shape(
+    target: &omega_target_operations::Place,
+) -> Option<FrameBaseIndexedShape> {
+    classify_frame_base_indexed_shape(target)
+}
+
+pub fn classify_frame_base_indexed_convert_shape(
     target: &omega_target_operations::Place,
 ) -> Option<FrameBaseIndexedShape> {
     classify_frame_base_indexed_shape(target)

@@ -5814,7 +5814,7 @@ fn validate_compiler_function_instruction_boundaries(
                         trapping,
                         saturating,
                     } => {
-                        let shape = compiler_body_place_integer_write_shape(&target)?;
+                        let shape = compiler_body_place_convert_write_shape(&target)?;
                         if architecture == Architecture::Aarch64
                             && !matches!(
                                 shape,
@@ -5906,14 +5906,15 @@ fn validate_compiler_function_instruction_boundaries(
                                     )?,
                                     CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed {
                                         base_byte_offset,
-                                        index_region: _,
+                                        index_region,
                                         index_offset,
                                         index_byte_size,
                                         element_byte_size,
                                         field_byte_offset,
-                                    } => omega_isa_aarch64::encode_runtime_frame_base_indexed_convert_write(
+                                    } => omega_isa_aarch64::encode_runtime_frame_base_indexed_convert_write_with_index_region(
                                         &code.runtime_value_operands,
                                         base_byte_offset,
+                                        index_region,
                                         index_offset,
                                         index_byte_size,
                                         element_byte_size,
@@ -9934,6 +9935,12 @@ fn compiler_body_place_binary_write_shape(
     compiler_body_place_write_shape_with_cross_region_frame_base(target)
 }
 
+fn compiler_body_place_convert_write_shape(
+    target: &omega_target_operations::Place,
+) -> Result<CompilerBodyPlaceIntegerWriteShape, Diagnostic> {
+    compiler_body_place_write_shape_with_cross_region_frame_base(target)
+}
+
 fn encode_compiler_place_address_write(
     architecture: Architecture,
     source: &omega_target_operations::Place,
@@ -11468,7 +11475,7 @@ fn compiler_place_convert_write_address_sites(
             sites.extend(omega_isa_x86_64::place_binary_index_base_positions(&target));
             omega_isa_x86_64::place_binary_operand_start_width(&target)
         }
-        Architecture::Aarch64 => match compiler_body_place_integer_write_shape(&target)? {
+        Architecture::Aarch64 => match compiler_body_place_convert_write_shape(&target)? {
             CompilerBodyPlaceIntegerWriteShape::Direct { .. } => 8,
             CompilerBodyPlaceIntegerWriteShape::Pointee {
                 pointer_byte_offset,
@@ -11494,18 +11501,29 @@ fn compiler_place_convert_write_address_sites(
             }
             CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed {
                 base_byte_offset,
-                index_region: _,
+                index_region,
                 index_offset,
                 index_byte_size,
                 element_byte_size,
                 field_byte_offset,
-            } => omega_isa_aarch64::runtime_frame_base_indexed_operand_start_width(
-                base_byte_offset,
-                index_offset,
-                index_byte_size,
-                element_byte_size,
-                field_byte_offset,
-            ),
+            } => {
+                if index_region == omega_target_operations::RuntimeStorageRegion::Machine {
+                    sites.push((
+                        omega_isa_aarch64::runtime_frame_base_indexed_machine_index_base_offset(
+                            base_byte_offset,
+                        ),
+                        omega_target_operations::RuntimeStorageRegion::Machine,
+                    ));
+                }
+                omega_isa_aarch64::runtime_frame_base_indexed_operand_start_width_with_index_region(
+                    base_byte_offset,
+                    index_region,
+                    index_offset,
+                    index_byte_size,
+                    element_byte_size,
+                    field_byte_offset,
+                )
+            }
             CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed { .. } => {
                 omega_isa_aarch64::runtime_frame_base_double_indexed_convert_operand_offset()
             }

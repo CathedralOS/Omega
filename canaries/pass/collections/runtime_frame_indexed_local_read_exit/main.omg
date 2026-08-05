@@ -1,7 +1,7 @@
 // Inline LOCAL array writes at a machine-field runtime index with 8-byte
 // elements. The target frame base stays distinct while a copied source can
-// reuse the index's machine base; the immediate write uses that same index
-// relocation independently.
+// reuse the index's machine base; immediate, binary, and conversion writes use
+// that same index relocation independently.
 use omega::language::std::console;
 data Main {
     console: Console;
@@ -9,12 +9,14 @@ data Main {
     value: i64;
     left: i64 [0..=50];
     right: i64 [0..=50];
+    source: i64 [0..=100];
 }
 machine Main::main(&mut self) {
     self.index = 2;
     self.value = 44;
     self.left = 20;
     self.right = 30;
+    self.source = 61;
     transition { _ -> self.pick() }
 }
 machine Main::pick(&mut self) {
@@ -24,10 +26,13 @@ machine Main::pick(&mut self) {
     b[self.index] = 55;
     let c: [i64; 3] = [4, 5, 6];
     c[self.index] = self.left + self.right;
+    let d: [i32; 3] = [7, 8, 9];
+    d[self.index] = self.source as i32;
     let v: i64 = a[2];
     let w: i64 = b[2];
     let x: i64 = c[2];
-    transition v == 44 && w == 55 && x == 50 {
+    let y: i32 = d[2];
+    transition v == 44 && w == 55 && x == 50 && y == 61 {
         true -> yes()
         false -> no()
     }

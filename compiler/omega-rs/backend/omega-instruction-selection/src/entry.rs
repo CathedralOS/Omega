@@ -3117,6 +3117,7 @@ pub fn derive_boundary_compiler_body_storage_convert_write_footprint<'instructio
                             | crate::WritePlaceShape::MachineIndexed { .. }
                             | crate::WritePlaceShape::MachineDoubleIndexed { .. }
                     )
+                    || crate::classify_frame_base_indexed_convert_shape(target).is_some()
                     || crate::classify_frame_base_double_indexed_convert_shape(target)
                         .is_some() =>
             {

@@ -325,6 +325,10 @@ pub(super) fn collect_runtime_storage_write_relocations(
                         context.storage_region_symbol_handle(target.region),
                     );
                     let shape = omega_instruction_selection::classify_write_place_shape(target);
+                    let frame_indexed =
+                        omega_instruction_selection::classify_frame_base_indexed_convert_shape(
+                            target,
+                        );
                     let frame_double =
                         omega_instruction_selection::classify_frame_base_double_indexed_convert_shape(
                             target,
@@ -439,6 +443,32 @@ pub(super) fn collect_runtime_storage_write_relocations(
                                 outer_index_byte_size,
                                 inner_index_region,
                                 inner_index_byte_size,
+                            )
+                        }
+                        omega_instruction_selection::WritePlaceShape::Unsupported
+                            if frame_indexed.is_some() =>
+                        {
+                            let frame_indexed = frame_indexed
+                                .expect("guarded frame-base-indexed conversion target");
+                            if frame_indexed.index_region
+                                == omega_target_operations::RuntimeStorageRegion::Machine
+                            {
+                                context.insert_data_address_at_relative_offset(
+                                    omega_instruction_selection::runtime_frame_base_indexed_machine_index_base_offset(
+                                        context.input.target.architecture,
+                                        frame_indexed.base_byte_offset,
+                                    ),
+                                    context.machine_storage_symbol_handle(),
+                                );
+                            }
+                            omega_instruction_selection::runtime_frame_base_indexed_operand_start_width_with_index_region(
+                                context.input.target.architecture,
+                                frame_indexed.base_byte_offset,
+                                frame_indexed.index_region,
+                                frame_indexed.index_offset,
+                                frame_indexed.index_byte_size,
+                                frame_indexed.element_byte_size,
+                                frame_indexed.field_byte_offset,
                             )
                         }
                         omega_instruction_selection::WritePlaceShape::Unsupported
