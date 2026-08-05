@@ -1150,7 +1150,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         executable_regions.contains(
             "\"certificate_schema\": \"omega.final-footprint-certificate\""
         )
-            && executable_regions.contains("\"certificate_format_version\": 128")
+            && executable_regions.contains("\"certificate_format_version\": 129")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
             && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")
@@ -2233,6 +2233,53 @@ fn compiler_body_cross_region_indexed_pair_footprints_reach_x86_and_aarch64_arti
 }
 
 #[test]
+fn compiler_body_cross_region_double_indexed_pair_footprints_reach_x86_and_aarch64_artifacts() {
+    let canary = pass_canary("collections/runtime_cross_region_double_indexed_pair_copy_exit");
+    for (target, expected_register) in [
+        ("linux_x64", "\"X86R10\""),
+        ("linux_arm64", "\"Aarch64X(20)\""),
+    ] {
+        let scratch = std::env::temp_dir().join(format!(
+            "omega-compiler-body-cross-region-double-indexed-pair-{target}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&scratch);
+        let source = scratch.join("src");
+        let output = scratch.join("out");
+        fs::create_dir_all(&source)
+            .expect("create compiler-body cross-region double-indexed-pair source directory");
+        fs::copy(canary.join("main.omg"), source.join("main.omg"))
+            .expect("copy compiler-body cross-region double-indexed-pair canary");
+        fs::write(
+            source.join("build.omg"),
+            format!("target {target} {{\n}}\n"),
+        )
+        .expect("write compiler-body cross-region double-indexed-pair target");
+        compile(CompileOptions {
+            root_path: source.join("main.omg"),
+            build_dir: Some(output.clone()),
+            target_name: Some(target.into()),
+            write_output: true,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "compiler-body cross-region double-indexed-pair copy should compile for {target}: {diagnostics:?}"
+            )
+        });
+        let footprints = fs::read_to_string(output.join("08_boundary_footprints.json")).expect(
+            "compiler-body cross-region double-indexed-pair footprint evidence should be written",
+        );
+        assert!(
+            footprints.contains("\"origin\": \"compiler_body_place_copy\"")
+                && footprints.contains(expected_register)
+                && footprints.contains("\"enumeration_complete\": false"),
+            "{target} artifact must retain the cross-region double-indexed-pair footprint without claiming completeness"
+        );
+        let _ = fs::remove_dir_all(&scratch);
+    }
+}
+
+#[test]
 fn compiler_body_direct_integer_write_footprints_reach_x86_and_aarch64_artifacts() {
     let canary = pass_canary("collections/runtime_dual_indexed_copy_exit");
     for (target, expected_register) in [
@@ -3077,7 +3124,7 @@ fn compiler_body_general_x86_text_assembly_reaches_the_final_artifact() {
     let regions = fs::read_to_string(output.join("13_executable_regions.json"))
         .expect("general x86 final executable-region evidence should be written");
     assert!(
-        regions.contains("\"certificate_format_version\": 128")
+        regions.contains("\"certificate_format_version\": 129")
             && regions.contains("\"compiler_function_body_specification_subset\""),
         "general x86 text assembly must reach final-image validation"
     );
@@ -3115,7 +3162,7 @@ fn aarch64_frame_descriptor_ops_with_machine_index_reach_the_final_artifact() {
     let regions = fs::read_to_string(output.join("13_executable_regions.json"))
         .expect("cross-region AArch64 final executable-region evidence should be written");
     assert!(
-        regions.contains("\"certificate_format_version\": 128")
+        regions.contains("\"certificate_format_version\": 129")
             && regions.contains("\"compiler_function_body_specification_subset\""),
         "cross-region AArch64 frame-descriptor operations must reach final-image validation"
     );
@@ -9719,6 +9766,39 @@ fn runtime_cross_region_indexed_pair_copy_exit_canary_runs() {
         output.status.code(),
         Some(1),
         "expected machine/frame indexed arrays to exchange complete aggregate values, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_cross_region_double_indexed_pair_copy_exit_canary_runs() {
+    let canary = pass_canary("collections/runtime_cross_region_double_indexed_pair_copy_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-cross-region-double-indexed-pair-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("cross-region double-indexed-pair canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("cross-region double-indexed-pair canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected machine/frame 2D arrays to exchange complete aggregate values, got {:?}\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );

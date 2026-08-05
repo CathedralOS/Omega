@@ -2503,6 +2503,12 @@ pub fn runtime_storage_copy_cross_region_indexed_pair_width(byte_count: usize) -
     8 + 8 + 4 + 20 + 4 + 4 + 20 + 8 * runtime_copy_chunk_pair_count(byte_count)
 }
 
+/// Width of a double-index pair copy across one machine-inline and one
+/// frame-inline array, with two storage roots and two fixed 2D address walks.
+pub fn runtime_storage_copy_cross_region_double_indexed_pair_width(byte_count: usize) -> usize {
+    8 + 8 + 4 + 36 + 4 + 4 + 36 + 8 * runtime_copy_chunk_pair_count(byte_count)
+}
+
 /// Width of a frame-inline double-indexed pair copy: one shared frame pair,
 /// one optional shared machine-index pair, one preserved root, two fixed 2D
 /// address walks, a source-address stash, a target-root reset, and the exact

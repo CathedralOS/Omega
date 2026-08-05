@@ -1846,6 +1846,66 @@ pub(crate) fn copy_places_cross_region_indexed_pair(
     }
 }
 
+/// `target[a][b] = source[i][j]` across one machine-inline and one
+/// frame-inline 2D array. All four runtime indices retain their storage region.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn copy_places_cross_region_double_indexed_pair(
+    source_region: RuntimeStorageRegion,
+    source_base_byte_offset: usize,
+    source_outer_index_region: RuntimeStorageRegion,
+    source_outer_index_offset: usize,
+    source_outer_index_byte_size: usize,
+    source_outer_stride: usize,
+    source_inner_index_region: RuntimeStorageRegion,
+    source_inner_index_offset: usize,
+    source_inner_index_byte_size: usize,
+    source_inner_stride: usize,
+    source_field_byte_offset: usize,
+    target_region: RuntimeStorageRegion,
+    target_base_byte_offset: usize,
+    target_outer_index_region: RuntimeStorageRegion,
+    target_outer_index_offset: usize,
+    target_outer_index_byte_size: usize,
+    target_outer_stride: usize,
+    target_inner_index_region: RuntimeStorageRegion,
+    target_inner_index_offset: usize,
+    target_inner_index_byte_size: usize,
+    target_inner_stride: usize,
+    target_field_byte_offset: usize,
+    byte_count: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::CopyPlaces {
+        source: double_indexed_place(
+            source_region,
+            source_base_byte_offset,
+            source_outer_index_region,
+            source_outer_index_offset,
+            source_outer_index_byte_size,
+            source_outer_stride,
+            source_inner_index_region,
+            source_inner_index_offset,
+            source_inner_index_byte_size,
+            source_inner_stride,
+            source_field_byte_offset,
+        ),
+        target: double_indexed_place(
+            target_region,
+            target_base_byte_offset,
+            target_outer_index_region,
+            target_outer_index_offset,
+            target_outer_index_byte_size,
+            target_outer_stride,
+            target_inner_index_region,
+            target_inner_index_offset,
+            target_inner_index_byte_size,
+            target_inner_stride,
+            target_field_byte_offset,
+        ),
+        byte_count,
+        role: omega_abstract_operations::CopyPlacesRole::Ordinary,
+    }
+}
+
 /// Rung 2c-x: a frame-inline 2D-array element read with independently placed
 /// runtime indices.
 #[allow(clippy::too_many_arguments)]

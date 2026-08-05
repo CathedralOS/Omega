@@ -2807,6 +2807,28 @@ enum CompilerBodyPlaceCopyShape {
         target_element_byte_size: usize,
         target_field_byte_offset: usize,
     },
+    CrossRegionDoubleIndexedPair {
+        source_base_byte_offset: usize,
+        source_outer_index_region: omega_target_operations::RuntimeStorageRegion,
+        source_outer_index_offset: usize,
+        source_outer_index_byte_size: usize,
+        source_outer_stride: usize,
+        source_inner_index_region: omega_target_operations::RuntimeStorageRegion,
+        source_inner_index_offset: usize,
+        source_inner_index_byte_size: usize,
+        source_inner_stride: usize,
+        source_field_byte_offset: usize,
+        target_base_byte_offset: usize,
+        target_outer_index_region: omega_target_operations::RuntimeStorageRegion,
+        target_outer_index_offset: usize,
+        target_outer_index_byte_size: usize,
+        target_outer_stride: usize,
+        target_inner_index_region: omega_target_operations::RuntimeStorageRegion,
+        target_inner_index_offset: usize,
+        target_inner_index_byte_size: usize,
+        target_inner_stride: usize,
+        target_field_byte_offset: usize,
+    },
     FrameBaseDoubleIndexedPair {
         source_base_byte_offset: usize,
         source_outer_index_region: omega_target_operations::RuntimeStorageRegion,
@@ -4106,6 +4128,52 @@ fn validate_compiler_function_instruction_boundaries(
                                         target_index_offset,
                                         target_index_byte_size,
                                         target_element_byte_size,
+                                        target_field_byte_offset,
+                                        byte_count,
+                                    )?,
+                                    CompilerBodyPlaceCopyShape::CrossRegionDoubleIndexedPair {
+                                        source_base_byte_offset,
+                                        source_outer_index_region,
+                                        source_outer_index_offset,
+                                        source_outer_index_byte_size,
+                                        source_outer_stride,
+                                        source_inner_index_region,
+                                        source_inner_index_offset,
+                                        source_inner_index_byte_size,
+                                        source_inner_stride,
+                                        source_field_byte_offset,
+                                        target_base_byte_offset,
+                                        target_outer_index_region,
+                                        target_outer_index_offset,
+                                        target_outer_index_byte_size,
+                                        target_outer_stride,
+                                        target_inner_index_region,
+                                        target_inner_index_offset,
+                                        target_inner_index_byte_size,
+                                        target_inner_stride,
+                                        target_field_byte_offset,
+                                    } => omega_isa_aarch64::encode_runtime_storage_copy_cross_region_double_indexed_pair(
+                                        source.region,
+                                        source_base_byte_offset,
+                                        source_outer_index_region,
+                                        source_outer_index_offset,
+                                        source_outer_index_byte_size,
+                                        source_outer_stride,
+                                        source_inner_index_region,
+                                        source_inner_index_offset,
+                                        source_inner_index_byte_size,
+                                        source_inner_stride,
+                                        source_field_byte_offset,
+                                        target.region,
+                                        target_base_byte_offset,
+                                        target_outer_index_region,
+                                        target_outer_index_offset,
+                                        target_outer_index_byte_size,
+                                        target_outer_stride,
+                                        target_inner_index_region,
+                                        target_inner_index_offset,
+                                        target_inner_index_byte_size,
+                                        target_inner_stride,
                                         target_field_byte_offset,
                                         byte_count,
                                     )?,
@@ -7936,6 +8004,9 @@ fn compiler_instruction_footprint(
                         CompilerBodyPlaceCopyShape::CrossRegionIndexedPair { .. } => {
                             omega_isa_x86_64::copy_places_clobbers(&source, &target, byte_count)
                         }
+                        CompilerBodyPlaceCopyShape::CrossRegionDoubleIndexedPair { .. } => {
+                            omega_isa_x86_64::copy_places_clobbers(&source, &target, byte_count)
+                        }
                         CompilerBodyPlaceCopyShape::FrameBaseDoubleIndexedPair { .. } => {
                             omega_isa_x86_64::copy_places_clobbers(&source, &target, byte_count)
                         }
@@ -8094,6 +8165,9 @@ fn compiler_instruction_footprint(
                         ),
                         CompilerBodyPlaceCopyShape::CrossRegionIndexedPair { .. } => {
                             omega_isa_aarch64::runtime_storage_copy_cross_region_indexed_pair_clobbers()
+                        }
+                        CompilerBodyPlaceCopyShape::CrossRegionDoubleIndexedPair { .. } => {
+                            omega_isa_aarch64::runtime_storage_copy_cross_region_double_indexed_pair_clobbers()
                         }
                         CompilerBodyPlaceCopyShape::FrameBaseDoubleIndexedPair {
                             source_outer_index_region,
@@ -10305,6 +10379,9 @@ fn compiler_place_copy_address_sites(
             CompilerBodyPlaceCopyShape::CrossRegionIndexedPair { .. } => {
                 Ok(vec![(0, source.region), (8, target.region)])
             }
+            CompilerBodyPlaceCopyShape::CrossRegionDoubleIndexedPair { .. } => {
+                Ok(vec![(0, source.region), (8, target.region)])
+            }
             CompilerBodyPlaceCopyShape::FrameBaseDoubleIndexedPair {
                 source_outer_index_region,
                 source_inner_index_region,
@@ -10797,6 +10874,55 @@ fn compiler_body_place_copy_shape(
         )) = compiler_double_indexed_place_offsets(target)
     {
         return Ok(CompilerBodyPlaceCopyShape::FrameBaseDoubleIndexedPair {
+            source_base_byte_offset,
+            source_outer_index_region,
+            source_outer_index_offset,
+            source_outer_index_byte_size,
+            source_outer_stride,
+            source_inner_index_region,
+            source_inner_index_offset,
+            source_inner_index_byte_size,
+            source_inner_stride,
+            source_field_byte_offset,
+            target_base_byte_offset,
+            target_outer_index_region,
+            target_outer_index_offset,
+            target_outer_index_byte_size,
+            target_outer_stride,
+            target_inner_index_region,
+            target_inner_index_offset,
+            target_inner_index_byte_size,
+            target_inner_stride,
+            target_field_byte_offset,
+        });
+    }
+    if source.region != target.region
+        && let Ok((
+            source_base_byte_offset,
+            source_outer_index_region,
+            source_outer_index_offset,
+            source_outer_index_byte_size,
+            source_outer_stride,
+            source_inner_index_region,
+            source_inner_index_offset,
+            source_inner_index_byte_size,
+            source_inner_stride,
+            source_field_byte_offset,
+        )) = compiler_double_indexed_place_offsets(source)
+        && let Ok((
+            target_base_byte_offset,
+            target_outer_index_region,
+            target_outer_index_offset,
+            target_outer_index_byte_size,
+            target_outer_stride,
+            target_inner_index_region,
+            target_inner_index_offset,
+            target_inner_index_byte_size,
+            target_inner_stride,
+            target_field_byte_offset,
+        )) = compiler_double_indexed_place_offsets(target)
+    {
+        return Ok(CompilerBodyPlaceCopyShape::CrossRegionDoubleIndexedPair {
             source_base_byte_offset,
             source_outer_index_region,
             source_outer_index_offset,
@@ -17937,6 +18063,66 @@ mod tests {
                 12,
             )
             .expect("final cross-region indexed-pair sites"),
+            vec![
+                (0, RuntimeStorageRegion::Machine),
+                (8, RuntimeStorageRegion::RuntimeFrame),
+            ]
+        );
+
+        let cross_region_double_source = Place::at(RuntimeStorageRegion::Machine, 200)
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::RuntimeFrame,
+                index_offset: 120,
+                index_byte_size: 8,
+                element_byte_size: 24,
+            })
+            .and_then(|place| {
+                place.with_step(PlaceStep::ScaledIndex {
+                    index_region: RuntimeStorageRegion::Machine,
+                    index_offset: 128,
+                    index_byte_size: 8,
+                    element_byte_size: 12,
+                })
+            })
+            .expect("cross-region double-indexed source");
+        let cross_region_double_target = Place::at(RuntimeStorageRegion::RuntimeFrame, 240)
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::Machine,
+                index_offset: 136,
+                index_byte_size: 8,
+                element_byte_size: 24,
+            })
+            .and_then(|place| {
+                place.with_step(PlaceStep::ScaledIndex {
+                    index_region: RuntimeStorageRegion::RuntimeFrame,
+                    index_offset: 144,
+                    index_byte_size: 8,
+                    element_byte_size: 12,
+                })
+            })
+            .expect("cross-region double-indexed target");
+        assert!(matches!(
+            compiler_body_place_copy_shape(
+                &cross_region_double_source,
+                &cross_region_double_target,
+            )
+            .expect("classify final cross-region double-indexed pair"),
+            CompilerBodyPlaceCopyShape::CrossRegionDoubleIndexedPair {
+                source_outer_index_region: RuntimeStorageRegion::RuntimeFrame,
+                source_inner_index_region: RuntimeStorageRegion::Machine,
+                target_outer_index_region: RuntimeStorageRegion::Machine,
+                target_inner_index_region: RuntimeStorageRegion::RuntimeFrame,
+                ..
+            }
+        ));
+        assert_eq!(
+            compiler_place_copy_address_sites(
+                omega_target::Architecture::Aarch64,
+                cross_region_double_source,
+                cross_region_double_target,
+                12,
+            )
+            .expect("final cross-region double-indexed-pair sites"),
             vec![
                 (0, RuntimeStorageRegion::Machine),
                 (8, RuntimeStorageRegion::RuntimeFrame),

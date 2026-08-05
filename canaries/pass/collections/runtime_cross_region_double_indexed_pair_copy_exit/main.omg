@@ -1,0 +1,40 @@
+// Whole-aggregate double-indexed copies between machine- and frame-rooted 2D
+// arrays in both directions. Each walk mixes one machine-held and one
+// frame-held runtime index.
+use omega::language::std::console;
+data Triple { first: i32; second: i32; third: i32; }
+data Main {
+    console: Console;
+    values: [[Triple; 2]; 2];
+    index: u64 [0..=1];
+}
+machine Main::main(&mut self) {
+    self.index = 1;
+    transition { _ -> self.copy(0) }
+}
+machine Main::copy(&mut self, j: u64 [0..=1]) {
+    let local: [[Triple; 2]; 2] = [
+        [
+            Triple { first: 1, second: 2, third: 3 },
+            Triple { first: 4, second: 5, third: 6 }
+        ],
+        [
+            Triple { first: 10, second: 20, third: 30 },
+            Triple { first: 40, second: 50, third: 60 }
+        ]
+    ];
+    self.values[j][self.index] = local[self.index][j];
+    let machine_first: i32 = self.values[j][self.index].first;
+    let machine_second: i32 = self.values[j][self.index].second;
+    let machine_third: i32 = self.values[j][self.index].third;
+    local[self.index][j] = self.values[j][self.index];
+    let frame_first: i32 = local[self.index][j].first;
+    let frame_second: i32 = local[self.index][j].second;
+    let frame_third: i32 = local[self.index][j].third;
+    transition machine_first == 10 && machine_second == 20 && machine_third == 30 && frame_first == 10 && frame_second == 20 && frame_third == 30 {
+        true -> yes()
+        false -> no()
+    }
+    state yes(&mut self) { self.console.exit_process(1); }
+    state no(&mut self) { self.console.exit_process(2); }
+}
