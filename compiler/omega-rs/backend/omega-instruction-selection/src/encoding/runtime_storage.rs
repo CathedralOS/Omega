@@ -1378,6 +1378,12 @@ pub fn classify_frame_base_double_indexed_convert_shape(
     classify_frame_base_double_indexed_shape(target)
 }
 
+pub fn classify_frame_base_double_indexed_string_shape(
+    target: &omega_target_operations::Place,
+) -> Option<FrameBaseDoubleIndexedShape> {
+    classify_frame_base_double_indexed_shape(target)
+}
+
 pub fn classify_frame_base_double_indexed_address_shape(
     source: &omega_target_operations::Place,
 ) -> Option<FrameBaseDoubleIndexedShape> {
@@ -1993,6 +1999,21 @@ pub fn encode_write_place_string(
     target: &omega_target_operations::Place,
     byte_length: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
+    if architecture == Architecture::Aarch64
+        && let Some(frame_double) = classify_frame_base_double_indexed_string_shape(target)
+    {
+        return aarch64::encode_runtime_frame_base_double_indexed_string_write(
+            frame_double.base_byte_offset,
+            frame_double.outer_index_offset,
+            frame_double.outer_index_byte_size,
+            frame_double.outer_stride,
+            frame_double.inner_index_offset,
+            frame_double.inner_index_byte_size,
+            frame_double.inner_stride,
+            frame_double.field_byte_offset,
+            byte_length,
+        );
+    }
     if architecture == Architecture::Aarch64
         && let Some(frame_indexed) = classify_frame_base_indexed_string_shape(target)
     {

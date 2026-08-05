@@ -2940,6 +2940,17 @@ pub fn runtime_machine_double_indexed_string_data_address_offset(
     }
 }
 
+pub fn runtime_frame_base_double_indexed_string_data_address_offset(
+    architecture: Architecture,
+) -> usize {
+    assert_eq!(
+        architecture,
+        Architecture::Aarch64,
+        "x86 string-descriptor relocations come from the generic place materializer"
+    );
+    aarch64::runtime_frame_base_double_indexed_string_data_address_offset()
+}
+
 /// Target-region relocation start (the write-half `mov r15,imm64`, pre-`+2`)
 /// inside the double-indexed read. x86_64 only.
 pub fn runtime_storage_copy_from_runtime_machine_double_indexed_target_base_offset(

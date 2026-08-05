@@ -1345,7 +1345,9 @@ String-descriptor writes replay all x86 targets and every classified AArch64 tar
 direct, pointee, frame-indexed, cross-region frame-indexed, inline-frame-indexed,
 and single- or double-runtime-indexed machine storage, including
 frame- or machine-held indices for the inline-frame shape and its exact second-
-base relocation. Exact rodata and storage/index relocations bind a separate
+base relocation. AArch64 also replays all-frame double-runtime-indexed targets
+with one shared frame relocation and an exact data-object relocation after the
+address walk. Exact rodata and storage/index relocations bind a separate
 `CompilerBodyPlaceStringWrite` footprint. Immediate bounded-buffer literal
 writes replay all x86 targets and every classified AArch64 place target,
 including indexed and double-indexed owned carriers. Inline-frame targets accept

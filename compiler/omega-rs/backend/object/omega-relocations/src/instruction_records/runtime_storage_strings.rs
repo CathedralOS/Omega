@@ -1,4 +1,5 @@
 use super::super::offsets::{
+    runtime_frame_base_double_indexed_string_data_address_offset,
     runtime_frame_base_indexed_string_data_address_offset,
     runtime_frame_base_indexed_string_data_address_offset_with_index_region,
     runtime_frame_indexed_string_data_address_offset,
@@ -71,6 +72,9 @@ pub(super) fn collect_runtime_storage_string_relocations(
                         omega_instruction_selection::classify_frame_base_indexed_string_shape(
                             target,
                         );
+                    let frame_double = omega_instruction_selection::classify_frame_base_double_indexed_string_shape(
+                        target,
+                    );
                     match shape {
                         omega_instruction_selection::WritePlaceShape::Direct { .. } => {
                             context.insert_data_address_at_instruction_start(data_symbol);
@@ -218,6 +222,19 @@ pub(super) fn collect_runtime_storage_string_relocations(
                                     context.input.target.architecture,
                                     outer_index_region,
                                     inner_index_region,
+                                ),
+                                data_symbol,
+                            );
+                        }
+                        omega_instruction_selection::WritePlaceShape::Unsupported
+                            if frame_double.is_some() =>
+                        {
+                            context.insert_data_address_at_instruction_start(
+                                context.runtime_frame_symbol_handle(),
+                            );
+                            context.insert_data_address_at_relative_offset(
+                                runtime_frame_base_double_indexed_string_data_address_offset(
+                                    context.input.target.architecture,
                                 ),
                                 data_symbol,
                             );

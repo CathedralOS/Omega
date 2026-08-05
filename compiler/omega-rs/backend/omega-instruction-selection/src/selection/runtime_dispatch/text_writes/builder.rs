@@ -7,8 +7,10 @@ use crate::selection::bindings::{
 use crate::selection::host_operations::runtime_text_input_buffer_data_for_text_place;
 use crate::selection::host_operations::runtime_text_input_buffer_data_for_text_place_in_table;
 use crate::selection::storage_places::{
-    RuntimeFrameBaseIndexedTarget, RuntimeFrameIndexedTarget, RuntimeMachineDoubleIndexedTarget,
-    RuntimeMachineIndexedTarget, RuntimePointeeTarget, RuntimeStoragePlace,
+    RuntimeFrameBaseDoubleIndexedTarget, RuntimeFrameBaseIndexedTarget, RuntimeFrameIndexedTarget,
+    RuntimeMachineDoubleIndexedTarget, RuntimeMachineIndexedTarget, RuntimePointeeTarget,
+    RuntimeStoragePlace, resolve_runtime_frame_base_double_indexed_source,
+    resolve_runtime_frame_base_double_indexed_source_in_table,
     resolve_runtime_frame_base_indexed_target, resolve_runtime_frame_base_indexed_target_in_table,
     resolve_runtime_frame_indexed_target, resolve_runtime_frame_indexed_target_in_table,
     resolve_runtime_machine_double_indexed_source,
@@ -32,6 +34,7 @@ struct RuntimeTextTarget {
     place: Option<RuntimeStoragePlace>,
     indexed: Option<RuntimeFrameIndexedTarget>,
     frame_base_indexed: Option<RuntimeFrameBaseIndexedTarget>,
+    frame_base_double_indexed: Option<RuntimeFrameBaseDoubleIndexedTarget>,
     machine_indexed: Option<RuntimeMachineIndexedTarget>,
     machine_double_indexed: Option<RuntimeMachineDoubleIndexedTarget>,
     pointee: Option<RuntimePointeeTarget>,
@@ -43,6 +46,7 @@ impl RuntimeTextTarget {
         place: Option<RuntimeStoragePlace>,
         indexed: Option<RuntimeFrameIndexedTarget>,
         frame_base_indexed: Option<RuntimeFrameBaseIndexedTarget>,
+        frame_base_double_indexed: Option<RuntimeFrameBaseDoubleIndexedTarget>,
         machine_indexed: Option<RuntimeMachineIndexedTarget>,
         machine_double_indexed: Option<RuntimeMachineDoubleIndexedTarget>,
         pointee: Option<RuntimePointeeTarget>,
@@ -51,6 +55,7 @@ impl RuntimeTextTarget {
             && pointee.is_none()
             && indexed.is_none()
             && frame_base_indexed.is_none()
+            && frame_base_double_indexed.is_none()
             && machine_indexed.is_none()
             && machine_double_indexed.is_none()
         {
@@ -79,6 +84,12 @@ impl RuntimeTextTarget {
         {
             return None;
         }
+        if frame_base_double_indexed
+            .as_ref()
+            .is_some_and(|target| target.byte_count != input.runtime_abi.string_descriptor_size())
+        {
+            return None;
+        }
         if machine_indexed
             .as_ref()
             .is_some_and(|target| target.byte_count != input.runtime_abi.string_descriptor_size())
@@ -96,6 +107,7 @@ impl RuntimeTextTarget {
             place,
             indexed,
             frame_base_indexed,
+            frame_base_double_indexed,
             machine_indexed,
             machine_double_indexed,
             pointee,
@@ -210,6 +222,12 @@ pub(in crate::selection) fn runtime_text_builder_write_without_aliases_emit(
         source_key,
         &resolved_target,
     );
+    let target_frame_base_double_indexed = resolve_runtime_frame_base_double_indexed_source(
+        input,
+        dispatch_index,
+        source_key,
+        &resolved_target,
+    );
     let mut machine_indexed_expressions = ExpressionTable::default();
     let machine_indexed_target = machine_indexed_expressions.insert_tree(&resolved_target);
     let target_machine_indexed = resolve_runtime_machine_indexed_target_in_table(
@@ -246,6 +264,7 @@ pub(in crate::selection) fn runtime_text_builder_write_without_aliases_emit(
         && target_pointee.is_none()
         && target_indexed.is_none()
         && target_frame_base_indexed.is_none()
+        && target_frame_base_double_indexed.is_none()
         && target_machine_indexed.is_none()
         && target_machine_double_indexed.is_none()
     {
@@ -269,6 +288,12 @@ pub(in crate::selection) fn runtime_text_builder_write_without_aliases_emit(
         return false;
     }
     if target_frame_base_indexed
+        .as_ref()
+        .is_some_and(|target| target.byte_count != input.runtime_abi.string_descriptor_size())
+    {
+        return false;
+    }
+    if target_frame_base_double_indexed
         .as_ref()
         .is_some_and(|target| target.byte_count != input.runtime_abi.string_descriptor_size())
     {
@@ -310,6 +335,7 @@ pub(in crate::selection) fn runtime_text_builder_write_without_aliases_emit(
         target_place.clone(),
         target_indexed.clone(),
         target_frame_base_indexed,
+        target_frame_base_double_indexed,
         target_machine_indexed,
         target_machine_double_indexed,
         target_pointee,
@@ -428,6 +454,7 @@ pub(in crate::selection) fn runtime_text_builder_write_without_aliases_emit(
                     target.pointee.as_ref(),
                     target.indexed.as_ref(),
                     target.frame_base_indexed.as_ref(),
+                    target.frame_base_double_indexed.as_ref(),
                     target.machine_indexed.as_ref(),
                     target.machine_double_indexed.as_ref(),
                     literal,
@@ -447,6 +474,7 @@ pub(in crate::selection) fn runtime_text_builder_write_without_aliases_emit(
                     target.pointee.as_ref(),
                     target.indexed.as_ref(),
                     target.frame_base_indexed.as_ref(),
+                    target.frame_base_double_indexed.as_ref(),
                     target.machine_indexed.as_ref(),
                     target.machine_double_indexed.as_ref(),
                     Arc::from(UNSUPPORTED_RUNTIME_TEXT_SEGMENT),
@@ -514,6 +542,12 @@ pub(in crate::selection) fn runtime_text_builder_write_with_handle_resolver_emit
         source_key,
         &resolved_target,
     );
+    let target_frame_base_double_indexed = resolve_runtime_frame_base_double_indexed_source(
+        input,
+        dispatch_index,
+        source_key,
+        &resolved_target,
+    );
     let target_pointee =
         resolve_runtime_pointee_slot_offset(input, dispatch_index, source_key, &resolved_target);
     let mut machine_indexed_target_expressions = ExpressionTable::default();
@@ -537,6 +571,7 @@ pub(in crate::selection) fn runtime_text_builder_write_with_handle_resolver_emit
         target_place,
         target_indexed,
         target_frame_base_indexed,
+        target_frame_base_double_indexed,
         target_machine_indexed,
         target_machine_double_indexed,
         target_pointee,
@@ -617,6 +652,14 @@ pub(in crate::selection) fn runtime_text_builder_write_in_table_emit(
         target_expressions,
         resolved_target,
     );
+    let target_frame_base_double_indexed =
+        resolve_runtime_frame_base_double_indexed_source_in_table(
+            input,
+            dispatch_index,
+            target_source_key,
+            target_expressions,
+            resolved_target,
+        );
     let target_machine_indexed = resolve_runtime_machine_indexed_target_in_table(
         input,
         dispatch_index,
@@ -643,6 +686,7 @@ pub(in crate::selection) fn runtime_text_builder_write_in_table_emit(
         target_place,
         target_indexed,
         target_frame_base_indexed,
+        target_frame_base_double_indexed,
         target_machine_indexed,
         target_machine_double_indexed,
         target_pointee,
@@ -810,6 +854,7 @@ fn emit_runtime_text_builder_segments_with_handle_resolver(
                     target.pointee.as_ref(),
                     target.indexed.as_ref(),
                     target.frame_base_indexed.as_ref(),
+                    target.frame_base_double_indexed.as_ref(),
                     target.machine_indexed.as_ref(),
                     target.machine_double_indexed.as_ref(),
                     literal,
@@ -829,6 +874,7 @@ fn emit_runtime_text_builder_segments_with_handle_resolver(
                     target.pointee.as_ref(),
                     target.indexed.as_ref(),
                     target.frame_base_indexed.as_ref(),
+                    target.frame_base_double_indexed.as_ref(),
                     target.machine_indexed.as_ref(),
                     target.machine_double_indexed.as_ref(),
                     Arc::from(UNSUPPORTED_RUNTIME_TEXT_SEGMENT),
@@ -853,6 +899,7 @@ fn append_runtime_text_literal_to_target(
     target_pointee: Option<&RuntimePointeeTarget>,
     target_indexed: Option<&RuntimeFrameIndexedTarget>,
     target_frame_base_indexed: Option<&RuntimeFrameBaseIndexedTarget>,
+    target_frame_base_double_indexed: Option<&RuntimeFrameBaseDoubleIndexedTarget>,
     target_machine_indexed: Option<&RuntimeMachineIndexedTarget>,
     target_machine_double_indexed: Option<&RuntimeMachineDoubleIndexedTarget>,
     literal: Arc<str>,
@@ -901,6 +948,25 @@ fn append_runtime_text_literal_to_target(
             ),
             literal,
         });
+    } else if let Some(target) = target_frame_base_double_indexed {
+        let data = string_literal_data_handle(input, source_key, statement_index, &literal);
+        if !data.is_valid() {
+            return false;
+        }
+        emit(
+            crate::selection::runtime_dispatch::write_place_string_frame_base_double_indexed(
+                target.base_byte_offset,
+                target.outer_index_offset,
+                target.outer_index_byte_size,
+                target.outer_stride,
+                target.inner_index_offset,
+                target.inner_index_byte_size,
+                target.inner_stride,
+                target.field_byte_offset,
+                data,
+                literal.len(),
+            ),
+        );
     } else if let Some(target) = target_machine_indexed {
         let data = string_literal_data_handle(input, source_key, statement_index, &literal);
         if !data.is_valid() {
@@ -1020,6 +1086,21 @@ fn initialize_runtime_text_target_with_first_literal_segment(
                 target.index_offset,
                 target.index_byte_size,
                 target.element_byte_size,
+                target.field_byte_offset,
+                data,
+                literal.len(),
+            ),
+        );
+    } else if let Some(target) = target.frame_base_double_indexed.as_ref() {
+        emit(
+            crate::selection::runtime_dispatch::write_place_string_frame_base_double_indexed(
+                target.base_byte_offset,
+                target.outer_index_offset,
+                target.outer_index_byte_size,
+                target.outer_stride,
+                target.inner_index_offset,
+                target.inner_index_byte_size,
+                target.inner_stride,
                 target.field_byte_offset,
                 data,
                 literal.len(),
