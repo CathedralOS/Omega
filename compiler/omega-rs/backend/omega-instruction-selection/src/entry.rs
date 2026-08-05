@@ -825,7 +825,19 @@ pub fn derive_boundary_compiler_body_place_integer_write_footprint<'instruction>
             continue;
         };
         let shape = crate::classify_write_place_shape(target);
+        let frame_indexed = crate::classify_frame_base_indexed_integer_shape(target);
         let frame_double = crate::classify_frame_base_double_indexed_integer_shape(target);
+        if architecture == omega_target::Architecture::Aarch64
+            && let Some(frame_indexed) = frame_indexed
+        {
+            registers.extend_from_slice(
+                omega_isa_aarch64::runtime_frame_base_indexed_integer_write_with_index_region_clobbers(
+                    frame_indexed.index_region,
+                )
+                .as_slice(),
+            );
+            continue;
+        }
         let clobbers = match (architecture, shape) {
             (
                 omega_target::Architecture::X86_64,
@@ -5150,6 +5162,49 @@ mod tests {
                 MachineRegister::Aarch64X(19),
                 MachineRegister::Aarch64X(20),
                 MachineRegister::Aarch64X(21),
+                MachineRegister::Aarch64X(26),
+            ]
+        );
+    }
+
+    #[test]
+    fn compiler_body_cross_region_frame_base_indexed_integer_write_tracks_aarch64_base() {
+        let boundary = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::Aapcs64,
+            &CallSignature {
+                parameters: Vec::new(),
+                result: None,
+            },
+        )
+        .expect("AAPCS64 boundary");
+        let target = omega_abstract_operations::Place::at(
+            omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+            16,
+        )
+        .with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+            index_region: omega_abstract_operations::RuntimeStorageRegion::Machine,
+            index_offset: 64,
+            index_byte_size: 8,
+            element_byte_size: 24,
+        })
+        .and_then(|place| place.with_step(omega_abstract_operations::PlaceStep::ConstOffset(8)))
+        .expect("cross-region inline-frame target");
+        let instruction = SelectedInstructionKind::WritePlaceInteger {
+            target,
+            value: 7,
+            byte_size: 4,
+        };
+        let evidence =
+            derive_boundary_compiler_body_place_integer_write_footprint(&boundary, [&instruction])
+                .expect("ordinary inline-frame integer-write evidence");
+        assert_eq!(
+            evidence.registers().as_slice(),
+            &[
+                MachineRegister::Aarch64X(15),
+                MachineRegister::Aarch64X(16),
+                MachineRegister::Aarch64X(17),
+                MachineRegister::Aarch64X(19),
+                MachineRegister::Aarch64X(20),
                 MachineRegister::Aarch64X(26),
             ]
         );

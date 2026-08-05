@@ -1062,7 +1062,8 @@ the retained places' exact index depths.
 Direct-place immediate integer writes, writes through a frame-held pointer or
 indexed descriptor, and runtime-indexed writes into inline frame arrays also
 retain a separate ordinary-body fragment and replay exact target `Place`,
-value, width, every storage/index relocation, and target scratch.
+value, width, every storage/index relocation, and target scratch. An inline-
+frame target's index may live in frame or machine storage.
 Runtime-indexed immediate writes into single- and double-indexed inline machine
 arrays are included too. AArch64 also replays literal integer writes into
 all-frame double-runtime-indexed inline arrays using one shared frame

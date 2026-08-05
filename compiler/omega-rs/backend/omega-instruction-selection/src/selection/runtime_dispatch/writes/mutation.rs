@@ -36,9 +36,11 @@ use super::super::super::bindings::{
     resolve_runtime_alias_binding_handle, strip_mutable_expression,
 };
 use super::super::super::storage_places::{
-    resolve_binary_write_arithmetic_domain, resolve_runtime_storage_arithmetic_domain,
-    resolve_runtime_storage_is_signed, resolve_runtime_storage_place,
-    resolve_runtime_storage_primitive_type, runtime_storage_target_is_atomic,
+    resolve_binary_write_arithmetic_domain,
+    resolve_runtime_frame_base_indexed_target_with_index_region,
+    resolve_runtime_storage_arithmetic_domain, resolve_runtime_storage_is_signed,
+    resolve_runtime_storage_place, resolve_runtime_storage_primitive_type,
+    runtime_storage_target_is_atomic,
 };
 use super::super::super::storage_places::{
     resolve_runtime_assignment_value_call_result_place_by_ordinal,
@@ -2238,7 +2240,7 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
         }
     }
 
-    if let Some(indexed_target) = resolve_runtime_frame_base_indexed_target(
+    if let Some(indexed_target) = resolve_runtime_frame_base_indexed_target_with_index_region(
         input,
         dispatch_index,
         target_source_key,
@@ -2258,7 +2260,7 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
                 kind: crate::selection::runtime_dispatch::write_place_integer_base_indexed(
                     omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
                     indexed_target.base_byte_offset,
-                    omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                    indexed_target.index_region,
                     indexed_target.index_offset,
                     indexed_target.index_byte_size,
                     indexed_target.element_byte_size,

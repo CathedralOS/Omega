@@ -1049,13 +1049,34 @@ pub fn runtime_frame_base_indexed_integer_write_width(
     field_byte_offset: usize,
     byte_size: usize,
 ) -> usize {
+    runtime_frame_base_indexed_integer_write_with_index_region_width(
+        base_byte_offset,
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+        byte_size,
+    )
+}
+
+pub fn runtime_frame_base_indexed_integer_write_with_index_region_width(
+    base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+) -> usize {
     runtime_frame_base_index_setup_width_with_index_width(
         base_byte_offset,
         index_offset,
         index_byte_size,
         element_byte_size,
         field_byte_offset,
-    ) + runtime_store_data_width(byte_size)
+    ) + usize::from(index_region == omega_target_operations::RuntimeStorageRegion::Machine) * 8
+        + runtime_store_data_width(byte_size)
 }
 
 fn runtime_frame_base_index_setup_width_with_index_width(

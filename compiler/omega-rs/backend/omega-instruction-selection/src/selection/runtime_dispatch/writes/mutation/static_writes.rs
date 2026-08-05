@@ -1,7 +1,8 @@
 use crate::InstructionSelectionInput;
 use crate::selection::runtime_dispatch::writes::mutation::operators::supports_scalar_integer_write;
 use crate::selection::storage_places::{
-    resolve_runtime_bit_field_place_in_table, resolve_runtime_frame_base_indexed_target_in_table,
+    resolve_runtime_bit_field_place_in_table,
+    resolve_runtime_frame_base_indexed_target_with_index_region_in_table,
     resolve_runtime_frame_fixed_indexed_target_in_table,
     resolve_runtime_frame_indexed_target_in_table, resolve_runtime_machine_indexed_target_in_table,
     resolve_runtime_pointee_fixed_indexed_target_in_table,
@@ -106,19 +107,21 @@ pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_static_muta
         );
     }
 
-    if let Some(indexed_target) = resolve_runtime_frame_base_indexed_target_in_table(
-        input,
-        dispatch_index,
-        target_source_key,
-        expressions,
-        target,
-    ) && supports_scalar_integer_write(indexed_target.byte_count)
+    if let Some(indexed_target) =
+        resolve_runtime_frame_base_indexed_target_with_index_region_in_table(
+            input,
+            dispatch_index,
+            target_source_key,
+            expressions,
+            target,
+        )
+        && supports_scalar_integer_write(indexed_target.byte_count)
     {
         return Some(
             crate::selection::runtime_dispatch::write_place_integer_base_indexed(
                 omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
                 indexed_target.base_byte_offset,
-                omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                indexed_target.index_region,
                 indexed_target.index_offset,
                 indexed_target.index_byte_size,
                 indexed_target.element_byte_size,

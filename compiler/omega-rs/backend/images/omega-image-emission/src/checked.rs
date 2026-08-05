@@ -2701,6 +2701,7 @@ enum CompilerBodyPlaceIntegerWriteShape {
     },
     FrameBaseIndexed {
         base_byte_offset: usize,
+        index_region: omega_target_operations::RuntimeStorageRegion,
         index_offset: usize,
         index_byte_size: usize,
         element_byte_size: usize,
@@ -3698,7 +3699,7 @@ fn validate_compiler_function_instruction_boundaries(
                         value,
                         byte_size,
                     } => {
-                        let shape = compiler_body_place_integer_write_shape(&target)?;
+                        let shape = compiler_body_place_integer_write_shape_with_cross_region_frame_base(&target)?;
                         (
                             None,
                             match architecture {
@@ -3746,12 +3747,14 @@ fn validate_compiler_function_instruction_boundaries(
                                 )?,
                                 CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed {
                                     base_byte_offset,
+                                    index_region,
                                     index_offset,
                                     index_byte_size,
                                     element_byte_size,
                                     field_byte_offset,
-                                } => omega_isa_aarch64::encode_runtime_frame_base_indexed_integer_write(
+                                } => omega_isa_aarch64::encode_runtime_frame_base_indexed_integer_write_with_index_region(
                                     base_byte_offset,
+                                    index_region,
                                     index_offset,
                                     index_byte_size,
                                     element_byte_size,
@@ -4802,6 +4805,7 @@ fn validate_compiler_function_instruction_boundaries(
                                     )?,
                                     CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed {
                                         base_byte_offset,
+                                        index_region: _,
                                         index_offset,
                                         index_byte_size,
                                         element_byte_size,
@@ -4917,6 +4921,7 @@ fn validate_compiler_function_instruction_boundaries(
                                     )?,
                                     CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed {
                                         base_byte_offset,
+                                        index_region: _,
                                         index_offset,
                                         index_byte_size,
                                         element_byte_size,
@@ -5080,6 +5085,7 @@ fn validate_compiler_function_instruction_boundaries(
                                 )?,
                                 CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed {
                                     base_byte_offset,
+                                    index_region: _,
                                     index_offset,
                                     index_byte_size,
                                     element_byte_size,
@@ -5226,6 +5232,7 @@ fn validate_compiler_function_instruction_boundaries(
                                 Architecture::Aarch64,
                                 CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed {
                                     base_byte_offset,
+                                    index_region: _,
                                     index_offset,
                                     index_byte_size,
                                     element_byte_size,
@@ -5343,6 +5350,7 @@ fn validate_compiler_function_instruction_boundaries(
                                 Architecture::Aarch64,
                                 CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed {
                                     base_byte_offset,
+                                    index_region: _,
                                     index_offset,
                                     index_byte_size,
                                     element_byte_size,
@@ -5463,6 +5471,7 @@ fn validate_compiler_function_instruction_boundaries(
                                 Architecture::Aarch64,
                                 CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed {
                                     base_byte_offset,
+                                    index_region: _,
                                     index_offset,
                                     index_byte_size,
                                     element_byte_size,
@@ -5665,6 +5674,7 @@ fn validate_compiler_function_instruction_boundaries(
                                 )?,
                                 CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed {
                                     base_byte_offset,
+                                    index_region: _,
                                     index_offset,
                                     index_byte_size,
                                     element_byte_size,
@@ -5895,6 +5905,7 @@ fn validate_compiler_function_instruction_boundaries(
                                     )?,
                                     CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed {
                                         base_byte_offset,
+                                        index_region: _,
                                         index_offset,
                                         index_byte_size,
                                         element_byte_size,
@@ -7357,7 +7368,9 @@ fn compiler_instruction_footprint(
             )
         }
         CompilerInstructionValidationKind::CompilerBodyPlaceIntegerWrite { target, .. } => {
-            let Ok(shape) = compiler_body_place_integer_write_shape(&target) else {
+            let Ok(shape) =
+                compiler_body_place_integer_write_shape_with_cross_region_frame_base(&target)
+            else {
                 return None;
             };
             (
@@ -7380,8 +7393,13 @@ fn compiler_instruction_footprint(
                         } => omega_isa_aarch64::runtime_frame_indexed_integer_write_clobbers(
                             index_region,
                         ),
-                        CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. } => {
-                            omega_isa_aarch64::runtime_frame_base_indexed_integer_write_clobbers()
+                        CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed {
+                            index_region,
+                            ..
+                        } => {
+                            omega_isa_aarch64::runtime_frame_base_indexed_integer_write_with_index_region_clobbers(
+                                index_region,
+                            )
                         }
                         CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed { .. } => {
                             omega_isa_aarch64::runtime_frame_base_double_indexed_integer_write_clobbers()
@@ -9840,6 +9858,7 @@ fn compiler_body_place_integer_write_shape(
     {
         return Ok(CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed {
             base_byte_offset,
+            index_region,
             index_offset,
             index_byte_size,
             element_byte_size,
@@ -9884,6 +9903,31 @@ fn compiler_body_place_integer_write_shape(
     }
 }
 
+fn compiler_body_place_integer_write_shape_with_cross_region_frame_base(
+    target: &omega_target_operations::Place,
+) -> Result<CompilerBodyPlaceIntegerWriteShape, Diagnostic> {
+    if target.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+        && let Ok((
+            base_byte_offset,
+            index_region,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+        )) = compiler_single_direct_indexed_place_offsets(target)
+    {
+        return Ok(CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed {
+            base_byte_offset,
+            index_region,
+            index_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+        });
+    }
+    compiler_body_place_integer_write_shape(target)
+}
+
 fn encode_compiler_place_address_write(
     architecture: Architecture,
     source: &omega_target_operations::Place,
@@ -9925,6 +9969,7 @@ fn encode_compiler_place_address_write(
             ),
             CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed {
                 base_byte_offset,
+                index_region: _,
                 index_offset,
                 index_byte_size,
                 element_byte_size,
@@ -11049,8 +11094,23 @@ fn compiler_place_integer_write_address_sites(
                 .collect()
         }
         Architecture::Aarch64 => {
-            let shape = compiler_body_place_integer_write_shape(&place)?;
+            let shape =
+                compiler_body_place_integer_write_shape_with_cross_region_frame_base(&place)?;
             let mut sites = vec![(0, place.region)];
+            if let CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed {
+                base_byte_offset,
+                index_region,
+                ..
+            } = shape
+                && index_region == omega_target_operations::RuntimeStorageRegion::Machine
+            {
+                sites.push((
+                    omega_isa_aarch64::runtime_frame_base_indexed_machine_index_base_offset(
+                        base_byte_offset,
+                    ),
+                    index_region,
+                ));
+            }
             if let CompilerBodyPlaceIntegerWriteShape::FrameIndexed { index_region, .. } = shape
                 && index_region == omega_target_operations::RuntimeStorageRegion::Machine
             {
@@ -11242,6 +11302,7 @@ fn compiler_place_binary_write_address_sites(
             }
             CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed {
                 base_byte_offset,
+                index_region: _,
                 index_offset,
                 index_byte_size,
                 element_byte_size,
@@ -11411,6 +11472,7 @@ fn compiler_place_convert_write_address_sites(
             }
             CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed {
                 base_byte_offset,
+                index_region: _,
                 index_offset,
                 index_byte_size,
                 element_byte_size,
@@ -11763,6 +11825,7 @@ fn encode_aarch64_bounded_buffer_source_append(
         ),
         CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed {
             base_byte_offset,
+            index_region: _,
             index_offset,
             index_byte_size,
             element_byte_size,
@@ -11838,6 +11901,7 @@ fn aarch64_text_buffer_materialize_buffer_address_offset(
         ),
         CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed {
             base_byte_offset,
+            index_region: _,
             index_offset,
             index_byte_size,
             element_byte_size,
@@ -11964,6 +12028,7 @@ fn validate_compiler_place_string_relocations(
             }
             CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed {
                 base_byte_offset,
+                index_region: _,
                 index_offset,
                 index_byte_size,
                 element_byte_size,
@@ -12333,6 +12398,7 @@ fn validate_compiler_text_literal_append_relocations(
             Architecture::Aarch64,
             CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed {
                 base_byte_offset,
+                index_region: _,
                 index_offset,
                 index_byte_size,
                 element_byte_size,
@@ -12553,6 +12619,7 @@ fn validate_compiler_text_stored_append_relocations(
             Architecture::Aarch64,
             CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed {
                 base_byte_offset,
+                index_region: _,
                 index_offset,
                 index_byte_size,
                 element_byte_size,

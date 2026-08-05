@@ -1258,6 +1258,37 @@ pub struct FrameBaseDoubleIndexedShape {
     pub field_byte_offset: usize,
 }
 
+/// AArch64 immediate-integer rung for an inline frame array whose runtime
+/// index may live in either storage region. Other operation families keep
+/// using the narrower shared write classifier until their own replay
+/// contracts land.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FrameBaseIndexedIntegerShape {
+    pub base_byte_offset: usize,
+    pub index_region: omega_target_operations::RuntimeStorageRegion,
+    pub index_offset: usize,
+    pub index_byte_size: usize,
+    pub element_byte_size: usize,
+    pub field_byte_offset: usize,
+}
+
+pub fn classify_frame_base_indexed_integer_shape(
+    target: &omega_target_operations::Place,
+) -> Option<FrameBaseIndexedIntegerShape> {
+    let indexed = direct_indexed_path(target)?;
+    if target.region != omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
+        return None;
+    }
+    Some(FrameBaseIndexedIntegerShape {
+        base_byte_offset: indexed.pointer_offset,
+        index_region: indexed.index_region,
+        index_offset: indexed.index_offset,
+        index_byte_size: indexed.index_byte_size,
+        element_byte_size: indexed.element_byte_size,
+        field_byte_offset: indexed.field_offset,
+    })
+}
+
 pub fn classify_frame_base_double_indexed_binary_shape(
     target: &omega_target_operations::Place,
 ) -> Option<FrameBaseDoubleIndexedShape> {
@@ -1305,6 +1336,20 @@ pub fn encode_write_place_integer(
     value: i64,
     byte_size: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
+    if architecture == Architecture::Aarch64
+        && let Some(frame_indexed) = classify_frame_base_indexed_integer_shape(target)
+    {
+        return aarch64::encode_runtime_frame_base_indexed_integer_write_with_index_region(
+            frame_indexed.base_byte_offset,
+            frame_indexed.index_region,
+            frame_indexed.index_offset,
+            frame_indexed.index_byte_size,
+            frame_indexed.element_byte_size,
+            frame_indexed.field_byte_offset,
+            byte_size,
+            value,
+        );
+    }
     if architecture == Architecture::Aarch64
         && let Some(frame_double) = classify_frame_base_double_indexed_integer_shape(target)
     {
