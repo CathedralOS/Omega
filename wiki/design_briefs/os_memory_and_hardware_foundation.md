@@ -1139,7 +1139,7 @@ relocation-envelope fingerprints plus their composed derivation identity. The
 boundary/placement binding includes that derivation identity, so a valid final
 inventory cannot be paired with evidence from a different encoded-to-final
 derivation. The single emitted artifact is now self-described as
-`omega.final-footprint-certificate` format v84, with a domain-separated
+`omega.final-footprint-certificate` format v85, with a domain-separated
 certificate fingerprint over its final placement binding, compiler-text
 derivation, and region inventory. It remains explicitly incomplete evidence,
 not an admission certificate, until the missing footprint classes close. The
@@ -1205,8 +1205,11 @@ Source-authored imports with small, HFA, SysV, or indirect aggregate parameters
 now use thirteenth and fourteenth origins for no-result and direct scalar-result
 calls. Replay keeps each aggregate as one source operand while requiring its
 exact fragmented, stack, or caller-copy marshalling and storage root. Authored
-aggregate-result shapes remain outside this subset alongside composite import
-adapters.
+aggregate results now use a fifteenth origin. Replay preserves the one result
+place across AArch64 X/V fragment spills, the hidden `x8` destination path, and
+Microsoft/SysV direct or indirect result plans; the exact result root and any
+argument roots accompany the imported call. Composite import adapters remain
+outside this subset.
 Result-bearing runtime-storage-only syscalls
 continue to combine their argument relocation set with the exact result-region
 relocation and AArch64's offset-sensitive result-store scratch under a separate

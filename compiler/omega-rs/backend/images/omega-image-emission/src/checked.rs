@@ -941,6 +941,230 @@ fn encode_scalar_parameter_import(
     ))
 }
 
+fn encode_authored_aggregate_result_import(
+    architecture: Architecture,
+    operation_key: omega_calling_conventions::HostOperationKey,
+    operands: &[omega_target_operations::InstructionOperand],
+    data_symbols: &[std::sync::Arc<str>],
+    plan: &omega_calling_conventions::CallPlan,
+) -> Result<(Vec<u8>, usize, Vec<(usize, OutboundCallRelocationTarget)>), Diagnostic> {
+    use omega_target_operations::InstructionOperandLike;
+
+    let result = plan.result.as_ref().ok_or_else(|| {
+        Diagnostic::error("final authored aggregate-result replay lost its result plan")
+    })?;
+    let Some(result_operand) = operands.first() else {
+        return Err(Diagnostic::error(
+            "final authored aggregate-result replay lost its result operand",
+        ));
+    };
+    let arguments = &operands[1..];
+    let result_is_aggregate = result_operand
+        .runtime_homogeneous_float_aggregate()
+        .is_some()
+        || result_operand.runtime_system_v_aggregate().is_some()
+        || result_operand.runtime_small_aggregate().is_some()
+        || result_operand.runtime_large_aggregate().is_some();
+    if !result_is_aggregate
+        || plan.parameters.len() != arguments.len()
+        || !arguments.iter().all(|operand| {
+            operand.immediate_integer().is_some()
+                || outbound_relocated_operand_region(operand).is_some()
+                || operand.data_address().is_some()
+        })
+    {
+        return Err(Diagnostic::error(
+            "final authored aggregate-result replay requires one aggregate result and closed scalar/aggregate/data arguments",
+        ));
+    }
+
+    let mut retained_data_symbols = data_symbols.iter();
+    let (inner, inner_call_site, inner_address_sites) = match architecture {
+        Architecture::X86_64 => {
+            let bytes = omega_isa_x86_64::encode_host_call_sequence_with_plan(
+                plan.policy,
+                operation_key,
+                operands,
+                plan,
+            )?;
+            let call_site = omega_isa_x86_64::host_call_external_relocation_site_with_plan(
+                plan.policy,
+                operation_key,
+                operands,
+                plan,
+            )
+            .ok_or_else(|| {
+                Diagnostic::error(
+                    "final x86 authored aggregate-result replay has no retained-plan call site",
+                )
+            })?
+            .byte_offset;
+            let mut address_sites = Vec::new();
+            for (index, operand) in operands.iter().enumerate() {
+                let target = if let Some(region) = outbound_relocated_operand_region(operand) {
+                    OutboundCallRelocationTarget::Storage(region)
+                } else if operand.data_address().is_some() {
+                    OutboundCallRelocationTarget::Data(std::sync::Arc::clone(
+                        retained_data_symbols.next().ok_or_else(|| {
+                            Diagnostic::error(
+                                "final x86 authored aggregate-result replay lost a data-object symbol",
+                            )
+                        })?,
+                    ))
+                } else {
+                    continue;
+                };
+                let site = omega_isa_x86_64::host_call_data_relocation_site_with_plan(
+                    plan.policy,
+                    operation_key,
+                    operands,
+                    index,
+                    plan,
+                )
+                .ok_or_else(|| {
+                    Diagnostic::error(
+                        "final x86 authored aggregate-result replay lost an operand relocation site",
+                    )
+                })?
+                .byte_offset;
+                address_sites.push((site, target));
+            }
+            (bytes, call_site, address_sites)
+        }
+        Architecture::Aarch64 => {
+            let call_operands = operands
+                .iter()
+                .map(aarch64_outbound_syscall_operand)
+                .collect::<Result<Vec<_>, _>>()?;
+            let lowered_result = call_operands[0];
+            let argument_operands = &call_operands[1..];
+            let result_prefix =
+                omega_isa_aarch64::indirect_result_address_width(lowered_result).unwrap_or(0);
+            let argument_width = argument_operands
+                .iter()
+                .map(omega_isa_aarch64::operand_width)
+                .sum::<usize>();
+            let call_site = result_prefix
+                + argument_width
+                + omega_isa_aarch64::host_call_stack_prefix_width_for_placements(
+                    &plan.parameters,
+                    plan.parameters.len(),
+                );
+            let bytes = match result.shape.class {
+                omega_calling_conventions::ValueClass::HomogeneousFloatAggregate { .. } => {
+                    omega_isa_aarch64::encode_host_call_sequence_hfa_returning_from_operands(
+                        call_operands.iter().copied(),
+                        &plan.parameters,
+                        result,
+                    )?
+                }
+                omega_calling_conventions::ValueClass::Integer
+                    if result.shape.byte_size > 16 =>
+                {
+                    omega_isa_aarch64::encode_host_call_sequence_indirect_returning_from_operands(
+                        call_operands.iter().copied(),
+                        &plan.parameters,
+                        result,
+                    )?
+                }
+                omega_calling_conventions::ValueClass::Integer
+                    if result.shape.byte_size > 8 =>
+                {
+                    omega_isa_aarch64::encode_host_call_sequence_small_aggregate_returning_from_operands(
+                        call_operands.iter().copied(),
+                        &plan.parameters,
+                        result,
+                    )?
+                }
+                _ => {
+                    return Err(Diagnostic::error(
+                        "final AArch64 authored aggregate-result replay retained an unsupported result class",
+                    ));
+                }
+            };
+            let result_region = outbound_relocated_operand_region(result_operand).ok_or_else(|| {
+                Diagnostic::error(
+                    "final AArch64 authored aggregate-result replay lost its result storage root",
+                )
+            })?;
+            let result_site = if result_prefix == 0 {
+                argument_width
+                    + omega_isa_aarch64::host_call_stack_total_width_for_placements(
+                        &plan.parameters,
+                    )
+                    + 4
+            } else {
+                0
+            };
+            let mut address_sites = vec![(
+                result_site,
+                OutboundCallRelocationTarget::Storage(result_region),
+            )];
+            for (parameter_index, operand) in arguments.iter().enumerate() {
+                let target = if let Some(region) = outbound_relocated_operand_region(operand) {
+                    OutboundCallRelocationTarget::Storage(region)
+                } else if operand.data_address().is_some() {
+                    OutboundCallRelocationTarget::Data(std::sync::Arc::clone(
+                        retained_data_symbols.next().ok_or_else(|| {
+                            Diagnostic::error(
+                                "final AArch64 authored aggregate-result replay lost a data-object symbol",
+                            )
+                        })?,
+                    ))
+                } else {
+                    continue;
+                };
+                let site = result_prefix
+                    + argument_operands
+                        .iter()
+                        .take(parameter_index)
+                        .map(omega_isa_aarch64::operand_width)
+                        .sum::<usize>()
+                    + omega_isa_aarch64::host_call_stack_prefix_width_for_placements(
+                        &plan.parameters,
+                        parameter_index,
+                    );
+                address_sites.push((site, target));
+            }
+            (bytes, call_site, address_sites)
+        }
+    };
+    if retained_data_symbols.next().is_some() {
+        return Err(Diagnostic::error(
+            "final authored aggregate-result replay retained an extra data-object symbol",
+        ));
+    }
+
+    let mut bytes = Vec::new();
+    let prefix_width = match architecture {
+        Architecture::X86_64 => {
+            bytes.extend(omega_isa_x86_64::encode_foreign_float_control_prefix_bytes());
+            omega_isa_x86_64::FOREIGN_FLOAT_CONTROL_PREFIX_WIDTH
+        }
+        Architecture::Aarch64 => {
+            bytes.extend(omega_isa_aarch64::encode_foreign_float_control_prefix_bytes());
+            omega_isa_aarch64::FOREIGN_FLOAT_CONTROL_PREFIX_WIDTH
+        }
+    };
+    bytes.extend(inner);
+    match architecture {
+        Architecture::X86_64 => {
+            bytes.extend(omega_isa_x86_64::encode_foreign_float_control_suffix_bytes())
+        }
+        Architecture::Aarch64 => {
+            bytes.extend(omega_isa_aarch64::encode_foreign_float_control_suffix_bytes())
+        }
+    }
+    Ok((
+        bytes,
+        prefix_width + inner_call_site,
+        inner_address_sites
+            .into_iter()
+            .map(|(site, target)| (prefix_width + site, target))
+            .collect(),
+    ))
+}
+
 fn encode_float_parameter_result_import(
     architecture: Architecture,
     operation_key: omega_calling_conventions::HostOperationKey,
@@ -3220,6 +3444,34 @@ fn validate_compiler_function_instruction_boundaries(
                             None,
                             bytes,
                             56u8,
+                            CompilerInstructionRelocationRecipe::PlannedImport {
+                                call_site,
+                                address_sites,
+                                library,
+                                symbol,
+                            },
+                        )
+                    }
+                    omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyOutboundAuthoredAggregateResult {
+                        operation_key,
+                        operands,
+                        data_symbols,
+                        library,
+                        symbol,
+                        plan,
+                    } => {
+                        let (bytes, call_site, address_sites) =
+                            encode_authored_aggregate_result_import(
+                                architecture,
+                                operation_key,
+                                &operands,
+                                &data_symbols,
+                                &plan,
+                            )?;
+                        (
+                            None,
+                            bytes,
+                            57u8,
                             CompilerInstructionRelocationRecipe::PlannedImport {
                                 call_site,
                                 address_sites,
@@ -6472,6 +6724,24 @@ fn compiler_instruction_footprint(
                 ]),
             )
         }
+        CompilerInstructionValidationKind::CompilerBodyOutboundAuthoredAggregateResult {
+            plan,
+            ..
+        } => (
+            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredAggregateResult,
+            RegisterSet::new(plan.ordinary_clobbers.as_slice().iter().copied().chain(
+                match architecture {
+                    Architecture::X86_64 => vec![MachineRegister::X86Rsp],
+                    Architecture::Aarch64 => vec![MachineRegister::Aarch64X(16)],
+                },
+            )),
+            MachineStateSet::new([
+                MachineState::Flags,
+                MachineState::InstructionPointer,
+                MachineState::StackPointer,
+                MachineState::ControlState,
+            ]),
+        ),
         CompilerInstructionValidationKind::CompilerBodyOutboundStorageImport { plan, .. } => (
             BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImport,
             RegisterSet::new(plan.ordinary_clobbers.as_slice().iter().copied().chain(
@@ -7145,6 +7415,7 @@ fn validate_compiler_body_specification_footprints(
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredFloatImportResult
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredAggregateImport
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredAggregateImportResult
+                | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredAggregateResult
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImport
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImportResult
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscall
@@ -7321,6 +7592,10 @@ fn validate_compiler_body_specification_footprints(
         (
             41u8,
             BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredAggregateImportResult,
+        ),
+        (
+            42u8,
+            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredAggregateResult,
         ),
     ] {
         let evidence_rows = derived

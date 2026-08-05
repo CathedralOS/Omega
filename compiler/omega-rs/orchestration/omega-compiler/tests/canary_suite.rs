@@ -1150,7 +1150,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         executable_regions.contains(
             "\"certificate_schema\": \"omega.final-footprint-certificate\""
         )
-            && executable_regions.contains("\"certificate_format_version\": 84")
+            && executable_regions.contains("\"certificate_format_version\": 85")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
             && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")
@@ -34524,6 +34524,12 @@ fn cross_aarch64_large_aggregate_import_uses_indirect_places() {
             "AArch64 large-aggregate image missing {name}"
         );
     }
+    let footprints = fs::read_to_string(out_dir.join("08_boundary_footprints.json"))
+        .expect("AArch64 authored aggregate-result footprints should be written");
+    assert!(
+        footprints.contains("\"origin\": \"compiler_body_outbound_authored_aggregate_result\""),
+        "AArch64 authored aggregate result must retain its final replay footprint"
+    );
     let _ = fs::remove_dir_all(&scratch);
 }
 
@@ -34637,6 +34643,12 @@ fn cross_win64_direct_aggregate_result_spills_rax_by_value() {
             .windows(17)
             .any(|window| { window[0..2] == [0x49, 0xbb] && window[10..13] == [0x49, 0x89, 0x83] }),
         "expected the eight-byte record spilled from RAX into aggregate storage"
+    );
+    let footprints = fs::read_to_string(scratch.join("08_boundary_footprints.json"))
+        .expect("Win64 authored aggregate-result footprints should be written");
+    assert!(
+        footprints.contains("\"origin\": \"compiler_body_outbound_authored_aggregate_result\""),
+        "Win64 authored aggregate result must retain its final replay footprint"
     );
     let _ = fs::remove_dir_all(&scratch);
 }

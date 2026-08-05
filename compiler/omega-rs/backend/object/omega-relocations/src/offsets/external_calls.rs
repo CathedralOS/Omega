@@ -88,7 +88,15 @@ fn external_call_relocation_offset_for_plan<T: InstructionOperandLike>(
             }
         }
         .unwrap_or_default();
+        let result_prefix = usize::from(authored_import)
+            * operands
+                .first()
+                .and_then(|operand| {
+                    omega_instruction_selection::aarch64_indirect_result_address_width(operand)
+                })
+                .unwrap_or(0);
         return selected_text_offset
+            + result_prefix
             + operands
                 .iter()
                 .skip(1)
@@ -380,6 +388,41 @@ mod tests {
                 &plan,
             ),
             36
+        );
+    }
+
+    #[test]
+    fn authored_aarch64_indirect_result_prefix_precedes_the_branch() {
+        let operands = [InstructionOperand {
+            kind: InstructionOperandKind::RuntimeLargeAggregate {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 64,
+                byte_count: 24,
+                alignment: 8,
+            },
+        }];
+        let plan = evaluate_call_plan(
+            CallingPolicy::Aapcs64,
+            &CallSignature {
+                parameters: Vec::new(),
+                result: Some(ValueShape::integer(24, 8)),
+            },
+        )
+        .expect("indirect AAPCS64 result plan");
+        let result_prefix =
+            omega_instruction_selection::aarch64_indirect_result_address_width(&operands[0])
+                .expect("large aggregate result address prefix");
+
+        assert_eq!(
+            external_call_relocation_offset_with_plan(
+                NativeTarget::linux_arm64(),
+                omega_calling_conventions::HostOperationKey::default(),
+                20,
+                &operands,
+                true,
+                &plan,
+            ),
+            20 + result_prefix
         );
     }
 }
