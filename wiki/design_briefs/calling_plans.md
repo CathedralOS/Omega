@@ -1269,7 +1269,9 @@ aggregate byte spans rather than only scalar widths, share one frame relocation
 across the collection and both indices, and add a separate source relocation
 only for machine storage. An all-frame double-indexed source can also target a
 frame-held pointee, sharing the same frame root across the collection, both
-indices, and pointer slot while copying the complete value representation. The x86 general place
+indices, and pointer slot while copying the complete value representation. Its
+reverse, from a frame-held source pointee into an all-frame double-indexed
+target, uses the same one-root geometry and complete aggregate span. The x86 general place
 materializer also replays every remaining otherwise-unclassified `CopyPlaces`
 path with scratch derived from each retained place's exact index depth.
 Direct-place immediate integer writes, writes through a frame-held pointer or

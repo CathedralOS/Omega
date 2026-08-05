@@ -2192,6 +2192,18 @@ pub fn runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_po
         + runtime_storage_copy_data_width(0, 0, byte_count)
 }
 
+pub fn runtime_storage_copy_from_runtime_pointee_to_runtime_frame_base_double_indexed_width(
+    pointer_byte_offset: usize,
+    source_field_byte_offset: usize,
+    byte_count: usize,
+) -> usize {
+    8 + 4
+        + 36
+        + load_data_offset_width(pointer_byte_offset, 8)
+        + add_constant_width(source_field_byte_offset)
+        + runtime_storage_copy_data_width(0, 0, byte_count)
+}
+
 /// Width of the double-indexed RMW binary write: bases + 36-byte math +
 /// operands + the operation + the result store.
 pub fn runtime_machine_double_indexed_binary_write_width(

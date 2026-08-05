@@ -200,6 +200,9 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                         | omega_instruction_selection::CopyPlacesShape::FrameBaseDoubleIndexedToPointee {
                             ..
                         }
+                        | omega_instruction_selection::CopyPlacesShape::PointeeToFrameBaseDoubleIndexed {
+                            ..
+                        }
                         | omega_instruction_selection::CopyPlacesShape::FromFrameBaseIndexed {
                             ..
                         } => {
