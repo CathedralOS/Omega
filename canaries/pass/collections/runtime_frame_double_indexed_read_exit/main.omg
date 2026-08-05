@@ -10,8 +10,8 @@
 // position, the third fold layer), and a by-value param array through a
 // value machine. An all-frame nested record array also writes a string
 // descriptor through both runtime indices. Whole-Triple values also cross a
-// frame-held pointee in both directions from distinct local 2D arrays. All
-// value-validated.
+// frame-held pointee in both directions from distinct local 2D arrays, with
+// both all-frame and mixed machine/frame indices. All value-validated.
 domain [u8]::Utf8
 requires
     valid_utf8(self);
@@ -22,11 +22,12 @@ use omega::language::std::console;
 data Room { description: &[u8] in Utf8; }
 data Label { text: [u8; 8] in Utf8; }
 data Triple { first: i32; second: i32; third: i32; }
-data Main { console: Console; got: i32; }
+data Main { console: Console; got: i32; index: u64 [0..=1]; }
 machine Main::pick(&self, m: [[i32; 3]; 2], i: u64 [0..=1], j: u64 [0..=2]) -> i32 {
     transition { _ -> (m[i][j]) }
 }
 machine Main::main(&mut self) {
+    self.index = 0;
     transition { _ -> let_face(1, 2, 0, 1, 70) }
     state let_face(
         &mut self,
@@ -83,7 +84,12 @@ machine Main::main(&mut self) {
         let reverse: &mut Triple = &mut source_triples[i][j];
         reverse = Triple { first: 70, second: 80, third: 90 };
         target_triples[source_i][source_j] = reverse;
-        transition picked == 8 && rooms[1][2].description == "omega" && labels[1][2].text == "omega" && replaced.first == 10 && replaced.second == 20 && replaced.third == 30 && copied.first == 4 && copied.second == 5 && copied.third == 6 && target_triples[1][2].first == 40 && target_triples[1][2].second == 50 && target_triples[1][2].third == 60 && target_triples[0][1].first == 70 && target_triples[0][1].second == 80 && target_triples[0][1].third == 90 {
+        let mixed_through: &mut Triple = &mut target_triples[i][j];
+        mixed_through = source_triples[self.index][source_j];
+        let mixed_reverse: &mut Triple = &mut source_triples[i][j];
+        mixed_reverse = Triple { first: 100, second: 110, third: 120 };
+        target_triples[self.index][source_j] = mixed_reverse;
+        transition picked == 8 && rooms[1][2].description == "omega" && labels[1][2].text == "omega" && replaced.first == 10 && replaced.second == 20 && replaced.third == 30 && copied.first == 4 && copied.second == 5 && copied.third == 6 && target_triples[1][2].first == 40 && target_triples[1][2].second == 50 && target_triples[1][2].third == 60 && target_triples[0][1].first == 100 && target_triples[0][1].second == 110 && target_triples[0][1].third == 120 {
             true -> machine_target()
             false -> no()
         }

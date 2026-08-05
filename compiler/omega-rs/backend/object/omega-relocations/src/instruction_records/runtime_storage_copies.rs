@@ -203,12 +203,6 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                         | omega_instruction_selection::CopyPlacesShape::IndexedToPointee {
                             ..
                         }
-                        | omega_instruction_selection::CopyPlacesShape::FrameBaseDoubleIndexedToPointee {
-                            ..
-                        }
-                        | omega_instruction_selection::CopyPlacesShape::PointeeToFrameBaseDoubleIndexed {
-                            ..
-                        }
                         | omega_instruction_selection::CopyPlacesShape::FrameBaseIndexedPair {
                             ..
                         }
@@ -221,6 +215,29 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                             // Frame-rooted on both sides (the decompose's
                             // precondition): one frame base serves the
                             // array/descriptor, index, and the other side.
+                        }
+                        omega_instruction_selection::CopyPlacesShape::FrameBaseDoubleIndexedToPointee {
+                            outer_index_region,
+                            inner_index_region,
+                            ..
+                        }
+                        | omega_instruction_selection::CopyPlacesShape::PointeeToFrameBaseDoubleIndexed {
+                            outer_index_region,
+                            inner_index_region,
+                            ..
+                        } => {
+                            if outer_index_region
+                                == omega_target_operations::RuntimeStorageRegion::Machine
+                                || inner_index_region
+                                    == omega_target_operations::RuntimeStorageRegion::Machine
+                            {
+                                context.insert_data_address_at_relative_offset(
+                                    12,
+                                    context.storage_region_symbol_handle(
+                                        omega_target_operations::RuntimeStorageRegion::Machine,
+                                    ),
+                                );
+                            }
                         }
                         omega_instruction_selection::CopyPlacesShape::FrameBaseIndexedToPointee {
                             index_region, ..
