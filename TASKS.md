@@ -1119,11 +1119,12 @@ second root in both directions.
 The retained x86 general place materializer now replays all
 otherwise-unclassified `CopyPlaces` paths with index-depth-derived scratch.
 
-- **CONST-DOUBLE-INDEX-GUARD — IMPLEMENTATION WORK:** a static guard over a
-  constant nested projection such as `grid[0][1].field` currently reads the
-  transposed element on the native path, while the equivalent runtime-indexed
-  copy and scalar-projection paths are correct. Unify the constant nested-index
-  guard geometry with the canonical place walk and add a differential canary.
+- **CONST-DOUBLE-INDEX-GUARD — COMPLETE:** static guards over constant nested
+  projections such as `grid[0][1].field` no longer flatten two index levels
+  into the name path's one-index slot and read the transposed element. The
+  lossy static clause refuses that shape so canonical expression/place guard
+  lowering retains both levels; native/interpreter coverage pins the authored
+  element.
 Their explicit `Ordinary` role prevents overlap with the indirect-result
 fragment; the exact place-copy bytes, storage/pointer/index relocations, and
 target scratch union must equal the retained `CompilerBodyPlaceCopy` evidence.

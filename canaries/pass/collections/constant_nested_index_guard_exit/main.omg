@@ -1,0 +1,18 @@
+// A constant nested fixed-array projection in a guard must retain both index
+// levels instead of flattening the outermost index onto the root field.
+use omega::language::std::console;
+data Pair { first: i32; second: i32; }
+data Main {
+    console: Console;
+    values: [[Pair; 2]; 2];
+}
+machine Main::main(&mut self) {
+    self.values[0][1].first = 10;
+    self.values[0][1].second = 20;
+    transition self.values[0][1].first == 10 && self.values[0][1].second == 20 {
+        true -> yes()
+        false -> no()
+    }
+    state yes(&mut self) { self.console.exit_process(1); }
+    state no(&mut self) { self.console.exit_process(2); }
+}

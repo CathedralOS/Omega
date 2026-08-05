@@ -519,6 +519,18 @@ fn guard_path_len(table: &ExpressionTable, expression: ExpressionHandle) -> Opti
             let ExpressionNode::Integer(_) = table.expression(indexed.index) else {
                 return None;
             };
+            // A stacked constant index (`grid[0][1]`) cannot be flattened
+            // into this one-index-per-name-member path. `member_index` would
+            // otherwise retain only the outermost index and silently read the
+            // transposed/wrong element. Refuse the static clause so the
+            // canonical expression/place guard path retains both levels.
+            let mut collection = indexed.collection;
+            while let ExpressionNode::Mutable(inner) = table.expression(collection) {
+                collection = *inner;
+            }
+            if matches!(table.expression(collection), ExpressionNode::Indexed(_)) {
+                return None;
+            }
             guard_path_len(table, indexed.collection)
         }
         ExpressionNode::Member(member) => guard_path_len(table, member.receiver)?.checked_add(1),
