@@ -1071,7 +1071,10 @@ included too, including cross-region index-base relocations.
 Final validation regenerates the evaluator/store bytes, walks nested operand
 relocations, and matches the closed target may-write ceiling to the separately
 retained `CompilerBodyPlaceBinaryWrite` fragment. The x86 general materializer
-also replays a frame-held descriptor indexed from machine storage.
+also replays a frame-held descriptor indexed from machine storage. AArch64
+additionally replays that cross-region descriptor and exact-integer binary
+writes into all-frame double-runtime-indexed inline arrays using one shared
+frame relocation.
 Direct runtime-storage numeric conversion writes retain their complete cast
 policy and source-operand root, replay exact conversion/store bytes and nested
 relocations, and match a separate `CompilerBodyStorageConvertWrite` fragment.

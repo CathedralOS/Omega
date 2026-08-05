@@ -1892,6 +1892,35 @@ pub fn runtime_machine_double_indexed_binary_left_operand_offset(
     double_indexed_base_width(outer_index_region, inner_index_region) + 36
 }
 
+/// An all-frame double-indexed RMW needs one shared frame base pair followed
+/// by the same fixed 36-byte address program as the machine-rooted form.
+pub fn runtime_frame_base_double_indexed_binary_write_width(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    byte_size: usize,
+    left: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
+    right: RuntimeValueOperandHandle,
+) -> usize {
+    8 + 36
+        + runtime_value_operand_width(runtime_value_operands, left)
+        + runtime_value_operand_width(runtime_value_operands, right)
+        + runtime_binary_operation_width(
+            operator,
+            super::runtime_storage::runtime_binary_operation_byte_size(
+                runtime_value_operands,
+                operator,
+                left,
+                right,
+                byte_size,
+            ),
+        )
+        + runtime_result_write_width(0, byte_size)
+}
+
+pub fn runtime_frame_base_double_indexed_binary_left_operand_offset() -> usize {
+    44
+}
+
 pub fn runtime_machine_double_indexed_string_data_address_offset(
     outer_index_region: omega_target_operations::RuntimeStorageRegion,
     inner_index_region: omega_target_operations::RuntimeStorageRegion,
