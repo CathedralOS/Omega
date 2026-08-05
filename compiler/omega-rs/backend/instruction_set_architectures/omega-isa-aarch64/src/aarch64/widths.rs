@@ -1593,8 +1593,30 @@ pub fn runtime_frame_base_indexed_string_write_width(
     field_byte_offset: usize,
     byte_length: usize,
 ) -> usize {
-    runtime_frame_base_indexed_string_data_address_offset(
+    runtime_frame_base_indexed_string_write_with_index_region_width(
         base_byte_offset,
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+        byte_length,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn runtime_frame_base_indexed_string_write_with_index_region_width(
+    base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_length: usize,
+) -> usize {
+    runtime_frame_base_indexed_string_data_address_offset_with_index_region(
+        base_byte_offset,
+        index_region,
         index_offset,
         index_byte_size,
         element_byte_size,
@@ -1610,8 +1632,27 @@ pub fn runtime_frame_base_indexed_string_data_address_offset(
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> usize {
-    runtime_frame_base_index_setup_width_with_index_width(
+    runtime_frame_base_indexed_string_data_address_offset_with_index_region(
         base_byte_offset,
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+    )
+}
+
+pub fn runtime_frame_base_indexed_string_data_address_offset_with_index_region(
+    base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> usize {
+    runtime_frame_base_indexed_operand_start_width_with_index_region(
+        base_byte_offset,
+        index_region,
         index_offset,
         index_byte_size,
         element_byte_size,

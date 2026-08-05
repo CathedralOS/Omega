@@ -1015,13 +1015,36 @@ pub(crate) fn write_place_string_frame_base_indexed(
     data: omega_abstract_operations::AbstractDataObjectHandle,
     byte_length: usize,
 ) -> SelectedInstructionKind {
+    write_place_string_frame_base_indexed_with_index_region(
+        base_byte_offset,
+        RuntimeStorageRegion::RuntimeFrame,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+        data,
+        byte_length,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn write_place_string_frame_base_indexed_with_index_region(
+    base_byte_offset: usize,
+    index_region: RuntimeStorageRegion,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    data: omega_abstract_operations::AbstractDataObjectHandle,
+    byte_length: usize,
+) -> SelectedInstructionKind {
     SelectedInstructionKind::WritePlaceString {
         target: omega_abstract_operations::Place::at(
             RuntimeStorageRegion::RuntimeFrame,
             base_byte_offset,
         )
         .with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
-            index_region: RuntimeStorageRegion::RuntimeFrame,
+            index_region,
             index_offset,
             index_byte_size,
             element_byte_size,

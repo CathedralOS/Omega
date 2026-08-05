@@ -1,8 +1,15 @@
 // Inline LOCAL array writes at a machine-field runtime index with 8-byte
 // elements. The target frame base stays distinct while a copied source can
 // reuse the index's machine base; immediate, binary, and conversion writes use
-// that same index relocation independently.
+// that same index relocation independently. A string-descriptor field write
+// exercises the same cross-region address shape with a data-object relocation.
+domain [u8]::Utf8
+requires
+    valid_utf8(self);
 use omega::language::std::console;
+data Room {
+    description: &[u8] in Utf8;
+}
 data Main {
     console: Console;
     index: u64 [0..=2];
@@ -28,11 +35,17 @@ machine Main::pick(&mut self) {
     c[self.index] = self.left + self.right;
     let d: [i32; 3] = [7, 8, 9];
     d[self.index] = self.source as i32;
+    let rooms: [Room; 3] = [
+        Room { description: "first" },
+        Room { description: "second" },
+        Room { description: "old" }
+    ];
+    rooms[self.index].description = "omega";
     let v: i64 = a[2];
     let w: i64 = b[2];
     let x: i64 = c[2];
     let y: i32 = d[2];
-    transition v == 44 && w == 55 && x == 50 && y == 61 {
+    transition v == 44 && w == 55 && x == 50 && y == 61 && rooms[2].description == "omega" {
         true -> yes()
         false -> no()
     }
