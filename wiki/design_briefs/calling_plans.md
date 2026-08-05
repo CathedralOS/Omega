@@ -1287,9 +1287,10 @@ relocations. AArch64 also replays frame-held slice descriptors whose dynamic
 index lives in machine storage, including the distinct index-base relocation,
 and exact-integer binary writes into all-frame double-runtime-indexed inline
 arrays using one shared frame relocation; its remaining unclassified shapes
-are still incomplete. A frame-double-indexed source on the same assignment RHS
-still reaches the frontend hoist with an untyped temporary; ordinary runtime
-operands reach this binary target today.
+are still incomplete. Psi's indexed-value hoist now recovers the authored
+element type from symbol-resolved state locals as well as parameters and
+machine fields, so a frame-double-indexed source on the same assignment RHS
+reaches that binary target without an untyped temporary.
 Direct runtime-storage numeric conversion writes retain their complete cast
 policy and source-operand root, replay exact conversion/store bytes and nested
 relocations, and match a separate `CompilerBodyStorageConvertWrite` fragment.

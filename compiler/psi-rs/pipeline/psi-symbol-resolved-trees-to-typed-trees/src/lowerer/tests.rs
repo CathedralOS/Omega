@@ -4,6 +4,71 @@ use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use psi_tokens_to_syntax_trees::parse_syntax_trees;
 
 #[test]
+fn types_nested_index_hoists_from_explicit_local_collections() {
+    let source = r#"
+        data Main {}
+        machine Main::main(
+            &mut self,
+            i: u64 [0..=1],
+            j: u64 [0..=2]
+        ) {
+            let g: [[i32 in Wrapping; 3]; 2] = [[1, 2, 3], [4, 5, 6]];
+            g[i][j] = g[i][j] + 1;
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved_program = lower_syntax_trees(&syntax_trees).expect("resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved_program).expect("typing should succeed");
+
+    let machine = &typed.machines()[0];
+    let state = &typed.machine_states(machine)[0];
+    let hoisted = typed
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .filter_map(|statement| match statement {
+            psi_typed_trees::statement::StatementNode::LocalData(local)
+                if local.name.as_str().starts_with("__hoist_") =>
+            {
+                Some(local)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        hoisted.len(),
+        1,
+        "the indexed RHS should have one value hoist"
+    );
+    let psi_typed_trees::types::TypeReferenceNode::Constrained {
+        base_type,
+        constraints,
+    } = typed
+        .type_reference_table
+        .type_reference(hoisted[0].type_reference)
+    else {
+        panic!("the hoist must inherit the authored constrained element type");
+    };
+    assert!(matches!(
+        typed.type_reference_table.type_reference(*base_type),
+        psi_typed_trees::types::TypeReferenceNode::Named { name, .. }
+            if name.as_str() == "i32"
+    ));
+    assert!(matches!(
+        typed.type_reference_table.constraints(*constraints),
+        [
+            psi_typed_trees::types::TypeConstraintNode::ArithmeticDomain(
+                psi_numerics::arithmetic::ArithmeticDomain::Wrapping
+            )
+        ]
+    ));
+}
+
+#[test]
 fn generic_proposition_applications_remain_proof_facts_when_typed() {
     let source = r#"
         trait Reflexive<C, proposition Relation>

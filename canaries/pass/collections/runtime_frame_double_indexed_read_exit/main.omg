@@ -13,10 +13,10 @@ machine Main::pick(&self, m: [[i32; 3]; 2], i: u64 [0..=1], j: u64 [0..=2]) -> i
     transition { _ -> (m[i][j]) }
 }
 machine Main::main(&mut self) {
-    transition { _ -> let_face(1, 2, 6) }
-    state let_face(&mut self, i: u64 [0..=1], j: u64 [0..=2], value: i32 in Wrapping) {
+    transition { _ -> let_face(1, 2) }
+    state let_face(&mut self, i: u64 [0..=1], j: u64 [0..=2]) {
         let g: [[i32 in Wrapping; 3]; 2] = [[1, 2, 3], [4, 5, 6]];
-        g[i][j] = value + 1;
+        g[i][j] = g[i][j] + 1;
         let picked: i32 in Wrapping = g[i][j];
         transition picked == 7 {
             true -> machine_target()

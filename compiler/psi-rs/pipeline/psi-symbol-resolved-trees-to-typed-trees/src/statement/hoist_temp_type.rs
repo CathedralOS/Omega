@@ -552,8 +552,8 @@ fn resolved_base_identity(
 /// Resolves the resolved `TypeReference` of an indexed read's COLLECTION.
 ///
 /// Handles `self.<field>` (resolved against the machine's attached data) and a
-/// bare state-parameter name `<param>` (the slice/array a `[i]` indexes). Other
-/// shapes (locals, nested fields, deeper chains) return `None`.
+/// bare state parameter or explicitly typed local `<name>` (the slice/array a
+/// `[i]` indexes). Other shapes (nested fields, deeper chains) return `None`.
 fn collection_type_reference(
     lowerer: &Lowerer,
     attached_data: Option<&resolved::name::DiagnosticName>,
@@ -578,13 +578,24 @@ fn collection_type_reference(
             let data_name = attached_data?;
             attached_field_type(lowerer.source_trees, data_name, member.member.as_str())
         }
-        // A bare `<name>` path -- a state parameter naming the indexed collection.
+        // A bare `<name>` path -- a state parameter or explicitly typed local
+        // naming the indexed collection. Locals remain fully explicit in Psi:
+        // this only recovers the authored type of the collection that the
+        // normalization pass moved behind a synthetic Unit-typed hoist temp.
         ExpressionNode::Name(path) => {
             let members = expressions.name_path_members(path.members);
             let [only] = members else {
                 return None;
             };
-            parameter_type(lowerer.source_trees, state, only.as_str())
+            parameter_type(lowerer.source_trees, state, only.as_str()).or_else(|| {
+                local_type(
+                    lowerer.source_trees,
+                    state,
+                    path.head_symbol,
+                    path.symbol,
+                    only.as_str(),
+                )
+            })
         }
         _ => None,
     }
@@ -858,6 +869,31 @@ fn parameter_type(
         .iter()
         .find(|parameter| parameter.name.as_str() == name)
         .map(|parameter| parameter.type_reference.clone())
+}
+
+/// The authored resolved type of a state local. Prefer symbol identity so a
+/// shadowed name cannot retag a hoist; the name fallback is retained for the
+/// generated-tree phase where a path may not yet carry its final symbol.
+fn local_type(
+    source_trees: &resolved::SymbolResolvedTrees,
+    state: &resolved::state::State,
+    head_symbol: psi_symbols::SymbolHandle,
+    symbol: psi_symbols::SymbolHandle,
+    name: &str,
+) -> Option<TypeReference> {
+    source_trees
+        .state_statements(state.statements)
+        .iter()
+        .find_map(|statement| {
+            let resolved::statement::Statement::LocalData(local) = statement else {
+                return None;
+            };
+            let symbol_matches = (head_symbol.is_valid() && head_symbol == local.symbol)
+                || (symbol.is_valid() && symbol == local.symbol);
+            let symbols_are_absent = !head_symbol.is_valid() && !symbol.is_valid();
+            (symbol_matches || (symbols_are_absent && local.name.as_str() == name))
+                .then(|| local.type_reference.clone())
+        })
 }
 
 /// The element type of an indexable collection type plus the COLLECTION-LEVEL
