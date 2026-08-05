@@ -882,7 +882,7 @@ proves complete region coverage, and composes admitted leaves under their
 separate provenance. Do not add a second whole-image decoder/admission path.
 
 The existing single final-region artifact now carries the domain-separated
-`omega.final-footprint-certificate` schema, format version 75, and a certificate
+`omega.final-footprint-certificate` schema, format version 76, and a certificate
 fingerprint over its final placement binding, compiler-text derivation, and
 complete region inventory. Its explicit completeness flags remain false until
 compiler-body footprint decoding and admitted-leaf evidence land. The envelope
@@ -971,15 +971,17 @@ millisecond-to-request conversion and requires either zero relocations for an
 immediate or the exact runtime-scalar relocation. Their dedicated origins add
 balanced stack-pointer state and only the encoder's target-specific scratch to
 the plan-owned supervisor-call leaf. Ordinary built-in imports with one or
-more immediate integer arguments and no result now form the first direct-import
-subset on Windows x64 and macOS arm64. Final replay invokes the ISA encoder
+more immediate or runtime-scalar integer arguments and no result now form the
+first direct-import subset on Windows x64 and macOS arm64. Final replay invokes the ISA encoder
 directly from the retained plan, regenerates the mandatory foreign
 floating-control envelope, requires the exact library/symbol call relocation,
 and permits only the architecture-defined call displacement bits to change
-after placement. Its dedicated StatePlan origin includes ordinary call
-clobbers plus the envelope's stack/control state and target scratch.
-Result-bearing imports, runtime/data-address arguments, authored imports, and
-composite import adapters remain incomplete. Result-bearing runtime-storage-only calls
+after placement. Runtime-scalar rows use a distinct origin that also requires
+the complete storage-root relocation set beside the call relocation. Both
+origins include ordinary call clobbers plus the envelope's stack/control state
+and target scratch. Result-bearing imports, data-address arguments, authored
+imports, and composite import adapters remain incomplete. Result-bearing
+runtime-storage-only calls
 continue to combine their argument relocations with the exact result-region
 relocation and offset-sensitive result-store scratch under
 `CompilerBodyOutboundSyscallResultStorageArguments`. The final validator now

@@ -1111,7 +1111,7 @@ relocation, and data relocation now consume that complete plan. Their former
 manual `+8`/`+12` stack accounting and trailing-mode operation classifier are
 retired; the operation key only selects the concrete adapter subcall.
 
-Final footprint certificate format v75 now retains an exact
+Final footprint certificate format v76 now retains an exact
 function-to-instruction partition in the encoded carrier. Checked image
 emission replays every contiguous function
 and instruction boundary over relocated final bytes, rejects gaps, overlaps,
@@ -1161,14 +1161,16 @@ mixed data-symbol/storage-root relocation set. The Linux `clock_gettime` and
 regenerates their private stack adapters, exact result/optional argument
 relocations, and target-specific scratch; their StatePlan leaves include the
 balanced stack-pointer effect without publishing `timespec` as Omega ABI.
-Ordinary built-in imports with one or more immediate integer arguments and no
-result now have a dedicated Windows x64/macOS arm64 final class. Replay calls
+Ordinary built-in imports with one or more immediate or runtime-scalar integer
+arguments and no result now have a dedicated Windows x64/macOS arm64 final class. Replay calls
 the ISA encoder directly from the retained plan, regenerates the mandatory
 foreign floating-control envelope, requires the exact retained library/symbol
 call relocation, and masks only the architecture-defined call displacement
-bits in final text. Its StatePlan fragment includes the call plan's ordinary
+bits in final text. Runtime-scalar rows have a separate origin whose final
+recipe requires the complete storage-root relocation set together with the
+import call. Both StatePlan fragments include the call plan's ordinary
 clobbers together with the envelope's stack/control state and target scratch.
-Result-bearing imports, runtime/data-address arguments, authored imports, and
+Result-bearing imports, data-address arguments, authored imports, and
 composite import adapters remain unfinished. Result-
 bearing runtime-storage-only syscalls continue
 to combine their argument relocation set with the exact result-region

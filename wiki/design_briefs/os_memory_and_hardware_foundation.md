@@ -1139,7 +1139,7 @@ relocation-envelope fingerprints plus their composed derivation identity. The
 boundary/placement binding includes that derivation identity, so a valid final
 inventory cannot be paired with evidence from a different encoded-to-final
 derivation. The single emitted artifact is now self-described as
-`omega.final-footprint-certificate` format v75, with a domain-separated
+`omega.final-footprint-certificate` format v76, with a domain-separated
 certificate fingerprint over its final placement binding, compiler-text
 derivation, and region inventory. It remains explicitly incomplete evidence,
 not an admission certificate, until the missing footprint classes close. The
@@ -1167,14 +1167,17 @@ have dedicated composite classes: final replay regenerates their private stack
 records, fixed conversion/trap programs, and exact result or optional argument
 relocation, while StatePlan retains their balanced stack-pointer effect and
 target-specific scratch. Ordinary built-in imports with one or more immediate
-integer arguments and no result now form the first direct-import subset on
+or runtime-scalar integer arguments and no result now form the first
+direct-import subset on
 Windows x64 and macOS arm64. Checked replay directly invokes the retained-plan
 ISA encoder, regenerates the mandatory foreign floating-control envelope,
 requires the exact library/symbol call relocation, and admits only the exact
-call displacement bits as mutable after placement. The dedicated StatePlan
-fragment includes ordinary call clobbers plus the envelope's stack/control
-state and target scratch. Result-bearing imports, runtime/data-address
-arguments, authored imports, and composite import adapters remain outside this
+call displacement bits as mutable after placement. Runtime-scalar rows use a
+distinct origin whose final recipe also requires every exact storage-root
+relocation beside the imported call. Both StatePlan fragments include ordinary
+call clobbers plus the envelope's stack/control state and target scratch.
+Result-bearing imports, data-address arguments, authored imports, and
+composite import adapters remain outside this
 subset. Result-bearing runtime-storage-only syscalls
 continue to combine their argument relocation set with the exact result-region
 relocation and AArch64's offset-sensitive result-store scratch under a separate

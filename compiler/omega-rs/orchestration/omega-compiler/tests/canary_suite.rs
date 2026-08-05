@@ -1150,7 +1150,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         executable_regions.contains(
             "\"certificate_schema\": \"omega.final-footprint-certificate\""
         )
-            && executable_regions.contains("\"certificate_format_version\": 75")
+            && executable_regions.contains("\"certificate_format_version\": 76")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
             && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")
@@ -29585,6 +29585,40 @@ fn runtime_exit_code_exit_canary_runs() {
     );
 
     let _ = fs::remove_dir_all(&build_dir);
+
+    for target in ["windows_x64", "macos_arm64"] {
+        let cross_dir = std::env::temp_dir().join(format!(
+            "omega-runtime-exit-code-{target}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&cross_dir);
+        let source_dir = cross_dir.join("src");
+        let output_dir = cross_dir.join("out");
+        fs::create_dir_all(&source_dir).expect("runtime exit-code cross-target source directory");
+        fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
+            .expect("copy runtime exit-code canary");
+        fs::write(
+            source_dir.join("build.omg"),
+            format!("target {target} {{\n}}\n"),
+        )
+        .expect("write runtime exit-code cross-target manifest");
+        compile(CompileOptions {
+            root_path: source_dir.join("main.omg"),
+            build_dir: Some(output_dir.clone()),
+            target_name: Some(target.to_owned()),
+            write_output: true,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!("runtime exit-code cross-compile failed for {target}: {diagnostics:#?}")
+        });
+        let footprints = fs::read_to_string(output_dir.join("08_boundary_footprints.json"))
+            .expect("runtime exit-code cross-target footprints should be emitted");
+        assert!(
+            footprints.contains("\"origin\": \"compiler_body_outbound_storage_import\""),
+            "{target} runtime exit import must retain its exact storage-call footprint"
+        );
+        let _ = fs::remove_dir_all(&cross_dir);
+    }
 }
 
 #[test]

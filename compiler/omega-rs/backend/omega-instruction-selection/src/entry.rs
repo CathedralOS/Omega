@@ -1042,6 +1042,47 @@ pub fn derive_boundary_compiler_body_outbound_immediate_import_footprint(
     operands: &psi_arena::Arena<omega_abstract_operations::InstructionOperand>,
     instructions: &[omega_abstract_operations::AbstractOperation],
 ) -> Result<StateFootprintEvidence, PlanDiagnostic> {
+    derive_boundary_compiler_body_outbound_direct_import_footprint(
+        boundary,
+        input,
+        operands,
+        instructions,
+        DirectImportArgumentClass::Immediate,
+    )
+}
+
+/// Derive the companion no-result import class that loads one or more scalar
+/// arguments from runtime storage. Exact storage relocations are retained at
+/// machine emission; the semantic leaf is otherwise the same wrapped foreign
+/// call ceiling as the immediate-only class.
+pub fn derive_boundary_compiler_body_outbound_storage_import_footprint(
+    boundary: &ValidatedBoundaryEntryPlan,
+    input: &crate::InstructionSelectionInput<'_>,
+    operands: &psi_arena::Arena<omega_abstract_operations::InstructionOperand>,
+    instructions: &[omega_abstract_operations::AbstractOperation],
+) -> Result<StateFootprintEvidence, PlanDiagnostic> {
+    derive_boundary_compiler_body_outbound_direct_import_footprint(
+        boundary,
+        input,
+        operands,
+        instructions,
+        DirectImportArgumentClass::Storage,
+    )
+}
+
+#[derive(Clone, Copy)]
+enum DirectImportArgumentClass {
+    Immediate,
+    Storage,
+}
+
+fn derive_boundary_compiler_body_outbound_direct_import_footprint(
+    boundary: &ValidatedBoundaryEntryPlan,
+    input: &crate::InstructionSelectionInput<'_>,
+    operands: &psi_arena::Arena<omega_abstract_operations::InstructionOperand>,
+    instructions: &[omega_abstract_operations::AbstractOperation],
+    argument_class: DirectImportArgumentClass,
+) -> Result<StateFootprintEvidence, PlanDiagnostic> {
     use omega_abstract_operations::{AbstractOperationKind, InstructionOperandKind};
     use omega_calling_conventions::{
         EntryControl, HostBindingMechanism, HostCapability, MachineRegister,
@@ -1091,9 +1132,24 @@ pub fn derive_boundary_compiler_body_outbound_immediate_import_footprint(
             || !matches!(binding.call_plan().entry_control, EntryControl::CallReturn)
             || binding.call_plan().parameters.len() != selected_operands.len()
             || selected_operands.is_empty()
-            || !selected_operands
-                .iter()
-                .all(|operand| matches!(operand.kind, InstructionOperandKind::ImmediateInteger(_)))
+            || !selected_operands.iter().all(|operand| {
+                matches!(
+                    operand.kind,
+                    InstructionOperandKind::ImmediateInteger(_)
+                        | InstructionOperandKind::RuntimeScalarInteger { .. }
+                )
+            })
+            || match argument_class {
+                DirectImportArgumentClass::Immediate => selected_operands.iter().any(|operand| {
+                    !matches!(operand.kind, InstructionOperandKind::ImmediateInteger(_))
+                }),
+                DirectImportArgumentClass::Storage => !selected_operands.iter().any(|operand| {
+                    matches!(
+                        operand.kind,
+                        InstructionOperandKind::RuntimeScalarInteger { .. }
+                    )
+                }),
+            }
         {
             continue;
         }
