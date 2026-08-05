@@ -7,8 +7,9 @@ proof-only uses erase after checking.
 The proof language has one dedicated formula declaration. A `proposition`
 names a fact; ordinary proof machines establish it through `ensures` and use it
 through `requires` or proof expressions. Primitive propositions end in `;`,
-witness-bearing propositions name one carrierless evidence interface in
-braces, and transparent proposition definitions use `=`. See
+witness-bearing propositions publish one carrierless evidence interface as
+fingerprinted proof content, and transparent proposition definitions use `=`.
+The exact evidence-clause spelling remains `OWNER_QUESTIONS.md` Q5. See
 [Law-Bearing Relations, Evidence, And Quotients](law_bearing_relations_and_quotients.md)
 for the complete source and evidence model.
 

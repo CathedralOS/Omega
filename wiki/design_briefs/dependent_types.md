@@ -1,6 +1,6 @@
 # Design Brief: Dependent Types — the Systems Fragment, Lifetimes, and the Lean Path
 
-Current staged design as of 2026-08-03; implementation remains incomplete.
+Current staged design as of 2026-08-04; implementation remains incomplete.
 Companion to [Chapter 12](../language_guide/chapter_12_dependent_types.md) (the
 user-facing surface) and
 [proof_engine_north_star.md](proof_engine_north_star.md) (the automation/kernel
@@ -63,9 +63,9 @@ The full apparatus, with the builder's verdict on each:
 | Pi (result type computed from argument value) | value-indexed APIs; quantifiers; generics-as-instance | a normalizer *inside* the type checker (conversion checking evaluates open user terms at compile time); undecidable inference; elaboration | **No.** Layouts/facts *parameterized* by values never require types *computed* by code |
 | Sigma (dependent pair) | existential returns; length-prefixed wire data — `{len, payload[len]}` IS one | near-zero in a decidable index fragment | **Yes** — the single most systems-relevant object. UEFI GetMemoryMap returns one |
 | Indexed families (Vec) | compile-time-impossible cases | index unification, K-axiom, forced-argument erasure | No — sum types + fact-conditioned cases + dominating guards reproduce the effect (the landed sum-payload narrowing already is this) |
-| Universes | types-as-values | Girard's paradox management; permanent bookkeeping tax | No — a language whose types are never first-class values has **no universe problem**; keep it that way until the math rung |
+| Universes | classify values and formulas | Girard's paradox management only if universes themselves become freely first-class | **Yes, internally:** `Type` for objects and `Prop` for formulas; neither is currently a runtime value or an open source-level universe |
 | Definitional equality / normalization | silent computation in types | the checker's termination = the termination checker's soundness; Lean's main pain center (defeq debt, kernel blowups) | No — an entailment *engine* deciding equalities in a decidable theory is the third road: reflected-equality ergonomics without undecidable checking |
-| Erasure (QTT quantities 0/1/ω, Idris 2) | proofs cost nothing at runtime | a quantity system on every binder | **Free already** — facts live in the engine, never as terms; every proof is quantity-0 by construction |
+| Erasure (QTT quantities 0/1/ω, Idris 2) | proofs cost nothing at runtime | relevance must compose with multiplicity, effects, and validity scope | **Partly built:** current facts erase and multiplicity already propagates; explicit relevance must replace structural proof-only classification |
 
 **The spectrum, and where Omega sits.** Constant-bound refinements →
 *symbolic bounds over linear integer arithmetic, decision-procedure-discharged*
@@ -79,9 +79,11 @@ existing engine's inputs, not by new theory. What Omega already implements
 under its own names: guard narrowing = flow-sensitive refinement; wire data
 with runtime strides = Sigma types in disguise; store enforcement = the
 ownership-sound strong updates Flux (Liquid Types for Rust, PLDI 2023) showed
-make refinement of mutable memory work; engine-not-terms = perfect erasure.
+make refinement of mutable memory work. The current engine erases proof facts;
+the terminal-Psi destination additionally retains kernel-checkable proof terms
+and certificates under an explicit relevance judgment.
 
-### Proof-static indexed domains do not add a universe
+### Proof-static indexed domains do not make universes runtime values
 
 An erased domain may eventually take a canonical first-order static value as
 an index. This generalizes `const N: u64` to eligible structured values and
@@ -89,9 +91,11 @@ lets a generic result carry an index constraint computed from input indices.
 Units, coordinate frames, currencies, tensor shapes, and protocol encodings
 are library customers; none becomes compiler vocabulary.
 
-This does not introduce types-as-values, predicate indices, runtime-dependent
-layout, or arbitrary machine evaluation in type equality. The nominal domain
-family remains fixed and the index is a normalized constraint fact.
+This does not introduce types-as-runtime-values, predicate indices,
+runtime-dependent layout, or arbitrary machine evaluation in type equality.
+It lives inside the existing internal `Type`/`Prop` classification without
+exposing either universe as data. The nominal domain family remains fixed and
+the index is a normalized constraint fact.
 Compatibility between an actual index expression and an expected one creates
 a verification condition. Closed evaluation or canonical normalization decides
 identity; established local facts discharge remaining compatibility obligations

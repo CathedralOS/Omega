@@ -73,14 +73,13 @@ A proposition family states a fact depending on representative values:
 
 ```omega
 proposition rat_equivalent(left: Rat, right: Rat);
-
-proposition converges_together<machine Left, machine Right>(
-    left: CauchySeq<Left>,
-    right: CauchySeq<Right>
-) {
-    ConvergenceEvidence<Left, Right>;
-}
 ```
+
+A nominal `converges_together<Left, Right>(left, right)` proposition publishes
+`ConvergenceEvidence<Left, Right>` as its one opaque evidence interface. The
+exact dedicated source clause for that interface remains
+[`OWNER_QUESTIONS.md` Q5](../../OWNER_QUESTIONS.md); its semantic role is
+settled independently of that spelling.
 
 Its truth is inhabitance by checked proof evidence, not the result of running
 a `bool` machine. An arbitrary pair of generator machines cannot in general
@@ -91,9 +90,17 @@ universal law.
 no result, runtime value, layout, operation contract, lowering, or executable
 body. A primitive fact-only declaration ends with `;`. A witness-bearing
 declaration contains exactly one canonical carrierless evidence interface in
-braces. The owner thereby fixes both introduction and elimination: every
-establishing conformance supplies that interface, and eliminating the
-proposition reopens the exact retained evidence term.
+a dedicated declaration position. The owner thereby fixes both introduction
+and elimination: every establishing conformance supplies that interface, and
+eliminating the proposition reopens the exact retained evidence term in the
+proof stratum.
+
+The proposition remains nominal rather than definitionally equal to its
+evidence package. Its interface is normalized, fingerprinted semantic content,
+so changing that interface is a breaking proof-interface revision without
+turning the selected conformance into the proposition's identity. An ordinary
+`where` bound cannot carry this role, and `=` remains reserved for transparent
+logical expansion.
 
 An ordinary checked proof machine may establish either form through its
 `ensures`. For a witness-bearing proposition the proof must also supply the

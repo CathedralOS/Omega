@@ -359,7 +359,7 @@ corresponding exact machine for another qualification. This makes projection
 selection explicit when a carrier has several independent content-bearing
 claims.
 
-Two proof-only operations complete the source surface:
+Two conservation-specific proof-only operations complete this source surface:
 
 - `entry(place)` denotes the callable-entry version of a parameter, `self`, or
   one of their structural places; it is not executable, does not copy an owned

@@ -29,6 +29,12 @@ ordinary contract fact may appear:
 | `domain` | qualification of one carrier |
 | `trait` | requirement and evidence interface |
 
+Internally, proposition families inhabit the proof-only `Prop` universe. A
+proof is evidence inhabiting one proposition application. `requires` and
+`ensures` expose that evidence as erased input and output facts on the
+machine's entry and terminal edges; they do not add runtime parameters or
+result fields.
+
 ```omega
 proposition rat_equivalent(left: Rat, right: Rat);
 
@@ -43,23 +49,20 @@ ensures
 ```
 
 A primitive fact-only proposition ends with `;`. A witness-bearing proposition
-names its one canonical carrierless evidence interface in braces:
+publishes one canonical carrierless evidence interface as part of its
+declaration. The interface is owner-authorized public proof content, not an
+executable body or an ordinary generic bound. Any selected conformance used to
+establish the proposition must supply that interface. Eliminating the
+proposition reopens the exact retained evidence term in proof-only computation,
+so a convergence proof can recover its opaque modulus and law. Different
+conformances may carry different witnesses without changing the proposition's
+nominal symbol.
 
-```omega
-proposition converges_together<machine Left, machine Right>(
-    left: CauchySeq<Left>,
-    right: CauchySeq<Right>
-) {
-    ConvergenceEvidence<Left, Right>;
-}
-```
-
-The brace entry is an owner-authorized evidence interface, not an executable
-statement. Any selected conformance used to establish the proposition must
-supply that interface. Eliminating the proposition reopens the exact retained
-evidence term, so a convergence proof can recover its opaque modulus and law.
-Different conformances may carry different witnesses without changing the
-proposition's nominal identity.
+The evidence interface is nevertheless normalized and fingerprinted. Revising
+it is a breaking proof-interface change even though the proposition retains its
+name. Runtime extraction of a witness requires an ordinary `Type`-level package;
+proof evidence cannot be opened into runtime computation merely because its
+representation erases.
 
 A transparent proposition definition uses `=`:
 
@@ -92,7 +95,14 @@ same fact. No Boolean-to-proposition bridge operation is required.
 
 Fact-only versus witness-bearing is part of normalized proposition identity.
 Transparent aliases do not enter fingerprinted terminal Psi; primitive
-proposition symbols, their binders, and their evidence classification do.
+proposition symbols, their binders, classification, and normalized evidence
+interface do.
+
+Evidence also retains multiplicity, validity scope, and trust provenance. An
+erased proof may still be linear, borrow-scoped, entry-scoped, invalidated by a
+write, or tied to a live lease. Admission marks the evidence chain, not the
+proposition name, so two proofs of the same formula may carry different trust
+and a deployment profile may accept one and reject the other.
 
 ## Machines As Proofs
 
@@ -311,10 +321,8 @@ instance.
 Relation properties are ordinary explicit conformances. `Reflexive`,
 `Symmetric`, and `Transitive` are independent requirements;
 `Equivalence<C, R>` composes all three and redeclares none. Preorders and
-partial orders reuse the same component properties. The compiler does not
-discover free proof machines by `_reflexive`, `_symmetric`, or `_transitive`
-suffix. The current N6 canaries exercise that implemented legacy convention
-and are migration inputs, not the final law.
+partial orders reuse the same component properties. Law evidence is selected
+through those conformances rather than discovered from proof-machine names.
 
 `%` consumes the carrier family, proposition relation, and a selected
 `Equivalence` conformance. A unique home satisfier is inferred; ambiguity uses

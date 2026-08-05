@@ -457,14 +457,16 @@ The implemented systems fragment in this chapter is intentionally narrow:
 - **No runtime proof objects.** Runtime dependent data acquires no hidden proof
   field, layout, or cleanup.
 
-The proof stratum now has one ordered extension beyond that systems fragment:
-proposition-valued families over representative values, with typed
-proof-static index telescopes and carrierless erased evidence. A dedicated
-`proposition R(left: C, right: C);` declaration introduces the family, and
-`R(left, right)` applies it in a fact position. `Proposition` is not a runtime
-type, machine result type, stored value, or open universe. This fragment does
-not admit arbitrary value-to-runtime-`Type` computation. It must land before
-evidence-bearing quotients and is specified in
+The proof stratum now has an internal `Prop` universe for formulas, distinct
+from runtime `Type` and from effectful machine computation. A dedicated
+`proposition R(left: C, right: C);` declaration introduces a nominal family,
+and `R(left, right)` applies it in a fact position. Proof inhabitants are
+erased and cannot be stored, inspected by runtime code, or used as machine
+layout. The current source fragment exposes proposition-valued families over
+representative values with typed proof-static index telescopes and
+carrierless evidence; it does not yet expose `Prop` itself as an arbitrary
+first-class source value or admit value-to-runtime-`Type` computation. It must
+land before evidence-bearing quotients and is specified in
 [Law-Bearing Relations, Evidence, And Quotients](../design_briefs/law_bearing_relations_and_quotients.md).
 The small-kernel endgame
 ([proof_engine_north_star.md](../design_briefs/proof_engine_north_star.md))

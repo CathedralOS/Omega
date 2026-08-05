@@ -1,10 +1,10 @@
 # Design Brief: Proof-Engine North Star — Obsoleting SPARK, Rust, and Lean
 
-Drafted 2026-06-19. Status: **direction, not a decided plan.** Records the
-long-range target for Omega's proof layer and the architectural fork it forces,
-so the choice is made on paper rather than drifted into. Nothing here is frozen;
-the near-term work (S4 narrowing, domains over carriers) is committed and lives
-in TASKS.md — this brief is the endpoint that work aims at.
+Drafted 2026-06-19. Status: **settled architectural direction with staged
+migration.** Records the long-range target for Omega's proof layer and the
+architectural fork it forces. Landed source and terminal-Psi rules remain
+governed by the language guide and `TASKS.md`; this brief states the endpoint
+those increments must converge toward.
 
 Update 2026-08-02: the terminal-Psi architecture has now settled the fork in
 favor of a small trusted kernel plus untrusted/certifying automation. The
@@ -13,6 +13,13 @@ judgments, certificate envelope, and sealed admission validator are live. The
 broader quantified proof language and automation-to-certificate bridge remain
 long-range work; see
 [Terminal Psi, Fuel, And Resource Provisioning](canonical_ir_fuel_and_resource_provisioning.md).
+
+Update 2026-08-04: nominal `proposition` declarations establish `Prop` as the
+formula universe. The long-range core is one typed framework with distinct
+value, proposition, and effectful-computation judgments, explicit relevance,
+validity scope, and trust provenance. This is a semantic north star; it does
+not retroactively replace the current structural proof-only classification or
+make the effectful computation judgment an implementation prerequisite.
 
 ## The ambition
 
@@ -95,6 +102,81 @@ This is strictly better than Lean (far less hand-proving) and strictly better
 than pure-SMT/SPARK (it can do the hard cases at all, with a smaller trusted
 base). F\* is the nearest existing point on the map (SMT automation over a
 dependently-typed, kernel-checked core) — the closest prior art to study.
+
+## One typed core, three judgments
+
+The destination is one calculus, not several unrelated proof mechanisms:
+
+| Judgment | Subject | Runtime meaning |
+|---|---|---|
+| `Type` | mathematical and runtime values | depends on relevance and layout |
+| `Prop` | formulas that may hold about values | no runtime representation |
+| computation | effectful machines producing values or proofs | carries effects, work, failure, suspension, and termination |
+
+`data` constructs values in `Type`. `proposition` constructs formulas in
+`Prop`. A proof is an inhabitant of a proposition. An ordinary checked machine
+may construct values or establish proofs; `requires` and `ensures` elaborate to
+erased proof flow at the machine entry and terminal edges. Trait laws,
+termination facts, domain facts, quotient laws, and conservation equations
+therefore share one proposition/proof account even when their source surfaces
+remain specialized and ergonomic.
+
+This unification preserves three distinctions:
+
+- an object such as `Nat` is not a claim about that object;
+- a proposition is not the particular evidence that establishes it; and
+- a proof is not a decision procedure returning `bool`.
+
+The `Prop` universe is internal and proof-only. Source proposition families are
+not runtime values, fields, layouts, or machine result carriers. A Boolean
+expression in a contract is the decidable special case: it denotes the
+proposition that the expression evaluates to `true`.
+
+## Evidence dimensions
+
+Proof erasure is not the whole evidence model. Every retained fact is described
+along independent dimensions:
+
+- **relevance:** whether it contributes runtime representation or behavior;
+- **multiplicity:** whether it may be copied, must be consumed, or may be
+  discarded;
+- **validity scope:** timeless, borrow-scoped, entry-scoped, state-versioned
+  and invalidated by intersecting writes, or lease-scoped; and
+- **provenance:** derived, certified, admitted, and the exact authority/evidence
+  chain that supplied it.
+
+Omega's existing `[copy]`/affine/`[linear]` rules provide much of the
+multiplicity substrate, but erased relevance remains a separate judgment: a
+proof may be erased while still linear or scoped. Provenance attaches to the
+evidence, not to proposition identity, and composes through every proof so a
+deployment profile can reject a proof closure containing unacceptable
+admissions.
+
+## Witnesses and elimination
+
+A fact-only proposition hides all proof identity. A witness-bearing nominal
+proposition publishes one opaque evidence interface. Selected carrierless
+conformance is one representation of an inhabitant of that proposition, not a
+parallel logical mechanism. The normalized interface is fingerprinted public
+proof content; changing it is a breaking proof-API revision while the nominal
+proposition symbol remains stable.
+
+Opening proposition evidence is allowed only within proof-relevant or erased
+computation. A witness that must influence runtime computation belongs in an
+ordinary `Type`-level dependent pair whose relevance is tracked explicitly;
+erasure alone does not authorize eliminating a `Prop` inhabitant into runtime
+`Type`.
+
+## Migration boundary
+
+The current rule that recursive/non-layoutable mathematical data becomes
+proof-only remains live until explicit relevance replaces it. During migration,
+an explicit relevance annotation takes precedence; structural classification
+is then legacy inference for unannotated declarations. The later effectful
+computation judgment must account for Omega's states, transitions, effects,
+suspension, failure, work, and multiplicity rather than pretending machines
+are pure dependent functions. Neither migration blocks proposition families,
+terminal-Psi proof identity, or the present certificate kernel.
 
 ## Where Omega is today (grounded)
 

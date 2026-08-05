@@ -498,21 +498,12 @@ See [chapter 10](chapter_10_compile_time_proofs.md) and
 [Law-Bearing Relations, Evidence, And Quotients](../design_briefs/law_bearing_relations_and_quotients.md).
 
 A witness-bearing proposition names exactly one such carrierless evidence
-interface in its declaration:
-
-```omega
-proposition converges_together<machine Left, machine Right>(
-    left: CauchySeq<Left>,
-    right: CauchySeq<Right>
-) {
-    ConvergenceEvidence<Left, Right>;
-}
-```
-
-The proposition owner authorizes that interface. Selected conformances supply
-concrete witnesses; they do not create proposition identities or nominate
-themselves as evidence routes. Eliminating an established proposition opens the
-same retained evidence term that introduced it.
+interface in its declaration. The proposition owner authorizes that interface.
+Selected conformances supply concrete witnesses; they do not create
+proposition identities or nominate themselves as evidence routes. Eliminating
+an established proposition in proof-only computation opens the same retained
+evidence term that introduced it. The normalized interface is fingerprinted
+public proof content even though the selected witness has no runtime carrier.
 
 ### Operational envelopes
 

@@ -1909,13 +1909,15 @@ and allocation handles expose no compiler-owned stack/control storage.
 - **N6:** implement law-bearing relations and quotient evidence in the ordered
   sequence fixed by
   `wiki/design_briefs/law_bearing_relations_and_quotients.md`:
-  1. **PROP-FAMILY-SURFACE — DESIGN CLEAR:** land the dedicated
+  1. **PROP-FAMILY-SURFACE — IMPLEMENTATION IN PROGRESS:** land the dedicated
      `proposition` declaration and binder kind, primitive and witness-bearing
      forms, transparent `=` aliases, proposition application in fact
-     positions, and normalized proposition identity. Proposition braces name
-     the one canonical carrierless evidence interface; they are not executable
-     machine bodies. Transparent aliases expand before terminal identity and
-     survive only in source/debug maps. Source slice landed 2026-08-03:
+     positions, and normalized proposition identity. A witness-bearing
+     declaration names one canonical carrierless evidence interface as
+     fingerprinted proof content; its exact dedicated clause is separately
+     blocked on `OWNER_QUESTIONS.md` Q5. Transparent aliases expand before
+     terminal identity and survive only in source/debug maps. Source slice
+     landed 2026-08-03:
      primitive, single-evidence, and transparent declaration forms now have
      dedicated syntax nodes, deep-copy/source-identity/snapshot retention, and
      reject runtime return or executable/ambiguous body shapes. The syntax to
@@ -1983,8 +1985,13 @@ and allocation handles expose no compiler-owned stack/control storage.
      only as its family identity, and reconstructs the concrete proposition's
      binder labels from the proof machine's representative types before exact
      normalized-law matching. Missing, reused, or swapped representative
-     packs reject. **SELECTED-WITNESS-EVIDENCE — DESIGN BLOCKED
-     (`OWNER_QUESTIONS.md` Q1):** a witness-bearing proposition fixes its
+     packs reject. **WITNESS-EVIDENCE-CLAUSE — DESIGN BLOCKED
+     (`OWNER_QUESTIONS.md` Q5):** replace or ratify the current provisional
+     brace-shaped evidence node with the dedicated declaration position chosen
+     by Q5. Ordinary `where` bounds and transparent `=` definitions cannot
+     carry this fingerprinted nominal proof interface.
+     **SELECTED-WITNESS-EVIDENCE — DESIGN BLOCKED
+     (`OWNER_QUESTIONS.md` Q1 and Q5):** a witness-bearing proposition fixes its
      carrierless evidence interface, but selecting and reopening one concrete
      evidence term requires the unresolved complete requirement-to-satisfier
      map for a named conformance. The current owned-`dyn` surface also has no
@@ -2016,7 +2023,7 @@ and allocation handles expose no compiler-owned stack/control storage.
      settled, but the source/identity surface for the synthesized record,
      receiver/parameter projections, and derived callable-domain proposition
      is not; do not promote the legacy flattened pair-of-calls scan;
-  5. **DESIGN BLOCKED (`OWNER_QUESTIONS.md` Q1 and Q3):** migrate `%` from
+  5. **DESIGN BLOCKED (`OWNER_QUESTIONS.md` Q1, Q3, and Q5):** migrate `%` from
      executable-`bool` relations and suffix-based law discovery to proposition
      evidence plus explicit selected conformances. Exact equivalence selection
      needs Q1's complete conformance map, and lifted operations depend on Q3's
@@ -2032,6 +2039,18 @@ and allocation handles expose no compiler-owned stack/control storage.
   closure depends on admitted evidence. Equality propositions canonicalize
   operand orientation; transitivity composes through the shared endpoint on
   either side without adding a separate trusted symmetry judgment.
+- **PROOF-RELEVANCE-MIGRATION — DESIGN DIRECTION:** replace structural
+  "recursive/non-layoutable implies proof-only" classification with explicit
+  relevance orthogonal to `Type`/`Prop` and multiplicity. During coexistence an
+  explicit relevance declaration wins; the structural rule remains inference
+  only for unannotated legacy data. Specify proof-only small data, erased
+  dependent pairs, layout exclusion, and diagnostics before changing current
+  guide behavior.
+- **EFFECTFUL-TYPED-COMPUTATION — RESEARCH:** connect Omega machines to the
+  unified typed proof judgment without flattening states, effects, suspension,
+  failure, work, termination, or multiplicity into pure functions. This is the
+  long-range computation half of the proof calculus and does not block the
+  landed proposition family or terminal-Psi certificate work.
 - **N8:** expand the construction corpus and proof-engine support needed by
   layouts, quotients, and `Real`.
 - **F7:** replace hardcoded float lowering with the settled ordinary
@@ -2499,6 +2518,10 @@ ordinary code never receives a raw executable address.
   binding between one named whole-trait edge and its complete requirement
   satisfier set. This blocks dynamic table adapter emission, not static trait
   dispatch.
+- **WITNESS-EVIDENCE-CLAUSE:** blocked on `OWNER_QUESTIONS.md` Q5's dedicated
+  source position for a nominal proposition's fingerprinted carrierless
+  evidence interface. The proposition category, primitive declarations,
+  transparent aliases, and fact applications remain design-clear.
 
 ## Vertical acceptance slices
 
