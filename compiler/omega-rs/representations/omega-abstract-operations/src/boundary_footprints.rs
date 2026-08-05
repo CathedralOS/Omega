@@ -25,6 +25,8 @@ pub enum BoundaryFootprintFragmentOrigin {
     CompilerBodyOutboundDataImportResult,
     CompilerBodyOutboundAuthoredImport,
     CompilerBodyOutboundAuthoredImportResult,
+    CompilerBodyOutboundAuthoredFloatImport,
+    CompilerBodyOutboundAuthoredFloatImportResult,
     CompilerBodyOutboundStorageImport,
     CompilerBodyOutboundStorageImportResult,
     CompilerBodyOutboundSyscall,
@@ -89,6 +91,8 @@ impl BoundaryFootprintPlan {
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundDataImportResult
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredImport
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredImportResult
+            | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredFloatImport
+            | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredFloatImportResult
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImport
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImportResult
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscall
@@ -334,6 +338,27 @@ mod tests {
                 },
             )
             .expect("result-bearing authored imports may use their prescribed control state");
+
+        outbound
+            .retain_validated_fragment(
+                &boundary,
+                BoundaryFootprintFragment {
+                    origin:
+                        BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredFloatImport,
+                    evidence: control_evidence(),
+                },
+            )
+            .expect("authored float imports may use their prescribed control state");
+
+        outbound
+            .retain_validated_fragment(
+                &boundary,
+                BoundaryFootprintFragment {
+                    origin: BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredFloatImportResult,
+                    evidence: control_evidence(),
+                },
+            )
+            .expect("result-bearing authored float imports may use their prescribed control state");
 
         outbound
             .retain_validated_fragment(

@@ -1139,7 +1139,7 @@ relocation-envelope fingerprints plus their composed derivation identity. The
 boundary/placement binding includes that derivation identity, so a valid final
 inventory cannot be paired with evidence from a different encoded-to-final
 derivation. The single emitted artifact is now self-described as
-`omega.final-footprint-certificate` format v82, with a domain-separated
+`omega.final-footprint-certificate` format v83, with a domain-separated
 certificate fingerprint over its final placement binding, compiler-text
 derivation, and region inventory. It remains explicitly incomplete evidence,
 not an admission certificate, until the missing footprint classes close. The
@@ -1196,8 +1196,12 @@ storage-root relocation. Scalar source-authored imports with
 immediate/runtime-scalar integer or static-data parameters now use ninth and
 tenth origins for no-result and direct-integer-result calls. Replay consumes
 the source-selected canonical `CallPlan` unchanged and requires the exact
-authored library/symbol call plus every data/storage root. Authored float and
-aggregate shapes remain outside this subset alongside composite import
+authored library/symbol call plus every data/storage root. Scalar source-authored
+imports with runtime-float parameters now use eleventh and twelfth origins for
+no-result and direct scalar-result calls. Replay preserves the plan-selected
+vector/register/stack placements, requires the exact imported call and every
+data/storage root, and includes the AArch64 float-result move when present.
+Authored aggregate shapes remain outside this subset alongside composite import
 adapters.
 Result-bearing runtime-storage-only syscalls
 continue to combine their argument relocation set with the exact result-region
