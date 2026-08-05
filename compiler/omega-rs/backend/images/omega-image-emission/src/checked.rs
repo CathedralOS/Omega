@@ -174,7 +174,7 @@ enum CompilerInstructionRelocationRecipe {
         library: std::sync::Arc<str>,
         symbol: std::sync::Arc<str>,
     },
-    RuntimeByteBoundary {
+    RuntimeTextBoundary {
         call_sites: Vec<(usize, std::sync::Arc<str>, std::sync::Arc<str>)>,
         address_sites: Vec<(usize, OutboundCallRelocationTarget)>,
     },
@@ -1822,7 +1822,7 @@ fn validate_aarch64_runtime_import_replay_plan(
     Ok(())
 }
 
-struct RuntimeByteReplay {
+struct RuntimeTextReplay {
     bytes: Vec<u8>,
     call_sites: Vec<(usize, std::sync::Arc<str>, std::sync::Arc<str>)>,
     address_sites: Vec<(usize, OutboundCallRelocationTarget)>,
@@ -1838,7 +1838,7 @@ fn encode_runtime_byte_replay(
     mechanism: &omega_calling_conventions::HostBindingMechanism,
     plan: &omega_calling_conventions::CallPlan,
     get_std_handle: Option<&omega_machine_bytes::CompilerRuntimeImportSubcall>,
-) -> Result<RuntimeByteReplay, Diagnostic> {
+) -> Result<RuntimeTextReplay, Diagnostic> {
     use omega_calling_conventions::HostBindingMechanism;
 
     let (mut bytes, mut call_sites) = match (architecture, mechanism) {
@@ -2001,7 +2001,265 @@ fn encode_runtime_byte_replay(
             *site += prefix_width;
         }
     }
-    Ok(RuntimeByteReplay {
+    Ok(RuntimeTextReplay {
+        bytes,
+        call_sites,
+        address_sites,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn encode_runtime_line_read_replay(
+    architecture: Architecture,
+    buffer_symbol: std::sync::Arc<str>,
+    target_region: omega_target_operations::RuntimeStorageRegion,
+    target_offset: usize,
+    byte_capacity: usize,
+    target: omega_target_operations::RuntimeTextReadTarget,
+    mechanism: &omega_calling_conventions::HostBindingMechanism,
+    plan: &omega_calling_conventions::CallPlan,
+    get_std_handle: Option<&omega_machine_bytes::CompilerRuntimeImportSubcall>,
+) -> Result<RuntimeTextReplay, Diagnostic> {
+    use omega_calling_conventions::HostBindingMechanism;
+    use omega_target_operations::RuntimeTextReadTarget;
+
+    let (mut bytes, mut call_sites) = match (architecture, mechanism) {
+        (Architecture::Aarch64, HostBindingMechanism::Import { library, symbol }) => {
+            if get_std_handle.is_some() {
+                return Err(Diagnostic::error(
+                    "final AArch64 runtime line-read replay unexpectedly retained GetStdHandle",
+                ));
+            }
+            validate_aarch64_runtime_import_replay_plan(plan)?;
+            let (bytes, call_site) = match target {
+                RuntimeTextReadTarget::BoundedByteBuffer => (
+                    omega_isa_aarch64::aarch64::encode_runtime_text_line_read_carrier_import(
+                        target_offset,
+                        byte_capacity,
+                    )?,
+                    omega_isa_aarch64::aarch64::runtime_text_line_read_carrier_import_call_offset(
+                        target_offset,
+                    ),
+                ),
+                RuntimeTextReadTarget::FixedByteArray => (
+                    omega_isa_aarch64::aarch64::encode_runtime_text_line_read_fixed_array_import(
+                        target_offset,
+                        byte_capacity,
+                    )?,
+                    omega_isa_aarch64::aarch64::runtime_text_line_read_fixed_array_import_call_offset(
+                        target_offset,
+                    ),
+                ),
+                RuntimeTextReadTarget::StringDescriptor => (
+                    omega_isa_aarch64::aarch64::encode_runtime_text_line_read_import(
+                        target_offset,
+                        byte_capacity,
+                    )?,
+                    omega_isa_aarch64::aarch64::runtime_text_line_read_import_call_offset(),
+                ),
+            };
+            (
+                bytes,
+                vec![(
+                    call_site,
+                    std::sync::Arc::clone(library),
+                    std::sync::Arc::clone(symbol),
+                )],
+            )
+        }
+        (Architecture::X86_64, HostBindingMechanism::Import { library, symbol }) => {
+            let handle = get_std_handle.ok_or_else(|| {
+                Diagnostic::error(
+                    "final Win64 runtime line-read replay lost its GetStdHandle call plan",
+                )
+            })?;
+            omega_isa_x86_64::validate_win64_runtime_file_adapter_plans(&handle.plan, plan)?;
+            let (bytes, handle_site, file_site) = match target {
+                RuntimeTextReadTarget::BoundedByteBuffer => (
+                    omega_isa_x86_64::encode_runtime_text_line_read_carrier(
+                        target_offset,
+                        byte_capacity,
+                    )?,
+                    omega_isa_x86_64::runtime_text_line_read_carrier_get_std_handle_call_offset(),
+                    omega_isa_x86_64::runtime_text_line_read_carrier_read_file_call_offset(),
+                ),
+                RuntimeTextReadTarget::FixedByteArray => (
+                    omega_isa_x86_64::encode_runtime_text_line_read_fixed_array(
+                        target_offset,
+                        byte_capacity,
+                    )?,
+                    omega_isa_x86_64::runtime_text_line_read_fixed_array_get_std_handle_call_offset(
+                    ),
+                    omega_isa_x86_64::runtime_text_line_read_fixed_array_read_file_call_offset(),
+                ),
+                RuntimeTextReadTarget::StringDescriptor => (
+                    omega_isa_x86_64::encode_runtime_text_line_read(target_offset, byte_capacity)?,
+                    omega_isa_x86_64::runtime_text_line_read_get_std_handle_call_offset(),
+                    omega_isa_x86_64::runtime_text_line_read_read_file_call_offset(),
+                ),
+            };
+            (
+                bytes,
+                vec![
+                    (
+                        handle_site,
+                        std::sync::Arc::clone(&handle.library),
+                        std::sync::Arc::clone(&handle.symbol),
+                    ),
+                    (
+                        file_site,
+                        std::sync::Arc::clone(library),
+                        std::sync::Arc::clone(symbol),
+                    ),
+                ],
+            )
+        }
+        (architecture, HostBindingMechanism::Syscall { number, .. }) => {
+            if get_std_handle.is_some() {
+                return Err(Diagnostic::error(
+                    "final runtime line-read syscall replay unexpectedly retained GetStdHandle",
+                ));
+            }
+            let registers = outbound_syscall_replay_registers(architecture, plan, 3)?;
+            let bytes = match (architecture, target) {
+                (Architecture::Aarch64, RuntimeTextReadTarget::BoundedByteBuffer) => {
+                    omega_isa_aarch64::aarch64::encode_runtime_text_line_read_carrier_syscall(
+                        target_offset,
+                        byte_capacity,
+                        *number,
+                        &registers.parameters,
+                        registers.result,
+                        registers.number,
+                        registers.immediate,
+                    )?
+                }
+                (Architecture::Aarch64, RuntimeTextReadTarget::FixedByteArray) => {
+                    omega_isa_aarch64::aarch64::encode_runtime_text_line_read_fixed_array_syscall(
+                        target_offset,
+                        byte_capacity,
+                        *number,
+                        &registers.parameters,
+                        registers.result,
+                        registers.number,
+                        registers.immediate,
+                    )?
+                }
+                (Architecture::Aarch64, RuntimeTextReadTarget::StringDescriptor) => {
+                    omega_isa_aarch64::aarch64::encode_runtime_text_line_read_syscall(
+                        target_offset,
+                        byte_capacity,
+                        *number,
+                        &registers.parameters,
+                        registers.result,
+                        registers.number,
+                        registers.immediate,
+                    )?
+                }
+                (Architecture::X86_64, RuntimeTextReadTarget::BoundedByteBuffer) => {
+                    omega_isa_x86_64::encode_runtime_text_line_read_syscall_carrier(
+                        target_offset,
+                        byte_capacity,
+                        *number,
+                        &registers.parameters,
+                        registers.result,
+                        registers.number,
+                        registers.immediate,
+                    )?
+                }
+                (Architecture::X86_64, RuntimeTextReadTarget::FixedByteArray) => {
+                    omega_isa_x86_64::encode_runtime_text_line_read_syscall_fixed_array(
+                        target_offset,
+                        byte_capacity,
+                        *number,
+                        &registers.parameters,
+                        registers.result,
+                        registers.number,
+                        registers.immediate,
+                    )?
+                }
+                (Architecture::X86_64, RuntimeTextReadTarget::StringDescriptor) => {
+                    omega_isa_x86_64::encode_runtime_text_line_read_syscall(
+                        target_offset,
+                        byte_capacity,
+                        *number,
+                        &registers.parameters,
+                        registers.result,
+                        registers.number,
+                        registers.immediate,
+                    )?
+                }
+            };
+            (bytes, Vec::new())
+        }
+        (
+            _,
+            HostBindingMechanism::VtableSlot { .. }
+            | HostBindingMechanism::VtableField { .. }
+            | HostBindingMechanism::TableFunction { .. },
+        ) => {
+            return Err(Diagnostic::error(
+                "final runtime line-read replay retained a non-import/non-syscall mechanism",
+            ));
+        }
+    };
+
+    let mut address_sites = match target {
+        RuntimeTextReadTarget::BoundedByteBuffer | RuntimeTextReadTarget::FixedByteArray => {
+            vec![(0, OutboundCallRelocationTarget::Storage(target_region))]
+        }
+        RuntimeTextReadTarget::StringDescriptor => {
+            let target_site = match (architecture, mechanism) {
+                (Architecture::Aarch64, HostBindingMechanism::Import { .. }) => {
+                    omega_isa_aarch64::aarch64::runtime_text_line_read_import_target_address_offset(
+                    )
+                }
+                (Architecture::Aarch64, HostBindingMechanism::Syscall { number, .. }) => {
+                    omega_isa_aarch64::aarch64::runtime_text_line_read_syscall_target_address_offset(
+                        *number,
+                    )
+                }
+                (Architecture::X86_64, HostBindingMechanism::Import { .. }) => {
+                    omega_isa_x86_64::runtime_text_line_read_target_imm_offset()
+                }
+                (Architecture::X86_64, HostBindingMechanism::Syscall { .. }) => {
+                    omega_isa_x86_64::runtime_text_line_read_syscall_target_imm_offset()
+                }
+                _ => unreachable!("runtime line read mechanism validated above"),
+            };
+            vec![
+                (0, OutboundCallRelocationTarget::Data(buffer_symbol)),
+                (
+                    target_site,
+                    OutboundCallRelocationTarget::Storage(target_region),
+                ),
+            ]
+        }
+    };
+    if mechanism.requires_float_control_restore() {
+        let (prefix, suffix) = match architecture {
+            Architecture::X86_64 => (
+                omega_isa_x86_64::encode_foreign_float_control_prefix_bytes().to_vec(),
+                omega_isa_x86_64::encode_foreign_float_control_suffix_bytes().to_vec(),
+            ),
+            Architecture::Aarch64 => (
+                omega_isa_aarch64::aarch64::encode_foreign_float_control_prefix_bytes().to_vec(),
+                omega_isa_aarch64::aarch64::encode_foreign_float_control_suffix_bytes().to_vec(),
+            ),
+        };
+        let prefix_width = prefix.len();
+        let mut wrapped = Vec::with_capacity(prefix.len() + bytes.len() + suffix.len());
+        wrapped.extend(prefix);
+        wrapped.extend(bytes);
+        wrapped.extend(suffix);
+        bytes = wrapped;
+        for (site, _, _) in &mut call_sites {
+            *site += prefix_width;
+        }
+        for (site, _) in &mut address_sites {
+            *site += prefix_width;
+        }
+    }
+    Ok(RuntimeTextReplay {
         bytes,
         call_sites,
         address_sites,
@@ -3923,7 +4181,7 @@ fn validate_compiler_function_instruction_boundaries(
                             None,
                             replay.bytes,
                             59u8,
-                            CompilerInstructionRelocationRecipe::RuntimeByteBoundary {
+                            CompilerInstructionRelocationRecipe::RuntimeTextBoundary {
                                 call_sites: replay.call_sites,
                                 address_sites: replay.address_sites,
                             },
@@ -3958,7 +4216,39 @@ fn validate_compiler_function_instruction_boundaries(
                             None,
                             replay.bytes,
                             60u8,
-                            CompilerInstructionRelocationRecipe::RuntimeByteBoundary {
+                            CompilerInstructionRelocationRecipe::RuntimeTextBoundary {
+                                call_sites: replay.call_sites,
+                                address_sites: replay.address_sites,
+                            },
+                        )
+                    }
+                    omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyRuntimeLineRead {
+                        buffer_symbol,
+                        target_region,
+                        target_offset,
+                        byte_capacity,
+                        target,
+                        mechanism,
+                        plan,
+                        get_std_handle,
+                        ..
+                    } => {
+                        let replay = encode_runtime_line_read_replay(
+                            architecture,
+                            buffer_symbol,
+                            target_region,
+                            target_offset,
+                            byte_capacity,
+                            target,
+                            &mechanism,
+                            &plan,
+                            get_std_handle.as_ref(),
+                        )?;
+                        (
+                            None,
+                            replay.bytes,
+                            61u8,
+                            CompilerInstructionRelocationRecipe::RuntimeTextBoundary {
                                 call_sites: replay.call_sites,
                                 address_sites: replay.address_sites,
                             },
@@ -5633,11 +5923,11 @@ fn validate_compiler_function_instruction_boundaries(
                                     .collect::<Vec<_>>(),
                             )
                     }
-                    CompilerInstructionRelocationRecipe::RuntimeByteBoundary {
+                    CompilerInstructionRelocationRecipe::RuntimeTextBoundary {
                         call_sites,
                         address_sites,
                     } => {
-                        validate_compiler_runtime_byte_relocations(
+                        validate_compiler_runtime_text_boundary_relocations(
                             architecture,
                             object,
                             relocations,
@@ -7373,6 +7663,80 @@ fn compiler_instruction_footprint(
                 MachineStateSet::new(states),
             )
         }
+        CompilerInstructionValidationKind::CompilerBodyRuntimeLineRead {
+            target_offset,
+            target,
+            mechanism,
+            plan,
+            get_std_handle,
+            ..
+        } => {
+            use omega_target_operations::RuntimeTextReadTarget;
+
+            let mut registers = plan.ordinary_clobbers.as_slice().to_vec();
+            match architecture {
+                Architecture::X86_64 => {
+                    registers.extend([MachineRegister::X86R14, MachineRegister::X86R15]);
+                    let is_import = matches!(
+                        mechanism,
+                        omega_calling_conventions::HostBindingMechanism::Import { .. }
+                    );
+                    if is_import || target == RuntimeTextReadTarget::StringDescriptor {
+                        registers.push(MachineRegister::X86R13);
+                    }
+                    if is_import {
+                        registers.push(MachineRegister::X86Rsp);
+                        if let Some(handle) = get_std_handle {
+                            registers.extend_from_slice(handle.plan.ordinary_clobbers.as_slice());
+                        }
+                    }
+                }
+                Architecture::Aarch64 => {
+                    registers.extend([
+                        MachineRegister::Aarch64X(20),
+                        MachineRegister::Aarch64X(21),
+                        MachineRegister::Aarch64X(22),
+                        MachineRegister::Aarch64X(24),
+                    ]);
+                    match target {
+                        RuntimeTextReadTarget::StringDescriptor => {
+                            registers.push(MachineRegister::Aarch64X(16));
+                            let direct_descriptor_stores = (target_offset + 8).is_multiple_of(8)
+                                && (target_offset + 8) / 8 <= 4095;
+                            if !direct_descriptor_stores && target_offset > 4095 {
+                                registers.push(MachineRegister::Aarch64X(9));
+                            }
+                        }
+                        RuntimeTextReadTarget::BoundedByteBuffer => {
+                            if target_offset + 8 > 4095 {
+                                registers.push(MachineRegister::Aarch64X(19));
+                            }
+                        }
+                        RuntimeTextReadTarget::FixedByteArray => {
+                            if target_offset > 4095 {
+                                registers.push(MachineRegister::Aarch64X(19));
+                            }
+                        }
+                    }
+                }
+            }
+            let mut states = vec![
+                MachineState::Flags,
+                MachineState::InstructionPointer,
+                MachineState::ControlState,
+            ];
+            if matches!(
+                mechanism,
+                omega_calling_conventions::HostBindingMechanism::Import { .. }
+            ) {
+                states.push(MachineState::StackPointer);
+            }
+            (
+                BoundaryFootprintFragmentOrigin::CompilerBodyRuntimeLineRead,
+                RegisterSet::new(registers),
+                MachineStateSet::new(states),
+            )
+        }
         CompilerInstructionValidationKind::CompilerBodyOutboundStorageImport { plan, .. } => (
             BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImport,
             RegisterSet::new(plan.ordinary_clobbers.as_slice().iter().copied().chain(
@@ -8050,6 +8414,7 @@ fn validate_compiler_body_specification_footprints(
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundOpenCreateImport
                 | BoundaryFootprintFragmentOrigin::CompilerBodyRuntimeByteRead
                 | BoundaryFootprintFragmentOrigin::CompilerBodyRuntimeByteWrite
+                | BoundaryFootprintFragmentOrigin::CompilerBodyRuntimeLineRead
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImport
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImportResult
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscall
@@ -8242,6 +8607,10 @@ fn validate_compiler_body_specification_footprints(
         (
             45u8,
             BoundaryFootprintFragmentOrigin::CompilerBodyRuntimeByteWrite,
+        ),
+        (
+            46u8,
+            BoundaryFootprintFragmentOrigin::CompilerBodyRuntimeLineRead,
         ),
     ] {
         let evidence_rows = derived
@@ -11926,7 +12295,7 @@ fn validate_compiler_planned_import_relocations(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn validate_compiler_runtime_byte_relocations(
+fn validate_compiler_runtime_text_boundary_relocations(
     architecture: Architecture,
     object: &omega_object_file::ObjectPlan,
     relocations: &RelocationPlan,
@@ -12019,7 +12388,7 @@ fn validate_compiler_runtime_byte_relocations(
             });
     if !matches {
         return Err(Diagnostic::error(format!(
-            "compiler runtime-byte instruction #{selected_instruction_index} does not retain its exact call/address relocation set"
+            "compiler runtime-text instruction #{selected_instruction_index} does not retain its exact call/address relocation set"
         )));
     }
     Ok(())

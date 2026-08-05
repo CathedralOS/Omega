@@ -168,6 +168,9 @@ pub fn boundary_footprint_fragments_json(plan: &EncodedMachinePlan) -> String {
                 omega_abstract_operations::BoundaryFootprintFragmentOrigin::CompilerBodyRuntimeByteWrite => {
                     "compiler_body_runtime_byte_write"
                 }
+                omega_abstract_operations::BoundaryFootprintFragmentOrigin::CompilerBodyRuntimeLineRead => {
+                    "compiler_body_runtime_line_read"
+                }
                 omega_abstract_operations::BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImport => {
                     "compiler_body_outbound_storage_import"
                 }

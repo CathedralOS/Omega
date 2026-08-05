@@ -1150,7 +1150,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         executable_regions.contains(
             "\"certificate_schema\": \"omega.final-footprint-certificate\""
         )
-            && executable_regions.contains("\"certificate_format_version\": 87")
+            && executable_regions.contains("\"certificate_format_version\": 88")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
             && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")
@@ -18498,6 +18498,46 @@ fn runtime_console_byte_replay_cross_target_canary_compiles() {
         })
         .unwrap_or_else(|error| panic!("runtime byte replay must compile for {target}: {error:?}"));
         let _ = fs::remove_dir_all(&scratch);
+    }
+}
+
+#[test]
+fn runtime_console_line_replay_cross_target_canary_compiles() {
+    // Exercise every retained line-read storage shape under the Linux syscall,
+    // Darwin direct-import, and Win64 two-import adapters.
+    for canary_name in [
+        "text/runtime_stdin_line_buffering_exit",
+        "host/runtime_console_line_fixed_array_exit",
+        "host/runtime_console_line_descriptor_exit",
+    ] {
+        let canary = pass_canary(canary_name);
+        for target in ["linux_x64", "linux_arm64", "macos_arm64", "windows_x64"] {
+            let scratch = std::env::temp_dir().join(format!(
+                "omega-console-line-replay-{}-{target}-{}",
+                canary_name.replace('/', "-"),
+                std::process::id()
+            ));
+            let _ = fs::remove_dir_all(&scratch);
+            let src_dir = scratch.join("src");
+            fs::create_dir_all(&src_dir).expect("runtime line replay scratch source");
+            fs::copy(canary.join("main.omg"), src_dir.join("main.omg"))
+                .expect("copy runtime line replay canary");
+            fs::write(
+                src_dir.join("build.omg"),
+                format!("target {target} {{\n}}\n"),
+            )
+            .expect("write runtime line replay target manifest");
+            compile(CompileOptions {
+                root_path: src_dir.join("main.omg"),
+                build_dir: Some(scratch.join("out")),
+                target_name: Some(target.to_owned()),
+                write_output: true,
+            })
+            .unwrap_or_else(|error| {
+                panic!("runtime line replay {canary_name} must compile for {target}: {error:?}")
+            });
+            let _ = fs::remove_dir_all(&scratch);
+        }
     }
 }
 

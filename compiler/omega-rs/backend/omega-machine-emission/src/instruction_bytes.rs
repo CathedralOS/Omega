@@ -529,6 +529,63 @@ fn compiler_instruction_validation_kind(
                 target_offset: *target_offset,
             },
         ),
+        SelectedInstructionKind::ReadRuntimeTextLine {
+            buffer,
+            target_region,
+            target_offset,
+            byte_capacity,
+            source: omega_target_operations::RuntimeTextReadSource::HostOperation { operation_key },
+            target,
+        } => {
+            let binding = crate::host_bindings::host_binding(emission_context, *operation_key)
+                .ok_or_else(|| {
+                    Diagnostic::error("compiler runtime line read lost its host binding")
+                })?;
+            let get_std_handle = if emission_context.target.architecture
+                == omega_target::Architecture::X86_64
+                && matches!(
+                    binding.mechanism,
+                    omega_calling_conventions::HostBindingMechanism::Import { .. }
+                ) {
+                let key = omega_calling_conventions::HostOperationKey::new(
+                    operation_key.capability,
+                    omega_calling_conventions::HostOperation::GetStdHandle,
+                );
+                let handle_binding = crate::host_bindings::host_binding(emission_context, key)
+                    .ok_or_else(|| {
+                        Diagnostic::error(
+                            "compiler runtime line read lost its GetStdHandle binding",
+                        )
+                    })?;
+                let omega_calling_conventions::HostBindingMechanism::Import { library, symbol } =
+                    &handle_binding.mechanism
+                else {
+                    return Err(Diagnostic::error(
+                        "compiler runtime line read retained a non-import GetStdHandle binding",
+                    ));
+                };
+                Some(omega_machine_bytes::CompilerRuntimeImportSubcall {
+                    library: Arc::clone(library),
+                    symbol: Arc::clone(symbol),
+                    plan: handle_binding.call_plan().clone(),
+                })
+            } else {
+                None
+            };
+            Some(
+                CompilerInstructionValidationKind::CompilerBodyRuntimeLineRead {
+                    operation_key: *operation_key,
+                    buffer_symbol: Arc::clone(&emission_context.data.objects.get(*buffer).symbol),
+                    target_region: *target_region,
+                    target_offset: *target_offset,
+                    byte_capacity: *byte_capacity,
+                    target: *target,
+                    mechanism: binding.mechanism.clone(),
+                    plan: binding.call_plan().clone(),
+                    get_std_handle,
+                },
+            )
+        }
         SelectedInstructionKind::ReadRuntimeByte {
             target_region,
             target_offset,

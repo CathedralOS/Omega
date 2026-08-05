@@ -1139,7 +1139,7 @@ relocation-envelope fingerprints plus their composed derivation identity. The
 boundary/placement binding includes that derivation identity, so a valid final
 inventory cannot be paired with evidence from a different encoded-to-final
 derivation. The single emitted artifact is now self-described as
-`omega.final-footprint-certificate` format v87, with a domain-separated
+`omega.final-footprint-certificate` format v88, with a domain-separated
 certificate fingerprint over its final placement binding, compiler-text
 derivation, and region inventory. It remains explicitly incomplete evidence,
 not an admission certificate, until the missing footprint classes close. The
@@ -1216,7 +1216,11 @@ roots. Runtime byte read/write composites now have dedicated seventeenth and
 eighteenth origins. Replay regenerates the Linux syscall, Darwin direct-import,
 or complete Win64 two-call adapter from retained plan evidence, requires its
 exact storage/data and call relocation set, and admits only the adapter's exact
-scratch/control leaf. Runtime line-read composites remain outside this subset.
+scratch/control leaf. Runtime line-read composites now use a nineteenth origin
+for descriptor, bounded-carrier, and fixed-array destinations. Replay requires
+the exact shape-specific address roots, full target call set, byte-loop program,
+and offset-sensitive scratch. The runtime byte/line composite family is now
+inside this subset.
 Result-bearing runtime-storage-only syscalls
 continue to combine their argument relocation set with the exact result-region
 relocation and AArch64's offset-sensitive result-store scratch under a separate
