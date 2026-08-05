@@ -104,4 +104,7 @@ pub use runtime_text::{
     encode_runtime_text_stored_place_append_to_runtime_frame_indexed,
     encode_runtime_text_stored_place_append_to_runtime_pointee,
     encode_runtime_text_stored_suffix_append,
+    x86_64_encode_runtime_text_buffer_materialize_to_place_with_sites,
+    x86_64_encode_runtime_text_literal_append_to_place_with_sites,
+    x86_64_encode_runtime_text_stored_append_to_place_with_sites,
 };

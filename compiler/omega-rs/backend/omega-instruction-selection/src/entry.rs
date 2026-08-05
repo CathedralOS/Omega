@@ -2932,6 +2932,18 @@ pub fn derive_boundary_compiler_body_text_assembly_write_footprint<'instruction>
                 omega_isa_x86_64::runtime_text_buffer_materialize_to_runtime_frame_indexed_register_writes(),
                 omega_isa_x86_64::runtime_text_buffer_materialize_additional_machine_state(),
             ),
+            (omega_target::Architecture::X86_64, _, 2) => (
+                omega_isa_x86_64::place_text_stored_append_register_writes(),
+                omega_isa_x86_64::runtime_text_stored_place_append_additional_machine_state(),
+            ),
+            (omega_target::Architecture::X86_64, _, 1) => (
+                omega_isa_x86_64::place_text_literal_append_register_writes(target),
+                omega_isa_x86_64::runtime_text_literal_append_additional_machine_state(),
+            ),
+            (omega_target::Architecture::X86_64, _, 0) => (
+                omega_isa_x86_64::place_text_buffer_materialize_register_writes(),
+                omega_isa_x86_64::place_text_buffer_materialize_additional_machine_state(target),
+            ),
             (
                 omega_target::Architecture::Aarch64,
                 crate::WritePlaceShape::Direct { .. } | crate::WritePlaceShape::Pointee { .. },
@@ -5278,6 +5290,56 @@ mod tests {
                 MachineState::StackPointer,
             ])
         );
+    }
+
+    #[test]
+    fn compiler_body_general_x86_text_assembly_uses_materializer_ceiling() {
+        let boundary = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::SystemVAMD64,
+            &CallSignature {
+                parameters: Vec::new(),
+                result: None,
+            },
+        )
+        .expect("SysV boundary");
+        let target = omega_abstract_operations::Place::at(
+            omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+            16,
+        )
+        .with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+            index_region: omega_abstract_operations::RuntimeStorageRegion::Machine,
+            index_offset: 64,
+            index_byte_size: 8,
+            element_byte_size: 24,
+        })
+        .and_then(|place| {
+            place.with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+                index_region: omega_abstract_operations::RuntimeStorageRegion::Machine,
+                index_offset: 72,
+                index_byte_size: 8,
+                element_byte_size: 8,
+            })
+        })
+        .expect("cross-region frame double-indexed target");
+        assert_eq!(
+            crate::classify_write_place_shape(&target),
+            crate::WritePlaceShape::Unsupported
+        );
+        let instruction = SelectedInstructionKind::MaterializeTextBufferToPlace {
+            buffer: psi_arena::Handle::invalid(),
+            target,
+        };
+        let evidence =
+            derive_boundary_compiler_body_text_assembly_write_footprint(&boundary, [&instruction])
+                .expect("ordinary general text-assembly evidence");
+        assert_eq!(
+            evidence.registers(),
+            &omega_isa_x86_64::place_text_buffer_materialize_register_writes()
+        );
+        assert!(evidence.machine_state().contains_all(MachineStateSet::new([
+            MachineState::GeneralRegisters,
+            MachineState::Flags,
+        ])));
     }
 
     #[test]

@@ -41,8 +41,8 @@ pub(super) fn collect_runtime_text_append_relocations(
         SelectedInstructionKind::AppendTextStoredToPlace {
             buffer,
             source_region,
+            source_offset,
             target,
-            ..
         } => {
             let buffer_symbol = context.data_object_symbol_handle(*buffer);
             let source_symbol = context.storage_region_symbol_handle(*source_region);
@@ -110,6 +110,29 @@ pub(super) fn collect_runtime_text_append_relocations(
                         source_symbol,
                     );
                 }
+                _ if context.input.target.architecture == omega_target::Architecture::X86_64 => {
+                    let (_, sites, buffer_site, source_site) = omega_instruction_selection::x86_64_encode_runtime_text_stored_append_to_place_with_sites(target, *source_offset)
+                        .expect("general x86 stored-text append reached relocation after successful layout");
+                    for (byte_offset, side) in sites.iter() {
+                        let region = match side {
+                            omega_instruction_selection::PlaceCopySide::Target => target.region,
+                            omega_instruction_selection::PlaceCopySide::TargetIndex => target
+                                .scaled_index_region()
+                                .expect("target index site implies an index"),
+                            omega_instruction_selection::PlaceCopySide::TargetIndex2 => target
+                                .scaled_index_regions()
+                                .nth(1)
+                                .expect("second target index site implies two indices"),
+                            _ => unreachable!("stored-text append walks only its target"),
+                        };
+                        context.insert_data_address_at_relative_offset(
+                            byte_offset,
+                            context.storage_region_symbol_handle(region),
+                        );
+                    }
+                    context.insert_data_address_at_relative_offset(buffer_site, buffer_symbol);
+                    context.insert_data_address_at_relative_offset(source_site, source_symbol);
+                }
                 omega_instruction_selection::WritePlaceShape::FrameBaseIndexed {
                     base_byte_offset,
                     index_offset,
@@ -148,7 +171,11 @@ pub(super) fn collect_runtime_text_append_relocations(
             }
             true
         }
-        SelectedInstructionKind::AppendTextLiteralToPlace { buffer, target, .. } => {
+        SelectedInstructionKind::AppendTextLiteralToPlace {
+            buffer,
+            target,
+            literal,
+        } => {
             let buffer_symbol = context.data_object_symbol_handle(*buffer);
             match omega_instruction_selection::classify_write_place_shape(target) {
                 omega_instruction_selection::WritePlaceShape::Direct { .. }
@@ -177,6 +204,28 @@ pub(super) fn collect_runtime_text_append_relocations(
                         ),
                         buffer_symbol,
                     );
+                }
+                _ if context.input.target.architecture == omega_target::Architecture::X86_64 => {
+                    let (_, sites, buffer_site) = omega_instruction_selection::x86_64_encode_runtime_text_literal_append_to_place_with_sites(target, literal)
+                        .expect("general x86 literal append reached relocation after successful layout");
+                    for (byte_offset, side) in sites.iter() {
+                        let region = match side {
+                            omega_instruction_selection::PlaceCopySide::Target => target.region,
+                            omega_instruction_selection::PlaceCopySide::TargetIndex => target
+                                .scaled_index_region()
+                                .expect("target index site implies an index"),
+                            omega_instruction_selection::PlaceCopySide::TargetIndex2 => target
+                                .scaled_index_regions()
+                                .nth(1)
+                                .expect("second target index site implies two indices"),
+                            _ => unreachable!("literal append walks only its target"),
+                        };
+                        context.insert_data_address_at_relative_offset(
+                            byte_offset,
+                            context.storage_region_symbol_handle(region),
+                        );
+                    }
+                    context.insert_data_address_at_relative_offset(buffer_site, buffer_symbol);
                 }
                 omega_instruction_selection::WritePlaceShape::FrameBaseIndexed {
                     base_byte_offset,

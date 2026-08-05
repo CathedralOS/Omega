@@ -1470,25 +1470,21 @@ fn compiler_instruction_validation_kind(
             )
         }
         SelectedInstructionKind::MaterializeTextBufferToPlace { buffer, target }
-            if matches!(
-                (
-                    emission_context.target.architecture,
-                    omega_instruction_selection::classify_write_place_shape(target),
-                ),
-                (
-                    omega_target::Architecture::X86_64,
-                    omega_instruction_selection::WritePlaceShape::Direct { .. }
-                        | omega_instruction_selection::WritePlaceShape::Pointee { .. }
-                        | omega_instruction_selection::WritePlaceShape::FrameIndexed { .. },
-                ) | (
-                    omega_target::Architecture::Aarch64,
-                    omega_instruction_selection::WritePlaceShape::Direct { .. }
-                        | omega_instruction_selection::WritePlaceShape::Pointee { .. }
-                        | omega_instruction_selection::WritePlaceShape::FrameIndexed { .. }
-                        | omega_instruction_selection::WritePlaceShape::FrameIndexedByRegion { .. }
-                        | omega_instruction_selection::WritePlaceShape::FrameBaseIndexed { .. },
-                )
-            ) =>
+            if emission_context.target.architecture == omega_target::Architecture::X86_64
+                || matches!(
+                    (
+                        emission_context.target.architecture,
+                        omega_instruction_selection::classify_write_place_shape(target),
+                    ),
+                    (
+                        omega_target::Architecture::Aarch64,
+                        omega_instruction_selection::WritePlaceShape::Direct { .. }
+                            | omega_instruction_selection::WritePlaceShape::Pointee { .. }
+                            | omega_instruction_selection::WritePlaceShape::FrameIndexed { .. }
+                            | omega_instruction_selection::WritePlaceShape::FrameIndexedByRegion { .. }
+                            | omega_instruction_selection::WritePlaceShape::FrameBaseIndexed { .. },
+                    )
+                ) =>
         {
             Some(
                 CompilerInstructionValidationKind::CompilerBodyTextBufferMaterialize {
@@ -1542,24 +1538,20 @@ fn compiler_instruction_validation_kind(
             buffer,
             target,
             literal,
-        } if matches!(
-            (
-                emission_context.target.architecture,
-                omega_instruction_selection::classify_write_place_shape(target),
-            ),
-            (
-                omega_target::Architecture::X86_64,
-                omega_instruction_selection::WritePlaceShape::Direct { .. }
-                    | omega_instruction_selection::WritePlaceShape::Pointee { .. }
-                    | omega_instruction_selection::WritePlaceShape::FrameIndexed { .. },
-            ) | (
-                omega_target::Architecture::Aarch64,
-                omega_instruction_selection::WritePlaceShape::Direct { .. }
-                    | omega_instruction_selection::WritePlaceShape::Pointee { .. }
-                    | omega_instruction_selection::WritePlaceShape::FrameIndexed { .. }
-                    | omega_instruction_selection::WritePlaceShape::FrameBaseIndexed { .. },
-            )
-        ) =>
+        } if emission_context.target.architecture == omega_target::Architecture::X86_64
+            || matches!(
+                (
+                    emission_context.target.architecture,
+                    omega_instruction_selection::classify_write_place_shape(target),
+                ),
+                (
+                    omega_target::Architecture::Aarch64,
+                    omega_instruction_selection::WritePlaceShape::Direct { .. }
+                        | omega_instruction_selection::WritePlaceShape::Pointee { .. }
+                        | omega_instruction_selection::WritePlaceShape::FrameIndexed { .. }
+                        | omega_instruction_selection::WritePlaceShape::FrameBaseIndexed { .. },
+                )
+            ) =>
         {
             Some(
                 CompilerInstructionValidationKind::CompilerBodyTextLiteralAppend {
@@ -1574,24 +1566,20 @@ fn compiler_instruction_validation_kind(
             source_region,
             source_offset,
             target,
-        } if matches!(
-            (
-                emission_context.target.architecture,
-                omega_instruction_selection::classify_write_place_shape(target),
-            ),
-            (
-                omega_target::Architecture::X86_64,
-                omega_instruction_selection::WritePlaceShape::Direct { .. }
-                    | omega_instruction_selection::WritePlaceShape::Pointee { .. }
-                    | omega_instruction_selection::WritePlaceShape::FrameIndexed { .. },
-            ) | (
-                omega_target::Architecture::Aarch64,
-                omega_instruction_selection::WritePlaceShape::Direct { .. }
-                    | omega_instruction_selection::WritePlaceShape::Pointee { .. }
-                    | omega_instruction_selection::WritePlaceShape::FrameIndexed { .. }
-                    | omega_instruction_selection::WritePlaceShape::FrameBaseIndexed { .. },
-            )
-        ) =>
+        } if emission_context.target.architecture == omega_target::Architecture::X86_64
+            || matches!(
+                (
+                    emission_context.target.architecture,
+                    omega_instruction_selection::classify_write_place_shape(target),
+                ),
+                (
+                    omega_target::Architecture::Aarch64,
+                    omega_instruction_selection::WritePlaceShape::Direct { .. }
+                        | omega_instruction_selection::WritePlaceShape::Pointee { .. }
+                        | omega_instruction_selection::WritePlaceShape::FrameIndexed { .. }
+                        | omega_instruction_selection::WritePlaceShape::FrameBaseIndexed { .. },
+                )
+            ) =>
         {
             Some(
                 CompilerInstructionValidationKind::CompilerBodyTextStoredAppend {

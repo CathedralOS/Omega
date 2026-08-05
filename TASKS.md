@@ -882,7 +882,7 @@ proves complete region coverage, and composes admitted leaves under their
 separate provenance. Do not add a second whole-image decoder/admission path.
 
 The existing single final-region artifact now carries the domain-separated
-`omega.final-footprint-certificate` schema, format version 89, and a certificate
+`omega.final-footprint-certificate` schema, format version 90, and a certificate
 fingerprint over its final placement binding, compiler-text derivation, and
 complete region inventory. Its explicit completeness flags remain false until
 compiler-body footprint decoding and admitted-leaf evidence land. The envelope
@@ -1090,21 +1090,18 @@ validation regenerates the exact conversion/store bytes and recursive source
 relocations. Composed-place conversion writes now share that fragment and exact
 recipe for all x86 materializer targets and every classified AArch64 target:
 direct, pointee, frame-descriptor-indexed, inline-frame-indexed, and single- or
-double-runtime-indexed machine places. Unclassified AArch64 place shapes,
-persistent-machine text assembly, and the remaining call classes remain
-incomplete. Direct,
-pointee, or frame-indexed x86 text-buffer materialization now retains the exact
-buffer symbol and target place. AArch64 additionally replays cross-region frame
-indices and transient inline-frame indexed destinations. These forms replay the
-target encoder and mixed data/storage relocation set, and match a dedicated
-`CompilerBodyTextAssemblyWrite` footprint. Literal text appends share that
-fragment for the direct, pointee, and frame-indexed shapes on both targets and
-for transient inline-frame indexed AArch64 destinations, retaining their exact
-literal, buffer identity, target place, encoder, and relocation set.
-Stored-source appends share the same target coverage, retaining the exact
-source storage and mixed buffer/source/target relocation set. Persistent
-machine destinations remain excluded because a scratch-buffer view cannot be
-stored beyond its borrow lifetime. Segmented
+double-runtime-indexed machine places. Unclassified AArch64 place shapes and
+the remaining call classes remain incomplete. X86 text-buffer materialization
+now replays every target accepted by its general place materializer, including
+double-indexed transient frame destinations, retaining the exact buffer symbol,
+target/index relocation walk, and target place. AArch64 additionally replays
+cross-region frame indices and transient inline-frame indexed destinations.
+These forms match a dedicated `CompilerBodyTextAssemblyWrite` footprint.
+Literal and stored-source appends share all x86 materializer targets and the
+classified AArch64 coverage, retaining their exact literal or source storage,
+buffer identity, target place, encoder, and mixed relocation set. Persistent
+machine destinations remain source-rejected because a scratch-buffer view
+cannot be stored beyond its borrow lifetime. Segmented
 literal-buffer writes now share the text-assembly fragment too,
 retaining the exact buffer symbol, byte offset, literal, target encoder, and
 sole data-object relocation. Segmented stored-suffix appends now retain their
