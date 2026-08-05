@@ -1358,10 +1358,13 @@ target, literal, and relocation walk bind a separate
 `CompilerBodyPlaceBoundedBufferWrite` footprint. Literal appends replay all x86
 targets and every classified AArch64 target while retaining their distinct
 exact encoder and relocation recipe, including inline-frame targets whose
-index is frame- or machine-held and the exact second-base relocation.
+index is frame- or machine-held and the exact second-base relocation. All-frame
+double-runtime-indexed literal-append targets reuse one frame relocation for
+the carrier and both indices.
 Source-carrier appends likewise replay both general x86 place walks; AArch64
 serves that same target set with a direct or pointee source and replays its
-indexed target walk, source walk, and copy-loop state. Immediate compact bit-field writes retain their exact
+indexed target walk, source walk, and copy-loop state. Its all-frame double-
+indexed target also reuses one frame relocation. Immediate compact bit-field writes retain their exact
 storage region, base offset, fragment layout, and value, replay the target
 encoder and destination relocation, and match a separate
 `CompilerBodyStorageBitFieldWrite` fragment. Pointee-pair

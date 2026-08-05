@@ -1390,6 +1390,18 @@ pub fn classify_frame_base_double_indexed_bounded_buffer_shape(
     classify_frame_base_double_indexed_shape(target)
 }
 
+pub fn classify_frame_base_double_indexed_bounded_buffer_literal_append_shape(
+    target: &omega_target_operations::Place,
+) -> Option<FrameBaseDoubleIndexedShape> {
+    classify_frame_base_double_indexed_shape(target)
+}
+
+pub fn classify_frame_base_double_indexed_bounded_buffer_source_append_shape(
+    target: &omega_target_operations::Place,
+) -> Option<FrameBaseDoubleIndexedShape> {
+    classify_frame_base_double_indexed_shape(target)
+}
+
 pub fn classify_frame_base_double_indexed_address_shape(
     source: &omega_target_operations::Place,
 ) -> Option<FrameBaseDoubleIndexedShape> {
@@ -2347,6 +2359,22 @@ pub fn encode_append_place_bounded_buffer_literal(
     literal: &str,
 ) -> Result<Vec<u8>, Diagnostic> {
     if architecture == Architecture::Aarch64
+        && let Some(frame_double) =
+            classify_frame_base_double_indexed_bounded_buffer_literal_append_shape(target)
+    {
+        return aarch64::encode_runtime_frame_base_double_indexed_bounded_buffer_literal_append(
+            frame_double.base_byte_offset,
+            frame_double.outer_index_offset,
+            frame_double.outer_index_byte_size,
+            frame_double.outer_stride,
+            frame_double.inner_index_offset,
+            frame_double.inner_index_byte_size,
+            frame_double.inner_stride,
+            frame_double.field_byte_offset,
+            literal,
+        );
+    }
+    if architecture == Architecture::Aarch64
         && let Some(frame_indexed) =
             classify_frame_base_indexed_bounded_buffer_literal_append_shape(target)
     {
@@ -2494,6 +2522,21 @@ pub fn aarch64_encode_append_place_bounded_buffer_source_with_sites(
         return Err(Diagnostic::error(
             "AppendPlaceBoundedBufferSource on aarch64 requires a direct or pointee source",
         ));
+    }
+    if let Some(frame_double) =
+        classify_frame_base_double_indexed_bounded_buffer_source_append_shape(target)
+    {
+        return aarch64::encode_runtime_frame_base_double_indexed_bounded_buffer_source_append(
+            frame_double.base_byte_offset,
+            frame_double.outer_index_offset,
+            frame_double.outer_index_byte_size,
+            frame_double.outer_stride,
+            frame_double.inner_index_offset,
+            frame_double.inner_index_byte_size,
+            frame_double.inner_stride,
+            frame_double.field_byte_offset,
+            source,
+        );
     }
     if let Some(frame_indexed) =
         classify_frame_base_indexed_bounded_buffer_source_append_shape(target)

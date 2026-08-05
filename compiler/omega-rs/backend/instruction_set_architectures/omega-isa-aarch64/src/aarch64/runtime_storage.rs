@@ -2963,6 +2963,42 @@ pub fn encode_runtime_frame_base_double_indexed_bounded_buffer_write(
     Ok(bytes)
 }
 
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_frame_base_double_indexed_bounded_buffer_literal_append(
+    base_byte_offset: usize,
+    outer_index_offset: usize,
+    outer_index_byte_size: usize,
+    outer_stride: usize,
+    inner_index_offset: usize,
+    inner_index_byte_size: usize,
+    inner_stride: usize,
+    field_byte_offset: usize,
+    literal: &str,
+) -> Result<Vec<u8>, Diagnostic> {
+    let expected_width =
+        super::widths::runtime_frame_base_double_indexed_bounded_buffer_literal_append_width(
+            literal,
+        );
+    let mut bytes = Vec::with_capacity(expected_width);
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    append_double_index_address_math(
+        &mut bytes,
+        16,
+        outer_index_offset,
+        outer_index_byte_size,
+        outer_stride,
+        16,
+        inner_index_offset,
+        inner_index_byte_size,
+        inner_stride,
+        base_byte_offset + field_byte_offset,
+    )?;
+    append_bounded_buffer_literal_to_x16(&mut bytes, literal)?;
+    debug_assert_eq!(bytes.len(), expected_width);
+    Ok(bytes)
+}
+
 /// Closed may-write ceiling shared by every classified immediate bounded-buffer
 /// encoder. x16 owns the destination and x17 carries length/bytes; the other
 /// registers cover the fixed indexed and large-offset address recipes.
@@ -3169,6 +3205,44 @@ pub fn encode_runtime_machine_double_indexed_bounded_buffer_literal_append(
         )
     );
     Ok(bytes)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_frame_base_double_indexed_bounded_buffer_source_append(
+    base_byte_offset: usize,
+    outer_index_offset: usize,
+    outer_index_byte_size: usize,
+    outer_stride: usize,
+    inner_index_offset: usize,
+    inner_index_byte_size: usize,
+    inner_stride: usize,
+    field_byte_offset: usize,
+    source: &omega_target_operations::Place,
+) -> Result<
+    (
+        Vec<u8>,
+        super::place_bounded_buffer::BoundedBufferPlaceSites,
+    ),
+    Diagnostic,
+> {
+    let mut bytes = Vec::new();
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    append_double_index_address_math(
+        &mut bytes,
+        16,
+        outer_index_offset,
+        outer_index_byte_size,
+        outer_stride,
+        16,
+        inner_index_offset,
+        inner_index_byte_size,
+        inner_stride,
+        base_byte_offset + field_byte_offset,
+    )?;
+    let sites =
+        super::place_bounded_buffer::append_bounded_buffer_source_to_x16(&mut bytes, source)?;
+    Ok((bytes, sites))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -9910,6 +9984,24 @@ mod tests {
             "the machine-held literal-append index must own an x15 base pair"
         );
 
+        let frame_double = encode_runtime_frame_base_double_indexed_bounded_buffer_literal_append(
+            24, 64, 8, 48, 72, 8, 16, 8, "te",
+        )
+        .expect("frame-double-indexed bounded-buffer literal append");
+        assert_eq!(
+            frame_double.len(),
+            widths::runtime_frame_base_double_indexed_bounded_buffer_literal_append_width("te")
+        );
+        assert_eq!(
+            &frame_double[..8],
+            [
+                encode_adrp_placeholder(16),
+                encode_add_page_offset_placeholder(16)
+            ]
+            .concat(),
+            "the frame-double literal append must reuse one frame base"
+        );
+
         for (outer_region, inner_region) in [
             (machine, machine),
             (frame, machine),
@@ -10001,6 +10093,22 @@ mod tests {
             ]
             .concat(),
             "the machine-held source-append index must own an x15 base pair"
+        );
+
+        let (frame_double, sites) =
+            encode_runtime_frame_base_double_indexed_bounded_buffer_source_append(
+                24, 64, 8, 48, 72, 8, 16, 8, &source,
+            )
+            .expect("frame-double-indexed bounded-buffer source append");
+        assert_eq!(sites.iter().count(), 1);
+        assert_eq!(
+            &frame_double[..8],
+            [
+                encode_adrp_placeholder(16),
+                encode_add_page_offset_placeholder(16)
+            ]
+            .concat(),
+            "the frame-double source append must reuse one frame base"
         );
 
         for (outer_region, inner_region) in [

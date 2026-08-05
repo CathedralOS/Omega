@@ -1450,6 +1450,10 @@ fn compiler_instruction_validation_kind(
                 || omega_instruction_selection::classify_frame_base_indexed_bounded_buffer_literal_append_shape(
                     target,
                 )
+                .is_some()
+                || omega_instruction_selection::classify_frame_base_double_indexed_bounded_buffer_literal_append_shape(
+                    target,
+                )
                 .is_some() =>
         {
             Some(
@@ -1468,10 +1472,13 @@ fn compiler_instruction_validation_kind(
                     omega_instruction_selection::classify_write_place_shape(source),
                     omega_instruction_selection::WritePlaceShape::Direct { .. }
                         | omega_instruction_selection::WritePlaceShape::Pointee { .. }
-                )) || (omega_instruction_selection::classify_frame_base_indexed_bounded_buffer_source_append_shape(
+                )) || ((omega_instruction_selection::classify_frame_base_indexed_bounded_buffer_source_append_shape(
                     target,
                 )
-                .is_some() && matches!(
+                .is_some() || omega_instruction_selection::classify_frame_base_double_indexed_bounded_buffer_source_append_shape(
+                    target,
+                )
+                .is_some()) && matches!(
                     omega_instruction_selection::classify_write_place_shape(source),
                     omega_instruction_selection::WritePlaceShape::Direct { .. }
                         | omega_instruction_selection::WritePlaceShape::Pointee { .. }

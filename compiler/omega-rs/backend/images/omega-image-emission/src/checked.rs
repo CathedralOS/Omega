@@ -4903,6 +4903,7 @@ fn validate_compiler_function_instruction_boundaries(
                                     | CompilerBodyPlaceIntegerWriteShape::Pointee { .. }
                                     | CompilerBodyPlaceIntegerWriteShape::FrameIndexed { .. }
                                     | CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. }
+                                    | CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed { .. }
                                     | CompilerBodyPlaceIntegerWriteShape::MachineIndexed { .. }
                                     | CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed { .. }
                             )
@@ -4998,8 +4999,27 @@ fn validate_compiler_function_instruction_boundaries(
                                         field_byte_offset,
                                         &literal,
                                     )?,
-                                    CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed { .. }
-                                    | CompilerBodyPlaceIntegerWriteShape::General => unreachable!(
+                                    CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed {
+                                        base_byte_offset,
+                                        outer_index_offset,
+                                        outer_index_byte_size,
+                                        outer_stride,
+                                        inner_index_offset,
+                                        inner_index_byte_size,
+                                        inner_stride,
+                                        field_byte_offset,
+                                    } => omega_isa_aarch64::encode_runtime_frame_base_double_indexed_bounded_buffer_literal_append(
+                                        base_byte_offset,
+                                        outer_index_offset,
+                                        outer_index_byte_size,
+                                        outer_stride,
+                                        inner_index_offset,
+                                        inner_index_byte_size,
+                                        inner_stride,
+                                        field_byte_offset,
+                                        &literal,
+                                    )?,
+                                    CompilerBodyPlaceIntegerWriteShape::General => unreachable!(
                                         "aarch64 bounded-buffer literal-append shape checked above"
                                     ),
                                 },
@@ -5024,6 +5044,7 @@ fn validate_compiler_function_instruction_boundaries(
                                 | CompilerBodyPlaceIntegerWriteShape::Pointee { .. }
                                 | CompilerBodyPlaceIntegerWriteShape::FrameIndexed { .. }
                                 | CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. }
+                                | CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed { .. }
                                 | CompilerBodyPlaceIntegerWriteShape::MachineIndexed { .. }
                                 | CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed { .. }
                         ) || !matches!(
@@ -8398,6 +8419,7 @@ fn compiler_instruction_footprint(
                         | CompilerBodyPlaceIntegerWriteShape::Pointee { .. }
                         | CompilerBodyPlaceIntegerWriteShape::FrameIndexed { .. }
                         | CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. }
+                        | CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed { .. }
                         | CompilerBodyPlaceIntegerWriteShape::MachineIndexed { .. }
                         | CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed { .. }
                 ) {
@@ -8429,6 +8451,7 @@ fn compiler_instruction_footprint(
                         | CompilerBodyPlaceIntegerWriteShape::Pointee { .. }
                         | CompilerBodyPlaceIntegerWriteShape::FrameIndexed { .. }
                         | CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. }
+                        | CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed { .. }
                         | CompilerBodyPlaceIntegerWriteShape::MachineIndexed { .. }
                         | CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed { .. }
                 ) || !matches!(
@@ -12098,8 +12121,27 @@ fn encode_aarch64_bounded_buffer_source_append(
             field_byte_offset,
             source,
         ),
-        CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed { .. }
-        | CompilerBodyPlaceIntegerWriteShape::General => Err(Diagnostic::error(
+        CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed {
+            base_byte_offset,
+            outer_index_offset,
+            outer_index_byte_size,
+            outer_stride,
+            inner_index_offset,
+            inner_index_byte_size,
+            inner_stride,
+            field_byte_offset,
+        } => omega_isa_aarch64::encode_runtime_frame_base_double_indexed_bounded_buffer_source_append(
+            base_byte_offset,
+            outer_index_offset,
+            outer_index_byte_size,
+            outer_stride,
+            inner_index_offset,
+            inner_index_byte_size,
+            inner_stride,
+            field_byte_offset,
+            source,
+        ),
+        CompilerBodyPlaceIntegerWriteShape::General => Err(Diagnostic::error(
             "final aarch64 bounded-buffer source append retained an unsupported target",
         )),
     }
