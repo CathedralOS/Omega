@@ -1050,8 +1050,11 @@ Runtime-indexed reads from inline frame arrays into direct frame storage are
 also covered, as are inline machine-array reads into direct frame or machine
 storage and direct-storage writes into runtime-indexed machine-array elements.
 Double-runtime-indexed reads from inline frame or machine arrays, the
-machine-array write-side mirror, and the machine-inline `arr[i] = arr[j]` pair
-are covered too. The x86 general place materializer also replays every
+machine-array write-side mirror, the all-frame AArch64 write from direct frame
+or machine storage, and the machine-inline `arr[i] = arr[j]` pair are covered.
+The all-frame target shares one frame relocation across the collection and
+both indices and adds a distinct source relocation only for machine storage.
+The x86 general place materializer also replays every
 remaining otherwise-unclassified `CopyPlaces` path with scratch derived from
 the retained places' exact index depths.
 Direct-place immediate integer writes, writes through a frame-held pointer or

@@ -3003,6 +3003,10 @@ pub fn runtime_storage_copy_from_runtime_frame_base_double_indexed_target_base_o
     }
 }
 
+pub fn runtime_storage_copy_to_runtime_frame_base_double_indexed_source_base_offset() -> usize {
+    aarch64::runtime_storage_copy_to_runtime_frame_base_double_indexed_source_base_offset()
+}
+
 pub fn append_wire_literal_byte_width(
     architecture: Architecture,
     out_offset: usize,
