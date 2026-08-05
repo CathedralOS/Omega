@@ -20,27 +20,27 @@ The overview's "Two roles for Rust" is the ordering law. Made concrete, per arti
 
 | Where Rust sits | Role | Status / plan |
 | --- | --- | --- |
-| `check.beta` / `checker.gamma` (the checker δ) | **trusted base** | **DEAD** — Beta + Gamma, double-implemented, diamonded. |
+| `check.beta` / `checker.gamma` (the proof kernel) | **trusted base** | **DEAD** — Beta + Gamma, double-implemented, diamonded. |
 | `interp.beta` / `typeck.beta` (γ meaning) | **trusted base** | **DEAD** — Beta, on the seed lineage. |
-| epsilon's **meaning** (`gamma_emit.rs`) | **trusted base** | **DYING** — replaced by `epsilon/eps2gamma.beta` (Rust-free), slice by slice. *This is the current urgent kill.* |
-| omega's **meaning** | **trusted base** | Follows the same elaboration route (D2), once epsilon's is complete. |
-| `beta-lang-rs`, `epsilon-rs`, `omega-rs` (producers) | **untrusted producer** | **DEFERRABLE** — killed for self-sufficiency, not soundness. `omega-rs` stays untouched as the reference producer. |
+| Delta's **meaning** (`gamma_emit.rs`) | **trusted base** | **DYING** — replaced by the Rust-free Delta-to-Gamma route, slice by slice. *This is the current urgent kill.* |
+| Psi/Omega's **meaning** | **trusted base** | Follows the same elaboration discipline once Delta can host the toolchain. |
+| `beta-lang-rs`, `delta-rs`, `omega-rs` (producers) | **untrusted producer** | **DEFERRABLE** — killed for self-sufficiency, not soundness. `omega-rs` stays untouched as the reference producer. |
 
 **Policy:** no work removes Rust from a *producer* while Rust still sits in any
 *meaning/checker*. Meaning-route Rust removal outranks producer Rust removal,
-always. (This is why `epsilon/eps2gamma.beta` is prioritized over the
+always. (This is why the Rust-free Delta-to-Gamma elaborator is prioritized over the
 `lowermachine.alp` native-self-host — the former is a trusted-base kill, the
 latter a producer nicety. See D6.)
 
 ## D2 — Meaning is realized by ELABORATION to the nearest canonical interpreter — not a fresh native interpreter per rung.
 
-The overview's canonical nesting ("Epsilon interpreter written in Delta") is
-realized as: **a Rust-free elaborator translates the rung's programs down into the
+The overview's canonical nesting is realized as: **a Rust-free elaborator
+translates each rung's programs down into the
 nearest rung that already has a canonical interpreter, and that interpreter runs
-them.** Epsilon's meaning = `eps2gamma.beta` (Beta, Rust-free) elaborates epsilon →
-Gamma; Gamma's canonical `interp.beta` runs it.
+them.** Delta's meaning is exposed by a Rust-free Delta-to-Gamma elaborator;
+Gamma's canonical `interp.beta` runs the result.
 
-**Rationale.** Same semantic content as a bespoke interpreter (epsilon's
+**Rationale.** Same semantic content as a bespoke interpreter (delta's
 operational semantics written down in a lower rung), but *staged* as
 translate-then-run, which is strictly **smaller**: it reuses Gamma's interpreter,
 ADTs, recursion, and pattern matching instead of re-implementing an environment +
@@ -50,29 +50,27 @@ so it does not violate "don't let a compiler be the definition." Two independent
 checks keep it honest: (a) it is auditable Beta on the seed lineage; (b) the
 **meaning diamond** cross-checks it against the independent native backend.
 
-**Reconciliation with the overview.** The nesting named Delta as epsilon's
-interpreter host; the correct substrate is **Gamma** (the general-purpose
-interpreter rung). Delta is the *checker*, a different job. Epsilon and Omega both
-elaborate to Gamma (or to the rung below them that is closest to Gamma), whose
-interpreter is the canonical meaning. This refines the overview; it does not
-contradict "meaning = reference interpreter."
+**Reconciliation with the overview.** Gamma is the general-purpose interpreter
+substrate. Delta elaborates to Gamma; the proof kernel is a separate assurance
+service and is not part of the language path. This refines the overview without
+changing “meaning = reference interpreter.”
 
 ## D3 — Trust flows through PROOFS, not through trusting native binaries. Native-code trust ends at translation validation.
 
-The provable chain seed → Omega is **proof-carrying**: an ε/ω program ships a
-δ-certificate; δ (Rust-free, double-implemented, hand-audited) checks it. A
+The provable chain seed → Psi/Omega is **proof-carrying**: a producer ships a
+certificate which the Rust-free, independently implemented proof kernel checks. A
 backdoored *producer* can at worst emit output that **fails** the check — it cannot
-forge a certificate δ accepts. So the soundness of a *proof about source* never
+forge a certificate the kernel accepts. So the soundness of a *proof about source* never
 depends on the compiler.
 
 For **native-code** trust (Cathedral running real binaries, where the compiler is
 the isolation boundary), the endpoint is **translation validation**: the backend
-emits, *per compilation*, a δ-checkable certificate that its machine code
+emits, *per compilation*, a kernel-checkable certificate that its machine code
 **refines** the source's meaning. Then even a backdoored backend is caught — a
 backdoored output would fail its own refinement check.
 
 **Policy / staging:**
-- **Now:** the convergence gates (an epsilon program emits a δ-cert about its own
+- **Now:** the convergence gates (a Delta program emits a certificate about its own
   *result*) are the first instance of proof-carrying output. Keep them central.
 - **Now:** native backends are checked by the **meaning diamond** (test-based
   agreement with the Rust-free meaning) and are explicitly **outside the soundness
@@ -81,20 +79,20 @@ backdoored output would fail its own refinement check.
   producer). This is where `omega-rs`'s "certs about real binaries vs a hardware
   model" ambition rejoins the lattice.
 
-## D4 — The soundness bridge is built empirically via SEAMS now; every δ capability ships a paired seam.
+## D4 — The soundness bridge is built empirically via SEAMS now; every proof-kernel capability ships a paired seam.
 
-`provable-in-Delta ⟹ true-about-execution` (overview honest-edge #1) is the hard
+`kernel-accepted ⟹ true-about-execution` (overview honest-edge #1) is the hard
 core. It is attacked **empirically today** by the soundness *seams* — kernel
 derivation vs operational evaluation (induction, predicates, propositional logic,
 the soundness sweep, the convergence routes).
 
-**Standing policy:** every new logical capability δ gains **must** ship with a
+**Standing policy:** every new logical capability the proof kernel gains **must** ship with a
 paired seam that cross-checks kernel-provability against operational truth on a
-corpus (+ a negative battery that must be rejected). A δ feature without its seam
-is not done. This keeps the bridge honest as δ grows, and turns the "deep open
+corpus (+ a negative battery that must be rejected). A kernel feature without its seam
+is not done. This keeps the bridge honest as the kernel grows, and turns the "deep open
 problem" into a continuously-tested invariant.
 
-**Capstone (deferred):** a δ-checked proof of δ's own soundness w.r.t. the Alpha
+**Capstone (deferred):** a kernel-checked proof of the kernel's own soundness w.r.t. the Alpha
 small-step semantics — the formal bridge. Not attempted until the metatheory
 tooling exists; the seams are the standing substitute.
 
@@ -130,43 +128,27 @@ which bootstrap compiler produced it — a Trojan would have to sit, identically
   count is driven by the threat model, not aesthetics; each new independent seed
   multiplies the cost of a Thompson attack.
 
-## D6 — Epsilon and Omega are KEPT and justified; the epsilon native self-host is a producer, so its growth is de-prioritized.
+## D6 — The bootstrap spine ends in Delta; the proof kernel is orthogonal.
 
-- **Epsilon earns its rung**: it emits δ-checkable proofs (convergence) and its
-  meaning is Rust-free (D2). Its value is not "another systems language" — it is
-  "a systems language whose programs prove themselves to the anchor."
-- **The self-hosted native backend (`lowermachine.alp`) is a PRODUCER** (D3), an
-  accelerator whose output is diamond-checked. Therefore its *self-host growth* is
-  **de-prioritized**: maintain the fixpoint, do not over-invest in extending it
-  (min/max, nested calls, …) unless a concrete need arises. Effort goes to the
-  meaning route (D1).
-- **Omega = Epsilon + the proof surface** (contracts, refinement/dependent types,
-  automation-as-untrusted-front-line). Same meaning-elaboration + convergence
-  discipline. Self-hosting Omega-in-Omega is permitted only as an accelerator
-  (zero trust added). `omega-rs` stays the untouched reference producer.
+**Ratified 2026-08-04.** Greek names identify languages in the bootstrap spine:
 
-- **Rung count stays emergent** (overview). Epsilon/Omega are labels for "systems
-  layer" and "proof-surface layer"; the DAG, not this doc, fixes the true count.
+```text
+Alpha → Beta → Gamma → Delta
+```
 
-## D7 — Epsilon is ABSORBED into Omega: one machine-surface language, the "Omega kernel subset".
+Delta is the former systems/compiler-host on-ramp. Its job is to host the real
+Psi/Omega toolchain from the audited seed. `compiler/delta-rs/` is its disposable
+Rust implementation; the self-hosted `lowermachine.alp` and meaning diamond remain
+its principal gates.
 
-**Ratified 2026-07-02 (user-directed).** Epsilon was created as omega's on-ramp; the meaning-route work
-proved the two surfaces are one language (the shared translator runs real Omega samples with only
-surface deltas). Maintaining two named systems languages, two corpora, and two gate families for one
-converging surface is redundancy without a trust payoff. Therefore:
+The certificate checker is renamed the **proof kernel** and lives at
+`compiler/proof-kernel/`. It remains a trusted, independently implemented
+assurance service in Beta and Gamma. The rename changes neither its authority nor
+its validation gates; it removes the false claim that proof checking is a
+language stage between Gamma and Delta.
 
-- **The rung dissolves.** The ladder is α → β/bc → γ → δ → **ω**. What was "epsilon" is now the
-  **Omega kernel subset** — the machine-surface fragment of Omega that the lattice can already give
-  Rust-free meaning to. Programs, certifiers, and gates survive unchanged in substance.
-- **The translator is Omega's.** `eps2gamma.beta` → `omega/omega2gamma.beta` — the Rust-free
-  Omega→gamma elaborator (D2), covering the kernel subset and growing toward the full language.
-- **The kept rung home merges**: `compiler/epsilon/` → `compiler/omega/` (the 42-case triple diamond
-  becomes the *kernel diamond*; the Rust-free proof-carrying convergence gate moves as-is).
-- **`epsilon-rs/` keeps its (historical) name and its role**: the disposable Rust producer for the
-  kernel subset, with its native gates, certifier corpus, and self-hosted lowermachine — still
-  outside the trust base, still killed eventually for self-sufficiency only (D6 unchanged).
-- Rung docs: `rungs/epsilon.md` is marked absorbed; its "Adds" (safe systems programming) is now a
-  stage of omega's roadmap rather than a separate rung.
+Psi and Omega are compiler products hosted by Delta, not Greek bootstrap rungs.
+The Rust implementations remain current producers while the hosted path matures.
 
 ---
 
@@ -178,24 +160,25 @@ converging surface is redundancy without a trust payoff. Therefore:
 β  assembler .... written in α-asm, run by α; self-hosts                                [derived from α]
    bc ........... Beta compiler in Beta; self-hosts; + bc2.py diverse 2nd path (DDC)    [D5 gap CLOSED]
 γ  interpreter .. interp.beta (+ typeck): the canonical MEANING substrate               [Rust-free]
-δ  checker ...... check.beta AND checker.gamma, diamonded; the trust anchor             [Rust-free, audited]
-                  every capability paired with a soundness seam                          [D4]
-ε  systems ...... MEANING: eps2gamma.beta elaborates ε → γ, interp.beta runs it         [D2; Rust DYING]
-                  PRODUCER: native backend, diamond-checked, emits δ-certs (convergence) [D3; producer]
-ω  full lang .... ε + proof surface; meaning elaborates like ε; omega-rs = reference     [D3]
+δ  systems ...... compiler-host language; meaning elaborates δ → γ                      [D2; Rust removal active]
+                  native producer is diamond-checked; self-hosting path is gated          [D3; producer]
+
+proof kernel .... check.beta AND checker.gamma, diamonded; cross-cutting trust anchor    [Rust-free, audited]
+Psi/Omega ....... product compiler pipeline hosted by Delta; Rust implementation current [producer]
 ```
 
-**What "provable" buys at the top:** a certificate δ accepts is trustworthy back to
-the seed, because δ is (hand-audited) + (double-implemented in β and γ) + (paired
-with soundness seams, D4) + (compiled by the Rust-free bc from a diverse seed, D5).
-A false proposition cannot get a certificate past δ, whoever produced it (D3).
+**What "provable" buys at the top:** a certificate the proof kernel accepts is
+trustworthy back to the seed because the kernel is hand-audited,
+double-implemented in Beta and Gamma, paired with soundness seams, and compiled by
+the Rust-free `bc` from a diverse seed. A false proposition cannot get a
+certificate past the kernel merely by controlling the producer.
 
 ## Execution order (binds the /loop)
 
-1. **Finish epsilon's Rust-free meaning route** — `eps2gamma.beta` slices: state
+1. **Finish Delta's Rust-free meaning route** — the Delta-to-Gamma slices: state
    machines → self fields → cross-machine calls → arrays → read_byte. *(D1 urgent
    kill; slices 0–1 done.)*
-2. **Grow δ and its seams in lockstep** — no capability without its paired seam. *(D4)*
+2. **Grow the proof kernel and its seams in lockstep** — no capability without its paired seam. *(D4)*
 3. ~~Close the bc diversity gap~~ **DONE** — `bc2.py`, an independent second Beta compiler; DDC of `bc` gated. *(D5)*
 4. **Translation-validation backend** — per-compile refinement certs. *(D3 north star, later.)*
-5. **Omega meaning route + dependent-type δ** — after epsilon's meaning is complete. *(D2/D6, later.)*
+5. **Host the Psi/Omega toolchain in Delta** — after Delta's meaning route is complete. *(D2/D6, later.)*

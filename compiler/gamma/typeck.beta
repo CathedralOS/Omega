@@ -1,6 +1,6 @@
 ; typeck.beta — a static TYPE CHECKER for Gamma, written in Beta.
 ;
-; gamma.md asks for "a simple static type system — just enough to make the delta
+; gamma.md asks for "a simple static type system — just enough to make the proof kernel
 ; checker safe to write, no more". Companion to interp.beta: where the interpreter
 ; says what a program MEANS, this says whether it is well-TYPED before it runs.
 ; Monomorphic and fully annotated, so type checking is synthesis + name comparison.

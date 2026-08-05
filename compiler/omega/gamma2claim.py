@@ -6,7 +6,7 @@
 # kernel arithmetic term: every `+` in the computation becomes a `(p A B)` node over unary numerals, so the
 # claim
 #       (= <meaning term> <unary exit>)   (refl <unary exit>)
-# is accepted by delta/check.beta only if the kernel's own CONVERSION re-computes the entire arithmetic of
+# is accepted by proof-kernel/check.beta only if the kernel's own CONVERSION re-computes the entire arithmetic of
 # the sample and reaches the same exit. Control (if / match arms, call targets) is decided by the encoder —
 # the same trust shape as tv-encode.py's unrolled loops: a bad decision mis-states the meaning and the claim
 # simply fails against the independently-run interpreter exit. Scope (grown far past slice 1): the full

@@ -18,7 +18,7 @@ SEED=$ALPHA_SEED
 ASM=../beta/$BETA_SEED
 ( cd ../beta-lang-rs && sh build.sh ../beta-lang/bc.beta >/dev/null 2>&1 ) || { echo "refinement: bc build failed"; exit 1; }
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
-../beta-lang-rs/build/bc.exe < ../delta/check.beta > "$T/c.asm" 2>/dev/null && "$ASM" < "$T/c.asm" > "$T/c.tape" 2>/dev/null \
+../beta-lang-rs/build/bc.exe < ../proof-kernel/check.beta > "$T/c.asm" 2>/dev/null && "$ASM" < "$T/c.asm" > "$T/c.tape" 2>/dev/null \
   && stamp_seed "$T/c.tape" "$SEED" "$T/check.exe" >/dev/null 2>&1 || { echo "refinement: check.beta build failed"; exit 1; }
 
 echo "instruction-level refinement (alpha machine code provably computes its source meaning, checked without running it):"

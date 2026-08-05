@@ -1,11 +1,11 @@
-; checker.gamma — the Delta checker's core, in Gamma.  THE PAYOFF OF THE RUNG.
+; checker.gamma — the proof kernel's core, in Gamma.  THE PAYOFF OF THE RUNG.
 ;
-; The same checker as compiler/delta/check.beta — full intuitionistic propositional
+; The same checker as compiler/proof-kernel/check.beta — full intuitionistic propositional
 ; logic (-> & + bot) PLUS equality of Peano terms with the conversion rule — but
 ; where check.beta hand-encodes term/type trees as tagged 3-word memory nodes and
 ; decides everything with if-cascades on integer tags (~350 lines), here they are
 ; ALGEBRAIC DATA + PATTERN MATCHING: a dozen tiny functions, no manual memory, no
-; tags. That contrast IS why the Gamma rung exists (delta.md: "the checker is a
+; tags. That contrast IS why the Gamma rung exists (proof_kernel.md: "the checker is a
 ; Gamma program — small, audited"; gamma.md: ADTs + match keep it small).
 ;
 ; Types: (Atom n) | (Arrow a b) | (And a b) | (Or a b) | Bot | (Eq t1 t2) | Bad

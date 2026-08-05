@@ -3,9 +3,9 @@
 [Lattice overview](../bootstrap_lattice.md) | Prev: [Beta](beta.md) | Next: [Delta](delta.md)
 
 Gamma is where computation becomes *safe and definitional*: enough to write
-parsers, validators, interpreters, and eventually a logical checker in a
-substantially safer language than raw assembly. It is the rung the
-[Delta](delta.md) proof checker will be written in.
+parsers, validators, interpreters, and the reference implementation of the
+[proof kernel](../proof_kernel.md) in a substantially safer language than raw
+assembly.
 
 ## Adds
 
@@ -28,10 +28,10 @@ behave like the interpreter — not the definition.
 ## Must not contain
 
 No mutable memory, ownership, regions, or effects (those are
-[Epsilon](epsilon.md)). No proof objects or logical calculus (that is
-[Delta](delta.md)). No contracts, refinement, or dependent types (those are
-[Omega](omega.md)). Keeping gamma to pure, safe, definitional computation is what
-lets the delta checker written in it be small and auditable.
+[Delta](delta.md)). Proof checking is a cross-cutting service rather than a
+Gamma language feature; its reference implementation is written in Gamma.
+Keeping Gamma pure, safe, and definitional makes that implementation small and
+auditable.
 
 ## Totality (honest edge)
 
@@ -56,7 +56,7 @@ Two things live here, pulling in opposite directions:
   `if`, `let`, arithmetic/comparisons (`fac 5 → 120`, `fib 10 → 55`, `gcd → 12`).
   This is the architecturally-favored shape — *meaning is the interpreter* — and
   resolves the first divergence below. Stage 2 (DONE) adds the
-  gamma-defining features (ADTs + pattern matching), so the Delta checker can now
+  gamma-defining features (ADTs + pattern matching), so the proof kernel can now
   be rewritten in it cleanly (its hand-encoded tagged nodes are exactly that pull).
 
 The old gamma diverges from the target in two ways the architecture wants
@@ -76,7 +76,7 @@ declarations, typed functions, and type checking of `if`/`let`/calls/constructor
 application/`match`. It catches the errors you want (an Int op on a `List`, a
 constructor given the wrong argument type, divergent `match` arms, a pattern from
 the wrong type, a return-type mismatch) and accepts well-typed `Nat`/`List` code —
-"just enough to make the delta checker safe to write, no more."
+"just enough to make the proof kernel safe to write, no more."
 
 The pragmatic question is whether to grow the current gamma toward the target or
 to treat the current gamma as a stepping stone and introduce the
@@ -87,5 +87,5 @@ interpreter-first functional gamma as its successor.
 - Interpreter-first reconciliation (above) — the single biggest fork for the
   current repo trajectory.
 - Totality vs partiality, and the fuel discipline for interpreters.
-- The minimal type system: just enough to make the delta checker safe to write,
+- The minimal type system: just enough to make the proof kernel safe to write,
   no more.

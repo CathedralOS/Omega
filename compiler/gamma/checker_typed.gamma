@@ -1,6 +1,6 @@
-; checker_typed.gamma — the Delta checker, fully type-annotated, so that GAMMA'S OWN
+; checker_typed.gamma — the proof kernel, fully type-annotated, so that GAMMA'S OWN
 ; STATIC TYPE CHECKER (typeck.beta) accepts it. This is the point of gamma.md's
-; "simple static type system — just enough to make the delta checker safe to write":
+; "simple static type system — just enough to make the proof kernel safe to write":
 ; here the trust anchor's code is shown to be statically TYPE-SAFE. Same logic as
 ; checker.gamma (and check.beta) — full first-order predicate logic (∀ ∃ over Peano
 ; individuals) included; the only additions over checker.gamma are the data

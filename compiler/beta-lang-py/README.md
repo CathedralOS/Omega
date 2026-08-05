@@ -49,8 +49,8 @@ to **byte-for-byte identical** assembly:
 | program | role | asm lines |
 | --- | --- | --- |
 | `bc.beta` | the Beta compiler itself | 8716 |
-| `check.beta` | the δ proof checker (the trust anchor) | 27208 |
-| `eq.beta` | the δ equality checker | 6757 |
+| `check.beta` | the proof kernel's logical checker (the trust anchor) | 27208 |
+| `eq.beta` | the proof kernel's equality checker | 6757 |
 | `interp.beta` | the γ reference interpreter (the meaning substrate) | 7662 |
 | `typeck.beta` | the γ type checker | 8484 |
 | `omega2gamma.beta` | the Omega→Gamma elaborator | 24919 |

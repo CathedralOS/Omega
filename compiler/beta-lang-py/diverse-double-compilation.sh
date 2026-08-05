@@ -199,7 +199,7 @@ fi
 # fixed point, so bc0 is the canonical bc.)
 if build ../beta-lang/bc.beta "$BCRS" && cp "$T/o.exe" "$T/bc0.exe" \
    && build ../beta-lang/bc.beta python3 bc2.py && cp "$T/o.exe" "$T/bcA.exe"; then
-  for prog in ../beta-lang/bc.beta ../delta/check.beta ../delta/eq.beta \
+  for prog in ../beta-lang/bc.beta ../proof-kernel/check.beta ../proof-kernel/eq.beta \
               ../gamma/interp.beta ../gamma/typeck.beta ../omega/omega2gamma.beta; do
     [ -f "$prog" ] || continue
     if ! python3 bc2.py < "$prog" > /dev/null 2>"$T/e"; then

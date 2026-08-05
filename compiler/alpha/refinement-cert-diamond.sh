@@ -18,7 +18,7 @@ SEED=$ALPHA_SEED
 ASM=../beta/$BETA_SEED
 ( cd ../beta-lang-rs && sh build.sh ../beta-lang/bc.beta >/dev/null 2>&1 ) || { echo "bc build failed"; exit 1; }
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
-../beta-lang-rs/build/bc.exe < ../delta/check.beta > "$T/c.asm" 2>/dev/null && "$ASM" < "$T/c.asm" > "$T/c.tape" 2>/dev/null \
+../beta-lang-rs/build/bc.exe < ../proof-kernel/check.beta > "$T/c.asm" 2>/dev/null && "$ASM" < "$T/c.asm" > "$T/c.tape" 2>/dev/null \
   && stamp_seed "$T/c.tape" "$SEED" "$T/check.exe" >/dev/null 2>&1 || { echo "check.beta build failed"; exit 1; }
 ../beta-lang-rs/build/bc.exe < ../gamma/interp.beta > "$T/i.asm" 2>/dev/null && "$ASM" < "$T/i.asm" > "$T/i.tape" 2>/dev/null \
   && stamp_seed "$T/i.tape" "$SEED" "$T/interp.exe" >/dev/null 2>&1 || { echo "interp.beta build failed"; exit 1; }
@@ -36,7 +36,7 @@ PASS=0; FAIL=0; GPASS=0; GFAIL=0
 for c in "$T"/certs/cert-*.beta; do
   [ -f "$c" ] || continue
   expect=$(basename "$c" .beta | sed 's/.*-//')
-  got=$(python3 ../delta/check_ref.py < "$c" 2>/dev/null || echo error)
+  got=$(python3 ../proof-kernel/check_ref.py < "$c" 2>/dev/null || echo error)
   if [ "$got" = "$expect" ]; then PASS=$((PASS+1))
   else FAIL=$((FAIL+1)); echo "  FAIL $(basename "$c") : check.beta=$expect check_ref.py=$got"; fi
   # THIRD leg: checker.gamma — the cert translated to its (check ..) syntax ((k ..) terms become the CURRIED

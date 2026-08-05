@@ -1,26 +1,20 @@
 # The Bootstrap Lattice
 
-> **Status: DIRECTION + a working vertical slice.** The *principles* here are
-> decided. The *rung breakdown* (alpha…omega) is a working decomposition, not a
-> frozen contract — per the project stance that rung names are version labels and
-> the count is emergent (it falls out of the machinery dependency DAG, it is not
-> chosen). **As of now the lattice exists, in working form, from the seed up to a
-> first certificate checker** — `alpha` (seed) → `beta` (self-hosting assembler) →
-> a self-hosting **Beta compiler written in Beta** (Rust out of the lineage) →
-> `delta` (a checker: full intuitionistic propositional logic + equality with the
-> conversion rule) and `gamma` (an interpreter-first functional language with ADTs
-> + pattern matching, which runs the same checker cleanly). One command verifies it
-> all: `sh compiler/verify-lattice.sh`. Above delta (`epsilon`, `omega`) is still
-> design; the deep open problem — a *soundness bridge* from `provable` to
-> `true-about-execution` — is untouched. This document exists so the construction
-> is **designed on paper rather than drifted into**.
+> **Status: DIRECTION + a working vertical slice.** The language spine is
+> `Alpha → Beta → Gamma → Delta`. Alpha through Gamma exist on the audited
+> lineage; the Delta on-ramp, native corpus, self-hosting compiler, and meaning
+> diamond exist while the full Rust-free hosting path remains under construction.
+> The proof kernel is a cross-cutting assurance service, independently
+> implemented in Beta and Gamma, rather than a language rung. One command checks
+> the current construction: `sh compiler/verify-lattice.sh`.
 >
 > **Live build status + onboarding for a fresh agent:**
 > [TASKS_BOOTSTRAP.md](../../../TASKS_BOOTSTRAP.md).
 
-This is the architecture for how Omega builds *itself* — a tower of small
-languages rising from a tiny hand-audited seed, ending at the full language. It
-is a separate concern from two things it is easy to confuse it with:
+This is the architecture for how the Psi/Omega toolchain rebuilds *itself*: a
+tower of small languages rising from a tiny hand-audited seed and ending in
+Delta, the language capable of hosting the production compiler. It is separate
+from two things it is easy to confuse it with:
 
 - **What Omega means** — the language semantics. Owned by the
   [language guide](../../language_guide/language_guide.md) and the
@@ -89,8 +83,8 @@ standing for five different jobs. Keep them apart:
 `alpha` is only role #1, an executor. It is **not** the meaning, the checker, or
 the axioms. "Is alpha the trust root?" is malformed in the way "is the engine the
 car?" is malformed. The checker (role #3) exists in this architecture — but it
-lives **several rungs up**, as a program, not as native machinery (see
-[Delta](rungs/delta.md)).
+is a cross-cutting program rather than a rung (see the
+[proof kernel](proof_kernel.md)).
 
 ## Two kinds of minimality
 
@@ -101,7 +95,7 @@ These are different budgets and must be tracked separately.
   hand-inspected native seed. Keep it tiny.
 - **Semantic minimality** — how much code ultimately *participates in deciding
   correctness*? This is larger: the alpha VM, the beta/gamma interpreters, the
-  delta checker, the written semantics, the certificates. But it is **not**
+  proof kernel, the written semantics, and the certificates. But it is **not**
   hand-written assembly — it accumulates gradually in increasingly readable,
   safer languages, and **freezes** as each rung is finished.
 
@@ -153,20 +147,17 @@ absurdly slow, and that is fine; it is the semantic spine, not the production
 path:
 
 ```text
-Omega program
-  interpreted by an Omega interpreter written in Epsilon
-  interpreted by an Epsilon interpreter written in Delta
-  interpreted by a  Delta interpreter written in Gamma
-  interpreted by a  Gamma interpreter written in Beta
-  interpreted by a  Beta interpreter written in Alpha
-  executed by the native Alpha VM
+Psi/Omega toolchain hosted in Delta
+  Delta meaning elaborated to Gamma
+  Gamma interpreted by a Beta program
+  Beta compiled to Alpha
+  Alpha executed by the native seed
 ```
 
-**Semantic authority is not native code.** A new capability (say, a logical
-calculus at Delta) arrives as *a program the previous rung already understands* —
-not as more native kernel machinery. To `alpha`, a proof object is just a byte
-sequence being processed by another alpha program; alpha has no idea what "proof"
-means.
+**Semantic authority is not native code.** A new capability arrives as a program
+the lower spine already understands, not as more native kernel machinery. To
+Alpha, a proof object is just a byte sequence processed by another Alpha program;
+Alpha has no idea what “proof” means.
 
 ## Ladder vs lattice: diversity is the security
 
@@ -204,13 +195,11 @@ You cannot reach zero trust. The honest, finite list:
    implementations, different host ISAs, direct inspection, a formal ISA model,
    reproducible builds, and hardware testing. Alpha does **not** authenticate
    itself merely by being small.
-3. **A short, frozen sequence of audited programs** — at birth, each of {the alpha
-   VM, the beta interpreter, the gamma interpreter/checker, the delta proof
-   checker} is hand-audited, because nothing above it yet exists to check it. The
-   delta checker is a *second trust anchor* exactly like the alpha VM, just
-   written in gamma (this is how Lean works: you audit the kernel, you do not
-   derive it). The audit burden shrinks going up, as lower tooling helps check
-   the next rung — but the foundational artifacts are pure audit.
+3. **A short, frozen sequence of audited programs** — the Alpha VM, the Beta and
+   Gamma meaning path, and the proof-kernel implementations. The proof kernel is
+   a second trust anchor, implemented independently in Beta and Gamma and checked
+   against shared corpora and semantic seams. The audit burden shrinks going up,
+   as lower tooling helps check each next artifact.
 
 The craft is making this set as small, as explicit, and as independently
 re-verified as possible — then deriving or checking *everything else*.
@@ -224,10 +213,11 @@ idea** and is implemented in the rung below.
 | --- | --- | --- | --- | --- |
 | [alpha](rungs/alpha.md) | raw computation: bytes, fixed-width arithmetic, bounded memory, load/store, branch, byte I/O, trap | native (hand-written per ISA) | the VM's own small-step semantics ([`SEMANTICS.md`](../../../compiler/alpha/SEMANTICS.md)) | **EXISTS** — 21-opcode tape VM, **two independent seeds** (x64, arm64) forming a diamond; written semantics + conformance suite; beta self-hosts on it |
 | [beta](rungs/beta.md) | names + structure: a small structured systems language (procedures, locals, control flow, memory) — *and* the assembler beneath it | alpha | the assembler in alpha-asm; the Beta-language compiler, **written in Beta** (`bc.beta`) | **EXISTS + SELF-HOSTS** — assembler self-hosts byte-identically; `bc` (the Beta compiler in Beta) self-hosts, so Rust is out of the lineage |
-| [gamma](rungs/gamma.md) | safe definitional computation: algebraic data, pattern matching, pure/total functions, a simple type system | beta | a gamma reference interpreter written in beta ([`interp.beta`](../../../compiler/gamma/interp.beta)) | **EXISTS** (interpreter-first) — fuel-bounded functional core + **ADTs + pattern matching**; runs the Delta checker ([`checker.gamma`](../../../compiler/gamma/checker.gamma)). A simple static type system now exists too (`typeck.beta`: Int + ADTs, monomorphic, catches Int-vs-List etc.). The old compiler-first v13 is parked. |
-| [delta](rungs/delta.md) | **evidence**: a small logical calculus + a certificate checker | gamma | the delta checker (a gamma program) *is* the definition of a valid proof | **FIRST PROTOTYPE EXISTS** — a checker for full intuitionistic propositional logic + equality/conversion, in both Beta ([`check.beta`](../../../compiler/delta/check.beta)) and Gamma; **no soundness bridge yet** (the deep open problem) |
-| [epsilon](rungs/epsilon.md) | safe systems programming: mutable memory, ownership, regions, effects | delta / gamma | an epsilon reference interpreter | DIRECTION |
-| [omega](rungs/omega.md) | the full language: contracts, refinement/dependent proofs, proof automation | epsilon | omega's written semantics + reference interpreter | DIRECTION — today realized by `omega-rs` (the Rust on-ramp) |
+| [gamma](rungs/gamma.md) | safe definitional computation: algebraic data, pattern matching, pure/total functions, a simple type system | beta | a Gamma reference interpreter written in Beta ([`interp.beta`](../../../compiler/gamma/interp.beta)) | **EXISTS** — fuel-bounded functional core, ADTs, pattern matching, and a static type checker; also hosts an independent proof-kernel implementation ([`checker.gamma`](../../../compiler/gamma/checker.gamma)) |
+| [delta](rungs/delta.md) | compiler-host systems programming: mutation, ownership, regions, effects, boundaries | gamma | Delta-to-Gamma elaboration plus the Gamma reference interpreter | **WORKING ON-RAMP** — native corpus, self-hosting compiler, and meaning diamond exist; full Rust-free toolchain hosting remains open |
+
+The [proof kernel](proof_kernel.md) and the [Psi/Omega toolchain](omega_toolchain.md)
+are connected nodes in the architecture, not additional rungs in this table.
 
 ## How today's work fits
 
@@ -299,9 +289,9 @@ The places this architecture glides over real cost. Build with eyes open.
 1. **A reference interpreter gives operational meaning, not logical meaning.**
    "What the interpreter does" tells you what programs *do* (perfect for checking
    a compiler preserves behavior). It does not give a theory to *prove things
-   about* programs. Connecting "the logic delta checks" to "what programs actually
+   about* programs. Connecting the proof kernel's logic to what programs actually
    do per the reference interpreter" is a **soundness theorem**
-   (`provable-in-Delta ⟹ true-about-execution`) at the gamma/delta seam. That
+   (`kernel-accepted ⟹ true-about-execution`) at the proof/meaning seam. That
    bridge is the hard core of the proof ambition; the reference interpreter is
    only half of "meaning."
 2. **Diamonds catch compiler bugs; they do not resist Thompson without genuine
@@ -340,11 +330,12 @@ The places this architecture glides over real cost. Build with eyes open.
   the interpreters refine it? (Honest edge #1.)
 - **The diversity plan** — how many independent alpha implementations, on which
   ISAs, authored how, to make the diamonds real Thompson resistance?
-- **Certificate format** — the shared shape a producer emits and the delta checker
+- **Certificate format** — the shared shape a producer emits and the proof kernel
   reads. (Tracked also as proof-engine-north-star open question #3.)
 - **Reconciling current gamma** — today's compiler-first imperative gamma vs the
   interpreter-first functional/total gamma this architecture wants.
-- **Rung count and names** — emergent; revisit as the dependency DAG settles.
+- **Delta sufficiency** — the exact subset required to host the complete Psi/Omega
+  implementation from the audited spine.
 
 ## Rung Questions
 

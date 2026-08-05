@@ -4,17 +4,17 @@
 executable reference. This directory holds omega's **kept, lattice-built** artifacts: the Rust-free
 meaning route and its gates.
 
-**Epsilon was absorbed here** (decision D7, 2026-07-02): what was a separate rung is now the
+**Delta was absorbed here** (decision D7, 2026-07-02): what was a separate rung is now the
 **Omega kernel subset** — the machine-surface fragment of Omega the lattice already gives Rust-free
-meaning to. Its translator, gates, and certifier corpus live on below; `epsilon-rs/` keeps its
+meaning to. Its translator, gates, and certifier corpus live on below; `delta-rs/` keeps its
 historical name as the kernel subset's disposable Rust producer.
 
 ## What's here
 
-- **`omega2gamma.beta`** (née `eps2gamma.beta`) — the Rust-free **Omega → gamma meaning translator**,
+- **`omega2gamma.beta`** (née `omega2gamma.beta`) — the Rust-free **Omega → gamma meaning translator**,
   written in Beta (built alpha→beta→bc, the same lineage as `gamma/interp.beta`). Reads Omega source
   on stdin, prints a gamma s-expression; `interp.beta` runs it. Decision D2: meaning by elaboration
-  to the canonical interpreter. Covers the kernel subset (the full former-epsilon feature set: state
+  to the canonical interpreter. Covers the kernel subset (the full former-delta feature set: state
   machines, self fields/arrays, cross-machine calls + recursion, stdin/stdout, self-methods incl.
   value-returning) plus the omega surface (dotted field paths, subjectless transitions, state
   arguments, cross-data method calls via single-instance monomorphization, `use`/attributes/domain
@@ -25,13 +25,13 @@ historical name as the kernel subset's disposable Rust producer.
   `tests/` (audited = a sample whose pass depends on a mis-parse coincidence is excluded).
 
 - **`kernel-diamond.sh`** — the 42-case triple diamond on kernel-subset programs: native execution
-  (epsilon-rs backend) == Rust-free `omega2gamma→interp` == the Rust `gamma_emit` cross-check, over
+  (delta-rs backend) == Rust-free `omega2gamma→interp` == the Rust `gamma_emit` cross-check, over
   arithmetic, comparisons, state machines, fields, arrays, calls, stdin/stdout, self-methods.
 
 - **`convergence-reference.sh`** — the proof-carrying loop with **no Rust anywhere**: certifiers
   (incl. the omega safety obligations `certify-lt/bounds/accesses/safety` and the certifying compiler
   frontend `certify-source`) are translated by `omega2gamma.beta`, *run* by `interp.beta`, and their
-  delta certificates checked by `check.beta` — all on the alpha→beta→bc lineage. Mutated certs and
+  proof certificates checked by `check.beta` — all on the alpha→beta→bc lineage. Mutated certs and
   unsafe source are rejected.
 
 ## What this is not yet
