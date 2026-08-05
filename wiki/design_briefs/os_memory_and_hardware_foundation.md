@@ -1054,8 +1054,9 @@ storage and reuses the machine index base for a machine-resident source.
 Double-runtime-indexed reads from inline frame or machine arrays, the
 machine-array write-side mirror, the all-frame AArch64 write from direct frame
 or machine storage, and the machine-inline `arr[i] = arr[j]` pair are covered.
-The all-frame target shares one frame relocation across the collection and
-both indices and adds a distinct source relocation only for machine storage.
+The all-frame read and write copy complete aggregate byte spans rather than
+only scalar widths, share one frame relocation across the collection and both
+indices, and add a distinct source relocation only for machine storage.
 The x86 general place materializer also replays every
 remaining otherwise-unclassified `CopyPlaces` path with scratch derived from
 the retained places' exact index depths.

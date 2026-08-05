@@ -2139,38 +2139,45 @@ pub fn runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_frame_wid
         + 8 * chunk_pairs
 }
 
-/// Width of the frame-resident 2D read: frame pair + 36-byte math + element
-/// load + target pair + store. All constant.
-pub fn runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage_width()
--> usize {
-    60
+/// Width of the frame-resident 2D read: frame pair + 36-byte math + target pair
+/// and an exact chunked representation copy.
+pub fn runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage_width(
+    target_offset: usize,
+    byte_count: usize,
+) -> usize {
+    8 + 36
+        + 8
+        + add_constant_width(target_offset)
+        + runtime_storage_copy_data_width(0, 0, byte_count)
 }
 
 /// Width of the all-frame double-indexed write. The target and both indices
-/// use one frame pair; a machine-resident source adds one independent base
-/// pair before the scalar load.
+/// use one frame pair; x20 preserves the frame source base and a machine-
+/// resident source adds one independent base pair before the chunked copy.
 pub fn runtime_storage_copy_to_runtime_frame_base_double_indexed_from_runtime_storage_width(
     source_region: omega_target_operations::RuntimeStorageRegion,
+    source_offset: usize,
+    byte_count: usize,
 ) -> usize {
-    8 + if source_region == omega_target_operations::RuntimeStorageRegion::Machine {
-        8
-    } else {
-        0
-    } + 4
+    8 + 4
+        + if source_region == omega_target_operations::RuntimeStorageRegion::Machine {
+            8
+        } else {
+            0
+        }
         + 36
-        + 4
+        + runtime_storage_copy_data_width(source_offset, 0, byte_count)
 }
 
-/// A distinct machine source is materialized immediately after the leading
-/// frame pair.
+/// A distinct machine source is materialized after the leading frame pair and
+/// the frame-base preservation move.
 pub fn runtime_storage_copy_to_runtime_frame_base_double_indexed_source_base_offset() -> usize {
-    8
+    12
 }
 
-/// The frame-2D read's relocated target pair follows the frame pair + math +
-/// the element load.
+/// The frame-2D read's relocated target pair follows the frame pair and math.
 pub fn runtime_storage_copy_from_runtime_frame_base_double_indexed_target_base_offset() -> usize {
-    48
+    44
 }
 
 /// Width of the double-indexed RMW binary write: bases + 36-byte math +
