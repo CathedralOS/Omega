@@ -12,6 +12,7 @@ pub use entry::{
     derive_boundary_compiler_body_constant_host_result_footprint,
     derive_boundary_compiler_body_outbound_authored_aggregate_import_footprint,
     derive_boundary_compiler_body_outbound_authored_aggregate_import_result_footprint,
+    derive_boundary_compiler_body_outbound_authored_aggregate_result_footprint,
     derive_boundary_compiler_body_outbound_authored_float_import_footprint,
     derive_boundary_compiler_body_outbound_authored_float_import_result_footprint,
     derive_boundary_compiler_body_outbound_authored_import_footprint,

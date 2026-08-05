@@ -29,6 +29,7 @@ pub enum BoundaryFootprintFragmentOrigin {
     CompilerBodyOutboundAuthoredFloatImportResult,
     CompilerBodyOutboundAuthoredAggregateImport,
     CompilerBodyOutboundAuthoredAggregateImportResult,
+    CompilerBodyOutboundAuthoredAggregateResult,
     CompilerBodyOutboundStorageImport,
     CompilerBodyOutboundStorageImportResult,
     CompilerBodyOutboundSyscall,
@@ -97,6 +98,7 @@ impl BoundaryFootprintPlan {
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredFloatImportResult
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredAggregateImport
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredAggregateImportResult
+            | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredAggregateResult
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImport
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImportResult
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscall
@@ -384,6 +386,17 @@ mod tests {
                 },
             )
             .expect("result-bearing authored aggregate imports may use their prescribed control state");
+
+        outbound
+            .retain_validated_fragment(
+                &boundary,
+                BoundaryFootprintFragment {
+                    origin:
+                        BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredAggregateResult,
+                    evidence: control_evidence(),
+                },
+            )
+            .expect("authored aggregate results may use their prescribed control state");
 
         outbound
             .retain_validated_fragment(

@@ -1262,6 +1262,24 @@ pub fn derive_boundary_compiler_body_outbound_authored_aggregate_import_result_f
     )
 }
 
+/// Derive source-authored imports whose result remains one aggregate storage
+/// operand while the selected plan owns its direct fragments or hidden
+/// destination pointer.
+pub fn derive_boundary_compiler_body_outbound_authored_aggregate_result_footprint(
+    boundary: &ValidatedBoundaryEntryPlan,
+    input: &crate::InstructionSelectionInput<'_>,
+    operands: &psi_arena::Arena<omega_abstract_operations::InstructionOperand>,
+    instructions: &[omega_abstract_operations::AbstractOperation],
+) -> Result<StateFootprintEvidence, PlanDiagnostic> {
+    derive_boundary_compiler_body_outbound_direct_import_footprint(
+        boundary,
+        input,
+        operands,
+        instructions,
+        DirectImportArgumentClass::AuthoredAggregateReturning,
+    )
+}
+
 /// Derive integer-result built-in imports with one or more runtime-scalar
 /// arguments. The leading runtime scalar remains the post-call result store;
 /// only the trailing operands are wire arguments.
@@ -1295,6 +1313,7 @@ enum DirectImportArgumentClass {
     AuthoredFloatResult,
     AuthoredAggregate,
     AuthoredAggregateResult,
+    AuthoredAggregateReturning,
     StorageResult,
 }
 
@@ -1367,6 +1386,7 @@ fn derive_boundary_compiler_body_outbound_direct_import_footprint(
                     | DirectImportArgumentClass::AuthoredFloatResult
                     | DirectImportArgumentClass::AuthoredAggregate
                     | DirectImportArgumentClass::AuthoredAggregateResult
+                    | DirectImportArgumentClass::AuthoredAggregateReturning
             )
             || operation.operation_key.dereferences_result()
                 != matches!(
@@ -1643,6 +1663,26 @@ fn derive_boundary_compiler_body_outbound_direct_import_footprint(
                                 )
                             })
                     })
+                }
+                DirectImportArgumentClass::AuthoredAggregateReturning => {
+                    binding.call_plan().result.is_none()
+                        || binding.call_plan().parameters.len() + 1 != selected_operands.len()
+                        || !selected_operands
+                            .first()
+                            .is_some_and(|operand| is_runtime_aggregate_operand(&operand.kind))
+                        || !selected_operands[1..].iter().all(|operand| {
+                            matches!(
+                                operand.kind,
+                                InstructionOperandKind::ImmediateInteger(_)
+                                    | InstructionOperandKind::RuntimeScalarInteger { .. }
+                                    | InstructionOperandKind::RuntimeScalarFloat { .. }
+                                    | InstructionOperandKind::RuntimeHomogeneousFloatAggregate { .. }
+                                    | InstructionOperandKind::RuntimeSystemVAggregate { .. }
+                                    | InstructionOperandKind::RuntimeSmallAggregate { .. }
+                                    | InstructionOperandKind::RuntimeLargeAggregate { .. }
+                                    | InstructionOperandKind::DataAddress { .. }
+                            )
+                        })
                 }
                 DirectImportArgumentClass::StorageResult => {
                     !binding.call_plan().result.as_ref().is_some_and(|result| {

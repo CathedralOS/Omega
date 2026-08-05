@@ -663,6 +663,23 @@ fn compiler_instruction_validation_kind(
                                 plan: binding.call_plan().clone(),
                             }
                         }
+                        Some(_)
+                            if operands.first().is_some_and(|operand| {
+                                operand.runtime_homogeneous_float_aggregate().is_some()
+                                    || operand.runtime_system_v_aggregate().is_some()
+                                    || operand.runtime_small_aggregate().is_some()
+                                    || operand.runtime_large_aggregate().is_some()
+                            }) =>
+                        {
+                            CompilerInstructionValidationKind::CompilerBodyOutboundAuthoredAggregateResult {
+                                operation_key: *operation_key,
+                                operands: operands.to_vec(),
+                                data_symbols,
+                                library: std::sync::Arc::clone(library),
+                                symbol: std::sync::Arc::clone(symbol),
+                                plan: binding.call_plan().clone(),
+                            }
+                        }
                         Some(result)
                             if has_aggregate_argument
                                 && match result.shape.class {
