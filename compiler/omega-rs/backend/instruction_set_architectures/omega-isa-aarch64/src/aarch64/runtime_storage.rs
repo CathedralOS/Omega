@@ -5628,6 +5628,56 @@ pub fn encode_runtime_machine_double_indexed_integer_write(
     Ok(bytes)
 }
 
+/// Write a literal into an all-frame double-indexed element. The collection
+/// and both index slots share the one relocated frame base in x16.
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_frame_base_double_indexed_integer_write(
+    base_byte_offset: usize,
+    outer_index_offset: usize,
+    outer_index_byte_size: usize,
+    outer_stride: usize,
+    inner_index_offset: usize,
+    inner_index_byte_size: usize,
+    inner_stride: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    value: i64,
+) -> Result<Vec<u8>, Diagnostic> {
+    if !matches!(byte_size, 1 | 4 | 8) {
+        return Err(Diagnostic::error(format!(
+            "AArch64 MVP encoder cannot write {byte_size}-byte frame-double-indexed values yet"
+        )));
+    }
+    let expected_width =
+        super::widths::runtime_frame_base_double_indexed_integer_write_width(value);
+    let mut bytes = Vec::with_capacity(expected_width);
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    append_double_index_address_math(
+        &mut bytes,
+        16,
+        outer_index_offset,
+        outer_index_byte_size,
+        outer_stride,
+        16,
+        inner_index_offset,
+        inner_index_byte_size,
+        inner_stride,
+        base_byte_offset + field_byte_offset,
+    )?;
+    append_unsigned_immediate(&mut bytes, 17, value as u64);
+    match byte_size {
+        8 => bytes.extend(encode_store_x_to_x(17, 16, 0)?),
+        _ => bytes.extend(encode_store_w_to_x(17, 16, 0, byte_size)?),
+    }
+    debug_assert_eq!(bytes.len(), expected_width);
+    Ok(bytes)
+}
+
+pub fn runtime_frame_base_double_indexed_integer_write_clobbers() -> RegisterSet {
+    runtime_storage_copy_from_runtime_frame_base_double_indexed_clobbers()
+}
+
 /// Exact scratch footprint of a double-indexed immediate write. The fixed
 /// address program writes x14/x16/x17/x26; x15 materializes the one shared
 /// frame base exactly when either index is frame-resident.
@@ -9940,6 +9990,32 @@ mod tests {
             )
             .contains(MachineRegister::Aarch64X(15)),
             "the exact footprint must retain the cross-region base register"
+        );
+    }
+
+    #[test]
+    fn frame_base_double_indexed_integer_write_uses_one_shared_frame_base() {
+        let bytes = encode_runtime_frame_base_double_indexed_integer_write(
+            24, 64, 8, 12, 72, 8, 4, 0, 4, 6,
+        )
+        .expect("encode all-frame double-indexed integer write");
+
+        assert_eq!(
+            bytes.len(),
+            widths::runtime_frame_base_double_indexed_integer_write_width(6)
+        );
+        assert_eq!(
+            &bytes[..8],
+            [
+                encode_adrp_placeholder(16),
+                encode_add_page_offset_placeholder(16)
+            ]
+            .concat(),
+            "the collection and both index slots must share the opening frame base"
+        );
+        assert_eq!(
+            runtime_frame_base_double_indexed_integer_write_clobbers(),
+            runtime_storage_copy_from_runtime_frame_base_double_indexed_clobbers()
         );
     }
 

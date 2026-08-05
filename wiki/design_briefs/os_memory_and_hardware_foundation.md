@@ -1059,9 +1059,11 @@ indexed descriptor, and runtime-indexed writes into inline frame arrays also
 retain a separate ordinary-body fragment and replay exact target `Place`,
 value, width, every storage/index relocation, and target scratch.
 Runtime-indexed immediate writes into single- and double-indexed inline machine
-arrays are included too. The x86 general place materializer replays the
-remaining otherwise-unclassified immediate integer-write paths with exact
-index-depth scratch and relocation sites.
+arrays are included too. AArch64 also replays literal integer writes into
+all-frame double-runtime-indexed inline arrays using one shared frame
+relocation. The x86 general place materializer replays the remaining otherwise-
+unclassified immediate integer-write paths with exact index-depth scratch and
+relocation sites.
 Direct-target binary writes, exact-integer writes through a frame-held pointer,
 and runtime-indexed writes through a frame-held descriptor retain their
 complete checked recipe and roots into the canonical runtime-value operand

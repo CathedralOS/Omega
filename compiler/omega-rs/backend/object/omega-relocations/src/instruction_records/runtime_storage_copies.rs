@@ -456,6 +456,10 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                     // instruction start; the machine-indexed shapes add
                     // their frame-index relocations.
                     let shape = omega_instruction_selection::classify_write_place_shape(target);
+                    let frame_double =
+                        omega_instruction_selection::classify_frame_base_double_indexed_integer_shape(
+                            target,
+                        );
                     context.insert_data_address_at_instruction_start(
                         context.storage_region_symbol_handle(target.region),
                     );
@@ -517,6 +521,8 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                                 );
                             }
                         }
+                        omega_instruction_selection::WritePlaceShape::Unsupported
+                            if frame_double.is_some() => {}
                         omega_instruction_selection::WritePlaceShape::Unsupported => {
                             unreachable!(
                                 "an unsupported WritePlaceInteger shape refuses at \

@@ -1219,11 +1219,11 @@ pub fn classify_write_place_shape(target: &omega_target_operations::Place) -> Wr
     WritePlaceShape::Unsupported
 }
 
-/// Binary-write-only AArch64 rung for an inline frame 2D array whose two
-/// runtime index slots share that same frame base. Other place-write families
-/// remain on the common classifier until they gain matching encoders.
+/// AArch64 rung for an inline frame 2D array whose two runtime index slots
+/// share that same frame base. Each operation family opts into this shape only
+/// after its own encoder, replay, relocation, and footprint contracts land.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct FrameBaseDoubleIndexedBinaryShape {
+pub struct FrameBaseDoubleIndexedShape {
     pub base_byte_offset: usize,
     pub outer_index_offset: usize,
     pub outer_index_byte_size: usize,
@@ -1236,13 +1236,25 @@ pub struct FrameBaseDoubleIndexedBinaryShape {
 
 pub fn classify_frame_base_double_indexed_binary_shape(
     target: &omega_target_operations::Place,
-) -> Option<FrameBaseDoubleIndexedBinaryShape> {
+) -> Option<FrameBaseDoubleIndexedShape> {
+    classify_frame_base_double_indexed_shape(target)
+}
+
+pub fn classify_frame_base_double_indexed_integer_shape(
+    target: &omega_target_operations::Place,
+) -> Option<FrameBaseDoubleIndexedShape> {
+    classify_frame_base_double_indexed_shape(target)
+}
+
+fn classify_frame_base_double_indexed_shape(
+    target: &omega_target_operations::Place,
+) -> Option<FrameBaseDoubleIndexedShape> {
     let double = direct_double_indexed_path(target)?;
     let frame = omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
     if target.region != frame || double.outer_region != frame || double.inner_region != frame {
         return None;
     }
-    Some(FrameBaseDoubleIndexedBinaryShape {
+    Some(FrameBaseDoubleIndexedShape {
         base_byte_offset: double.base_offset,
         outer_index_offset: double.outer_offset,
         outer_index_byte_size: double.outer_byte_size,
@@ -1255,15 +1267,30 @@ pub fn classify_frame_base_double_indexed_binary_shape(
 }
 
 /// Write rung 2a: the place-shaped integer write. x86_64 rides the
-/// materializer; aarch64 REFUSES LOUDLY until its decompose rung (zero
-/// producers exist yet -- the old Write*Integer variants still carry the
-/// corpus there).
+/// materializer; aarch64 decomposes only the closed transitional shapes whose
+/// retained encoders and final replay contracts have landed.
 pub fn encode_write_place_integer(
     architecture: Architecture,
     target: &omega_target_operations::Place,
     value: i64,
     byte_size: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
+    if architecture == Architecture::Aarch64
+        && let Some(frame_double) = classify_frame_base_double_indexed_integer_shape(target)
+    {
+        return aarch64::encode_runtime_frame_base_double_indexed_integer_write(
+            frame_double.base_byte_offset,
+            frame_double.outer_index_offset,
+            frame_double.outer_index_byte_size,
+            frame_double.outer_stride,
+            frame_double.inner_index_offset,
+            frame_double.inner_index_byte_size,
+            frame_double.inner_stride,
+            frame_double.field_byte_offset,
+            byte_size,
+            value,
+        );
+    }
     match architecture {
         Architecture::X86_64 => {
             x86_64::encode_place_integer_write(target, value, byte_size).map(|(bytes, _)| bytes)
@@ -1372,7 +1399,8 @@ pub fn encode_write_place_integer(
             ),
             WritePlaceShape::Unsupported => Err(Diagnostic::error(
                 "WritePlaceInteger on aarch64 serves direct, pointee, frame-indexed, \
-                 frame-base-indexed, machine-indexed, and machine-double-indexed \
+                 frame-base-indexed, frame-base-double-indexed, machine-indexed, \
+                 and machine-double-indexed \
                  place shapes only until the aarch64 place materializer lands; \
                  this shape refuses loudly",
             )),
@@ -3683,7 +3711,7 @@ mod tests {
     }
 
     #[test]
-    fn all_frame_double_indexed_binary_shape_is_a_closed_binary_only_rung() {
+    fn all_frame_double_indexed_shape_is_opted_into_per_write_family() {
         let target = Place::at(RuntimeStorageRegion::RuntimeFrame, 32)
             .with_step(PlaceStep::ScaledIndex {
                 index_region: RuntimeStorageRegion::RuntimeFrame,
@@ -3706,9 +3734,14 @@ mod tests {
             WritePlaceShape::Unsupported
         );
         let shape = classify_frame_base_double_indexed_binary_shape(&target)
-            .expect("binary-only classifier must retain the all-frame target");
+            .expect("binary classifier must retain the all-frame target");
         assert_eq!(shape.base_byte_offset, 32);
         assert_eq!(shape.outer_index_offset, 64);
         assert_eq!(shape.inner_index_offset, 72);
+        assert_eq!(
+            classify_frame_base_double_indexed_integer_shape(&target),
+            Some(shape),
+            "integer writes opt into the same closed address shape"
+        );
     }
 }

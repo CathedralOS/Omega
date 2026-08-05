@@ -2377,9 +2377,49 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
         }
     }
 
-    // BOTH-RUNTIME nested write (`grid[i][j] = <v>`): the double-indexed
-    // write twin. Tried after the single-index block (mutually exclusive --
-    // the double resolver requires BOTH indices runtime).
+    // BOTH-RUNTIME nested write into a frame-resident inline 2D array
+    // (`g[i][j] = 70`). The target and both index slots share one frame base;
+    // runtime-place copies remain a separate CopyPlaces target-shape rung.
+    if let Some(double_target) = resolve_runtime_frame_base_double_indexed_source(
+        input,
+        dispatch_index,
+        target_source_key,
+        resolved_target,
+    ) && supports_scalar_integer_write(double_target.byte_count)
+        && let Some(value) = resolve_runtime_static_integer_value(
+            input,
+            operation_source_key,
+            value,
+            aliases,
+            alias_expressions,
+            static_values,
+        )
+    {
+        selected_instructions.push(SelectedInstruction {
+            kind: crate::selection::runtime_dispatch::write_place_integer_double_indexed(
+                omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+                double_target.base_byte_offset,
+                omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+                double_target.outer_index_offset,
+                double_target.outer_index_byte_size,
+                double_target.outer_stride,
+                omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+                double_target.inner_index_offset,
+                double_target.inner_index_byte_size,
+                double_target.inner_stride,
+                double_target.field_byte_offset,
+                value,
+                double_target.byte_count,
+            ),
+            source_key: operation_source_key,
+            source_statement: statement_index,
+        });
+        return;
+    }
+
+    // Machine-resident double-indexed write twin. Tried after the single-index
+    // block (mutually exclusive -- the double resolver requires BOTH indices
+    // runtime).
     if let Some(double_target) = resolve_runtime_machine_double_indexed_source(
         input,
         dispatch_index,
@@ -2435,6 +2475,7 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
         {
             selected_instructions.push(SelectedInstruction {
                 kind: crate::selection::runtime_dispatch::write_place_integer_double_indexed(
+                    omega_abstract_operations::RuntimeStorageRegion::Machine,
                     double_target.base_byte_offset,
                     double_target.outer_index_region,
                     double_target.outer_index_offset,
