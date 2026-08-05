@@ -4754,6 +4754,7 @@ fn validate_compiler_function_instruction_boundaries(
                                     | CompilerBodyPlaceIntegerWriteShape::Pointee { .. }
                                     | CompilerBodyPlaceIntegerWriteShape::FrameIndexed { .. }
                                     | CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. }
+                                    | CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed { .. }
                                     | CompilerBodyPlaceIntegerWriteShape::MachineIndexed { .. }
                                     | CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed { .. }
                             )
@@ -4816,6 +4817,26 @@ fn validate_compiler_function_instruction_boundaries(
                                         index_offset,
                                         index_byte_size,
                                         element_byte_size,
+                                        field_byte_offset,
+                                        &literal,
+                                    )?,
+                                    CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed {
+                                        base_byte_offset,
+                                        outer_index_offset,
+                                        outer_index_byte_size,
+                                        outer_stride,
+                                        inner_index_offset,
+                                        inner_index_byte_size,
+                                        inner_stride,
+                                        field_byte_offset,
+                                    } => omega_isa_aarch64::encode_runtime_frame_base_double_indexed_bounded_buffer_write(
+                                        base_byte_offset,
+                                        outer_index_offset,
+                                        outer_index_byte_size,
+                                        outer_stride,
+                                        inner_index_offset,
+                                        inner_index_byte_size,
+                                        inner_stride,
                                         field_byte_offset,
                                         &literal,
                                     )?,
@@ -8348,6 +8369,7 @@ fn compiler_instruction_footprint(
                         | CompilerBodyPlaceIntegerWriteShape::Pointee { .. }
                         | CompilerBodyPlaceIntegerWriteShape::FrameIndexed { .. }
                         | CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. }
+                        | CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed { .. }
                         | CompilerBodyPlaceIntegerWriteShape::MachineIndexed { .. }
                         | CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed { .. }
                 ) {
@@ -11976,8 +11998,8 @@ fn aarch64_bounded_buffer_write_relocation_sites(
                 ));
             }
         }
-        CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed { .. }
-        | CompilerBodyPlaceIntegerWriteShape::General => {
+        CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed { .. } => {}
+        CompilerBodyPlaceIntegerWriteShape::General => {
             return Err(Diagnostic::error(
                 "final aarch64 bounded-buffer write retained an unsupported target",
             ));

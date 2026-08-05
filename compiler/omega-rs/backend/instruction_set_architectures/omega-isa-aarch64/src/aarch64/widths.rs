@@ -1425,6 +1425,10 @@ pub fn runtime_machine_double_indexed_bounded_buffer_write_width(
     ) + bounded_buffer_literal_tail_width(literal)
 }
 
+pub fn runtime_frame_base_double_indexed_bounded_buffer_write_width(literal: &str) -> usize {
+    8 + 36 + bounded_buffer_literal_tail_width(literal)
+}
+
 fn bounded_buffer_literal_append_tail_width(literal: &str) -> usize {
     20 + bounded_buffer_literal_bytes_width(literal)
 }

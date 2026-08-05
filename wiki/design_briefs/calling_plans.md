@@ -1351,7 +1351,9 @@ address walk. Exact rodata and storage/index relocations bind a separate
 `CompilerBodyPlaceStringWrite` footprint. Immediate bounded-buffer literal
 writes replay all x86 targets and every classified AArch64 place target,
 including indexed and double-indexed owned carriers. Inline-frame targets accept
-frame- or machine-held indices with the exact second-base relocation. The
+frame- or machine-held indices with the exact second-base relocation. All-frame
+double-runtime-indexed carriers reuse one frame relocation for the collection
+and both indices. The
 target, literal, and relocation walk bind a separate
 `CompilerBodyPlaceBoundedBufferWrite` footprint. Literal appends replay all x86
 targets and every classified AArch64 target while retaining their distinct
