@@ -23,6 +23,8 @@ pub enum BoundaryFootprintFragmentOrigin {
     CompilerBodyOutboundDereferencedImportResult,
     CompilerBodyOutboundDataImport,
     CompilerBodyOutboundDataImportResult,
+    CompilerBodyOutboundAuthoredImport,
+    CompilerBodyOutboundAuthoredImportResult,
     CompilerBodyOutboundStorageImport,
     CompilerBodyOutboundStorageImportResult,
     CompilerBodyOutboundSyscall,
@@ -85,6 +87,8 @@ impl BoundaryFootprintPlan {
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundDereferencedImportResult
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundDataImport
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundDataImportResult
+            | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredImport
+            | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredImportResult
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImport
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImportResult
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscall
@@ -309,6 +313,27 @@ mod tests {
                 },
             )
             .expect("result-bearing data-address imports may use their prescribed control state");
+
+        outbound
+            .retain_validated_fragment(
+                &boundary,
+                BoundaryFootprintFragment {
+                    origin: BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredImport,
+                    evidence: control_evidence(),
+                },
+            )
+            .expect("authored imports may use their prescribed control state");
+
+        outbound
+            .retain_validated_fragment(
+                &boundary,
+                BoundaryFootprintFragment {
+                    origin:
+                        BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredImportResult,
+                    evidence: control_evidence(),
+                },
+            )
+            .expect("result-bearing authored imports may use their prescribed control state");
 
         outbound
             .retain_validated_fragment(
