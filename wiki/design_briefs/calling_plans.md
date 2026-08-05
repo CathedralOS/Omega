@@ -1307,7 +1307,9 @@ Composed-place conversion writes share that fragment and exact recipe for all
 x86 materializer targets and every classified AArch64 target: direct, pointee,
 frame-descriptor-indexed, inline-frame-indexed, and single- or double-runtime-
 indexed machine places. AArch64 also replays all-frame double-runtime-indexed
-conversion targets with one shared frame relocation. The conversion selector
+conversion targets with one shared frame relocation, and inline-frame-indexed
+conversion targets whose index is held in either frame or machine storage with
+the exact second-base relocation. The conversion selector
 uses the same canonical walked-target resolver as the other mutation families.
 Final validation replays the exact target encoder
 and relocation set and matches the derived scratch union to the

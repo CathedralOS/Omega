@@ -1017,11 +1017,51 @@ pub fn encode_runtime_frame_base_indexed_convert_write(
     trapping: bool,
     saturating: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
+    encode_runtime_frame_base_indexed_convert_write_with_index_region(
+        runtime_value_operands,
+        base_byte_offset,
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+        target_byte_size,
+        source,
+        source_byte_size,
+        source_is_float,
+        target_is_float,
+        source_signed,
+        target_signed,
+        trapping,
+        saturating,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_frame_base_indexed_convert_write_with_index_region(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_byte_size: usize,
+    source: RuntimeValueOperandHandle,
+    source_byte_size: usize,
+    source_is_float: bool,
+    target_is_float: bool,
+    source_signed: bool,
+    target_signed: bool,
+    trapping: bool,
+    saturating: bool,
+) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::new();
-    append_runtime_frame_base_index_target_address(
+    append_runtime_frame_base_index_target_address_with_index_region(
         &mut bytes,
         16,
         base_byte_offset,
+        index_region,
         index_offset,
         index_byte_size,
         element_byte_size,
@@ -11023,6 +11063,46 @@ mod tests {
             ]
             .concat(),
             "the machine-held index must own an x15 base pair"
+        );
+    }
+
+    #[test]
+    fn frame_base_indexed_convert_write_materializes_a_machine_index_base() {
+        let (arena, source) = storage_source(8);
+        let ordinary = encode_runtime_frame_base_indexed_convert_write(
+            &arena, 24, 64, 8, 4, 0, 4, source, 8, false, false, true, true, false, false,
+        )
+        .expect("encode frame-local inline-frame conversion write");
+        let cross_region = encode_runtime_frame_base_indexed_convert_write_with_index_region(
+            &arena,
+            24,
+            omega_target_operations::RuntimeStorageRegion::Machine,
+            64,
+            8,
+            4,
+            0,
+            4,
+            source,
+            8,
+            false,
+            false,
+            true,
+            true,
+            false,
+            false,
+        )
+        .expect("encode cross-region inline-frame conversion write");
+
+        assert_eq!(cross_region.len(), ordinary.len() + 8);
+        let index_site = widths::runtime_frame_base_indexed_machine_index_base_offset(24);
+        assert_eq!(
+            &cross_region[index_site..index_site + 8],
+            [
+                encode_adrp_placeholder(15),
+                encode_add_page_offset_placeholder(15)
+            ]
+            .concat(),
+            "the machine-held conversion index must own an x15 base pair"
         );
     }
 

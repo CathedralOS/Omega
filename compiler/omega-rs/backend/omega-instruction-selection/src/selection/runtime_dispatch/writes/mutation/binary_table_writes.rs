@@ -3,6 +3,7 @@ use crate::selection::storage_places::{
     RuntimeStoragePlace, clamp_runtime_case_comparison_operands_in_table,
     classify_scalar_value_type_in_table, descriptor_primitive_type,
     resolve_binary_operation_arithmetic_domain_in_table,
+    resolve_runtime_frame_base_indexed_target_with_index_region_in_table,
     resolve_runtime_frame_indexed_target_in_table,
     resolve_runtime_pointee_fixed_indexed_target_in_table,
     resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_is_signed_in_table,
@@ -10,7 +11,7 @@ use crate::selection::storage_places::{
     runtime_storage_target_is_atomic_in_table,
 };
 use omega_abstract_operations::{
-    Place, RuntimeStorageRegion, RuntimeValueOperand, RuntimeValueOperandHandle,
+    Place, PlaceStep, RuntimeStorageRegion, RuntimeValueOperand, RuntimeValueOperandHandle,
     SelectedInstructionKind, StateGuardOperator,
 };
 use omega_control_flow::StateKey;
@@ -1482,6 +1483,22 @@ fn runtime_indexed_convert_target_place(
     expressions: &ExpressionTable,
     target: ExpressionHandle,
 ) -> Option<Place> {
+    if let Some(indexed) = resolve_runtime_frame_base_indexed_target_with_index_region_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        target,
+    ) {
+        return Place::at(RuntimeStorageRegion::RuntimeFrame, indexed.base_byte_offset)
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: indexed.index_region,
+                index_offset: indexed.index_offset,
+                index_byte_size: indexed.index_byte_size,
+                element_byte_size: indexed.element_byte_size,
+            })?
+            .with_step(PlaceStep::ConstOffset(indexed.field_byte_offset));
+    }
     let (place, _) = super::super::resolve_struct_target_place(
         input,
         dispatch_index,
