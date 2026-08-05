@@ -1101,8 +1101,9 @@ Place-copy selection retains its separate `compiler_body_place_copy` evidence
 only for
 the `Ordinary` role; final validation regenerates the same place-copy bytes,
 checks the storage, pointer-slot, and index relocations, and requires the target
-scratch union to match. Other otherwise-general binary targets, unclassified
-AArch64 place shapes, and calls remain
+scratch union to match. Every x86 binary-write target accepted by the general
+place materializer is likewise replayed with exact index-depth scratch and
+target/index relocations. Unclassified AArch64 place shapes and calls remain
 outside the partial proof. The pointee-pair selector resolves
 both reference operands before flat storage, so the source remains a
 dereference rather than being mistaken for pointer-slot contents.

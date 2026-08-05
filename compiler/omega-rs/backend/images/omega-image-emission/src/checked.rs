@@ -5400,15 +5400,17 @@ fn validate_compiler_function_instruction_boundaries(
                         target_signed,
                     } => {
                         let shape = compiler_body_place_integer_write_shape(&target)?;
-                        if !matches!(
-                            shape,
-                            CompilerBodyPlaceIntegerWriteShape::Direct { .. }
+                        if architecture == Architecture::Aarch64
+                            && !matches!(
+                                shape,
+                                CompilerBodyPlaceIntegerWriteShape::Direct { .. }
                                 | CompilerBodyPlaceIntegerWriteShape::Pointee { .. }
                                 | CompilerBodyPlaceIntegerWriteShape::FrameIndexed { .. }
                                 | CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. }
                                 | CompilerBodyPlaceIntegerWriteShape::MachineIndexed { .. }
-                                | CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed { .. }
-                        ) {
+                                | CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed { .. },
+                            )
+                        {
                             return Err(Diagnostic::error(
                                 "final compiler-body binary-write subset retained an unsupported target",
                             ));
@@ -7975,15 +7977,17 @@ fn compiler_instruction_footprint(
             right,
             ..
         } => {
-            if !matches!(
-                compiler_body_place_integer_write_shape(&target).ok()?,
-                CompilerBodyPlaceIntegerWriteShape::Direct { .. }
-                    | CompilerBodyPlaceIntegerWriteShape::Pointee { .. }
-                    | CompilerBodyPlaceIntegerWriteShape::FrameIndexed { .. }
-                    | CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. }
-                    | CompilerBodyPlaceIntegerWriteShape::MachineIndexed { .. }
-                    | CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed { .. }
-            ) {
+            if architecture == Architecture::Aarch64
+                && !matches!(
+                    compiler_body_place_integer_write_shape(&target).ok()?,
+                    CompilerBodyPlaceIntegerWriteShape::Direct { .. }
+                        | CompilerBodyPlaceIntegerWriteShape::Pointee { .. }
+                        | CompilerBodyPlaceIntegerWriteShape::FrameIndexed { .. }
+                        | CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. }
+                        | CompilerBodyPlaceIntegerWriteShape::MachineIndexed { .. }
+                        | CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed { .. },
+                )
+            {
                 return None;
             }
             match architecture {
@@ -10626,15 +10630,17 @@ fn compiler_place_binary_write_address_sites(
     right: omega_target_operations::RuntimeValueOperandHandle,
 ) -> Result<Vec<(usize, omega_target_operations::RuntimeStorageRegion)>, Diagnostic> {
     let shape = compiler_body_place_integer_write_shape(&target)?;
-    if !matches!(
-        shape,
-        CompilerBodyPlaceIntegerWriteShape::Direct { .. }
-            | CompilerBodyPlaceIntegerWriteShape::Pointee { .. }
-            | CompilerBodyPlaceIntegerWriteShape::FrameIndexed { .. }
-            | CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. }
-            | CompilerBodyPlaceIntegerWriteShape::MachineIndexed { .. }
-            | CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed { .. }
-    ) {
+    if architecture == Architecture::Aarch64
+        && !matches!(
+            shape,
+            CompilerBodyPlaceIntegerWriteShape::Direct { .. }
+                | CompilerBodyPlaceIntegerWriteShape::Pointee { .. }
+                | CompilerBodyPlaceIntegerWriteShape::FrameIndexed { .. }
+                | CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. }
+                | CompilerBodyPlaceIntegerWriteShape::MachineIndexed { .. }
+                | CompilerBodyPlaceIntegerWriteShape::MachineDoubleIndexed { .. },
+        )
+    {
         return Err(Diagnostic::error(
             "final compiler-body binary-write relocation recipe retained an unsupported target",
         ));
@@ -14278,12 +14284,12 @@ mod tests {
     use super::{
         CompilerBodyPlaceCopyShape, CompilerBodyPlaceIntegerWriteShape,
         compiler_body_place_copy_shape, compiler_body_place_integer_write_shape,
-        compiler_instruction_non_relocation_bits_match, compiler_place_convert_write_address_sites,
-        compiler_place_copy_address_sites, compiler_place_integer_write_address_sites,
-        compiler_place_value_address_sites, compiler_runtime_value_compare_address_sites,
-        emit_checked_executable_image, outbound_syscall_argument_data_sites,
-        outbound_syscall_argument_storage_sites, validate_checked_instruction_bytes,
-        validate_compiler_data_address_relocations,
+        compiler_instruction_non_relocation_bits_match, compiler_place_binary_write_address_sites,
+        compiler_place_convert_write_address_sites, compiler_place_copy_address_sites,
+        compiler_place_integer_write_address_sites, compiler_place_value_address_sites,
+        compiler_runtime_value_compare_address_sites, emit_checked_executable_image,
+        outbound_syscall_argument_data_sites, outbound_syscall_argument_storage_sites,
+        validate_checked_instruction_bytes, validate_compiler_data_address_relocations,
         validate_compiler_function_instruction_boundaries,
         validate_compiler_runtime_text_relocations, validate_executable_region_enumeration,
         validate_final_text_relocation_envelope,
@@ -15005,6 +15011,78 @@ mod tests {
                         .nth(1)
                         .expect("general second target index region"),
                     _ => panic!("integer-write materializer emitted a non-target site"),
+                };
+                (offset, region)
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(replay_sites, expected_sites);
+    }
+
+    #[test]
+    fn general_x86_binary_write_replay_uses_the_materializer_and_its_sites() {
+        use omega_target_operations::{
+            Place, PlaceStep, RuntimeStorageRegion, RuntimeValueOperand, StateGuardOperator,
+        };
+
+        let target = Place::at(RuntimeStorageRegion::RuntimeFrame, 32)
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::RuntimeFrame,
+                index_offset: 64,
+                index_byte_size: 8,
+                element_byte_size: 24,
+            })
+            .and_then(|place| {
+                place.with_step(PlaceStep::ScaledIndex {
+                    index_region: RuntimeStorageRegion::RuntimeFrame,
+                    index_offset: 72,
+                    index_byte_size: 8,
+                    element_byte_size: 8,
+                })
+            })
+            .expect("frame double-indexed target");
+        assert!(matches!(
+            compiler_body_place_integer_write_shape(&target).expect("classify final binary write"),
+            CompilerBodyPlaceIntegerWriteShape::General
+        ));
+
+        let mut operands = psi_arena::Arena::new();
+        let left = operands.insert(RuntimeValueOperand::Immediate(2));
+        let right = operands.insert(RuntimeValueOperand::Immediate(3));
+        let (bytes, encoded_sites) = omega_isa_x86_64::encode_place_binary_write(
+            &operands,
+            &target,
+            4,
+            left,
+            StateGuardOperator::Add,
+            right,
+            false,
+            psi_numerics::arithmetic::ArithmeticDomain::Exact,
+            true,
+        )
+        .expect("general x86 binary write");
+        assert!(!bytes.is_empty());
+
+        let replay_sites = compiler_place_binary_write_address_sites(
+            omega_target::Architecture::X86_64,
+            &operands,
+            target,
+            left,
+            right,
+        )
+        .expect("general x86 binary-write final relocation sites");
+        let expected_sites = encoded_sites
+            .iter()
+            .map(|(offset, side)| {
+                let region = match side {
+                    omega_isa_x86_64::PlaceCopySide::Target => target.region,
+                    omega_isa_x86_64::PlaceCopySide::TargetIndex => target
+                        .scaled_index_region()
+                        .expect("general target index region"),
+                    omega_isa_x86_64::PlaceCopySide::TargetIndex2 => target
+                        .scaled_index_regions()
+                        .nth(1)
+                        .expect("general second target index region"),
+                    _ => panic!("binary-write materializer emitted a non-target site"),
                 };
                 (offset, region)
             })

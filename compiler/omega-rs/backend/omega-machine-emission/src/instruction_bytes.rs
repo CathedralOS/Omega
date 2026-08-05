@@ -1611,19 +1611,16 @@ fn compiler_instruction_validation_kind(
             is_float,
             domain,
             target_signed,
-        } if matches!(
-            omega_instruction_selection::classify_write_place_shape(target),
-            omega_instruction_selection::WritePlaceShape::Direct { .. }
-                | omega_instruction_selection::WritePlaceShape::Pointee { .. }
-                | omega_instruction_selection::WritePlaceShape::FrameIndexed { .. }
-                | omega_instruction_selection::WritePlaceShape::FrameBaseIndexed { .. }
-                | omega_instruction_selection::WritePlaceShape::MachineIndexed { .. }
-                | omega_instruction_selection::WritePlaceShape::MachineDoubleIndexed { .. }
-        ) || (emission_context.target.architecture == omega_target::Architecture::X86_64
-            && matches!(
+        } if emission_context.target.architecture == omega_target::Architecture::X86_64
+            || matches!(
                 omega_instruction_selection::classify_write_place_shape(target),
-                omega_instruction_selection::WritePlaceShape::FrameIndexedByRegion { .. }
-            )) =>
+                omega_instruction_selection::WritePlaceShape::Direct { .. }
+                    | omega_instruction_selection::WritePlaceShape::Pointee { .. }
+                    | omega_instruction_selection::WritePlaceShape::FrameIndexed { .. }
+                    | omega_instruction_selection::WritePlaceShape::FrameBaseIndexed { .. }
+                    | omega_instruction_selection::WritePlaceShape::MachineIndexed { .. }
+                    | omega_instruction_selection::WritePlaceShape::MachineDoubleIndexed { .. },
+            ) =>
         {
             Some(
                 CompilerInstructionValidationKind::CompilerBodyPlaceBinaryWrite {

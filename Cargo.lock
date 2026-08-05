@@ -564,6 +564,7 @@ dependencies = [
  "psi-arena",
  "psi-diagnostics",
  "psi-language-core",
+ "psi-numerics",
 ]
 
 [[package]]
