@@ -882,7 +882,7 @@ proves complete region coverage, and composes admitted leaves under their
 separate provenance. Do not add a second whole-image decoder/admission path.
 
 The existing single final-region artifact now carries the domain-separated
-`omega.final-footprint-certificate` schema, format version 114, and a certificate
+`omega.final-footprint-certificate` schema, format version 115, and a certificate
 fingerprint over its final placement binding, compiler-text derivation, and
 complete region inventory. Its explicit completeness flags remain false until
 compiler-body footprint decoding and admitted-leaf evidence land. The envelope
@@ -1069,6 +1069,9 @@ or machine storage, and the machine-inline `arr[i] = arr[j]` pair are included
 too. The all-frame read and write copy complete aggregate byte spans rather
 than only scalar widths, reuse one frame relocation for the collection and
 both indices, and add a distinct source relocation only for machine storage.
+An all-frame double-indexed source may also land through a frame-held target
+pointer; the collection, both indices, and pointer slot share that one frame
+root while the complete value representation is copied to the pointee.
 The retained x86 general place materializer now replays all
 otherwise-unclassified `CopyPlaces` paths with index-depth-derived scratch.
 Their explicit `Ordinary` role prevents overlap with the indirect-result
