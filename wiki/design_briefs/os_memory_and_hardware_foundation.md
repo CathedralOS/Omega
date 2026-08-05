@@ -1118,7 +1118,11 @@ Inline-frame AArch64 sources accept frame- or machine-held indices, including
 the exact second-base relocation and additional address scratch for a cross-
 region machine index.
 All-frame double-runtime-indexed sources reuse one frame relocation for the
-inline array, both indices, and the destination reference slot.
+inline array, both indices, and the destination reference slot. Machine-rooted
+double-runtime-indexed sources retain the exact machine-root relocation plus
+one frame relocation: the frame base is introduced at the first frame-held
+index, or after the address walk when both indices are machine-held, and is
+then reused to address the destination reference slot.
 Place-copy selection retains its separate `compiler_body_place_copy` evidence
 only for
 the `Ordinary` role; final validation regenerates the same place-copy bytes,

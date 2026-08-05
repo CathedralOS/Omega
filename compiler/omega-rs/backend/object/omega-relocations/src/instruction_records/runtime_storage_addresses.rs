@@ -139,6 +139,23 @@ pub(super) fn collect_runtime_storage_address_relocations(
                                 context.runtime_frame_symbol_handle(),
                             );
                         }
+                        omega_instruction_selection::WritePlaceShape::MachineDoubleIndexed {
+                            outer_index_region,
+                            inner_index_region,
+                            ..
+                        } => {
+                            context.insert_data_address_at_instruction_start(
+                                context.machine_storage_symbol_handle(),
+                            );
+                            context.insert_data_address_at_relative_offset(
+                                omega_instruction_selection::runtime_machine_double_indexed_address_frame_base_offset(
+                                    context.input.target.architecture,
+                                    outer_index_region,
+                                    inner_index_region,
+                                ),
+                                context.runtime_frame_symbol_handle(),
+                            );
+                        }
                         omega_instruction_selection::WritePlaceShape::Unsupported
                             if frame_indexed.is_some() =>
                         {

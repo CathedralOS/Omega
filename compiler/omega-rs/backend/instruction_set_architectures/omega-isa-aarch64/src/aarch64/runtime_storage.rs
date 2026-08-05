@@ -4305,6 +4305,69 @@ pub fn runtime_machine_indexed_address_to_runtime_frame_write_clobbers(
     RegisterSet::new(registers)
 }
 
+/// Materialize a machine-owned `grid[i][j]` address and store it in a frame-
+/// held reference slot. A frame page pair loaded for either index is reused for
+/// the destination; when both indices are machine-held, that pair is emitted
+/// after the fixed element-address program.
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_machine_double_indexed_address_to_runtime_frame_write(
+    base_byte_offset: usize,
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    outer_index_offset: usize,
+    outer_index_byte_size: usize,
+    outer_stride: usize,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_offset: usize,
+    inner_index_byte_size: usize,
+    inner_stride: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let expected_width =
+        super::widths::runtime_machine_double_indexed_address_to_runtime_frame_write_width(
+            target_offset,
+        );
+    let mut bytes = Vec::with_capacity(expected_width);
+    let (outer_base, inner_base) =
+        append_double_index_bases(&mut bytes, outer_index_region, inner_index_region);
+    append_double_index_address_math(
+        &mut bytes,
+        outer_base,
+        outer_index_offset,
+        outer_index_byte_size,
+        outer_stride,
+        inner_base,
+        inner_index_offset,
+        inner_index_byte_size,
+        inner_stride,
+        base_byte_offset + field_byte_offset,
+    )?;
+    let frame = omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
+    if outer_index_region != frame && inner_index_region != frame {
+        bytes.extend(encode_adrp_placeholder(15));
+        bytes.extend(encode_add_page_offset_placeholder(15));
+    }
+    append_store_x_to_x_offset(&mut bytes, 16, 15, target_offset)?;
+    debug_assert_eq!(bytes.len(), expected_width);
+    Ok(bytes)
+}
+
+pub fn runtime_machine_double_indexed_address_to_runtime_frame_write_clobbers(
+    target_offset: usize,
+) -> RegisterSet {
+    let mut registers = vec![
+        MachineRegister::Aarch64X(14),
+        MachineRegister::Aarch64X(15),
+        MachineRegister::Aarch64X(16),
+        MachineRegister::Aarch64X(17),
+        MachineRegister::Aarch64X(26),
+    ];
+    if !target_offset.is_multiple_of(8) || target_offset / 8 > 4095 {
+        registers.push(MachineRegister::Aarch64X(19));
+    }
+    RegisterSet::new(registers)
+}
+
 pub fn runtime_place_address_write_additional_machine_state() -> MachineStateSet {
     MachineStateSet::empty()
 }
@@ -10835,6 +10898,65 @@ mod tests {
                 MachineRegister::Aarch64X(16),
                 MachineRegister::Aarch64X(17),
                 MachineRegister::Aarch64X(20),
+                MachineRegister::Aarch64X(26),
+            ])
+        );
+    }
+
+    #[test]
+    fn machine_double_indexed_address_write_places_the_frame_base_by_index_region() {
+        let frame = omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
+        let machine = omega_target_operations::RuntimeStorageRegion::Machine;
+        for (outer_region, inner_region) in [(machine, machine), (frame, machine)] {
+            let bytes = encode_runtime_machine_double_indexed_address_to_runtime_frame_write(
+                24,
+                outer_region,
+                64,
+                8,
+                12,
+                inner_region,
+                72,
+                8,
+                4,
+                0,
+                96,
+            )
+            .expect("encode machine double-indexed address write");
+
+            assert_eq!(
+                bytes.len(),
+                widths::runtime_machine_double_indexed_address_to_runtime_frame_write_width(96)
+            );
+            assert_eq!(
+                &bytes[..8],
+                [
+                    encode_adrp_placeholder(16),
+                    encode_add_page_offset_placeholder(16)
+                ]
+                .concat(),
+                "the machine collection owns the opening relocation"
+            );
+            let frame_site = widths::runtime_machine_double_indexed_address_frame_base_offset(
+                outer_region,
+                inner_region,
+            );
+            assert_eq!(
+                &bytes[frame_site..frame_site + 8],
+                [
+                    encode_adrp_placeholder(15),
+                    encode_add_page_offset_placeholder(15)
+                ]
+                .concat(),
+                "the destination reuses an index frame base or materializes it after address math"
+            );
+        }
+        assert_eq!(
+            runtime_machine_double_indexed_address_to_runtime_frame_write_clobbers(96),
+            RegisterSet::new([
+                MachineRegister::Aarch64X(14),
+                MachineRegister::Aarch64X(15),
+                MachineRegister::Aarch64X(16),
+                MachineRegister::Aarch64X(17),
                 MachineRegister::Aarch64X(26),
             ])
         );
