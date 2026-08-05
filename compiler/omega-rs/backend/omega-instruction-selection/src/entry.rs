@@ -2625,19 +2625,16 @@ pub fn derive_boundary_compiler_body_place_binary_write_footprint<'instruction>(
         else {
             continue;
         };
-        let supported = matches!(
-            crate::classify_write_place_shape(target),
-            crate::WritePlaceShape::Direct { .. }
-                | crate::WritePlaceShape::Pointee { .. }
-                | crate::WritePlaceShape::FrameIndexed { .. }
-                | crate::WritePlaceShape::FrameBaseIndexed { .. }
-                | crate::WritePlaceShape::MachineIndexed { .. }
-                | crate::WritePlaceShape::MachineDoubleIndexed { .. }
-        ) || (architecture == omega_target::Architecture::X86_64
-            && matches!(
+        let supported = architecture == omega_target::Architecture::X86_64
+            || matches!(
                 crate::classify_write_place_shape(target),
-                crate::WritePlaceShape::FrameIndexedByRegion { .. }
-            ));
+                crate::WritePlaceShape::Direct { .. }
+                    | crate::WritePlaceShape::Pointee { .. }
+                    | crate::WritePlaceShape::FrameIndexed { .. }
+                    | crate::WritePlaceShape::FrameBaseIndexed { .. }
+                    | crate::WritePlaceShape::MachineIndexed { .. }
+                    | crate::WritePlaceShape::MachineDoubleIndexed { .. },
+            );
         if !supported {
             continue;
         }
@@ -5212,6 +5209,74 @@ mod tests {
                 MachineRegister::X86R11,
                 MachineRegister::X86R15,
             ]
+        );
+    }
+
+    #[test]
+    fn compiler_body_general_x86_binary_write_uses_materializer_ceiling() {
+        let boundary = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::SystemVAMD64,
+            &CallSignature {
+                parameters: Vec::new(),
+                result: None,
+            },
+        )
+        .expect("SysV boundary");
+        let target = omega_abstract_operations::Place::at(
+            omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+            16,
+        )
+        .with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+            index_region: omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+            index_offset: 64,
+            index_byte_size: 8,
+            element_byte_size: 24,
+        })
+        .and_then(|place| {
+            place.with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+                index_region: omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+                index_offset: 72,
+                index_byte_size: 8,
+                element_byte_size: 8,
+            })
+        })
+        .expect("frame double-indexed target");
+        assert_eq!(
+            crate::classify_write_place_shape(&target),
+            crate::WritePlaceShape::Unsupported
+        );
+
+        let mut operands = psi_arena::Arena::new();
+        let left = operands.insert(omega_abstract_operations::ValueOperand::Immediate(2));
+        let right = operands.insert(omega_abstract_operations::ValueOperand::Immediate(3));
+        let instruction = SelectedInstructionKind::WritePlaceBinary {
+            target,
+            byte_size: 4,
+            left,
+            operator: omega_abstract_operations::StateGuardOperator::Add,
+            right,
+            is_float: false,
+            domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
+            target_signed: true,
+        };
+        let evidence = derive_boundary_compiler_body_place_binary_write_footprint(
+            &boundary,
+            &operands,
+            [&instruction],
+        )
+        .expect("ordinary general binary-write evidence");
+        assert_eq!(
+            evidence.registers(),
+            &omega_isa_x86_64::place_binary_write_register_write_ceiling()
+        );
+        assert_eq!(
+            evidence.machine_state(),
+            MachineStateSet::new([
+                MachineState::GeneralRegisters,
+                MachineState::VectorRegisters,
+                MachineState::Flags,
+                MachineState::StackPointer,
+            ])
         );
     }
 

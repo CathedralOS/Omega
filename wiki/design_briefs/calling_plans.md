@@ -1277,7 +1277,9 @@ included too, including cross-region index-base relocations.
 Final validation regenerates the evaluator/store bytes, walks nested operand
 relocations, and matches the closed target may-write ceiling to the separately
 retained `CompilerBodyPlaceBinaryWrite` fragment. The x86 general materializer
-also replays a frame-held descriptor indexed from machine storage.
+replays every otherwise-general binary target, including double-indexed inline
+frame destinations, with index-depth-derived scratch and exact target/index
+relocations. AArch64 remains limited to its explicitly classified shapes.
 Direct runtime-storage numeric conversion writes retain their complete cast
 policy and source-operand root, replay exact conversion/store bytes and nested
 relocations, and match a separate `CompilerBodyStorageConvertWrite` fragment.
@@ -1288,9 +1290,8 @@ indexed machine places.
 Final validation replays the exact target encoder
 and relocation set and matches the derived scratch union to the
 respective retained `CompilerBodyPlaceCopy` or
-`CompilerBodyPlaceIntegerWrite` fragment. Other otherwise-general binary
-targets, unclassified AArch64 place shapes, persistent-machine text assembly,
-and calls remain unreplayed. Text-buffer materialization replays its direct,
+`CompilerBodyPlaceIntegerWrite` fragment. Unclassified AArch64 place shapes,
+persistent-machine text assembly, and calls remain unreplayed. Text-buffer materialization replays its direct,
 pointee, and frame-indexed forms on x86; AArch64 additionally covers
 cross-region frame indices and transient inline-frame indexed destinations.
 The exact buffer data object and target storage relocations bind to a dedicated

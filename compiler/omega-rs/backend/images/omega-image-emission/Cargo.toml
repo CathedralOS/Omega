@@ -24,3 +24,6 @@ omega-machine-instructions = { path = "../../../representations/omega-machine-in
 omega-object-file = { path = "../../object/omega-object-file" }
 omega-target = { path = "../../../foundation/omega-target" }
 omega-target-operations = { path = "../../../representations/omega-target-operations" }
+
+[dev-dependencies]
+psi-numerics = { path = "../../../../psi-rs/foundation/psi-numerics" }
