@@ -821,6 +821,14 @@ pub fn derive_boundary_compiler_body_place_copy_footprint<'instruction>(
                 omega_target::Architecture::Aarch64,
                 crate::CopyPlacesShape::FrameBaseIndexedPair { .. },
             ) => omega_isa_aarch64::runtime_storage_copy_frame_base_indexed_to_frame_base_indexed_clobbers(),
+            (
+                omega_target::Architecture::X86_64,
+                crate::CopyPlacesShape::FrameBaseDoubleIndexedPair { .. },
+            ) => omega_isa_x86_64::copy_places_clobbers(source, target, *byte_count),
+            (
+                omega_target::Architecture::Aarch64,
+                crate::CopyPlacesShape::FrameBaseDoubleIndexedPair { .. },
+            ) => omega_isa_aarch64::runtime_storage_copy_frame_base_double_indexed_to_frame_base_double_indexed_clobbers(),
             (omega_target::Architecture::X86_64, crate::CopyPlacesShape::General) => {
                 omega_isa_x86_64::copy_places_clobbers(source, target, *byte_count)
             }

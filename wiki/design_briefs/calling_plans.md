@@ -1263,10 +1263,10 @@ may take its index from frame or machine storage and reuses the machine index
 base for a machine-resident source. Double-runtime-indexed reads from
 inline frame or machine arrays are included as well. Their `Ordinary` role remains distinct from
 hidden-result copies. The machine-array write-side mirror, the all-frame
-AArch64 write from direct frame or machine storage, and the machine-inline
-and all-frame `arr[i] = arr[j]` pairs are included. The all-frame pair shares
-one frame root across both array walks and both index slots. The all-frame read
-and write copy complete aggregate byte spans rather than only scalar widths, share one frame relocation
+AArch64 write from direct frame or machine storage, and machine-inline plus
+all-frame single- and double-indexed pair copies are included. Each all-frame
+pair shares one frame root across both array walks and all of its index slots.
+The all-frame read and write copy complete aggregate byte spans rather than only scalar widths, share one frame relocation
 across the collection and both indices, and add a separate source relocation
 only for machine storage. An all-frame double-indexed source can also target a
 frame-held pointee, sharing the same frame root across the collection, both

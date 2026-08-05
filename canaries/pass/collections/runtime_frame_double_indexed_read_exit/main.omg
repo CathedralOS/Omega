@@ -1,6 +1,6 @@
 // FRAME-resident 2D arrays, both-runtime reads and binary writes
 // (CopyRuntimeFrameBaseDoubleIndexedToRuntimeStorage and the canonical
-// all-frame double-indexed CopyPlaces target + WritePlaceConvert +
+// all-frame double-indexed CopyPlaces target/pair + WritePlaceConvert +
 // WritePlaceInteger + WritePlaceBinary + WritePlaceAddress):
 // local arrays in entry
 // and PARAM states via LET consumers, the MACHINE-FIELD target face
@@ -25,8 +25,15 @@ machine Main::pick(&self, m: [[i32; 3]; 2], i: u64 [0..=1], j: u64 [0..=2]) -> i
     transition { _ -> (m[i][j]) }
 }
 machine Main::main(&mut self) {
-    transition { _ -> let_face(1, 2, 70) }
-    state let_face(&mut self, i: u64 [0..=1], j: u64 [0..=2], wide: i64) {
+    transition { _ -> let_face(1, 2, 0, 1, 70) }
+    state let_face(
+        &mut self,
+        i: u64 [0..=1],
+        j: u64 [0..=2],
+        source_i: u64 [0..=1],
+        source_j: u64 [0..=2],
+        wide: i64
+    ) {
         let g: [[i32 in Wrapping; 3]; 2] = [[1, 2, 3], [4, 5, 6]];
         self.got = 5;
         g[i][j] = self.got;
@@ -58,8 +65,10 @@ machine Main::main(&mut self) {
         ];
         let replacement: Triple = Triple { first: 10, second: 20, third: 30 };
         triples[i][j] = replacement;
+        let replaced: Triple = triples[i][j];
+        triples[i][j] = triples[source_i][source_j];
         let copied: Triple = triples[i][j];
-        transition picked == 8 && rooms[1][2].description == "omega" && labels[1][2].text == "omega" && copied.first == 10 && copied.second == 20 && copied.third == 30 {
+        transition picked == 8 && rooms[1][2].description == "omega" && labels[1][2].text == "omega" && replaced.first == 10 && replaced.second == 20 && replaced.third == 30 && copied.first == 4 && copied.second == 5 && copied.third == 6 {
             true -> machine_target()
             false -> no()
         }
