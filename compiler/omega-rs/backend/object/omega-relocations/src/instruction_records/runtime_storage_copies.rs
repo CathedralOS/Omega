@@ -90,6 +90,9 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                         | omega_instruction_selection::CopyPlacesShape::ToMachineDoubleIndexed {
                             ..
                         }
+                        | omega_instruction_selection::CopyPlacesShape::ToFrameBaseDoubleIndexed {
+                            ..
+                        }
                         | omega_instruction_selection::CopyPlacesShape::ToIndexedByRegion {
                             ..
                         } => target.region,
@@ -251,6 +254,22 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                                 ),
                                 context.storage_region_symbol_handle(target.region),
                             );
+                        }
+                        omega_instruction_selection::CopyPlacesShape::ToFrameBaseDoubleIndexed {
+                            ..
+                        } => {
+                            // The target frame base at the start also serves
+                            // both index slots and a frame source. A machine
+                            // source owns one additional pair immediately
+                            // after it.
+                            if source.region
+                                == omega_target_operations::RuntimeStorageRegion::Machine
+                            {
+                                context.insert_data_address_at_relative_offset(
+                                    omega_instruction_selection::runtime_storage_copy_to_runtime_frame_base_double_indexed_source_base_offset(),
+                                    context.storage_region_symbol_handle(source.region),
+                                );
+                            }
                         }
                         omega_instruction_selection::CopyPlacesShape::ToMachineDoubleIndexed {
                             outer_index_region,

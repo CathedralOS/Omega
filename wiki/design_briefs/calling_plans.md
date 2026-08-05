@@ -1260,8 +1260,11 @@ direct frame storage and from inline machine arrays into direct frame or
 machine storage are included too, together with direct-storage writes into
 runtime-indexed machine-array elements and double-runtime-indexed reads from
 inline frame or machine arrays. Their `Ordinary` role remains distinct from
-hidden-result copies, and the machine-array write-side mirror plus the
-machine-inline `arr[i] = arr[j]` pair are included. The x86 general place
+hidden-result copies. The machine-array write-side mirror, the all-frame
+AArch64 write from direct frame or machine storage, and the machine-inline
+`arr[i] = arr[j]` pair are included. The all-frame target shares one frame
+relocation across its collection and both indices and adds a separate source
+relocation only for machine storage. The x86 general place
 materializer also replays every remaining otherwise-unclassified `CopyPlaces`
 path with scratch derived from each retained place's exact index depth.
 Direct-place immediate integer writes, writes through a frame-held pointer or

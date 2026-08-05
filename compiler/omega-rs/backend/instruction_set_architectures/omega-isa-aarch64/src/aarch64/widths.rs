@@ -1856,6 +1856,27 @@ pub fn runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_st
     60
 }
 
+/// Width of the all-frame double-indexed write. The target and both indices
+/// use one frame pair; a machine-resident source adds one independent base
+/// pair before the scalar load.
+pub fn runtime_storage_copy_to_runtime_frame_base_double_indexed_from_runtime_storage_width(
+    source_region: omega_target_operations::RuntimeStorageRegion,
+) -> usize {
+    8 + if source_region == omega_target_operations::RuntimeStorageRegion::Machine {
+        8
+    } else {
+        0
+    } + 4
+        + 36
+        + 4
+}
+
+/// A distinct machine source is materialized immediately after the leading
+/// frame pair.
+pub fn runtime_storage_copy_to_runtime_frame_base_double_indexed_source_base_offset() -> usize {
+    8
+}
+
 /// The frame-2D read's relocated target pair follows the frame pair + math +
 /// the element load.
 pub fn runtime_storage_copy_from_runtime_frame_base_double_indexed_target_base_offset() -> usize {

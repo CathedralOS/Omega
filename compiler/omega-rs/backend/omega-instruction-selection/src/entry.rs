@@ -738,6 +738,16 @@ pub fn derive_boundary_compiler_body_place_copy_footprint<'instruction>(
                 crate::CopyPlacesShape::FromFrameBaseDoubleIndexed { .. },
             ) => omega_isa_aarch64::runtime_storage_copy_from_runtime_frame_base_double_indexed_clobbers(),
             (
+                omega_target::Architecture::Aarch64,
+                crate::CopyPlacesShape::ToFrameBaseDoubleIndexed { .. },
+            ) => omega_isa_aarch64::runtime_storage_copy_to_runtime_frame_base_double_indexed_clobbers(
+                source.region,
+            ),
+            (
+                omega_target::Architecture::X86_64,
+                crate::CopyPlacesShape::ToFrameBaseDoubleIndexed { .. },
+            ) => omega_isa_x86_64::copy_places_clobbers(source, target, *byte_count),
+            (
                 omega_target::Architecture::X86_64,
                 crate::CopyPlacesShape::FromMachineDoubleIndexed { .. },
             ) => omega_isa_x86_64::copy_places_from_machine_double_indexed_clobbers(*byte_count),
@@ -4976,11 +4986,19 @@ mod tests {
             })
         })
         .expect("frame double-indexed target");
+        let source = omega_abstract_operations::Place::at(
+            omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+            80,
+        )
+        .with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+            index_region: omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+            index_offset: 88,
+            index_byte_size: 8,
+            element_byte_size: 8,
+        })
+        .expect("indexed source keeps the pair in the general class");
         let instruction = SelectedInstructionKind::CopyPlaces {
-            source: omega_abstract_operations::Place::at(
-                omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
-                80,
-            ),
+            source,
             target,
             byte_count: 8,
             role: omega_abstract_operations::CopyPlacesRole::Ordinary,
