@@ -1319,6 +1319,12 @@ pub fn classify_frame_base_indexed_string_shape(
     classify_frame_base_indexed_shape(target)
 }
 
+pub fn classify_frame_base_indexed_bounded_buffer_shape(
+    target: &omega_target_operations::Place,
+) -> Option<FrameBaseIndexedShape> {
+    classify_frame_base_indexed_shape(target)
+}
+
 fn classify_frame_base_indexed_shape(
     target: &omega_target_operations::Place,
 ) -> Option<FrameBaseIndexedShape> {
@@ -2033,6 +2039,19 @@ pub fn encode_write_place_bounded_buffer(
     target: &omega_target_operations::Place,
     literal: &str,
 ) -> Result<Vec<u8>, Diagnostic> {
+    if architecture == Architecture::Aarch64
+        && let Some(frame_indexed) = classify_frame_base_indexed_bounded_buffer_shape(target)
+    {
+        return aarch64::encode_runtime_frame_base_indexed_bounded_buffer_write_with_index_region(
+            frame_indexed.base_byte_offset,
+            frame_indexed.index_region,
+            frame_indexed.index_offset,
+            frame_indexed.index_byte_size,
+            frame_indexed.element_byte_size,
+            frame_indexed.field_byte_offset,
+            literal,
+        );
+    }
     match architecture {
         Architecture::X86_64 => {
             x86_64::encode_place_bounded_buffer_write(target, literal).map(|(bytes, _)| bytes)

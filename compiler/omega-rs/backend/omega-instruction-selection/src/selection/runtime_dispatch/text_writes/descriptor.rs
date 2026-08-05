@@ -1,10 +1,12 @@
 use crate::InstructionSelectionInput;
 use crate::selection::instruction_sink::SelectedInstructionSink;
 use crate::selection::storage_places::{
-    resolve_runtime_frame_base_indexed_target, resolve_runtime_frame_indexed_target,
-    resolve_runtime_machine_double_indexed_source, resolve_runtime_machine_indexed_target,
-    resolve_runtime_machine_indexed_target_in_table, resolve_runtime_pointee_slot_offset,
-    resolve_runtime_storage_place, resolve_runtime_storage_place_is_bounded_byte_buffer,
+    resolve_runtime_frame_base_indexed_target,
+    resolve_runtime_frame_base_indexed_target_with_index_region,
+    resolve_runtime_frame_indexed_target, resolve_runtime_machine_double_indexed_source,
+    resolve_runtime_machine_indexed_target, resolve_runtime_machine_indexed_target_in_table,
+    resolve_runtime_pointee_slot_offset, resolve_runtime_storage_place,
+    resolve_runtime_storage_place_is_bounded_byte_buffer,
 };
 use omega_abstract_operations::SelectedInstruction;
 use omega_abstract_operations::TargetDataObjectHandle;
@@ -123,6 +125,31 @@ pub(in crate::selection) fn select_runtime_string_descriptor_write(
     value: &str,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
+    if let Some(target) = resolve_runtime_frame_base_indexed_target_with_index_region(
+        input,
+        dispatch_index,
+        target_source_key,
+        resolved_target,
+    ) && target.is_bounded_byte_buffer
+    {
+        selected_instructions.push(SelectedInstruction {
+            kind: omega_abstract_operations::SelectedInstructionKind::WritePlaceBoundedBuffer {
+                target:
+                    crate::selection::runtime_dispatch::frame_base_indexed_place_with_index_region(
+                        target.base_byte_offset,
+                        target.index_region,
+                        target.index_offset,
+                        target.index_byte_size,
+                        target.element_byte_size,
+                        target.field_byte_offset,
+                    ),
+                literal: std::sync::Arc::from(value),
+            },
+            source_key: literal_source_key,
+            source_statement: statement_index,
+        });
+        return;
+    }
     if let Some(target) = resolve_bounded_buffer_target_place(
         input,
         dispatch_index,

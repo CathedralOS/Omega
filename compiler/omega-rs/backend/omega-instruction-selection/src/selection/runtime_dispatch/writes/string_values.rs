@@ -79,6 +79,29 @@ pub(super) fn select_runtime_string_mutation_write_in_table(
     let value = expressions.string_literal_value(value)?;
     let data = string_literal_data_handle(input, operation_source_key, statement_index, &value);
 
+    if let Some(indexed_target) =
+        resolve_runtime_frame_base_indexed_target_with_index_region_in_table(
+            input,
+            dispatch_index,
+            target_source_key,
+            expressions,
+            target,
+        )
+        && indexed_target.is_bounded_byte_buffer
+    {
+        return Some(SelectedInstructionKind::WritePlaceBoundedBuffer {
+            target: crate::selection::runtime_dispatch::frame_base_indexed_place_with_index_region(
+                indexed_target.base_byte_offset,
+                indexed_target.index_region,
+                indexed_target.index_offset,
+                indexed_target.index_byte_size,
+                indexed_target.element_byte_size,
+                indexed_target.field_byte_offset,
+            ),
+            literal: std::sync::Arc::from(value.to_string()),
+        });
+    }
+
     // An owned `[u8; N]` carrier must NOT be claimed as a `{ptr, len}` String
     // descriptor (its `{len, bytes}` size can even equal the descriptor size, e.g.
     // `[u8; 8]` -> 16 bytes). A carrier reached THROUGH a pointer (a slice
