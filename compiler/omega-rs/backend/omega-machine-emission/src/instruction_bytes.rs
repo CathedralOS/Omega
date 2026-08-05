@@ -1532,7 +1532,8 @@ fn compiler_instruction_validation_kind(
                             | omega_instruction_selection::WritePlaceShape::FrameIndexedByRegion { .. }
                             | omega_instruction_selection::WritePlaceShape::FrameBaseIndexed { .. },
                     )
-                ) =>
+                )
+                || omega_instruction_selection::classify_frame_base_double_indexed_text_assembly_shape(target).is_some() =>
         {
             Some(
                 CompilerInstructionValidationKind::CompilerBodyTextBufferMaterialize {
@@ -1599,7 +1600,8 @@ fn compiler_instruction_validation_kind(
                         | omega_instruction_selection::WritePlaceShape::FrameIndexed { .. }
                         | omega_instruction_selection::WritePlaceShape::FrameBaseIndexed { .. },
                 )
-            ) =>
+            )
+            || omega_instruction_selection::classify_frame_base_double_indexed_text_assembly_shape(target).is_some() =>
         {
             Some(
                 CompilerInstructionValidationKind::CompilerBodyTextLiteralAppend {
@@ -1627,7 +1629,8 @@ fn compiler_instruction_validation_kind(
                         | omega_instruction_selection::WritePlaceShape::FrameIndexed { .. }
                         | omega_instruction_selection::WritePlaceShape::FrameBaseIndexed { .. },
                 )
-            ) =>
+            )
+            || omega_instruction_selection::classify_frame_base_double_indexed_text_assembly_shape(target).is_some() =>
         {
             Some(
                 CompilerInstructionValidationKind::CompilerBodyTextStoredAppend {

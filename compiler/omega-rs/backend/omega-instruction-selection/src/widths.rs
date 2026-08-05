@@ -819,6 +819,14 @@ pub fn runtime_text_stored_place_append_to_place_width(
 ) -> usize {
     use crate::{WritePlaceShape, classify_write_place_shape};
 
+    if architecture == Architecture::Aarch64
+        && crate::classify_frame_base_double_indexed_text_assembly_shape(target).is_some()
+    {
+        return aarch64::runtime_text_stored_place_append_to_runtime_frame_base_double_indexed_width(
+            source_offset,
+        );
+    }
+
     match (architecture, classify_write_place_shape(target)) {
         (architecture, WritePlaceShape::Direct { byte_offset }) => {
             runtime_text_stored_place_append_width(architecture, source_offset, byte_offset)
@@ -867,6 +875,8 @@ pub fn runtime_text_stored_place_append_to_place_width(
             element_byte_size,
             field_byte_offset,
         ),
+        (Architecture::X86_64, _) => x86_64::encode_place_text_stored_append(target, source_offset)
+            .map_or(0, |(bytes, _, _, _)| bytes.len()),
         _ => 0,
     }
 }
@@ -953,6 +963,14 @@ pub fn runtime_text_literal_append_to_place_width(
 ) -> usize {
     use crate::{WritePlaceShape, classify_write_place_shape};
 
+    if architecture == Architecture::Aarch64
+        && crate::classify_frame_base_double_indexed_text_assembly_shape(target).is_some()
+    {
+        return aarch64::runtime_text_literal_append_to_runtime_frame_base_double_indexed_width(
+            literal,
+        );
+    }
+
     match (architecture, classify_write_place_shape(target)) {
         (architecture, WritePlaceShape::Direct { byte_offset }) => {
             runtime_text_literal_append_width(architecture, byte_offset, literal)
@@ -1001,6 +1019,8 @@ pub fn runtime_text_literal_append_to_place_width(
             field_byte_offset,
             literal,
         ),
+        (Architecture::X86_64, _) => x86_64::encode_place_text_literal_append(target, literal)
+            .map_or(0, |(bytes, _, _)| bytes.len()),
         _ => 0,
     }
 }
@@ -1061,6 +1081,13 @@ pub fn runtime_text_buffer_materialize_to_place_width(
 ) -> usize {
     use crate::{WritePlaceShape, classify_write_place_shape};
 
+    if architecture == Architecture::Aarch64
+        && crate::classify_frame_base_double_indexed_text_assembly_shape(target).is_some()
+    {
+        return aarch64::runtime_text_buffer_materialize_to_runtime_frame_base_double_indexed_width(
+        );
+    }
+
     match (architecture, classify_write_place_shape(target)) {
         (architecture, WritePlaceShape::Direct { byte_offset }) => {
             runtime_text_buffer_materialize_width(architecture, byte_offset)
@@ -1119,8 +1146,14 @@ pub fn runtime_text_buffer_materialize_to_place_width(
             element_byte_size,
             field_byte_offset,
         ),
+        (Architecture::X86_64, _) => x86_64::encode_place_text_buffer_materialize(target)
+            .map_or(0, |(bytes, _, _)| bytes.len()),
         _ => 0,
     }
+}
+
+pub const fn runtime_text_frame_base_double_indexed_materialize_buffer_address_offset() -> usize {
+    aarch64::runtime_text_frame_base_double_indexed_materialize_buffer_address_offset()
 }
 
 pub fn runtime_text_frame_base_indexed_literal_append_buffer_address_offset(
@@ -1139,6 +1172,11 @@ pub fn runtime_text_frame_base_indexed_literal_append_buffer_address_offset(
     )
 }
 
+pub const fn runtime_text_frame_base_double_indexed_literal_append_buffer_address_offset() -> usize
+{
+    aarch64::runtime_text_frame_base_double_indexed_literal_append_buffer_address_offset()
+}
+
 pub fn runtime_text_frame_base_indexed_stored_place_buffer_address_offset(
     base_byte_offset: usize,
     index_offset: usize,
@@ -1155,6 +1193,10 @@ pub fn runtime_text_frame_base_indexed_stored_place_buffer_address_offset(
     )
 }
 
+pub const fn runtime_text_frame_base_double_indexed_stored_place_buffer_address_offset() -> usize {
+    aarch64::runtime_text_frame_base_double_indexed_stored_place_buffer_address_offset()
+}
+
 pub fn runtime_text_frame_base_indexed_stored_place_source_address_offset(
     base_byte_offset: usize,
     index_offset: usize,
@@ -1169,6 +1211,10 @@ pub fn runtime_text_frame_base_indexed_stored_place_source_address_offset(
         element_byte_size,
         field_byte_offset,
     )
+}
+
+pub const fn runtime_text_frame_base_double_indexed_stored_place_source_address_offset() -> usize {
+    aarch64::runtime_text_frame_base_double_indexed_stored_place_source_address_offset()
 }
 
 pub fn runtime_machine_integer_write_width(

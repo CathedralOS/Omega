@@ -39,7 +39,9 @@ machine Main::main(&mut self) {
             [Room { description: "a" }, Room { description: "b" }, Room { description: "c" }],
             [Room { description: "d" }, Room { description: "e" }, Room { description: "old" }]
         ];
-        rooms[i][j].description = "omega";
+        let suffix_room: Room;
+        suffix_room.description = "meg";
+        rooms[i][j].description = "o" + suffix_room.description + "a";
         let labels: [[Label; 3]; 2] = [
             [Label { text: "a" }, Label { text: "b" }, Label { text: "c" }],
             [Label { text: "d" }, Label { text: "e" }, Label { text: "old" }]

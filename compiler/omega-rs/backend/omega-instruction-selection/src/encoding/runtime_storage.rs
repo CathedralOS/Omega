@@ -1402,6 +1402,12 @@ pub fn classify_frame_base_double_indexed_bounded_buffer_source_append_shape(
     classify_frame_base_double_indexed_shape(target)
 }
 
+pub fn classify_frame_base_double_indexed_text_assembly_shape(
+    target: &omega_target_operations::Place,
+) -> Option<FrameBaseDoubleIndexedShape> {
+    classify_frame_base_double_indexed_shape(target)
+}
+
 pub fn classify_frame_base_double_indexed_address_shape(
     source: &omega_target_operations::Place,
 ) -> Option<FrameBaseDoubleIndexedShape> {

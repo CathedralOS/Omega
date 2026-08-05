@@ -2981,6 +2981,28 @@ pub fn derive_boundary_compiler_body_text_assembly_write_footprint<'instruction>
             _ => continue,
         };
         let shape = crate::classify_write_place_shape(target);
+        if architecture == omega_target::Architecture::Aarch64
+            && crate::classify_frame_base_double_indexed_text_assembly_shape(target).is_some()
+        {
+            let (writes, state) = match write_kind {
+                0 => (
+                    omega_isa_aarch64::runtime_text_buffer_materialize_to_runtime_frame_base_double_indexed_register_writes(),
+                    omega_isa_aarch64::runtime_text_buffer_materialize_additional_machine_state(),
+                ),
+                1 => (
+                    omega_isa_aarch64::runtime_text_literal_append_to_runtime_frame_base_double_indexed_register_writes(),
+                    omega_isa_aarch64::runtime_text_literal_append_additional_machine_state(),
+                ),
+                2 => (
+                    omega_isa_aarch64::runtime_text_stored_place_append_to_runtime_frame_base_double_indexed_register_writes(),
+                    omega_isa_aarch64::runtime_text_stored_place_append_additional_machine_state(),
+                ),
+                _ => unreachable!("closed text-assembly write kind"),
+            };
+            registers.extend_from_slice(writes.as_slice());
+            additional_state = additional_state.union(state);
+            continue;
+        }
         let (writes, state) = match (architecture, shape, write_kind) {
             (
                 omega_target::Architecture::X86_64,

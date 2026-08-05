@@ -164,6 +164,22 @@ pub(super) fn collect_runtime_text_append_relocations(
                         source_symbol,
                     );
                 }
+                omega_instruction_selection::WritePlaceShape::Unsupported
+                    if context.input.target.architecture == omega_target::Architecture::Aarch64
+                        && omega_instruction_selection::classify_frame_base_double_indexed_text_assembly_shape(target).is_some() =>
+                {
+                    context.insert_data_address_at_instruction_start(
+                        context.storage_region_symbol_handle(target.region),
+                    );
+                    context.insert_data_address_at_relative_offset(
+                        omega_instruction_selection::runtime_text_frame_base_double_indexed_stored_place_buffer_address_offset(),
+                        buffer_symbol,
+                    );
+                    context.insert_data_address_at_relative_offset(
+                        omega_instruction_selection::runtime_text_frame_base_double_indexed_stored_place_source_address_offset(),
+                        source_symbol,
+                    );
+                }
                 _ => unreachable!(
                     "an unsupported AppendTextStoredToPlace shape refuses at encoding; \
                      layout would have failed first"
@@ -245,6 +261,18 @@ pub(super) fn collect_runtime_text_append_relocations(
                             element_byte_size,
                             field_byte_offset,
                         ),
+                        buffer_symbol,
+                    );
+                }
+                omega_instruction_selection::WritePlaceShape::Unsupported
+                    if context.input.target.architecture == omega_target::Architecture::Aarch64
+                        && omega_instruction_selection::classify_frame_base_double_indexed_text_assembly_shape(target).is_some() =>
+                {
+                    context.insert_data_address_at_instruction_start(
+                        context.storage_region_symbol_handle(target.region),
+                    );
+                    context.insert_data_address_at_relative_offset(
+                        omega_instruction_selection::runtime_text_frame_base_double_indexed_literal_append_buffer_address_offset(),
                         buffer_symbol,
                     );
                 }

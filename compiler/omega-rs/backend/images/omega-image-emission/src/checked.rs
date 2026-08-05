@@ -5313,6 +5313,28 @@ fn validate_compiler_function_instruction_boundaries(
                                 element_byte_size,
                                 field_byte_offset,
                             )?,
+                            (
+                                Architecture::Aarch64,
+                                CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed {
+                                    base_byte_offset,
+                                    outer_index_offset,
+                                    outer_index_byte_size,
+                                    outer_stride,
+                                    inner_index_offset,
+                                    inner_index_byte_size,
+                                    inner_stride,
+                                    field_byte_offset,
+                                },
+                            ) => omega_isa_aarch64::encode_runtime_text_buffer_materialize_to_runtime_frame_base_double_indexed(
+                                base_byte_offset,
+                                outer_index_offset,
+                                outer_index_byte_size,
+                                outer_stride,
+                                inner_index_offset,
+                                inner_index_byte_size,
+                                inner_stride,
+                                field_byte_offset,
+                            )?,
                             _ => {
                                 return Err(Diagnostic::error(
                                     "final compiler-body text-buffer materialization retained an unsupported target",
@@ -5430,6 +5452,30 @@ fn validate_compiler_function_instruction_boundaries(
                                 index_offset,
                                 index_byte_size,
                                 element_byte_size,
+                                field_byte_offset,
+                                &literal,
+                            )?,
+                            (
+                                Architecture::Aarch64,
+                                CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed {
+                                    base_byte_offset,
+                                    outer_index_offset,
+                                    outer_index_byte_size,
+                                    outer_stride,
+                                    inner_index_offset,
+                                    inner_index_byte_size,
+                                    inner_stride,
+                                    field_byte_offset,
+                                },
+                            ) => omega_isa_aarch64::encode_runtime_text_literal_append_to_runtime_frame_base_double_indexed(
+                                0,
+                                base_byte_offset,
+                                outer_index_offset,
+                                outer_index_byte_size,
+                                outer_stride,
+                                inner_index_offset,
+                                inner_index_byte_size,
+                                inner_stride,
                                 field_byte_offset,
                                 &literal,
                             )?,
@@ -5552,6 +5598,30 @@ fn validate_compiler_function_instruction_boundaries(
                                 index_offset,
                                 index_byte_size,
                                 element_byte_size,
+                                field_byte_offset,
+                            )?,
+                            (
+                                Architecture::Aarch64,
+                                CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed {
+                                    base_byte_offset,
+                                    outer_index_offset,
+                                    outer_index_byte_size,
+                                    outer_stride,
+                                    inner_index_offset,
+                                    inner_index_byte_size,
+                                    inner_stride,
+                                    field_byte_offset,
+                                },
+                            ) => omega_isa_aarch64::encode_runtime_text_stored_place_append_to_runtime_frame_base_double_indexed(
+                                0,
+                                source_offset,
+                                base_byte_offset,
+                                outer_index_offset,
+                                outer_index_byte_size,
+                                outer_stride,
+                                inner_index_offset,
+                                inner_index_byte_size,
+                                inner_stride,
                                 field_byte_offset,
                             )?,
                             _ => {
@@ -8549,6 +8619,13 @@ fn compiler_instruction_footprint(
                     omega_isa_aarch64::runtime_text_buffer_materialize_to_runtime_frame_indexed_register_writes(),
                     omega_isa_aarch64::runtime_text_buffer_materialize_additional_machine_state(),
                 ),
+                (
+                    Architecture::Aarch64,
+                    CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed { .. },
+                ) => (
+                    omega_isa_aarch64::runtime_text_buffer_materialize_to_runtime_frame_base_double_indexed_register_writes(),
+                    omega_isa_aarch64::runtime_text_buffer_materialize_additional_machine_state(),
+                ),
                 _ => return None,
             };
             (
@@ -8584,6 +8661,13 @@ fn compiler_instruction_footprint(
                     CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. },
                 ) => (
                     omega_isa_aarch64::runtime_text_literal_append_to_runtime_frame_base_indexed_register_writes(),
+                    omega_isa_aarch64::runtime_text_literal_append_additional_machine_state(),
+                ),
+                (
+                    Architecture::Aarch64,
+                    CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed { .. },
+                ) => (
+                    omega_isa_aarch64::runtime_text_literal_append_to_runtime_frame_base_double_indexed_register_writes(),
                     omega_isa_aarch64::runtime_text_literal_append_additional_machine_state(),
                 ),
                 (
@@ -8639,6 +8723,13 @@ fn compiler_instruction_footprint(
                     | CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. },
                 ) => (
                     omega_isa_aarch64::runtime_text_stored_place_append_to_runtime_frame_indexed_register_writes(),
+                    omega_isa_aarch64::runtime_text_stored_place_append_additional_machine_state(),
+                ),
+                (
+                    Architecture::Aarch64,
+                    CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed { .. },
+                ) => (
+                    omega_isa_aarch64::runtime_text_stored_place_append_to_runtime_frame_base_double_indexed_register_writes(),
                     omega_isa_aarch64::runtime_text_stored_place_append_additional_machine_state(),
                 ),
                 _ => return None,
@@ -12175,6 +12266,9 @@ fn aarch64_text_buffer_materialize_buffer_address_offset(
             element_byte_size,
             field_byte_offset,
         ),
+        CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed { .. } => {
+            omega_isa_aarch64::runtime_text_buffer_materialize_to_runtime_frame_base_double_indexed_width()
+        }
         _ => {
             return Err(Diagnostic::error(
                 "final aarch64 indexed text-buffer materialization retained an unsupported target",
@@ -12512,7 +12606,8 @@ fn validate_compiler_text_buffer_materialize_relocations(
         (
             Architecture::Aarch64,
             CompilerBodyPlaceIntegerWriteShape::FrameIndexed { .. }
-            | CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. },
+            | CompilerBodyPlaceIntegerWriteShape::FrameBaseIndexed { .. }
+            | CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed { .. },
         ) => {
             let mut sites = aarch64_bounded_buffer_write_relocation_sites(target)?
                 .into_iter()
@@ -12698,6 +12793,16 @@ fn validate_compiler_text_literal_append_relocations(
                     element_byte_size,
                     field_byte_offset,
                 ),
+                ExpectedTarget::Buffer,
+            ),
+        ],
+        (
+            Architecture::Aarch64,
+            CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed { .. },
+        ) => vec![
+            (0usize, ExpectedTarget::Storage(target.region)),
+            (
+                omega_isa_aarch64::runtime_text_frame_base_double_indexed_literal_append_buffer_address_offset(),
                 ExpectedTarget::Buffer,
             ),
         ],
@@ -12929,6 +13034,20 @@ fn validate_compiler_text_stored_append_relocations(
                     element_byte_size,
                     field_byte_offset,
                 ),
+                ExpectedTarget::Storage(source_region),
+            ),
+        ],
+        (
+            Architecture::Aarch64,
+            CompilerBodyPlaceIntegerWriteShape::FrameBaseDoubleIndexed { .. },
+        ) => vec![
+            (0usize, ExpectedTarget::Storage(target.region)),
+            (
+                omega_isa_aarch64::runtime_text_frame_base_double_indexed_stored_place_buffer_address_offset(),
+                ExpectedTarget::Buffer,
+            ),
+            (
+                omega_isa_aarch64::runtime_text_frame_base_double_indexed_stored_place_source_address_offset(),
                 ExpectedTarget::Storage(source_region),
             ),
         ],

@@ -1097,9 +1097,10 @@ the exact second-base relocation. The conversion selector
 uses the same canonical walked-target resolver as the other mutation families.
 Text-buffer materialization is inside the partial proof for every x86 target
 accepted by the general place materializer, including double-indexed transient
-frame destinations; AArch64 also replays cross-region frame indices and
-transient inline-frame indexed destinations. The retained row binds the exact
-buffer data-object identity and target place, replays the target encoder and
+frame destinations; AArch64 also replays cross-region frame indices, transient
+inline-frame indexed destinations, and all-frame double-runtime-indexed
+destinations. The latter reuses one frame relocation for the collection and
+both indices. The retained row binds the exact buffer data-object identity and target place, replays the target encoder and
 mixed data/storage/index relocation set, and matches a dedicated
 `CompilerBodyTextAssemblyWrite` footprint. Literal and stored-source appends
 share all x86 materializer targets and the classified AArch64 coverage,

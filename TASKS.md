@@ -882,7 +882,7 @@ proves complete region coverage, and composes admitted leaves under their
 separate provenance. Do not add a second whole-image decoder/admission path.
 
 The existing single final-region artifact now carries the domain-separated
-`omega.final-footprint-certificate` schema, format version 112, and a certificate
+`omega.final-footprint-certificate` schema, format version 113, and a certificate
 fingerprint over its final placement binding, compiler-text derivation, and
 complete region inventory. Its explicit completeness flags remain false until
 compiler-body footprint decoding and admitted-leaf evidence land. The envelope
@@ -1123,7 +1123,9 @@ incomplete. X86 text-buffer materialization
 now replays every target accepted by its general place materializer, including
 double-indexed transient frame destinations, retaining the exact buffer symbol,
 target/index relocation walk, and target place. AArch64 additionally replays
-cross-region frame indices and transient inline-frame indexed destinations.
+cross-region frame indices, transient inline-frame indexed destinations, and
+all-frame double-runtime-indexed destinations. The latter reuses one frame
+relocation for the collection and both indices.
 These forms match a dedicated `CompilerBodyTextAssemblyWrite` footprint.
 Literal and stored-source appends share all x86 materializer targets and the
 classified AArch64 coverage, retaining their exact literal or source storage,

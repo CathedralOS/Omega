@@ -382,6 +382,39 @@ pub fn runtime_text_buffer_materialize_to_runtime_frame_base_indexed_width(
     ) + 52
 }
 
+pub const fn runtime_text_buffer_materialize_to_runtime_frame_base_double_indexed_width() -> usize {
+    8 + 36 + 52
+}
+
+pub const fn runtime_text_frame_base_double_indexed_materialize_buffer_address_offset() -> usize {
+    8 + 36 + 12
+}
+
+pub fn runtime_text_literal_append_to_runtime_frame_base_double_indexed_width(
+    literal: &str,
+) -> usize {
+    8 + 36 + 28 + add_constant_width(literal.len()) + literal.len() * 8
+}
+
+pub const fn runtime_text_frame_base_double_indexed_literal_append_buffer_address_offset() -> usize
+{
+    8 + 36 + 4
+}
+
+pub fn runtime_text_stored_place_append_to_runtime_frame_base_double_indexed_width(
+    source_offset: usize,
+) -> usize {
+    8 + 36 + 68 + runtime_text_descriptor_load_pair_width(source_offset)
+}
+
+pub const fn runtime_text_frame_base_double_indexed_stored_place_buffer_address_offset() -> usize {
+    8 + 36 + 8
+}
+
+pub const fn runtime_text_frame_base_double_indexed_stored_place_source_address_offset() -> usize {
+    8 + 36 + 24
+}
+
 pub fn runtime_text_indexed_literal_append_buffer_address_offset(
     element_byte_size: usize,
     field_byte_offset: usize,
