@@ -64,6 +64,10 @@ pub(super) fn collect_runtime_storage_address_relocations(
                         omega_instruction_selection::classify_frame_base_indexed_address_shape(
                             source,
                         );
+                    let frame_double_indexed =
+                        omega_instruction_selection::classify_frame_base_double_indexed_address_shape(
+                            source,
+                        );
                     match shape {
                         omega_instruction_selection::WritePlaceShape::Direct { byte_offset } => {
                             context.insert_data_address_at_instruction_start(
@@ -154,6 +158,13 @@ pub(super) fn collect_runtime_storage_address_relocations(
                                     context.machine_storage_symbol_handle(),
                                 );
                             }
+                        }
+                        omega_instruction_selection::WritePlaceShape::Unsupported
+                            if frame_double_indexed.is_some() =>
+                        {
+                            context.insert_data_address_at_instruction_start(
+                                context.runtime_frame_symbol_handle(),
+                            );
                         }
                         _ => {
                             if let Some((_, index_region, ..)) =
