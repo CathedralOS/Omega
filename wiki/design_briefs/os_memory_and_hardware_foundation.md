@@ -1073,7 +1073,8 @@ relocation sites.
 Direct-target binary writes, exact-integer writes through a frame-held pointer,
 and runtime-indexed writes through a frame-held descriptor retain their
 complete checked recipe and roots into the canonical runtime-value operand
-arena; runtime-indexed writes into an inline frame array and exact-integer
+arena; runtime-indexed writes into an inline frame array accept frame- or
+machine-held indices, and exact-integer
 writes into single- and double-runtime-indexed inline machine arrays are
 included too, including cross-region index-base relocations.
 Final validation regenerates the evaluator/store bytes, walks nested operand

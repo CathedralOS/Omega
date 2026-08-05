@@ -7,10 +7,14 @@ data Main {
     console: Console;
     index: u64 [0..=2];
     value: i64;
+    left: i64 [0..=50];
+    right: i64 [0..=50];
 }
 machine Main::main(&mut self) {
     self.index = 2;
     self.value = 44;
+    self.left = 20;
+    self.right = 30;
     transition { _ -> self.pick() }
 }
 machine Main::pick(&mut self) {
@@ -18,9 +22,12 @@ machine Main::pick(&mut self) {
     a[self.index] = self.value;
     let b: [i64; 3] = [1, 2, 3];
     b[self.index] = 55;
+    let c: [i64; 3] = [4, 5, 6];
+    c[self.index] = self.left + self.right;
     let v: i64 = a[2];
     let w: i64 = b[2];
-    transition v == 44 && w == 55 {
+    let x: i64 = c[2];
+    transition v == 44 && w == 55 && x == 50 {
         true -> yes()
         false -> no()
     }

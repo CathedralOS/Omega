@@ -882,7 +882,7 @@ proves complete region coverage, and composes admitted leaves under their
 separate provenance. Do not add a second whole-image decoder/admission path.
 
 The existing single final-region artifact now carries the domain-separated
-`omega.final-footprint-certificate` schema, format version 101, and a certificate
+`omega.final-footprint-certificate` schema, format version 102, and a certificate
 fingerprint over its final placement binding, compiler-text derivation, and
 complete region inventory. Its explicit completeness flags remain false until
 compiler-body footprint decoding and admitted-leaf evidence land. The envelope
@@ -1088,7 +1088,8 @@ Direct-target binary writes, exact-integer writes through a frame-held
 pointer, and runtime-indexed writes through a frame-held descriptor now retain
 the exact operator, width, float mode, arithmetic policy, signedness, and roots
 into the canonical runtime-value operand arena; runtime-indexed writes into an
-inline frame array and exact-integer writes into single- and double-runtime-
+inline frame array accept frame- or machine-held indices, and exact-integer
+writes into single- and double-runtime-
 indexed inline machine arrays are included too. Final validation regenerates
 the complete evaluator/store program, recursively derives every operand
 relocation, including cross-region index-base relocations, and requires the

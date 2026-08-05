@@ -1633,7 +1633,9 @@ fn compiler_instruction_validation_kind(
             || omega_instruction_selection::classify_frame_base_double_indexed_binary_shape(
                 target,
             )
-            .is_some() =>
+            .is_some()
+            || omega_instruction_selection::classify_frame_base_indexed_binary_shape(target)
+                .is_some() =>
         {
             Some(
                 CompilerInstructionValidationKind::CompilerBodyPlaceBinaryWrite {

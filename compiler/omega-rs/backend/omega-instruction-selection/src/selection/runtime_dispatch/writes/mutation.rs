@@ -45,10 +45,9 @@ use super::super::super::storage_places::{
 use super::super::super::storage_places::{
     resolve_runtime_assignment_value_call_result_place_by_ordinal,
     resolve_runtime_call_argument_call_result_place_by_ordinal,
-    resolve_runtime_frame_base_double_indexed_source, resolve_runtime_frame_base_indexed_target,
-    resolve_runtime_frame_fixed_indexed_target, resolve_runtime_frame_indexed_target,
-    resolve_runtime_machine_double_indexed_source, resolve_runtime_machine_indexed_target,
-    resolve_runtime_pointee_slot_offset,
+    resolve_runtime_frame_base_double_indexed_source, resolve_runtime_frame_fixed_indexed_target,
+    resolve_runtime_frame_indexed_target, resolve_runtime_machine_double_indexed_source,
+    resolve_runtime_machine_indexed_target, resolve_runtime_pointee_slot_offset,
 };
 use super::super::guards::static_guard_conjunct_summary_in_table;
 use super::super::text_writes::{
@@ -2962,7 +2961,7 @@ fn select_runtime_binary_mutation_write(
         );
     }
 
-    if let Some(indexed_target) = resolve_runtime_frame_base_indexed_target(
+    if let Some(indexed_target) = resolve_runtime_frame_base_indexed_target_with_index_region(
         input,
         dispatch_index,
         target_source_key,
@@ -2972,7 +2971,7 @@ fn select_runtime_binary_mutation_write(
             crate::selection::runtime_dispatch::write_place_binary_base_indexed(
                 omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
                 indexed_target.base_byte_offset,
-                omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                indexed_target.index_region,
                 indexed_target.index_offset,
                 indexed_target.index_byte_size,
                 indexed_target.element_byte_size,

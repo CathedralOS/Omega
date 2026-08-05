@@ -1258,12 +1258,13 @@ pub struct FrameBaseDoubleIndexedShape {
     pub field_byte_offset: usize,
 }
 
-/// AArch64 immediate-integer rung for an inline frame array whose runtime
-/// index may live in either storage region. Other operation families keep
-/// using the narrower shared write classifier until their own replay
-/// contracts land.
+/// AArch64 per-operation rung for an inline frame array whose runtime index
+/// may live in either storage region. Immediate-integer and exact-binary
+/// writes opt in through separate classifiers; other operation families keep
+/// using the narrower shared write classifier until their replay contracts
+/// land.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct FrameBaseIndexedIntegerShape {
+pub struct FrameBaseIndexedShape {
     pub base_byte_offset: usize,
     pub index_region: omega_target_operations::RuntimeStorageRegion,
     pub index_offset: usize,
@@ -1274,12 +1275,24 @@ pub struct FrameBaseIndexedIntegerShape {
 
 pub fn classify_frame_base_indexed_integer_shape(
     target: &omega_target_operations::Place,
-) -> Option<FrameBaseIndexedIntegerShape> {
+) -> Option<FrameBaseIndexedShape> {
+    classify_frame_base_indexed_shape(target)
+}
+
+pub fn classify_frame_base_indexed_binary_shape(
+    target: &omega_target_operations::Place,
+) -> Option<FrameBaseIndexedShape> {
+    classify_frame_base_indexed_shape(target)
+}
+
+fn classify_frame_base_indexed_shape(
+    target: &omega_target_operations::Place,
+) -> Option<FrameBaseIndexedShape> {
     let indexed = direct_indexed_path(target)?;
     if target.region != omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
         return None;
     }
-    Some(FrameBaseIndexedIntegerShape {
+    Some(FrameBaseIndexedShape {
         base_byte_offset: indexed.pointer_offset,
         index_region: indexed.index_region,
         index_offset: indexed.index_offset,
@@ -2405,8 +2418,11 @@ pub fn encode_write_place_binary(
         .map(|(bytes, _)| bytes),
         Architecture::Aarch64 => {
             let shape = classify_write_place_shape(target);
+            let frame_indexed = classify_frame_base_indexed_binary_shape(target);
             let frame_double = classify_frame_base_double_indexed_binary_shape(target);
-            if (frame_double.is_some() || !matches!(shape, WritePlaceShape::Direct { .. }))
+            if (frame_indexed.is_some()
+                || frame_double.is_some()
+                || !matches!(shape, WritePlaceShape::Direct { .. }))
                 && (is_float || domain != psi_numerics::arithmetic::ArithmeticDomain::Exact)
             {
                 return Err(Diagnostic::error(
@@ -2414,6 +2430,21 @@ pub fn encode_write_place_binary(
                      serve Exact integer domains only until the aarch64 place \
                      materializer lands",
                 ));
+            }
+            if let Some(frame_indexed) = frame_indexed {
+                return aarch64::encode_runtime_frame_base_indexed_binary_write_with_index_region(
+                    runtime_value_operands,
+                    frame_indexed.base_byte_offset,
+                    frame_indexed.index_region,
+                    frame_indexed.index_offset,
+                    frame_indexed.index_byte_size,
+                    frame_indexed.element_byte_size,
+                    frame_indexed.field_byte_offset,
+                    byte_size,
+                    left,
+                    operator,
+                    right,
+                );
             }
             if let Some(frame_double) = frame_double {
                 return aarch64::encode_runtime_frame_base_double_indexed_binary_write(
