@@ -1150,7 +1150,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         executable_regions.contains(
             "\"certificate_schema\": \"omega.final-footprint-certificate\""
         )
-            && executable_regions.contains("\"certificate_format_version\": 83")
+            && executable_regions.contains("\"certificate_format_version\": 84")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
             && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")
@@ -34306,6 +34306,13 @@ fn cross_aarch64_small_aggregate_import_uses_consecutive_x_registers() {
         }),
         "expected one aggregate source to feed consecutive x1/x2 fragments"
     );
+    let footprints = fs::read_to_string(out_dir.join("08_boundary_footprints.json"))
+        .expect("AArch64 authored aggregate footprints should be written");
+    assert!(
+        footprints
+            .contains("\"origin\": \"compiler_body_outbound_authored_aggregate_import_result\""),
+        "AArch64 authored aggregate import must retain its final replay footprint"
+    );
     let _ = fs::remove_dir_all(&scratch);
 }
 
@@ -34563,6 +34570,13 @@ fn cross_win64_large_aggregate_import_uses_an_aligned_caller_copy() {
             .windows(4)
             .any(|window| window == [0x48, 0x83, 0xc4, 56]),
         "expected the complete outgoing area to be restored"
+    );
+    let footprints = fs::read_to_string(scratch.join("08_boundary_footprints.json"))
+        .expect("Win64 authored aggregate footprints should be written");
+    assert!(
+        footprints
+            .contains("\"origin\": \"compiler_body_outbound_authored_aggregate_import_result\""),
+        "Win64 authored aggregate import must retain its final replay footprint"
     );
     let _ = fs::remove_dir_all(&scratch);
 }

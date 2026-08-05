@@ -27,6 +27,8 @@ pub enum BoundaryFootprintFragmentOrigin {
     CompilerBodyOutboundAuthoredImportResult,
     CompilerBodyOutboundAuthoredFloatImport,
     CompilerBodyOutboundAuthoredFloatImportResult,
+    CompilerBodyOutboundAuthoredAggregateImport,
+    CompilerBodyOutboundAuthoredAggregateImportResult,
     CompilerBodyOutboundStorageImport,
     CompilerBodyOutboundStorageImportResult,
     CompilerBodyOutboundSyscall,
@@ -93,6 +95,8 @@ impl BoundaryFootprintPlan {
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredImportResult
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredFloatImport
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredFloatImportResult
+            | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredAggregateImport
+            | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredAggregateImportResult
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImport
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImportResult
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscall
@@ -359,6 +363,27 @@ mod tests {
                 },
             )
             .expect("result-bearing authored float imports may use their prescribed control state");
+
+        outbound
+            .retain_validated_fragment(
+                &boundary,
+                BoundaryFootprintFragment {
+                    origin:
+                        BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredAggregateImport,
+                    evidence: control_evidence(),
+                },
+            )
+            .expect("authored aggregate imports may use their prescribed control state");
+
+        outbound
+            .retain_validated_fragment(
+                &boundary,
+                BoundaryFootprintFragment {
+                    origin: BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredAggregateImportResult,
+                    evidence: control_evidence(),
+                },
+            )
+            .expect("result-bearing authored aggregate imports may use their prescribed control state");
 
         outbound
             .retain_validated_fragment(
