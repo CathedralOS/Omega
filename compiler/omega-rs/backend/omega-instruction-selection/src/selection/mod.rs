@@ -1,6 +1,7 @@
 use crate::{
     InstructionSelectionInput, derive_boundary_call_return_mechanics_footprint,
     derive_boundary_compiler_body_constant_host_result_footprint,
+    derive_boundary_compiler_body_outbound_float_import_result_footprint,
     derive_boundary_compiler_body_outbound_immediate_import_footprint,
     derive_boundary_compiler_body_outbound_immediate_import_result_footprint,
     derive_boundary_compiler_body_outbound_storage_import_footprint,
@@ -503,6 +504,23 @@ fn retain_exit_footprints(
             },
         )
         .expect("retained compiler-body result-bearing immediate-import footprint must name the entry boundary contract");
+    }
+    let evidence = derive_boundary_compiler_body_outbound_float_import_result_footprint(
+        boundary,
+        input,
+        operands,
+        instructions,
+    )
+    .expect("selected compiler-body result-bearing float imports must fit the validated entry state ceiling");
+    if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
+        plan.retain_validated_fragment(
+            boundary,
+            omega_abstract_operations::BoundaryFootprintFragment {
+                origin: omega_abstract_operations::BoundaryFootprintFragmentOrigin::CompilerBodyOutboundFloatImportResult,
+                evidence,
+            },
+        )
+        .expect("retained compiler-body result-bearing float-import footprint must name the entry boundary contract");
     }
     let evidence = derive_boundary_compiler_body_outbound_storage_import_footprint(
         boundary,

@@ -584,7 +584,16 @@ fn compiler_instruction_validation_kind(
                     operation_key.capability,
                     omega_calling_conventions::HostCapability::Custom(_)
                         | omega_calling_conventions::HostCapability::Unknown
-                ) {
+                ) || operation_key.dereferences_result()
+                    || (emission_context.target.architecture == omega_target::Architecture::Aarch64
+                        && matches!(
+                            (operation_key.capability, operation_key.operation),
+                            (
+                                omega_calling_conventions::HostCapability::Filesystem,
+                                omega_calling_conventions::HostOperation::OpenCreate
+                            )
+                        ))
+                {
                     return Ok(None);
                 }
                 let operands = emission_context
@@ -593,6 +602,39 @@ fn compiler_instruction_validation_kind(
                     .ok_or_else(|| {
                         Diagnostic::error("compiler outbound import lost its assigned operand span")
                     })?;
+                if operation_key.capability
+                    == omega_calling_conventions::HostCapability::Math
+                    && binding.call_plan().result.as_ref().is_some_and(|result| {
+                    matches!(
+                        result.shape.class,
+                        omega_calling_conventions::ValueClass::Integer
+                            | omega_calling_conventions::ValueClass::Float
+                    )
+                }) && binding.call_plan().parameters.len() + 1 == operands.len()
+                    && matches!(
+                        operands.first().map(|operand| &operand.kind),
+                        Some(
+                            omega_assigned_target_operations::InstructionOperandKind::RuntimeScalarInteger { .. }
+                        )
+                    )
+                    && !operands[1..].is_empty()
+                    && operands[1..].iter().all(|operand| {
+                        matches!(
+                            operand.kind,
+                            omega_assigned_target_operations::InstructionOperandKind::RuntimeScalarFloat { .. }
+                        )
+                    })
+                {
+                    return Ok(Some(
+                        CompilerInstructionValidationKind::CompilerBodyOutboundFloatImportResult {
+                            operation_key: *operation_key,
+                            operands: operands.to_vec(),
+                            library: std::sync::Arc::clone(library),
+                            symbol: std::sync::Arc::clone(symbol),
+                            plan: binding.call_plan().clone(),
+                        },
+                    ));
+                }
                 if binding.call_plan().result.as_ref().is_some_and(|result| {
                     matches!(
                         result.shape.class,

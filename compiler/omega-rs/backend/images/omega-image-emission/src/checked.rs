@@ -286,6 +286,11 @@ fn aarch64_outbound_syscall_operand(
             byte_offset,
             byte_count,
         }
+    } else if let Some((_, byte_offset, byte_count)) = operand.runtime_scalar_float() {
+        omega_isa_aarch64::Aarch64CallOperand::RuntimeScalarFloat {
+            byte_offset,
+            byte_count,
+        }
     } else if let Some((_, byte_offset)) = operand.runtime_storage_address() {
         omega_isa_aarch64::Aarch64CallOperand::RuntimeStorageAddress { byte_offset }
     } else if let Some(value) = operand.immediate_integer() {
@@ -590,6 +595,207 @@ fn encode_integer_result_import(
                             );
                         (site, region)
                     })
+                },
+            ));
+            (bytes, call_site, storage_sites)
+        }
+    };
+    let mut bytes = Vec::new();
+    let prefix_width = match architecture {
+        Architecture::X86_64 => {
+            bytes.extend(omega_isa_x86_64::encode_foreign_float_control_prefix_bytes());
+            omega_isa_x86_64::FOREIGN_FLOAT_CONTROL_PREFIX_WIDTH
+        }
+        Architecture::Aarch64 => {
+            bytes.extend(omega_isa_aarch64::encode_foreign_float_control_prefix_bytes());
+            omega_isa_aarch64::FOREIGN_FLOAT_CONTROL_PREFIX_WIDTH
+        }
+    };
+    bytes.extend(inner);
+    match architecture {
+        Architecture::X86_64 => {
+            bytes.extend(omega_isa_x86_64::encode_foreign_float_control_suffix_bytes())
+        }
+        Architecture::Aarch64 => {
+            bytes.extend(omega_isa_aarch64::encode_foreign_float_control_suffix_bytes())
+        }
+    }
+    Ok((
+        bytes,
+        prefix_width + inner_call_site,
+        inner_storage_sites
+            .into_iter()
+            .map(|(site, region)| (prefix_width + site, region))
+            .collect(),
+    ))
+}
+
+fn encode_float_parameter_result_import(
+    architecture: Architecture,
+    operation_key: omega_calling_conventions::HostOperationKey,
+    operands: &[omega_target_operations::InstructionOperand],
+    plan: &omega_calling_conventions::CallPlan,
+) -> Result<
+    (
+        Vec<u8>,
+        usize,
+        Vec<(usize, omega_target_operations::RuntimeStorageRegion)>,
+    ),
+    Diagnostic,
+> {
+    use omega_target_operations::InstructionOperandLike;
+
+    let result = plan.result.as_ref().ok_or_else(|| {
+        Diagnostic::error("final float-parameter import replay lost its result plan")
+    })?;
+    let Some((result_region, result_offset, result_byte_size)) = operands
+        .first()
+        .and_then(InstructionOperandLike::runtime_scalar_integer)
+    else {
+        return Err(Diagnostic::error(
+            "final float-parameter import replay lost its scalar result storage",
+        ));
+    };
+    if !matches!(
+        result.shape.class,
+        omega_calling_conventions::ValueClass::Integer
+            | omega_calling_conventions::ValueClass::Float
+    ) || plan.parameters.len() + 1 != operands.len()
+        || operands[1..].is_empty()
+        || !operands[1..]
+            .iter()
+            .all(|operand| operand.runtime_scalar_float().is_some())
+    {
+        return Err(Diagnostic::error(
+            "final float-parameter import replay requires one scalar result and runtime-float arguments",
+        ));
+    }
+    let (inner, inner_call_site, inner_storage_sites) = match architecture {
+        Architecture::X86_64 => {
+            let bytes = omega_isa_x86_64::encode_host_call_sequence_with_plan(
+                plan.policy,
+                operation_key,
+                operands,
+                plan,
+            )?;
+            let call_site = omega_isa_x86_64::host_call_external_relocation_site_with_plan(
+                plan.policy,
+                operation_key,
+                operands,
+                plan,
+            )
+            .ok_or_else(|| {
+                Diagnostic::error(
+                    "final x86 float-parameter import replay has no retained-plan call site",
+                )
+            })?
+            .byte_offset;
+            let storage_sites = operands
+                .iter()
+                .enumerate()
+                .map(|(index, operand)| {
+                    let region = operand
+                        .runtime_scalar_integer()
+                        .map(|(region, _, _)| region)
+                        .or_else(|| operand.runtime_scalar_float().map(|(region, _, _)| region))?;
+                    omega_isa_x86_64::host_call_data_relocation_site_with_plan(
+                        plan.policy,
+                        operation_key,
+                        operands,
+                        index,
+                        plan,
+                    )
+                    .map(|site| (site.byte_offset, region))
+                })
+                .collect::<Option<Vec<_>>>()
+                .ok_or_else(|| {
+                    Diagnostic::error(
+                        "final x86 float-parameter import replay lost a retained-plan storage site",
+                    )
+                })?;
+            (bytes, call_site, storage_sites)
+        }
+        Architecture::Aarch64 => {
+            let mut call_operands = Vec::with_capacity(operands.len());
+            call_operands.push(
+                omega_isa_aarch64::Aarch64CallOperand::RuntimeScalarInteger {
+                    byte_offset: result_offset,
+                    byte_count: result_byte_size,
+                },
+            );
+            call_operands.extend(
+                operands[1..]
+                    .iter()
+                    .map(aarch64_outbound_syscall_operand)
+                    .collect::<Result<Vec<_>, _>>()?,
+            );
+            let argument_width = call_operands[1..]
+                .iter()
+                .map(omega_isa_aarch64::operand_width)
+                .sum::<usize>();
+            let call_site = argument_width
+                + omega_isa_aarch64::host_call_stack_prefix_width_for_placements(
+                    &plan.parameters,
+                    plan.parameters.len(),
+                );
+            let result_site = argument_width
+                + omega_isa_aarch64::host_call_stack_total_width_for_placements(&plan.parameters)
+                + 4
+                + usize::from(matches!(
+                    result.shape.class,
+                    omega_calling_conventions::ValueClass::Float
+                )) * 4;
+            let [
+                omega_calling_conventions::ValueLocation::Register {
+                    register: result_register,
+                    value_byte_offset: 0,
+                    byte_size,
+                },
+            ] = result.locations.as_slice()
+            else {
+                return Err(Diagnostic::error(
+                    "final AArch64 float-parameter import replay requires one direct result register",
+                ));
+            };
+            if usize::from(*byte_size) != usize::from(result.shape.byte_size) {
+                return Err(Diagnostic::error(
+                    "final AArch64 float-parameter import replay retained a partial result placement",
+                ));
+            }
+            let bytes = match result.shape.class {
+                omega_calling_conventions::ValueClass::Integer => {
+                    omega_isa_aarch64::encode_host_call_sequence_value_returning_from_operands(
+                        call_operands.iter().copied(),
+                        &plan.parameters,
+                        *result_register,
+                        usize::from(result.shape.byte_size),
+                    )?
+                }
+                omega_calling_conventions::ValueClass::Float => {
+                    omega_isa_aarch64::encode_host_call_sequence_value_returning_float_from_operands(
+                        call_operands.iter().copied(),
+                        &plan.parameters,
+                        *result_register,
+                        usize::from(result.shape.byte_size),
+                    )?
+                }
+                _ => unreachable!("validated scalar result class"),
+            };
+            let mut storage_sites = vec![(result_site, result_region)];
+            storage_sites.extend(operands[1..].iter().enumerate().map(
+                |(parameter_index, operand)| {
+                    let (region, _, _) = operand
+                        .runtime_scalar_float()
+                        .expect("validated runtime-float parameter");
+                    let site = call_operands[1..1 + parameter_index]
+                        .iter()
+                        .map(omega_isa_aarch64::operand_width)
+                        .sum::<usize>()
+                        + omega_isa_aarch64::host_call_stack_prefix_width_for_placements(
+                            &plan.parameters,
+                            parameter_index,
+                        );
+                    (site, region)
                 },
             ));
             (bytes, call_site, storage_sites)
@@ -2396,6 +2602,37 @@ fn validate_compiler_function_instruction_boundaries(
                             None,
                             bytes,
                             45u8,
+                            CompilerInstructionRelocationRecipe::StorageImport {
+                                call_site,
+                                storage_sites,
+                                library,
+                                symbol,
+                            },
+                        )
+                    }
+                    omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyOutboundFloatImportResult {
+                        operation_key,
+                        operands,
+                        library,
+                        symbol,
+                        plan,
+                    } => {
+                        let (bytes, call_site, storage_sites) =
+                            encode_float_parameter_result_import(
+                                architecture,
+                                operation_key,
+                                &operands,
+                                &plan,
+                            )?;
+                        if storage_sites.len() < 2 {
+                            return Err(Diagnostic::error(
+                                "final float-parameter import replay lost its storage sites",
+                            ));
+                        }
+                        (
+                            None,
+                            bytes,
+                            47u8,
                             CompilerInstructionRelocationRecipe::StorageImport {
                                 call_site,
                                 storage_sites,
@@ -5317,6 +5554,44 @@ fn compiler_instruction_footprint(
                 ]),
             )
         }
+        CompilerInstructionValidationKind::CompilerBodyOutboundFloatImportResult {
+            operands,
+            plan,
+            ..
+        } => {
+            let (_, result_offset, result_byte_size) =
+                operands.first()?.runtime_scalar_integer()?;
+            let envelope_and_store_scratch = match architecture {
+                Architecture::X86_64 => vec![MachineRegister::X86Rsp],
+                Architecture::Aarch64 => Vec::from_iter(
+                    [MachineRegister::Aarch64X(16)].into_iter().chain(
+                        omega_isa_aarch64::constant_host_result_clobbers(
+                            result_offset,
+                            result_byte_size,
+                        )
+                        .as_slice()
+                        .iter()
+                        .copied(),
+                    ),
+                ),
+            };
+            (
+                BoundaryFootprintFragmentOrigin::CompilerBodyOutboundFloatImportResult,
+                RegisterSet::new(
+                    plan.ordinary_clobbers
+                        .as_slice()
+                        .iter()
+                        .copied()
+                        .chain(envelope_and_store_scratch),
+                ),
+                MachineStateSet::new([
+                    MachineState::Flags,
+                    MachineState::InstructionPointer,
+                    MachineState::StackPointer,
+                    MachineState::ControlState,
+                ]),
+            )
+        }
         CompilerInstructionValidationKind::CompilerBodyOutboundStorageImport { plan, .. } => (
             BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImport,
             RegisterSet::new(plan.ordinary_clobbers.as_slice().iter().copied().chain(
@@ -5980,6 +6255,7 @@ fn validate_compiler_body_specification_footprints(
                 | BoundaryFootprintFragmentOrigin::CompilerBodyConstantHostResult
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundImmediateImport
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundImmediateImportResult
+                | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundFloatImportResult
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImport
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImportResult
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscall
@@ -6079,42 +6355,46 @@ fn validate_compiler_body_specification_footprints(
         ),
         (
             22u8,
-            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImport,
+            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundFloatImportResult,
         ),
         (
             23u8,
-            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImportResult,
+            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImport,
         ),
         (
             24u8,
-            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscall,
+            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImportResult,
         ),
         (
             25u8,
-            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallResult,
+            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscall,
         ),
         (
             26u8,
-            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallStorageArguments,
+            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallResult,
         ),
         (
             27u8,
-            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallResultStorageArguments,
+            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallStorageArguments,
         ),
         (
             28u8,
-            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallDataArguments,
+            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallResultStorageArguments,
         ),
         (
             29u8,
-            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallResultDataArguments,
+            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallDataArguments,
         ),
         (
             30u8,
-            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallTimespecArgument,
+            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallResultDataArguments,
         ),
         (
             31u8,
+            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallTimespecArgument,
+        ),
+        (
+            32u8,
             BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallTimespecResult,
         ),
     ] {
