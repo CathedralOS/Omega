@@ -1165,6 +1165,152 @@ fn encode_authored_aggregate_result_import(
     ))
 }
 
+fn encode_open_create_import(
+    architecture: Architecture,
+    operation_key: omega_calling_conventions::HostOperationKey,
+    operands: &[omega_target_operations::InstructionOperand],
+    data_symbols: &[std::sync::Arc<str>],
+    plan: &omega_calling_conventions::CallPlan,
+) -> Result<(Vec<u8>, usize, Vec<(usize, OutboundCallRelocationTarget)>), Diagnostic> {
+    use omega_target_operations::InstructionOperandLike;
+
+    if architecture != Architecture::Aarch64
+        || !matches!(
+            (operation_key.capability, operation_key.operation),
+            (
+                omega_calling_conventions::HostCapability::Filesystem,
+                omega_calling_conventions::HostOperation::OpenCreate
+            )
+        )
+    {
+        return Err(Diagnostic::error(
+            "final open-create replay requires the Darwin AArch64 adapter",
+        ));
+    }
+    let [result_operand, path, flags, mode] = operands else {
+        return Err(Diagnostic::error(
+            "final open-create replay requires result, path, flags, and mode operands",
+        ));
+    };
+    let Some((result_region, _, _)) = result_operand.runtime_scalar_integer() else {
+        return Err(Diagnostic::error(
+            "final open-create replay lost its scalar result storage",
+        ));
+    };
+    if !(path.data_address().is_some()
+        || path.runtime_string_pointer().is_some()
+        || path.runtime_pointee_string_pointer().is_some()
+        || path.runtime_storage_address().is_some())
+        || !(flags.immediate_integer().is_some() || flags.runtime_scalar_integer().is_some())
+        || mode.immediate_integer().is_none()
+        || plan.parameters.len() != 3
+    {
+        return Err(Diagnostic::error(
+            "final open-create replay retained an incompatible concrete adapter shape",
+        ));
+    }
+    let result = plan
+        .result
+        .as_ref()
+        .ok_or_else(|| Diagnostic::error("final open-create replay lost its result placement"))?;
+    let [
+        omega_calling_conventions::ValueLocation::Register {
+            register: result_register,
+            value_byte_offset: 0,
+            byte_size,
+        },
+    ] = result.locations.as_slice()
+    else {
+        return Err(Diagnostic::error(
+            "final open-create replay requires one direct result register",
+        ));
+    };
+    if usize::from(*byte_size) != usize::from(result.shape.byte_size) {
+        return Err(Diagnostic::error(
+            "final open-create replay retained a partial result placement",
+        ));
+    }
+
+    let call_operands = operands
+        .iter()
+        .map(aarch64_outbound_syscall_operand)
+        .collect::<Result<Vec<_>, _>>()?;
+    let argument_operands = &call_operands[1..];
+    let argument_width = argument_operands
+        .iter()
+        .map(omega_isa_aarch64::operand_width)
+        .sum::<usize>();
+    let call_site = argument_width
+        + omega_isa_aarch64::host_call_stack_prefix_width_for_placements(
+            &plan.parameters,
+            plan.parameters.len(),
+        );
+    let inner =
+        omega_isa_aarch64::encode_host_call_sequence_value_returning_open_create_from_operands(
+            call_operands.iter().copied(),
+            &plan.parameters,
+            *result_register,
+            usize::from(result.shape.byte_size),
+        )?;
+    let result_site = argument_width
+        + omega_isa_aarch64::host_call_stack_total_width_for_placements(&plan.parameters)
+        + 4;
+    let mut address_sites = vec![(
+        result_site,
+        OutboundCallRelocationTarget::Storage(result_region),
+    )];
+    let mut retained_data_symbols = data_symbols.iter();
+    for (parameter_index, operand) in operands[1..].iter().enumerate() {
+        let storage_region = outbound_relocated_operand_region(operand)
+            .or_else(|| operand.runtime_string_pointer().map(|(region, _)| region))
+            .or_else(|| {
+                operand
+                    .runtime_pointee_string_pointer()
+                    .map(|(region, _)| region)
+            })
+            .or_else(|| operand.runtime_storage_address().map(|(region, _)| region));
+        let target = if let Some(region) = storage_region {
+            OutboundCallRelocationTarget::Storage(region)
+        } else if operand.data_address().is_some() {
+            OutboundCallRelocationTarget::Data(std::sync::Arc::clone(
+                retained_data_symbols.next().ok_or_else(|| {
+                    Diagnostic::error("final open-create replay lost its path data symbol")
+                })?,
+            ))
+        } else {
+            continue;
+        };
+        let site = argument_operands
+            .iter()
+            .take(parameter_index)
+            .map(omega_isa_aarch64::operand_width)
+            .sum::<usize>()
+            + omega_isa_aarch64::host_call_stack_prefix_width_for_placements(
+                &plan.parameters,
+                parameter_index,
+            );
+        address_sites.push((site, target));
+    }
+    if retained_data_symbols.next().is_some() {
+        return Err(Diagnostic::error(
+            "final open-create replay retained an extra path data symbol",
+        ));
+    }
+
+    let mut bytes = omega_isa_aarch64::encode_foreign_float_control_prefix_bytes().to_vec();
+    let prefix_width = omega_isa_aarch64::FOREIGN_FLOAT_CONTROL_PREFIX_WIDTH;
+    bytes.extend(inner);
+    bytes.extend(omega_isa_aarch64::encode_foreign_float_control_suffix_bytes());
+    Ok((
+        bytes,
+        prefix_width + call_site,
+        address_sites
+            .into_iter()
+            .map(|(site, target)| (prefix_width + site, target))
+            .collect(),
+    ))
+}
+
 fn encode_float_parameter_result_import(
     architecture: Architecture,
     operation_key: omega_calling_conventions::HostOperationKey,
@@ -3472,6 +3618,33 @@ fn validate_compiler_function_instruction_boundaries(
                             None,
                             bytes,
                             57u8,
+                            CompilerInstructionRelocationRecipe::PlannedImport {
+                                call_site,
+                                address_sites,
+                                library,
+                                symbol,
+                            },
+                        )
+                    }
+                    omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyOutboundOpenCreateImport {
+                        operation_key,
+                        operands,
+                        data_symbols,
+                        library,
+                        symbol,
+                        plan,
+                    } => {
+                        let (bytes, call_site, address_sites) = encode_open_create_import(
+                            architecture,
+                            operation_key,
+                            &operands,
+                            &data_symbols,
+                            &plan,
+                        )?;
+                        (
+                            None,
+                            bytes,
+                            58u8,
                             CompilerInstructionRelocationRecipe::PlannedImport {
                                 call_site,
                                 address_sites,
@@ -6742,6 +6915,39 @@ fn compiler_instruction_footprint(
                 MachineState::ControlState,
             ]),
         ),
+        CompilerInstructionValidationKind::CompilerBodyOutboundOpenCreateImport {
+            operands,
+            plan,
+            ..
+        } => {
+            let (_, result_offset, result_byte_size) =
+                operands.first()?.runtime_scalar_integer()?;
+            (
+                BoundaryFootprintFragmentOrigin::CompilerBodyOutboundOpenCreateImport,
+                RegisterSet::new(
+                    plan.ordinary_clobbers
+                        .as_slice()
+                        .iter()
+                        .copied()
+                        .chain([MachineRegister::Aarch64X(16)])
+                        .chain(
+                            omega_isa_aarch64::constant_host_result_clobbers(
+                                result_offset,
+                                result_byte_size,
+                            )
+                            .as_slice()
+                            .iter()
+                            .copied(),
+                        ),
+                ),
+                MachineStateSet::new([
+                    MachineState::Flags,
+                    MachineState::InstructionPointer,
+                    MachineState::StackPointer,
+                    MachineState::ControlState,
+                ]),
+            )
+        }
         CompilerInstructionValidationKind::CompilerBodyOutboundStorageImport { plan, .. } => (
             BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImport,
             RegisterSet::new(plan.ordinary_clobbers.as_slice().iter().copied().chain(
@@ -7416,6 +7622,7 @@ fn validate_compiler_body_specification_footprints(
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredAggregateImport
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredAggregateImportResult
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredAggregateResult
+                | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundOpenCreateImport
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImport
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImportResult
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscall
@@ -7596,6 +7803,10 @@ fn validate_compiler_body_specification_footprints(
         (
             42u8,
             BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredAggregateResult,
+        ),
+        (
+            43u8,
+            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundOpenCreateImport,
         ),
     ] {
         let evidence_rows = derived

@@ -1111,7 +1111,7 @@ relocation, and data relocation now consume that complete plan. Their former
 manual `+8`/`+12` stack accounting and trailing-mode operation classifier are
 retired; the operation key only selects the concrete adapter subcall.
 
-Final footprint certificate format v85 now retains an exact
+Final footprint certificate format v86 now retains an exact
 function-to-instruction partition in the encoded carrier. Checked image
 emission replays every contiguous function
 and instruction boundary over relocated final bytes, rejects gaps, overlaps,
@@ -1202,8 +1202,12 @@ requiring its exact fragmented, stack, or caller-copy marshalling and storage
 root. Source-authored aggregate results now use a fifteenth fragment. Replay
 preserves the one result place across AArch64 X/V fragment spills, the hidden
 `x8` destination path, and Microsoft/SysV direct or indirect result plans; the
-exact result root and any argument roots accompany the imported call. Composite
-import adapters remain unfinished.
+exact result root and any argument roots accompany the imported call. Darwin
+`open_create` now uses a sixteenth fragment. Replay regenerates its
+concrete Apple variadic `open(path, flags, mode)` subcall, including the
+anonymous I32 mode at outgoing stack offset zero, exact result/path/optional-
+flags roots, and imported call. Runtime byte/line composite adapters remain
+unfinished.
 Result-bearing runtime-storage-only syscalls continue
 to combine their argument relocation set with the exact result-region
 relocation and AArch64's offset-sensitive result-store scratch under a distinct

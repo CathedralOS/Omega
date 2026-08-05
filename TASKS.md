@@ -882,7 +882,7 @@ proves complete region coverage, and composes admitted leaves under their
 separate provenance. Do not add a second whole-image decoder/admission path.
 
 The existing single final-region artifact now carries the domain-separated
-`omega.final-footprint-certificate` schema, format version 85, and a certificate
+`omega.final-footprint-certificate` schema, format version 86, and a certificate
 fingerprint over its final placement binding, compiler-text derivation, and
 complete region inventory. Its explicit completeness flags remain false until
 compiler-body footprint decoding and admitted-leaf evidence land. The envelope
@@ -1013,7 +1013,10 @@ root. Source-authored aggregate results now use a fifteenth origin. Replay
 preserves the one result place across AArch64 X/V fragment spills, the hidden
 `x8` destination path, and the Microsoft/SysV direct or indirect result plan;
 the exact result root and any argument roots accompany the imported call.
-Composite import adapters remain incomplete.
+Darwin `open_create` now uses a sixteenth origin. Replay regenerates its concrete
+Apple variadic `open(path, flags, mode)` subcall, including the anonymous I32
+mode at outgoing stack offset zero, the exact result/path/optional-flags roots,
+and the imported call. Runtime byte/line composite adapters remain incomplete.
 Result-bearing runtime-storage-only calls
 continue to combine their argument relocations with the exact result-region
 relocation and offset-sensitive result-store scratch under
