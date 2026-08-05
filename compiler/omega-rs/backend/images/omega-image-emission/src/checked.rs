@@ -434,6 +434,149 @@ fn encode_no_result_import(
     ))
 }
 
+fn encode_immediate_result_import(
+    architecture: Architecture,
+    operation_key: omega_calling_conventions::HostOperationKey,
+    operands: &[omega_target_operations::InstructionOperand],
+    plan: &omega_calling_conventions::CallPlan,
+) -> Result<
+    (
+        Vec<u8>,
+        usize,
+        (usize, omega_target_operations::RuntimeStorageRegion),
+    ),
+    Diagnostic,
+> {
+    use omega_target_operations::InstructionOperandLike;
+
+    let result = plan.result.as_ref().ok_or_else(|| {
+        Diagnostic::error("final immediate-result import replay lost its result plan")
+    })?;
+    let Some((result_region, _, _)) = operands
+        .first()
+        .and_then(InstructionOperandLike::runtime_scalar_integer)
+    else {
+        return Err(Diagnostic::error(
+            "final immediate-result import replay lost its scalar result storage",
+        ));
+    };
+    if !matches!(
+        result.shape.class,
+        omega_calling_conventions::ValueClass::Integer
+    ) || plan.parameters.len() + 1 != operands.len()
+        || operands[1..]
+            .iter()
+            .any(|operand| operand.immediate_integer().is_none())
+    {
+        return Err(Diagnostic::error(
+            "final immediate-result import replay requires one integer result and immediate arguments",
+        ));
+    }
+    let (inner, inner_call_site, inner_result_site) = match architecture {
+        Architecture::X86_64 => {
+            let bytes = omega_isa_x86_64::encode_host_call_sequence_with_plan(
+                plan.policy,
+                operation_key,
+                operands,
+                plan,
+            )?;
+            let call_site = omega_isa_x86_64::host_call_external_relocation_site_with_plan(
+                plan.policy,
+                operation_key,
+                operands,
+                plan,
+            )
+            .ok_or_else(|| {
+                Diagnostic::error(
+                    "final x86 immediate-result import replay has no retained-plan call site",
+                )
+            })?
+            .byte_offset;
+            let result_site = omega_isa_x86_64::host_call_data_relocation_site_with_plan(
+                plan.policy,
+                operation_key,
+                operands,
+                0,
+                plan,
+            )
+            .ok_or_else(|| {
+                Diagnostic::error(
+                    "final x86 immediate-result import replay has no retained-plan result site",
+                )
+            })?
+            .byte_offset;
+            (bytes, call_site, result_site)
+        }
+        Architecture::Aarch64 => {
+            let call_operands = operands
+                .iter()
+                .map(aarch64_outbound_syscall_operand)
+                .collect::<Result<Vec<_>, _>>()?;
+            let argument_width = call_operands[1..]
+                .iter()
+                .map(omega_isa_aarch64::operand_width)
+                .sum::<usize>();
+            let call_site = argument_width
+                + omega_isa_aarch64::host_call_stack_prefix_width_for_placements(
+                    &plan.parameters,
+                    plan.parameters.len(),
+                );
+            let result_site = argument_width
+                + omega_isa_aarch64::host_call_stack_total_width_for_placements(&plan.parameters)
+                + 4;
+            let [
+                omega_calling_conventions::ValueLocation::Register {
+                    register: result_register,
+                    value_byte_offset: 0,
+                    byte_size,
+                },
+            ] = result.locations.as_slice()
+            else {
+                return Err(Diagnostic::error(
+                    "final AArch64 immediate-result import replay requires one direct result register",
+                ));
+            };
+            if usize::from(*byte_size) != usize::from(result.shape.byte_size) {
+                return Err(Diagnostic::error(
+                    "final AArch64 immediate-result import replay retained a partial result placement",
+                ));
+            }
+            let bytes = omega_isa_aarch64::encode_host_call_sequence_value_returning_from_operands(
+                call_operands.iter().copied(),
+                &plan.parameters,
+                *result_register,
+                usize::from(result.shape.byte_size),
+            )?;
+            (bytes, call_site, result_site)
+        }
+    };
+    let mut bytes = Vec::new();
+    let prefix_width = match architecture {
+        Architecture::X86_64 => {
+            bytes.extend(omega_isa_x86_64::encode_foreign_float_control_prefix_bytes());
+            omega_isa_x86_64::FOREIGN_FLOAT_CONTROL_PREFIX_WIDTH
+        }
+        Architecture::Aarch64 => {
+            bytes.extend(omega_isa_aarch64::encode_foreign_float_control_prefix_bytes());
+            omega_isa_aarch64::FOREIGN_FLOAT_CONTROL_PREFIX_WIDTH
+        }
+    };
+    bytes.extend(inner);
+    match architecture {
+        Architecture::X86_64 => {
+            bytes.extend(omega_isa_x86_64::encode_foreign_float_control_suffix_bytes())
+        }
+        Architecture::Aarch64 => {
+            bytes.extend(omega_isa_aarch64::encode_foreign_float_control_suffix_bytes())
+        }
+    }
+    Ok((
+        bytes,
+        prefix_width + inner_call_site,
+        (prefix_width + inner_result_site, result_region),
+    ))
+}
+
 fn outbound_syscall_operand_storage_region(
     operand: &omega_target_operations::InstructionOperand,
 ) -> Option<omega_target_operations::RuntimeStorageRegion> {
@@ -2178,6 +2321,31 @@ fn validate_compiler_function_instruction_boundaries(
                             43u8,
                             CompilerInstructionRelocationRecipe::ImmediateImport {
                                 call_site,
+                                library,
+                                symbol,
+                            },
+                        )
+                    }
+                    omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyOutboundImmediateImportResult {
+                        operation_key,
+                        operands,
+                        library,
+                        symbol,
+                        plan,
+                    } => {
+                        let (bytes, call_site, result_site) = encode_immediate_result_import(
+                            architecture,
+                            operation_key,
+                            &operands,
+                            &plan,
+                        )?;
+                        (
+                            None,
+                            bytes,
+                            45u8,
+                            CompilerInstructionRelocationRecipe::StorageImport {
+                                call_site,
+                                storage_sites: vec![result_site],
                                 library,
                                 symbol,
                             },
@@ -5028,6 +5196,44 @@ fn compiler_instruction_footprint(
                 MachineState::ControlState,
             ]),
         ),
+        CompilerInstructionValidationKind::CompilerBodyOutboundImmediateImportResult {
+            operands,
+            plan,
+            ..
+        } => {
+            let (_, result_offset, result_byte_size) =
+                operands.first()?.runtime_scalar_integer()?;
+            let envelope_and_store_scratch = match architecture {
+                Architecture::X86_64 => vec![MachineRegister::X86Rsp],
+                Architecture::Aarch64 => Vec::from_iter(
+                    [MachineRegister::Aarch64X(16)].into_iter().chain(
+                        omega_isa_aarch64::constant_host_result_clobbers(
+                            result_offset,
+                            result_byte_size,
+                        )
+                        .as_slice()
+                        .iter()
+                        .copied(),
+                    ),
+                ),
+            };
+            (
+                BoundaryFootprintFragmentOrigin::CompilerBodyOutboundImmediateImportResult,
+                RegisterSet::new(
+                    plan.ordinary_clobbers
+                        .as_slice()
+                        .iter()
+                        .copied()
+                        .chain(envelope_and_store_scratch),
+                ),
+                MachineStateSet::new([
+                    MachineState::Flags,
+                    MachineState::InstructionPointer,
+                    MachineState::StackPointer,
+                    MachineState::ControlState,
+                ]),
+            )
+        }
         CompilerInstructionValidationKind::CompilerBodyOutboundStorageImport { plan, .. } => (
             BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImport,
             RegisterSet::new(plan.ordinary_clobbers.as_slice().iter().copied().chain(
@@ -5652,6 +5858,7 @@ fn validate_compiler_body_specification_footprints(
                 | BoundaryFootprintFragmentOrigin::CompilerBodyPlaceAddressWrite
                 | BoundaryFootprintFragmentOrigin::CompilerBodyConstantHostResult
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundImmediateImport
+                | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundImmediateImportResult
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImport
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscall
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallDataArguments
@@ -5746,38 +5953,42 @@ fn validate_compiler_body_specification_footprints(
         ),
         (
             21u8,
-            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImport,
+            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundImmediateImportResult,
         ),
         (
             22u8,
-            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscall,
+            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImport,
         ),
         (
             23u8,
-            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallResult,
+            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscall,
         ),
         (
             24u8,
-            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallStorageArguments,
+            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallResult,
         ),
         (
             25u8,
-            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallResultStorageArguments,
+            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallStorageArguments,
         ),
         (
             26u8,
-            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallDataArguments,
+            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallResultStorageArguments,
         ),
         (
             27u8,
-            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallResultDataArguments,
+            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallDataArguments,
         ),
         (
             28u8,
-            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallTimespecArgument,
+            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallResultDataArguments,
         ),
         (
             29u8,
+            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallTimespecArgument,
+        ),
+        (
+            30u8,
             BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallTimespecResult,
         ),
     ] {
@@ -9548,13 +9759,6 @@ fn compiler_import_symbol_matches(
             == omega_object_file::SymbolSection::None
         && object.layout.symbols.get(symbol_handle).name == expected_symbol
         && object.layout.symbols.get(symbol_handle).import_library == expected_library
-        && object
-            .layout
-            .symbols
-            .iter()
-            .filter(|(_, symbol)| symbol.name == expected_symbol)
-            .count()
-            == 1
 }
 
 fn compiler_storage_symbol_matches(
@@ -9590,6 +9794,9 @@ fn compiler_storage_symbol_matches(
                     .filter(|(_, symbol)| {
                         symbol.name.starts_with("omega_machine_")
                             && symbol.name.ends_with("_storage")
+                            && symbol.kind == omega_object_file::SymbolKind::Object
+                            && symbol.section
+                                == omega_object_file::SymbolSection::Section(SectionKind::Bss)
                     })
                     .count()
                     == 1

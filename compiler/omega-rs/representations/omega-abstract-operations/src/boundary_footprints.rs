@@ -18,6 +18,7 @@ pub enum BoundaryFootprintFragmentOrigin {
     CompilerBodyPlaceAddressWrite,
     CompilerBodyConstantHostResult,
     CompilerBodyOutboundImmediateImport,
+    CompilerBodyOutboundImmediateImportResult,
     CompilerBodyOutboundStorageImport,
     CompilerBodyOutboundSyscall,
     CompilerBodyOutboundSyscallDataArguments,
@@ -74,6 +75,7 @@ impl BoundaryFootprintPlan {
                 validate_call_return_mechanics_footprint(boundary, &fragment.evidence)?
             }
             BoundaryFootprintFragmentOrigin::CompilerBodyOutboundImmediateImport
+            | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundImmediateImportResult
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImport
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscall
             | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscallDataArguments
@@ -245,6 +247,17 @@ mod tests {
                 },
             )
             .expect("immediate imports may use their prescribed control state");
+
+        outbound
+            .retain_validated_fragment(
+                &boundary,
+                BoundaryFootprintFragment {
+                    origin:
+                        BoundaryFootprintFragmentOrigin::CompilerBodyOutboundImmediateImportResult,
+                    evidence: control_evidence(),
+                },
+            )
+            .expect("result-bearing immediate imports may use their prescribed control state");
 
         outbound
             .retain_validated_fragment(

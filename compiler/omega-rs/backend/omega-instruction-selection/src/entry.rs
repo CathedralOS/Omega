@@ -1070,10 +1070,29 @@ pub fn derive_boundary_compiler_body_outbound_storage_import_footprint(
     )
 }
 
+/// Derive integer-result built-in imports whose actual arguments are all
+/// immediate integers. The leading runtime scalar is the post-call result
+/// store, not a wire argument.
+pub fn derive_boundary_compiler_body_outbound_immediate_import_result_footprint(
+    boundary: &ValidatedBoundaryEntryPlan,
+    input: &crate::InstructionSelectionInput<'_>,
+    operands: &psi_arena::Arena<omega_abstract_operations::InstructionOperand>,
+    instructions: &[omega_abstract_operations::AbstractOperation],
+) -> Result<StateFootprintEvidence, PlanDiagnostic> {
+    derive_boundary_compiler_body_outbound_direct_import_footprint(
+        boundary,
+        input,
+        operands,
+        instructions,
+        DirectImportArgumentClass::ImmediateResult,
+    )
+}
+
 #[derive(Clone, Copy)]
 enum DirectImportArgumentClass {
     Immediate,
     Storage,
+    ImmediateResult,
 }
 
 fn derive_boundary_compiler_body_outbound_direct_import_footprint(
@@ -1128,27 +1147,48 @@ fn derive_boundary_compiler_body_outbound_direct_import_footprint(
                 operation.operation_key.capability,
                 HostCapability::Custom(_) | HostCapability::Unknown
             )
-            || binding.call_plan().result.is_some()
             || !matches!(binding.call_plan().entry_control, EntryControl::CallReturn)
-            || binding.call_plan().parameters.len() != selected_operands.len()
             || selected_operands.is_empty()
-            || !selected_operands.iter().all(|operand| {
-                matches!(
-                    operand.kind,
-                    InstructionOperandKind::ImmediateInteger(_)
-                        | InstructionOperandKind::RuntimeScalarInteger { .. }
-                )
-            })
             || match argument_class {
-                DirectImportArgumentClass::Immediate => selected_operands.iter().any(|operand| {
-                    !matches!(operand.kind, InstructionOperandKind::ImmediateInteger(_))
-                }),
-                DirectImportArgumentClass::Storage => !selected_operands.iter().any(|operand| {
-                    matches!(
-                        operand.kind,
-                        InstructionOperandKind::RuntimeScalarInteger { .. }
-                    )
-                }),
+                DirectImportArgumentClass::Immediate => {
+                    binding.call_plan().result.is_some()
+                        || binding.call_plan().parameters.len() != selected_operands.len()
+                        || selected_operands.iter().any(|operand| {
+                            !matches!(operand.kind, InstructionOperandKind::ImmediateInteger(_))
+                        })
+                }
+                DirectImportArgumentClass::Storage => {
+                    binding.call_plan().result.is_some()
+                        || binding.call_plan().parameters.len() != selected_operands.len()
+                        || !selected_operands.iter().all(|operand| {
+                            matches!(
+                                operand.kind,
+                                InstructionOperandKind::ImmediateInteger(_)
+                                    | InstructionOperandKind::RuntimeScalarInteger { .. }
+                            )
+                        })
+                        || !selected_operands.iter().any(|operand| {
+                            matches!(
+                                operand.kind,
+                                InstructionOperandKind::RuntimeScalarInteger { .. }
+                            )
+                        })
+                }
+                DirectImportArgumentClass::ImmediateResult => {
+                    !binding.call_plan().result.as_ref().is_some_and(|result| {
+                        matches!(
+                            result.shape.class,
+                            omega_calling_conventions::ValueClass::Integer
+                        )
+                    }) || binding.call_plan().parameters.len() + 1 != selected_operands.len()
+                        || !matches!(
+                            selected_operands.first().map(|operand| &operand.kind),
+                            Some(InstructionOperandKind::RuntimeScalarInteger { .. })
+                        )
+                        || selected_operands[1..].iter().any(|operand| {
+                            !matches!(operand.kind, InstructionOperandKind::ImmediateInteger(_))
+                        })
+                }
             }
         {
             continue;
@@ -1159,6 +1199,21 @@ fn derive_boundary_compiler_body_outbound_direct_import_footprint(
             omega_target::Architecture::X86_64 => registers.push(MachineRegister::X86Rsp),
             omega_target::Architecture::Aarch64 => {
                 registers.push(MachineRegister::Aarch64X(16));
+                if matches!(argument_class, DirectImportArgumentClass::ImmediateResult)
+                    && let Some(omega_abstract_operations::InstructionOperand {
+                        kind:
+                            InstructionOperandKind::RuntimeScalarInteger {
+                                byte_offset,
+                                byte_count,
+                                ..
+                            },
+                    }) = selected_operands.first()
+                {
+                    registers.extend_from_slice(
+                        omega_isa_aarch64::constant_host_result_clobbers(*byte_offset, *byte_count)
+                            .as_slice(),
+                    );
+                }
             }
         }
     }

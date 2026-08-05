@@ -1150,7 +1150,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         executable_regions.contains(
             "\"certificate_schema\": \"omega.final-footprint-certificate\""
         )
-            && executable_regions.contains("\"certificate_format_version\": 76")
+            && executable_regions.contains("\"certificate_format_version\": 77")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
             && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")
@@ -5262,7 +5262,52 @@ fn cross_darwin_time_host_compiles() {
         footprints.contains("\"origin\": \"compiler_body_outbound_immediate_import\""),
         "Darwin literal _exit calls must retain their exact direct-import footprint"
     );
+    assert!(
+        footprints.contains("\"origin\": \"compiler_body_outbound_immediate_import_result\""),
+        "Darwin clock calls with injected clock IDs must retain their result-import footprint"
+    );
     let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn integer_result_imports_compile_on_windows_and_darwin() {
+    // One source pins both closed integer-result import shapes: Windows
+    // GetTickCount64 has no arguments, while Darwin injects an immediate clock
+    // ID before calling clock_gettime_nsec_np.
+    let canary = pass_canary("host/runtime_tick_count_monotonic_exit");
+    for target in ["windows_x64", "macos_arm64"] {
+        let scratch = std::env::temp_dir().join(format!(
+            "omega-result-import-{target}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&scratch);
+        let source_dir = scratch.join("src");
+        let build_dir = scratch.join("out");
+        fs::create_dir_all(&source_dir).expect("integer-result import source directory");
+        fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
+            .expect("copy integer-result import source");
+        fs::write(
+            source_dir.join("build.omg"),
+            format!("target {target} {{\n}}\n"),
+        )
+        .expect("write integer-result import target manifest");
+        compile(CompileOptions {
+            root_path: source_dir.join("main.omg"),
+            build_dir: Some(build_dir.clone()),
+            target_name: Some(target.into()),
+            write_output: true,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!("integer-result import cross-compile failed for {target}: {diagnostics:#?}")
+        });
+        let footprints = fs::read_to_string(build_dir.join("08_boundary_footprints.json"))
+            .expect("integer-result import footprints should be written");
+        assert!(
+            footprints.contains("\"origin\": \"compiler_body_outbound_immediate_import_result\""),
+            "{target} integer-result imports must retain their final replay footprint"
+        );
+        let _ = fs::remove_dir_all(&scratch);
+    }
 }
 
 #[test]
