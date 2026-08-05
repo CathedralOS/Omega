@@ -1053,12 +1053,16 @@ array elements. An inline-frame target may take its index from frame or machine
 storage and reuses the machine index base for a machine-resident source.
 Double-runtime-indexed reads from inline frame or machine arrays, the
 machine-array write-side mirror, the all-frame AArch64 write from direct frame
-or machine storage, and both machine-inline and all-frame single- and double-
+or machine storage, and both machine-inline and frame-inline single- and double-
 indexed pair copies are covered. Each all-frame pair shares one frame root
 across both array walks and all of its index slots.
 The all-frame read and write copy complete aggregate byte spans rather than
 only scalar widths, share one frame relocation across the collection and both
 indices, and add a distinct source relocation only for machine storage.
+Frame-inline single-indexed pair copies retain independently placed indices on
+both array walks. One frame root at byte 0 supplies both collections and every
+frame-held index, while one exact machine root at byte 12 supplies either
+machine-held index; the complete aggregate span is copied and replayed.
 Frame-inline double-indexed direct reads and writes also retain mixed machine/
 frame indices. A read uses the frame collection root at byte 0, one machine-
 index root at byte 8 when needed, and its shifted direct-target root; a write
@@ -1066,9 +1070,9 @@ uses the frame target root at byte 0 and one shared machine root at byte 12 for
 a machine source and/or either machine-held index. Both directions copy the
 complete aggregate span. Frame-inline double-indexed pair copies also retain
 independently placed indices on both array walks. One frame root at byte 0
-supplies both collections
-and every frame-held index, while one exact machine root at byte 12 supplies
-any of the four machine-held indices; the complete aggregate span is copied
+supplies both collections and every frame-held index, while one exact machine
+root at byte 12 supplies any of the four machine-held indices; the complete
+aggregate span is copied
 and replayed. An all-frame double-indexed source may also target a
 frame-held pointee: the collection, both indices, and pointer slot reuse that
 one frame root, and the

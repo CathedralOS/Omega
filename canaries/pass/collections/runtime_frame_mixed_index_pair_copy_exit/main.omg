@@ -1,0 +1,29 @@
+// Frame-inline aggregate pair copies with mixed index regions in both
+// directions. The local arrays are frame-rooted, `self.index` is machine-held,
+// and `j`/`k` are frame-held state parameters.
+use omega::language::std::console;
+data Triple { first: i32; second: i32; third: i32; }
+data Main {
+    console: Console;
+    index: u64 [0..=3];
+}
+machine Main::main(&mut self) {
+    self.index = 2;
+    transition { _ -> self.copy(3, 1) }
+}
+machine Main::copy(&mut self, k: u64 [0..=3], j: u64 [0..=3]) {
+    let local: [Triple; 4] = [
+        Triple { first: 1, second: 2, third: 3 },
+        Triple { first: 10, second: 20, third: 30 },
+        Triple { first: 4, second: 5, third: 6 },
+        Triple { first: 7, second: 8, third: 9 }
+    ];
+    local[self.index] = local[j];
+    local[k] = local[self.index];
+    transition local[2].first == 10 && local[2].second == 20 && local[2].third == 30 && local[3].first == 10 && local[3].second == 20 && local[3].third == 30 {
+        true -> yes()
+        false -> no()
+    }
+    state yes(&mut self) { self.console.exit_process(1); }
+    state no(&mut self) { self.console.exit_process(2); }
+}

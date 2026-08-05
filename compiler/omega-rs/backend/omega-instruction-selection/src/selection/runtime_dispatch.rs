@@ -1754,16 +1754,18 @@ pub(crate) fn copy_places_pointee_to_machine_indexed(
     }
 }
 
-/// `arr[i] = arr[j]` on all-frame inline arrays -- one runtime index each
-/// side, with the arrays and index slots sharing the runtime frame.
+/// `arr[i] = arr[j]` on frame-inline arrays. Frame-held index slots share the
+/// runtime frame; machine-held index slots share one machine root.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn copy_places_frame_base_indexed_pair(
     source_base_byte_offset: usize,
+    source_index_region: RuntimeStorageRegion,
     source_index_offset: usize,
     source_index_byte_size: usize,
     source_element_byte_size: usize,
     source_field_byte_offset: usize,
     target_base_byte_offset: usize,
+    target_index_region: RuntimeStorageRegion,
     target_index_offset: usize,
     target_index_byte_size: usize,
     target_element_byte_size: usize,
@@ -1771,15 +1773,17 @@ pub(crate) fn copy_places_frame_base_indexed_pair(
     byte_count: usize,
 ) -> SelectedInstructionKind {
     SelectedInstructionKind::CopyPlaces {
-        source: frame_base_indexed_place(
+        source: frame_base_indexed_place_with_index_region(
             source_base_byte_offset,
+            source_index_region,
             source_index_offset,
             source_index_byte_size,
             source_element_byte_size,
             source_field_byte_offset,
         ),
-        target: frame_base_indexed_place(
+        target: frame_base_indexed_place_with_index_region(
             target_base_byte_offset,
+            target_index_region,
             target_index_offset,
             target_index_byte_size,
             target_element_byte_size,

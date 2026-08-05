@@ -3508,22 +3508,26 @@ pub fn encode_copy_places(
             ),
             CopyPlacesShape::FrameBaseIndexedPair {
                 source_base_byte_offset,
+                source_index_region,
                 source_index_offset,
                 source_index_byte_size,
                 source_element_byte_size,
                 source_field_byte_offset,
                 target_base_byte_offset,
+                target_index_region,
                 target_index_offset,
                 target_index_byte_size,
                 target_element_byte_size,
                 target_field_byte_offset,
             } => aarch64::encode_runtime_storage_copy_frame_base_indexed_to_frame_base_indexed(
                 source_base_byte_offset,
+                source_index_region,
                 source_index_offset,
                 source_index_byte_size,
                 source_element_byte_size,
                 source_field_byte_offset,
                 target_base_byte_offset,
+                target_index_region,
                 target_index_offset,
                 target_index_byte_size,
                 target_element_byte_size,
@@ -3948,15 +3952,17 @@ pub enum CopyPlacesShape {
         target_element_byte_size: usize,
         target_field_byte_offset: usize,
     },
-    /// `arr[i] = arr[j]` on all-frame inline arrays: one runtime index per
-    /// side, with both arrays and both index slots sharing one frame base.
+    /// `arr[i] = arr[j]` on frame-inline arrays. Each runtime index retains its
+    /// own storage region.
     FrameBaseIndexedPair {
         source_base_byte_offset: usize,
+        source_index_region: omega_target_operations::RuntimeStorageRegion,
         source_index_offset: usize,
         source_index_byte_size: usize,
         source_element_byte_size: usize,
         source_field_byte_offset: usize,
         target_base_byte_offset: usize,
+        target_index_region: omega_target_operations::RuntimeStorageRegion,
         target_index_offset: usize,
         target_index_byte_size: usize,
         target_element_byte_size: usize,
@@ -4250,19 +4256,17 @@ pub fn classify_copy_places_shape(
                 };
             }
             if source.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
-                && indexed.index_region
-                    == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
                 && target.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
-                && target_indexed.index_region
-                    == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
             {
                 return CopyPlacesShape::FrameBaseIndexedPair {
                     source_base_byte_offset: indexed.pointer_offset,
+                    source_index_region: indexed.index_region,
                     source_index_offset: indexed.index_offset,
                     source_index_byte_size: indexed.index_byte_size,
                     source_element_byte_size: indexed.element_byte_size,
                     source_field_byte_offset: indexed.field_offset,
                     target_base_byte_offset: target_indexed.pointer_offset,
+                    target_index_region: target_indexed.index_region,
                     target_index_offset: target_indexed.index_offset,
                     target_index_byte_size: target_indexed.index_byte_size,
                     target_element_byte_size: target_indexed.element_byte_size,
@@ -5385,8 +5389,10 @@ mod tests {
             classify_copy_places_shape(&indexed_source, &indexed_target),
             CopyPlacesShape::FrameBaseIndexedPair {
                 source_base_byte_offset: 32,
+                source_index_region: RuntimeStorageRegion::RuntimeFrame,
                 source_index_offset: 104,
                 target_base_byte_offset: 160,
+                target_index_region: RuntimeStorageRegion::RuntimeFrame,
                 target_index_offset: 112,
                 ..
             }
@@ -5397,8 +5403,37 @@ mod tests {
         assert_eq!(
             indexed_pair.len(),
             omega_isa_aarch64::runtime_storage_copy_frame_base_indexed_to_frame_base_indexed_width(
+                RuntimeStorageRegion::RuntimeFrame,
+                RuntimeStorageRegion::RuntimeFrame,
                 12,
             )
+        );
+
+        let mixed_indexed_source = Place::at(RuntimeStorageRegion::RuntimeFrame, 32)
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::Machine,
+                index_offset: 104,
+                index_byte_size: 8,
+                element_byte_size: 12,
+            })
+            .expect("mixed-index frame source");
+        assert!(matches!(
+            classify_copy_places_shape(&mixed_indexed_source, &indexed_target),
+            CopyPlacesShape::FrameBaseIndexedPair {
+                source_index_region: RuntimeStorageRegion::Machine,
+                target_index_region: RuntimeStorageRegion::RuntimeFrame,
+                ..
+            }
+        ));
+        assert!(
+            !encode_copy_places(
+                Architecture::Aarch64,
+                &mixed_indexed_source,
+                &indexed_target,
+                12,
+            )
+            .expect("encode retained mixed-index frame pair")
+            .is_empty()
         );
     }
 }

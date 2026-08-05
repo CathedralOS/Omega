@@ -1,7 +1,8 @@
 // DUAL-indexed copies with BOTH indices FRAME-resident params. The machine
 // array (`self.arr[k] = self.arr[j]`) retains its independent machine roots;
-// the local aggregate array (`local[k] = local[j]`) shares one frame root
-// across both array walks and both index slots. Whole-Triple values also cross
+// the local aggregate array shares one frame root across both array walks and
+// every frame-held index, plus one machine root when either index is
+// `self.index`. Whole-Triple values also cross
 // a frame-held pointee in both directions while the array, index, and pointer
 // slot retain that one frame root, then repeat with the index in machine
 // storage and its exact second root.
@@ -37,6 +38,8 @@ machine Main::copy_elem(&mut self, k: u64 [0..=3], j: u64 [0..=3]) {
         Triple { first: 80, second: 81, third: 82 }
     ];
     local[k] = local[j];
+    local[self.index] = local[j];
+    local[k] = local[self.index];
     let selected: &mut Triple = &mut target[k];
     selected = source[j];
     let reverse: &mut Triple = &mut source[k];
@@ -48,7 +51,7 @@ machine Main::copy_elem(&mut self, k: u64 [0..=3], j: u64 [0..=3]) {
     cross_reverse = Triple { first: 100, second: 101, third: 102 };
     target[self.index] = cross_reverse;
     self.arr[k] = self.arr[j];
-    transition self.arr[3] == 77 && local[3].first == 10 && local[3].second == 20 && local[3].third == 30 && target[3].first == 34 && target[3].second == 35 && target[3].third == 36 && target[1].first == 90 && target[1].second == 91 && target[1].third == 92 && target[2].first == 100 && target[2].second == 101 && target[2].third == 102 {
+    transition self.arr[3] == 77 && local[2].first == 10 && local[2].second == 20 && local[2].third == 30 && local[3].first == 10 && local[3].second == 20 && local[3].third == 30 && target[3].first == 34 && target[3].second == 35 && target[3].third == 36 && target[1].first == 90 && target[1].second == 91 && target[1].third == 92 && target[2].first == 100 && target[2].second == 101 && target[2].third == 102 {
         true -> yes()
         false -> no()
     }

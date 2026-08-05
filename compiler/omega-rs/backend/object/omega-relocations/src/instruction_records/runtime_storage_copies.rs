@@ -203,15 +203,26 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                         | omega_instruction_selection::CopyPlacesShape::IndexedToPointee {
                             ..
                         }
-                        | omega_instruction_selection::CopyPlacesShape::FrameBaseIndexedPair {
-                            ..
-                        }
                         | omega_instruction_selection::CopyPlacesShape::FromFrameBaseIndexed {
                             ..
                         } => {
                             // Frame-rooted on both sides (the decompose's
                             // precondition): one frame base serves the
                             // array/descriptor, index, and the other side.
+                        }
+                        omega_instruction_selection::CopyPlacesShape::FrameBaseIndexedPair {
+                            source_index_region,
+                            target_index_region,
+                            ..
+                        } => {
+                            let machine =
+                                omega_target_operations::RuntimeStorageRegion::Machine;
+                            if source_index_region == machine || target_index_region == machine {
+                                context.insert_data_address_at_relative_offset(
+                                    12,
+                                    context.storage_region_symbol_handle(machine),
+                                );
+                            }
                         }
                         omega_instruction_selection::CopyPlacesShape::FrameBaseDoubleIndexedPair {
                             source_outer_index_region,
