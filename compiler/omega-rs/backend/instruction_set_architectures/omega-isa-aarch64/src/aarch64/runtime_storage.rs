@@ -4633,6 +4633,7 @@ pub fn encode_runtime_storage_copy_to_runtime_frame_base_indexed_from_runtime_st
     source_region: omega_target_operations::RuntimeStorageRegion,
     source_offset: usize,
     base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
     index_offset: usize,
     index_byte_size: usize,
     element_byte_size: usize,
@@ -4648,6 +4649,7 @@ pub fn encode_runtime_storage_copy_to_runtime_frame_base_indexed_from_runtime_st
         source_region,
         source_offset,
         base_byte_offset,
+        index_region,
         index_offset,
         index_byte_size,
         element_byte_size,
@@ -4655,10 +4657,11 @@ pub fn encode_runtime_storage_copy_to_runtime_frame_base_indexed_from_runtime_st
         byte_count,
     );
     let mut bytes = Vec::with_capacity(expected_width);
-    append_runtime_frame_base_index_target_address(
+    append_runtime_frame_base_index_target_address_with_index_region(
         &mut bytes,
         16,
         base_byte_offset,
+        index_region,
         index_offset,
         index_byte_size,
         element_byte_size,
@@ -4669,6 +4672,8 @@ pub fn encode_runtime_storage_copy_to_runtime_frame_base_indexed_from_runtime_st
     let source_base =
         if source_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
             20
+        } else if index_region == omega_target_operations::RuntimeStorageRegion::Machine {
+            15
         } else {
             bytes.extend(encode_adrp_placeholder(15));
             bytes.extend(encode_add_page_offset_placeholder(15));
@@ -4685,6 +4690,7 @@ pub fn encode_runtime_storage_copy_to_runtime_frame_base_indexed_from_runtime_st
 
 pub fn runtime_storage_copy_to_runtime_frame_base_indexed_clobbers(
     source_region: omega_target_operations::RuntimeStorageRegion,
+    index_region: omega_target_operations::RuntimeStorageRegion,
 ) -> RegisterSet {
     let mut registers = vec![
         MachineRegister::Aarch64X(16),
@@ -4694,7 +4700,9 @@ pub fn runtime_storage_copy_to_runtime_frame_base_indexed_clobbers(
         MachineRegister::Aarch64X(24),
         MachineRegister::Aarch64X(26),
     ];
-    if source_region == omega_target_operations::RuntimeStorageRegion::Machine {
+    if source_region == omega_target_operations::RuntimeStorageRegion::Machine
+        || index_region == omega_target_operations::RuntimeStorageRegion::Machine
+    {
         registers.push(MachineRegister::Aarch64X(15));
     }
     RegisterSet::new(registers)
@@ -6300,6 +6308,49 @@ fn append_runtime_frame_base_index_target_address_with_index_width(
     bytes.extend(encode_move_x_register(address_register, 20));
     append_add_constant_to_x_register(bytes, address_register, base_byte_offset)?;
     append_load_data_from_x_offset(bytes, index_scratch, 20, index_offset, index_byte_size, 19)?;
+    append_scale_x_register_by_constant(bytes, scale_scratch, index_scratch, element_byte_size)?;
+    bytes.extend(encode_add_x_register(
+        address_register,
+        address_register,
+        scale_scratch,
+    ));
+    append_add_constant_to_x_register(bytes, address_register, field_byte_offset)?;
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn append_runtime_frame_base_index_target_address_with_index_region(
+    bytes: &mut Vec<u8>,
+    address_register: u8,
+    base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    index_scratch: u8,
+    scale_scratch: u8,
+) -> Result<(), Diagnostic> {
+    bytes.extend(encode_adrp_placeholder(20));
+    bytes.extend(encode_add_page_offset_placeholder(20));
+    bytes.extend(encode_move_x_register(address_register, 20));
+    append_add_constant_to_x_register(bytes, address_register, base_byte_offset)?;
+    let index_base = if index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+    {
+        20
+    } else {
+        bytes.extend(encode_adrp_placeholder(15));
+        bytes.extend(encode_add_page_offset_placeholder(15));
+        15
+    };
+    append_load_data_from_x_offset(
+        bytes,
+        index_scratch,
+        index_base,
+        index_offset,
+        index_byte_size,
+        19,
+    )?;
     append_scale_x_register_by_constant(bytes, scale_scratch, index_scratch, element_byte_size)?;
     bytes.extend(encode_add_x_register(
         address_register,
@@ -10212,28 +10263,31 @@ mod tests {
     }
 
     #[test]
-    fn frame_base_indexed_storage_write_separates_machine_source_base() {
+    fn frame_base_indexed_storage_write_reuses_or_separates_machine_base() {
         let frame = omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
         let machine = omega_target_operations::RuntimeStorageRegion::Machine;
         for source_region in [frame, machine] {
-            let bytes =
-                encode_runtime_storage_copy_to_runtime_frame_base_indexed_from_runtime_storage(
-                    source_region,
-                    88,
-                    24,
-                    64,
-                    8,
-                    8,
-                    0,
-                    8,
-                )
-                .expect("encode frame-base-indexed storage write");
-            assert_eq!(
+            for index_region in [frame, machine] {
+                let bytes =
+                    encode_runtime_storage_copy_to_runtime_frame_base_indexed_from_runtime_storage(
+                        source_region,
+                        88,
+                        24,
+                        index_region,
+                        64,
+                        8,
+                        8,
+                        0,
+                        8,
+                    )
+                    .expect("encode frame-base-indexed storage write");
+                assert_eq!(
                 bytes.len(),
                 widths::runtime_storage_copy_to_runtime_frame_base_indexed_from_runtime_storage_width(
                     source_region,
                     88,
                     24,
+                    index_region,
                     64,
                     8,
                     8,
@@ -10241,18 +10295,38 @@ mod tests {
                     8,
                 )
             );
-            if source_region == machine {
-                let source_site =
-                    widths::runtime_frame_base_indexed_operand_start_width(24, 64, 8, 8, 0);
-                assert_eq!(
-                    &bytes[source_site..source_site + 8],
-                    [
-                        encode_adrp_placeholder(15),
-                        encode_add_page_offset_placeholder(15)
-                    ]
-                    .concat(),
-                    "a machine source owns an independent base pair"
-                );
+                if index_region == machine {
+                    let index_site =
+                        widths::runtime_frame_base_indexed_machine_index_base_offset(24);
+                    assert_eq!(
+                        &bytes[index_site..index_site + 8],
+                        [
+                            encode_adrp_placeholder(15),
+                            encode_add_page_offset_placeholder(15)
+                        ]
+                        .concat(),
+                        "a machine index owns the reusable machine base pair"
+                    );
+                } else if source_region == machine {
+                    let source_site =
+                        widths::runtime_frame_base_indexed_operand_start_width_with_index_region(
+                            24,
+                            index_region,
+                            64,
+                            8,
+                            8,
+                            0,
+                        );
+                    assert_eq!(
+                        &bytes[source_site..source_site + 8],
+                        [
+                            encode_adrp_placeholder(15),
+                            encode_add_page_offset_placeholder(15)
+                        ]
+                        .concat(),
+                        "a machine-only source owns an independent base pair"
+                    );
+                }
             }
         }
     }

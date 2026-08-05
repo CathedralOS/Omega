@@ -1049,7 +1049,8 @@ machine-storage index and retains its distinct base relocation and scratch.
 Runtime-indexed reads from inline frame arrays into direct frame storage are
 also covered, as are inline machine-array reads into direct frame or machine
 storage and direct-storage writes into runtime-indexed inline frame or machine-
-array elements.
+array elements. An inline-frame target may take its index from frame or machine
+storage and reuses the machine index base for a machine-resident source.
 Double-runtime-indexed reads from inline frame or machine arrays, the
 machine-array write-side mirror, the all-frame AArch64 write from direct frame
 or machine storage, and the machine-inline `arr[i] = arr[j]` pair are covered.

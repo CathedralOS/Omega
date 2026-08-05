@@ -1258,9 +1258,10 @@ machine-base relocation. Runtime-indexed reads from inline
 frame arrays into
 direct frame storage and from inline machine arrays into direct frame or
 machine storage are included too, together with direct-storage writes into
-runtime-indexed inline frame or machine-array elements and double-runtime-
-indexed reads from
-inline frame or machine arrays. Their `Ordinary` role remains distinct from
+runtime-indexed inline frame or machine-array elements. An inline-frame target
+may take its index from frame or machine storage and reuses the machine index
+base for a machine-resident source. Double-runtime-indexed reads from
+inline frame or machine arrays are included as well. Their `Ordinary` role remains distinct from
 hidden-result copies. The machine-array write-side mirror, the all-frame
 AArch64 write from direct frame or machine storage, and the machine-inline
 `arr[i] = arr[j]` pair are included. The all-frame target shares one frame

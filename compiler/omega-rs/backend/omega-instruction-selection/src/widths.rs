@@ -1887,6 +1887,44 @@ pub fn runtime_frame_base_indexed_operand_start_width(
     }
 }
 
+pub fn runtime_frame_base_indexed_machine_index_base_offset(
+    architecture: Architecture,
+    base_byte_offset: usize,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::runtime_frame_base_indexed_machine_index_base_offset(base_byte_offset)
+        }
+        Architecture::X86_64 => 0,
+    }
+}
+
+pub fn runtime_frame_base_indexed_operand_start_width_with_index_region(
+    architecture: Architecture,
+    base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::runtime_frame_base_indexed_operand_start_width_with_index_region(
+                base_byte_offset,
+                index_region,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+            )
+        }
+        Architecture::X86_64 => {
+            x86_64::runtime_frame_base_indexed_binary_left_operand_offset(index_byte_size)
+        }
+    }
+}
+
 pub fn runtime_frame_base_indexed_binary_write_width(
     architecture: Architecture,
     runtime_value_operands: &impl RuntimeValueOperandSource,

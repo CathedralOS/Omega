@@ -2805,6 +2805,7 @@ pub fn encode_copy_places(
             CopyPlacesShape::ToFrameBaseIndexed {
                 source_offset,
                 base_byte_offset,
+                index_region,
                 index_offset,
                 index_byte_size,
                 element_byte_size,
@@ -2813,6 +2814,7 @@ pub fn encode_copy_places(
                 source.region,
                 source_offset,
                 base_byte_offset,
+                index_region,
                 index_offset,
                 index_byte_size,
                 element_byte_size,
@@ -3078,11 +3080,12 @@ pub enum CopyPlacesShape {
         field_byte_offset: usize,
         target_offset: usize,
     },
-    /// A direct storage slot written into a frame-resident inline array at a
-    /// frame-resident runtime index.
+    /// A direct storage slot written into a frame-resident inline array. The
+    /// runtime index retains its own storage region.
     ToFrameBaseIndexed {
         source_offset: usize,
         base_byte_offset: usize,
+        index_region: omega_target_operations::RuntimeStorageRegion,
         index_offset: usize,
         index_byte_size: usize,
         element_byte_size: usize,
@@ -3305,12 +3308,12 @@ pub fn classify_copy_places_shape(
     }
     if let Some(indexed) = direct_indexed_path(target) {
         if target.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
-            && indexed.index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
             && let Some(source_offset) = source.const_offset()
         {
             return CopyPlacesShape::ToFrameBaseIndexed {
                 source_offset,
                 base_byte_offset: indexed.pointer_offset,
+                index_region: indexed.index_region,
                 index_offset: indexed.index_offset,
                 index_byte_size: indexed.index_byte_size,
                 element_byte_size: indexed.element_byte_size,

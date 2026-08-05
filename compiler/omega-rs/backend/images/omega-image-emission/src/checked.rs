@@ -2593,6 +2593,7 @@ enum CompilerBodyPlaceCopyShape {
     ToFrameBaseIndexed {
         source_offset: usize,
         base_byte_offset: usize,
+        index_region: omega_target_operations::RuntimeStorageRegion,
         index_offset: usize,
         index_byte_size: usize,
         element_byte_size: usize,
@@ -3499,6 +3500,7 @@ fn validate_compiler_function_instruction_boundaries(
                                     CompilerBodyPlaceCopyShape::ToFrameBaseIndexed {
                                         source_offset,
                                         base_byte_offset,
+                                        index_region,
                                         index_offset,
                                         index_byte_size,
                                         element_byte_size,
@@ -3507,6 +3509,7 @@ fn validate_compiler_function_instruction_boundaries(
                                         source.region,
                                         source_offset,
                                         base_byte_offset,
+                                        index_region,
                                         index_offset,
                                         index_byte_size,
                                         element_byte_size,
@@ -7307,9 +7310,10 @@ fn compiler_instruction_footprint(
                         CompilerBodyPlaceCopyShape::FromFrameBaseIndexed { .. } => {
                             omega_isa_aarch64::runtime_storage_copy_from_runtime_frame_base_indexed_clobbers()
                         }
-                        CompilerBodyPlaceCopyShape::ToFrameBaseIndexed { .. } => {
+                        CompilerBodyPlaceCopyShape::ToFrameBaseIndexed { index_region, .. } => {
                             omega_isa_aarch64::runtime_storage_copy_to_runtime_frame_base_indexed_clobbers(
                                 source.region,
+                                index_region,
                             )
                         }
                         CompilerBodyPlaceCopyShape::FromMachineIndexed { .. } => {
@@ -9160,6 +9164,7 @@ fn compiler_place_copy_address_sites(
             }
             CompilerBodyPlaceCopyShape::ToFrameBaseIndexed {
                 base_byte_offset,
+                index_region,
                 index_offset,
                 index_byte_size,
                 element_byte_size,
@@ -9167,10 +9172,18 @@ fn compiler_place_copy_address_sites(
                 ..
             } => {
                 let mut sites = vec![(0, target.region)];
-                if source.region == omega_target_operations::RuntimeStorageRegion::Machine {
+                if index_region == omega_target_operations::RuntimeStorageRegion::Machine {
                     sites.push((
-                        omega_isa_aarch64::runtime_frame_base_indexed_operand_start_width(
+                        omega_isa_aarch64::runtime_frame_base_indexed_machine_index_base_offset(
                             base_byte_offset,
+                        ),
+                        index_region,
+                    ));
+                } else if source.region == omega_target_operations::RuntimeStorageRegion::Machine {
+                    sites.push((
+                        omega_isa_aarch64::runtime_frame_base_indexed_operand_start_width_with_index_region(
+                            base_byte_offset,
+                            index_region,
                             index_offset,
                             index_byte_size,
                             element_byte_size,
@@ -9518,11 +9531,11 @@ fn compiler_body_place_copy_shape(
             element_byte_size,
             field_byte_offset,
         )) = compiler_single_direct_indexed_place_offsets(target)
-        && index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
     {
         return Ok(CompilerBodyPlaceCopyShape::ToFrameBaseIndexed {
             source_offset,
             base_byte_offset,
+            index_region,
             index_offset,
             index_byte_size,
             element_byte_size,
