@@ -44,7 +44,11 @@ machine Main::main(&mut self) {
             [Label { text: "a" }, Label { text: "b" }, Label { text: "c" }],
             [Label { text: "d" }, Label { text: "e" }, Label { text: "old" }]
         ];
-        labels[i][j].text = "omega";
+        let suffix: Label;
+        suffix.text = "ga";
+        labels[i][j].text = "o";
+        labels[i][j].text = labels[i][j].text + "me";
+        labels[i][j].text = labels[i][j].text + suffix.text;
         transition picked == 8 && rooms[1][2].description == "omega" && labels[1][2].text == "omega" {
             true -> machine_target()
             false -> no()

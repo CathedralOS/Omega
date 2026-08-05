@@ -2815,9 +2815,18 @@ pub fn derive_boundary_compiler_body_place_bounded_buffer_write_footprint<'instr
             || (append_kind == 1
                 && crate::classify_frame_base_indexed_bounded_buffer_literal_append_shape(target)
                     .is_some())
+            || (append_kind == 1
+                && crate::classify_frame_base_double_indexed_bounded_buffer_literal_append_shape(
+                    target,
+                )
+                .is_some())
             || (append_kind == 2
-                && crate::classify_frame_base_indexed_bounded_buffer_source_append_shape(target)
+                && (crate::classify_frame_base_indexed_bounded_buffer_source_append_shape(target)
                     .is_some()
+                    || crate::classify_frame_base_double_indexed_bounded_buffer_source_append_shape(
+                        target,
+                    )
+                    .is_some())
                 && source.is_some_and(|source| {
                     matches!(
                         crate::classify_write_place_shape(source),

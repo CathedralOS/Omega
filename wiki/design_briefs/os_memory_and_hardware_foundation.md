@@ -1145,10 +1145,13 @@ runtime-indexed carriers reuse one frame relocation for the collection and both
 indices. Literal appends
 replay all x86 targets and every classified AArch64 target with a separate
 encoder and relocation recipe, including inline-frame targets whose index is
-frame- or machine-held and the exact second-base relocation. Source-carrier
-appends share that target set too: x86 replays both general place walks;
-AArch64 serves every classified target with a direct or pointee source and
-replays the indexed target walk, source walk, and copy-loop state.
+frame- or machine-held and the exact second-base relocation. All-frame double-
+runtime-indexed literal-append targets reuse one frame relocation for the
+carrier and both indices. Source-carrier appends share that target set too: x86
+replays both general place walks; AArch64 serves every classified target with a
+direct or pointee source and replays the indexed target walk, source walk, and
+copy-loop state. Its all-frame double-indexed target also reuses one frame
+relocation.
 String-descriptor writes are inside the proof for all x86 targets and the
 direct, pointee, frame-indexed, cross-region frame-indexed, inline-frame-
 indexed, and single- or double-runtime-indexed machine-storage AArch64 shapes,

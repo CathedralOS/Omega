@@ -1433,6 +1433,12 @@ fn bounded_buffer_literal_append_tail_width(literal: &str) -> usize {
     20 + bounded_buffer_literal_bytes_width(literal)
 }
 
+pub fn runtime_frame_base_double_indexed_bounded_buffer_literal_append_width(
+    literal: &str,
+) -> usize {
+    8 + 36 + bounded_buffer_literal_append_tail_width(literal)
+}
+
 pub fn runtime_frame_indexed_bounded_buffer_literal_append_width(
     index_region: omega_target_operations::RuntimeStorageRegion,
     element_byte_size: usize,

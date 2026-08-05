@@ -1,6 +1,7 @@
 use crate::InstructionSelectionInput;
 use crate::selection::instruction_sink::SelectedInstructionSink;
 use crate::selection::storage_places::{
+    resolve_runtime_frame_base_double_indexed_source_in_table,
     resolve_runtime_frame_base_indexed_target_with_index_region,
     resolve_runtime_frame_indexed_target, resolve_runtime_machine_double_indexed_source,
     resolve_runtime_machine_indexed_target, resolve_runtime_machine_indexed_target_in_table,
@@ -66,6 +67,30 @@ pub(in crate::selection) fn resolve_bounded_buffer_target_place(
                 target.field_byte_offset,
             ),
         );
+    }
+    let mut frame_double_expressions = psi_checked_trees::expression::ExpressionTable::default();
+    let frame_double_handle = frame_double_expressions.insert_tree(expression);
+    if let Some(target) = resolve_runtime_frame_base_double_indexed_source_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        &frame_double_expressions,
+        frame_double_handle,
+    ) && target.is_bounded_byte_buffer
+    {
+        return Some(crate::selection::runtime_dispatch::double_indexed_place(
+            omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+            target.base_byte_offset,
+            omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+            target.outer_index_offset,
+            target.outer_index_byte_size,
+            target.outer_stride,
+            omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+            target.inner_index_offset,
+            target.inner_index_byte_size,
+            target.inner_stride,
+            target.field_byte_offset,
+        ));
     }
     if let Some(target) =
         resolve_runtime_machine_double_indexed_source(input, dispatch_index, source_key, expression)
