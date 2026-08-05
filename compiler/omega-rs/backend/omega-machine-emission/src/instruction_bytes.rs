@@ -577,6 +577,44 @@ fn compiler_instruction_validation_kind(
             else {
                 return Ok(None);
             };
+            if let omega_calling_conventions::HostBindingMechanism::Import { library, symbol } =
+                &binding.mechanism
+            {
+                if matches!(
+                    operation_key.capability,
+                    omega_calling_conventions::HostCapability::Custom(_)
+                        | omega_calling_conventions::HostCapability::Unknown
+                ) || binding.call_plan().result.is_some()
+                {
+                    return Ok(None);
+                }
+                let operands = emission_context
+                    .assigned_target_operations
+                    .instruction_operands(*operands)
+                    .ok_or_else(|| {
+                        Diagnostic::error("compiler outbound import lost its assigned operand span")
+                    })?;
+                if operands.is_empty()
+                    || binding.call_plan().parameters.len() != operands.len()
+                    || !operands.iter().all(|operand| {
+                        matches!(
+                            operand.kind,
+                            omega_assigned_target_operations::InstructionOperandKind::ImmediateInteger(_)
+                        )
+                    })
+                {
+                    return Ok(None);
+                }
+                return Ok(Some(
+                    CompilerInstructionValidationKind::CompilerBodyOutboundImmediateImport {
+                        operation_key: *operation_key,
+                        operands: operands.to_vec(),
+                        library: std::sync::Arc::clone(library),
+                        symbol: std::sync::Arc::clone(symbol),
+                        plan: binding.call_plan().clone(),
+                    },
+                ));
+            }
             let omega_calling_conventions::HostBindingMechanism::Syscall { number, .. } =
                 &binding.mechanism
             else {

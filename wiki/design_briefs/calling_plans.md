@@ -1111,7 +1111,7 @@ relocation, and data relocation now consume that complete plan. Their former
 manual `+8`/`+12` stack accounting and trailing-mode operation classifier are
 retired; the operation key only selects the concrete adapter subcall.
 
-Final footprint certificate format v74 now retains an exact
+Final footprint certificate format v75 now retains an exact
 function-to-instruction partition in the encoded carrier. Checked image
 emission replays every contiguous function
 and instruction boundary over relocated final bytes, rejects gaps, overlaps,
@@ -1144,8 +1144,8 @@ The first value-result subset covers Linux syscalls whose parameters are
 immediate integers or byte lengths. Final replay uses the same plan-selected
 parameter and result registers, validates the sole result-storage relocation,
 and adds AArch64's offset-sensitive X16[/X17] post-call store scratch to a
-separate StatePlan fragment. Other storage/data operands, composite syscall
-adapters, and imported calls remain separate unfinished classes. No-result
+separate StatePlan fragment. The following dedicated classes extend that first
+subset to storage/data operands and composite syscall adapters. No-result
 syscalls may now also consume scalar values, string pointer/length descriptor
 fields, pointee descriptor fields, and addresses of runtime frame or machine
 places. Checked replay regenerates each marshaller, requires its exact storage-
@@ -1160,8 +1160,16 @@ mixed data-symbol/storage-root relocation set. The Linux `clock_gettime` and
 `nanosleep` composites now have dedicated final classes as well. Replay
 regenerates their private stack adapters, exact result/optional argument
 relocations, and target-specific scratch; their StatePlan leaves include the
-balanced stack-pointer effect without publishing `timespec` as Omega ABI. The
-remaining composite adapters and imported calls remain unfinished. Result-
+balanced stack-pointer effect without publishing `timespec` as Omega ABI.
+Ordinary built-in imports with one or more immediate integer arguments and no
+result now have a dedicated Windows x64/macOS arm64 final class. Replay calls
+the ISA encoder directly from the retained plan, regenerates the mandatory
+foreign floating-control envelope, requires the exact retained library/symbol
+call relocation, and masks only the architecture-defined call displacement
+bits in final text. Its StatePlan fragment includes the call plan's ordinary
+clobbers together with the envelope's stack/control state and target scratch.
+Result-bearing imports, runtime/data-address arguments, authored imports, and
+composite import adapters remain unfinished. Result-
 bearing runtime-storage-only syscalls continue
 to combine their argument relocation set with the exact result-region
 relocation and AArch64's offset-sensitive result-store scratch under a distinct

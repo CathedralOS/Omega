@@ -863,6 +863,12 @@ fn atomics_cross_platform_emits_real_atomics() {
         write_output: true,
     })
     .expect("atomics_cross should compile for windows_x64");
+    let win_footprints = fs::read_to_string(win_dir.join("08_boundary_footprints.json"))
+        .expect("windows atomics boundary footprints should be emitted");
+    assert!(
+        win_footprints.contains("\"origin\": \"compiler_body_outbound_immediate_import\""),
+        "Windows literal ExitProcess calls must retain their exact direct-import footprint"
+    );
     // Only a windows host can execute the PE; elsewhere the windows_x64 build
     // is compile-verified and the aarch64 ELF instruction checks below carry
     // the semantic weight.
@@ -1144,7 +1150,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         executable_regions.contains(
             "\"certificate_schema\": \"omega.final-footprint-certificate\""
         )
-            && executable_regions.contains("\"certificate_format_version\": 74")
+            && executable_regions.contains("\"certificate_format_version\": 75")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
             && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")
@@ -5250,6 +5256,12 @@ fn cross_darwin_time_host_compiles() {
         write_output: true,
     })
     .expect("darwin time-host cross-compile should succeed");
+    let footprints = fs::read_to_string(build_dir.join("08_boundary_footprints.json"))
+        .expect("Darwin time-host boundary footprints should be written");
+    assert!(
+        footprints.contains("\"origin\": \"compiler_body_outbound_immediate_import\""),
+        "Darwin literal _exit calls must retain their exact direct-import footprint"
+    );
     let _ = fs::remove_dir_all(&build_dir);
 }
 

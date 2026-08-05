@@ -117,6 +117,13 @@ pub enum CompilerInstructionValidationKind {
         result_byte_size: usize,
         value: i64,
     },
+    CompilerBodyOutboundImmediateImport {
+        operation_key: omega_calling_conventions::HostOperationKey,
+        operands: Vec<omega_target_operations::InstructionOperand>,
+        library: Arc<str>,
+        symbol: Arc<str>,
+        plan: omega_calling_conventions::CallPlan,
+    },
     CompilerBodyOutboundSyscall {
         operands: Vec<omega_target_operations::InstructionOperand>,
         number: u32,
