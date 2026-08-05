@@ -1193,6 +1193,40 @@ pub fn derive_boundary_compiler_body_outbound_authored_import_result_footprint(
     )
 }
 
+/// Derive source-authored no-result imports with at least one runtime-float
+/// parameter. Integer and static-data parameters may share the retained plan.
+pub fn derive_boundary_compiler_body_outbound_authored_float_import_footprint(
+    boundary: &ValidatedBoundaryEntryPlan,
+    input: &crate::InstructionSelectionInput<'_>,
+    operands: &psi_arena::Arena<omega_abstract_operations::InstructionOperand>,
+    instructions: &[omega_abstract_operations::AbstractOperation],
+) -> Result<StateFootprintEvidence, PlanDiagnostic> {
+    derive_boundary_compiler_body_outbound_direct_import_footprint(
+        boundary,
+        input,
+        operands,
+        instructions,
+        DirectImportArgumentClass::AuthoredFloat,
+    )
+}
+
+/// Derive source-authored scalar imports with a float result or at least one
+/// runtime-float parameter and a direct integer/float result.
+pub fn derive_boundary_compiler_body_outbound_authored_float_import_result_footprint(
+    boundary: &ValidatedBoundaryEntryPlan,
+    input: &crate::InstructionSelectionInput<'_>,
+    operands: &psi_arena::Arena<omega_abstract_operations::InstructionOperand>,
+    instructions: &[omega_abstract_operations::AbstractOperation],
+) -> Result<StateFootprintEvidence, PlanDiagnostic> {
+    derive_boundary_compiler_body_outbound_direct_import_footprint(
+        boundary,
+        input,
+        operands,
+        instructions,
+        DirectImportArgumentClass::AuthoredFloatResult,
+    )
+}
+
 /// Derive integer-result built-in imports with one or more runtime-scalar
 /// arguments. The leading runtime scalar remains the post-call result store;
 /// only the trailing operands are wire arguments.
@@ -1222,6 +1256,8 @@ enum DirectImportArgumentClass {
     DataResult,
     Authored,
     AuthoredResult,
+    AuthoredFloat,
+    AuthoredFloatResult,
     StorageResult,
 }
 
@@ -1278,7 +1314,10 @@ fn derive_boundary_compiler_body_outbound_direct_import_footprint(
                 HostCapability::Custom(_) | HostCapability::Unknown
             ) != matches!(
                 argument_class,
-                DirectImportArgumentClass::Authored | DirectImportArgumentClass::AuthoredResult
+                DirectImportArgumentClass::Authored
+                    | DirectImportArgumentClass::AuthoredResult
+                    | DirectImportArgumentClass::AuthoredFloat
+                    | DirectImportArgumentClass::AuthoredFloatResult
             )
             || operation.operation_key.dereferences_result()
                 != matches!(
@@ -1443,6 +1482,63 @@ fn derive_boundary_compiler_body_outbound_direct_import_footprint(
                             )
                         })
                 }
+                DirectImportArgumentClass::AuthoredFloat => {
+                    binding.call_plan().result.is_some()
+                        || binding.call_plan().parameters.len() != selected_operands.len()
+                        || !selected_operands.iter().any(|operand| {
+                            matches!(
+                                operand.kind,
+                                InstructionOperandKind::RuntimeScalarFloat { .. }
+                            )
+                        })
+                        || !selected_operands.iter().all(|operand| {
+                            matches!(
+                                operand.kind,
+                                InstructionOperandKind::ImmediateInteger(_)
+                                    | InstructionOperandKind::RuntimeScalarInteger { .. }
+                                    | InstructionOperandKind::RuntimeScalarFloat { .. }
+                                    | InstructionOperandKind::DataAddress { .. }
+                            )
+                        })
+                }
+                DirectImportArgumentClass::AuthoredFloatResult => {
+                    binding.call_plan().result.as_ref().map_or(true, |result| {
+                        !matches!(
+                            result.shape.class,
+                            omega_calling_conventions::ValueClass::Integer
+                                | omega_calling_conventions::ValueClass::Float
+                        ) || binding.call_plan().parameters.len() + 1 != selected_operands.len()
+                            || match result.shape.class {
+                                omega_calling_conventions::ValueClass::Integer => !matches!(
+                                    selected_operands.first().map(|operand| &operand.kind),
+                                    Some(InstructionOperandKind::RuntimeScalarInteger { .. })
+                                ),
+                                omega_calling_conventions::ValueClass::Float => !matches!(
+                                    selected_operands.first().map(|operand| &operand.kind),
+                                    Some(InstructionOperandKind::RuntimeScalarFloat { .. })
+                                ),
+                                _ => true,
+                            }
+                            || (!matches!(
+                                result.shape.class,
+                                omega_calling_conventions::ValueClass::Float
+                            ) && !selected_operands[1..].iter().any(|operand| {
+                                matches!(
+                                    operand.kind,
+                                    InstructionOperandKind::RuntimeScalarFloat { .. }
+                                )
+                            }))
+                            || !selected_operands[1..].iter().all(|operand| {
+                                matches!(
+                                    operand.kind,
+                                    InstructionOperandKind::ImmediateInteger(_)
+                                        | InstructionOperandKind::RuntimeScalarInteger { .. }
+                                        | InstructionOperandKind::RuntimeScalarFloat { .. }
+                                        | InstructionOperandKind::DataAddress { .. }
+                                )
+                            })
+                    })
+                }
                 DirectImportArgumentClass::StorageResult => {
                     !binding.call_plan().result.as_ref().is_some_and(|result| {
                         matches!(
@@ -1485,20 +1581,33 @@ fn derive_boundary_compiler_body_outbound_direct_import_footprint(
                         | DirectImportArgumentClass::DereferencedResult
                         | DirectImportArgumentClass::DataResult
                         | DirectImportArgumentClass::AuthoredResult
+                        | DirectImportArgumentClass::AuthoredFloatResult
                         | DirectImportArgumentClass::StorageResult
-                ) && let Some(omega_abstract_operations::InstructionOperand {
-                    kind:
+                ) {
+                    let result_range = selected_operands.first().and_then(|operand| match &operand
+                        .kind
+                    {
                         InstructionOperandKind::RuntimeScalarInteger {
                             byte_offset,
                             byte_count,
                             ..
-                        },
-                }) = selected_operands.first()
-                {
-                    registers.extend_from_slice(
-                        omega_isa_aarch64::constant_host_result_clobbers(*byte_offset, *byte_count)
+                        }
+                        | InstructionOperandKind::RuntimeScalarFloat {
+                            byte_offset,
+                            byte_count,
+                            ..
+                        } => Some((*byte_offset, *byte_count)),
+                        _ => None,
+                    });
+                    if let Some((byte_offset, byte_count)) = result_range {
+                        registers.extend_from_slice(
+                            omega_isa_aarch64::constant_host_result_clobbers(
+                                byte_offset,
+                                byte_count,
+                            )
                             .as_slice(),
-                    );
+                        );
+                    }
                 }
             }
         }

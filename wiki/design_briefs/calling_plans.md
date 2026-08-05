@@ -1111,7 +1111,7 @@ relocation, and data relocation now consume that complete plan. Their former
 manual `+8`/`+12` stack accounting and trailing-mode operation classifier are
 retired; the operation key only selects the concrete adapter subcall.
 
-Final footprint certificate format v82 now retains an exact
+Final footprint certificate format v83 now retains an exact
 function-to-instruction partition in the encoded carrier. Checked image
 emission replays every contiguous function
 and instruction boundary over relocated final bytes, rejects gaps, overlaps,
@@ -1190,8 +1190,12 @@ storage-root relocation. Scalar source-authored imports with
 immediate/runtime-scalar integer or static-data parameters now use ninth and
 tenth fragments for no-result and direct-integer-result calls. Replay consumes
 the source-selected canonical `CallPlan` unchanged and requires the exact
-authored library/symbol call plus every data/storage root. Authored float and
-aggregate shapes remain unfinished alongside composite import adapters.
+authored library/symbol call plus every data/storage root. Scalar source-authored
+imports with runtime-float parameters now use eleventh and twelfth fragments
+for no-result and direct scalar-result calls. Replay preserves the plan-selected
+vector/register/stack placements, requires the exact imported call and every
+data/storage root, and includes the AArch64 float-result move when present.
+Authored aggregate shapes remain unfinished alongside composite import adapters.
 Result-bearing runtime-storage-only syscalls continue
 to combine their argument relocation set with the exact result-region
 relocation and AArch64's offset-sensitive result-store scratch under a distinct

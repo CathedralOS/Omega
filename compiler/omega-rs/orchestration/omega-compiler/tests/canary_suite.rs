@@ -1150,7 +1150,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         executable_regions.contains(
             "\"certificate_schema\": \"omega.final-footprint-certificate\""
         )
-            && executable_regions.contains("\"certificate_format_version\": 82")
+            && executable_regions.contains("\"certificate_format_version\": 83")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
             && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")
@@ -34264,6 +34264,12 @@ fn cross_aarch64_authored_scalar_float_preserves_vector_class() {
         image.windows(4).any(|window| window == fmov_x0_d0),
         "the authored f64 result must spill from d0"
     );
+    let footprints = fs::read_to_string(out_dir.join("08_boundary_footprints.json"))
+        .expect("AArch64 authored scalar-float footprints should be written");
+    assert!(
+        footprints.contains("\"origin\": \"compiler_body_outbound_authored_float_import_result\""),
+        "AArch64 authored scalar-float import must retain its final replay footprint"
+    );
     let _ = fs::remove_dir_all(&scratch);
 }
 
@@ -34684,6 +34690,12 @@ fn cross_win64_scalar_float_import_uses_positional_xmm_and_stack_locations() {
                 && window[11..15] == 32u32.to_le_bytes()
         }),
         "the fifth-position f64 must occupy outgoing stack slot 32"
+    );
+    let footprints = fs::read_to_string(scratch.join("08_boundary_footprints.json"))
+        .expect("Win64 authored scalar-float footprints should be written");
+    assert!(
+        footprints.contains("\"origin\": \"compiler_body_outbound_authored_float_import_result\""),
+        "Win64 authored scalar-float import must retain its final replay footprint"
     );
     let _ = fs::remove_dir_all(&scratch);
 }

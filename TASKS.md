@@ -882,7 +882,7 @@ proves complete region coverage, and composes admitted leaves under their
 separate provenance. Do not add a second whole-image decoder/admission path.
 
 The existing single final-region artifact now carries the domain-separated
-`omega.final-footprint-certificate` schema, format version 82, and a certificate
+`omega.final-footprint-certificate` schema, format version 83, and a certificate
 fingerprint over its final placement binding, compiler-text derivation, and
 complete region inventory. Its explicit completeness flags remain false until
 compiler-body footprint decoding and admitted-leaf evidence land. The envelope
@@ -1000,8 +1000,12 @@ relocation. Scalar source-authored imports with immediate/runtime-scalar
 integer or static-data parameters now use ninth
 and tenth origins for no-result and direct-integer-result calls. Their replay
 uses the source-selected canonical `CallPlan` unchanged and requires the exact
-authored library/symbol call plus every data/storage root. Authored float and
-aggregate shapes remain incomplete alongside composite import adapters.
+authored library/symbol call plus every data/storage root. Scalar source-authored
+imports with one or more runtime-float parameters now use eleventh and twelfth
+origins for no-result and direct scalar-result calls. Replay preserves the
+source-selected vector/register/stack placements, requires the exact imported
+call and every data/storage root, and accounts for the AArch64 float-result move.
+Authored aggregate shapes remain incomplete alongside composite import adapters.
 Result-bearing runtime-storage-only calls
 continue to combine their argument relocations with the exact result-region
 relocation and offset-sensitive result-store scratch under

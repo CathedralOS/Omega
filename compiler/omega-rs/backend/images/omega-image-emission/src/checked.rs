@@ -664,20 +664,26 @@ fn encode_scalar_parameter_import(
         || !arguments.iter().all(|operand| {
             operand.immediate_integer().is_some()
                 || operand.runtime_scalar_integer().is_some()
+                || operand.runtime_scalar_float().is_some()
                 || operand.data_address().is_some()
         })
-        || plan.result.as_ref().is_some_and(|result| {
-            !matches!(
-                result.shape.class,
-                omega_calling_conventions::ValueClass::Integer
-            ) || operands
-                .first()
-                .and_then(InstructionOperandLike::runtime_scalar_integer)
-                .is_none()
-        })
+        || plan
+            .result
+            .as_ref()
+            .is_some_and(|result| match result.shape.class {
+                omega_calling_conventions::ValueClass::Integer => operands
+                    .first()
+                    .and_then(InstructionOperandLike::runtime_scalar_integer)
+                    .is_none(),
+                omega_calling_conventions::ValueClass::Float => operands
+                    .first()
+                    .and_then(InstructionOperandLike::runtime_scalar_float)
+                    .is_none(),
+                _ => true,
+            })
     {
         return Err(Diagnostic::error(
-            "final scalar-parameter import replay requires integer/data-address arguments and at most one direct integer result",
+            "final scalar-parameter import replay requires scalar/data-address arguments and at most one direct scalar result",
         ));
     }
 
@@ -704,7 +710,10 @@ fn encode_scalar_parameter_import(
             .byte_offset;
             let mut address_sites = Vec::new();
             for (index, operand) in operands.iter().enumerate() {
-                let target = if let Some((region, _, _)) = operand.runtime_scalar_integer() {
+                let target = if let Some((region, _, _)) = operand
+                    .runtime_scalar_integer()
+                    .or_else(|| operand.runtime_scalar_float())
+                {
                     OutboundCallRelocationTarget::Storage(region)
                 } else if operand.data_address().is_some() {
                     OutboundCallRelocationTarget::Data(std::sync::Arc::clone(
@@ -767,12 +776,24 @@ fn encode_scalar_parameter_import(
                         "final AArch64 data-parameter import replay retained a partial result placement",
                     ));
                 }
-                omega_isa_aarch64::encode_host_call_sequence_value_returning_from_operands(
-                    call_operands.iter().copied(),
-                    &plan.parameters,
-                    *result_register,
-                    usize::from(result.shape.byte_size),
-                )?
+                match result.shape.class {
+                    omega_calling_conventions::ValueClass::Integer => {
+                        omega_isa_aarch64::encode_host_call_sequence_value_returning_from_operands(
+                            call_operands.iter().copied(),
+                            &plan.parameters,
+                            *result_register,
+                            usize::from(result.shape.byte_size),
+                        )?
+                    }
+                    omega_calling_conventions::ValueClass::Float => {
+                        omega_isa_aarch64::encode_host_call_sequence_authored_float_returning_from_operands(
+                            call_operands.iter().copied(),
+                            &plan.parameters,
+                            *result_register,
+                        )?
+                    }
+                    _ => unreachable!("validated scalar result class"),
+                }
             } else {
                 omega_isa_aarch64::encode_host_call_sequence(argument_operands, &plan.parameters)?
             };
@@ -780,19 +801,29 @@ fn encode_scalar_parameter_import(
             if result_operand_count == 1 {
                 let (result_region, _, _) = operands[0]
                     .runtime_scalar_integer()
-                    .expect("validated direct integer result");
+                    .or_else(|| operands[0].runtime_scalar_float())
+                    .expect("validated direct scalar result");
                 let result_site = argument_width
                     + omega_isa_aarch64::host_call_stack_total_width_for_placements(
                         &plan.parameters,
                     )
-                    + 4;
+                    + 4
+                    + usize::from(plan.result.as_ref().is_some_and(|result| {
+                        matches!(
+                            result.shape.class,
+                            omega_calling_conventions::ValueClass::Float
+                        )
+                    })) * 4;
                 address_sites.push((
                     result_site,
                     OutboundCallRelocationTarget::Storage(result_region),
                 ));
             }
             for (parameter_index, operand) in arguments.iter().enumerate() {
-                let target = if let Some((region, _, _)) = operand.runtime_scalar_integer() {
+                let target = if let Some((region, _, _)) = operand
+                    .runtime_scalar_integer()
+                    .or_else(|| operand.runtime_scalar_float())
+                {
                     OutboundCallRelocationTarget::Storage(region)
                 } else if operand.data_address().is_some() {
                     OutboundCallRelocationTarget::Data(std::sync::Arc::clone(
@@ -3019,6 +3050,67 @@ fn validate_compiler_function_instruction_boundaries(
                             None,
                             bytes,
                             52u8,
+                            CompilerInstructionRelocationRecipe::PlannedImport {
+                                call_site,
+                                address_sites,
+                                library,
+                                symbol,
+                            },
+                        )
+                    }
+                    omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyOutboundAuthoredFloatImport {
+                        operation_key,
+                        operands,
+                        data_symbols,
+                        library,
+                        symbol,
+                        plan,
+                    } => {
+                        let (bytes, call_site, address_sites) = encode_scalar_parameter_import(
+                            architecture,
+                            operation_key,
+                            &operands,
+                            &data_symbols,
+                            &plan,
+                        )?;
+                        (
+                            None,
+                            bytes,
+                            53u8,
+                            CompilerInstructionRelocationRecipe::PlannedImport {
+                                call_site,
+                                address_sites,
+                                library,
+                                symbol,
+                            },
+                        )
+                    }
+                    omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyOutboundAuthoredFloatImportResult {
+                        operation_key,
+                        operands,
+                        data_symbols,
+                        library,
+                        symbol,
+                        plan,
+                    } => {
+                        let (bytes, call_site, address_sites) = encode_scalar_parameter_import(
+                            architecture,
+                            operation_key,
+                            &operands,
+                            &data_symbols,
+                            &plan,
+                        )?;
+                        if !address_sites.iter().any(|(_, target)| {
+                            matches!(target, OutboundCallRelocationTarget::Storage(_))
+                        }) {
+                            return Err(Diagnostic::error(
+                                "final result-bearing authored float import replay lost its result root",
+                            ));
+                        }
+                        (
+                            None,
+                            bytes,
+                            54u8,
                             CompilerInstructionRelocationRecipe::PlannedImport {
                                 call_site,
                                 address_sites,
@@ -6154,6 +6246,64 @@ fn compiler_instruction_footprint(
                 ]),
             )
         }
+        CompilerInstructionValidationKind::CompilerBodyOutboundAuthoredFloatImport {
+            plan, ..
+        } => (
+            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredFloatImport,
+            RegisterSet::new(plan.ordinary_clobbers.as_slice().iter().copied().chain(
+                match architecture {
+                    Architecture::X86_64 => vec![MachineRegister::X86Rsp],
+                    Architecture::Aarch64 => vec![MachineRegister::Aarch64X(16)],
+                },
+            )),
+            MachineStateSet::new([
+                MachineState::Flags,
+                MachineState::InstructionPointer,
+                MachineState::StackPointer,
+                MachineState::ControlState,
+            ]),
+        ),
+        CompilerInstructionValidationKind::CompilerBodyOutboundAuthoredFloatImportResult {
+            operands,
+            plan,
+            ..
+        } => {
+            let (_, result_offset, result_byte_size) =
+                operands
+                    .first()?
+                    .runtime_scalar_integer()
+                    .or_else(|| operands.first()?.runtime_scalar_float())?;
+            let envelope_and_store_scratch = match architecture {
+                Architecture::X86_64 => vec![MachineRegister::X86Rsp],
+                Architecture::Aarch64 => Vec::from_iter(
+                    [MachineRegister::Aarch64X(16)].into_iter().chain(
+                        omega_isa_aarch64::constant_host_result_clobbers(
+                            result_offset,
+                            result_byte_size,
+                        )
+                        .as_slice()
+                        .iter()
+                        .copied(),
+                    ),
+                ),
+            };
+            (
+                BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredFloatImportResult,
+                RegisterSet::new(
+                    plan.ordinary_clobbers
+                        .as_slice()
+                        .iter()
+                        .copied()
+                        .chain(envelope_and_store_scratch),
+                ),
+                MachineStateSet::new([
+                    MachineState::Flags,
+                    MachineState::InstructionPointer,
+                    MachineState::StackPointer,
+                    MachineState::ControlState,
+                ]),
+            )
+        }
         CompilerInstructionValidationKind::CompilerBodyOutboundStorageImport { plan, .. } => (
             BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImport,
             RegisterSet::new(plan.ordinary_clobbers.as_slice().iter().copied().chain(
@@ -6823,6 +6973,8 @@ fn validate_compiler_body_specification_footprints(
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundDataImportResult
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredImport
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredImportResult
+                | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredFloatImport
+                | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredFloatImportResult
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImport
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundStorageImportResult
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundSyscall
@@ -6983,6 +7135,14 @@ fn validate_compiler_body_specification_footprints(
         (
             37u8,
             BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredImportResult,
+        ),
+        (
+            38u8,
+            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredFloatImport,
+        ),
+        (
+            39u8,
+            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredFloatImportResult,
         ),
     ] {
         let evidence_rows = derived

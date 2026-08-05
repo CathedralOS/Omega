@@ -60,12 +60,24 @@ fn validate_host_relocation_plan(
         .assigned_target_operations
         .instruction_operands(operands)
         .ok_or_else(|| Diagnostic::error("import relocation lost its selected operands"))?;
-    omega_instruction_selection::encode_host_call_sequence_with_plan(
-        context.input.target,
-        operation_key,
-        operands,
-        plan,
-    )?;
+    if matches!(
+        operation_key.capability,
+        omega_calling_conventions::HostCapability::Custom(_)
+            | omega_calling_conventions::HostCapability::Unknown
+    ) {
+        omega_instruction_selection::encode_authored_import_call_sequence(
+            context.input.target,
+            operands,
+            plan,
+        )?;
+    } else {
+        omega_instruction_selection::encode_host_call_sequence_with_plan(
+            context.input.target,
+            operation_key,
+            operands,
+            plan,
+        )?;
+    }
     Ok(())
 }
 
