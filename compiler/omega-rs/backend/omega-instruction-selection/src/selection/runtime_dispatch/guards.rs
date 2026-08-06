@@ -89,6 +89,7 @@ pub(super) fn select_runtime_leaf_branch_guards(
         expansion.dispatch_index,
         expansion.source_key,
         Some(expansion.branch_key),
+        !bindings.is_empty(),
         expansion.statement_index,
         &resolved_expressions,
         resolved_guard,
@@ -110,6 +111,7 @@ pub(super) fn select_runtime_straight_line_branch_guards(
         expansion.dispatch_index,
         expansion.source_key,
         Some(expansion.branch_key),
+        false,
         expansion.statement_index,
         &input.runtime_branching_calls.expressions,
         expansion.resolved_guard,
@@ -123,6 +125,7 @@ fn select_runtime_branch_guard_conjuncts_in_table(
     dispatch_index: u32,
     source_key: omega_control_flow::StateKey,
     callee_key: Option<omega_control_flow::StateKey>,
+    allow_caller_scope_fallback: bool,
     statement_index: usize,
     expressions: &ExpressionTable,
     guard: ExpressionHandle,
@@ -134,6 +137,7 @@ fn select_runtime_branch_guard_conjuncts_in_table(
         dispatch_index,
         source_key,
         callee_key,
+        allow_caller_scope_fallback,
         statement_index,
         expressions,
         guard,
@@ -157,6 +161,7 @@ pub(super) fn select_runtime_dispatch_expression_guard_conjuncts_in_table(
         dispatch_index,
         source_key,
         None,
+        false,
         statement_index,
         expressions,
         guard,
@@ -211,6 +216,7 @@ fn collect_runtime_branch_guard_conjuncts_in_table(
     dispatch_index: u32,
     source_key: omega_control_flow::StateKey,
     callee_key: Option<omega_control_flow::StateKey>,
+    allow_caller_scope_fallback: bool,
     statement_index: usize,
     expressions: &ExpressionTable,
     guard: ExpressionHandle,
@@ -229,6 +235,7 @@ fn collect_runtime_branch_guard_conjuncts_in_table(
             dispatch_index,
             source_key,
             callee_key,
+            allow_caller_scope_fallback,
             statement_index,
             expressions,
             binary.left,
@@ -240,6 +247,7 @@ fn collect_runtime_branch_guard_conjuncts_in_table(
             dispatch_index,
             source_key,
             callee_key,
+            allow_caller_scope_fallback,
             statement_index,
             expressions,
             binary.right,
@@ -254,6 +262,7 @@ fn collect_runtime_branch_guard_conjuncts_in_table(
         dispatch_index,
         source_key,
         callee_key,
+        allow_caller_scope_fallback,
         statement_index,
         expressions,
         guard,
@@ -376,6 +385,7 @@ pub(super) fn select_runtime_dispatch_expression_guard_in_table(
         dispatch_index,
         source_key,
         None,
+        false,
         statement_index,
         expressions,
         guard,
@@ -389,6 +399,7 @@ fn select_runtime_dispatch_expression_guard_in_table_with_callee(
     dispatch_index: u32,
     source_key: omega_control_flow::StateKey,
     callee_key: Option<omega_control_flow::StateKey>,
+    allow_caller_scope_fallback: bool,
     statement_index: usize,
     expressions: &ExpressionTable,
     guard: ExpressionHandle,
@@ -403,6 +414,7 @@ fn select_runtime_dispatch_expression_guard_in_table_with_callee(
         dispatch_index,
         source_key,
         callee_key,
+        allow_caller_scope_fallback,
         statement_index,
         expressions,
         guard,
@@ -416,6 +428,7 @@ fn select_runtime_dispatch_expression_guard_in_table_with_callee(
             dispatch_index,
             source_key,
             callee_key,
+            allow_caller_scope_fallback,
             statement_index,
             &normalized_expressions,
             normalized_guard,
@@ -430,6 +443,7 @@ fn select_runtime_dispatch_expression_guard_in_table_once(
     dispatch_index: u32,
     source_key: omega_control_flow::StateKey,
     callee_key: Option<omega_control_flow::StateKey>,
+    allow_caller_scope_fallback: bool,
     statement_index: usize,
     expressions: &ExpressionTable,
     guard: ExpressionHandle,
@@ -440,17 +454,68 @@ fn select_runtime_dispatch_expression_guard_in_table_once(
     }
 
     // A copied inline-branch guard is authored in the callee. Resolve every
-    // path-bearing guard form against that state first; caller bindings remain
-    // available through the storage resolver's explicit outer-scope fallback.
-    // Mixing caller scope for bare-bool/text guards with callee scope for
-    // binary storage guards lets an unrelated same-named inline local answer
-    // only part of one callee's transition.
+    // path-bearing guard form against that state first. Binding-resolved leaf
+    // expansions may retry caller scope below; storage guards retain their
+    // existing explicit two-scope resolver. Mixing caller scope for only some
+    // guard families lets an unrelated same-named inline local answer part of
+    // one callee's transition.
     let guard_source_key = callee_key.unwrap_or(source_key);
 
-    if let Some(guard) = runtime_boolean_condition_guard_in_table(
+    select_runtime_dispatch_expression_guard_for_source_in_table(
         input,
         dispatch_index,
         guard_source_key,
+        statement_index,
+        expressions,
+        guard,
+        runtime_value_operands,
+    )
+    .or_else(|| {
+        // Binding substitution can turn any callee-authored operand into a
+        // caller-owned expression (`x > 0` -> `self.v > 0`, or
+        // `room.label` -> `r[0].label`). Preserve callee-first lookup so an
+        // actual callee local wins, but retry the whole path-bearing guard
+        // family in caller scope when the substituted operand cannot lower
+        // there. Retrying only numeric values leaves text/carrier guards
+        // poisoned even though both originate from the same binding.
+        (allow_caller_scope_fallback && guard_source_key != source_key).then(|| {
+            select_runtime_dispatch_expression_guard_for_source_in_table(
+                input,
+                dispatch_index,
+                source_key,
+                statement_index,
+                expressions,
+                guard,
+                runtime_value_operands,
+            )
+        })?
+    })
+    .or_else(|| {
+        runtime_storage_guard_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            callee_key,
+            expressions,
+            guard,
+        )
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn select_runtime_dispatch_expression_guard_for_source_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: omega_control_flow::StateKey,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    guard: ExpressionHandle,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+) -> Option<SelectedInstructionKind> {
+    if let Some(guard) = runtime_boolean_condition_guard_in_table(
+        input,
+        dispatch_index,
+        source_key,
         statement_index,
         expressions,
         guard,
@@ -459,63 +524,47 @@ fn select_runtime_dispatch_expression_guard_in_table_once(
         return Some(guard);
     }
 
-    if let Some(literal_guard) = runtime_text_literal_guard_in_table(
-        input,
-        dispatch_index,
-        guard_source_key,
-        expressions,
-        guard,
-    ) {
+    if let Some(literal_guard) =
+        runtime_text_literal_guard_in_table(input, dispatch_index, source_key, expressions, guard)
+    {
         return Some(SelectedInstructionKind::CompareRuntimeTextLiteral {
             buffer: literal_guard.buffer,
             literal: literal_guard.literal,
         });
     }
 
-    if let Some(selected) = runtime_text_equals_literal_guard_in_table(
+    runtime_text_equals_literal_guard_in_table(
         input,
         dispatch_index,
-        guard_source_key,
+        source_key,
         expressions,
         guard,
         runtime_value_operands,
-    ) {
-        return Some(selected);
-    }
-
-    if let Some(selected) = runtime_text_equals_place_guard_in_table(
-        input,
-        dispatch_index,
-        guard_source_key,
-        expressions,
-        guard,
-        runtime_value_operands,
-    ) {
-        return Some(selected);
-    }
-
-    runtime_text_storage_guard_in_table(input, dispatch_index, guard_source_key, expressions, guard)
-        .or_else(|| {
-            runtime_value_guard_in_table(
-                input,
-                dispatch_index,
-                guard_source_key,
-                statement_index,
-                expressions,
-                guard,
-                runtime_value_operands,
-            )
-        })
-        .or_else(|| {
-            runtime_storage_guard_in_table(
-                input,
-                dispatch_index,
-                source_key,
-                callee_key,
-                expressions,
-                guard,
-            )
-        })
+    )
+    .or_else(|| {
+        runtime_text_equals_place_guard_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            guard,
+            runtime_value_operands,
+        )
+    })
+    .or_else(|| {
+        runtime_text_storage_guard_in_table(input, dispatch_index, source_key, expressions, guard)
+    })
+    .or_else(|| {
+        runtime_value_guard_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            statement_index,
+            expressions,
+            guard,
+            runtime_value_operands,
+        )
+    })
 }
 
 fn normalized_boolean_wrapped_guard(guard: &TransitionGuard) -> Option<TransitionGuard> {
