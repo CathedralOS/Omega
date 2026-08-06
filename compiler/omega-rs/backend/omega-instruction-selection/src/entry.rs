@@ -3129,6 +3129,44 @@ pub fn derive_boundary_compiler_body_wire_scalar_varint_append_footprint<'instru
 }
 
 /// Derive the exact scratch footprint of compiler-generated compact-binary
+/// text appends, including the length-varint and capacity-bounded copy loops.
+pub fn derive_boundary_compiler_body_wire_text_bytes_append_footprint<'instruction>(
+    boundary: &ValidatedBoundaryEntryPlan,
+    instructions: impl IntoIterator<Item = &'instruction SelectedInstructionKind>,
+) -> Result<StateFootprintEvidence, PlanDiagnostic> {
+    let architecture = boundary.plan().call.policy.architecture();
+    let mut registers = Vec::new();
+    let mut additional_state = MachineStateSet::empty();
+    for instruction in instructions {
+        if !matches!(
+            instruction,
+            SelectedInstructionKind::AppendWireTextBytes { .. }
+        ) {
+            continue;
+        }
+        match architecture {
+            omega_target::Architecture::X86_64 => {
+                registers.extend_from_slice(
+                    omega_isa_x86_64::append_wire_text_bytes_clobbers().as_slice(),
+                );
+                additional_state = additional_state
+                    .union(omega_isa_x86_64::append_wire_text_bytes_additional_machine_state());
+            }
+            omega_target::Architecture::Aarch64 => {
+                registers.extend_from_slice(
+                    omega_isa_aarch64::append_wire_text_bytes_clobbers().as_slice(),
+                );
+                additional_state = additional_state
+                    .union(omega_isa_aarch64::append_wire_text_bytes_additional_machine_state());
+            }
+        }
+    }
+    let evidence = StateFootprintEvidence::new(RegisterSet::new(registers), additional_state);
+    validate_state_footprint(boundary, &evidence)?;
+    Ok(evidence)
+}
+
+/// Derive the exact scratch footprint of compiler-generated compact-binary
 /// framing-byte reads. The AArch64 cursor/verdict offset forms determine
 /// whether the address scratch register participates in the sequence.
 pub fn derive_boundary_compiler_body_wire_expected_byte_read_footprint<'instruction>(

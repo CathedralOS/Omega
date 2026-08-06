@@ -1150,7 +1150,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         executable_regions.contains(
             "\"certificate_schema\": \"omega.final-footprint-certificate\""
         )
-            && executable_regions.contains("\"certificate_format_version\": 133")
+            && executable_regions.contains("\"certificate_format_version\": 134")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
             && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")
@@ -3124,7 +3124,7 @@ fn compiler_body_general_x86_text_assembly_reaches_the_final_artifact() {
     let regions = fs::read_to_string(output.join("13_executable_regions.json"))
         .expect("general x86 final executable-region evidence should be written");
     assert!(
-        regions.contains("\"certificate_format_version\": 133")
+        regions.contains("\"certificate_format_version\": 134")
             && regions.contains("\"compiler_function_body_specification_subset\""),
         "general x86 text assembly must reach final-image validation"
     );
@@ -3185,9 +3185,80 @@ fn compiler_body_wire_scalar_appends_reach_x86_and_aarch64_artifacts() {
             "{target} artifact must retain both wire append footprints without claiming completeness"
         );
         assert!(
-            regions.contains("\"certificate_format_version\": 133")
+            regions.contains("\"certificate_format_version\": 134")
                 && regions.contains("\"compiler_function_body_specification_subset\""),
             "{target} wire appends must reach final-byte validation"
+        );
+        let elf = fs::read(output.join("omega-program"))
+            .unwrap_or_else(|error| panic!("read {target} ELF: {error}"));
+        assert_eq!(&elf[..4], b"\x7fELF");
+        let _ = fs::remove_dir_all(&scratch);
+    }
+}
+
+#[test]
+fn compiler_body_wire_text_appends_reach_x86_and_aarch64_artifacts() {
+    let canary = pass_canary("wire/runtime_wire_encode_string_exit");
+    for (target, expected_registers) in [
+        (
+            "linux_x64",
+            "[\"X86Rax\", \"X86Rcx\", \"X86R9\", \"X86R10\", \"X86R11\", \"X86R14\", \"X86R15\"]",
+        ),
+        (
+            "linux_arm64",
+            "[\"Aarch64X(16)\", \"Aarch64X(17)\", \"Aarch64X(19)\", \"Aarch64X(20)\", \"Aarch64X(22)\", \"Aarch64X(24)\", \"Aarch64X(25)\", \"Aarch64X(26)\"]",
+        ),
+    ] {
+        let scratch = std::env::temp_dir().join(format!(
+            "omega-compiler-body-wire-text-append-{target}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&scratch);
+        let source = scratch.join("src");
+        let output = scratch.join("out");
+        fs::create_dir_all(&source)
+            .expect("create compiler-body wire text-append source directory");
+        fs::copy(canary.join("main.omg"), source.join("main.omg"))
+            .expect("copy compiler-body wire text-append canary");
+        fs::write(
+            source.join("build.omg"),
+            format!("target {target} {{\n}}\n"),
+        )
+        .expect("write compiler-body wire text-append target");
+
+        compile(CompileOptions {
+            root_path: source.join("main.omg"),
+            build_dir: Some(output.clone()),
+            target_name: Some(target.into()),
+            write_output: true,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!("compiler-body wire text appends should compile for {target}: {diagnostics:?}")
+        });
+        let target_operations = fs::read_to_string(output.join("09_target_operations.html"))
+            .expect("compiler-body wire text-append target operations should be written");
+        let footprints = fs::read_to_string(output.join("08_boundary_footprints.json"))
+            .expect("compiler-body wire text-append footprint evidence should be written");
+        let regions = fs::read_to_string(output.join("13_executable_regions.json"))
+            .expect("compiler-body wire text-append final-region evidence should be written");
+        assert!(
+            target_operations.contains("AppendWireTextBytes"),
+            "{target} canary must exercise a wire text append"
+        );
+        let text_fragment = footprints
+            .lines()
+            .find(|line| line.contains("\"origin\": \"compiler_body_wire_text_bytes_append\""))
+            .unwrap_or_else(|| panic!("{target} wire text-append footprint fragment must exist"));
+        assert!(
+            text_fragment.contains("\"machine_state_bits\": 5")
+                && text_fragment.contains(expected_registers)
+                && footprints.contains("\"enumeration_complete\": false"),
+            "{target} artifact must retain the exact wire text-append footprint without claiming completeness"
+        );
+        assert!(
+            regions.contains("\"certificate_format_version\": 134")
+                && regions.contains("\"compiler_function_body_specification_subset\""),
+            "{target} wire text append must reach final-byte validation"
         );
         let elf = fs::read(output.join("omega-program"))
             .unwrap_or_else(|error| panic!("read {target} ELF: {error}"));
@@ -3248,7 +3319,7 @@ fn compiler_body_wire_expected_byte_reads_reach_x86_and_aarch64_artifacts() {
             "{target} artifact must retain the expected-byte read footprint without claiming completeness"
         );
         assert!(
-            regions.contains("\"certificate_format_version\": 133")
+            regions.contains("\"certificate_format_version\": 134")
                 && regions.contains("\"compiler_function_body_specification_subset\""),
             "{target} wire expected-byte read must reach final-byte validation"
         );
@@ -3321,7 +3392,7 @@ fn compiler_body_wire_ranged_scalar_reads_reach_x86_and_aarch64_artifacts() {
             "{target} artifact must retain the scalar-varint read footprint without claiming completeness"
         );
         assert!(
-            regions.contains("\"certificate_format_version\": 133")
+            regions.contains("\"certificate_format_version\": 134")
                 && regions.contains("\"compiler_function_body_specification_subset\""),
             "{target} wire scalar-varint reads must reach final-byte validation"
         );
@@ -3361,7 +3432,7 @@ fn aarch64_frame_descriptor_ops_with_machine_index_reach_the_final_artifact() {
     let regions = fs::read_to_string(output.join("13_executable_regions.json"))
         .expect("cross-region AArch64 final executable-region evidence should be written");
     assert!(
-        regions.contains("\"certificate_format_version\": 133")
+        regions.contains("\"certificate_format_version\": 134")
             && regions.contains("\"compiler_function_body_specification_subset\""),
         "cross-region AArch64 frame-descriptor operations must reach final-image validation"
     );

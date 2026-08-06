@@ -17,7 +17,7 @@
 //! lockstep, or relocations drift and the binary segfaults. Both encoders end
 //! with a `debug_assert_eq!` against their width function.
 
-use omega_calling_conventions::{MachineRegister, RegisterSet};
+use omega_calling_conventions::{MachineRegister, MachineState, MachineStateSet, RegisterSet};
 use omega_target_operations::RuntimeStorageRegion;
 use psi_diagnostics::Diagnostic;
 
@@ -405,6 +405,23 @@ pub fn encode_append_wire_text_bytes(
         append_wire_text_bytes_width(source_offset, out_offset, out_length, written_offset)
     );
     Ok(bytes)
+}
+
+pub fn append_wire_text_bytes_clobbers() -> RegisterSet {
+    RegisterSet::new([
+        MachineRegister::Aarch64X(16),
+        MachineRegister::Aarch64X(17),
+        MachineRegister::Aarch64X(19),
+        MachineRegister::Aarch64X(20),
+        MachineRegister::Aarch64X(22),
+        MachineRegister::Aarch64X(24),
+        MachineRegister::Aarch64X(25),
+        MachineRegister::Aarch64X(26),
+    ])
+}
+
+pub fn append_wire_text_bytes_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::new([MachineState::Flags])
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
