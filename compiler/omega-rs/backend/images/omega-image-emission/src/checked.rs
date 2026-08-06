@@ -227,6 +227,16 @@ enum CompilerInstructionRelocationRecipe {
         read_offset: usize,
         zigzag: bool,
     },
+    WireByteSliceRead {
+        buffer_region: omega_target_operations::RuntimeStorageRegion,
+        read_region: omega_target_operations::RuntimeStorageRegion,
+        ok_region: omega_target_operations::RuntimeStorageRegion,
+        target_region: omega_target_operations::RuntimeStorageRegion,
+        buffer_offset: usize,
+        buffer_length: usize,
+        read_offset: usize,
+        predicate_mask: u8,
+    },
     PlacePair {
         left: omega_target_operations::Place,
         right: omega_target_operations::Place,
@@ -6132,6 +6142,51 @@ fn validate_compiler_function_instruction_boundaries(
                             },
                         )
                     }
+                    omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyWireByteSliceRead {
+                        buffer_region,
+                        buffer_offset,
+                        buffer_length,
+                        read_region,
+                        read_offset,
+                        ok_region,
+                        ok_offset,
+                        target_region,
+                        target_offset,
+                        predicate_mask,
+                    } => (
+                        None,
+                        match architecture {
+                            Architecture::X86_64 => omega_isa_x86_64::encode_read_wire_byte_slice(
+                                buffer_offset,
+                                buffer_length,
+                                read_offset,
+                                ok_offset,
+                                target_region,
+                                target_offset,
+                                predicate_mask,
+                            )?,
+                            Architecture::Aarch64 => omega_isa_aarch64::encode_read_wire_byte_slice(
+                                buffer_offset,
+                                buffer_length,
+                                read_offset,
+                                ok_offset,
+                                target_region,
+                                target_offset,
+                                predicate_mask,
+                            )?,
+                        },
+                        72u8,
+                        CompilerInstructionRelocationRecipe::WireByteSliceRead {
+                            buffer_region,
+                            read_region,
+                            ok_region,
+                            target_region,
+                            buffer_offset,
+                            buffer_length,
+                            read_offset,
+                            predicate_mask,
+                        },
+                    ),
                     omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyTextBufferMaterialize {
                         buffer_symbol,
                         target,
@@ -7609,6 +7664,91 @@ fn validate_compiler_function_instruction_boundaries(
                                             buffer_length,
                                             read_offset,
                                             zigzag,
+                                        )
+                                    }
+                                },
+                                target_region,
+                            ),
+                        ];
+                        validate_compiler_data_address_relocations(
+                            architecture,
+                            object,
+                            relocations,
+                            instruction.selected_instruction_index,
+                            instruction_byte_offset,
+                            &address_sites,
+                        )?;
+                        encoded_instruction_bytes == expected_bytes
+                            && compiler_instruction_non_relocation_bits_match(
+                                architecture,
+                                &expected_bytes,
+                                final_instruction_bytes,
+                                &address_sites
+                                    .iter()
+                                    .map(|(offset, _)| *offset)
+                                    .collect::<Vec<_>>(),
+                            )
+                    }
+                    CompilerInstructionRelocationRecipe::WireByteSliceRead {
+                        buffer_region,
+                        read_region,
+                        ok_region,
+                        target_region,
+                        buffer_offset,
+                        buffer_length,
+                        read_offset,
+                        predicate_mask,
+                    } => {
+                        let address_sites = [
+                            (0, buffer_region),
+                            (
+                                match architecture {
+                                    Architecture::X86_64 => {
+                                        omega_isa_x86_64::wire_decode_read_page_offset(
+                                            buffer_offset,
+                                        )
+                                    }
+                                    Architecture::Aarch64 => {
+                                        omega_isa_aarch64::wire_decode_read_page_offset(
+                                            buffer_offset,
+                                        )
+                                    }
+                                },
+                                read_region,
+                            ),
+                            (
+                                match architecture {
+                                    Architecture::X86_64 => {
+                                        omega_isa_x86_64::wire_decode_ok_page_offset(
+                                            buffer_offset,
+                                            read_offset,
+                                        )
+                                    }
+                                    Architecture::Aarch64 => {
+                                        omega_isa_aarch64::wire_decode_ok_page_offset(
+                                            buffer_offset,
+                                            read_offset,
+                                        )
+                                    }
+                                },
+                                ok_region,
+                            ),
+                            (
+                                match architecture {
+                                    Architecture::X86_64 => {
+                                        omega_isa_x86_64::wire_decode_byte_slice_target_page_offset(
+                                            buffer_offset,
+                                            buffer_length,
+                                            read_offset,
+                                            predicate_mask,
+                                        )
+                                    }
+                                    Architecture::Aarch64 => {
+                                        omega_isa_aarch64::wire_decode_byte_slice_target_page_offset(
+                                            buffer_offset,
+                                            buffer_length,
+                                            read_offset,
+                                            predicate_mask,
                                         )
                                     }
                                 },
@@ -10019,6 +10159,20 @@ fn compiler_instruction_footprint(
                 ),
             }
         }
+        CompilerInstructionValidationKind::CompilerBodyWireByteSliceRead { .. } => {
+            match architecture {
+                Architecture::X86_64 => (
+                    BoundaryFootprintFragmentOrigin::CompilerBodyWireByteSliceRead,
+                    omega_isa_x86_64::read_wire_byte_slice_clobbers(),
+                    omega_isa_x86_64::read_wire_byte_slice_additional_machine_state(),
+                ),
+                Architecture::Aarch64 => (
+                    BoundaryFootprintFragmentOrigin::CompilerBodyWireByteSliceRead,
+                    omega_isa_aarch64::read_wire_byte_slice_clobbers(),
+                    omega_isa_aarch64::read_wire_byte_slice_additional_machine_state(),
+                ),
+            }
+        }
         CompilerInstructionValidationKind::CompilerBodyTextBufferMaterialize { target, .. } => {
             let shape = compiler_body_place_integer_write_shape(&target).ok()?;
             let (registers, additional_state) = match (architecture, shape) {
@@ -10348,6 +10502,7 @@ fn validate_compiler_body_specification_footprints(
                 | BoundaryFootprintFragmentOrigin::CompilerBodyWireRepeatedScalarVarintAppend
                 | BoundaryFootprintFragmentOrigin::CompilerBodyWireExpectedByteRead
                 | BoundaryFootprintFragmentOrigin::CompilerBodyWireScalarVarintRead
+                | BoundaryFootprintFragmentOrigin::CompilerBodyWireByteSliceRead
                 | BoundaryFootprintFragmentOrigin::CompilerBodyTextAssemblyWrite
                 | BoundaryFootprintFragmentOrigin::CompilerBodyPlaceBinaryWrite
                 | BoundaryFootprintFragmentOrigin::CompilerBodyStorageConvertWrite
@@ -10559,6 +10714,10 @@ fn validate_compiler_body_specification_footprints(
         (
             53u8,
             BoundaryFootprintFragmentOrigin::CompilerBodyWireRepeatedScalarVarintAppend,
+        ),
+        (
+            54u8,
+            BoundaryFootprintFragmentOrigin::CompilerBodyWireByteSliceRead,
         ),
     ] {
         let evidence_rows = derived

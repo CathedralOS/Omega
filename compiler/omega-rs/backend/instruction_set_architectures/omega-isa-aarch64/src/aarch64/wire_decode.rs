@@ -249,6 +249,14 @@ pub fn encode_read_wire_byte_slice(
     Ok(bytes)
 }
 
+pub fn read_wire_byte_slice_clobbers() -> RegisterSet {
+    read_wire_scalar_varint_clobbers()
+}
+
+pub fn read_wire_byte_slice_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::new([MachineState::Flags])
+}
+
 /// Decode-boundary byte-domain validation blocks (one per predicate in the
 /// mask, in `ByteSequencePredicate::ALL` order so widths are deterministic).
 /// Contract: content ptr in x16, length in x26, sticky ok bit in x23; x19

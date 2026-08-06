@@ -422,6 +422,18 @@ pub enum CompilerInstructionValidationKind {
         zigzag: bool,
         range: Option<CompilerInstructionWireScalarRange>,
     },
+    CompilerBodyWireByteSliceRead {
+        buffer_region: RuntimeStorageRegion,
+        buffer_offset: usize,
+        buffer_length: usize,
+        read_region: RuntimeStorageRegion,
+        read_offset: usize,
+        ok_region: RuntimeStorageRegion,
+        ok_offset: usize,
+        target_region: RuntimeStorageRegion,
+        target_offset: usize,
+        predicate_mask: u8,
+    },
     CompilerBodyTextBufferMaterialize {
         buffer_symbol: Arc<str>,
         target: Place,
