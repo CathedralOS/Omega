@@ -237,6 +237,14 @@ enum CompilerInstructionRelocationRecipe {
         read_offset: usize,
         predicate_mask: u8,
     },
+    WireNestedRead {
+        buffer_region: omega_target_operations::RuntimeStorageRegion,
+        read_region: omega_target_operations::RuntimeStorageRegion,
+        ok_region: omega_target_operations::RuntimeStorageRegion,
+        end_region: omega_target_operations::RuntimeStorageRegion,
+        buffer_offset: usize,
+        read_offset: usize,
+    },
     PlacePair {
         left: omega_target_operations::Place,
         right: omega_target_operations::Place,
@@ -6187,6 +6195,79 @@ fn validate_compiler_function_instruction_boundaries(
                             predicate_mask,
                         },
                     ),
+                    omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyWireNestedOpen {
+                        buffer_region,
+                        buffer_offset,
+                        buffer_length,
+                        read_region,
+                        read_offset,
+                        ok_region,
+                        ok_offset,
+                        end_region,
+                        end_offset,
+                    } => (
+                        None,
+                        match architecture {
+                            Architecture::X86_64 => omega_isa_x86_64::encode_read_wire_nested_open(
+                                buffer_offset,
+                                buffer_length,
+                                read_offset,
+                                ok_offset,
+                                end_offset,
+                            )?,
+                            Architecture::Aarch64 => omega_isa_aarch64::encode_read_wire_nested_open(
+                                buffer_offset,
+                                buffer_length,
+                                read_offset,
+                                ok_offset,
+                                end_offset,
+                            )?,
+                        },
+                        73u8,
+                        CompilerInstructionRelocationRecipe::WireNestedRead {
+                            buffer_region,
+                            read_region,
+                            ok_region,
+                            end_region,
+                            buffer_offset,
+                            read_offset,
+                        },
+                    ),
+                    omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyWireNestedClose {
+                        buffer_region,
+                        buffer_offset,
+                        read_region,
+                        read_offset,
+                        ok_region,
+                        ok_offset,
+                        end_region,
+                        end_offset,
+                    } => (
+                        None,
+                        match architecture {
+                            Architecture::X86_64 => omega_isa_x86_64::encode_read_wire_nested_close(
+                                buffer_offset,
+                                read_offset,
+                                ok_offset,
+                                end_offset,
+                            )?,
+                            Architecture::Aarch64 => omega_isa_aarch64::encode_read_wire_nested_close(
+                                buffer_offset,
+                                read_offset,
+                                ok_offset,
+                                end_offset,
+                            )?,
+                        },
+                        74u8,
+                        CompilerInstructionRelocationRecipe::WireNestedRead {
+                            buffer_region,
+                            read_region,
+                            ok_region,
+                            end_region,
+                            buffer_offset,
+                            read_offset,
+                        },
+                    ),
                     omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyTextBufferMaterialize {
                         buffer_symbol,
                         target,
@@ -7753,6 +7834,85 @@ fn validate_compiler_function_instruction_boundaries(
                                     }
                                 },
                                 target_region,
+                            ),
+                        ];
+                        validate_compiler_data_address_relocations(
+                            architecture,
+                            object,
+                            relocations,
+                            instruction.selected_instruction_index,
+                            instruction_byte_offset,
+                            &address_sites,
+                        )?;
+                        encoded_instruction_bytes == expected_bytes
+                            && compiler_instruction_non_relocation_bits_match(
+                                architecture,
+                                &expected_bytes,
+                                final_instruction_bytes,
+                                &address_sites
+                                    .iter()
+                                    .map(|(offset, _)| *offset)
+                                    .collect::<Vec<_>>(),
+                            )
+                    }
+                    CompilerInstructionRelocationRecipe::WireNestedRead {
+                        buffer_region,
+                        read_region,
+                        ok_region,
+                        end_region,
+                        buffer_offset,
+                        read_offset,
+                    } => {
+                        let address_sites = [
+                            (0, buffer_region),
+                            (
+                                match architecture {
+                                    Architecture::X86_64 => {
+                                        omega_isa_x86_64::wire_decode_read_page_offset(
+                                            buffer_offset,
+                                        )
+                                    }
+                                    Architecture::Aarch64 => {
+                                        omega_isa_aarch64::wire_decode_read_page_offset(
+                                            buffer_offset,
+                                        )
+                                    }
+                                },
+                                read_region,
+                            ),
+                            (
+                                match architecture {
+                                    Architecture::X86_64 => {
+                                        omega_isa_x86_64::wire_decode_ok_page_offset(
+                                            buffer_offset,
+                                            read_offset,
+                                        )
+                                    }
+                                    Architecture::Aarch64 => {
+                                        omega_isa_aarch64::wire_decode_ok_page_offset(
+                                            buffer_offset,
+                                            read_offset,
+                                        )
+                                    }
+                                },
+                                ok_region,
+                            ),
+                            (
+                                match architecture {
+                                    Architecture::X86_64 => {
+                                        omega_isa_x86_64::wire_decode_nested_end_page_offset(
+                                            buffer_offset,
+                                            read_offset,
+                                        )
+                                    }
+                                    Architecture::Aarch64 => {
+                                        omega_isa_aarch64::wire_decode_nested_end_page_offset(
+                                            buffer_offset,
+                                            read_offset,
+                                        )
+                                    }
+                                },
+                                end_region,
                             ),
                         ];
                         validate_compiler_data_address_relocations(
@@ -10173,6 +10333,33 @@ fn compiler_instruction_footprint(
                 ),
             }
         }
+        CompilerInstructionValidationKind::CompilerBodyWireNestedOpen { .. } => {
+            match architecture {
+                Architecture::X86_64 => (
+                    BoundaryFootprintFragmentOrigin::CompilerBodyWireNestedOpen,
+                    omega_isa_x86_64::read_wire_nested_open_clobbers(),
+                    omega_isa_x86_64::read_wire_nested_open_additional_machine_state(),
+                ),
+                Architecture::Aarch64 => (
+                    BoundaryFootprintFragmentOrigin::CompilerBodyWireNestedOpen,
+                    omega_isa_aarch64::read_wire_nested_open_clobbers(),
+                    omega_isa_aarch64::read_wire_nested_open_additional_machine_state(),
+                ),
+            }
+        }
+        CompilerInstructionValidationKind::CompilerBodyWireNestedClose { .. } => match architecture
+        {
+            Architecture::X86_64 => (
+                BoundaryFootprintFragmentOrigin::CompilerBodyWireNestedClose,
+                omega_isa_x86_64::read_wire_nested_close_clobbers(),
+                omega_isa_x86_64::read_wire_nested_close_additional_machine_state(),
+            ),
+            Architecture::Aarch64 => (
+                BoundaryFootprintFragmentOrigin::CompilerBodyWireNestedClose,
+                omega_isa_aarch64::read_wire_nested_close_clobbers(),
+                omega_isa_aarch64::read_wire_nested_close_additional_machine_state(),
+            ),
+        },
         CompilerInstructionValidationKind::CompilerBodyTextBufferMaterialize { target, .. } => {
             let shape = compiler_body_place_integer_write_shape(&target).ok()?;
             let (registers, additional_state) = match (architecture, shape) {
@@ -10503,6 +10690,8 @@ fn validate_compiler_body_specification_footprints(
                 | BoundaryFootprintFragmentOrigin::CompilerBodyWireExpectedByteRead
                 | BoundaryFootprintFragmentOrigin::CompilerBodyWireScalarVarintRead
                 | BoundaryFootprintFragmentOrigin::CompilerBodyWireByteSliceRead
+                | BoundaryFootprintFragmentOrigin::CompilerBodyWireNestedOpen
+                | BoundaryFootprintFragmentOrigin::CompilerBodyWireNestedClose
                 | BoundaryFootprintFragmentOrigin::CompilerBodyTextAssemblyWrite
                 | BoundaryFootprintFragmentOrigin::CompilerBodyPlaceBinaryWrite
                 | BoundaryFootprintFragmentOrigin::CompilerBodyStorageConvertWrite
@@ -10718,6 +10907,14 @@ fn validate_compiler_body_specification_footprints(
         (
             54u8,
             BoundaryFootprintFragmentOrigin::CompilerBodyWireByteSliceRead,
+        ),
+        (
+            55u8,
+            BoundaryFootprintFragmentOrigin::CompilerBodyWireNestedOpen,
+        ),
+        (
+            56u8,
+            BoundaryFootprintFragmentOrigin::CompilerBodyWireNestedClose,
         ),
     ] {
         let evidence_rows = derived

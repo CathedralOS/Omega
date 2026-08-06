@@ -1150,7 +1150,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         executable_regions.contains(
             "\"certificate_schema\": \"omega.final-footprint-certificate\""
         )
-            && executable_regions.contains("\"certificate_format_version\": 137")
+            && executable_regions.contains("\"certificate_format_version\": 138")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
             && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")
@@ -3124,7 +3124,7 @@ fn compiler_body_general_x86_text_assembly_reaches_the_final_artifact() {
     let regions = fs::read_to_string(output.join("13_executable_regions.json"))
         .expect("general x86 final executable-region evidence should be written");
     assert!(
-        regions.contains("\"certificate_format_version\": 137")
+        regions.contains("\"certificate_format_version\": 138")
             && regions.contains("\"compiler_function_body_specification_subset\""),
         "general x86 text assembly must reach final-image validation"
     );
@@ -3185,7 +3185,7 @@ fn compiler_body_wire_scalar_appends_reach_x86_and_aarch64_artifacts() {
             "{target} artifact must retain both wire append footprints without claiming completeness"
         );
         assert!(
-            regions.contains("\"certificate_format_version\": 137")
+            regions.contains("\"certificate_format_version\": 138")
                 && regions.contains("\"compiler_function_body_specification_subset\""),
             "{target} wire appends must reach final-byte validation"
         );
@@ -3256,7 +3256,7 @@ fn compiler_body_wire_text_appends_reach_x86_and_aarch64_artifacts() {
             "{target} artifact must retain the exact wire text-append footprint without claiming completeness"
         );
         assert!(
-            regions.contains("\"certificate_format_version\": 137")
+            regions.contains("\"certificate_format_version\": 138")
                 && regions.contains("\"compiler_function_body_specification_subset\""),
             "{target} wire text append must reach final-byte validation"
         );
@@ -3329,7 +3329,7 @@ fn compiler_body_wire_scalar_slice_appends_reach_x86_and_aarch64_artifacts() {
             "{target} artifact must retain the exact wire scalar-slice footprint without claiming completeness"
         );
         assert!(
-            regions.contains("\"certificate_format_version\": 137")
+            regions.contains("\"certificate_format_version\": 138")
                 && regions.contains("\"compiler_function_body_specification_subset\""),
             "{target} wire scalar-slice append must reach final-byte validation"
         );
@@ -3406,7 +3406,7 @@ fn compiler_body_wire_repeated_scalar_appends_reach_x86_and_aarch64_artifacts() 
             "{target} artifact must retain the exact guarded repeated-scalar footprint without claiming completeness"
         );
         assert!(
-            regions.contains("\"certificate_format_version\": 137")
+            regions.contains("\"certificate_format_version\": 138")
                 && regions.contains("\"compiler_function_body_specification_subset\""),
             "{target} wire repeated-scalar appends must reach final-byte validation"
         );
@@ -3478,9 +3478,89 @@ fn compiler_body_wire_byte_slice_reads_reach_x86_and_aarch64_artifacts() {
             "{target} artifact must retain the exact zero-copy byte-slice footprint without claiming completeness"
         );
         assert!(
-            regions.contains("\"certificate_format_version\": 137")
+            regions.contains("\"certificate_format_version\": 138")
                 && regions.contains("\"compiler_function_body_specification_subset\""),
             "{target} wire byte-slice read must reach final-byte validation"
+        );
+        let elf = fs::read(output.join("omega-program"))
+            .unwrap_or_else(|error| panic!("read {target} ELF: {error}"));
+        assert_eq!(&elf[..4], b"\x7fELF");
+        let _ = fs::remove_dir_all(&scratch);
+    }
+}
+
+#[test]
+fn compiler_body_wire_nested_bounds_reach_x86_and_aarch64_artifacts() {
+    let canary = pass_canary("wire/runtime_wire_roundtrip_nested_and_repeated_exit");
+    for (target, expected_open_registers, expected_close_registers) in [
+        (
+            "linux_x64",
+            "[\"X86Rax\", \"X86R8\", \"X86R9\", \"X86R10\", \"X86R11\", \"X86R13\", \"X86R14\", \"X86R15\"]",
+            "[\"X86Rax\", \"X86R8\", \"X86R9\", \"X86R10\", \"X86R11\", \"X86R13\", \"X86R14\", \"X86R15\"]",
+        ),
+        (
+            "linux_arm64",
+            "[\"Aarch64X(16)\", \"Aarch64X(17)\", \"Aarch64X(19)\", \"Aarch64X(20)\", \"Aarch64X(21)\", \"Aarch64X(23)\", \"Aarch64X(24)\", \"Aarch64X(25)\", \"Aarch64X(26)\"]",
+            "[\"Aarch64X(16)\", \"Aarch64X(17)\", \"Aarch64X(19)\", \"Aarch64X(20)\", \"Aarch64X(21)\", \"Aarch64X(23)\", \"Aarch64X(25)\", \"Aarch64X(26)\"]",
+        ),
+    ] {
+        let scratch = std::env::temp_dir().join(format!(
+            "omega-compiler-body-wire-nested-bounds-{target}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&scratch);
+        let source = scratch.join("src");
+        let output = scratch.join("out");
+        fs::create_dir_all(&source)
+            .expect("create compiler-body wire nested-bounds source directory");
+        fs::copy(canary.join("main.omg"), source.join("main.omg"))
+            .expect("copy compiler-body wire nested-bounds canary");
+        fs::write(
+            source.join("build.omg"),
+            format!("target {target} {{\n}}\n"),
+        )
+        .expect("write compiler-body wire nested-bounds target");
+
+        compile(CompileOptions {
+            root_path: source.join("main.omg"),
+            build_dir: Some(output.clone()),
+            target_name: Some(target.into()),
+            write_output: true,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!("compiler-body wire nested bounds should compile for {target}: {diagnostics:?}")
+        });
+        let target_operations = fs::read_to_string(output.join("09_target_operations.html"))
+            .expect("compiler-body wire nested-bounds target operations should be written");
+        let footprints = fs::read_to_string(output.join("08_boundary_footprints.json"))
+            .expect("compiler-body wire nested-bounds footprint evidence should be written");
+        let regions = fs::read_to_string(output.join("13_executable_regions.json"))
+            .expect("compiler-body wire nested-bounds final-region evidence should be written");
+        assert!(
+            target_operations.contains("ReadWireNestedOpen")
+                && target_operations.contains("ReadWireNestedClose"),
+            "{target} canary must exercise both nested-boundary operations"
+        );
+        let open_fragment = footprints
+            .lines()
+            .find(|line| line.contains("\"origin\": \"compiler_body_wire_nested_open\""))
+            .unwrap_or_else(|| panic!("{target} wire nested-open footprint fragment must exist"));
+        let close_fragment = footprints
+            .lines()
+            .find(|line| line.contains("\"origin\": \"compiler_body_wire_nested_close\""))
+            .unwrap_or_else(|| panic!("{target} wire nested-close footprint fragment must exist"));
+        assert!(
+            open_fragment.contains("\"machine_state_bits\": 5")
+                && open_fragment.contains(expected_open_registers)
+                && close_fragment.contains("\"machine_state_bits\": 5")
+                && close_fragment.contains(expected_close_registers)
+                && footprints.contains("\"enumeration_complete\": false"),
+            "{target} artifact must retain exact nested-open and nested-close footprints without claiming completeness"
+        );
+        assert!(
+            regions.contains("\"certificate_format_version\": 138")
+                && regions.contains("\"compiler_function_body_specification_subset\""),
+            "{target} nested-boundary checks must reach final-byte validation"
         );
         let elf = fs::read(output.join("omega-program"))
             .unwrap_or_else(|error| panic!("read {target} ELF: {error}"));
@@ -3541,7 +3621,7 @@ fn compiler_body_wire_expected_byte_reads_reach_x86_and_aarch64_artifacts() {
             "{target} artifact must retain the expected-byte read footprint without claiming completeness"
         );
         assert!(
-            regions.contains("\"certificate_format_version\": 137")
+            regions.contains("\"certificate_format_version\": 138")
                 && regions.contains("\"compiler_function_body_specification_subset\""),
             "{target} wire expected-byte read must reach final-byte validation"
         );
@@ -3614,7 +3694,7 @@ fn compiler_body_wire_ranged_scalar_reads_reach_x86_and_aarch64_artifacts() {
             "{target} artifact must retain the scalar-varint read footprint without claiming completeness"
         );
         assert!(
-            regions.contains("\"certificate_format_version\": 137")
+            regions.contains("\"certificate_format_version\": 138")
                 && regions.contains("\"compiler_function_body_specification_subset\""),
             "{target} wire scalar-varint reads must reach final-byte validation"
         );
@@ -3654,7 +3734,7 @@ fn aarch64_frame_descriptor_ops_with_machine_index_reach_the_final_artifact() {
     let regions = fs::read_to_string(output.join("13_executable_regions.json"))
         .expect("cross-region AArch64 final executable-region evidence should be written");
     assert!(
-        regions.contains("\"certificate_format_version\": 137")
+        regions.contains("\"certificate_format_version\": 138")
             && regions.contains("\"compiler_function_body_specification_subset\""),
         "cross-region AArch64 frame-descriptor operations must reach final-image validation"
     );

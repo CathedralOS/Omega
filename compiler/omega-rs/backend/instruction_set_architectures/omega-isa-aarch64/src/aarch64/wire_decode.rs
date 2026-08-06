@@ -837,6 +837,24 @@ pub fn encode_read_wire_nested_open(
     Ok(bytes)
 }
 
+pub fn read_wire_nested_open_clobbers() -> RegisterSet {
+    RegisterSet::new([
+        MachineRegister::Aarch64X(16),
+        MachineRegister::Aarch64X(17),
+        MachineRegister::Aarch64X(19),
+        MachineRegister::Aarch64X(20),
+        MachineRegister::Aarch64X(21),
+        MachineRegister::Aarch64X(23),
+        MachineRegister::Aarch64X(24),
+        MachineRegister::Aarch64X(25),
+        MachineRegister::Aarch64X(26),
+    ])
+}
+
+pub fn read_wire_nested_open_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::new([MachineState::Flags])
+}
+
 /// Close a nested sub-message region (chapter 20, nested message fields):
 /// clear ok unless the cursor landed EXACTLY on the end bound the matching
 /// open stored -- the declared sub-message length must equal the bytes its
@@ -877,6 +895,23 @@ pub fn encode_read_wire_nested_close(
         read_wire_nested_close_width(buffer_offset, read_offset, ok_offset, end_offset)
     );
     Ok(bytes)
+}
+
+pub fn read_wire_nested_close_clobbers() -> RegisterSet {
+    RegisterSet::new([
+        MachineRegister::Aarch64X(16),
+        MachineRegister::Aarch64X(17),
+        MachineRegister::Aarch64X(19),
+        MachineRegister::Aarch64X(20),
+        MachineRegister::Aarch64X(21),
+        MachineRegister::Aarch64X(23),
+        MachineRegister::Aarch64X(25),
+        MachineRegister::Aarch64X(26),
+    ])
+}
+
+pub fn read_wire_nested_close_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::new([MachineState::Flags])
 }
 
 #[cfg(test)]

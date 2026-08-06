@@ -10979,6 +10979,23 @@ pub fn read_wire_nested_open_width(
     wire_decode_prologue_width() + 55 + wire_decode_tail_width()
 }
 
+pub fn read_wire_nested_open_clobbers() -> RegisterSet {
+    RegisterSet::new([
+        MachineRegister::X86Rax,
+        MachineRegister::X86R8,
+        MachineRegister::X86R9,
+        MachineRegister::X86R10,
+        MachineRegister::X86R11,
+        MachineRegister::X86R13,
+        MachineRegister::X86R14,
+        MachineRegister::X86R15,
+    ])
+}
+
+pub fn read_wire_nested_open_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::new([MachineState::Flags])
+}
+
 /// Open a nested sub-message region (chapter 20, nested message fields): the
 /// end slot holds the sub-message LENGTH the caller just varint-read into it;
 /// replace it with the ABSOLUTE end bound (`cursor + length`) and clear ok
@@ -11061,6 +11078,14 @@ pub fn read_wire_nested_close_width(
     // Prologue + end page mov (10) + end load (7) + success mov (6) +
     // cursor cmp (3) + je (2) + fail xor (3) + epilogue.
     wire_decode_prologue_width() + 31 + wire_decode_tail_width()
+}
+
+pub fn read_wire_nested_close_clobbers() -> RegisterSet {
+    read_wire_nested_open_clobbers()
+}
+
+pub fn read_wire_nested_close_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::new([MachineState::Flags])
 }
 
 /// Close a nested sub-message region (chapter 20, nested message fields):
