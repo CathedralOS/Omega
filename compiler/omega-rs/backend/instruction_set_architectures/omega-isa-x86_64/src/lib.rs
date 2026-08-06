@@ -11144,6 +11144,21 @@ pub fn append_wire_repeated_scalar_varint_width(
         + 7
 }
 
+pub fn append_wire_repeated_scalar_varint_clobbers() -> RegisterSet {
+    RegisterSet::new([
+        MachineRegister::X86Rax,
+        MachineRegister::X86R9,
+        MachineRegister::X86R10,
+        MachineRegister::X86R11,
+        MachineRegister::X86R14,
+        MachineRegister::X86R15,
+    ])
+}
+
+pub fn append_wire_repeated_scalar_varint_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::new([MachineState::Flags])
+}
+
 /// LEB128-encode element `index` of a packed repeated field at the cursor,
 /// ONLY IF `index < count` (the FixedVec `length` slot, read as unsigned
 /// 64-bit). A skipped element leaves the cursor untouched, so the staged

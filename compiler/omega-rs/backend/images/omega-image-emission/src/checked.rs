@@ -200,6 +200,16 @@ enum CompilerInstructionRelocationRecipe {
         out_offset: usize,
         written_offset: usize,
     },
+    WireRepeatedScalarAppend {
+        source_region: omega_target_operations::RuntimeStorageRegion,
+        count_region: omega_target_operations::RuntimeStorageRegion,
+        out_region: omega_target_operations::RuntimeStorageRegion,
+        written_region: omega_target_operations::RuntimeStorageRegion,
+        out_offset: usize,
+        written_offset: usize,
+        count_offset: usize,
+        index: u64,
+    },
     WireExpectedByteRead {
         buffer_region: omega_target_operations::RuntimeStorageRegion,
         read_region: omega_target_operations::RuntimeStorageRegion,
@@ -5976,6 +5986,56 @@ fn validate_compiler_function_instruction_boundaries(
                             written_offset,
                         },
                     ),
+                    omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyWireRepeatedScalarVarintAppend {
+                        source_region,
+                        source_offset,
+                        byte_size,
+                        zigzag,
+                        index,
+                        count_region,
+                        count_offset,
+                        out_region,
+                        out_offset,
+                        written_region,
+                        written_offset,
+                    } => (
+                        None,
+                        match architecture {
+                            Architecture::X86_64 => omega_isa_x86_64::encode_append_wire_repeated_scalar_varint(
+                                source_region,
+                                source_offset,
+                                byte_size,
+                                zigzag,
+                                index,
+                                count_region,
+                                count_offset,
+                                out_offset,
+                                written_offset,
+                            )?,
+                            Architecture::Aarch64 => omega_isa_aarch64::encode_append_wire_repeated_scalar_varint(
+                                source_region,
+                                source_offset,
+                                byte_size,
+                                zigzag,
+                                index,
+                                count_region,
+                                count_offset,
+                                out_offset,
+                                written_offset,
+                            )?,
+                        },
+                        71u8,
+                        CompilerInstructionRelocationRecipe::WireRepeatedScalarAppend {
+                            source_region,
+                            count_region,
+                            out_region,
+                            written_region,
+                            out_offset,
+                            written_offset,
+                            count_offset,
+                            index,
+                        },
+                    ),
                     omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyWireExpectedByteRead {
                         buffer_region,
                         buffer_offset,
@@ -7318,6 +7378,91 @@ fn validate_compiler_function_instruction_boundaries(
                                         omega_isa_aarch64::wire_append_varint_source_page_offset(
                                             out_offset,
                                             written_offset,
+                                        )
+                                    }
+                                },
+                                source_region,
+                            ),
+                        ];
+                        validate_compiler_data_address_relocations(
+                            architecture,
+                            object,
+                            relocations,
+                            instruction.selected_instruction_index,
+                            instruction_byte_offset,
+                            &address_sites,
+                        )?;
+                        encoded_instruction_bytes == expected_bytes
+                            && compiler_instruction_non_relocation_bits_match(
+                                architecture,
+                                &expected_bytes,
+                                final_instruction_bytes,
+                                &address_sites
+                                    .iter()
+                                    .map(|(offset, _)| *offset)
+                                    .collect::<Vec<_>>(),
+                            )
+                    }
+                    CompilerInstructionRelocationRecipe::WireRepeatedScalarAppend {
+                        source_region,
+                        count_region,
+                        out_region,
+                        written_region,
+                        out_offset,
+                        written_offset,
+                        count_offset,
+                        index,
+                    } => {
+                        let address_sites = [
+                            (0, out_region),
+                            (
+                                match architecture {
+                                    Architecture::X86_64 => {
+                                        omega_isa_x86_64::wire_append_written_page_offset(
+                                            out_offset,
+                                        )
+                                    }
+                                    Architecture::Aarch64 => {
+                                        omega_isa_aarch64::wire_append_written_page_offset(
+                                            out_offset,
+                                        )
+                                    }
+                                },
+                                written_region,
+                            ),
+                            (
+                                match architecture {
+                                    Architecture::X86_64 => {
+                                        omega_isa_x86_64::wire_append_repeated_count_page_offset(
+                                            out_offset,
+                                            written_offset,
+                                        )
+                                    }
+                                    Architecture::Aarch64 => {
+                                        omega_isa_aarch64::wire_append_repeated_count_page_offset(
+                                            out_offset,
+                                            written_offset,
+                                        )
+                                    }
+                                },
+                                count_region,
+                            ),
+                            (
+                                match architecture {
+                                    Architecture::X86_64 => {
+                                        omega_isa_x86_64::wire_append_repeated_source_page_offset(
+                                            out_offset,
+                                            written_offset,
+                                            count_offset,
+                                            index,
+                                        )
+                                    }
+                                    Architecture::Aarch64 => {
+                                        omega_isa_aarch64::wire_append_repeated_source_page_offset(
+                                            out_offset,
+                                            written_offset,
+                                            count_offset,
+                                            index,
                                         )
                                     }
                                 },
@@ -9830,6 +9975,20 @@ fn compiler_instruction_footprint(
                 ),
             }
         }
+        CompilerInstructionValidationKind::CompilerBodyWireRepeatedScalarVarintAppend {
+            ..
+        } => match architecture {
+            Architecture::X86_64 => (
+                BoundaryFootprintFragmentOrigin::CompilerBodyWireRepeatedScalarVarintAppend,
+                omega_isa_x86_64::append_wire_repeated_scalar_varint_clobbers(),
+                omega_isa_x86_64::append_wire_repeated_scalar_varint_additional_machine_state(),
+            ),
+            Architecture::Aarch64 => (
+                BoundaryFootprintFragmentOrigin::CompilerBodyWireRepeatedScalarVarintAppend,
+                omega_isa_aarch64::append_wire_repeated_scalar_varint_clobbers(),
+                omega_isa_aarch64::append_wire_repeated_scalar_varint_additional_machine_state(),
+            ),
+        },
         CompilerInstructionValidationKind::CompilerBodyWireExpectedByteRead {
             read_offset,
             ok_offset,
@@ -10186,6 +10345,7 @@ fn validate_compiler_body_specification_footprints(
                 | BoundaryFootprintFragmentOrigin::CompilerBodyWireScalarVarintAppend
                 | BoundaryFootprintFragmentOrigin::CompilerBodyWireTextBytesAppend
                 | BoundaryFootprintFragmentOrigin::CompilerBodyWireScalarSliceAppend
+                | BoundaryFootprintFragmentOrigin::CompilerBodyWireRepeatedScalarVarintAppend
                 | BoundaryFootprintFragmentOrigin::CompilerBodyWireExpectedByteRead
                 | BoundaryFootprintFragmentOrigin::CompilerBodyWireScalarVarintRead
                 | BoundaryFootprintFragmentOrigin::CompilerBodyTextAssemblyWrite
@@ -10395,6 +10555,10 @@ fn validate_compiler_body_specification_footprints(
         (
             52u8,
             BoundaryFootprintFragmentOrigin::CompilerBodyWireScalarSliceAppend,
+        ),
+        (
+            53u8,
+            BoundaryFootprintFragmentOrigin::CompilerBodyWireRepeatedScalarVarintAppend,
         ),
     ] {
         let evidence_rows = derived
