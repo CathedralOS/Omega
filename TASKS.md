@@ -49,14 +49,6 @@ Owners:
 - `wiki/design_briefs/canonical_ir_fuel_and_resource_provisioning.md`
 - `wiki/language_guide/chapter_8_domains.md`
 
-The baseline is live: authority is carried by routed domain facts rather than
-forgeable record shape; provider admission retains exact route, plan, receipt,
-and provenance identity; `Extent` has ordinary geometry plus routed
-`Extent::Granted`; interrupt `Pending` and mask-guard `Active` use the same
-route/evidence machinery; terminal Psi v9-v14 can represent content equations,
-identity reshuffles, authored partition substitution, and independent
-entry-claim bindings.
-
 Remaining:
 
 - **ENTRY-CONTENT-ROOTS — blocked on `OWNER_QUESTIONS.md` Q4.** Connect the
@@ -161,13 +153,6 @@ Owners:
 - `wiki/design_briefs/canonical_ir_fuel_and_resource_provisioning.md`
 - `wiki/architecture/bootstrap_lattice/proof_kernel.md`
 
-The current clean lane has canonical terminal semantic versions through v17,
-proof bundles through the corresponding Boolean/content vocabulary, canonical
-semantic/proof/install/debug section identities, a checked-source producer for
-restricted integer/Boolean control, verified interpretation, source-independent
-Omega lowering, native x86-64/AArch64 emission, and acyclic logical-fuel
-certificates.
-
 Remaining:
 
 - **PSIIR.** Grow terminal production in obligation-complete vertical slices:
@@ -229,21 +214,11 @@ Owners:
 
 #### ENT3 — final state-footprint validation
 
-The final certificate already binds exact relocated bytes, placements,
-compiler-function instruction rows, call/return mechanics, the live target-spec
-body subset, relocation coverage, and the growing ordinary place-copy/write
-matrix. Recent work closed constant nested-guard indexing and cross-region
-single/double-indexed pair replay, and added exact relocated-byte plus
-StatePlan-footprint replay for compact-binary literal-byte, scalar-varint,
-bounded text, two-pass borrowed scalar-slice, and guarded repeated-scalar
-appends plus framing-byte, ranged/signed scalar-varint, and zero-copy borrowed
-byte-slice and guarded repeated-scalar reads plus nested-message open/close bound checks.
-
 Remaining:
 
-- finish classifying and replaying the unclassified compiler-generated
-  x86-64/AArch64 body rows (including the remaining wire encode/decode
-  families) and outbound-call classes;
+- inventory every `SelectedInstructionKind` that can still reach the final
+  image without a specific validation kind, then classify and replay the
+  remaining compiler-generated x86-64/AArch64 body and outbound-call classes;
 - finish complete entry/body-region enumeration, including format-owned thunks,
   veneers, and generated stubs;
 - derive the complete final register/machine-state union and require exact
@@ -347,11 +322,6 @@ and allocation handles expose no compiler-owned stack/control storage.
 
 Owner: `wiki/design_briefs/law_bearing_relations_and_quotients.md`.
 
-The `proposition` category, primitive declarations, transparent aliases,
-applications, generic proposition binders, indexed telescopes, normalized
-identity, terminal-Psi v16 representation, and core relation-law traits are
-live.
-
 Remaining N6/N8 work:
 
 - **WITNESS-EVIDENCE-CLAUSE — blocked on Q5.** Ratify the dedicated declaration
@@ -376,10 +346,6 @@ through its declared interface.
 ### Float providers
 
 Owner: `wiki/design_briefs/float_semantics.md`.
-
-The portable f32/f64 semantics, result-policy adapters, provider-plan selection,
-AArch64 FMA/directed rounding, target control-state envelopes, conversions,
-classification, and macOS AArch64 retained hardware evidence are live.
 
 Remaining F7 work:
 
