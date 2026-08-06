@@ -881,6 +881,41 @@ fn emit_x86_64_boolean_expression_node(
             bytes.extend_from_slice(&[0x0f, 0x94, 0xc0]); // sete al
             bytes.extend_from_slice(&[0x0f, 0xb6, 0xc0]); // movzx eax, al
         }
+        TerminalAssignedBooleanExpression::IntegerLessThan {
+            scalar_type,
+            left,
+            right,
+            ..
+        }
+        | TerminalAssignedBooleanExpression::IntegerLessOrEqual {
+            scalar_type,
+            left,
+            right,
+            ..
+        } => {
+            emit_x86_64_expression_node(bytes, *scalar_type, left, frame_byte_size, stack_depth)?;
+            bytes.push(0x50); // push rax
+            let nested_depth = stack_depth.checked_add(8).ok_or(
+                EmissionError::ExpressionStackDepthNotEncodable {
+                    value: expression_source(left),
+                },
+            )?;
+            emit_x86_64_expression_node(bytes, *scalar_type, right, frame_byte_size, nested_depth)?;
+            bytes.extend_from_slice(&[0x41, 0x5a]); // pop r10
+            bytes.extend_from_slice(&[0x49, 0x39, 0xc2]); // cmp r10, rax
+            let inclusive = matches!(
+                expression,
+                TerminalAssignedBooleanExpression::IntegerLessOrEqual { .. }
+            );
+            let setcc = match (scalar_type.sign(), inclusive) {
+                (IntegerSign::Signed, false) => 0x9c,   // setl al
+                (IntegerSign::Unsigned, false) => 0x92, // setb al
+                (IntegerSign::Signed, true) => 0x9e,    // setle al
+                (IntegerSign::Unsigned, true) => 0x96,  // setbe al
+            };
+            bytes.extend_from_slice(&[0x0f, setcc, 0xc0]);
+            bytes.extend_from_slice(&[0x0f, 0xb6, 0xc0]); // movzx eax, al
+        }
     }
     Ok(())
 }
@@ -1318,6 +1353,51 @@ fn emit_aarch64_boolean_expression_node(
             instructions.push(0xeb00_013f); // cmp x9, x0
             instructions.push(0x1a9f_17e0); // cset w0, eq
         }
+        TerminalAssignedBooleanExpression::IntegerLessThan {
+            scalar_type,
+            left,
+            right,
+            ..
+        }
+        | TerminalAssignedBooleanExpression::IntegerLessOrEqual {
+            scalar_type,
+            left,
+            right,
+            ..
+        } => {
+            emit_aarch64_expression_node(instructions, *scalar_type, left, frame, stack_depth)?;
+            emit_aarch64_adjust_sp(instructions, 16, false)?;
+            instructions.push(aarch64_stack_access(
+                0xf900_0000,
+                0,
+                expression_source(left),
+                0,
+            )?);
+            let nested_depth = stack_depth.checked_add(16).ok_or(
+                EmissionError::ExpressionStackDepthNotEncodable {
+                    value: expression_source(left),
+                },
+            )?;
+            emit_aarch64_expression_node(instructions, *scalar_type, right, frame, nested_depth)?;
+            instructions.push(aarch64_stack_access(
+                0xf940_0000,
+                9,
+                expression_source(left),
+                0,
+            )?);
+            emit_aarch64_adjust_sp(instructions, 16, true)?;
+            instructions.push(0xeb00_013f); // cmp x9, x0
+            let inclusive = matches!(
+                expression,
+                TerminalAssignedBooleanExpression::IntegerLessOrEqual { .. }
+            );
+            instructions.push(match (scalar_type.sign(), inclusive) {
+                (IntegerSign::Signed, false) => 0x1a9f_a7e0, // cset w0, lt
+                (IntegerSign::Unsigned, false) => 0x1a9f_27e0, // cset w0, lo
+                (IntegerSign::Signed, true) => 0x1a9f_c7e0,  // cset w0, le
+                (IntegerSign::Unsigned, true) => 0x1a9f_87e0, // cset w0, ls
+            });
+        }
     }
     Ok(())
 }
@@ -1651,7 +1731,11 @@ fn boolean_expression_source(expression: &TerminalAssignedBooleanExpression) -> 
             boolean_expression_source(operand)
         }
         TerminalAssignedBooleanExpression::Equal { left, .. } => boolean_expression_source(left),
-        TerminalAssignedBooleanExpression::IntegerEqual { left, .. } => expression_source(left),
+        TerminalAssignedBooleanExpression::IntegerEqual { left, .. }
+        | TerminalAssignedBooleanExpression::IntegerLessThan { left, .. }
+        | TerminalAssignedBooleanExpression::IntegerLessOrEqual { left, .. } => {
+            expression_source(left)
+        }
     }
 }
 
@@ -1971,6 +2055,46 @@ mod tests {
                 0xd65f_03c0, // ret
             ]
         );
+    }
+
+    #[test]
+    fn emits_exact_signed_and_unsigned_integer_ordering_conditions() {
+        for (sign, inclusive, x86_setcc, aarch64_cset) in [
+            (IntegerSign::Signed, false, 0x9c, 0x1a9f_a7e0),
+            (IntegerSign::Unsigned, false, 0x92, 0x1a9f_27e0),
+            (IntegerSign::Signed, true, 0x9e, 0x1a9f_c7e0),
+            (IntegerSign::Unsigned, true, 0x96, 0x1a9f_87e0),
+        ] {
+            let scalar_type = IntegerType::new(sign, 8).expect("8-bit ordering type");
+            let x86 = emit_machine_code(&integer_ordering_plan(
+                NativeTarget::linux_x64(),
+                scalar_type,
+                inclusive,
+                MachineRegister::X86Rdi,
+                MachineRegister::X86Rsi,
+            ))
+            .unwrap();
+            assert!(
+                x86.functions[0]
+                    .bytes
+                    .windows(3)
+                    .any(|bytes| bytes == [0x0f, x86_setcc, 0xc0]),
+                "x86-64 ordering must select the exact signedness-aware condition"
+            );
+
+            let aarch64 = emit_machine_code(&integer_ordering_plan(
+                NativeTarget::linux_arm64(),
+                scalar_type,
+                inclusive,
+                MachineRegister::Aarch64X(0),
+                MachineRegister::Aarch64X(1),
+            ))
+            .unwrap();
+            assert!(
+                aarch64_instructions(&aarch64.functions[0].bytes).contains(&aarch64_cset),
+                "AArch64 ordering must select the exact signedness-aware condition"
+            );
+        }
     }
 
     #[test]
@@ -2719,6 +2843,54 @@ mod tests {
                             location: TerminalScalarParameterLocation::Register(right_register),
                         }),
                     },
+                },
+            }],
+        }
+    }
+
+    fn integer_ordering_plan(
+        target: NativeTarget,
+        scalar_type: IntegerType,
+        inclusive: bool,
+        left_register: MachineRegister,
+        right_register: MachineRegister,
+    ) -> TerminalTargetOperationPlan {
+        let left = Box::new(TerminalTargetIntegerExpression::Parameter {
+            source_value: ValueId::new(1).expect("left"),
+            parameter_index: 0,
+            location: TerminalScalarParameterLocation::Register(left_register),
+        });
+        let right = Box::new(TerminalTargetIntegerExpression::Parameter {
+            source_value: ValueId::new(2).expect("right"),
+            parameter_index: 1,
+            location: TerminalScalarParameterLocation::Register(right_register),
+        });
+        let expression = if inclusive {
+            TerminalTargetBooleanExpression::IntegerLessOrEqual {
+                psi_operation: OperationId::new(1).expect("operation"),
+                scalar_type,
+                left,
+                right,
+            }
+        } else {
+            TerminalTargetBooleanExpression::IntegerLessThan {
+                psi_operation: OperationId::new(1).expect("operation"),
+                scalar_type,
+                left,
+                right,
+            }
+        };
+        TerminalTargetOperationPlan {
+            terminal_psi: identity(),
+            target,
+            entry: MachineId::new(1).expect("machine"),
+            functions: vec![TerminalTargetFunction {
+                machine: MachineId::new(1).expect("machine"),
+                provenance: TerminalPsiProvenance::default(),
+                operation: TerminalTargetOperation::ReturnBooleanExpression {
+                    psi_edge: EdgeId::new(1).expect("edge"),
+                    source_value: ValueId::new(3).expect("result"),
+                    expression,
                 },
             }],
         }

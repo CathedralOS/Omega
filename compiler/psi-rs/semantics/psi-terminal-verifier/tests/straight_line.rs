@@ -544,6 +544,174 @@ fn v18_integer_equality_axiom_proves_the_return_contract() {
 }
 
 #[test]
+fn v19_integer_ordering_axioms_prove_return_contracts() {
+    let integer = IntegerType::new(IntegerSign::Signed, 8).expect("i8 ordering type");
+    let integer_scalar = ScalarType::Integer(integer);
+    let left = ValueId::new(50).expect("left parameter");
+    let right = ValueId::new(51).expect("right parameter");
+    let compared = ValueId::new(52).expect("compared");
+    let result = ValueId::new(53).expect("result");
+    let obligation = ObligationId::new(50).expect("obligation");
+    let value = |id, scalar_type| ScalarTerm::value(id, scalar_type);
+
+    for inclusive in [false, true] {
+        let ordered = if inclusive {
+            ScalarTerm::integer_less_or_equal(
+                integer,
+                value(left, integer_scalar),
+                value(right, integer_scalar),
+            )
+            .expect("matching operands form less-or-equal")
+        } else {
+            ScalarTerm::integer_less_than(
+                integer,
+                value(left, integer_scalar),
+                value(right, integer_scalar),
+            )
+            .expect("matching operands form less-than")
+        };
+        let goal = Proposition::Equal(value(result, ScalarType::Boolean), ordered.clone());
+        let operation = if inclusive {
+            OperationKind::IntegerLessOrEqual { left, right }
+        } else {
+            OperationKind::IntegerLessThan { left, right }
+        };
+        let module = TerminalModule {
+            semantic_version: SemanticVersion::V19,
+            entry: MachineId::new(50).expect("machine"),
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
+            machines: vec![TerminalMachine {
+                id: MachineId::new(50).expect("machine"),
+                parameters: vec![
+                    ValueDeclaration {
+                        id: left,
+                        scalar_type: integer_scalar,
+                    },
+                    ValueDeclaration {
+                        id: right,
+                        scalar_type: integer_scalar,
+                    },
+                ],
+                result: ValueDeclaration {
+                    id: result,
+                    scalar_type: ScalarType::Boolean,
+                },
+                structural_places: Vec::new(),
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry: BlockId::new(50).expect("block"),
+                blocks: vec![Block {
+                    id: BlockId::new(50).expect("block"),
+                    parameters: Vec::new(),
+                    operations: vec![Operation {
+                        id: OperationId::new(50).expect("operation"),
+                        result: ValueDeclaration {
+                            id: compared,
+                            scalar_type: ScalarType::Boolean,
+                        },
+                        kind: operation,
+                    }],
+                    terminator: Terminator::Return {
+                        edge: EdgeId::new(50).expect("edge"),
+                        value: compared,
+                    },
+                }],
+                contract: MachineContract {
+                    id: ContractId::new(50).expect("contract"),
+                    requires: Vec::new(),
+                    ensures: vec![ContractClause {
+                        obligation,
+                        proposition: goal.clone(),
+                    }],
+                },
+            }],
+        };
+        let bundle = ProofBundle {
+            evidence: vec![ObligationEvidence {
+                obligation,
+                route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                    identity: EvidenceIdentity::new(50).expect("certificate"),
+                    proof_system_version: ProofSystemVersion::CURRENT,
+                    proof: ProofNode {
+                        conclusion: goal,
+                        rule: ProofRule::EqualityTransitivity {
+                            left_equals_middle: Box::new(ProofNode {
+                                conclusion: Proposition::Equal(
+                                    value(result, ScalarType::Boolean),
+                                    value(compared, ScalarType::Boolean),
+                                ),
+                                rule: ProofRule::SemanticAxiom { index: 1 },
+                            }),
+                            middle_equals_right: Box::new(ProofNode {
+                                conclusion: Proposition::Equal(
+                                    value(compared, ScalarType::Boolean),
+                                    ordered,
+                                ),
+                                rule: ProofRule::SemanticAxiom { index: 0 },
+                            }),
+                        },
+                    },
+                }),
+            }],
+        };
+        verify_module(&module, &bundle, &AdmissionProfile::default())
+            .expect("v19 ordering reconstructs the exact operation and return axioms");
+
+        let mut old = module.clone();
+        old.semantic_version = SemanticVersion::V18;
+        assert_eq!(
+            validate_module(&old).expect_err("v18 cannot contain ordering"),
+            ModuleError::OperationRequiresSemanticVersion {
+                operation: OperationId::new(50).expect("operation"),
+                required: SemanticVersion::V19,
+                actual: SemanticVersion::V18,
+            }
+        );
+        if !inclusive {
+            let mut old_proposition = module.clone();
+            old_proposition.semantic_version = SemanticVersion::V18;
+            old_proposition.machines[0].blocks[0].operations[0].kind =
+                OperationKind::BooleanConstant { value: true };
+            assert_eq!(
+                validate_module(&old_proposition)
+                    .expect_err("v18 cannot contain an integer-ordering proposition term"),
+                ModuleError::PropositionRequiresSemanticVersion {
+                    contract: ContractId::new(50).expect("contract"),
+                    clause: ContractClauseKind::Ensures,
+                    required: SemanticVersion::V19,
+                    actual: SemanticVersion::V18,
+                }
+            );
+
+            let mut wrong_operand = module.clone();
+            wrong_operand.machines[0].contract.ensures.clear();
+            wrong_operand.machines[0].parameters[1].scalar_type = ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 mismatch"),
+            );
+            assert!(matches!(
+                validate_module(&wrong_operand),
+                Err(ModuleError::IntegerOrderingOperandTypeMismatch { .. })
+            ));
+
+            let mut wrong_result = module.clone();
+            wrong_result.machines[0].contract.ensures.clear();
+            wrong_result.machines[0].blocks[0].operations[0]
+                .result
+                .scalar_type = integer_scalar;
+            assert_eq!(
+                validate_module(&wrong_result)
+                    .expect_err("integer ordering requires a Boolean result"),
+                ModuleError::IntegerOrderingRequiresBooleanResult(
+                    OperationId::new(50).expect("operation")
+                )
+            );
+        }
+    }
+}
+
+#[test]
 fn v9_content_conservation_accepts_a_replaceable_certificate() {
     let (module, goal, obligation) = reflexive_content_module();
     let bundle = ProofBundle {

@@ -370,6 +370,20 @@ ensures true == true
     left == right
 }
 
+machine terminal_unsigned_less_runtime(left: u64, right: u64) -> bool
+requires true == true
+ensures true == true
+{
+    left < right
+}
+
+machine terminal_signed_less_or_equal_runtime(left: i64, right: i64) -> bool
+requires true == true
+ensures true == true
+{
+    left <= right
+}
+
 machine terminal_boolean_not_equal_runtime(left: bool, right: bool) -> bool
 requires true == true
 ensures true == true

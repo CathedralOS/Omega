@@ -13,7 +13,8 @@
 //! substitutions, v13 adds ordered structural conditional edges, v14 adds
 //! independent machine-local entry-claim bindings, v15 adds Boolean logical
 //! negation, v16 adds nominal proposition declarations and normalized
-//! application identities, and current v17 adds total Boolean equality.
+//! application identities, v17 adds total Boolean equality, v18 adds total
+//! integer equality, and current v19 adds signedness-aware integer ordering.
 //! This small executable slice
 //! exercises values, control, bodyful contracts, and one width-relative
 //! arithmetic policy plus Boolean control without pretending that other

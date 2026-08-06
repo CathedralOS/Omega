@@ -310,12 +310,17 @@ fn validate_canonical_proposition(
     match proposition {
         Proposition::Truth | Proposition::Falsehood | Proposition::Atom(_) => Ok(()),
         Proposition::Equal(left, right) => {
+            validate_scalar_term_depth(left)?;
+            validate_scalar_term_depth(right)?;
             if canonical_scalar_term_bytes(left)? > canonical_scalar_term_bytes(right)? {
                 return Err(CodecError::NonCanonicalOrder("equality operands"));
             }
             Ok(())
         }
-        Proposition::LessThan(_, _) | Proposition::LessOrEqual(_, _) => Ok(()),
+        Proposition::LessThan(left, right) | Proposition::LessOrEqual(left, right) => {
+            validate_scalar_term_depth(left)?;
+            validate_scalar_term_depth(right)
+        }
         Proposition::Conjunction(conjuncts) => {
             if conjuncts
                 .iter()
@@ -369,6 +374,33 @@ fn canonical_scalar_term_bytes(term: &ScalarTerm) -> Result<Vec<u8>, CodecError>
     let mut writer = Writer::default();
     encode_scalar_term(&mut writer, term, 0)?;
     Ok(writer.finish())
+}
+
+fn validate_scalar_term_depth(term: &ScalarTerm) -> Result<(), CodecError> {
+    let mut pending = vec![(term, 0_usize)];
+    while let Some((term, depth)) = pending.pop() {
+        if depth > MAX_SCALAR_TERM_DEPTH {
+            return Err(CodecError::ScalarTermNestingTooDeep);
+        }
+        match term {
+            ScalarTerm::BooleanNot { operand } => pending.push((operand, depth + 1)),
+            ScalarTerm::BooleanEqual { left, right }
+            | ScalarTerm::IntegerEqual { left, right, .. }
+            | ScalarTerm::IntegerLessThan { left, right, .. }
+            | ScalarTerm::IntegerLessOrEqual { left, right, .. }
+            | ScalarTerm::WrappingIntegerAdd { left, right, .. }
+            | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
+            | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
+            | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
+            | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
+            | ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
+                pending.push((left, depth + 1));
+                pending.push((right, depth + 1));
+            }
+            ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => {}
+        }
+    }
+    Ok(())
 }
 
 fn validate_content_term_depth(term: &ContentTerm, depth: usize) -> Result<(), CodecError> {
@@ -647,6 +679,16 @@ fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), CodecError> {
                 writer.id(left);
                 writer.id(right);
             }
+            OperationKind::IntegerLessThan { left, right } => {
+                writer.u8(12);
+                writer.id(left);
+                writer.id(right);
+            }
+            OperationKind::IntegerLessOrEqual { left, right } => {
+                writer.u8(13);
+                writer.id(left);
+                writer.id(right);
+            }
             OperationKind::WrappingIntegerAdd { left, right } => {
                 writer.u8(3);
                 writer.id(left);
@@ -901,6 +943,26 @@ fn encode_scalar_term(
             right,
         } => {
             writer.u8(12);
+            encode_integer_type(writer, *scalar_type);
+            encode_scalar_term(writer, left, depth + 1)?;
+            encode_scalar_term(writer, right, depth + 1)?;
+        }
+        ScalarTerm::IntegerLessThan {
+            scalar_type,
+            left,
+            right,
+        } => {
+            writer.u8(13);
+            encode_integer_type(writer, *scalar_type);
+            encode_scalar_term(writer, left, depth + 1)?;
+            encode_scalar_term(writer, right, depth + 1)?;
+        }
+        ScalarTerm::IntegerLessOrEqual {
+            scalar_type,
+            left,
+            right,
+        } => {
+            writer.u8(14);
             encode_integer_type(writer, *scalar_type);
             encode_scalar_term(writer, left, depth + 1)?;
             encode_scalar_term(writer, right, depth + 1)?;
@@ -1340,6 +1402,14 @@ fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError> {
                 left: reader.id("ValueId")?,
                 right: reader.id("ValueId")?,
             },
+            12 => OperationKind::IntegerLessThan {
+                left: reader.id("ValueId")?,
+                right: reader.id("ValueId")?,
+            },
+            13 => OperationKind::IntegerLessOrEqual {
+                left: reader.id("ValueId")?,
+                right: reader.id("ValueId")?,
+            },
             tag => return Err(CodecError::InvalidTag("OperationKind", tag)),
         };
         operations.push(Operation {
@@ -1605,6 +1675,20 @@ fn decode_scalar_term(reader: &mut Reader<'_>, depth: usize) -> Result<ScalarTer
             let left = decode_scalar_term(reader, depth + 1)?;
             let right = decode_scalar_term(reader, depth + 1)?;
             ScalarTerm::integer_equal(scalar_type, left, right)
+                .map_err(CodecError::MalformedProposition)?
+        }
+        13 => {
+            let scalar_type = decode_integer_type(reader)?;
+            let left = decode_scalar_term(reader, depth + 1)?;
+            let right = decode_scalar_term(reader, depth + 1)?;
+            ScalarTerm::integer_less_than(scalar_type, left, right)
+                .map_err(CodecError::MalformedProposition)?
+        }
+        14 => {
+            let scalar_type = decode_integer_type(reader)?;
+            let left = decode_scalar_term(reader, depth + 1)?;
+            let right = decode_scalar_term(reader, depth + 1)?;
+            ScalarTerm::integer_less_or_equal(scalar_type, left, right)
                 .map_err(CodecError::MalformedProposition)?
         }
         tag => return Err(CodecError::InvalidTag("ScalarTerm", tag)),

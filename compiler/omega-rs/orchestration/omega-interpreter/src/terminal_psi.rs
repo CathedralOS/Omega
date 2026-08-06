@@ -240,6 +240,47 @@ impl<'module> TerminalExecution<'module> {
                             TerminalScalarValue::Boolean(left == right),
                         );
                     }
+                    OperationKind::IntegerLessThan { left, right }
+                    | OperationKind::IntegerLessOrEqual { left, right } => {
+                        if operation.result.scalar_type != ScalarType::Boolean {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        let TerminalScalarValue::Integer {
+                            scalar_type: left_type,
+                            value: left_value,
+                        } = self
+                            .values
+                            .get(&left)
+                            .copied()
+                            .ok_or(TerminalInterpretError::VerifiedValueMissing(left))?
+                        else {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        };
+                        let TerminalScalarValue::Integer {
+                            scalar_type: right_type,
+                            value: right_value,
+                        } = self
+                            .values
+                            .get(&right)
+                            .copied()
+                            .ok_or(TerminalInterpretError::VerifiedValueMissing(right))?
+                        else {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        };
+                        if left_type != right_type {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        let ordering = left_type
+                            .compare(left_value, right_value)
+                            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                        let result = match operation.kind {
+                            OperationKind::IntegerLessThan { .. } => ordering.is_lt(),
+                            OperationKind::IntegerLessOrEqual { .. } => !ordering.is_gt(),
+                            _ => unreachable!(),
+                        };
+                        self.values
+                            .insert(operation.result.id, TerminalScalarValue::Boolean(result));
+                    }
                     OperationKind::WrappingIntegerAdd { left, right } => {
                         let ScalarType::Integer(scalar_type) = operation.result.scalar_type else {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);

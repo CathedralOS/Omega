@@ -233,6 +233,30 @@ fn reconstruct_semantic_axioms(machine: &TerminalMachine) -> Vec<Proposition> {
                     .expect("validator requires exact integer equality operand types");
                     axioms.push(Proposition::Equal(value_term(operation.result.id), equal));
                 }
+                OperationKind::IntegerLessThan { left, right } => {
+                    let ScalarType::Integer(integer_type) = value_term(left).scalar_type() else {
+                        unreachable!("validator requires integer ordering operands")
+                    };
+                    let ordered = ScalarTerm::integer_less_than(
+                        integer_type,
+                        value_term(left),
+                        value_term(right),
+                    )
+                    .expect("validator requires exact integer ordering operand types");
+                    axioms.push(Proposition::Equal(value_term(operation.result.id), ordered));
+                }
+                OperationKind::IntegerLessOrEqual { left, right } => {
+                    let ScalarType::Integer(integer_type) = value_term(left).scalar_type() else {
+                        unreachable!("validator requires integer ordering operands")
+                    };
+                    let ordered = ScalarTerm::integer_less_or_equal(
+                        integer_type,
+                        value_term(left),
+                        value_term(right),
+                    )
+                    .expect("validator requires exact integer ordering operand types");
+                    axioms.push(Proposition::Equal(value_term(operation.result.id), ordered));
+                }
                 OperationKind::WrappingIntegerAdd { left, right } => {
                     let ScalarType::Integer(integer_type) = operation.result.scalar_type else {
                         unreachable!("validator requires wrapping-add integer result type")

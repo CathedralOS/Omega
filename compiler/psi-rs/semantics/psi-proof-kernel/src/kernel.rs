@@ -1,4 +1,4 @@
-use psi_core::{IntegerValue, Proposition, PropositionContext, ScalarTerm};
+use psi_core::{Proposition, PropositionContext, ScalarTerm};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PrimitiveJudgment {
@@ -43,11 +43,7 @@ fn compare_integer_literals(left: &ScalarTerm, right: &ScalarTerm) -> Option<std
     if left_type != right_type {
         return None;
     }
-    match (left, right) {
-        (IntegerValue::Signed(left), IntegerValue::Signed(right)) => Some(left.cmp(&right)),
-        (IntegerValue::Unsigned(left), IntegerValue::Unsigned(right)) => Some(left.cmp(&right)),
-        _ => None,
-    }
+    left_type.compare(left, right)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -67,7 +63,7 @@ impl std::error::Error for KernelError {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use psi_core::{IntegerSign, IntegerType};
+    use psi_core::{IntegerSign, IntegerType, IntegerValue};
 
     #[test]
     fn closed_integer_judgment_is_total_and_refuses_false_relations() {

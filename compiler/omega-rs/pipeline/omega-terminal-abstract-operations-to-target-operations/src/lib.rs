@@ -212,6 +212,45 @@ fn lower_function(
                 )?;
                 provenance.operations.push(*psi_operation);
             }
+            TerminalAbstractOperation::IntegerLessThan {
+                psi_operation,
+                result,
+                left,
+                right,
+            }
+            | TerminalAbstractOperation::IntegerLessOrEqual {
+                psi_operation,
+                result,
+                left,
+                right,
+            } => {
+                let left_value = values
+                    .get(left)
+                    .cloned()
+                    .ok_or(LoweringError::UnknownValue(*left))?;
+                let right_value = values
+                    .get(right)
+                    .cloned()
+                    .ok_or(LoweringError::UnknownValue(*right))?;
+                let inclusive = matches!(
+                    operation,
+                    TerminalAbstractOperation::IntegerLessOrEqual { .. }
+                );
+                insert_value(
+                    &mut values,
+                    *result,
+                    order_integer(
+                        *left,
+                        left_value,
+                        *right,
+                        right_value,
+                        *psi_operation,
+                        *result,
+                        inclusive,
+                    )?,
+                )?;
+                provenance.operations.push(*psi_operation);
+            }
             TerminalAbstractOperation::WrappingIntegerAdd {
                 psi_operation,
                 result,
@@ -1390,6 +1429,47 @@ fn lower_conditional_scalar_operation(
         provenance.push(*psi_operation);
         return Ok(true);
     }
+    if let TerminalAbstractOperation::IntegerLessThan {
+        psi_operation,
+        result,
+        left,
+        right,
+    }
+    | TerminalAbstractOperation::IntegerLessOrEqual {
+        psi_operation,
+        result,
+        left,
+        right,
+    } = operation
+    {
+        let left_value = values
+            .get(left)
+            .cloned()
+            .ok_or(LoweringError::UnknownValue(*left))?;
+        let right_value = values
+            .get(right)
+            .cloned()
+            .ok_or(LoweringError::UnknownValue(*right))?;
+        let inclusive = matches!(
+            operation,
+            TerminalAbstractOperation::IntegerLessOrEqual { .. }
+        );
+        insert_value(
+            values,
+            *result,
+            order_integer(
+                *left,
+                left_value,
+                *right,
+                right_value,
+                *psi_operation,
+                *result,
+                inclusive,
+            )?,
+        )?;
+        provenance.push(*psi_operation);
+        return Ok(true);
+    }
     let (psi_operation, result, scalar_type, value) = match operation {
         TerminalAbstractOperation::IntegerConstant {
             psi_operation,
@@ -1837,6 +1917,64 @@ fn equal_integer(
     }
 }
 
+fn order_integer(
+    left_id: ValueId,
+    left: KnownScalar,
+    right_id: ValueId,
+    right: KnownScalar,
+    psi_operation: OperationId,
+    result: ValueId,
+    inclusive: bool,
+) -> Result<KnownScalar, LoweringError> {
+    let (
+        KnownScalar::Integer {
+            scalar_type: left_type,
+            value: left,
+        },
+        KnownScalar::Integer {
+            scalar_type: right_type,
+            value: right,
+        },
+    ) = (left, right)
+    else {
+        return Err(LoweringError::ValueTypeMismatch(result));
+    };
+    if left_type != right_type {
+        return Err(LoweringError::ValueTypeMismatch(result));
+    }
+    match (left, right) {
+        (KnownInteger::Immediate(left), KnownInteger::Immediate(right)) => {
+            let ordering = left_type
+                .compare(left, right)
+                .ok_or(LoweringError::ValueTypeMismatch(result))?;
+            Ok(KnownScalar::Boolean(if inclusive {
+                !ordering.is_gt()
+            } else {
+                ordering.is_lt()
+            }))
+        }
+        (left, right) => {
+            let left = Box::new(left.into_expression(left_id));
+            let right = Box::new(right.into_expression(right_id));
+            Ok(KnownScalar::BooleanRuntime(if inclusive {
+                TerminalTargetBooleanExpression::IntegerLessOrEqual {
+                    psi_operation,
+                    scalar_type: left_type,
+                    left,
+                    right,
+                }
+            } else {
+                TerminalTargetBooleanExpression::IntegerLessThan {
+                    psi_operation,
+                    scalar_type: left_type,
+                    left,
+                    right,
+                }
+            }))
+        }
+    }
+}
+
 fn direct_boolean_condition(
     expression: TerminalTargetBooleanExpression,
     value: ValueId,
@@ -1907,6 +2045,8 @@ fn conditional_provenance(
             | TerminalAbstractOperation::BooleanNot { psi_operation, .. }
             | TerminalAbstractOperation::BooleanEqual { psi_operation, .. }
             | TerminalAbstractOperation::IntegerEqual { psi_operation, .. }
+            | TerminalAbstractOperation::IntegerLessThan { psi_operation, .. }
+            | TerminalAbstractOperation::IntegerLessOrEqual { psi_operation, .. }
             | TerminalAbstractOperation::WrappingIntegerAdd { psi_operation, .. }
             | TerminalAbstractOperation::SaturatingIntegerAdd { psi_operation, .. }
             | TerminalAbstractOperation::WrappingIntegerSubtract { psi_operation, .. }

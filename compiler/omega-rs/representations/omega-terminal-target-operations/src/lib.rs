@@ -143,6 +143,18 @@ pub enum TerminalTargetBooleanExpression {
         left: Box<TerminalTargetIntegerExpression>,
         right: Box<TerminalTargetIntegerExpression>,
     },
+    IntegerLessThan {
+        psi_operation: OperationId,
+        scalar_type: IntegerType,
+        left: Box<TerminalTargetIntegerExpression>,
+        right: Box<TerminalTargetIntegerExpression>,
+    },
+    IntegerLessOrEqual {
+        psi_operation: OperationId,
+        scalar_type: IntegerType,
+        left: Box<TerminalTargetIntegerExpression>,
+        right: Box<TerminalTargetIntegerExpression>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

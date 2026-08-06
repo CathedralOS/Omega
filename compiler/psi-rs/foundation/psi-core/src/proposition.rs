@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::{cmp::Ordering, collections::BTreeMap};
 
 use crate::{
     ContentConservation, ContentPlaceVersion, ContentTerm, PlaceId, PropositionId,
@@ -45,6 +45,27 @@ impl IntegerType {
                 self.bits == 128 || value < (1_u128 << self.bits)
             }
             _ => false,
+        }
+    }
+
+    /// Compare two values under this exact integer type's signedness.
+    ///
+    /// Values of the wrong sign or outside the declared width reject rather
+    /// than being reinterpreted.
+    pub fn compare(self, left: IntegerValue, right: IntegerValue) -> Option<Ordering> {
+        if !self.admits(left) || !self.admits(right) {
+            return None;
+        }
+        match (self.sign, left, right) {
+            (
+                IntegerSign::Unsigned,
+                IntegerValue::Unsigned(left),
+                IntegerValue::Unsigned(right),
+            ) => Some(left.cmp(&right)),
+            (IntegerSign::Signed, IntegerValue::Signed(left), IntegerValue::Signed(right)) => {
+                Some(left.cmp(&right))
+            }
+            _ => None,
         }
     }
 
@@ -281,6 +302,16 @@ pub enum ScalarTerm {
         left: Box<ScalarTerm>,
         right: Box<ScalarTerm>,
     },
+    IntegerLessThan {
+        scalar_type: IntegerType,
+        left: Box<ScalarTerm>,
+        right: Box<ScalarTerm>,
+    },
+    IntegerLessOrEqual {
+        scalar_type: IntegerType,
+        left: Box<ScalarTerm>,
+        right: Box<ScalarTerm>,
+    },
     Integer {
         scalar_type: IntegerType,
         value: IntegerValue,
@@ -364,6 +395,32 @@ impl ScalarTerm {
             });
         }
         Ok(Self::IntegerEqual {
+            scalar_type,
+            left: Box::new(left),
+            right: Box::new(right),
+        })
+    }
+
+    pub fn integer_less_than(
+        scalar_type: IntegerType,
+        left: ScalarTerm,
+        right: ScalarTerm,
+    ) -> Result<Self, PropositionError> {
+        validate_integer_comparison_operands(scalar_type, &left, &right)?;
+        Ok(Self::IntegerLessThan {
+            scalar_type,
+            left: Box::new(left),
+            right: Box::new(right),
+        })
+    }
+
+    pub fn integer_less_or_equal(
+        scalar_type: IntegerType,
+        left: ScalarTerm,
+        right: ScalarTerm,
+    ) -> Result<Self, PropositionError> {
+        validate_integer_comparison_operands(scalar_type, &left, &right)?;
+        Ok(Self::IntegerLessOrEqual {
             scalar_type,
             left: Box::new(left),
             right: Box::new(right),
@@ -506,7 +563,9 @@ impl ScalarTerm {
             Self::Boolean(_)
             | Self::BooleanNot { .. }
             | Self::BooleanEqual { .. }
-            | Self::IntegerEqual { .. } => ScalarType::Boolean,
+            | Self::IntegerEqual { .. }
+            | Self::IntegerLessThan { .. }
+            | Self::IntegerLessOrEqual { .. } => ScalarType::Boolean,
             Self::Integer { scalar_type, .. }
             | Self::WrappingIntegerAdd { scalar_type, .. }
             | Self::SaturatingIntegerAdd { scalar_type, .. }
@@ -614,6 +673,30 @@ impl ScalarTerm {
                 let (right_type, right) = right.integer_value()?;
                 (left_type == *scalar_type && right_type == *scalar_type).then_some(left == right)
             }
+            Self::IntegerLessThan {
+                scalar_type,
+                left,
+                right,
+            } => {
+                let (left_type, left) = left.integer_value()?;
+                let (right_type, right) = right.integer_value()?;
+                if left_type != *scalar_type || right_type != *scalar_type {
+                    return None;
+                }
+                Some(scalar_type.compare(left, right)?.is_lt())
+            }
+            Self::IntegerLessOrEqual {
+                scalar_type,
+                left,
+                right,
+            } => {
+                let (left_type, left) = left.integer_value()?;
+                let (right_type, right) = right.integer_value()?;
+                if left_type != *scalar_type || right_type != *scalar_type {
+                    return None;
+                }
+                Some(!scalar_type.compare(left, right)?.is_gt())
+            }
             _ => None,
         }
     }
@@ -659,6 +742,20 @@ impl ScalarTerm {
                     });
                 }
                 Ok(())
+            }
+            Self::IntegerLessThan {
+                scalar_type,
+                left,
+                right,
+            }
+            | Self::IntegerLessOrEqual {
+                scalar_type,
+                left,
+                right,
+            } => {
+                left.validate()?;
+                right.validate()?;
+                validate_integer_comparison_operands(*scalar_type, left, right)
             }
             Self::Integer { scalar_type, value } => {
                 if scalar_type.admits(*value) {
@@ -959,7 +1056,9 @@ impl PropositionContext {
             | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
             | ScalarTerm::SaturatingIntegerMultiply { left, right, .. }
             | ScalarTerm::BooleanEqual { left, right }
-            | ScalarTerm::IntegerEqual { left, right, .. } => {
+            | ScalarTerm::IntegerEqual { left, right, .. }
+            | ScalarTerm::IntegerLessThan { left, right, .. }
+            | ScalarTerm::IntegerLessOrEqual { left, right, .. } => {
                 self.validate_term(left)?;
                 self.validate_term(right)?;
             }
@@ -975,6 +1074,22 @@ fn require_same_type(left: &ScalarTerm, right: &ScalarTerm) -> Result<(), Propos
     right.validate()?;
     if left.scalar_type() != right.scalar_type() {
         return Err(PropositionError::MismatchedScalarTypes {
+            left: left.scalar_type(),
+            right: right.scalar_type(),
+        });
+    }
+    Ok(())
+}
+
+fn validate_integer_comparison_operands(
+    integer_type: IntegerType,
+    left: &ScalarTerm,
+    right: &ScalarTerm,
+) -> Result<(), PropositionError> {
+    let expected = ScalarType::Integer(integer_type);
+    if left.scalar_type() != expected || right.scalar_type() != expected {
+        return Err(PropositionError::IntegerComparisonTypeMismatch {
+            expected,
             left: left.scalar_type(),
             right: right.scalar_type(),
         });
@@ -1012,6 +1127,11 @@ pub enum PropositionError {
         right: ScalarType,
     },
     IntegerEqualTypeMismatch {
+        expected: ScalarType,
+        left: ScalarType,
+        right: ScalarType,
+    },
+    IntegerComparisonTypeMismatch {
         expected: ScalarType,
         left: ScalarType,
         right: ScalarType,
@@ -1171,6 +1291,34 @@ mod tests {
         assert!(matches!(
             ScalarTerm::integer_equal(u8_type, integer(255), signed),
             Err(PropositionError::IntegerEqualTypeMismatch { .. })
+        ));
+    }
+
+    #[test]
+    fn integer_ordering_is_typed_and_respects_signedness() {
+        let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let unsigned = |value| {
+            ScalarTerm::integer(u8_type, IntegerValue::Unsigned(value)).expect("u8 literal")
+        };
+        let less = ScalarTerm::integer_less_than(u8_type, unsigned(1), unsigned(255)).unwrap();
+        let less_or_equal =
+            ScalarTerm::integer_less_or_equal(u8_type, unsigned(255), unsigned(255)).unwrap();
+        assert_eq!(less.scalar_type(), ScalarType::Boolean);
+        assert_eq!(less.boolean_value(), Some(true));
+        assert_eq!(less_or_equal.boolean_value(), Some(true));
+
+        let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let signed =
+            |value| ScalarTerm::integer(i8_type, IntegerValue::Signed(value)).expect("i8 literal");
+        assert_eq!(
+            ScalarTerm::integer_less_than(i8_type, signed(-1), signed(0))
+                .unwrap()
+                .boolean_value(),
+            Some(true)
+        );
+        assert!(matches!(
+            ScalarTerm::integer_less_than(u8_type, unsigned(1), signed(-1)),
+            Err(PropositionError::IntegerComparisonTypeMismatch { .. })
         ));
     }
 
