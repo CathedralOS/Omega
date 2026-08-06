@@ -230,6 +230,21 @@ pub enum TerminalAssignedIntegerExpression {
         parameter_index: usize,
         location: TerminalAssignedScalarLocation,
     },
+    BitwiseAnd {
+        psi_operation: OperationId,
+        left: Box<TerminalAssignedIntegerExpression>,
+        right: Box<TerminalAssignedIntegerExpression>,
+    },
+    BitwiseOr {
+        psi_operation: OperationId,
+        left: Box<TerminalAssignedIntegerExpression>,
+        right: Box<TerminalAssignedIntegerExpression>,
+    },
+    BitwiseXor {
+        psi_operation: OperationId,
+        left: Box<TerminalAssignedIntegerExpression>,
+        right: Box<TerminalAssignedIntegerExpression>,
+    },
     WrappingAdd {
         psi_operation: OperationId,
         left: Box<TerminalAssignedIntegerExpression>,

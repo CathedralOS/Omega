@@ -257,6 +257,33 @@ fn reconstruct_semantic_axioms(machine: &TerminalMachine) -> Vec<Proposition> {
                     .expect("validator requires exact integer ordering operand types");
                     axioms.push(Proposition::Equal(value_term(operation.result.id), ordered));
                 }
+                OperationKind::IntegerBitwiseAnd { left, right }
+                | OperationKind::IntegerBitwiseOr { left, right }
+                | OperationKind::IntegerBitwiseXor { left, right } => {
+                    let ScalarType::Integer(integer_type) = operation.result.scalar_type else {
+                        unreachable!("validator requires bitwise integer result type")
+                    };
+                    let result = match operation.kind {
+                        OperationKind::IntegerBitwiseAnd { .. } => ScalarTerm::integer_bitwise_and(
+                            integer_type,
+                            value_term(left),
+                            value_term(right),
+                        ),
+                        OperationKind::IntegerBitwiseOr { .. } => ScalarTerm::integer_bitwise_or(
+                            integer_type,
+                            value_term(left),
+                            value_term(right),
+                        ),
+                        OperationKind::IntegerBitwiseXor { .. } => ScalarTerm::integer_bitwise_xor(
+                            integer_type,
+                            value_term(left),
+                            value_term(right),
+                        ),
+                        _ => unreachable!(),
+                    }
+                    .expect("validator requires exact bitwise operand types");
+                    axioms.push(Proposition::Equal(value_term(operation.result.id), result));
+                }
                 OperationKind::WrappingIntegerAdd { left, right } => {
                     let ScalarType::Integer(integer_type) = operation.result.scalar_type else {
                         unreachable!("validator requires wrapping-add integer result type")

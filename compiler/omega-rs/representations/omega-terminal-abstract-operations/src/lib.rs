@@ -94,6 +94,27 @@ pub enum TerminalAbstractOperation {
         left: ValueId,
         right: ValueId,
     },
+    IntegerBitwiseAnd {
+        psi_operation: OperationId,
+        result: ValueId,
+        scalar_type: IntegerType,
+        left: ValueId,
+        right: ValueId,
+    },
+    IntegerBitwiseOr {
+        psi_operation: OperationId,
+        result: ValueId,
+        scalar_type: IntegerType,
+        left: ValueId,
+        right: ValueId,
+    },
+    IntegerBitwiseXor {
+        psi_operation: OperationId,
+        result: ValueId,
+        scalar_type: IntegerType,
+        left: ValueId,
+        right: ValueId,
+    },
     WrappingIntegerAdd {
         psi_operation: OperationId,
         result: ValueId,

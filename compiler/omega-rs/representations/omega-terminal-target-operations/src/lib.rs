@@ -235,6 +235,21 @@ pub enum TerminalTargetIntegerExpression {
         parameter_index: usize,
         location: TerminalScalarParameterLocation,
     },
+    BitwiseAnd {
+        psi_operation: OperationId,
+        left: Box<TerminalTargetIntegerExpression>,
+        right: Box<TerminalTargetIntegerExpression>,
+    },
+    BitwiseOr {
+        psi_operation: OperationId,
+        left: Box<TerminalTargetIntegerExpression>,
+        right: Box<TerminalTargetIntegerExpression>,
+    },
+    BitwiseXor {
+        psi_operation: OperationId,
+        left: Box<TerminalTargetIntegerExpression>,
+        right: Box<TerminalTargetIntegerExpression>,
+    },
     WrappingAdd {
         psi_operation: OperationId,
         left: Box<TerminalTargetIntegerExpression>,

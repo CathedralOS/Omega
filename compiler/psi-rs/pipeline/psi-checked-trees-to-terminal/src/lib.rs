@@ -121,6 +121,9 @@ enum LoweredBooleanDecisionExit {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum LoweredIntegerBinaryKind {
+    BitwiseAnd,
+    BitwiseOr,
+    BitwiseXor,
     WrappingAdd,
     SaturatingAdd,
     WrappingSubtract,
@@ -132,6 +135,9 @@ enum LoweredIntegerBinaryKind {
 impl LoweredIntegerBinaryKind {
     fn operation(self, left: ValueId, right: ValueId) -> OperationKind {
         match self {
+            Self::BitwiseAnd => OperationKind::IntegerBitwiseAnd { left, right },
+            Self::BitwiseOr => OperationKind::IntegerBitwiseOr { left, right },
+            Self::BitwiseXor => OperationKind::IntegerBitwiseXor { left, right },
             Self::WrappingAdd => OperationKind::WrappingIntegerAdd { left, right },
             Self::SaturatingAdd => OperationKind::SaturatingIntegerAdd { left, right },
             Self::WrappingSubtract => OperationKind::WrappingIntegerSubtract { left, right },
@@ -2233,6 +2239,9 @@ fn evaluate_direct_expression(
             let left = evaluate_direct_expression(left, parameters, integer_type)?;
             let right = evaluate_direct_expression(right, parameters, integer_type)?;
             match kind {
+                LoweredIntegerBinaryKind::BitwiseAnd => integer_type.bitwise_and(left, right),
+                LoweredIntegerBinaryKind::BitwiseOr => integer_type.bitwise_or(left, right),
+                LoweredIntegerBinaryKind::BitwiseXor => integer_type.bitwise_xor(left, right),
                 LoweredIntegerBinaryKind::WrappingAdd => integer_type.wrapping_add(left, right),
                 LoweredIntegerBinaryKind::SaturatingAdd => integer_type.saturating_add(left, right),
                 LoweredIntegerBinaryKind::WrappingSubtract => {
@@ -2291,6 +2300,9 @@ fn lowered_integer_binary_kind(
     domain: ArithmeticDomain,
 ) -> Result<LoweredIntegerBinaryKind, LoweringError> {
     match (operator, domain) {
+        (BinaryOperator::BitwiseAnd, _) => Ok(LoweredIntegerBinaryKind::BitwiseAnd),
+        (BinaryOperator::BitwiseOr, _) => Ok(LoweredIntegerBinaryKind::BitwiseOr),
+        (BinaryOperator::BitwiseXor, _) => Ok(LoweredIntegerBinaryKind::BitwiseXor),
         (BinaryOperator::Add, ArithmeticDomain::Wrapping) => {
             Ok(LoweredIntegerBinaryKind::WrappingAdd)
         }
@@ -2312,9 +2324,7 @@ fn lowered_integer_binary_kind(
         (BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply, _) => {
             unsupported("terminal integer binary expression requires Wrapping or Saturating")
         }
-        _ => unsupported(
-            "terminal source producer supports only integer add, subtract, and multiply",
-        ),
+        _ => unsupported("terminal source producer does not support this integer operation"),
     }
 }
 

@@ -712,6 +712,160 @@ fn v19_integer_ordering_axioms_prove_return_contracts() {
 }
 
 #[test]
+fn v20_integer_bitwise_axioms_prove_exact_result_contracts() {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 bitwise type");
+    let scalar_type = ScalarType::Integer(integer);
+    let left = ValueId::new(60).expect("left");
+    let right = ValueId::new(61).expect("right");
+    let computed = ValueId::new(62).expect("computed");
+    let result = ValueId::new(63).expect("result");
+    let value = |id| ScalarTerm::value(id, scalar_type);
+
+    for kind in 0_u8..3 {
+        let operation = match kind {
+            0 => OperationKind::IntegerBitwiseAnd { left, right },
+            1 => OperationKind::IntegerBitwiseOr { left, right },
+            2 => OperationKind::IntegerBitwiseXor { left, right },
+            _ => unreachable!(),
+        };
+        let term = match kind {
+            0 => ScalarTerm::integer_bitwise_and(integer, value(left), value(right)),
+            1 => ScalarTerm::integer_bitwise_or(integer, value(left), value(right)),
+            2 => ScalarTerm::integer_bitwise_xor(integer, value(left), value(right)),
+            _ => unreachable!(),
+        }
+        .expect("matching operands form a bitwise term");
+        let goal = Proposition::Equal(value(result), term.clone());
+        let obligation = ObligationId::new(60 + u64::from(kind)).expect("obligation");
+        let module = TerminalModule {
+            semantic_version: SemanticVersion::V20,
+            entry: MachineId::new(60).expect("machine"),
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
+            machines: vec![TerminalMachine {
+                id: MachineId::new(60).expect("machine"),
+                parameters: vec![
+                    ValueDeclaration {
+                        id: left,
+                        scalar_type,
+                    },
+                    ValueDeclaration {
+                        id: right,
+                        scalar_type,
+                    },
+                ],
+                result: ValueDeclaration {
+                    id: result,
+                    scalar_type,
+                },
+                structural_places: Vec::new(),
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry: BlockId::new(60).expect("block"),
+                blocks: vec![Block {
+                    id: BlockId::new(60).expect("block"),
+                    parameters: Vec::new(),
+                    operations: vec![Operation {
+                        id: OperationId::new(60).expect("operation"),
+                        result: ValueDeclaration {
+                            id: computed,
+                            scalar_type,
+                        },
+                        kind: operation,
+                    }],
+                    terminator: Terminator::Return {
+                        edge: EdgeId::new(60).expect("edge"),
+                        value: computed,
+                    },
+                }],
+                contract: MachineContract {
+                    id: ContractId::new(60).expect("contract"),
+                    requires: Vec::new(),
+                    ensures: vec![ContractClause {
+                        obligation,
+                        proposition: goal.clone(),
+                    }],
+                },
+            }],
+        };
+        let bundle = ProofBundle {
+            evidence: vec![ObligationEvidence {
+                obligation,
+                route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                    identity: EvidenceIdentity::new(60 + u64::from(kind)).expect("certificate"),
+                    proof_system_version: ProofSystemVersion::CURRENT,
+                    proof: ProofNode {
+                        conclusion: goal,
+                        rule: ProofRule::EqualityTransitivity {
+                            left_equals_middle: Box::new(ProofNode {
+                                conclusion: Proposition::Equal(value(result), value(computed)),
+                                rule: ProofRule::SemanticAxiom { index: 1 },
+                            }),
+                            middle_equals_right: Box::new(ProofNode {
+                                conclusion: Proposition::Equal(value(computed), term),
+                                rule: ProofRule::SemanticAxiom { index: 0 },
+                            }),
+                        },
+                    },
+                }),
+            }],
+        };
+        verify_module(&module, &bundle, &AdmissionProfile::default())
+            .expect("v20 reconstructs the exact bitwise result axiom");
+
+        let mut old = module.clone();
+        old.semantic_version = SemanticVersion::V19;
+        assert_eq!(
+            validate_module(&old).expect_err("v19 cannot contain bitwise operations"),
+            ModuleError::OperationRequiresSemanticVersion {
+                operation: OperationId::new(60).expect("operation"),
+                required: SemanticVersion::V20,
+                actual: SemanticVersion::V19,
+            }
+        );
+        if kind == 0 {
+            let mut old_term = module.clone();
+            old_term.semantic_version = SemanticVersion::V19;
+            old_term.machines[0].blocks[0].operations[0].kind = OperationKind::IntegerConstant {
+                value: IntegerValue::Unsigned(0),
+            };
+            assert_eq!(
+                validate_module(&old_term).expect_err("v19 cannot contain a bitwise term"),
+                ModuleError::PropositionRequiresSemanticVersion {
+                    contract: ContractId::new(60).expect("contract"),
+                    clause: ContractClauseKind::Ensures,
+                    required: SemanticVersion::V20,
+                    actual: SemanticVersion::V19,
+                }
+            );
+
+            let mut wrong_operand = module.clone();
+            wrong_operand.machines[0].contract.ensures.clear();
+            wrong_operand.machines[0].parameters[1].scalar_type =
+                ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 8).expect("i8 mismatch"));
+            assert!(matches!(
+                validate_module(&wrong_operand),
+                Err(ModuleError::IntegerBitwiseOperandTypeMismatch { .. })
+            ));
+
+            let mut wrong_result = module.clone();
+            wrong_result.machines[0].contract.ensures.clear();
+            wrong_result.machines[0].blocks[0].operations[0]
+                .result
+                .scalar_type = ScalarType::Boolean;
+            assert_eq!(
+                validate_module(&wrong_result)
+                    .expect_err("integer bitwise requires an integer result"),
+                ModuleError::IntegerBitwiseRequiresIntegerResult(
+                    OperationId::new(60).expect("operation")
+                )
+            );
+        }
+    }
+}
+
+#[test]
 fn v9_content_conservation_accepts_a_replaceable_certificate() {
     let (module, goal, obligation) = reflexive_content_module();
     let bundle = ProofBundle {

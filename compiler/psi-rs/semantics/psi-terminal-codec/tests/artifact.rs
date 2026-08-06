@@ -54,10 +54,10 @@ fn proof_bundle_has_stable_canonical_bytes_and_an_independent_identity() {
         Err(ProofCodecError::TrailingBytes(1))
     );
     let mut future = bytes;
-    future[8..10].copy_from_slice(&14_u16.to_le_bytes());
+    future[8..10].copy_from_slice(&15_u16.to_le_bytes());
     assert_eq!(
         decode_proof_bundle(&future),
-        Err(ProofCodecError::UnsupportedFormatVersion(14))
+        Err(ProofCodecError::UnsupportedFormatVersion(15))
     );
 }
 
@@ -178,6 +178,47 @@ fn proof_format_v13_canonically_encodes_integer_ordering() {
     assert!(matches!(
         decode_proof_bundle(&old_version),
         Err(ProofCodecError::InvalidTag("ScalarTerm", 13))
+            | Err(ProofCodecError::NonCanonicalEncoding)
+    ));
+}
+
+#[test]
+fn proof_format_v14_canonically_encodes_integer_bitwise_terms() {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let left = ScalarTerm::integer(integer, IntegerValue::Unsigned(0b1100)).unwrap();
+    let right = ScalarTerm::integer(integer, IntegerValue::Unsigned(0b1010)).unwrap();
+    let bitwise = ScalarTerm::integer_bitwise_and(integer, left, right).unwrap();
+    let goal = Proposition::Equal(bitwise.clone(), bitwise);
+    let proof = ProofNode {
+        conclusion: goal.clone(),
+        rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
+    };
+    let bundle = ProofBundle {
+        evidence: vec![ObligationEvidence {
+            obligation: obligation_id(104),
+            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                identity: evidence_id(104),
+                proof_system_version: ProofSystemVersion::CURRENT,
+                proof: proof.clone(),
+            }),
+        }],
+    };
+
+    psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
+        .expect("reflexive integer-bitwise certificate");
+    let bytes = encode_proof_bundle(&bundle).expect("proof v14 bytes");
+    assert_eq!(&bytes[8..10], &14_u16.to_le_bytes());
+    assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
+    assert_eq!(
+        proof_bundle_fingerprint(&bundle).unwrap().to_string(),
+        "434c4b9be141c91c22be2853d4608fa42353408be095b2925e564173bffc55c4"
+    );
+
+    let mut old_version = bytes;
+    old_version[8..10].copy_from_slice(&13_u16.to_le_bytes());
+    assert!(matches!(
+        decode_proof_bundle(&old_version),
+        Err(ProofCodecError::InvalidTag("ScalarTerm", 15))
             | Err(ProofCodecError::NonCanonicalEncoding)
     ));
 }

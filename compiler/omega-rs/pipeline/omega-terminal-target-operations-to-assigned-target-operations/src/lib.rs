@@ -476,6 +476,51 @@ fn assign_expression(
                 },
             )?,
         }),
+        TerminalTargetIntegerExpression::BitwiseAnd {
+            psi_operation,
+            left,
+            right,
+        } => binary(
+            *psi_operation,
+            left,
+            right,
+            locations,
+            |psi_operation, left, right| TerminalAssignedIntegerExpression::BitwiseAnd {
+                psi_operation,
+                left,
+                right,
+            },
+        ),
+        TerminalTargetIntegerExpression::BitwiseOr {
+            psi_operation,
+            left,
+            right,
+        } => binary(
+            *psi_operation,
+            left,
+            right,
+            locations,
+            |psi_operation, left, right| TerminalAssignedIntegerExpression::BitwiseOr {
+                psi_operation,
+                left,
+                right,
+            },
+        ),
+        TerminalTargetIntegerExpression::BitwiseXor {
+            psi_operation,
+            left,
+            right,
+        } => binary(
+            *psi_operation,
+            left,
+            right,
+            locations,
+            |psi_operation, left, right| TerminalAssignedIntegerExpression::BitwiseXor {
+                psi_operation,
+                left,
+                right,
+            },
+        ),
         TerminalTargetIntegerExpression::WrappingAdd {
             psi_operation,
             left,
@@ -673,6 +718,9 @@ fn expression_parameter_locations(
                 }
             }
             TerminalTargetIntegerExpression::WrappingAdd { left, right, .. }
+            | TerminalTargetIntegerExpression::BitwiseAnd { left, right, .. }
+            | TerminalTargetIntegerExpression::BitwiseOr { left, right, .. }
+            | TerminalTargetIntegerExpression::BitwiseXor { left, right, .. }
             | TerminalTargetIntegerExpression::SaturatingAdd { left, right, .. }
             | TerminalTargetIntegerExpression::WrappingSubtract { left, right, .. }
             | TerminalTargetIntegerExpression::SaturatingSubtract { left, right, .. }

@@ -111,6 +111,43 @@ fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, 
                         right,
                     });
                 }
+                OperationKind::IntegerBitwiseAnd { left, right }
+                | OperationKind::IntegerBitwiseOr { left, right }
+                | OperationKind::IntegerBitwiseXor { left, right } => {
+                    let ScalarType::Integer(scalar_type) = operation.result.scalar_type else {
+                        return Err(LoweringError::VerifiedIntegerBitwiseMalformed(operation.id));
+                    };
+                    operations.push(match operation.kind {
+                        OperationKind::IntegerBitwiseAnd { .. } => {
+                            TerminalAbstractOperation::IntegerBitwiseAnd {
+                                psi_operation: operation.id,
+                                result: operation.result.id,
+                                scalar_type,
+                                left,
+                                right,
+                            }
+                        }
+                        OperationKind::IntegerBitwiseOr { .. } => {
+                            TerminalAbstractOperation::IntegerBitwiseOr {
+                                psi_operation: operation.id,
+                                result: operation.result.id,
+                                scalar_type,
+                                left,
+                                right,
+                            }
+                        }
+                        OperationKind::IntegerBitwiseXor { .. } => {
+                            TerminalAbstractOperation::IntegerBitwiseXor {
+                                psi_operation: operation.id,
+                                result: operation.result.id,
+                                scalar_type,
+                                left,
+                                right,
+                            }
+                        }
+                        _ => unreachable!(),
+                    });
+                }
                 OperationKind::WrappingIntegerAdd { left, right } => {
                     let ScalarType::Integer(scalar_type) = operation.result.scalar_type else {
                         return Err(LoweringError::VerifiedWrappingAddMalformed(operation.id));
@@ -307,6 +344,7 @@ pub enum LoweringError {
     VerifiedSaturatingSubtractMalformed(psi_core::OperationId),
     VerifiedWrappingMultiplyMalformed(psi_core::OperationId),
     VerifiedSaturatingMultiplyMalformed(psi_core::OperationId),
+    VerifiedIntegerBitwiseMalformed(psi_core::OperationId),
 }
 
 impl std::fmt::Display for LoweringError {

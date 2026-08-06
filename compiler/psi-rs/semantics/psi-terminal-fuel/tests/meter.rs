@@ -49,11 +49,23 @@ fn current_vocabulary_has_explicit_v1_costs_and_attribution() {
             left: value_id(1),
             right: value_id(2),
         },
+        OperationKind::IntegerBitwiseAnd {
+            left: value_id(1),
+            right: value_id(2),
+        },
+        OperationKind::IntegerBitwiseOr {
+            left: value_id(1),
+            right: value_id(2),
+        },
+        OperationKind::IntegerBitwiseXor {
+            left: value_id(1),
+            right: value_id(2),
+        },
     ] {
         assert_eq!(
             TerminalFuelSchedule::V1.operation_units(&kind),
             1,
-            "each integer ordering operation has one explicit v1-schedule unit"
+            "each integer comparison or bitwise operation has one explicit v1-schedule unit"
         );
     }
     let operation = operation();
