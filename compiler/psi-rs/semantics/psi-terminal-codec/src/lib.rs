@@ -642,6 +642,11 @@ fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), CodecError> {
                 writer.id(left);
                 writer.id(right);
             }
+            OperationKind::IntegerEqual { left, right } => {
+                writer.u8(11);
+                writer.id(left);
+                writer.id(right);
+            }
             OperationKind::WrappingIntegerAdd { left, right } => {
                 writer.u8(3);
                 writer.id(left);
@@ -887,6 +892,16 @@ fn encode_scalar_term(
         }
         ScalarTerm::BooleanEqual { left, right } => {
             writer.u8(11);
+            encode_scalar_term(writer, left, depth + 1)?;
+            encode_scalar_term(writer, right, depth + 1)?;
+        }
+        ScalarTerm::IntegerEqual {
+            scalar_type,
+            left,
+            right,
+        } => {
+            writer.u8(12);
+            encode_integer_type(writer, *scalar_type);
             encode_scalar_term(writer, left, depth + 1)?;
             encode_scalar_term(writer, right, depth + 1)?;
         }
@@ -1321,6 +1336,10 @@ fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError> {
                 left: reader.id("ValueId")?,
                 right: reader.id("ValueId")?,
             },
+            11 => OperationKind::IntegerEqual {
+                left: reader.id("ValueId")?,
+                right: reader.id("ValueId")?,
+            },
             tag => return Err(CodecError::InvalidTag("OperationKind", tag)),
         };
         operations.push(Operation {
@@ -1580,6 +1599,13 @@ fn decode_scalar_term(reader: &mut Reader<'_>, depth: usize) -> Result<ScalarTer
             let left = decode_scalar_term(reader, depth + 1)?;
             let right = decode_scalar_term(reader, depth + 1)?;
             ScalarTerm::boolean_equal(left, right).map_err(CodecError::MalformedProposition)?
+        }
+        12 => {
+            let scalar_type = decode_integer_type(reader)?;
+            let left = decode_scalar_term(reader, depth + 1)?;
+            let right = decode_scalar_term(reader, depth + 1)?;
+            ScalarTerm::integer_equal(scalar_type, left, right)
+                .map_err(CodecError::MalformedProposition)?
         }
         tag => return Err(CodecError::InvalidTag("ScalarTerm", tag)),
     })

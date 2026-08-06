@@ -276,6 +276,11 @@ pub enum ScalarTerm {
         left: Box<ScalarTerm>,
         right: Box<ScalarTerm>,
     },
+    IntegerEqual {
+        scalar_type: IntegerType,
+        left: Box<ScalarTerm>,
+        right: Box<ScalarTerm>,
+    },
     Integer {
         scalar_type: IntegerType,
         value: IntegerValue,
@@ -340,6 +345,26 @@ impl ScalarTerm {
             });
         }
         Ok(Self::BooleanEqual {
+            left: Box::new(left),
+            right: Box::new(right),
+        })
+    }
+
+    pub fn integer_equal(
+        scalar_type: IntegerType,
+        left: ScalarTerm,
+        right: ScalarTerm,
+    ) -> Result<Self, PropositionError> {
+        let expected = ScalarType::Integer(scalar_type);
+        if left.scalar_type() != expected || right.scalar_type() != expected {
+            return Err(PropositionError::IntegerEqualTypeMismatch {
+                expected,
+                left: left.scalar_type(),
+                right: right.scalar_type(),
+            });
+        }
+        Ok(Self::IntegerEqual {
+            scalar_type,
             left: Box::new(left),
             right: Box::new(right),
         })
@@ -478,9 +503,10 @@ impl ScalarTerm {
     pub fn scalar_type(&self) -> ScalarType {
         match self {
             Self::Value { scalar_type, .. } => *scalar_type,
-            Self::Boolean(_) | Self::BooleanNot { .. } | Self::BooleanEqual { .. } => {
-                ScalarType::Boolean
-            }
+            Self::Boolean(_)
+            | Self::BooleanNot { .. }
+            | Self::BooleanEqual { .. }
+            | Self::IntegerEqual { .. } => ScalarType::Boolean,
             Self::Integer { scalar_type, .. }
             | Self::WrappingIntegerAdd { scalar_type, .. }
             | Self::SaturatingIntegerAdd { scalar_type, .. }
@@ -579,6 +605,15 @@ impl ScalarTerm {
             Self::BooleanEqual { left, right } => {
                 Some(left.boolean_value()? == right.boolean_value()?)
             }
+            Self::IntegerEqual {
+                scalar_type,
+                left,
+                right,
+            } => {
+                let (left_type, left) = left.integer_value()?;
+                let (right_type, right) = right.integer_value()?;
+                (left_type == *scalar_type && right_type == *scalar_type).then_some(left == right)
+            }
             _ => None,
         }
     }
@@ -602,6 +637,23 @@ impl ScalarTerm {
                     || right.scalar_type() != ScalarType::Boolean
                 {
                     return Err(PropositionError::BooleanEqualTypeMismatch {
+                        left: left.scalar_type(),
+                        right: right.scalar_type(),
+                    });
+                }
+                Ok(())
+            }
+            Self::IntegerEqual {
+                scalar_type,
+                left,
+                right,
+            } => {
+                left.validate()?;
+                right.validate()?;
+                let expected = ScalarType::Integer(*scalar_type);
+                if left.scalar_type() != expected || right.scalar_type() != expected {
+                    return Err(PropositionError::IntegerEqualTypeMismatch {
+                        expected,
                         left: left.scalar_type(),
                         right: right.scalar_type(),
                     });
@@ -906,7 +958,8 @@ impl PropositionContext {
             | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
             | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
             | ScalarTerm::SaturatingIntegerMultiply { left, right, .. }
-            | ScalarTerm::BooleanEqual { left, right } => {
+            | ScalarTerm::BooleanEqual { left, right }
+            | ScalarTerm::IntegerEqual { left, right, .. } => {
                 self.validate_term(left)?;
                 self.validate_term(right)?;
             }
@@ -955,6 +1008,11 @@ pub enum PropositionError {
     },
     BooleanNotTypeMismatch(ScalarType),
     BooleanEqualTypeMismatch {
+        left: ScalarType,
+        right: ScalarType,
+    },
+    IntegerEqualTypeMismatch {
+        expected: ScalarType,
         left: ScalarType,
         right: ScalarType,
     },
@@ -1092,6 +1150,27 @@ mod tests {
         assert!(matches!(
             ScalarTerm::boolean_equal(ScalarTerm::boolean(true), integer),
             Err(PropositionError::BooleanEqualTypeMismatch { .. })
+        ));
+    }
+
+    #[test]
+    fn integer_equality_is_typed_and_reduces_closed_terms() {
+        let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let integer = |value| {
+            ScalarTerm::integer(u8_type, IntegerValue::Unsigned(value))
+                .expect("u8 literal is representable")
+        };
+        let equal = ScalarTerm::integer_equal(u8_type, integer(255), integer(255)).unwrap();
+        let unequal = ScalarTerm::integer_equal(u8_type, integer(0), integer(255)).unwrap();
+        assert_eq!(equal.scalar_type(), ScalarType::Boolean);
+        assert_eq!(equal.boolean_value(), Some(true));
+        assert_eq!(unequal.boolean_value(), Some(false));
+
+        let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let signed = ScalarTerm::integer(i8_type, IntegerValue::Signed(-1)).unwrap();
+        assert!(matches!(
+            ScalarTerm::integer_equal(u8_type, integer(255), signed),
+            Err(PropositionError::IntegerEqualTypeMismatch { .. })
         ));
     }
 

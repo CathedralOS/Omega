@@ -32,7 +32,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.semantic_version, SemanticVersion::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "5527ba82759e9253af8afe5d6a095c2fa99679d82495146d15a3c839972b8929"
+        "e1cd37c8aac140237fdc3840b5eadb653a87580fdb49791bf63efcaf60855b01"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -241,6 +241,35 @@ fn v17_boolean_equality_has_stable_canonical_bytes() {
     assert_eq!(
         semantic_fingerprint(&module).unwrap().to_string(),
         "e46c836ce6d3c86000124c2320b74b9fb26043f200481415a00b289b4067888e"
+    );
+}
+
+#[test]
+fn v18_integer_equality_has_stable_canonical_bytes() {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let scalar_type = ScalarType::Integer(integer);
+    let mut module = boolean_fixture(SemanticVersion::V18);
+    module.machines[0].parameters = vec![
+        ValueDeclaration {
+            id: value_id(12),
+            scalar_type,
+        },
+        ValueDeclaration {
+            id: value_id(13),
+            scalar_type,
+        },
+    ];
+    module.machines[0].blocks[0].operations[0].kind = OperationKind::IntegerEqual {
+        left: value_id(12),
+        right: value_id(13),
+    };
+    let bytes = encode_module(&module).expect("v18 integer-equality module should encode");
+
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
+    assert_eq!(
+        semantic_fingerprint(&module).unwrap().to_string(),
+        "485cc2e33baf30365538ecc6086e14debdcd9acf860a4f547e48eb5a75c1ea67"
     );
 }
 

@@ -1672,6 +1672,20 @@ fn lower_boolean_machine(
         return unsupported("state contracts are not supported");
     }
     let parameters = checked.state_parameters(entry_state);
+    if !parameters.is_empty()
+        && parameters.iter().all(|parameter| {
+            checked
+                .primitive_type_reference(parameter.type_reference)
+                .is_some_and(|primitive| {
+                    !matches!(
+                        primitive,
+                        PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64
+                    )
+                })
+        })
+    {
+        return lower_integer_equality_machine(checked, machine, entry_state);
+    }
     if parameters
         .iter()
         .any(|parameter| parameter.is_self || parameter.is_const || parameter.is_mutable)
@@ -1699,6 +1713,100 @@ fn lower_boolean_machine(
     Ok(build_boolean_module(
         parameters.len(),
         return_expression,
+        contract_value,
+        identity_reshuffles,
+        partition_compositions,
+    ))
+}
+
+fn lower_integer_equality_machine(
+    checked: &CheckedTrees,
+    machine: &psi_checked_trees::machine::Machine,
+    entry_state: &psi_checked_trees::state::State,
+) -> Result<LoweredTerminalPsi, LoweringError> {
+    let parameters = checked.state_parameters(entry_state);
+    if parameters
+        .iter()
+        .any(|parameter| parameter.is_self || parameter.is_const || parameter.is_mutable)
+    {
+        return unsupported("qualified integer-equality parameters are not supported");
+    }
+    let statements = checked
+        .statement_table
+        .statements(entry_state.statement_nodes);
+    let [StatementNode::Expression(expression)] = statements else {
+        return unsupported("integer-equality source machines require one value expression");
+    };
+    let ExpressionNode::Binary(binary) = checked.expression_table.expression(*expression) else {
+        return unsupported("integer-equality source machines require builtin `==` or `!=`");
+    };
+    if !matches!(
+        binary.operator,
+        BinaryOperator::Equal | BinaryOperator::NotEqual
+    ) {
+        return unsupported("integer-equality source machines require builtin `==` or `!=`");
+    }
+    if let Some(operator_use) = checked.facts.operators.expression_use(*expression)
+        && operator_use.status != CheckedOperatorResolutionStatus::BuiltinFallback
+    {
+        return unsupported("terminal integer equality must use the builtin operator");
+    }
+    let left = match checked.expression_table.expression(binary.left) {
+        ExpressionNode::Name(path) => direct_parameter_position(checked, path, parameters)?,
+        _ => return unsupported("terminal integer equality operands must name parameters"),
+    };
+    let right = match checked.expression_table.expression(binary.right) {
+        ExpressionNode::Name(path) => direct_parameter_position(checked, path, parameters)?,
+        _ => return unsupported("terminal integer equality operands must name parameters"),
+    };
+    let scalar_type = integer_scalar_type(
+        checked
+            .primitive_type_reference(parameters[left].type_reference)
+            .ok_or(LoweringError::Unsupported(
+                "integer-equality operands must have primitive integer type",
+            ))?,
+    )?;
+    if integer_scalar_type(
+        checked
+            .primitive_type_reference(parameters[right].type_reference)
+            .ok_or(LoweringError::Unsupported(
+                "integer-equality operands must have primitive integer type",
+            ))?,
+    )? != scalar_type
+    {
+        return unsupported("terminal integer equality operands must have one exact type");
+    }
+
+    let contract_value = validate_boolean_contract(checked, machine, None)?;
+    let (identity_reshuffles, partition_compositions) =
+        lower_content_evidence(checked, machine, entry_state)?;
+    let terminal_parameters = parameters
+        .iter()
+        .enumerate()
+        .map(|(index, parameter)| {
+            Ok(ValueDeclaration {
+                id: value_id(
+                    u64::try_from(index)
+                        .expect("parameter index fits a semantic identity")
+                        .checked_add(1)
+                        .expect("parameter identity is nonzero"),
+                ),
+                scalar_type: terminal_scalar_type(
+                    checked
+                        .primitive_type_reference(parameter.type_reference)
+                        .ok_or(LoweringError::Unsupported(
+                            "integer-equality parameters must have primitive scalar type",
+                        ))?,
+                )?,
+            })
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    Ok(build_integer_equality_module(
+        terminal_parameters,
+        scalar_type,
+        left,
+        right,
+        binary.operator == BinaryOperator::NotEqual,
         contract_value,
         identity_reshuffles,
         partition_compositions,
@@ -3134,6 +3242,125 @@ fn build_boolean_module(
         &mut operations,
     );
     let result_id = value_id(next_value_identity);
+    let literal = ScalarTerm::boolean(contract_value);
+    let goal = Proposition::Equal(literal.clone(), literal);
+    let obligation = obligation_id(1);
+    let mut structural_places = identity_reshuffles
+        .structural_places
+        .into_iter()
+        .map(|place| (place.id, place.kind))
+        .collect::<BTreeMap<_, _>>();
+    for place in partition_compositions.structural_places {
+        merge_content_place_declaration(&mut structural_places, place)
+            .expect("checked lowering rejects conflicting structural places");
+    }
+    LoweredTerminalPsi {
+        semantic_module: TerminalModule {
+            semantic_version: SemanticVersion::CURRENT,
+            entry: machine_id(1),
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
+            machines: vec![TerminalMachine {
+                id: machine_id(1),
+                parameters,
+                result: ValueDeclaration {
+                    id: result_id,
+                    scalar_type: ScalarType::Boolean,
+                },
+                structural_places: structural_places
+                    .into_iter()
+                    .map(|(id, kind)| StructuralPlaceDeclaration { id, kind })
+                    .collect(),
+                content_entry_claims: identity_reshuffles.entry_claims,
+                content_identity_reshuffles: identity_reshuffles.reshuffles,
+                content_partition_compositions: partition_compositions.compositions,
+                entry: block_id(1),
+                blocks: vec![Block {
+                    id: block_id(1),
+                    parameters: Vec::new(),
+                    operations,
+                    terminator: Terminator::Return {
+                        edge: edge_id(1),
+                        value: returned,
+                    },
+                }],
+                contract: MachineContract {
+                    id: contract_id(1),
+                    requires: vec![goal.clone()],
+                    ensures: vec![ContractClause {
+                        obligation,
+                        proposition: goal,
+                    }],
+                },
+            }],
+        },
+        proof_bundle: ProofBundle {
+            evidence: vec![ObligationEvidence {
+                obligation,
+                route: EvidenceRoute::KernelDerived(PrimitiveJudgment::ReflexiveEquality),
+            }],
+        },
+        debug_map: None,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_integer_equality_module(
+    parameters: Vec<ValueDeclaration>,
+    scalar_type: ScalarType,
+    left_position: usize,
+    right_position: usize,
+    negated: bool,
+    contract_value: bool,
+    identity_reshuffles: LoweredContentIdentityReshuffles,
+    partition_compositions: LoweredContentPartitionCompositions,
+) -> LoweredTerminalPsi {
+    let equality_value = value_id(
+        u64::try_from(parameters.len())
+            .expect("parameter count fits a semantic identity")
+            .checked_add(1)
+            .expect("equality value identity is nonzero"),
+    );
+    let mut operations = vec![Operation {
+        id: operation_id(1),
+        result: ValueDeclaration {
+            id: equality_value,
+            scalar_type: ScalarType::Boolean,
+        },
+        kind: OperationKind::IntegerEqual {
+            left: parameters[left_position].id,
+            right: parameters[right_position].id,
+        },
+    }];
+    debug_assert_eq!(parameters[left_position].scalar_type, scalar_type);
+    debug_assert_eq!(parameters[right_position].scalar_type, scalar_type);
+    let returned = if negated {
+        let negated_value = value_id(
+            equality_value
+                .get()
+                .checked_add(1)
+                .expect("negated equality value identity advances"),
+        );
+        operations.push(Operation {
+            id: operation_id(2),
+            result: ValueDeclaration {
+                id: negated_value,
+                scalar_type: ScalarType::Boolean,
+            },
+            kind: OperationKind::BooleanNot {
+                operand: equality_value,
+            },
+        });
+        negated_value
+    } else {
+        equality_value
+    };
+    let result_id = value_id(
+        returned
+            .get()
+            .checked_add(1)
+            .expect("result identity follows equality operations"),
+    );
     let literal = ScalarTerm::boolean(contract_value);
     let goal = Proposition::Equal(literal.clone(), literal);
     let obligation = obligation_id(1);

@@ -184,6 +184,34 @@ fn lower_function(
                 )?;
                 provenance.operations.push(*psi_operation);
             }
+            TerminalAbstractOperation::IntegerEqual {
+                psi_operation,
+                result,
+                left,
+                right,
+            } => {
+                let left_value = values
+                    .get(left)
+                    .cloned()
+                    .ok_or(LoweringError::UnknownValue(*left))?;
+                let right_value = values
+                    .get(right)
+                    .cloned()
+                    .ok_or(LoweringError::UnknownValue(*right))?;
+                insert_value(
+                    &mut values,
+                    *result,
+                    equal_integer(
+                        *left,
+                        left_value,
+                        *right,
+                        right_value,
+                        *psi_operation,
+                        *result,
+                    )?,
+                )?;
+                provenance.operations.push(*psi_operation);
+            }
             TerminalAbstractOperation::WrappingIntegerAdd {
                 psi_operation,
                 result,
@@ -1332,6 +1360,36 @@ fn lower_conditional_scalar_operation(
         provenance.push(*psi_operation);
         return Ok(true);
     }
+    if let TerminalAbstractOperation::IntegerEqual {
+        psi_operation,
+        result,
+        left,
+        right,
+    } = operation
+    {
+        let left_value = values
+            .get(left)
+            .cloned()
+            .ok_or(LoweringError::UnknownValue(*left))?;
+        let right_value = values
+            .get(right)
+            .cloned()
+            .ok_or(LoweringError::UnknownValue(*right))?;
+        insert_value(
+            values,
+            *result,
+            equal_integer(
+                *left,
+                left_value,
+                *right,
+                right_value,
+                *psi_operation,
+                *result,
+            )?,
+        )?;
+        provenance.push(*psi_operation);
+        return Ok(true);
+    }
     let (psi_operation, result, scalar_type, value) = match operation {
         TerminalAbstractOperation::IntegerConstant {
             psi_operation,
@@ -1740,6 +1798,45 @@ fn equal_boolean(
     }
 }
 
+fn equal_integer(
+    left_id: ValueId,
+    left: KnownScalar,
+    right_id: ValueId,
+    right: KnownScalar,
+    psi_operation: OperationId,
+    result: ValueId,
+) -> Result<KnownScalar, LoweringError> {
+    let (
+        KnownScalar::Integer {
+            scalar_type: left_type,
+            value: left,
+        },
+        KnownScalar::Integer {
+            scalar_type: right_type,
+            value: right,
+        },
+    ) = (left, right)
+    else {
+        return Err(LoweringError::ValueTypeMismatch(result));
+    };
+    if left_type != right_type {
+        return Err(LoweringError::ValueTypeMismatch(result));
+    }
+    match (left, right) {
+        (KnownInteger::Immediate(left), KnownInteger::Immediate(right)) => {
+            Ok(KnownScalar::Boolean(left == right))
+        }
+        (left, right) => Ok(KnownScalar::BooleanRuntime(
+            TerminalTargetBooleanExpression::IntegerEqual {
+                psi_operation,
+                scalar_type: left_type,
+                left: Box::new(left.into_expression(left_id)),
+                right: Box::new(right.into_expression(right_id)),
+            },
+        )),
+    }
+}
+
 fn direct_boolean_condition(
     expression: TerminalTargetBooleanExpression,
     value: ValueId,
@@ -1809,6 +1906,7 @@ fn conditional_provenance(
             | TerminalAbstractOperation::BooleanConstant { psi_operation, .. }
             | TerminalAbstractOperation::BooleanNot { psi_operation, .. }
             | TerminalAbstractOperation::BooleanEqual { psi_operation, .. }
+            | TerminalAbstractOperation::IntegerEqual { psi_operation, .. }
             | TerminalAbstractOperation::WrappingIntegerAdd { psi_operation, .. }
             | TerminalAbstractOperation::SaturatingIntegerAdd { psi_operation, .. }
             | TerminalAbstractOperation::WrappingIntegerSubtract { psi_operation, .. }
@@ -2329,6 +2427,60 @@ mod tests {
                 && matches!(
                     right.as_ref(),
                     TerminalTargetBooleanExpression::Parameter { parameter_index: 1, .. }
+                )
+        ));
+    }
+
+    #[test]
+    fn lowers_runtime_integer_equality_to_a_typed_target_expression() {
+        let mut plan = parameter_return_plan(2);
+        let function = &mut plan.functions[0];
+        let integer_type = match function.parameters[0].scalar_type {
+            ScalarType::Integer(integer_type) => integer_type,
+            ScalarType::Boolean => unreachable!("fixture has integer parameters"),
+        };
+        function.result.scalar_type = ScalarType::Boolean;
+        let result = ValueId::new(51).expect("integer-equality result");
+        function.operations.insert(
+            0,
+            TerminalAbstractOperation::IntegerEqual {
+                psi_operation: OperationId::new(51).expect("integer-equality operation"),
+                result,
+                left: function.parameters[0].value,
+                right: function.parameters[1].value,
+            },
+        );
+        let TerminalAbstractOperation::Return {
+            value, scalar_type, ..
+        } = &mut function.operations[1]
+        else {
+            unreachable!("fixture ends in return")
+        };
+        *value = result;
+        *scalar_type = ScalarType::Boolean;
+
+        let lowered = lower_to_target_operations(&plan, NativeTarget::linux_x64()).unwrap();
+        assert!(matches!(
+            &lowered.functions[0].operation,
+            TerminalTargetOperation::ReturnBooleanExpression {
+                source_value,
+                expression: TerminalTargetBooleanExpression::IntegerEqual {
+                    psi_operation,
+                    scalar_type,
+                    left,
+                    right,
+                },
+                ..
+            } if *source_value == result
+                && *psi_operation == OperationId::new(51).expect("integer-equality operation")
+                && *scalar_type == integer_type
+                && matches!(
+                    left.as_ref(),
+                    TerminalTargetIntegerExpression::Parameter { parameter_index: 0, .. }
+                )
+                && matches!(
+                    right.as_ref(),
+                    TerminalTargetIntegerExpression::Parameter { parameter_index: 1, .. }
                 )
         ));
     }

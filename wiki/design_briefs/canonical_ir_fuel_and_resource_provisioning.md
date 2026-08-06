@@ -34,7 +34,8 @@ executable operation. V14 adds independent dense entry-claim bindings without
 adding an executable operation or proposition. V15 adds total Boolean logical
 negation as an operation and proposition term. V16 adds canonical nominal
 proposition declarations and normalized application identity without adding an
-executable operation. Current v17 adds total Boolean equality. The verifier
+executable operation. V17 adds total Boolean equality, and current v18 adds
+total equality over two values of one exact integer type. The verifier
 reconstructs operation, edge-binding, and return-binding axioms guaranteed on
 every return path, rejects
 unreachable fact sources and out-of-scope contract
@@ -51,10 +52,11 @@ verified module object and rejects out-of-range integer arguments before
 execution.
 
 The first Psi-owned checked-tree producer, `psi-checked-trees-to-terminal`,
-lowers four exact closed-contract source forms: a recursively nested Boolean
+lowers six exact closed-contract source forms: a recursively nested Boolean
 expression over literals, exact named parameters, builtin negation, builtin
 equality/inequality, and short-circuit `&&`/`||` from ordinary Boolean
-parameters; a recursively nested
+parameters; direct builtin equality/inequality between two named
+primitive-integer parameters of one exact type; a recursively nested
 expression over exact parameter/literal operands using builtin
 wrapping/saturating add, subtract, or multiply from a nonempty sequence of
 ordinary primitive-integer parameters; or an
@@ -83,7 +85,8 @@ v9-v12 evidence rows; the executable canary remains content-free. A
 source-independent Omega abstract-operation consumer accepts only the verified
 module and emits owned scalar-materialization, wrapping-add, saturating-add,
 wrapping-subtract, saturating-subtract, wrapping-multiply,
-saturating-multiply, jump-binding, structural conditional, and return requirements
+saturating-multiply, Boolean-not, Boolean-equality, integer-equality,
+jump-binding, structural conditional, and return requirements
 with stable Psi provenance and no source
 handles. The clean
 target continuation resolves the current compile-known stream to a
@@ -108,7 +111,8 @@ semantic v7 and proof format v6 add recursive wrapping-multiply vocabulary;
 semantic v8 and proof format v7 add recursive saturating-multiply vocabulary;
 semantic v15 and proof format v10 add recursive Boolean-negation vocabulary;
 semantic v16 adds proposition declarations without executable vocabulary; and
-semantic v17 plus proof format v11 add recursive Boolean-equality vocabulary,
+semantic v17 plus proof format v11 add recursive Boolean-equality vocabulary;
+semantic v18 plus proof format v12 add recursive integer-equality vocabulary,
 without changing fuel schedule v1. Parameter-fed canaries
 round-trip, verify, cost two units, and agree with native execution: wrapping
 `u8` computes 5-10 = 251, while signed `i64` saturating subtraction reaches
@@ -125,8 +129,9 @@ terms, minimal format v5 adds recursive saturating-subtract terms, and minimal
 format v6 adds recursive wrapping-multiply terms, minimal format v7 adds
 recursive saturating-multiply terms, minimal format v8 adds content-conservation
 terms, minimal format v9 adds sum-case structural paths, minimal format v10 adds
-recursive Boolean-negation terms, and minimal format v11 adds recursive
-Boolean-equality terms. The proof section has its own
+recursive Boolean-negation terms, minimal format v11 adds recursive
+Boolean-equality terms, and minimal format v12 adds recursive integer-equality
+terms. The proof section has its own
 golden fingerprint, and a role-separated manifest binds semantic, proof,
 installation, and debug sections without folding replaceable evidence into
 program identity. The clean terminal lane owns a semantic-identity-bound object
@@ -154,7 +159,7 @@ Semantic v1 integer, v2 Boolean, v3 wrapping-add, v4 saturating-add, v5
 wrapping-subtract, v6 saturating-subtract, v7 wrapping-multiply, v8
 saturating-multiply, v9 content, v10 reshuffle, v11 case-path, v12 partition,
 v13 conditional, and v14 entry-claim modules retain their frozen bytes and
-execution semantics; explicit migration produces a new current-v17 fingerprint
+execution semantics; explicit migration produces a new current-v18 fingerprint
 and derives dense entry bindings from any validated archived reshuffles. The
 v15 Boolean-negation slice round-trips, verifies, costs one operation plus one
 return edge, interprets, and returns the complemented canonical Boolean through
@@ -165,7 +170,12 @@ with `false`; clean Omega lowering folds that literal comparison to the existing
 canonical Boolean target forms and agrees with native C-ABI execution. A second
 checked-source canary compares two runtime Boolean parameters; recursive target
 and assigned Boolean expressions preserve both ABI inputs and emit canonical
-equality results on AArch64 and x86-64. The v3 wrapping slice
+equality results on AArch64 and x86-64. The v18 integer-equality slice compares
+two runtime `u64` parameters, reconstructs its exact logical axiom, costs one
+operation plus the return edge, and agrees across canonical round-trip,
+verification, interpretation, typed target lowering, and AArch64/x86-64
+emission. Proof format v12 separately carries that exact term in replaceable
+certificates. The v3 wrapping slice
 round-trips, verifies,
 meters, lowers, emits,
 and executes `u8` 200+100 as 44. The v4 saturating slice traverses the

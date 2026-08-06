@@ -23,6 +23,7 @@ const FORMAT_VERSION_V8: u16 = 8;
 const FORMAT_VERSION_V9: u16 = 9;
 const FORMAT_VERSION_V10: u16 = 10;
 const FORMAT_VERSION_V11: u16 = 11;
+const FORMAT_VERSION_V12: u16 = 12;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-proof-bundle-fingerprint-v1\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -78,6 +79,7 @@ pub fn decode_proof_bundle(bytes: &[u8]) -> Result<ProofBundle, ProofCodecError>
             | FORMAT_VERSION_V9
             | FORMAT_VERSION_V10
             | FORMAT_VERSION_V11
+            | FORMAT_VERSION_V12
     ) {
         return Err(ProofCodecError::UnsupportedFormatVersion(format_version));
     }
@@ -216,6 +218,7 @@ fn validate_scalar_term_depth(term: &ScalarTerm, depth: usize) -> Result<(), Pro
             validate_scalar_term_depth(operand, depth + 1)?;
         }
         ScalarTerm::BooleanEqual { left, right }
+        | ScalarTerm::IntegerEqual { left, right, .. }
         | ScalarTerm::WrappingIntegerAdd { left, right, .. }
         | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
         | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
@@ -232,6 +235,14 @@ fn validate_scalar_term_depth(term: &ScalarTerm, depth: usize) -> Result<(), Pro
 
 fn required_format_version(bundle: &ProofBundle) -> u16 {
     if bundle.evidence.iter().any(|evidence| {
+        matches!(
+            &evidence.route,
+            EvidenceRoute::CertificateDerived(certificate)
+                if proof_uses_v12_term(&certificate.proof)
+        )
+    }) {
+        FORMAT_VERSION_V12
+    } else if bundle.evidence.iter().any(|evidence| {
         matches!(
             &evidence.route,
             EvidenceRoute::CertificateDerived(certificate)
@@ -316,6 +327,66 @@ fn required_format_version(bundle: &ProofBundle) -> u16 {
     }
 }
 
+fn proof_uses_v12_term(node: &ProofNode) -> bool {
+    proposition_uses_v12_term(&node.conclusion)
+        || match &node.rule {
+            ProofRule::Primitive(_)
+            | ProofRule::SemanticAxiom { .. }
+            | ProofRule::Assumption { .. } => false,
+            ProofRule::ConjunctionIntroduction(nodes) => nodes.iter().any(proof_uses_v12_term),
+            ProofRule::ConjunctionElimination { conjunction, .. } => {
+                proof_uses_v12_term(conjunction)
+            }
+            ProofRule::ImplicationIntroduction { body } => proof_uses_v12_term(body),
+            ProofRule::ImplicationElimination {
+                implication,
+                premise,
+            } => proof_uses_v12_term(implication) || proof_uses_v12_term(premise),
+            ProofRule::EqualityTransitivity {
+                left_equals_middle,
+                middle_equals_right,
+            } => {
+                proof_uses_v12_term(left_equals_middle) || proof_uses_v12_term(middle_equals_right)
+            }
+        }
+}
+
+fn proposition_uses_v12_term(proposition: &Proposition) -> bool {
+    match proposition {
+        Proposition::Truth
+        | Proposition::Falsehood
+        | Proposition::Atom(_)
+        | Proposition::ContentConservation(_) => false,
+        Proposition::Equal(left, right)
+        | Proposition::LessThan(left, right)
+        | Proposition::LessOrEqual(left, right) => {
+            scalar_term_uses_v12(left) || scalar_term_uses_v12(right)
+        }
+        Proposition::Conjunction(conjuncts) => conjuncts.iter().any(proposition_uses_v12_term),
+        Proposition::Implication {
+            premise,
+            conclusion,
+        } => proposition_uses_v12_term(premise) || proposition_uses_v12_term(conclusion),
+    }
+}
+
+fn scalar_term_uses_v12(term: &ScalarTerm) -> bool {
+    match term {
+        ScalarTerm::IntegerEqual { .. } => true,
+        ScalarTerm::BooleanNot { operand } => scalar_term_uses_v12(operand),
+        ScalarTerm::BooleanEqual { left, right }
+        | ScalarTerm::WrappingIntegerAdd { left, right, .. }
+        | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
+        | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
+        | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
+        | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
+        | ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
+            scalar_term_uses_v12(left) || scalar_term_uses_v12(right)
+        }
+        ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => false,
+    }
+}
+
 fn proof_uses_v11_term(node: &ProofNode) -> bool {
     proposition_uses_v11_term(&node.conclusion)
         || match &node.rule {
@@ -362,6 +433,9 @@ fn proposition_uses_v11_term(proposition: &Proposition) -> bool {
 fn scalar_term_uses_v11(term: &ScalarTerm) -> bool {
     match term {
         ScalarTerm::BooleanEqual { .. } => true,
+        ScalarTerm::IntegerEqual { left, right, .. } => {
+            scalar_term_uses_v11(left) || scalar_term_uses_v11(right)
+        }
         ScalarTerm::BooleanNot { operand } => scalar_term_uses_v11(operand),
         ScalarTerm::WrappingIntegerAdd { left, right, .. }
         | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
@@ -421,7 +495,7 @@ fn proposition_uses_v10_term(proposition: &Proposition) -> bool {
 fn scalar_term_uses_v10(term: &ScalarTerm) -> bool {
     match term {
         ScalarTerm::BooleanNot { .. } => true,
-        ScalarTerm::BooleanEqual { left, right } => {
+        ScalarTerm::BooleanEqual { left, right } | ScalarTerm::IntegerEqual { left, right, .. } => {
             scalar_term_uses_v10(left) || scalar_term_uses_v10(right)
         }
         ScalarTerm::WrappingIntegerAdd { left, right, .. }
@@ -584,7 +658,7 @@ fn proposition_uses_v7_term(proposition: &Proposition) -> bool {
 fn scalar_term_uses_v7(term: &ScalarTerm) -> bool {
     match term {
         ScalarTerm::BooleanNot { operand } => scalar_term_uses_v7(operand),
-        ScalarTerm::BooleanEqual { left, right } => {
+        ScalarTerm::BooleanEqual { left, right } | ScalarTerm::IntegerEqual { left, right, .. } => {
             scalar_term_uses_v7(left) || scalar_term_uses_v7(right)
         }
         ScalarTerm::SaturatingIntegerMultiply { .. } => true,
@@ -643,7 +717,7 @@ fn proposition_uses_v6_term(proposition: &Proposition) -> bool {
 fn scalar_term_uses_v6(term: &ScalarTerm) -> bool {
     match term {
         ScalarTerm::BooleanNot { operand } => scalar_term_uses_v6(operand),
-        ScalarTerm::BooleanEqual { left, right } => {
+        ScalarTerm::BooleanEqual { left, right } | ScalarTerm::IntegerEqual { left, right, .. } => {
             scalar_term_uses_v6(left) || scalar_term_uses_v6(right)
         }
         ScalarTerm::WrappingIntegerMultiply { .. } => true,
@@ -702,7 +776,7 @@ fn proposition_uses_v5_term(proposition: &Proposition) -> bool {
 fn scalar_term_uses_v5(term: &ScalarTerm) -> bool {
     match term {
         ScalarTerm::BooleanNot { operand } => scalar_term_uses_v5(operand),
-        ScalarTerm::BooleanEqual { left, right } => {
+        ScalarTerm::BooleanEqual { left, right } | ScalarTerm::IntegerEqual { left, right, .. } => {
             scalar_term_uses_v5(left) || scalar_term_uses_v5(right)
         }
         ScalarTerm::SaturatingIntegerSubtract { .. } => true,
@@ -761,7 +835,7 @@ fn proposition_uses_v4_term(proposition: &Proposition) -> bool {
 fn scalar_term_uses_v4(term: &ScalarTerm) -> bool {
     match term {
         ScalarTerm::BooleanNot { operand } => scalar_term_uses_v4(operand),
-        ScalarTerm::BooleanEqual { left, right } => {
+        ScalarTerm::BooleanEqual { left, right } | ScalarTerm::IntegerEqual { left, right, .. } => {
             scalar_term_uses_v4(left) || scalar_term_uses_v4(right)
         }
         ScalarTerm::WrappingIntegerSubtract { .. } => true,
@@ -826,7 +900,7 @@ fn proposition_uses_v3_term(proposition: &Proposition) -> bool {
 fn scalar_term_uses_v3(term: &ScalarTerm) -> bool {
     match term {
         ScalarTerm::BooleanNot { operand } => scalar_term_uses_v3(operand),
-        ScalarTerm::BooleanEqual { left, right } => {
+        ScalarTerm::BooleanEqual { left, right } | ScalarTerm::IntegerEqual { left, right, .. } => {
             scalar_term_uses_v3(left) || scalar_term_uses_v3(right)
         }
         ScalarTerm::SaturatingIntegerAdd { .. } => true,
@@ -893,7 +967,7 @@ fn proposition_uses_v2_term(proposition: &Proposition) -> bool {
 fn scalar_term_uses_v2(term: &ScalarTerm) -> bool {
     match term {
         ScalarTerm::BooleanNot { operand } => scalar_term_uses_v2(operand),
-        ScalarTerm::BooleanEqual { left, right } => {
+        ScalarTerm::BooleanEqual { left, right } | ScalarTerm::IntegerEqual { left, right, .. } => {
             scalar_term_uses_v2(left) || scalar_term_uses_v2(right)
         }
         ScalarTerm::WrappingIntegerAdd { .. } => true,
@@ -1173,6 +1247,19 @@ fn encode_scalar_term(
                 return Err(ProofCodecError::UnsupportedScalarTermForFormat);
             }
             writer.u8(11);
+            encode_scalar_term(writer, left, depth + 1, format_version)?;
+            encode_scalar_term(writer, right, depth + 1, format_version)?;
+        }
+        ScalarTerm::IntegerEqual {
+            scalar_type,
+            left,
+            right,
+        } => {
+            if format_version < FORMAT_VERSION_V12 {
+                return Err(ProofCodecError::UnsupportedScalarTermForFormat);
+            }
+            writer.u8(12);
+            encode_integer_type(writer, *scalar_type);
             encode_scalar_term(writer, left, depth + 1, format_version)?;
             encode_scalar_term(writer, right, depth + 1, format_version)?;
         }
@@ -1558,6 +1645,13 @@ fn decode_scalar_term(
             let left = decode_scalar_term(reader, depth + 1, format_version)?;
             let right = decode_scalar_term(reader, depth + 1, format_version)?;
             ScalarTerm::boolean_equal(left, right).map_err(ProofCodecError::MalformedProposition)?
+        }
+        12 if format_version >= FORMAT_VERSION_V12 => {
+            let scalar_type = decode_integer_type(reader)?;
+            let left = decode_scalar_term(reader, depth + 1, format_version)?;
+            let right = decode_scalar_term(reader, depth + 1, format_version)?;
+            ScalarTerm::integer_equal(scalar_type, left, right)
+                .map_err(ProofCodecError::MalformedProposition)?
         }
         tag => return Err(ProofCodecError::InvalidTag("ScalarTerm", tag)),
     })

@@ -42,8 +42,9 @@ partition substitution witnesses; v13 adds one structural Boolean conditional
 with ordered true/false successors; v14 adds canonical machine-local
 entry-claim bindings independently of output equality; v15 adds total Boolean
 logical negation; v16 adds canonical nominal proposition declarations and
-normalized application identities; and current v17 adds total Boolean
-equality. None of v9-v14 or v16 adds an executable operation. The conditional is control vocabulary rather than an
+normalized application identities; v17 adds total Boolean equality; and
+current v18 adds total equality over two values of one exact integer type.
+None of v9-v14 or v16 adds an executable operation. The conditional is control vocabulary rather than an
 operation, and an entry-claim binding is identity metadata rather than a
 proposition.
 `psi-terminal-verifier` rejects malformed identities, types, contract scopes,
@@ -89,7 +90,7 @@ Omega concerns, and Omega orchestration runs that admission explicitly after
 the Psi check.
 
 The first Psi-owned terminal source producer is live as
-`psi-checked-trees-to-terminal`. It accepts five exact free-machine forms. A
+`psi-checked-trees-to-terminal`. It accepts six exact free-machine forms. A
 Boolean machine may return a literal, exact named parameter, or a recursively
 nested expression over builtin logical negation, Boolean equality/inequality,
 and short-circuit `&&`/`||` from any sequence of ordinary Boolean parameters,
@@ -104,7 +105,11 @@ short-circuit operand, value-producing decision leaves retain the explicit
 `BooleanEqual` operation and the canonical `BooleanNot` composition rather
 than replacing their proof and fuel sites with a truth-table branch.
 Compile-known Boolean bindings likewise must match the closed reflexive
-contract. A single-state
+contract. A single-state Boolean-result machine over ordinary
+primitive-integer parameters may compare two directly named parameters of one
+exact type with builtin `==` or `!=`. This form retains an `IntegerEqual`
+operation and, for inequality, a canonical `BooleanNot`; it does not
+reinterpret integer equality as an arithmetic policy. A single-state
 integer machine may declare any sequence of ordinary primitive-integer
 parameters, including none, and return one exact named parameter, one landed
 literal, or a recursively nested
@@ -131,11 +136,12 @@ parallel Boolean conditional form accepts the recursive Boolean vocabulary in
 its positive guard and both branch returns. A short-circuit guard sends its
 terminal test edges directly to the selected branch with the authored entry
 arguments; short-circuit arms remain local decision trees and only the selected
-arm is charged. All five forms require a matching closed
+arm is charged. All six forms require a matching closed
 `requires`/`ensures` pair. The producer rejects all other checked-tree shapes,
 including selected domain-owned operator meanings. The source canary lowers
 all six versioned integer-policy operations in both constant-fed and
-runtime-parameter forms, Boolean literal, negation, equality/inequality, and
+runtime-parameter forms, Boolean literal, negation, Boolean
+equality/inequality, integer equality, and
 ninth-parameter returns, a
 three-state Boolean chain carrying its ninth parameter, a closed three-state
 integer chain, a direct zero-parameter integer literal, plus a nine-parameter
@@ -193,7 +199,8 @@ source-independent consumer is also live:
 `VerifiedTerminalModule` and produces an owned stream of scalar materialization,
 wrapping-add, saturating-add, wrapping-subtract, saturating-subtract,
 wrapping-multiply, saturating-multiply, Boolean-not, Boolean-equality,
-jump-binding, and return requirements with stable Psi provenance. Its function
+integer-equality, jump-binding, and return requirements with stable Psi
+provenance. Its function
 records also retain declared runtime parameters and the result pseudo-value
 with exact scalar types; the real checked-source producer now exercises that
 path through a ninth stack argument. Neither it nor
@@ -213,7 +220,10 @@ saturating multiplication lower to recursive, exact-width
 target expressions. Runtime Boolean equality lowers to a recursive Boolean
 target expression with canonical immediate/parameter, negation, and equality
 nodes; assigned AArch64 and x86-64 emission preserves both inputs and produces
-canonical zero/one results. Recursive Boolean expressions may also serve as
+canonical zero/one results. Runtime integer equality similarly retains the
+operand integer type and two recursive integer expressions; assignment and
+emission compare their normalized exact-width representations on both native
+architectures. Recursive Boolean expressions may also serve as
 target control conditions and return leaves; assignment gives each expression
 its own frame, and emission tears that frame down before entering either arm.
 This lets short-circuit terminal trees branch on nested equality expressions
@@ -248,7 +258,9 @@ wrapping/saturating subtraction, and wrapping/saturating multiplication support
 signed and unsigned 8/16/32/64-bit operands, recursive expressions, and mixed
 immediate/register/stack leaves. Runtime Boolean equality uses the same assigned
 frame discipline and supports recursive Boolean expressions on both native
-architectures. The assigned plan preserves every referenced
+architectures. Runtime integer equality uses the same frame discipline for two
+exact-width integer expressions and emits canonical zero/one results. The
+assigned plan preserves every referenced
 AArch64 argument register in an aligned local spill frame before evaluation
 into `x0`; both emitters compensate incoming-stack addresses for their assigned
 frame and expression stack.
@@ -582,25 +594,28 @@ rows; version 13 adds the ordered Boolean conditional terminator; version 14
 adds canonical machine-local entry-claim bindings without asserting an output
 equality; version 15 adds total `BooleanNot` operations and scalar terms;
 version 16 adds self-contained nominal proposition declarations and normalized
-applications without adding an operation; and current version 17 adds total
-`BooleanEqual` operations and recursive scalar terms.
+applications without adding an operation; version 17 adds total `BooleanEqual`
+operations and recursive scalar terms; and current version 18 adds total
+`IntegerEqual` operations and recursive scalar terms.
 The arithmetic operations require two already defined operands of the exact
 result integer type and have distinct canonical recursive proposition terms for
 their exact logical results. Boolean equality requires two already defined
-Boolean operands and reconstructs their exact equality result. Validation and
-execution continue to accept valid v1 through v16 modules under their original meaning, while an older module
+Boolean operands and reconstructs their exact equality result. Integer
+equality requires two already defined values of one exact integer type and
+reconstructs a Boolean result equating their representations. Validation and
+execution continue to accept valid v1 through v17 modules under their original meaning, while an older module
 cannot claim a later operation, control form, or evidence row.
-`migrate_module_to_current` is an explicit validated older-to-v17 translation.
+`migrate_module_to_current` is an explicit validated older-to-v18 translation.
 For v10-v13 content rows it derives the new entry bindings from the already
 validated reshuffles and remaps claim references into dense machine-local IDs;
 it otherwise preserves the graph and obligations. Migration creates new
 canonical bytes and a new semantic fingerprint. An unchanged proof bundle
 retains its separate bytes and identity but is verified again against the
-migrated module. Golden tests retain archived v1 through v16 identities and
-independently freeze the current v17 fingerprint, v10 identity-reshuffle
+migrated module. Golden tests retain archived v1 through v17 identities and
+independently freeze the current v18 fingerprint, v10 identity-reshuffle
 fixture, v11 sum-case fixture, v12 partition-composition fixture, v14
 entry-claim fixture, v15 Boolean-negation fixture, v16 proposition-vocabulary
-fixture, and v17 Boolean-equality fixture.
+fixture, v17 Boolean-equality fixture, and v18 integer-equality fixture.
 
 The same codec gives proof bundles their own canonical `PSIPRF` bytes and golden
 fingerprint. Proof format v1 remains the minimal frozen encoding for the
@@ -611,8 +626,8 @@ saturating-subtract scalar term; format v6 adds the recursive wrapping-multiply
 scalar term; format v7 adds the recursive saturating-multiply scalar term;
 format v8 adds content-conservation propositions and field/fixed-index
 structural-place terms; format v9 adds sum-case path segments; format v10 adds
-recursive Boolean-negation terms; and format v11 adds recursive Boolean-equality
-terms. The encoder
+recursive Boolean-negation terms; format v11 adds recursive Boolean-equality
+terms; and format v12 adds recursive integer-equality terms. The encoder
 selects the minimal format needed by a carried proof tree, and the
 decoder rejects a bundle encoded with a newer format than its proof tree needs.
 Evidence entries are strictly ordered by `ObligationId`; the
@@ -656,7 +671,8 @@ the exact returned-expression site.
 
 `psi-terminal-fuel` owns the accounting identity independently from terminal
 semantic versioning. Schedule v1 charges one logical unit for each executed
-`IntegerConstant`, `BooleanConstant`, `BooleanNot`, `BooleanEqual`, `WrappingIntegerAdd`,
+`IntegerConstant`, `BooleanConstant`, `BooleanNot`, `BooleanEqual`,
+`IntegerEqual`, `WrappingIntegerAdd`,
 `SaturatingIntegerAdd`, `WrappingIntegerSubtract`,
 `SaturatingIntegerSubtract`, `WrappingIntegerMultiply`, or
 `SaturatingIntegerMultiply` and one for each
@@ -741,7 +757,10 @@ generic installation ladder. Migrating the Cathedral hard-root graph remains.
    have verifier, direct-interpreter, canonical-codec, fuel, Omega-lowering,
    and native-return coverage. The runtime-parameter slice covers direct returns plus recursive
    wrapping/saturating addition, subtraction, and multiplication
-   expressions over native register and incoming-stack ABI locations. The v9
+   expressions over native register and incoming-stack ABI locations. The v15,
+   v17, and v18 Boolean-negation, Boolean-equality, and integer-equality slices
+   likewise cross validation, canonical encoding, fuel, interpretation, and
+   native lowering. The v9
    content slice has canonical semantic/proof bytes, checked-plan translation,
    and certificate verification; v10 carries and revalidates checked
    identity-reshuffle rows as semantic axioms, while sealed frontier rows remain.
@@ -784,7 +803,7 @@ generic installation ladder. Migrating the Cathedral hard-root graph remains.
    proof bytes and role-separated semantic/proof/install/debug manifest hashes
    are also live. Semantic migration is exercised: archived v1 and v2 bytes
    retain their identities and migrate explicitly into separately fingerprinted
-   current-v17 modules; archived v3 wrapping-add, v4 saturating-add, v5
+   current-v18 modules; archived v3 wrapping-add, v4 saturating-add, v5
    wrapping-subtract, v6 saturating-subtract, and v7 wrapping-multiply
    identities plus the v8 saturating-multiply identity are frozen as well. Typed
    installation records, the canonical typed debug/source-map schema, and

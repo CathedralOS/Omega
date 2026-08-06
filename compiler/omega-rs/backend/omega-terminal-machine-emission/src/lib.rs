@@ -862,6 +862,25 @@ fn emit_x86_64_boolean_expression_node(
             bytes.extend_from_slice(&[0x0f, 0x94, 0xc0]); // sete al
             bytes.extend_from_slice(&[0x0f, 0xb6, 0xc0]); // movzx eax, al
         }
+        TerminalAssignedBooleanExpression::IntegerEqual {
+            scalar_type,
+            left,
+            right,
+            ..
+        } => {
+            emit_x86_64_expression_node(bytes, *scalar_type, left, frame_byte_size, stack_depth)?;
+            bytes.push(0x50); // push rax
+            let nested_depth = stack_depth.checked_add(8).ok_or(
+                EmissionError::ExpressionStackDepthNotEncodable {
+                    value: expression_source(left),
+                },
+            )?;
+            emit_x86_64_expression_node(bytes, *scalar_type, right, frame_byte_size, nested_depth)?;
+            bytes.extend_from_slice(&[0x41, 0x5a]); // pop r10
+            bytes.extend_from_slice(&[0x49, 0x39, 0xc2]); // cmp r10, rax
+            bytes.extend_from_slice(&[0x0f, 0x94, 0xc0]); // sete al
+            bytes.extend_from_slice(&[0x0f, 0xb6, 0xc0]); // movzx eax, al
+        }
     }
     Ok(())
 }
@@ -1269,6 +1288,36 @@ fn emit_aarch64_boolean_expression_node(
             instructions.push(0x6b00_013f); // cmp w9, w0
             instructions.push(0x1a9f_17e0); // cset w0, eq
         }
+        TerminalAssignedBooleanExpression::IntegerEqual {
+            scalar_type,
+            left,
+            right,
+            ..
+        } => {
+            emit_aarch64_expression_node(instructions, *scalar_type, left, frame, stack_depth)?;
+            emit_aarch64_adjust_sp(instructions, 16, false)?;
+            instructions.push(aarch64_stack_access(
+                0xf900_0000,
+                0,
+                expression_source(left),
+                0,
+            )?);
+            let nested_depth = stack_depth.checked_add(16).ok_or(
+                EmissionError::ExpressionStackDepthNotEncodable {
+                    value: expression_source(left),
+                },
+            )?;
+            emit_aarch64_expression_node(instructions, *scalar_type, right, frame, nested_depth)?;
+            instructions.push(aarch64_stack_access(
+                0xf940_0000,
+                9,
+                expression_source(left),
+                0,
+            )?);
+            emit_aarch64_adjust_sp(instructions, 16, true)?;
+            instructions.push(0xeb00_013f); // cmp x9, x0
+            instructions.push(0x1a9f_17e0); // cset w0, eq
+        }
     }
     Ok(())
 }
@@ -1602,6 +1651,7 @@ fn boolean_expression_source(expression: &TerminalAssignedBooleanExpression) -> 
             boolean_expression_source(operand)
         }
         TerminalAssignedBooleanExpression::Equal { left, .. } => boolean_expression_source(left),
+        TerminalAssignedBooleanExpression::IntegerEqual { left, .. } => expression_source(left),
     }
 }
 
@@ -1861,6 +1911,61 @@ mod tests {
                 0xf940_03e9, // ldr x9, [sp]
                 0x9100_43ff, // add sp, sp, #16
                 0x6b00_013f, // cmp w9, w0
+                0x1a9f_17e0, // cset w0, eq
+                0x9100_43ff, // add sp, sp, #16
+                0xd65f_03c0, // ret
+            ]
+        );
+    }
+
+    #[test]
+    fn emits_runtime_u8_integer_equality_for_both_architectures() {
+        let scalar_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let x86 = emit_machine_code(&integer_equality_plan(
+            NativeTarget::linux_x64(),
+            scalar_type,
+            MachineRegister::X86Rdi,
+            MachineRegister::X86Rsi,
+        ))
+        .unwrap();
+        assert_eq!(
+            x86.functions[0].bytes,
+            [
+                0x48, 0x89, 0xf8, // mov rax, rdi
+                0x25, 0xff, 0, 0, 0,    // and eax, 0xff
+                0x50, // push rax
+                0x48, 0x89, 0xf0, // mov rax, rsi
+                0x25, 0xff, 0, 0, 0, // and eax, 0xff
+                0x41, 0x5a, // pop r10
+                0x49, 0x39, 0xc2, // cmp r10, rax
+                0x0f, 0x94, 0xc0, // sete al
+                0x0f, 0xb6, 0xc0, // movzx eax, al
+                0xc3,
+            ]
+        );
+
+        let aarch64 = emit_machine_code(&integer_equality_plan(
+            NativeTarget::linux_arm64(),
+            scalar_type,
+            MachineRegister::Aarch64X(0),
+            MachineRegister::Aarch64X(1),
+        ))
+        .unwrap();
+        assert_eq!(
+            aarch64_instructions(&aarch64.functions[0].bytes),
+            [
+                0xd100_43ff, // sub sp, sp, #16
+                0xf900_03e0, // str x0, [sp]
+                0xf900_07e1, // str x1, [sp, #8]
+                0xf940_03e0, // ldr x0, [sp]
+                0xd340_1c00, // uxtb x0, x0
+                0xd100_43ff, // sub sp, sp, #16
+                0xf900_03e0, // str x0, [sp]
+                0xf940_0fe0, // ldr x0, [sp, #24]
+                0xd340_1c00, // uxtb x0, x0
+                0xf940_03e9, // ldr x9, [sp]
+                0x9100_43ff, // add sp, sp, #16
+                0xeb00_013f, // cmp x9, x0
                 0x1a9f_17e0, // cset w0, eq
                 0x9100_43ff, // add sp, sp, #16
                 0xd65f_03c0, // ret
@@ -2574,6 +2679,41 @@ mod tests {
                             location: TerminalScalarParameterLocation::Register(left_register),
                         }),
                         right: Box::new(TerminalTargetBooleanExpression::Parameter {
+                            source_value: ValueId::new(2).expect("right"),
+                            parameter_index: 1,
+                            location: TerminalScalarParameterLocation::Register(right_register),
+                        }),
+                    },
+                },
+            }],
+        }
+    }
+
+    fn integer_equality_plan(
+        target: NativeTarget,
+        scalar_type: IntegerType,
+        left_register: MachineRegister,
+        right_register: MachineRegister,
+    ) -> TerminalTargetOperationPlan {
+        TerminalTargetOperationPlan {
+            terminal_psi: identity(),
+            target,
+            entry: MachineId::new(1).expect("machine"),
+            functions: vec![TerminalTargetFunction {
+                machine: MachineId::new(1).expect("machine"),
+                provenance: TerminalPsiProvenance::default(),
+                operation: TerminalTargetOperation::ReturnBooleanExpression {
+                    psi_edge: EdgeId::new(1).expect("edge"),
+                    source_value: ValueId::new(3).expect("result"),
+                    expression: TerminalTargetBooleanExpression::IntegerEqual {
+                        psi_operation: OperationId::new(1).expect("operation"),
+                        scalar_type,
+                        left: Box::new(TerminalTargetIntegerExpression::Parameter {
+                            source_value: ValueId::new(1).expect("left"),
+                            parameter_index: 0,
+                            location: TerminalScalarParameterLocation::Register(left_register),
+                        }),
+                        right: Box::new(TerminalTargetIntegerExpression::Parameter {
                             source_value: ValueId::new(2).expect("right"),
                             parameter_index: 1,
                             location: TerminalScalarParameterLocation::Register(right_register),
