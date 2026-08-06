@@ -8427,6 +8427,40 @@ fn runtime_value_operand_uses_control_state(
     }
 }
 
+/// Machine state touched while materializing one runtime value operand, before
+/// the enclosing operation applies its own effects. This deliberately keeps
+/// operand evaluation separate from comparison/atomic semantics: an immediate
+/// atomic store does not write flags merely because a compare operation would.
+pub fn runtime_value_operand_additional_machine_state(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    operand: RuntimeValueOperandHandle,
+) -> MachineStateSet {
+    let mut state = MachineStateSet::empty();
+    let writes_flags = runtime_value_operands.bit_field(operand).is_some()
+        || runtime_value_operands.frame_indexed(operand).is_some()
+        || runtime_value_operands.frame_base_indexed(operand).is_some()
+        || runtime_value_operands.machine_indexed(operand).is_some()
+        || runtime_value_operands.text_equals(operand).is_some()
+        || runtime_value_operands
+            .text_equals_literal(operand)
+            .is_some()
+        || runtime_value_operands.binary(operand).is_some()
+        || runtime_value_operands.convert(operand).is_some()
+        || runtime_value_operands
+            .pointee(operand)
+            .is_some_and(|(_, field_byte_offset, _)| field_byte_offset != 0);
+    if writes_flags {
+        state = state.union(MachineStateSet::new([MachineState::Flags]));
+    }
+    if runtime_value_operand_uses_stack(runtime_value_operands, operand) {
+        state = state.union(MachineStateSet::new([MachineState::StackPointer]));
+    }
+    if runtime_value_operand_uses_control_state(runtime_value_operands, operand) {
+        state = state.union(MachineStateSet::new([MachineState::ControlState]));
+    }
+    state
+}
+
 pub fn runtime_value_compare_additional_machine_state(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     left: RuntimeValueOperandHandle,

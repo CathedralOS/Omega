@@ -16,6 +16,91 @@ pub struct CompilerInstructionWireScalarRange {
     pub signed: bool,
 }
 
+/// Closed compiler-owned atomic programs retained for independent final-byte,
+/// relocation, and StatePlan replay.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CompilerInstructionAtomicOperation {
+    Load {
+        source_region: RuntimeStorageRegion,
+        source_offset: usize,
+        byte_size: usize,
+        result_region: RuntimeStorageRegion,
+        result_offset: usize,
+        ordering: psi_language_core::AtomicOrderingPlan,
+    },
+    Store {
+        target_region: RuntimeStorageRegion,
+        target_offset: usize,
+        byte_size: usize,
+        value: omega_target_operations::RuntimeValueOperandHandle,
+        ordering: psi_language_core::AtomicOrderingPlan,
+    },
+    FetchAdd {
+        target_region: RuntimeStorageRegion,
+        target_offset: usize,
+        byte_size: usize,
+        result_region: RuntimeStorageRegion,
+        result_offset: usize,
+        delta: omega_target_operations::RuntimeValueOperandHandle,
+        ordering: psi_language_core::AtomicOrderingPlan,
+    },
+    FetchSub {
+        target_region: RuntimeStorageRegion,
+        target_offset: usize,
+        byte_size: usize,
+        result_region: RuntimeStorageRegion,
+        result_offset: usize,
+        delta: omega_target_operations::RuntimeValueOperandHandle,
+        ordering: psi_language_core::AtomicOrderingPlan,
+    },
+    FetchXor {
+        target_region: RuntimeStorageRegion,
+        target_offset: usize,
+        byte_size: usize,
+        result_region: RuntimeStorageRegion,
+        result_offset: usize,
+        value: omega_target_operations::RuntimeValueOperandHandle,
+        ordering: psi_language_core::AtomicOrderingPlan,
+    },
+    FetchOr {
+        target_region: RuntimeStorageRegion,
+        target_offset: usize,
+        byte_size: usize,
+        result_region: RuntimeStorageRegion,
+        result_offset: usize,
+        value: omega_target_operations::RuntimeValueOperandHandle,
+        ordering: psi_language_core::AtomicOrderingPlan,
+    },
+    FetchAnd {
+        target_region: RuntimeStorageRegion,
+        target_offset: usize,
+        byte_size: usize,
+        result_region: RuntimeStorageRegion,
+        result_offset: usize,
+        value: omega_target_operations::RuntimeValueOperandHandle,
+        ordering: psi_language_core::AtomicOrderingPlan,
+    },
+    Swap {
+        target_region: RuntimeStorageRegion,
+        target_offset: usize,
+        byte_size: usize,
+        result_region: RuntimeStorageRegion,
+        result_offset: usize,
+        new_value: omega_target_operations::RuntimeValueOperandHandle,
+        ordering: psi_language_core::AtomicOrderingPlan,
+    },
+    CompareExchange {
+        target_region: RuntimeStorageRegion,
+        target_offset: usize,
+        byte_size: usize,
+        result_region: RuntimeStorageRegion,
+        result_offset: usize,
+        expected: omega_target_operations::RuntimeValueOperandHandle,
+        new_value: omega_target_operations::RuntimeValueOperandHandle,
+        ordering: psi_language_core::AtomicOrderingPlan,
+    },
+}
+
 /// Fixed compiler-owned instruction programs whose final encodings can be
 /// replayed directly from the target specification.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -106,6 +191,7 @@ pub enum CompilerInstructionValidationKind {
         spill_offset: usize,
         byte_length: usize,
     },
+    CompilerBodyAtomic(CompilerInstructionAtomicOperation),
     ExitIndirectResultCopy {
         source: omega_target_operations::Place,
         target: omega_target_operations::Place,

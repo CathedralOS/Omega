@@ -1647,6 +1647,34 @@ fn runtime_value_operand_uses_control_state(
     }
 }
 
+/// Machine state touched while materializing one runtime value operand, before
+/// the enclosing operation applies its own effects. AArch64 integer address
+/// and bit-field materialization uses non-flag-setting instructions; flags are
+/// needed only by comparison-shaped values and guarded arithmetic/conversions.
+pub fn runtime_value_operand_additional_machine_state(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    operand: RuntimeValueOperandHandle,
+) -> MachineStateSet {
+    let mut state = MachineStateSet::empty();
+    let binary_writes_flags = runtime_value_operands.binary(operand).is_some();
+    let conversion_writes_flags = runtime_value_operands.convert(operand).is_some()
+        && (runtime_value_operands.convert_trapping(operand)
+            || runtime_value_operands.convert_saturating(operand));
+    if binary_writes_flags
+        || conversion_writes_flags
+        || runtime_value_operands.text_equals(operand).is_some()
+        || runtime_value_operands
+            .text_equals_literal(operand)
+            .is_some()
+    {
+        state = state.union(MachineStateSet::new([MachineState::Flags]));
+    }
+    if runtime_value_operand_uses_control_state(runtime_value_operands, operand) {
+        state = state.union(MachineStateSet::new([MachineState::ControlState]));
+    }
+    state
+}
+
 pub fn runtime_value_compare_additional_machine_state(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     left: RuntimeValueOperandHandle,

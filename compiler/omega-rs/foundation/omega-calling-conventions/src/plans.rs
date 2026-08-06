@@ -828,9 +828,11 @@ fn validate_state_footprint_under_ceiling(
         }
     }
     if !permitted_state.contains_all(evidence.machine_state()) {
-        return Err(PlanDiagnostic(
-            "emitted machine-state footprint exceeds the entry plan ceiling".into(),
-        ));
+        return Err(PlanDiagnostic(format!(
+            "emitted machine-state footprint {:?} exceeds the entry plan ceiling {:?}",
+            evidence.machine_state(),
+            permitted_state
+        )));
     }
     let unsaved =
         MachineStateSet(plan.state.interrupted_state.bits() & !plan.state.saved_state.bits());
