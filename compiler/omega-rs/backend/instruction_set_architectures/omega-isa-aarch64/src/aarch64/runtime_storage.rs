@@ -10641,6 +10641,10 @@ fn data_offset_encodable(byte_offset: usize, byte_size: usize) -> bool {
     }
 }
 
+pub(in crate::aarch64) fn data_offset_uses_scratch(byte_offset: usize, byte_size: usize) -> bool {
+    !data_offset_encodable(byte_offset, byte_size)
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::primitives::encode_movk;

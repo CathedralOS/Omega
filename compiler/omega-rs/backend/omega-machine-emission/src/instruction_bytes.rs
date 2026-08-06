@@ -1566,6 +1566,27 @@ fn compiler_instruction_validation_kind(
                 written_offset: *written_offset,
             },
         ),
+        SelectedInstructionKind::ReadWireExpectedByte {
+            buffer_region,
+            buffer_offset,
+            buffer_length,
+            read_region,
+            read_offset,
+            ok_region,
+            ok_offset,
+            expected,
+        } => Some(
+            CompilerInstructionValidationKind::CompilerBodyWireExpectedByteRead {
+                buffer_region: *buffer_region,
+                buffer_offset: *buffer_offset,
+                buffer_length: *buffer_length,
+                read_region: *read_region,
+                read_offset: *read_offset,
+                ok_region: *ok_region,
+                ok_offset: *ok_offset,
+                expected: *expected,
+            },
+        ),
         SelectedInstructionKind::MaterializeTextBufferToPlace { buffer, target }
             if emission_context.target.architecture == omega_target::Architecture::X86_64
                 || matches!(

@@ -200,6 +200,13 @@ enum CompilerInstructionRelocationRecipe {
         out_offset: usize,
         written_offset: usize,
     },
+    WireExpectedByteRead {
+        buffer_region: omega_target_operations::RuntimeStorageRegion,
+        read_region: omega_target_operations::RuntimeStorageRegion,
+        ok_region: omega_target_operations::RuntimeStorageRegion,
+        buffer_offset: usize,
+        read_offset: usize,
+    },
     PlacePair {
         left: omega_target_operations::Place,
         right: omega_target_operations::Place,
@@ -5883,6 +5890,42 @@ fn validate_compiler_function_instruction_boundaries(
                             written_offset,
                         },
                     ),
+                    omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyWireExpectedByteRead {
+                        buffer_region,
+                        buffer_offset,
+                        buffer_length,
+                        read_region,
+                        read_offset,
+                        ok_region,
+                        ok_offset,
+                        expected,
+                    } => (
+                        None,
+                        match architecture {
+                            Architecture::X86_64 => omega_isa_x86_64::encode_read_wire_expected_byte(
+                                buffer_offset,
+                                buffer_length,
+                                read_offset,
+                                ok_offset,
+                                expected,
+                            )?,
+                            Architecture::Aarch64 => omega_isa_aarch64::encode_read_wire_expected_byte(
+                                buffer_offset,
+                                buffer_length,
+                                read_offset,
+                                ok_offset,
+                                expected,
+                            )?,
+                        },
+                        67u8,
+                        CompilerInstructionRelocationRecipe::WireExpectedByteRead {
+                            buffer_region,
+                            read_region,
+                            ok_region,
+                            buffer_offset,
+                            read_offset,
+                        },
+                    ),
                     omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyTextBufferMaterialize {
                         buffer_symbol,
                         target,
@@ -7133,6 +7176,67 @@ fn validate_compiler_function_instruction_boundaries(
                                     }
                                 },
                                 source_region,
+                            ),
+                        ];
+                        validate_compiler_data_address_relocations(
+                            architecture,
+                            object,
+                            relocations,
+                            instruction.selected_instruction_index,
+                            instruction_byte_offset,
+                            &address_sites,
+                        )?;
+                        encoded_instruction_bytes == expected_bytes
+                            && compiler_instruction_non_relocation_bits_match(
+                                architecture,
+                                &expected_bytes,
+                                final_instruction_bytes,
+                                &address_sites
+                                    .iter()
+                                    .map(|(offset, _)| *offset)
+                                    .collect::<Vec<_>>(),
+                            )
+                    }
+                    CompilerInstructionRelocationRecipe::WireExpectedByteRead {
+                        buffer_region,
+                        read_region,
+                        ok_region,
+                        buffer_offset,
+                        read_offset,
+                    } => {
+                        let address_sites = [
+                            (0, buffer_region),
+                            (
+                                match architecture {
+                                    Architecture::X86_64 => {
+                                        omega_isa_x86_64::wire_decode_read_page_offset(
+                                            buffer_offset,
+                                        )
+                                    }
+                                    Architecture::Aarch64 => {
+                                        omega_isa_aarch64::wire_decode_read_page_offset(
+                                            buffer_offset,
+                                        )
+                                    }
+                                },
+                                read_region,
+                            ),
+                            (
+                                match architecture {
+                                    Architecture::X86_64 => {
+                                        omega_isa_x86_64::wire_decode_ok_page_offset(
+                                            buffer_offset,
+                                            read_offset,
+                                        )
+                                    }
+                                    Architecture::Aarch64 => {
+                                        omega_isa_aarch64::wire_decode_ok_page_offset(
+                                            buffer_offset,
+                                            read_offset,
+                                        )
+                                    }
+                                },
+                                ok_region,
                             ),
                         ];
                         validate_compiler_data_address_relocations(
@@ -9467,6 +9571,22 @@ fn compiler_instruction_footprint(
                 ),
             }
         }
+        CompilerInstructionValidationKind::CompilerBodyWireExpectedByteRead {
+            read_offset,
+            ok_offset,
+            ..
+        } => match architecture {
+            Architecture::X86_64 => (
+                BoundaryFootprintFragmentOrigin::CompilerBodyWireExpectedByteRead,
+                omega_isa_x86_64::read_wire_expected_byte_clobbers(),
+                omega_isa_x86_64::read_wire_expected_byte_additional_machine_state(),
+            ),
+            Architecture::Aarch64 => (
+                BoundaryFootprintFragmentOrigin::CompilerBodyWireExpectedByteRead,
+                omega_isa_aarch64::read_wire_expected_byte_clobbers(read_offset, ok_offset),
+                omega_isa_aarch64::read_wire_expected_byte_additional_machine_state(),
+            ),
+        },
         CompilerInstructionValidationKind::CompilerBodyTextBufferMaterialize { target, .. } => {
             let shape = compiler_body_place_integer_write_shape(&target).ok()?;
             let (registers, additional_state) = match (architecture, shape) {
@@ -9791,6 +9911,7 @@ fn validate_compiler_body_specification_footprints(
                 | BoundaryFootprintFragmentOrigin::CompilerBodyPlaceStringWrite
                 | BoundaryFootprintFragmentOrigin::CompilerBodyWireLiteralByteAppend
                 | BoundaryFootprintFragmentOrigin::CompilerBodyWireScalarVarintAppend
+                | BoundaryFootprintFragmentOrigin::CompilerBodyWireExpectedByteRead
                 | BoundaryFootprintFragmentOrigin::CompilerBodyTextAssemblyWrite
                 | BoundaryFootprintFragmentOrigin::CompilerBodyPlaceBinaryWrite
                 | BoundaryFootprintFragmentOrigin::CompilerBodyStorageConvertWrite
@@ -9982,6 +10103,10 @@ fn validate_compiler_body_specification_footprints(
         (
             48u8,
             BoundaryFootprintFragmentOrigin::CompilerBodyWireScalarVarintAppend,
+        ),
+        (
+            49u8,
+            BoundaryFootprintFragmentOrigin::CompilerBodyWireExpectedByteRead,
         ),
     ] {
         let evidence_rows = derived
