@@ -340,7 +340,7 @@ enum CompilerInstructionRelocationRecipe {
     },
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum OutboundCallRelocationTarget {
     Storage(omega_target_operations::RuntimeStorageRegion),
     Data(std::sync::Arc<str>),
@@ -1071,6 +1071,336 @@ fn encode_scalar_parameter_import(
     ))
 }
 
+fn aarch64_replay_scalar_result_register(
+    result: &omega_calling_conventions::ValuePlacement,
+    label: &str,
+) -> Result<omega_calling_conventions::MachineRegister, Diagnostic> {
+    use omega_calling_conventions::ValueLocation;
+
+    match result.locations.as_slice() {
+        [
+            ValueLocation::Register {
+                register,
+                value_byte_offset: 0,
+                ..
+            },
+        ] => Ok(*register),
+        locations => Err(Diagnostic::error(format!(
+            "final AArch64 {label} result did not retain one scalar register: {locations:?}"
+        ))),
+    }
+}
+
+fn validate_aarch64_indirect_replay_plan(
+    plan: &omega_calling_conventions::CallPlan,
+) -> Result<(), Diagnostic> {
+    use omega_calling_conventions::{CallingPolicy, EntryControl, MachineRegister};
+
+    if plan.policy != CallingPolicy::Aapcs64
+        || plan.entry_control != EntryControl::CallReturn
+        || plan.stack_alignment != 16
+        || plan.shadow_bytes != 0
+    {
+        return Err(Diagnostic::error(format!(
+            "final AArch64 indirect-call replay cannot realize plan policy={:?}, control={:?}, alignment={}, shadow_bytes={}",
+            plan.policy, plan.entry_control, plan.stack_alignment, plan.shadow_bytes
+        )));
+    }
+    for scratch in [
+        MachineRegister::Aarch64X(0),
+        MachineRegister::Aarch64X(9),
+        MachineRegister::Aarch64X(10),
+        MachineRegister::Aarch64X(16),
+        MachineRegister::Aarch64X(17),
+        MachineRegister::Aarch64V(31),
+    ] {
+        if !plan.ordinary_clobbers.contains(scratch) {
+            return Err(Diagnostic::error(format!(
+                "final AArch64 indirect-call replay scratch register {scratch:?} exceeds the retained plan's ordinary-clobber ceiling"
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn encode_aarch64_indirect_call_replay(
+    operands: &[omega_target_operations::InstructionOperand],
+    data_symbols: &[std::sync::Arc<str>],
+    mechanism: &omega_calling_conventions::HostBindingMechanism,
+    plan: &omega_calling_conventions::CallPlan,
+    result_present: bool,
+) -> Result<(Vec<u8>, Vec<(usize, OutboundCallRelocationTarget)>), Diagnostic> {
+    use omega_calling_conventions::{HostBindingMechanism, ValueClass, ValueLocation};
+    use omega_target_operations::InstructionOperandLike;
+
+    validate_aarch64_indirect_replay_plan(plan)?;
+    if plan.result.is_some() != result_present {
+        return Err(Diagnostic::error(
+            "final AArch64 indirect-call result operand disagrees with its retained call plan",
+        ));
+    }
+    let lowered = operands
+        .iter()
+        .map(aarch64_outbound_syscall_operand)
+        .collect::<Result<Vec<_>, _>>()?;
+    let result = plan.result.as_ref();
+    let byte_offset = match mechanism {
+        HostBindingMechanism::VtableSlot { index } => index
+            .checked_mul(8)
+            .and_then(|offset| usize::try_from(offset).ok())
+            .ok_or_else(|| Diagnostic::error("final AArch64 vtable slot offset overflowed"))?,
+        HostBindingMechanism::VtableField { byte_offset, .. }
+        | HostBindingMechanism::TableFunction { byte_offset, .. } => *byte_offset,
+        HostBindingMechanism::Import { .. } | HostBindingMechanism::Syscall { .. } => {
+            return Err(Diagnostic::error(
+                "final AArch64 indirect-call replay retained a direct-call mechanism",
+            ));
+        }
+    };
+
+    let passes_receiver = !matches!(mechanism, HostBindingMechanism::TableFunction { .. });
+    if passes_receiver
+        && !matches!(
+            plan.parameters
+                .first()
+                .map(|placement| placement.locations.as_slice()),
+            Some([ValueLocation::Register {
+                register: omega_calling_conventions::MachineRegister::Aarch64X(0),
+                value_byte_offset: 0,
+                byte_size: 8,
+            }])
+        )
+    {
+        return Err(Diagnostic::error(
+            "final AArch64 vtable replay requires one full-width receiver in x0",
+        ));
+    }
+
+    let inner = if passes_receiver {
+        match result.map(|result| result.shape.class) {
+            None => omega_isa_aarch64::encode_vtable_call_sequence_at_offset_from_operands(
+                lowered.iter().copied(),
+                &plan.parameters,
+                byte_offset,
+            ),
+            Some(ValueClass::Integer)
+                if result.is_some_and(|result| result.shape.byte_size > 16) =>
+            {
+                omega_isa_aarch64::encode_vtable_call_sequence_at_offset_indirect_returning_from_operands(
+                    lowered.iter().copied(),
+                    &plan.parameters,
+                    result.expect("matched present result"),
+                    byte_offset,
+                )
+            }
+            Some(ValueClass::Integer)
+                if result.is_some_and(|result| result.shape.byte_size > 8) =>
+            {
+                omega_isa_aarch64::encode_vtable_call_sequence_at_offset_small_aggregate_returning_from_operands(
+                    lowered.iter().copied(),
+                    &plan.parameters,
+                    result.expect("matched present result"),
+                    byte_offset,
+                )
+            }
+            Some(ValueClass::Integer) => {
+                let result = result.expect("matched present result");
+                omega_isa_aarch64::encode_vtable_call_sequence_at_offset_value_returning_from_operands(
+                    lowered.iter().copied(),
+                    &plan.parameters,
+                    aarch64_replay_scalar_result_register(result, "vtable integer")?,
+                    byte_offset,
+                )
+            }
+            Some(ValueClass::Float) => {
+                let result = result.expect("matched present result");
+                omega_isa_aarch64::encode_vtable_call_sequence_at_offset_float_returning_from_operands(
+                    lowered.iter().copied(),
+                    &plan.parameters,
+                    aarch64_replay_scalar_result_register(result, "vtable float")?,
+                    byte_offset,
+                )
+            }
+            Some(ValueClass::HomogeneousFloatAggregate { .. }) => {
+                omega_isa_aarch64::encode_vtable_call_sequence_at_offset_hfa_returning_from_operands(
+                    lowered.iter().copied(),
+                    &plan.parameters,
+                    result.expect("matched present result"),
+                    byte_offset,
+                )
+            }
+            Some(ValueClass::SystemVAggregate { .. }) => Err(Diagnostic::error(
+                "final AArch64 vtable replay retained a SysV aggregate result",
+            )),
+        }?
+    } else {
+        let table_index = usize::from(result_present);
+        if !matches!(
+            lowered.get(table_index),
+            Some(omega_isa_aarch64::Aarch64CallOperand::RuntimeScalarInteger { byte_count: 8, .. })
+        ) {
+            return Err(Diagnostic::error(
+                "final AArch64 table-function replay requires an eight-byte runtime table pointer",
+            ));
+        }
+        match result.map(|result| result.shape.class) {
+            None => omega_isa_aarch64::encode_table_function_call_sequence_from_operands(
+                lowered.iter().copied(),
+                &plan.parameters,
+                None,
+                byte_offset,
+            ),
+            Some(ValueClass::Integer)
+                if result.is_some_and(|result| result.shape.byte_size > 16) =>
+            {
+                omega_isa_aarch64::encode_table_function_call_sequence_indirect_returning_from_operands(
+                    lowered.iter().copied(),
+                    &plan.parameters,
+                    result.expect("matched present result"),
+                    byte_offset,
+                )
+            }
+            Some(ValueClass::Integer)
+                if result.is_some_and(|result| result.shape.byte_size > 8) =>
+            {
+                omega_isa_aarch64::encode_table_function_call_sequence_small_aggregate_returning_from_operands(
+                    lowered.iter().copied(),
+                    &plan.parameters,
+                    result.expect("matched present result"),
+                    byte_offset,
+                )
+            }
+            Some(ValueClass::Integer) => {
+                let result = result.expect("matched present result");
+                omega_isa_aarch64::encode_table_function_call_sequence_from_operands(
+                    lowered.iter().copied(),
+                    &plan.parameters,
+                    Some(aarch64_replay_scalar_result_register(
+                        result,
+                        "table-function integer",
+                    )?),
+                    byte_offset,
+                )
+            }
+            Some(ValueClass::Float) => {
+                let result = result.expect("matched present result");
+                omega_isa_aarch64::encode_table_function_call_sequence_float_returning_from_operands(
+                    lowered.iter().copied(),
+                    &plan.parameters,
+                    aarch64_replay_scalar_result_register(result, "table-function float")?,
+                    byte_offset,
+                )
+            }
+            Some(ValueClass::HomogeneousFloatAggregate { .. }) => {
+                omega_isa_aarch64::encode_table_function_call_sequence_hfa_returning_from_operands(
+                    lowered.iter().copied(),
+                    &plan.parameters,
+                    result.expect("matched present result"),
+                    byte_offset,
+                )
+            }
+            Some(ValueClass::SystemVAggregate { .. }) => Err(Diagnostic::error(
+                "final AArch64 table-function replay retained a SysV aggregate result",
+            )),
+        }?
+    };
+
+    let argument_start = if passes_receiver {
+        usize::from(result_present)
+    } else {
+        usize::from(result_present) + 1
+    };
+    let table_index = usize::from(result_present);
+    let result_prefix = if result_present {
+        omega_isa_aarch64::indirect_result_address_width(lowered[0]).unwrap_or(0)
+    } else {
+        0
+    };
+    let argument_width = |end: usize| {
+        lowered[argument_start..end]
+            .iter()
+            .map(omega_isa_aarch64::operand_width)
+            .sum::<usize>()
+    };
+    let mut retained_data_symbols = data_symbols.iter();
+    let mut address_sites = Vec::new();
+    for (operand_index, operand) in operands.iter().enumerate() {
+        let target = if let Some(region) = outbound_relocated_operand_region(operand) {
+            OutboundCallRelocationTarget::Storage(region)
+        } else if operand.data_address().is_some() {
+            OutboundCallRelocationTarget::Data(std::sync::Arc::clone(
+                retained_data_symbols.next().ok_or_else(|| {
+                    Diagnostic::error(
+                        "final AArch64 indirect-call replay lost a retained data-object symbol",
+                    )
+                })?,
+            ))
+        } else {
+            continue;
+        };
+        let site = if result_present && operand_index == 0 {
+            if matches!(
+                lowered[0],
+                omega_isa_aarch64::Aarch64CallOperand::RuntimeLargeAggregate { .. }
+            ) {
+                0
+            } else {
+                let float_result_move = usize::from(matches!(
+                    lowered[0],
+                    omega_isa_aarch64::Aarch64CallOperand::RuntimeScalarFloat { .. }
+                )) * 4;
+                let dispatch_operand_width = if passes_receiver {
+                    0
+                } else {
+                    omega_isa_aarch64::operand_width(&lowered[table_index])
+                };
+                argument_width(lowered.len())
+                    + dispatch_operand_width
+                    + omega_isa_aarch64::host_call_stack_total_width_for_placements(
+                        &plan.parameters,
+                    )
+                    + 8
+                    + float_result_move
+            }
+        } else if !passes_receiver && operand_index == table_index {
+            result_prefix
+                + argument_width(lowered.len())
+                + omega_isa_aarch64::host_call_stack_prefix_width_for_placements(
+                    &plan.parameters,
+                    plan.parameters.len(),
+                )
+        } else if operand_index >= argument_start {
+            result_prefix
+                + argument_width(operand_index)
+                + omega_isa_aarch64::host_call_stack_prefix_width_for_placements(
+                    &plan.parameters,
+                    operand_index - argument_start,
+                )
+        } else {
+            return Err(Diagnostic::error(
+                "final AArch64 indirect-call replay could not place an address operand",
+            ));
+        };
+        address_sites.push((site, target));
+    }
+    if retained_data_symbols.next().is_some() {
+        return Err(Diagnostic::error(
+            "final AArch64 indirect-call replay retained unused data-object symbols",
+        ));
+    }
+
+    let prefix = omega_isa_aarch64::encode_foreign_float_control_prefix_bytes();
+    let suffix = omega_isa_aarch64::encode_foreign_float_control_suffix_bytes();
+    let mut bytes = Vec::with_capacity(prefix.len() + inner.len() + suffix.len());
+    bytes.extend(prefix);
+    bytes.extend(inner);
+    bytes.extend(suffix);
+    for (site, _) in &mut address_sites {
+        *site += prefix.len();
+    }
+    Ok((bytes, address_sites))
+}
+
 fn encode_indirect_call_replay(
     architecture: Architecture,
     operands: &[omega_target_operations::InstructionOperand],
@@ -1081,11 +1411,6 @@ fn encode_indirect_call_replay(
     use omega_calling_conventions::{CallingPolicy, HostBindingMechanism};
     use omega_target_operations::InstructionOperandLike;
 
-    if architecture != Architecture::X86_64 {
-        return Err(Diagnostic::error(
-            "final indirect-call replay is not yet implemented for AArch64",
-        ));
-    }
     let dispatch_only = usize::from(matches!(
         mechanism,
         HostBindingMechanism::TableFunction { .. }
@@ -1105,6 +1430,16 @@ fn encode_indirect_call_replay(
         return Err(Diagnostic::error(
             "final slot-indexed vtable replay unexpectedly retained a result operand",
         ));
+    }
+
+    if architecture == Architecture::Aarch64 {
+        return encode_aarch64_indirect_call_replay(
+            operands,
+            data_symbols,
+            mechanism,
+            plan,
+            result_present,
+        );
     }
 
     let field_offset = match mechanism {
@@ -19150,8 +19485,9 @@ mod tests {
         compiler_place_convert_write_address_sites, compiler_place_copy_address_sites,
         compiler_place_integer_write_address_sites, compiler_place_value_address_sites,
         compiler_runtime_value_compare_address_sites, emit_checked_executable_image,
-        outbound_syscall_argument_data_sites, outbound_syscall_argument_storage_sites,
-        validate_checked_instruction_bytes, validate_compiler_data_address_relocations,
+        encode_aarch64_indirect_call_replay, outbound_syscall_argument_data_sites,
+        outbound_syscall_argument_storage_sites, validate_checked_instruction_bytes,
+        validate_compiler_data_address_relocations,
         validate_compiler_function_instruction_boundaries,
         validate_compiler_runtime_text_relocations, validate_executable_region_enumeration,
         validate_final_text_relocation_envelope,
@@ -19164,6 +19500,147 @@ mod tests {
     };
     use omega_target::NativeTarget;
     use psi_arena::Handle;
+
+    #[test]
+    fn aarch64_indirect_call_replay_reconstructs_bytes_and_page_sites() {
+        use omega_calling_conventions::{
+            CallSignature, CallingPolicy, HostBindingMechanism, ValueLocation, ValueShape,
+            evaluate_call_plan,
+        };
+        use omega_target_operations::{
+            InstructionOperand, InstructionOperandKind, RuntimeStorageRegion,
+        };
+        use std::sync::Arc;
+
+        let operands = vec![
+            InstructionOperand {
+                kind: InstructionOperandKind::RuntimeScalarInteger {
+                    region: RuntimeStorageRegion::RuntimeFrame,
+                    byte_offset: 32,
+                    byte_count: 4,
+                },
+            },
+            InstructionOperand {
+                kind: InstructionOperandKind::RuntimeScalarInteger {
+                    region: RuntimeStorageRegion::Machine,
+                    byte_offset: 0,
+                    byte_count: 8,
+                },
+            },
+            InstructionOperand {
+                kind: InstructionOperandKind::ImmediateInteger(7),
+            },
+        ];
+        let plan = evaluate_call_plan(
+            CallingPolicy::Aapcs64,
+            &CallSignature {
+                parameters: vec![ValueShape::integer(8, 8); 2],
+                result: Some(ValueShape::integer(4, 4)),
+            },
+        )
+        .expect("AAPCS64 vtable plan");
+        let mechanism = HostBindingMechanism::VtableField {
+            table: Arc::from("Protocol"),
+            field: Arc::from("invoke"),
+            byte_offset: 8,
+        };
+        let (bytes, sites) =
+            encode_aarch64_indirect_call_replay(&operands, &[], &mechanism, &plan, true)
+                .expect("final AArch64 vtable replay");
+
+        let lowered = operands
+            .iter()
+            .map(super::aarch64_outbound_syscall_operand)
+            .collect::<Result<Vec<_>, _>>()
+            .expect("AArch64 replay operands");
+        let result_register = match plan.result.as_ref().expect("result").locations.as_slice() {
+            [ValueLocation::Register { register, .. }] => *register,
+            other => panic!("unexpected result placement: {other:?}"),
+        };
+        let inner =
+            omega_isa_aarch64::encode_vtable_call_sequence_at_offset_value_returning_from_operands(
+                lowered.iter().copied(),
+                &plan.parameters,
+                result_register,
+                8,
+            )
+            .expect("AAPCS64 vtable bytes");
+        let expected = omega_isa_aarch64::encode_foreign_float_control_prefix_bytes()
+            .into_iter()
+            .chain(inner)
+            .chain(omega_isa_aarch64::encode_foreign_float_control_suffix_bytes())
+            .collect::<Vec<_>>();
+        assert_eq!(bytes, expected);
+        assert_eq!(
+            sites,
+            vec![
+                (
+                    36,
+                    super::OutboundCallRelocationTarget::Storage(
+                        RuntimeStorageRegion::RuntimeFrame
+                    )
+                ),
+                (
+                    12,
+                    super::OutboundCallRelocationTarget::Storage(RuntimeStorageRegion::Machine)
+                ),
+            ]
+        );
+
+        let table_operands = vec![
+            InstructionOperand {
+                kind: InstructionOperandKind::RuntimeLargeAggregate {
+                    region: RuntimeStorageRegion::RuntimeFrame,
+                    byte_offset: 64,
+                    byte_count: 24,
+                    alignment: 8,
+                },
+            },
+            InstructionOperand {
+                kind: InstructionOperandKind::RuntimeScalarInteger {
+                    region: RuntimeStorageRegion::Machine,
+                    byte_offset: 16,
+                    byte_count: 8,
+                },
+            },
+        ];
+        let table_plan = evaluate_call_plan(
+            CallingPolicy::Aapcs64,
+            &CallSignature {
+                parameters: Vec::new(),
+                result: Some(ValueShape::integer(24, 8)),
+            },
+        )
+        .expect("AAPCS64 table-function plan");
+        let table_mechanism = HostBindingMechanism::TableFunction {
+            table: Arc::from("Services"),
+            field: Arc::from("allocate"),
+            byte_offset: 40,
+        };
+        let (_, table_sites) = encode_aarch64_indirect_call_replay(
+            &table_operands,
+            &[],
+            &table_mechanism,
+            &table_plan,
+            true,
+        )
+        .expect("final AArch64 table-function replay");
+        assert_eq!(
+            table_sites,
+            vec![
+                (
+                    12,
+                    super::OutboundCallRelocationTarget::Storage(
+                        RuntimeStorageRegion::RuntimeFrame
+                    )
+                ),
+                (
+                    24,
+                    super::OutboundCallRelocationTarget::Storage(RuntimeStorageRegion::Machine)
+                ),
+            ]
+        );
+    }
 
     #[test]
     fn outbound_syscall_storage_sites_cover_runtime_descriptors_and_addresses() {

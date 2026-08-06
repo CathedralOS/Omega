@@ -220,10 +220,6 @@ Owners:
 
 Remaining:
 
-- Extend the live x86-64 replay for indirect `VtableSlot`, `VtableField`, and
-  `TableFunction` calls to AArch64, including exact page relocations and result
-  stores from the retained mechanism, operands, and call plan. Unsupported
-  indirect-call architectures must continue to reject at final validation.
 - finish complete entry/body-region enumeration, including format-owned thunks,
   veneers, and generated stubs;
 - derive the complete final register/machine-state union and require exact
