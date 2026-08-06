@@ -17,6 +17,89 @@ use psi_arena::{Arena, HandleSpan};
 use psi_diagnostics::Diagnostic;
 use std::sync::Arc;
 
+fn is_explicit_zero_width_scaffold(kind: &SelectedInstructionKind) -> bool {
+    matches!(
+        kind,
+        SelectedInstructionKind::BeginPlatformCall
+            | SelectedInstructionKind::LeaveDispatchLoop
+            | SelectedInstructionKind::EnterFunction
+            | SelectedInstructionKind::LeaveFunction
+            | SelectedInstructionKind::EvaluateDispatchGuard {
+                guard_lowering: StateGuardLowering::NoOp | StateGuardLowering::BranchArmsEnd,
+                ..
+            }
+            | SelectedInstructionKind::EvaluateDispatchGuard {
+                guard_lowering: StateGuardLowering::NeedsRuntimeExpression,
+                operator: omega_target_operations::StateGuardOperator::None,
+                ..
+            }
+            | SelectedInstructionKind::EvaluateDispatchGuard {
+                guard_lowering: StateGuardLowering::CompareStaticValue,
+                has_storage: false,
+                ..
+            }
+    )
+}
+
+fn is_win64_out_parameter_clock_import(
+    architecture: omega_target::Architecture,
+    operation_key: omega_calling_conventions::HostOperationKey,
+) -> bool {
+    architecture == omega_target::Architecture::X86_64
+        && operation_key.capability == omega_calling_conventions::HostCapability::Clock
+        && matches!(
+            operation_key.operation,
+            omega_calling_conventions::HostOperation::MonotonicTicks
+                | omega_calling_conventions::HostOperation::MonotonicTicksPerSecond
+                | omega_calling_conventions::HostOperation::WallClockRaw
+        )
+}
+
+fn is_win64_composite_io_import(
+    architecture: omega_target::Architecture,
+    operation_key: omega_calling_conventions::HostOperationKey,
+) -> bool {
+    architecture == omega_target::Architecture::X86_64
+        && matches!(
+            (operation_key.capability, operation_key.operation),
+            (
+                omega_calling_conventions::HostCapability::Stdout
+                    | omega_calling_conventions::HostCapability::Stderr,
+                omega_calling_conventions::HostOperation::Write
+                    | omega_calling_conventions::HostOperation::WriteFile
+            ) | (
+                omega_calling_conventions::HostCapability::Stdin,
+                omega_calling_conventions::HostOperation::ReadFile
+            )
+        )
+}
+
+fn validate_final_validation_partition(
+    selected_instruction_index: u32,
+    byte_width: usize,
+    explicit_zero_width_scaffold: bool,
+    has_compiler_validation: bool,
+    has_checked_validation: bool,
+) -> Result<(), Diagnostic> {
+    if byte_width == 0 {
+        if explicit_zero_width_scaffold && !has_compiler_validation && !has_checked_validation {
+            return Ok(());
+        }
+        return Err(Diagnostic::error(format!(
+            "selected instruction #{selected_instruction_index} reached emission as an unclassified zero-width row"
+        )));
+    }
+    match (has_compiler_validation, has_checked_validation) {
+        (true, false) | (false, true) => Ok(()),
+        (false, false) => Err(Diagnostic::error(format!(
+            "selected instruction #{selected_instruction_index} emitted bytes without a final-image validation identity"
+        ))),
+        (true, true) => Err(Diagnostic::error(format!(
+            "selected instruction #{selected_instruction_index} has both compiler and checked final-image validation identities"
+        ))),
+    }
+}
+
 pub(crate) fn emit_function_bytes(
     emission_context: MachineEmissionContext<'_>,
     machine_instructions: &MachineInstructionPlan,
@@ -65,6 +148,19 @@ pub(crate) fn emit_function_bytes(
             ));
         }
         if laid_out_instruction.byte_width == 0 {
+            if !is_explicit_zero_width_scaffold(&machine_instruction.source_kind) {
+                return Err(Diagnostic::error(format!(
+                    "selected instruction #{} ({:?}) reached emission as an unclassified zero-width row",
+                    machine_instruction.selected_instruction_index, machine_instruction.source_kind,
+                )));
+            }
+            validate_final_validation_partition(
+                machine_instruction.selected_instruction_index,
+                0,
+                true,
+                false,
+                false,
+            )?;
             if machine_instruction
                 .kind
                 .requires_checked_assembly_validation()
@@ -139,6 +235,29 @@ pub(crate) fn emit_function_bytes(
                 machine_instruction.selected_instruction_index
             )));
         }
+        if compiler_validation_kind.is_none() && checked_validation_kind.is_none() {
+            let operand_note = match &machine_instruction.source_kind {
+                SelectedInstructionKind::HostOperation { operands, .. } => emission_context
+                    .assigned_target_operations
+                    .instruction_operands(*operands)
+                    .map(|operands| format!("; operands={operands:?}"))
+                    .unwrap_or_default(),
+                _ => String::new(),
+            };
+            return Err(Diagnostic::error(format!(
+                "selected instruction #{} ({:?}) emitted bytes without a final-image validation identity{}",
+                machine_instruction.selected_instruction_index,
+                machine_instruction.source_kind,
+                operand_note,
+            )));
+        }
+        validate_final_validation_partition(
+            machine_instruction.selected_instruction_index,
+            byte_span.len(),
+            false,
+            compiler_validation_kind.is_some(),
+            checked_validation_kind.is_some(),
+        )?;
         let instruction = encoded_code.instructions.insert(EncodedMachineInstruction {
             selected_instruction_index: machine_instruction.selected_instruction_index,
             bytes: byte_span,
@@ -150,6 +269,60 @@ pub(crate) fn emit_function_bytes(
     }
 
     Ok(encoded_instructions)
+}
+
+#[cfg(test)]
+mod validation_partition_tests {
+    use super::{is_explicit_zero_width_scaffold, validate_final_validation_partition};
+    use omega_target_operations::{
+        RuntimeStorageRegion, SelectedInstructionKind, StateGuardLowering, StateGuardOperator,
+    };
+
+    #[test]
+    fn only_explicit_scaffolds_may_retain_zero_width_rows() {
+        assert!(validate_final_validation_partition(7, 0, true, false, false).is_ok());
+        assert!(validate_final_validation_partition(7, 0, false, false, false).is_err());
+        assert!(validate_final_validation_partition(7, 0, true, true, false).is_err());
+    }
+
+    #[test]
+    fn emitted_bytes_require_exactly_one_validation_authority() {
+        assert!(validate_final_validation_partition(11, 4, false, true, false).is_ok());
+        assert!(validate_final_validation_partition(11, 4, false, false, true).is_ok());
+        assert!(validate_final_validation_partition(11, 4, false, false, false).is_err());
+        assert!(validate_final_validation_partition(11, 4, false, true, true).is_err());
+    }
+
+    #[test]
+    fn residual_guards_are_allowlisted_by_semantics_not_only_width() {
+        let guard = |guard_lowering, operator, has_storage| {
+            SelectedInstructionKind::EvaluateDispatchGuard {
+                guard_lowering,
+                operator,
+                storage_region: RuntimeStorageRegion::Machine,
+                byte_offset: 0,
+                byte_size: 0,
+                expected_value: 0,
+                has_storage,
+                is_float: false,
+            }
+        };
+        assert!(is_explicit_zero_width_scaffold(&guard(
+            StateGuardLowering::NeedsRuntimeExpression,
+            StateGuardOperator::None,
+            false,
+        )));
+        assert!(is_explicit_zero_width_scaffold(&guard(
+            StateGuardLowering::CompareStaticValue,
+            StateGuardOperator::Equal,
+            false,
+        )));
+        assert!(!is_explicit_zero_width_scaffold(&guard(
+            StateGuardLowering::UnresolvedInlineArmGuard,
+            StateGuardOperator::Equal,
+            false,
+        )));
+    }
 }
 
 fn assigned_outbound_syscall_storage_argument_is_closed(
@@ -842,6 +1015,7 @@ fn compiler_instruction_validation_kind(
                                 || operand.runtime_small_aggregate().is_some()
                                 || operand.runtime_large_aggregate().is_some()
                                 || operand.data_address().is_some()
+                                || operand.runtime_storage_address().is_some()
                         })
                     {
                         return Ok(None);
@@ -1025,22 +1199,70 @@ fn compiler_instruction_validation_kind(
                         },
                     ));
                 }
-                let result_operand_count = usize::from(binding.call_plan().result.is_some());
+                if matches!(
+                    operation_key.operation,
+                    omega_calling_conventions::HostOperation::GetStdHandle
+                ) && operands.len() == 1
+                    && operands[0].immediate_integer().is_some()
+                {
+                    return Ok(Some(
+                        CompilerInstructionValidationKind::CompilerBodyOutboundImmediateImport {
+                            operation_key: *operation_key,
+                            operands: operands.to_vec(),
+                            library: std::sync::Arc::clone(library),
+                            symbol: std::sync::Arc::clone(symbol),
+                            plan: binding.call_plan().clone(),
+                        },
+                    ));
+                }
+                let win64_composite_io = is_win64_composite_io_import(
+                    emission_context.target.architecture,
+                    *operation_key,
+                );
+                let result_operand_count = if win64_composite_io {
+                    0
+                } else {
+                    usize::from(binding.call_plan().result.is_some())
+                };
                 let arguments = operands.get(result_operand_count..).unwrap_or_default();
                 if arguments
                     .iter()
-                    .any(|operand| operand.data_address().is_some())
-                    && binding.call_plan().parameters.len() == arguments.len()
+                    .any(|operand| {
+                        operand.data_address().is_some()
+                            || operand.runtime_string_pointer().is_some()
+                            || operand.runtime_string_length().is_some()
+                            || operand.runtime_pointee_string_pointer().is_some()
+                            || operand.runtime_pointee_string_length().is_some()
+                            || operand.runtime_storage_address().is_some()
+                    })
+                    && (binding.call_plan().parameters.len() == arguments.len()
+                        || win64_composite_io)
                     && arguments.iter().all(|operand| {
                         operand.immediate_integer().is_some()
+                            || operand.byte_length().is_some()
                             || operand.runtime_scalar_integer().is_some()
                             || operand.data_address().is_some()
+                            || operand.runtime_string_pointer().is_some()
+                            || operand.runtime_string_length().is_some()
+                            || operand.runtime_pointee_string_pointer().is_some()
+                            || operand.runtime_pointee_string_length().is_some()
+                            || operand.runtime_storage_address().is_some()
                     })
                 {
                     let data_symbols =
                         assigned_outbound_syscall_data_symbols(emission_context, arguments);
                     let validation = match binding.call_plan().result.as_ref() {
                         None if result_operand_count == 0 => {
+                            CompilerInstructionValidationKind::CompilerBodyOutboundDataImport {
+                                operation_key: *operation_key,
+                                operands: operands.to_vec(),
+                                data_symbols,
+                                library: std::sync::Arc::clone(library),
+                                symbol: std::sync::Arc::clone(symbol),
+                                plan: binding.call_plan().clone(),
+                            }
+                        }
+                        Some(_) if win64_composite_io => {
                             CompilerInstructionValidationKind::CompilerBodyOutboundDataImport {
                                 operation_key: *operation_key,
                                 operands: operands.to_vec(),
@@ -1113,7 +1335,13 @@ fn compiler_instruction_validation_kind(
                         omega_calling_conventions::ValueClass::Integer
                     )
                 }) {
-                    if binding.call_plan().parameters.len() + 1 != operands.len()
+                    let win64_out_parameter = is_win64_out_parameter_clock_import(
+                        emission_context.target.architecture,
+                        *operation_key,
+                    );
+                    if (!win64_out_parameter
+                        && binding.call_plan().parameters.len() + 1 != operands.len())
+                        || (win64_out_parameter && operands.len() != 1)
                         || !matches!(
                             operands.first().map(|operand| &operand.kind),
                             Some(

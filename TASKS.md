@@ -164,6 +164,10 @@ Remaining:
 - Replace all remaining terminal-path `ExpressionHandle` and source-tree
   dependencies with lowered values and predicates. Absorb useful StateGraph /
   ControlFlow topology, then retire the legacy backend lane as consumers move.
+- Finish inline value-arm guard lowering for free-machine results and slice
+  views. `UnresolvedInlineArmGuard` is a poison row and now rejects at machine
+  emission; the existing runtime value-call canaries must compile and run
+  without any poison row reaching that boundary.
 - Re-root the reference interpreter and abstract-operation construction fully
   on decoded, verified terminal Psi. Preserve the shared interpreter/native
   oracle over the same IR.
@@ -216,10 +220,11 @@ Owners:
 
 Remaining:
 
-- make the audited selected-instruction coverage executable: checked assembly
-  stays in its separate closed validator, the four platform scaffolds remain
-  explicitly zero-width, and every other selected instruction must carry a
-  specific compiler-validation kind before it can reach the final image;
+- Replay indirect `VtableSlot`, `VtableField`, and `TableFunction` calls from
+  their retained mechanism, operands, and call plan. Machine emission now
+  rejects these unclassified bytes instead of letting them bypass final-image
+  validation; restore the x86-64 and AArch64 indirect-dispatch canaries only
+  through exact replay and footprint evidence.
 - finish complete entry/body-region enumeration, including format-owned thunks,
   veneers, and generated stubs;
 - derive the complete final register/machine-state union and require exact
