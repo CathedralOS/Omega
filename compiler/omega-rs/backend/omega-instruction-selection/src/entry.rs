@@ -3093,6 +3093,41 @@ pub fn derive_boundary_compiler_body_wire_literal_byte_append_footprint<'instruc
     Ok(evidence)
 }
 
+/// Derive the exact scratch footprint of compiler-generated compact-binary
+/// scalar-varint appends. Final-image validation replays the closed encoder
+/// while independently binding the source, output, and cursor storage roots.
+pub fn derive_boundary_compiler_body_wire_scalar_varint_append_footprint<'instruction>(
+    boundary: &ValidatedBoundaryEntryPlan,
+    instructions: impl IntoIterator<Item = &'instruction SelectedInstructionKind>,
+) -> Result<StateFootprintEvidence, PlanDiagnostic> {
+    let architecture = boundary.plan().call.policy.architecture();
+    let mut registers = Vec::new();
+    let mut additional_state = MachineStateSet::empty();
+    for instruction in instructions {
+        if !matches!(
+            instruction,
+            SelectedInstructionKind::AppendWireScalarVarint { .. }
+        ) {
+            continue;
+        }
+        match architecture {
+            omega_target::Architecture::X86_64 => {
+                registers.extend_from_slice(
+                    omega_isa_x86_64::append_wire_scalar_varint_clobbers().as_slice(),
+                );
+                additional_state = additional_state
+                    .union(omega_isa_x86_64::append_wire_scalar_varint_additional_machine_state());
+            }
+            omega_target::Architecture::Aarch64 => registers.extend_from_slice(
+                omega_isa_aarch64::append_wire_scalar_varint_clobbers().as_slice(),
+            ),
+        }
+    }
+    let evidence = StateFootprintEvidence::new(RegisterSet::new(registers), additional_state);
+    validate_state_footprint(boundary, &evidence)?;
+    Ok(evidence)
+}
+
 /// Derive the target-encoder footprint for compiler-body runtime-text
 /// assembly. This is ordinary lowering evidence: Psi has already established
 /// the text operation, while Omega retains the exact buffer/place recipe that

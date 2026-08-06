@@ -193,6 +193,13 @@ enum CompilerInstructionRelocationRecipe {
         written_region: omega_target_operations::RuntimeStorageRegion,
         out_offset: usize,
     },
+    WireScalarVarintAppend {
+        source_region: omega_target_operations::RuntimeStorageRegion,
+        out_region: omega_target_operations::RuntimeStorageRegion,
+        written_region: omega_target_operations::RuntimeStorageRegion,
+        out_offset: usize,
+        written_offset: usize,
+    },
     PlacePair {
         left: omega_target_operations::Place,
         right: omega_target_operations::Place,
@@ -5838,6 +5845,44 @@ fn validate_compiler_function_instruction_boundaries(
                             out_offset,
                         },
                     ),
+                    omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyWireScalarVarintAppend {
+                        source_region,
+                        source_offset,
+                        byte_size,
+                        zigzag,
+                        out_region,
+                        out_offset,
+                        written_region,
+                        written_offset,
+                    } => (
+                        None,
+                        match architecture {
+                            Architecture::X86_64 => omega_isa_x86_64::encode_append_wire_scalar_varint(
+                                source_region,
+                                source_offset,
+                                byte_size,
+                                zigzag,
+                                out_offset,
+                                written_offset,
+                            )?,
+                            Architecture::Aarch64 => omega_isa_aarch64::encode_append_wire_scalar_varint(
+                                source_region,
+                                source_offset,
+                                byte_size,
+                                zigzag,
+                                out_offset,
+                                written_offset,
+                            )?,
+                        },
+                        66u8,
+                        CompilerInstructionRelocationRecipe::WireScalarVarintAppend {
+                            source_region,
+                            out_region,
+                            written_region,
+                            out_offset,
+                            written_offset,
+                        },
+                    ),
                     omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyTextBufferMaterialize {
                         buffer_symbol,
                         target,
@@ -7027,6 +7072,67 @@ fn validate_compiler_function_instruction_boundaries(
                                     }
                                 },
                                 written_region,
+                            ),
+                        ];
+                        validate_compiler_data_address_relocations(
+                            architecture,
+                            object,
+                            relocations,
+                            instruction.selected_instruction_index,
+                            instruction_byte_offset,
+                            &address_sites,
+                        )?;
+                        encoded_instruction_bytes == expected_bytes
+                            && compiler_instruction_non_relocation_bits_match(
+                                architecture,
+                                &expected_bytes,
+                                final_instruction_bytes,
+                                &address_sites
+                                    .iter()
+                                    .map(|(offset, _)| *offset)
+                                    .collect::<Vec<_>>(),
+                            )
+                    }
+                    CompilerInstructionRelocationRecipe::WireScalarVarintAppend {
+                        source_region,
+                        out_region,
+                        written_region,
+                        out_offset,
+                        written_offset,
+                    } => {
+                        let address_sites = [
+                            (0, out_region),
+                            (
+                                match architecture {
+                                    Architecture::X86_64 => {
+                                        omega_isa_x86_64::wire_append_written_page_offset(
+                                            out_offset,
+                                        )
+                                    }
+                                    Architecture::Aarch64 => {
+                                        omega_isa_aarch64::wire_append_written_page_offset(
+                                            out_offset,
+                                        )
+                                    }
+                                },
+                                written_region,
+                            ),
+                            (
+                                match architecture {
+                                    Architecture::X86_64 => {
+                                        omega_isa_x86_64::wire_append_varint_source_page_offset(
+                                            out_offset,
+                                            written_offset,
+                                        )
+                                    }
+                                    Architecture::Aarch64 => {
+                                        omega_isa_aarch64::wire_append_varint_source_page_offset(
+                                            out_offset,
+                                            written_offset,
+                                        )
+                                    }
+                                },
+                                source_region,
                             ),
                         ];
                         validate_compiler_data_address_relocations(
@@ -9347,6 +9453,20 @@ fn compiler_instruction_footprint(
                 ),
             }
         }
+        CompilerInstructionValidationKind::CompilerBodyWireScalarVarintAppend { .. } => {
+            match architecture {
+                Architecture::X86_64 => (
+                    BoundaryFootprintFragmentOrigin::CompilerBodyWireScalarVarintAppend,
+                    omega_isa_x86_64::append_wire_scalar_varint_clobbers(),
+                    omega_isa_x86_64::append_wire_scalar_varint_additional_machine_state(),
+                ),
+                Architecture::Aarch64 => (
+                    BoundaryFootprintFragmentOrigin::CompilerBodyWireScalarVarintAppend,
+                    omega_isa_aarch64::append_wire_scalar_varint_clobbers(),
+                    MachineStateSet::empty(),
+                ),
+            }
+        }
         CompilerInstructionValidationKind::CompilerBodyTextBufferMaterialize { target, .. } => {
             let shape = compiler_body_place_integer_write_shape(&target).ok()?;
             let (registers, additional_state) = match (architecture, shape) {
@@ -9670,6 +9790,7 @@ fn validate_compiler_body_specification_footprints(
                 | BoundaryFootprintFragmentOrigin::CompilerBodyPlaceBoundedBufferWrite
                 | BoundaryFootprintFragmentOrigin::CompilerBodyPlaceStringWrite
                 | BoundaryFootprintFragmentOrigin::CompilerBodyWireLiteralByteAppend
+                | BoundaryFootprintFragmentOrigin::CompilerBodyWireScalarVarintAppend
                 | BoundaryFootprintFragmentOrigin::CompilerBodyTextAssemblyWrite
                 | BoundaryFootprintFragmentOrigin::CompilerBodyPlaceBinaryWrite
                 | BoundaryFootprintFragmentOrigin::CompilerBodyStorageConvertWrite
@@ -9857,6 +9978,10 @@ fn validate_compiler_body_specification_footprints(
         (
             47u8,
             BoundaryFootprintFragmentOrigin::CompilerBodyWireLiteralByteAppend,
+        ),
+        (
+            48u8,
+            BoundaryFootprintFragmentOrigin::CompilerBodyWireScalarVarintAppend,
         ),
     ] {
         let evidence_rows = derived

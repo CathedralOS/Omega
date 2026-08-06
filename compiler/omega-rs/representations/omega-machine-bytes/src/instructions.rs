@@ -348,6 +348,16 @@ pub enum CompilerInstructionValidationKind {
         written_offset: usize,
         value: u8,
     },
+    CompilerBodyWireScalarVarintAppend {
+        source_region: RuntimeStorageRegion,
+        source_offset: usize,
+        byte_size: usize,
+        zigzag: bool,
+        out_region: RuntimeStorageRegion,
+        out_offset: usize,
+        written_region: RuntimeStorageRegion,
+        written_offset: usize,
+    },
     CompilerBodyTextBufferMaterialize {
         buffer_symbol: Arc<str>,
         target: Place,

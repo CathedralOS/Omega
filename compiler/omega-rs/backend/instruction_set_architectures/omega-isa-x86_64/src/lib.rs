@@ -9781,6 +9781,20 @@ pub fn append_wire_scalar_varint_width(
         + 7
 }
 
+pub fn append_wire_scalar_varint_clobbers() -> RegisterSet {
+    RegisterSet::new([
+        MachineRegister::X86Rax,
+        MachineRegister::X86R10,
+        MachineRegister::X86R11,
+        MachineRegister::X86R14,
+        MachineRegister::X86R15,
+    ])
+}
+
+pub fn append_wire_scalar_varint_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::new([MachineState::Flags])
+}
+
 /// LEB128-encode a runtime scalar at the cursor. The value loads zero-extended
 /// at its source width; signed sources (`zigzag`) sign-extend to 64 bits and
 /// zigzag (`(n << 1) ^ (n >> 63)`) before the emit loop.
