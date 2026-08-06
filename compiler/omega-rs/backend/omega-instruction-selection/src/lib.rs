@@ -49,6 +49,8 @@ pub use entry::{
     derive_boundary_compiler_body_wire_byte_slice_read_footprint,
     derive_boundary_compiler_body_wire_expected_byte_read_footprint,
     derive_boundary_compiler_body_wire_literal_byte_append_footprint,
+    derive_boundary_compiler_body_wire_nested_close_footprint,
+    derive_boundary_compiler_body_wire_nested_open_footprint,
     derive_boundary_compiler_body_wire_repeated_scalar_varint_append_footprint,
     derive_boundary_compiler_body_wire_scalar_slice_append_footprint,
     derive_boundary_compiler_body_wire_scalar_varint_append_footprint,

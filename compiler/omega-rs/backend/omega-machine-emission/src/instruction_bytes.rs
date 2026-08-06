@@ -1716,6 +1716,50 @@ fn compiler_instruction_validation_kind(
                 predicate_mask: *predicate_mask,
             },
         ),
+        SelectedInstructionKind::ReadWireNestedOpen {
+            buffer_region,
+            buffer_offset,
+            buffer_length,
+            read_region,
+            read_offset,
+            ok_region,
+            ok_offset,
+            end_region,
+            end_offset,
+        } => Some(
+            CompilerInstructionValidationKind::CompilerBodyWireNestedOpen {
+                buffer_region: *buffer_region,
+                buffer_offset: *buffer_offset,
+                buffer_length: *buffer_length,
+                read_region: *read_region,
+                read_offset: *read_offset,
+                ok_region: *ok_region,
+                ok_offset: *ok_offset,
+                end_region: *end_region,
+                end_offset: *end_offset,
+            },
+        ),
+        SelectedInstructionKind::ReadWireNestedClose {
+            buffer_region,
+            buffer_offset,
+            read_region,
+            read_offset,
+            ok_region,
+            ok_offset,
+            end_region,
+            end_offset,
+        } => Some(
+            CompilerInstructionValidationKind::CompilerBodyWireNestedClose {
+                buffer_region: *buffer_region,
+                buffer_offset: *buffer_offset,
+                read_region: *read_region,
+                read_offset: *read_offset,
+                ok_region: *ok_region,
+                ok_offset: *ok_offset,
+                end_region: *end_region,
+                end_offset: *end_offset,
+            },
+        ),
         SelectedInstructionKind::MaterializeTextBufferToPlace { buffer, target }
             if emission_context.target.architecture == omega_target::Architecture::X86_64
                 || matches!(
