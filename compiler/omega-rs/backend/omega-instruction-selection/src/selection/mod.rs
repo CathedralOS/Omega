@@ -39,6 +39,7 @@ use crate::{
     derive_boundary_compiler_body_text_assembly_write_footprint,
     derive_boundary_compiler_body_wire_expected_byte_read_footprint,
     derive_boundary_compiler_body_wire_literal_byte_append_footprint,
+    derive_boundary_compiler_body_wire_repeated_scalar_varint_append_footprint,
     derive_boundary_compiler_body_wire_scalar_slice_append_footprint,
     derive_boundary_compiler_body_wire_scalar_varint_append_footprint,
     derive_boundary_compiler_body_wire_scalar_varint_read_footprint,
@@ -1072,6 +1073,23 @@ fn retain_exit_footprints(
             },
         )
         .expect("retained compiler-body wire scalar-slice append footprint must name the entry boundary contract");
+    }
+    let evidence = derive_boundary_compiler_body_wire_repeated_scalar_varint_append_footprint(
+        boundary,
+        instructions.iter().map(|instruction| &instruction.kind),
+    )
+    .expect(
+        "selected compiler-body repeated scalar appends must fit the validated entry state ceiling",
+    );
+    if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
+        plan.retain_validated_fragment(
+            boundary,
+            omega_abstract_operations::BoundaryFootprintFragment {
+                origin: omega_abstract_operations::BoundaryFootprintFragmentOrigin::CompilerBodyWireRepeatedScalarVarintAppend,
+                evidence,
+            },
+        )
+        .expect("retained compiler-body repeated scalar append footprint must name the entry boundary contract");
     }
     let evidence = derive_boundary_compiler_body_wire_expected_byte_read_footprint(
         boundary,
