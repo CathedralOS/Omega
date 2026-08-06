@@ -245,6 +245,22 @@ enum CompilerInstructionRelocationRecipe {
         buffer_offset: usize,
         read_offset: usize,
     },
+    WireRepeatedScalarRead {
+        buffer_region: omega_target_operations::RuntimeStorageRegion,
+        read_region: omega_target_operations::RuntimeStorageRegion,
+        ok_region: omega_target_operations::RuntimeStorageRegion,
+        end_region: omega_target_operations::RuntimeStorageRegion,
+        count_region: omega_target_operations::RuntimeStorageRegion,
+        target_region: omega_target_operations::RuntimeStorageRegion,
+        buffer_offset: usize,
+        buffer_length: usize,
+        read_offset: usize,
+        end_offset: usize,
+        target_offset: usize,
+        byte_size: usize,
+        zigzag: bool,
+        range: Option<omega_target_operations::WireScalarRange>,
+    },
     PlacePair {
         left: omega_target_operations::Place,
         right: omega_target_operations::Place,
@@ -6268,6 +6284,82 @@ fn validate_compiler_function_instruction_boundaries(
                             read_offset,
                         },
                     ),
+                    omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyWireRepeatedScalarVarintRead {
+                        buffer_region,
+                        buffer_offset,
+                        buffer_length,
+                        read_region,
+                        read_offset,
+                        ok_region,
+                        ok_offset,
+                        end_region,
+                        end_offset,
+                        count_region,
+                        count_offset,
+                        target_region,
+                        target_offset,
+                        byte_size,
+                        zigzag,
+                        range,
+                    } => {
+                        let range = range.map(|range| {
+                            omega_target_operations::WireScalarRange {
+                                minimum: range.minimum,
+                                maximum: range.maximum,
+                                signed: range.signed,
+                            }
+                        });
+                        (
+                            None,
+                            match architecture {
+                                Architecture::X86_64 => omega_isa_x86_64::encode_read_wire_repeated_scalar_varint(
+                                    buffer_offset,
+                                    buffer_length,
+                                    read_offset,
+                                    ok_offset,
+                                    end_offset,
+                                    count_region,
+                                    count_offset,
+                                    target_region,
+                                    target_offset,
+                                    byte_size,
+                                    zigzag,
+                                    range,
+                                )?,
+                                Architecture::Aarch64 => omega_isa_aarch64::encode_read_wire_repeated_scalar_varint(
+                                    buffer_offset,
+                                    buffer_length,
+                                    read_offset,
+                                    ok_offset,
+                                    end_offset,
+                                    count_region,
+                                    count_offset,
+                                    target_region,
+                                    target_offset,
+                                    byte_size,
+                                    zigzag,
+                                    range,
+                                )?,
+                            },
+                            75u8,
+                            CompilerInstructionRelocationRecipe::WireRepeatedScalarRead {
+                                buffer_region,
+                                read_region,
+                                ok_region,
+                                end_region,
+                                count_region,
+                                target_region,
+                                buffer_offset,
+                                buffer_length,
+                                read_offset,
+                                end_offset,
+                                target_offset,
+                                byte_size,
+                                zigzag,
+                                range,
+                            },
+                        )
+                    }
                     omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyTextBufferMaterialize {
                         buffer_symbol,
                         target,
@@ -7913,6 +8005,145 @@ fn validate_compiler_function_instruction_boundaries(
                                     }
                                 },
                                 end_region,
+                            ),
+                        ];
+                        validate_compiler_data_address_relocations(
+                            architecture,
+                            object,
+                            relocations,
+                            instruction.selected_instruction_index,
+                            instruction_byte_offset,
+                            &address_sites,
+                        )?;
+                        encoded_instruction_bytes == expected_bytes
+                            && compiler_instruction_non_relocation_bits_match(
+                                architecture,
+                                &expected_bytes,
+                                final_instruction_bytes,
+                                &address_sites
+                                    .iter()
+                                    .map(|(offset, _)| *offset)
+                                    .collect::<Vec<_>>(),
+                            )
+                    }
+                    CompilerInstructionRelocationRecipe::WireRepeatedScalarRead {
+                        buffer_region,
+                        read_region,
+                        ok_region,
+                        end_region,
+                        count_region,
+                        target_region,
+                        buffer_offset,
+                        buffer_length,
+                        read_offset,
+                        end_offset,
+                        target_offset,
+                        byte_size,
+                        zigzag,
+                        range,
+                    } => {
+                        let address_sites = [
+                            (0, buffer_region),
+                            (
+                                match architecture {
+                                    Architecture::X86_64 => {
+                                        omega_isa_x86_64::wire_decode_read_page_offset(
+                                            buffer_offset,
+                                        )
+                                    }
+                                    Architecture::Aarch64 => {
+                                        omega_isa_aarch64::wire_decode_read_page_offset(
+                                            buffer_offset,
+                                        )
+                                    }
+                                },
+                                read_region,
+                            ),
+                            (
+                                match architecture {
+                                    Architecture::X86_64 => {
+                                        omega_isa_x86_64::wire_decode_ok_page_offset(
+                                            buffer_offset,
+                                            read_offset,
+                                        )
+                                    }
+                                    Architecture::Aarch64 => {
+                                        omega_isa_aarch64::wire_decode_ok_page_offset(
+                                            buffer_offset,
+                                            read_offset,
+                                        )
+                                    }
+                                },
+                                ok_region,
+                            ),
+                            (
+                                match architecture {
+                                    Architecture::X86_64 => {
+                                        omega_isa_x86_64::wire_decode_nested_end_page_offset(
+                                            buffer_offset,
+                                            read_offset,
+                                        )
+                                    }
+                                    Architecture::Aarch64 => {
+                                        omega_isa_aarch64::wire_decode_nested_end_page_offset(
+                                            buffer_offset,
+                                            read_offset,
+                                        )
+                                    }
+                                },
+                                end_region,
+                            ),
+                            (
+                                match architecture {
+                                    Architecture::X86_64 => {
+                                        omega_isa_x86_64::wire_decode_repeated_target_page_offset(
+                                            buffer_offset,
+                                            buffer_length,
+                                            read_offset,
+                                            end_offset,
+                                            zigzag,
+                                        )
+                                    }
+                                    Architecture::Aarch64 => {
+                                        omega_isa_aarch64::wire_decode_repeated_target_page_offset(
+                                            buffer_offset,
+                                            buffer_length,
+                                            read_offset,
+                                            end_offset,
+                                            zigzag,
+                                        )
+                                    }
+                                },
+                                target_region,
+                            ),
+                            (
+                                match architecture {
+                                    Architecture::X86_64 => {
+                                        omega_isa_x86_64::wire_decode_repeated_count_page_offset(
+                                            buffer_offset,
+                                            buffer_length,
+                                            read_offset,
+                                            end_offset,
+                                            target_offset,
+                                            byte_size,
+                                            zigzag,
+                                            range,
+                                        )
+                                    }
+                                    Architecture::Aarch64 => {
+                                        omega_isa_aarch64::wire_decode_repeated_count_page_offset(
+                                            buffer_offset,
+                                            buffer_length,
+                                            read_offset,
+                                            end_offset,
+                                            target_offset,
+                                            byte_size,
+                                            zigzag,
+                                            range,
+                                        )
+                                    }
+                                },
+                                count_region,
                             ),
                         ];
                         validate_compiler_data_address_relocations(
@@ -10360,6 +10591,20 @@ fn compiler_instruction_footprint(
                 omega_isa_aarch64::read_wire_nested_close_additional_machine_state(),
             ),
         },
+        CompilerInstructionValidationKind::CompilerBodyWireRepeatedScalarVarintRead { .. } => {
+            match architecture {
+                Architecture::X86_64 => (
+                    BoundaryFootprintFragmentOrigin::CompilerBodyWireRepeatedScalarVarintRead,
+                    omega_isa_x86_64::read_wire_repeated_scalar_varint_clobbers(),
+                    omega_isa_x86_64::read_wire_repeated_scalar_varint_additional_machine_state(),
+                ),
+                Architecture::Aarch64 => (
+                    BoundaryFootprintFragmentOrigin::CompilerBodyWireRepeatedScalarVarintRead,
+                    omega_isa_aarch64::read_wire_repeated_scalar_varint_clobbers(),
+                    omega_isa_aarch64::read_wire_repeated_scalar_varint_additional_machine_state(),
+                ),
+            }
+        }
         CompilerInstructionValidationKind::CompilerBodyTextBufferMaterialize { target, .. } => {
             let shape = compiler_body_place_integer_write_shape(&target).ok()?;
             let (registers, additional_state) = match (architecture, shape) {
@@ -10692,6 +10937,7 @@ fn validate_compiler_body_specification_footprints(
                 | BoundaryFootprintFragmentOrigin::CompilerBodyWireByteSliceRead
                 | BoundaryFootprintFragmentOrigin::CompilerBodyWireNestedOpen
                 | BoundaryFootprintFragmentOrigin::CompilerBodyWireNestedClose
+                | BoundaryFootprintFragmentOrigin::CompilerBodyWireRepeatedScalarVarintRead
                 | BoundaryFootprintFragmentOrigin::CompilerBodyTextAssemblyWrite
                 | BoundaryFootprintFragmentOrigin::CompilerBodyPlaceBinaryWrite
                 | BoundaryFootprintFragmentOrigin::CompilerBodyStorageConvertWrite
@@ -10915,6 +11161,10 @@ fn validate_compiler_body_specification_footprints(
         (
             56u8,
             BoundaryFootprintFragmentOrigin::CompilerBodyWireNestedClose,
+        ),
+        (
+            57u8,
+            BoundaryFootprintFragmentOrigin::CompilerBodyWireRepeatedScalarVarintRead,
         ),
     ] {
         let evidence_rows = derived
