@@ -41,6 +41,7 @@ use crate::{
     derive_boundary_compiler_body_wire_literal_byte_append_footprint,
     derive_boundary_compiler_body_wire_scalar_varint_append_footprint,
     derive_boundary_compiler_body_wire_scalar_varint_read_footprint,
+    derive_boundary_compiler_body_wire_text_bytes_append_footprint,
     derive_boundary_dispatch_scaffold_footprint,
     derive_boundary_exit_indirect_result_copy_footprint,
     derive_boundary_exit_result_register_footprint, derive_boundary_place_guard_footprint,
@@ -1038,6 +1039,21 @@ fn retain_exit_footprints(
             },
         )
         .expect("retained compiler-body wire scalar-varint footprint must name the entry boundary contract");
+    }
+    let evidence = derive_boundary_compiler_body_wire_text_bytes_append_footprint(
+        boundary,
+        instructions.iter().map(|instruction| &instruction.kind),
+    )
+    .expect("selected compiler-body wire text appends must fit the validated entry state ceiling");
+    if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
+        plan.retain_validated_fragment(
+            boundary,
+            omega_abstract_operations::BoundaryFootprintFragment {
+                origin: omega_abstract_operations::BoundaryFootprintFragmentOrigin::CompilerBodyWireTextBytesAppend,
+                evidence,
+            },
+        )
+        .expect("retained compiler-body wire text-append footprint must name the entry boundary contract");
     }
     let evidence = derive_boundary_compiler_body_wire_expected_byte_read_footprint(
         boundary,

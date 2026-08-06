@@ -213,6 +213,9 @@ pub fn boundary_footprint_fragments_json(plan: &EncodedMachinePlan) -> String {
                 omega_abstract_operations::BoundaryFootprintFragmentOrigin::CompilerBodyWireScalarVarintAppend => {
                     "compiler_body_wire_scalar_varint_append"
                 }
+                omega_abstract_operations::BoundaryFootprintFragmentOrigin::CompilerBodyWireTextBytesAppend => {
+                    "compiler_body_wire_text_bytes_append"
+                }
                 omega_abstract_operations::BoundaryFootprintFragmentOrigin::CompilerBodyWireExpectedByteRead => {
                     "compiler_body_wire_expected_byte_read"
                 }

@@ -9918,6 +9918,22 @@ pub fn append_wire_text_bytes_width(
         + 7
 }
 
+pub fn append_wire_text_bytes_clobbers() -> RegisterSet {
+    RegisterSet::new([
+        MachineRegister::X86Rax,
+        MachineRegister::X86Rcx,
+        MachineRegister::X86R9,
+        MachineRegister::X86R10,
+        MachineRegister::X86R11,
+        MachineRegister::X86R14,
+        MachineRegister::X86R15,
+    ])
+}
+
+pub fn append_wire_text_bytes_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::new([MachineState::Flags])
+}
+
 /// Append a runtime `String` field: the source place holds a `{ptr @ +0,
 /// len @ +8}` text descriptor; emit len as an unsigned LEB128 varint, then
 /// copy len raw bytes from ptr. The length varint reuses the scalar emit loop

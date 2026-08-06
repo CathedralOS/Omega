@@ -365,6 +365,15 @@ pub enum CompilerInstructionValidationKind {
         written_region: RuntimeStorageRegion,
         written_offset: usize,
     },
+    CompilerBodyWireTextBytesAppend {
+        source_region: RuntimeStorageRegion,
+        source_offset: usize,
+        out_region: RuntimeStorageRegion,
+        out_offset: usize,
+        out_length: usize,
+        written_region: RuntimeStorageRegion,
+        written_offset: usize,
+    },
     CompilerBodyWireExpectedByteRead {
         buffer_region: RuntimeStorageRegion,
         buffer_offset: usize,

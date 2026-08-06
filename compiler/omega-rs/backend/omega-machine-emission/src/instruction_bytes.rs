@@ -1566,6 +1566,25 @@ fn compiler_instruction_validation_kind(
                 written_offset: *written_offset,
             },
         ),
+        SelectedInstructionKind::AppendWireTextBytes {
+            source_region,
+            source_offset,
+            out_region,
+            out_offset,
+            out_length,
+            written_region,
+            written_offset,
+        } => Some(
+            CompilerInstructionValidationKind::CompilerBodyWireTextBytesAppend {
+                source_region: *source_region,
+                source_offset: *source_offset,
+                out_region: *out_region,
+                out_offset: *out_offset,
+                out_length: *out_length,
+                written_region: *written_region,
+                written_offset: *written_offset,
+            },
+        ),
         SelectedInstructionKind::ReadWireExpectedByte {
             buffer_region,
             buffer_offset,
