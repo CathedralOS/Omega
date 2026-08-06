@@ -24,6 +24,7 @@ pub use entry::{
     derive_boundary_compiler_body_outbound_float_import_result_footprint,
     derive_boundary_compiler_body_outbound_immediate_import_footprint,
     derive_boundary_compiler_body_outbound_immediate_import_result_footprint,
+    derive_boundary_compiler_body_outbound_indirect_call_footprint,
     derive_boundary_compiler_body_outbound_open_create_import_footprint,
     derive_boundary_compiler_body_outbound_storage_import_footprint,
     derive_boundary_compiler_body_outbound_storage_import_result_footprint,

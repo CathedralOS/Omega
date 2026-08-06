@@ -1071,6 +1071,217 @@ fn encode_scalar_parameter_import(
     ))
 }
 
+fn encode_indirect_call_replay(
+    architecture: Architecture,
+    operands: &[omega_target_operations::InstructionOperand],
+    data_symbols: &[std::sync::Arc<str>],
+    mechanism: &omega_calling_conventions::HostBindingMechanism,
+    plan: &omega_calling_conventions::CallPlan,
+) -> Result<(Vec<u8>, Vec<(usize, OutboundCallRelocationTarget)>), Diagnostic> {
+    use omega_calling_conventions::{CallingPolicy, HostBindingMechanism};
+    use omega_target_operations::InstructionOperandLike;
+
+    if architecture != Architecture::X86_64 {
+        return Err(Diagnostic::error(
+            "final indirect-call replay is not yet implemented for AArch64",
+        ));
+    }
+    let dispatch_only = usize::from(matches!(
+        mechanism,
+        HostBindingMechanism::TableFunction { .. }
+    ));
+    let parameter_count = plan
+        .parameters
+        .len()
+        .checked_add(dispatch_only)
+        .ok_or_else(|| Diagnostic::error("final indirect-call operand count overflowed"))?;
+    let result_present = operands.len() == parameter_count + 1;
+    if operands.is_empty() || (operands.len() != parameter_count && !result_present) {
+        return Err(Diagnostic::error(
+            "final indirect-call replay retained an operand count incompatible with its call plan",
+        ));
+    }
+    if matches!(mechanism, HostBindingMechanism::VtableSlot { .. }) && result_present {
+        return Err(Diagnostic::error(
+            "final slot-indexed vtable replay unexpectedly retained a result operand",
+        ));
+    }
+
+    let field_offset = match mechanism {
+        HostBindingMechanism::VtableSlot { index } => index
+            .checked_mul(8)
+            .ok_or_else(|| Diagnostic::error("final vtable slot offset overflowed"))?,
+        HostBindingMechanism::VtableField { byte_offset, .. }
+        | HostBindingMechanism::TableFunction { byte_offset, .. } => i64::try_from(*byte_offset)
+            .map_err(|_| Diagnostic::error("final indirect-call field offset overflowed"))?,
+        HostBindingMechanism::Import { .. } | HostBindingMechanism::Syscall { .. } => {
+            return Err(Diagnostic::error(
+                "final indirect-call replay retained a direct-call mechanism",
+            ));
+        }
+    };
+
+    let (inner, raw_sites) = match (plan.policy, mechanism) {
+        (CallingPolicy::MicrosoftX64, HostBindingMechanism::VtableSlot { index }) => (
+            omega_isa_x86_64::encode_win64_vtable_call_with_plan(operands, *index, plan)?,
+            omega_isa_x86_64::win64_vtable_call_relocation_sites_with_plan(operands, false, plan),
+        ),
+        (CallingPolicy::MicrosoftX64, HostBindingMechanism::VtableField { .. }) => (
+            omega_isa_x86_64::encode_win64_vtable_call_at_offset_with_plan(
+                operands,
+                field_offset,
+                result_present,
+                plan,
+            )?,
+            omega_isa_x86_64::win64_vtable_call_relocation_sites_with_plan(
+                operands,
+                result_present,
+                plan,
+            ),
+        ),
+        (CallingPolicy::MicrosoftX64, HostBindingMechanism::TableFunction { .. }) => (
+            omega_isa_x86_64::encode_win64_table_function_call_with_plan(
+                operands,
+                field_offset,
+                result_present,
+                plan,
+            )?,
+            omega_isa_x86_64::win64_table_function_call_relocation_sites_with_plan(
+                operands,
+                result_present,
+                plan,
+            ),
+        ),
+        (CallingPolicy::SystemVAMD64, HostBindingMechanism::VtableSlot { .. })
+        | (CallingPolicy::SystemVAMD64, HostBindingMechanism::VtableField { .. }) => {
+            let bytes = omega_isa_x86_64::encode_sysv_vtable_call_with_plan(
+                operands,
+                field_offset,
+                result_present,
+                plan,
+            )?;
+            let sites = operands
+                .iter()
+                .enumerate()
+                .filter_map(|(index, operand)| {
+                    (outbound_relocated_operand_region(operand).is_some()
+                        || operand.data_address().is_some())
+                    .then_some(index)
+                })
+                .map(|index| {
+                    let byte_offset =
+                        omega_isa_x86_64::sysv_vtable_call_data_relocation_byte_offset_with_plan(
+                            operands,
+                            field_offset,
+                            result_present,
+                            index,
+                            plan,
+                        );
+                    (byte_offset != 0)
+                        .then_some(omega_isa_x86_64::X86_64RelocationSite {
+                            operand_index: Some(index),
+                            byte_offset,
+                            byte_width: 8,
+                            kind: omega_isa_x86_64::X86_64RelocationSiteKind::Absolute64,
+                        })
+                        .ok_or_else(|| {
+                            Diagnostic::error(
+                                "final SysV vtable replay lost an operand relocation site",
+                            )
+                        })
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            (bytes, sites)
+        }
+        (CallingPolicy::SystemVAMD64, HostBindingMechanism::TableFunction { .. }) => {
+            let bytes = omega_isa_x86_64::encode_sysv_table_function_call_with_plan(
+                operands,
+                field_offset,
+                result_present,
+                plan,
+            )?;
+            let sites = operands
+                .iter()
+                .enumerate()
+                .filter_map(|(index, operand)| {
+                    (outbound_relocated_operand_region(operand).is_some()
+                        || operand.data_address().is_some())
+                    .then_some(index)
+                })
+                .map(|index| {
+                    let byte_offset = omega_isa_x86_64::sysv_table_function_call_data_relocation_byte_offset_with_plan(
+                        operands,
+                        field_offset,
+                        result_present,
+                        index,
+                        plan,
+                    );
+                    (byte_offset != 0)
+                        .then_some(omega_isa_x86_64::X86_64RelocationSite {
+                            operand_index: Some(index),
+                            byte_offset,
+                            byte_width: 8,
+                            kind: omega_isa_x86_64::X86_64RelocationSiteKind::Absolute64,
+                        })
+                        .ok_or_else(|| Diagnostic::error("final SysV table-function replay lost an operand relocation site"))
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            (bytes, sites)
+        }
+        _ => {
+            return Err(Diagnostic::error(
+                "final x86-64 indirect-call replay retained a non-x86 calling policy",
+            ));
+        }
+    };
+
+    let mut retained_data_symbols = data_symbols.iter();
+    let mut address_sites = Vec::with_capacity(raw_sites.len());
+    for site in raw_sites {
+        let index = site.operand_index.ok_or_else(|| {
+            Diagnostic::error("final indirect-call replay retained an unbound relocation site")
+        })?;
+        let operand = operands.get(index).ok_or_else(|| {
+            Diagnostic::error("final indirect-call replay relocation index is out of bounds")
+        })?;
+        let target = if let Some(region) = outbound_relocated_operand_region(operand) {
+            OutboundCallRelocationTarget::Storage(region)
+        } else if operand.data_address().is_some() {
+            OutboundCallRelocationTarget::Data(std::sync::Arc::clone(
+                retained_data_symbols.next().ok_or_else(|| {
+                    Diagnostic::error(
+                        "final indirect-call replay lost a retained data-object symbol",
+                    )
+                })?,
+            ))
+        } else {
+            return Err(Diagnostic::error(
+                "final indirect-call replay retained a relocation for a non-address operand",
+            ));
+        };
+        let site_start = site.byte_offset.checked_sub(2).ok_or_else(|| {
+            Diagnostic::error("final indirect-call relocation site precedes its instruction")
+        })?;
+        address_sites.push((site_start, target));
+    }
+    if retained_data_symbols.next().is_some() {
+        return Err(Diagnostic::error(
+            "final indirect-call replay retained unused data-object symbols",
+        ));
+    }
+
+    let prefix = omega_isa_x86_64::encode_foreign_float_control_prefix_bytes();
+    let suffix = omega_isa_x86_64::encode_foreign_float_control_suffix_bytes();
+    let mut bytes = Vec::with_capacity(prefix.len() + inner.len() + suffix.len());
+    bytes.extend(prefix);
+    bytes.extend(inner);
+    bytes.extend(suffix);
+    for (site, _) in &mut address_sites {
+        *site += prefix.len();
+    }
+    Ok((bytes, address_sites))
+}
+
 fn encode_authored_aggregate_result_import(
     architecture: Architecture,
     operation_key: omega_calling_conventions::HostOperationKey,
@@ -5014,6 +5225,28 @@ fn validate_compiler_function_instruction_boundaries(
                                 address_sites,
                                 library,
                                 symbol,
+                            },
+                        )
+                    }
+                    omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyOutboundIndirectCall {
+                        operands,
+                        data_symbols,
+                        mechanism,
+                        plan,
+                    } => {
+                        let (bytes, address_sites) = encode_indirect_call_replay(
+                            architecture,
+                            &operands,
+                            &data_symbols,
+                            &mechanism,
+                            &plan,
+                        )?;
+                        (
+                            None,
+                            bytes,
+                            76u8,
+                            CompilerInstructionRelocationRecipe::OutboundSyscallData {
+                                address_sites,
                             },
                         )
                     }
@@ -9800,6 +10033,59 @@ fn compiler_instruction_footprint(
                 MachineState::ControlState,
             ]),
         ),
+        CompilerInstructionValidationKind::CompilerBodyOutboundIndirectCall {
+            operands,
+            mechanism,
+            plan,
+            ..
+        } => {
+            let dispatch_only = usize::from(matches!(
+                mechanism,
+                omega_calling_conventions::HostBindingMechanism::TableFunction { .. }
+            ));
+            let result_present = operands.len() == plan.parameters.len() + dispatch_only + 1;
+            let envelope_and_store_scratch = match architecture {
+                Architecture::X86_64 => vec![MachineRegister::X86Rsp],
+                Architecture::Aarch64 => {
+                    let mut registers = vec![MachineRegister::Aarch64X(16)];
+                    if result_present
+                        && let Some((_, result_offset, result_byte_size)) = operands
+                            .first()
+                            .and_then(InstructionOperandLike::runtime_scalar_integer)
+                            .or_else(|| {
+                                operands
+                                    .first()
+                                    .and_then(InstructionOperandLike::runtime_scalar_float)
+                            })
+                    {
+                        registers.extend_from_slice(
+                            omega_isa_aarch64::constant_host_result_clobbers(
+                                result_offset,
+                                result_byte_size,
+                            )
+                            .as_slice(),
+                        );
+                    }
+                    registers
+                }
+            };
+            (
+                BoundaryFootprintFragmentOrigin::CompilerBodyOutboundIndirectCall,
+                RegisterSet::new(
+                    plan.ordinary_clobbers
+                        .as_slice()
+                        .iter()
+                        .copied()
+                        .chain(envelope_and_store_scratch),
+                ),
+                MachineStateSet::new([
+                    MachineState::Flags,
+                    MachineState::InstructionPointer,
+                    MachineState::StackPointer,
+                    MachineState::ControlState,
+                ]),
+            )
+        }
         CompilerInstructionValidationKind::CompilerBodyOutboundDataImportResult {
             operands,
             plan,
@@ -11084,6 +11370,7 @@ fn validate_compiler_body_specification_footprints(
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundDereferencedImportResult
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundDataImport
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundDataImportResult
+                | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundIndirectCall
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredImport
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredImportResult
                 | BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredFloatImport
@@ -11350,6 +11637,10 @@ fn validate_compiler_body_specification_footprints(
         (
             58u8,
             BoundaryFootprintFragmentOrigin::CompilerBodyAtomicOperation,
+        ),
+        (
+            59u8,
+            BoundaryFootprintFragmentOrigin::CompilerBodyOutboundIndirectCall,
         ),
     ] {
         let evidence_rows = derived

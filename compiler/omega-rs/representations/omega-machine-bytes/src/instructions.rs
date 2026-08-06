@@ -317,6 +317,12 @@ pub enum CompilerInstructionValidationKind {
         symbol: Arc<str>,
         plan: omega_calling_conventions::CallPlan,
     },
+    CompilerBodyOutboundIndirectCall {
+        operands: Vec<omega_target_operations::InstructionOperand>,
+        data_symbols: Vec<Arc<str>>,
+        mechanism: omega_calling_conventions::HostBindingMechanism,
+        plan: omega_calling_conventions::CallPlan,
+    },
     CompilerBodyOutboundOpenCreateImport {
         operation_key: omega_calling_conventions::HostOperationKey,
         operands: Vec<omega_target_operations::InstructionOperand>,
