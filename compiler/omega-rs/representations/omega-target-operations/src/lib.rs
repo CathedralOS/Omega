@@ -21,3 +21,4 @@ pub use omega_abstract_operations::{
     CopyPlacesRole, PLACE_MAX_STEPS, Place, PlaceStep, RuntimeBitFieldFragment, StateGuardLowering,
     StateGuardOperator,
 };
+pub use psi_language_semantics::wire::WireScalarRange;

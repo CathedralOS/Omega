@@ -575,6 +575,25 @@ pub fn encode_read_wire_scalar_varint(
     Ok(bytes)
 }
 
+pub fn read_wire_scalar_varint_clobbers() -> RegisterSet {
+    RegisterSet::new([
+        MachineRegister::Aarch64X(16),
+        MachineRegister::Aarch64X(17),
+        MachineRegister::Aarch64X(19),
+        MachineRegister::Aarch64X(20),
+        MachineRegister::Aarch64X(21),
+        MachineRegister::Aarch64X(22),
+        MachineRegister::Aarch64X(23),
+        MachineRegister::Aarch64X(24),
+        MachineRegister::Aarch64X(25),
+        MachineRegister::Aarch64X(26),
+    ])
+}
+
+pub fn read_wire_scalar_varint_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::new([MachineState::Flags])
+}
+
 /// LEB128-read one packed repeated element at the cursor into the target
 /// slot, ONLY IF the cursor sits strictly below the end bound the
 /// surrounding nested OPEN stored; the taken path also increments the

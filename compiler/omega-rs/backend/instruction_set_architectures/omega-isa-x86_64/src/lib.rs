@@ -10435,6 +10435,24 @@ pub fn read_wire_scalar_varint_width(
         + wire_decode_tail_width()
 }
 
+pub fn read_wire_scalar_varint_clobbers() -> RegisterSet {
+    RegisterSet::new([
+        MachineRegister::X86Rax,
+        MachineRegister::X86Rcx,
+        MachineRegister::X86R8,
+        MachineRegister::X86R9,
+        MachineRegister::X86R10,
+        MachineRegister::X86R11,
+        MachineRegister::X86R13,
+        MachineRegister::X86R14,
+        MachineRegister::X86R15,
+    ])
+}
+
+pub fn read_wire_scalar_varint_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::new([MachineState::Flags])
+}
+
 /// LEB128-read a runtime scalar at the cursor into the target place. The
 /// loop's iteration count is data dependent but its EMITTED width is constant
 /// (the widths invariant): truncation and overlong varints (a continuation

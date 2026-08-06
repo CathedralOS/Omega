@@ -207,6 +207,16 @@ enum CompilerInstructionRelocationRecipe {
         buffer_offset: usize,
         read_offset: usize,
     },
+    WireScalarVarintRead {
+        buffer_region: omega_target_operations::RuntimeStorageRegion,
+        read_region: omega_target_operations::RuntimeStorageRegion,
+        ok_region: omega_target_operations::RuntimeStorageRegion,
+        target_region: omega_target_operations::RuntimeStorageRegion,
+        buffer_offset: usize,
+        buffer_length: usize,
+        read_offset: usize,
+        zigzag: bool,
+    },
     PlacePair {
         left: omega_target_operations::Place,
         right: omega_target_operations::Place,
@@ -5926,6 +5936,66 @@ fn validate_compiler_function_instruction_boundaries(
                             read_offset,
                         },
                     ),
+                    omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyWireScalarVarintRead {
+                        buffer_region,
+                        buffer_offset,
+                        buffer_length,
+                        read_region,
+                        read_offset,
+                        ok_region,
+                        ok_offset,
+                        target_region,
+                        target_offset,
+                        byte_size,
+                        zigzag,
+                        range,
+                    } => {
+                        let range = range.map(|range| {
+                            omega_target_operations::WireScalarRange {
+                                minimum: range.minimum,
+                                maximum: range.maximum,
+                                signed: range.signed,
+                            }
+                        });
+                        (
+                            None,
+                            match architecture {
+                                Architecture::X86_64 => omega_isa_x86_64::encode_read_wire_scalar_varint(
+                                    buffer_offset,
+                                    buffer_length,
+                                    read_offset,
+                                    ok_offset,
+                                    target_region,
+                                    target_offset,
+                                    byte_size,
+                                    zigzag,
+                                    range,
+                                )?,
+                                Architecture::Aarch64 => omega_isa_aarch64::encode_read_wire_scalar_varint(
+                                    buffer_offset,
+                                    buffer_length,
+                                    read_offset,
+                                    ok_offset,
+                                    target_region,
+                                    target_offset,
+                                    byte_size,
+                                    zigzag,
+                                    range,
+                                )?,
+                            },
+                            68u8,
+                            CompilerInstructionRelocationRecipe::WireScalarVarintRead {
+                                buffer_region,
+                                read_region,
+                                ok_region,
+                                target_region,
+                                buffer_offset,
+                                buffer_length,
+                                read_offset,
+                                zigzag,
+                            },
+                        )
+                    }
                     omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyTextBufferMaterialize {
                         buffer_symbol,
                         target,
@@ -7237,6 +7307,91 @@ fn validate_compiler_function_instruction_boundaries(
                                     }
                                 },
                                 ok_region,
+                            ),
+                        ];
+                        validate_compiler_data_address_relocations(
+                            architecture,
+                            object,
+                            relocations,
+                            instruction.selected_instruction_index,
+                            instruction_byte_offset,
+                            &address_sites,
+                        )?;
+                        encoded_instruction_bytes == expected_bytes
+                            && compiler_instruction_non_relocation_bits_match(
+                                architecture,
+                                &expected_bytes,
+                                final_instruction_bytes,
+                                &address_sites
+                                    .iter()
+                                    .map(|(offset, _)| *offset)
+                                    .collect::<Vec<_>>(),
+                            )
+                    }
+                    CompilerInstructionRelocationRecipe::WireScalarVarintRead {
+                        buffer_region,
+                        read_region,
+                        ok_region,
+                        target_region,
+                        buffer_offset,
+                        buffer_length,
+                        read_offset,
+                        zigzag,
+                    } => {
+                        let address_sites = [
+                            (0, buffer_region),
+                            (
+                                match architecture {
+                                    Architecture::X86_64 => {
+                                        omega_isa_x86_64::wire_decode_read_page_offset(
+                                            buffer_offset,
+                                        )
+                                    }
+                                    Architecture::Aarch64 => {
+                                        omega_isa_aarch64::wire_decode_read_page_offset(
+                                            buffer_offset,
+                                        )
+                                    }
+                                },
+                                read_region,
+                            ),
+                            (
+                                match architecture {
+                                    Architecture::X86_64 => {
+                                        omega_isa_x86_64::wire_decode_ok_page_offset(
+                                            buffer_offset,
+                                            read_offset,
+                                        )
+                                    }
+                                    Architecture::Aarch64 => {
+                                        omega_isa_aarch64::wire_decode_ok_page_offset(
+                                            buffer_offset,
+                                            read_offset,
+                                        )
+                                    }
+                                },
+                                ok_region,
+                            ),
+                            (
+                                match architecture {
+                                    Architecture::X86_64 => {
+                                        omega_isa_x86_64::wire_decode_varint_target_page_offset(
+                                            buffer_offset,
+                                            buffer_length,
+                                            read_offset,
+                                            zigzag,
+                                        )
+                                    }
+                                    Architecture::Aarch64 => {
+                                        omega_isa_aarch64::wire_decode_varint_target_page_offset(
+                                            buffer_offset,
+                                            buffer_length,
+                                            read_offset,
+                                            zigzag,
+                                        )
+                                    }
+                                },
+                                target_region,
                             ),
                         ];
                         validate_compiler_data_address_relocations(
@@ -9587,6 +9742,20 @@ fn compiler_instruction_footprint(
                 omega_isa_aarch64::read_wire_expected_byte_additional_machine_state(),
             ),
         },
+        CompilerInstructionValidationKind::CompilerBodyWireScalarVarintRead { .. } => {
+            match architecture {
+                Architecture::X86_64 => (
+                    BoundaryFootprintFragmentOrigin::CompilerBodyWireScalarVarintRead,
+                    omega_isa_x86_64::read_wire_scalar_varint_clobbers(),
+                    omega_isa_x86_64::read_wire_scalar_varint_additional_machine_state(),
+                ),
+                Architecture::Aarch64 => (
+                    BoundaryFootprintFragmentOrigin::CompilerBodyWireScalarVarintRead,
+                    omega_isa_aarch64::read_wire_scalar_varint_clobbers(),
+                    omega_isa_aarch64::read_wire_scalar_varint_additional_machine_state(),
+                ),
+            }
+        }
         CompilerInstructionValidationKind::CompilerBodyTextBufferMaterialize { target, .. } => {
             let shape = compiler_body_place_integer_write_shape(&target).ok()?;
             let (registers, additional_state) = match (architecture, shape) {
@@ -9912,6 +10081,7 @@ fn validate_compiler_body_specification_footprints(
                 | BoundaryFootprintFragmentOrigin::CompilerBodyWireLiteralByteAppend
                 | BoundaryFootprintFragmentOrigin::CompilerBodyWireScalarVarintAppend
                 | BoundaryFootprintFragmentOrigin::CompilerBodyWireExpectedByteRead
+                | BoundaryFootprintFragmentOrigin::CompilerBodyWireScalarVarintRead
                 | BoundaryFootprintFragmentOrigin::CompilerBodyTextAssemblyWrite
                 | BoundaryFootprintFragmentOrigin::CompilerBodyPlaceBinaryWrite
                 | BoundaryFootprintFragmentOrigin::CompilerBodyStorageConvertWrite
@@ -10107,6 +10277,10 @@ fn validate_compiler_body_specification_footprints(
         (
             49u8,
             BoundaryFootprintFragmentOrigin::CompilerBodyWireExpectedByteRead,
+        ),
+        (
+            50u8,
+            BoundaryFootprintFragmentOrigin::CompilerBodyWireScalarVarintRead,
         ),
     ] {
         let evidence_rows = derived

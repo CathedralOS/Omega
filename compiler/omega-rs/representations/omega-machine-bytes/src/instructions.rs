@@ -9,6 +9,13 @@ pub struct CompilerRuntimeImportSubcall {
     pub plan: omega_calling_conventions::CallPlan,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CompilerInstructionWireScalarRange {
+    pub minimum: i64,
+    pub maximum: i64,
+    pub signed: bool,
+}
+
 /// Fixed compiler-owned instruction programs whose final encodings can be
 /// replayed directly from the target specification.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -367,6 +374,20 @@ pub enum CompilerInstructionValidationKind {
         ok_region: RuntimeStorageRegion,
         ok_offset: usize,
         expected: u8,
+    },
+    CompilerBodyWireScalarVarintRead {
+        buffer_region: RuntimeStorageRegion,
+        buffer_offset: usize,
+        buffer_length: usize,
+        read_region: RuntimeStorageRegion,
+        read_offset: usize,
+        ok_region: RuntimeStorageRegion,
+        ok_offset: usize,
+        target_region: RuntimeStorageRegion,
+        target_offset: usize,
+        byte_size: usize,
+        zigzag: bool,
+        range: Option<CompilerInstructionWireScalarRange>,
     },
     CompilerBodyTextBufferMaterialize {
         buffer_symbol: Arc<str>,
