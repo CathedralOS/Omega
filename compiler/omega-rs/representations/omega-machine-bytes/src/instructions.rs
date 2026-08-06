@@ -358,6 +358,16 @@ pub enum CompilerInstructionValidationKind {
         written_region: RuntimeStorageRegion,
         written_offset: usize,
     },
+    CompilerBodyWireExpectedByteRead {
+        buffer_region: RuntimeStorageRegion,
+        buffer_offset: usize,
+        buffer_length: usize,
+        read_region: RuntimeStorageRegion,
+        read_offset: usize,
+        ok_region: RuntimeStorageRegion,
+        ok_offset: usize,
+        expected: u8,
+    },
     CompilerBodyTextBufferMaterialize {
         buffer_symbol: Arc<str>,
         target: Place,

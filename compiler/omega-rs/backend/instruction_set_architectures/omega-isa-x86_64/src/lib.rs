@@ -10301,6 +10301,21 @@ pub fn read_wire_expected_byte_width(
     wire_decode_prologue_width() + 34 + wire_decode_tail_width()
 }
 
+pub fn read_wire_expected_byte_clobbers() -> RegisterSet {
+    RegisterSet::new([
+        MachineRegister::X86R9,
+        MachineRegister::X86R10,
+        MachineRegister::X86R11,
+        MachineRegister::X86R13,
+        MachineRegister::X86R14,
+        MachineRegister::X86R15,
+    ])
+}
+
+pub fn read_wire_expected_byte_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::new([MachineState::Flags])
+}
+
 /// Expect one compile-time framing byte (era/tag varint bytes) at the cursor:
 /// out of bounds clears ok without consuming; a mismatch consumes the byte
 /// and clears ok; a match consumes the byte.
