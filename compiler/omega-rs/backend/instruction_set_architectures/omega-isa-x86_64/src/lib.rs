@@ -10918,6 +10918,14 @@ pub fn read_wire_byte_slice_width(
         + wire_decode_tail_width()
 }
 
+pub fn read_wire_byte_slice_clobbers() -> RegisterSet {
+    read_wire_scalar_varint_clobbers()
+}
+
+pub fn read_wire_byte_slice_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::new([MachineState::Flags])
+}
+
 /// Byte offset of the TARGET page mov inside the byte-slice decode (the
 /// relocation planner adds the +2 imm64 offset itself).
 pub fn wire_decode_byte_slice_target_page_offset(
