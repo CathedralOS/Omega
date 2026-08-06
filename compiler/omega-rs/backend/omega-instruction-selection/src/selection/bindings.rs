@@ -846,7 +846,7 @@ fn resolve_leaf_binding_expression_handle_at_depth(
                     || binding_substitution_is_self_similar_name(
                         source_table,
                         binding.expression,
-                        binding,
+                        &binding.parameter_name,
                     ) {
                     expression
                 } else {
@@ -1089,7 +1089,12 @@ fn resolve_straight_line_binding_expression_handle_at_depth(
                 let expression = table.copy_from(source_table, binding.expression);
                 // Depth-capped: a cyclic binding set has no finite
                 // substitution (see MAX_BINDING_SUBSTITUTION_DEPTH).
-                let resolved = if substitution_depth >= MAX_BINDING_SUBSTITUTION_DEPTH {
+                let resolved = if substitution_depth >= MAX_BINDING_SUBSTITUTION_DEPTH
+                    || binding_substitution_is_self_similar_name(
+                        source_table,
+                        binding.expression,
+                        &binding.parameter_name,
+                    ) {
                     expression
                 } else {
                     resolve_straight_line_binding_expression_handle_at_depth(
@@ -1336,11 +1341,11 @@ fn binding_expression_rewrites_leaf_parameter(
 fn binding_substitution_is_self_similar_name(
     table: &ExpressionTable,
     expression: ExpressionHandle,
-    binding: &RuntimeLeafBranchBinding,
+    parameter_name: &Identifier,
 ) -> bool {
     match table.expression(expression) {
         ExpressionNode::Mutable(target) => {
-            binding_substitution_is_self_similar_name(table, *target, binding)
+            binding_substitution_is_self_similar_name(table, *target, parameter_name)
         }
         ExpressionNode::Name(path) => {
             !path.head_symbol.is_valid()
@@ -1348,7 +1353,7 @@ fn binding_substitution_is_self_similar_name(
                 && table
                     .name_path_members(path.members)
                     .first()
-                    .is_some_and(|name| *name == binding.parameter_name)
+                    .is_some_and(|name| name == parameter_name)
         }
         _ => false,
     }
@@ -1363,10 +1368,20 @@ fn binding_expression_rewrites_straight_line_parameter(
         ExpressionNode::Mutable(target) => {
             binding_expression_rewrites_straight_line_parameter(table, *target, binding)
         }
-        ExpressionNode::Name(path) => table
-            .name_path_members(path.members)
-            .first()
-            .is_none_or(|name| *name != binding.parameter_name),
+        // As for leaf bindings, a same-named call argument is still a real
+        // rewrite when its symbol differs or was erased while copying the
+        // caller expression. The latter is the normal shape for a state
+        // parameter threaded from an entry local (`seconds_wrapped` ->
+        // `seconds_wrapped`). Reject only an exact symbol-preserving
+        // self-binding; the self-similar check below stops the symbol-less
+        // rewrite from recursively matching by name.
+        ExpressionNode::Name(path) => {
+            if path.head_symbol.is_valid() || path.symbol.is_valid() {
+                !symbol_matches_table_path(binding.parameter_symbol, path)
+            } else {
+                true
+            }
+        }
         _ => true,
     }
 }
