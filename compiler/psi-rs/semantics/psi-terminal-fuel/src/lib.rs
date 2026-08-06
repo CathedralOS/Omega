@@ -48,6 +48,8 @@ impl TerminalFuelSchedule {
             | OperationKind::IntegerBitwiseAnd { .. }
             | OperationKind::IntegerBitwiseOr { .. }
             | OperationKind::IntegerBitwiseXor { .. }
+            | OperationKind::WrappingIntegerShiftLeft { .. }
+            | OperationKind::WrappingIntegerShiftRight { .. }
             | OperationKind::WrappingIntegerAdd { .. }
             | OperationKind::SaturatingIntegerAdd { .. }
             | OperationKind::WrappingIntegerSubtract { .. }

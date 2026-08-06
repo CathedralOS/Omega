@@ -303,6 +303,50 @@ fn lower_function(
                 )?;
                 provenance.operations.push(*psi_operation);
             }
+            TerminalAbstractOperation::WrappingIntegerShiftLeft {
+                psi_operation,
+                result,
+                value_type,
+                count_type,
+                value,
+                count,
+            }
+            | TerminalAbstractOperation::WrappingIntegerShiftRight {
+                psi_operation,
+                result,
+                value_type,
+                count_type,
+                value,
+                count,
+            } => {
+                let kind = if matches!(
+                    operation,
+                    TerminalAbstractOperation::WrappingIntegerShiftLeft { .. }
+                ) {
+                    WrappingShiftKind::Left
+                } else {
+                    WrappingShiftKind::Right
+                };
+                let shifted = lower_wrapping_shift(
+                    &values,
+                    *result,
+                    *value_type,
+                    *count_type,
+                    *value,
+                    *count,
+                    kind,
+                    *psi_operation,
+                )?;
+                insert_value(
+                    &mut values,
+                    *result,
+                    KnownScalar::Integer {
+                        scalar_type: *value_type,
+                        value: shifted,
+                    },
+                )?;
+                provenance.operations.push(*psi_operation);
+            }
             TerminalAbstractOperation::WrappingIntegerAdd {
                 psi_operation,
                 result,
@@ -1708,6 +1752,46 @@ fn lower_conditional_scalar_operation(
                 )?,
             )
         }
+        TerminalAbstractOperation::WrappingIntegerShiftLeft {
+            psi_operation,
+            result,
+            value_type,
+            count_type,
+            value,
+            count,
+        }
+        | TerminalAbstractOperation::WrappingIntegerShiftRight {
+            psi_operation,
+            result,
+            value_type,
+            count_type,
+            value,
+            count,
+        } => {
+            let kind = if matches!(
+                operation,
+                TerminalAbstractOperation::WrappingIntegerShiftLeft { .. }
+            ) {
+                WrappingShiftKind::Left
+            } else {
+                WrappingShiftKind::Right
+            };
+            (
+                *psi_operation,
+                *result,
+                *value_type,
+                lower_wrapping_shift(
+                    values,
+                    *result,
+                    *value_type,
+                    *count_type,
+                    *value,
+                    *count,
+                    kind,
+                    *psi_operation,
+                )?,
+            )
+        }
         _ => return Ok(false),
     };
     insert_value(values, result, KnownScalar::Integer { scalar_type, value })?;
@@ -1726,6 +1810,63 @@ enum IntegerBinaryKind {
     SaturatingSubtract,
     WrappingMultiply,
     SaturatingMultiply,
+}
+
+#[derive(Clone, Copy)]
+enum WrappingShiftKind {
+    Left,
+    Right,
+}
+
+fn lower_wrapping_shift(
+    values: &BTreeMap<ValueId, KnownScalar>,
+    result: ValueId,
+    value_type: IntegerType,
+    count_type: IntegerType,
+    value_id: ValueId,
+    count_id: ValueId,
+    kind: WrappingShiftKind,
+    psi_operation: psi_core::OperationId,
+) -> Result<KnownInteger, LoweringError> {
+    let operand = |id, expected_type| match values.get(&id).cloned() {
+        Some(KnownScalar::Integer { scalar_type, value }) if scalar_type == expected_type => {
+            Ok(value)
+        }
+        Some(_) => Err(LoweringError::WrappingShiftOperandTypeMismatch(result)),
+        None => Err(LoweringError::UnknownValue(id)),
+    };
+    let value = operand(value_id, value_type)?;
+    let count = operand(count_id, count_type)?;
+    Ok(match (value, count) {
+        (KnownInteger::Immediate(value), KnownInteger::Immediate(count)) => {
+            let shifted = match kind {
+                WrappingShiftKind::Left => value_type.wrapping_shift_left(value, count_type, count),
+                WrappingShiftKind::Right => {
+                    value_type.wrapping_shift_right(value, count_type, count)
+                }
+            }
+            .ok_or(LoweringError::WrappingShiftOperandTypeMismatch(result))?;
+            KnownInteger::Immediate(shifted)
+        }
+        (value, count) => {
+            let value = Box::new(value.into_expression(value_id));
+            let count = Box::new(count.into_expression(count_id));
+            KnownInteger::Runtime(match kind {
+                WrappingShiftKind::Left => TerminalTargetIntegerExpression::WrappingShiftLeft {
+                    psi_operation,
+                    count_type,
+                    value,
+                    count,
+                },
+                WrappingShiftKind::Right => TerminalTargetIntegerExpression::WrappingShiftRight {
+                    psi_operation,
+                    count_type,
+                    value,
+                    count,
+                },
+            })
+        }
+    })
 }
 
 fn lower_conditional_integer_binary(
@@ -2172,6 +2313,8 @@ fn conditional_provenance(
             | TerminalAbstractOperation::IntegerBitwiseAnd { psi_operation, .. }
             | TerminalAbstractOperation::IntegerBitwiseOr { psi_operation, .. }
             | TerminalAbstractOperation::IntegerBitwiseXor { psi_operation, .. }
+            | TerminalAbstractOperation::WrappingIntegerShiftLeft { psi_operation, .. }
+            | TerminalAbstractOperation::WrappingIntegerShiftRight { psi_operation, .. }
             | TerminalAbstractOperation::WrappingIntegerAdd { psi_operation, .. }
             | TerminalAbstractOperation::SaturatingIntegerAdd { psi_operation, .. }
             | TerminalAbstractOperation::WrappingIntegerSubtract { psi_operation, .. }
@@ -2231,6 +2374,7 @@ pub enum LoweringError {
     IntegerConstantHasNonIntegerType(ValueId),
     IntegerConstantOutsideType(ValueId),
     IntegerBitwiseOperandTypeMismatch(ValueId),
+    WrappingShiftOperandTypeMismatch(ValueId),
     WrappingAddOperandTypeMismatch(ValueId),
     SaturatingAddOperandTypeMismatch(ValueId),
     WrappingSubtractOperandTypeMismatch(ValueId),

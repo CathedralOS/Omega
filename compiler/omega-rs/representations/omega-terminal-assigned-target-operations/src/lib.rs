@@ -245,6 +245,18 @@ pub enum TerminalAssignedIntegerExpression {
         left: Box<TerminalAssignedIntegerExpression>,
         right: Box<TerminalAssignedIntegerExpression>,
     },
+    WrappingShiftLeft {
+        psi_operation: OperationId,
+        count_type: IntegerType,
+        value: Box<TerminalAssignedIntegerExpression>,
+        count: Box<TerminalAssignedIntegerExpression>,
+    },
+    WrappingShiftRight {
+        psi_operation: OperationId,
+        count_type: IntegerType,
+        value: Box<TerminalAssignedIntegerExpression>,
+        count: Box<TerminalAssignedIntegerExpression>,
+    },
     WrappingAdd {
         psi_operation: OperationId,
         left: Box<TerminalAssignedIntegerExpression>,

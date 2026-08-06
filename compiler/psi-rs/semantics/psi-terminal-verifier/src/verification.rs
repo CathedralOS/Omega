@@ -284,6 +284,36 @@ fn reconstruct_semantic_axioms(machine: &TerminalMachine) -> Vec<Proposition> {
                     .expect("validator requires exact bitwise operand types");
                     axioms.push(Proposition::Equal(value_term(operation.result.id), result));
                 }
+                OperationKind::WrappingIntegerShiftLeft { value, count }
+                | OperationKind::WrappingIntegerShiftRight { value, count } => {
+                    let ScalarType::Integer(value_type) = operation.result.scalar_type else {
+                        unreachable!("validator requires wrapping-shift integer result type")
+                    };
+                    let ScalarType::Integer(count_type) = value_term(count).scalar_type() else {
+                        unreachable!("validator requires wrapping-shift integer count type")
+                    };
+                    let result = match operation.kind {
+                        OperationKind::WrappingIntegerShiftLeft { .. } => {
+                            ScalarTerm::wrapping_integer_shift_left(
+                                value_type,
+                                count_type,
+                                value_term(value),
+                                value_term(count),
+                            )
+                        }
+                        OperationKind::WrappingIntegerShiftRight { .. } => {
+                            ScalarTerm::wrapping_integer_shift_right(
+                                value_type,
+                                count_type,
+                                value_term(value),
+                                value_term(count),
+                            )
+                        }
+                        _ => unreachable!(),
+                    }
+                    .expect("validator requires exact wrapping-shift operand types");
+                    axioms.push(Proposition::Equal(value_term(operation.result.id), result));
+                }
                 OperationKind::WrappingIntegerAdd { left, right } => {
                     let ScalarType::Integer(integer_type) = operation.result.scalar_type else {
                         unreachable!("validator requires wrapping-add integer result type")

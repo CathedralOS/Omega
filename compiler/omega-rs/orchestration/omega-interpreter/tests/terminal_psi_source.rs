@@ -1582,7 +1582,7 @@ fn checked_source_runtime_integer_bitwise_operations_cross_the_full_pipeline() {
         let lowered = lower_machine(&checked, machine).expect("integer bitwise should lower");
         assert_eq!(
             lowered.semantic_module.semantic_version,
-            SemanticVersion::V20
+            SemanticVersion::V21
         );
         let operation = lowered.semantic_module.machines[0].blocks[0].operations[0].kind;
         assert!(matches!(
@@ -1659,6 +1659,146 @@ fn checked_source_runtime_integer_bitwise_operations_cross_the_full_pipeline() {
                     right,
                 ),
                 expected as i32
+            );
+        }
+    }
+}
+
+#[test]
+fn checked_source_runtime_wrapping_shifts_cross_the_full_pipeline() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("runtime wrapping-shift source canary should compile");
+    let u64_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
+    let i64_type = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
+    let cases = [
+        (
+            "terminal_unsigned_wrapping_shift_left_runtime",
+            TerminalScalarValue::Integer {
+                scalar_type: u64_type,
+                value: IntegerValue::Unsigned(1),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: i64_type,
+                value: IntegerValue::Signed(-1),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: u64_type,
+                value: IntegerValue::Unsigned(1_u128 << 63),
+            },
+            true,
+        ),
+        (
+            "terminal_signed_wrapping_shift_right_runtime",
+            TerminalScalarValue::Integer {
+                scalar_type: i64_type,
+                value: IntegerValue::Signed(-8),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: u64_type,
+                value: IntegerValue::Unsigned(65),
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: i64_type,
+                value: IntegerValue::Signed(-4),
+            },
+            false,
+        ),
+    ];
+
+    for (machine, value, count, expected, left_shift) in cases {
+        let lowered = lower_machine(&checked, machine).expect("wrapping shift should lower");
+        assert_eq!(
+            lowered.semantic_module.semantic_version,
+            SemanticVersion::V21
+        );
+        assert!(matches!(
+            (
+                left_shift,
+                &lowered.semantic_module.machines[0].blocks[0].operations[0].kind
+            ),
+            (true, OperationKind::WrappingIntegerShiftLeft { .. })
+                | (false, OperationKind::WrappingIntegerShiftRight { .. })
+        ));
+        let bytes = encode_module(&lowered.semantic_module).expect("shift module encodes");
+        let decoded = decode_module(&bytes).expect("shift module decodes");
+        let verified = verify_module(
+            &decoded,
+            &lowered.proof_bundle,
+            &AdmissionProfile::default(),
+        )
+        .expect("shift module verifies");
+        assert_eq!(
+            derive_fixed_entry_fuel(&verified, decoded.entry)
+                .expect("shift machine has fixed fuel")
+                .ceiling_units(),
+            2
+        );
+        let measured = interpret_terminal_measured(&verified, &[value, count])
+            .expect("wrapping shift interprets");
+        assert_eq!(measured.value(), expected);
+        assert_eq!(measured.usage().total_units(), 2);
+
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let abstract_operations =
+                lower_verified_module(&verified).expect("shift crosses the Omega boundary");
+            let target_operations = lower_to_target_operations(&abstract_operations, target)
+                .expect("shift selects on both native architectures");
+            let expression = match &target_operations.functions[0].operation {
+                TerminalTargetOperation::ReturnIntegerExpression { expression, .. } => expression,
+                operation => panic!("unexpected shift operation: {operation:?}"),
+            };
+            assert!(matches!(
+                (left_shift, expression),
+                (
+                    true,
+                    TerminalTargetIntegerExpression::WrappingShiftLeft { .. }
+                ) | (
+                    false,
+                    TerminalTargetIntegerExpression::WrappingShiftRight { .. }
+                )
+            ));
+            let assigned =
+                assign_registers(&target_operations).expect("shift parameter homes assign");
+            emit_machine_code(&assigned).expect("shift emits exact native code");
+        }
+
+        #[cfg(unix)]
+        {
+            let abstract_operations = lower_verified_module(&verified).expect("Omega lowering");
+            let target_operations =
+                lower_to_target_operations(&abstract_operations, NativeTarget::host())
+                    .expect("host selection");
+            let assigned = assign_registers(&target_operations).expect("shift homes assign");
+            let machine_code = emit_machine_code(&assigned).expect("shift host emission");
+            let object = build_terminal_object_artifact(&machine_code).expect("shift object");
+            let input_bits = match value {
+                TerminalScalarValue::Integer { value, .. } => match value {
+                    IntegerValue::Unsigned(value) => value as u64,
+                    IntegerValue::Signed(value) => value as i64 as u64,
+                },
+                TerminalScalarValue::Boolean(_) => unreachable!(),
+            };
+            let count_bits = match count {
+                TerminalScalarValue::Integer { value, .. } => match value {
+                    IntegerValue::Unsigned(value) => value as u64,
+                    IntegerValue::Signed(value) => value as i64 as u64,
+                },
+                TerminalScalarValue::Boolean(_) => unreachable!(),
+            };
+            let expected_bits = match expected {
+                TerminalScalarValue::Integer { value, .. } => match value {
+                    IntegerValue::Unsigned(value) => value as u64,
+                    IntegerValue::Signed(value) => value as i64 as u64,
+                },
+                TerminalScalarValue::Boolean(_) => unreachable!(),
+            };
+            assert_eq!(
+                run_host_machine_code_with_two_u64(
+                    object.entry_function().bytes(&object),
+                    input_bits,
+                    count_bits,
+                ) as u64,
+                expected_bits
             );
         }
     }

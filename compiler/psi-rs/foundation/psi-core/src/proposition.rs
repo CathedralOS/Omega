@@ -218,6 +218,77 @@ impl IntegerType {
         }
     }
 
+    /// Shift an admitted value left after reducing the count modulo this
+    /// value type's exact width.
+    ///
+    /// The count retains its own signedness and width. Signed negative counts
+    /// use Euclidean reduction, so current power-of-two source widths agree
+    /// exactly with masking the count's two's-complement representation by
+    /// `width - 1` while arbitrary terminal widths retain a coherent modular
+    /// meaning.
+    pub fn wrapping_shift_left(
+        self,
+        value: IntegerValue,
+        count_type: IntegerType,
+        count: IntegerValue,
+    ) -> Option<IntegerValue> {
+        if !self.admits(value) || !count_type.admits(count) {
+            return None;
+        }
+        let count = wrapping_shift_count(self.bits, count)?;
+        let mask = self.bit_mask();
+        match (self.sign, value) {
+            (IntegerSign::Unsigned, IntegerValue::Unsigned(value)) => {
+                Some(IntegerValue::Unsigned(value.wrapping_shl(count) & mask))
+            }
+            (IntegerSign::Signed, IntegerValue::Signed(value)) => Some(IntegerValue::Signed(
+                self.signed_from_bits((value as u128).wrapping_shl(count) & mask),
+            )),
+            _ => None,
+        }
+    }
+
+    /// Shift an admitted value right after reducing the count modulo this
+    /// value type's exact width. Unsigned values zero-fill; signed values
+    /// sign-fill.
+    pub fn wrapping_shift_right(
+        self,
+        value: IntegerValue,
+        count_type: IntegerType,
+        count: IntegerValue,
+    ) -> Option<IntegerValue> {
+        if !self.admits(value) || !count_type.admits(count) {
+            return None;
+        }
+        let count = wrapping_shift_count(self.bits, count)?;
+        match (self.sign, value) {
+            (IntegerSign::Unsigned, IntegerValue::Unsigned(value)) => {
+                Some(IntegerValue::Unsigned(value >> count))
+            }
+            (IntegerSign::Signed, IntegerValue::Signed(value)) => {
+                Some(IntegerValue::Signed(value >> count))
+            }
+            _ => None,
+        }
+    }
+
+    fn bit_mask(self) -> u128 {
+        if self.bits == 128 {
+            u128::MAX
+        } else {
+            (1_u128 << self.bits) - 1
+        }
+    }
+
+    fn signed_from_bits(self, bits: u128) -> i128 {
+        let mask = self.bit_mask();
+        if self.bits == 128 || bits & (1_u128 << (self.bits - 1)) == 0 {
+            bits as i128
+        } else {
+            (bits | !mask) as i128
+        }
+    }
+
     /// Add two admitted values and clamp the result to this exact integer
     /// type's representable bounds.
     ///
@@ -327,6 +398,17 @@ pub enum IntegerValue {
     Unsigned(u128),
 }
 
+fn wrapping_shift_count(width: u16, count: IntegerValue) -> Option<u32> {
+    let width = u128::from(width);
+    match count {
+        IntegerValue::Unsigned(count) => u32::try_from(count % width).ok(),
+        IntegerValue::Signed(count) => {
+            let width = i128::try_from(width).ok()?;
+            u32::try_from(count.rem_euclid(width)).ok()
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ScalarType {
     Boolean,
@@ -376,6 +458,18 @@ pub enum ScalarTerm {
         scalar_type: IntegerType,
         left: Box<ScalarTerm>,
         right: Box<ScalarTerm>,
+    },
+    WrappingIntegerShiftLeft {
+        value_type: IntegerType,
+        count_type: IntegerType,
+        value: Box<ScalarTerm>,
+        count: Box<ScalarTerm>,
+    },
+    WrappingIntegerShiftRight {
+        value_type: IntegerType,
+        count_type: IntegerType,
+        value: Box<ScalarTerm>,
+        count: Box<ScalarTerm>,
     },
     Integer {
         scalar_type: IntegerType,
@@ -531,6 +625,36 @@ impl ScalarTerm {
         })
     }
 
+    pub fn wrapping_integer_shift_left(
+        value_type: IntegerType,
+        count_type: IntegerType,
+        value: ScalarTerm,
+        count: ScalarTerm,
+    ) -> Result<Self, PropositionError> {
+        validate_integer_shift_operands(value_type, count_type, &value, &count)?;
+        Ok(Self::WrappingIntegerShiftLeft {
+            value_type,
+            count_type,
+            value: Box::new(value),
+            count: Box::new(count),
+        })
+    }
+
+    pub fn wrapping_integer_shift_right(
+        value_type: IntegerType,
+        count_type: IntegerType,
+        value: ScalarTerm,
+        count: ScalarTerm,
+    ) -> Result<Self, PropositionError> {
+        validate_integer_shift_operands(value_type, count_type, &value, &count)?;
+        Ok(Self::WrappingIntegerShiftRight {
+            value_type,
+            count_type,
+            value: Box::new(value),
+            count: Box::new(count),
+        })
+    }
+
     pub fn integer(
         scalar_type: IntegerType,
         value: IntegerValue,
@@ -682,6 +806,10 @@ impl ScalarTerm {
             | Self::SaturatingIntegerMultiply { scalar_type, .. } => {
                 ScalarType::Integer(*scalar_type)
             }
+            Self::WrappingIntegerShiftLeft { value_type, .. }
+            | Self::WrappingIntegerShiftRight { value_type, .. } => {
+                ScalarType::Integer(*value_type)
+            }
         }
     }
 
@@ -787,6 +915,34 @@ impl ScalarTerm {
                     _ => unreachable!(),
                 };
                 Some((*scalar_type, value))
+            }
+            Self::WrappingIntegerShiftLeft {
+                value_type,
+                count_type,
+                value,
+                count,
+            }
+            | Self::WrappingIntegerShiftRight {
+                value_type,
+                count_type,
+                value,
+                count,
+            } => {
+                let (actual_value_type, value) = value.integer_value()?;
+                let (actual_count_type, count) = count.integer_value()?;
+                if actual_value_type != *value_type || actual_count_type != *count_type {
+                    return None;
+                }
+                let result = match self {
+                    Self::WrappingIntegerShiftLeft { .. } => {
+                        value_type.wrapping_shift_left(value, *count_type, count)?
+                    }
+                    Self::WrappingIntegerShiftRight { .. } => {
+                        value_type.wrapping_shift_right(value, *count_type, count)?
+                    }
+                    _ => unreachable!(),
+                };
+                Some((*value_type, result))
             }
             _ => None,
         }
@@ -910,6 +1066,22 @@ impl ScalarTerm {
                 left.validate()?;
                 right.validate()?;
                 validate_integer_operands(*scalar_type, left, right)
+            }
+            Self::WrappingIntegerShiftLeft {
+                value_type,
+                count_type,
+                value,
+                count,
+            }
+            | Self::WrappingIntegerShiftRight {
+                value_type,
+                count_type,
+                value,
+                count,
+            } => {
+                value.validate()?;
+                count.validate()?;
+                validate_integer_shift_operands(*value_type, *count_type, value, count)
             }
             Self::Integer { scalar_type, value } => {
                 if scalar_type.admits(*value) {
@@ -1219,6 +1391,11 @@ impl PropositionContext {
                 self.validate_term(left)?;
                 self.validate_term(right)?;
             }
+            ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
+            | ScalarTerm::WrappingIntegerShiftRight { value, count, .. } => {
+                self.validate_term(value)?;
+                self.validate_term(count)?;
+            }
             ScalarTerm::BooleanNot { operand } => self.validate_term(operand)?,
             ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => {}
         }
@@ -1249,6 +1426,25 @@ fn validate_integer_operands(
             expected,
             left: left.scalar_type(),
             right: right.scalar_type(),
+        });
+    }
+    Ok(())
+}
+
+fn validate_integer_shift_operands(
+    value_type: IntegerType,
+    count_type: IntegerType,
+    value: &ScalarTerm,
+    count: &ScalarTerm,
+) -> Result<(), PropositionError> {
+    let expected_value = ScalarType::Integer(value_type);
+    let expected_count = ScalarType::Integer(count_type);
+    if value.scalar_type() != expected_value || count.scalar_type() != expected_count {
+        return Err(PropositionError::IntegerShiftOperandTypeMismatch {
+            expected_value,
+            actual_value: value.scalar_type(),
+            expected_count,
+            actual_count: count.scalar_type(),
         });
     }
     Ok(())
@@ -1292,6 +1488,12 @@ pub enum PropositionError {
         expected: ScalarType,
         left: ScalarType,
         right: ScalarType,
+    },
+    IntegerShiftOperandTypeMismatch {
+        expected_value: ScalarType,
+        actual_value: ScalarType,
+        expected_count: ScalarType,
+        actual_count: ScalarType,
     },
     WrappingIntegerAddTypeMismatch {
         expected: ScalarType,
@@ -1518,6 +1720,61 @@ mod tests {
             ScalarTerm::integer_bitwise_and(u8_type, unsigned(1), signed(1)),
             Err(PropositionError::IntegerOperandTypeMismatch { .. })
         ));
+    }
+
+    #[test]
+    fn wrapping_shifts_reduce_counts_modulo_the_value_width() {
+        let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let u16_type = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16");
+        let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        assert_eq!(
+            u8_type.wrapping_shift_left(
+                IntegerValue::Unsigned(1),
+                u16_type,
+                IntegerValue::Unsigned(9),
+            ),
+            Some(IntegerValue::Unsigned(2))
+        );
+        assert_eq!(
+            i8_type.wrapping_shift_right(
+                IntegerValue::Signed(-8),
+                u16_type,
+                IntegerValue::Unsigned(9),
+            ),
+            Some(IntegerValue::Signed(-4))
+        );
+        assert_eq!(
+            u8_type.wrapping_shift_left(
+                IntegerValue::Unsigned(1),
+                i8_type,
+                IntegerValue::Signed(-1),
+            ),
+            Some(IntegerValue::Unsigned(128))
+        );
+
+        // Terminal Psi admits exact widths that are not native source widths;
+        // modulo is the semantic rule, rather than a power-of-two bit mask.
+        let u6_type = IntegerType::new(IntegerSign::Unsigned, 6).expect("u6");
+        assert_eq!(
+            u6_type.wrapping_shift_left(
+                IntegerValue::Unsigned(1),
+                u16_type,
+                IntegerValue::Unsigned(7),
+            ),
+            Some(IntegerValue::Unsigned(2))
+        );
+
+        let term = ScalarTerm::wrapping_integer_shift_left(
+            u8_type,
+            u16_type,
+            ScalarTerm::integer(u8_type, IntegerValue::Unsigned(1)).unwrap(),
+            ScalarTerm::integer(u16_type, IntegerValue::Unsigned(9)).unwrap(),
+        )
+        .expect("independently typed count");
+        assert_eq!(
+            term.integer_value(),
+            Some((u8_type, IntegerValue::Unsigned(2)))
+        );
     }
 
     #[test]

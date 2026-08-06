@@ -61,11 +61,19 @@ fn current_vocabulary_has_explicit_v1_costs_and_attribution() {
             left: value_id(1),
             right: value_id(2),
         },
+        OperationKind::WrappingIntegerShiftLeft {
+            value: value_id(1),
+            count: value_id(2),
+        },
+        OperationKind::WrappingIntegerShiftRight {
+            value: value_id(1),
+            count: value_id(2),
+        },
     ] {
         assert_eq!(
             TerminalFuelSchedule::V1.operation_units(&kind),
             1,
-            "each integer comparison or bitwise operation has one explicit v1-schedule unit"
+            "each integer comparison, bitwise operation, or wrapping shift has one explicit v1-schedule unit"
         );
     }
     let operation = operation();

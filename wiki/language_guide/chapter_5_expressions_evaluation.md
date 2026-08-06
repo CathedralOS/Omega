@@ -376,8 +376,9 @@ silently chooses wrapping, saturation, or trapping.
 Shift counts follow the same rule (settled 2026-07-18): under Exact, a
 shift's count must be **proven** below the operand width (a literal
 out-of-range shift is an immediate compile error); under `Wrapping` the
-count is masked to the width (`k & (width - 1)`) — the genuinely modular
-reading, and what the hardware computes anyway; under `Trapping` an
+count is reduced by Euclidean modulo of the shifted value's width. For the
+current 8/16/32/64-bit source carriers this is exactly `k & (width - 1)`,
+which is also what the native targets compute; under `Trapping` an
 out-of-range count traps. `Saturating` adds no count meaning: it governs
 value overflow, not operand validity, so its count obligation is Exact's.
 The compiler never adopts the ISA's silent count-masking under Exact —

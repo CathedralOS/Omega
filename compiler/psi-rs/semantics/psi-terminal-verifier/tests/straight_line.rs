@@ -866,6 +866,159 @@ fn v20_integer_bitwise_axioms_prove_exact_result_contracts() {
 }
 
 #[test]
+fn v21_wrapping_shift_axioms_preserve_the_count_type() {
+    let value_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 value type");
+    let count_type = IntegerType::new(IntegerSign::Signed, 16).expect("i16 count type");
+    let value_scalar = ScalarType::Integer(value_type);
+    let count_scalar = ScalarType::Integer(count_type);
+    let value = ValueId::new(70).expect("value");
+    let count = ValueId::new(71).expect("count");
+    let computed = ValueId::new(72).expect("computed");
+    let result = ValueId::new(73).expect("result");
+    let value_term = |id| ScalarTerm::value(id, value_scalar);
+    let count_term = |id| ScalarTerm::value(id, count_scalar);
+
+    for kind in 0_u8..2 {
+        let operation = if kind == 0 {
+            OperationKind::WrappingIntegerShiftLeft { value, count }
+        } else {
+            OperationKind::WrappingIntegerShiftRight { value, count }
+        };
+        let term = if kind == 0 {
+            ScalarTerm::wrapping_integer_shift_left(
+                value_type,
+                count_type,
+                value_term(value),
+                count_term(count),
+            )
+        } else {
+            ScalarTerm::wrapping_integer_shift_right(
+                value_type,
+                count_type,
+                value_term(value),
+                count_term(count),
+            )
+        }
+        .expect("independently typed shift operands");
+        let goal = Proposition::Equal(value_term(result), term.clone());
+        let obligation = ObligationId::new(70 + u64::from(kind)).expect("obligation");
+        let module = TerminalModule {
+            semantic_version: SemanticVersion::V21,
+            entry: MachineId::new(70).expect("machine"),
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
+            machines: vec![TerminalMachine {
+                id: MachineId::new(70).expect("machine"),
+                parameters: vec![
+                    ValueDeclaration {
+                        id: value,
+                        scalar_type: value_scalar,
+                    },
+                    ValueDeclaration {
+                        id: count,
+                        scalar_type: count_scalar,
+                    },
+                ],
+                result: ValueDeclaration {
+                    id: result,
+                    scalar_type: value_scalar,
+                },
+                structural_places: Vec::new(),
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry: BlockId::new(70).expect("block"),
+                blocks: vec![Block {
+                    id: BlockId::new(70).expect("block"),
+                    parameters: Vec::new(),
+                    operations: vec![Operation {
+                        id: OperationId::new(70).expect("operation"),
+                        result: ValueDeclaration {
+                            id: computed,
+                            scalar_type: value_scalar,
+                        },
+                        kind: operation,
+                    }],
+                    terminator: Terminator::Return {
+                        edge: EdgeId::new(70).expect("edge"),
+                        value: computed,
+                    },
+                }],
+                contract: MachineContract {
+                    id: ContractId::new(70).expect("contract"),
+                    requires: Vec::new(),
+                    ensures: vec![ContractClause {
+                        obligation,
+                        proposition: goal.clone(),
+                    }],
+                },
+            }],
+        };
+        let bundle = ProofBundle {
+            evidence: vec![ObligationEvidence {
+                obligation,
+                route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                    identity: EvidenceIdentity::new(70 + u64::from(kind)).expect("certificate"),
+                    proof_system_version: ProofSystemVersion::CURRENT,
+                    proof: ProofNode {
+                        conclusion: goal,
+                        rule: ProofRule::EqualityTransitivity {
+                            left_equals_middle: Box::new(ProofNode {
+                                conclusion: Proposition::Equal(
+                                    value_term(result),
+                                    value_term(computed),
+                                ),
+                                rule: ProofRule::SemanticAxiom { index: 1 },
+                            }),
+                            middle_equals_right: Box::new(ProofNode {
+                                conclusion: Proposition::Equal(value_term(computed), term),
+                                rule: ProofRule::SemanticAxiom { index: 0 },
+                            }),
+                        },
+                    },
+                }),
+            }],
+        };
+        verify_module(&module, &bundle, &AdmissionProfile::default())
+            .expect("v21 reconstructs the exact wrapping-shift result axiom");
+
+        let mut old = module.clone();
+        old.semantic_version = SemanticVersion::V20;
+        assert_eq!(
+            validate_module(&old).expect_err("v20 cannot contain wrapping shifts"),
+            ModuleError::OperationRequiresSemanticVersion {
+                operation: OperationId::new(70).expect("operation"),
+                required: SemanticVersion::V21,
+                actual: SemanticVersion::V20,
+            }
+        );
+
+        if kind == 0 {
+            let mut wrong_count = module.clone();
+            wrong_count.machines[0].contract.ensures.clear();
+            wrong_count.machines[0].parameters[1].scalar_type = ScalarType::Boolean;
+            assert!(matches!(
+                validate_module(&wrong_count),
+                Err(ModuleError::WrappingIntegerShiftOperandTypeMismatch { .. })
+            ));
+
+            let mut wrong_result = module.clone();
+            wrong_result.machines[0].contract.ensures.clear();
+            wrong_result.machines[0].blocks[0].operations[0]
+                .result
+                .scalar_type = ScalarType::Boolean;
+            assert_eq!(
+                validate_module(&wrong_result)
+                    .expect_err("wrapping shift requires an integer result"),
+                ModuleError::WrappingIntegerShiftRequiresIntegerResult(
+                    OperationId::new(70).expect("operation")
+                )
+            );
+        }
+    }
+}
+
+#[test]
 fn v9_content_conservation_accepts_a_replaceable_certificate() {
     let (module, goal, obligation) = reflexive_content_module();
     let bundle = ProofBundle {

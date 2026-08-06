@@ -1934,9 +1934,10 @@ fn analyze(
             // F8 -- the shift-COUNT ruling (ch5, settled 2026-07-18): the count is
             // proof-or-policy. Under Exact the count must be PROVABLY in
             // [0, width); Saturating governs value overflow, not operand
-            // validity, so its count obligation is Exact's. Wrapping MASKS the
-            // count (`k & (width - 1)`) and Trapping TRAPS on an out-of-range
-            // count -- both defined, no obligation. The width is the SHIFTED
+            // validity, so its count obligation is Exact's. Wrapping reduces
+            // the count modulo the shifted width (`k & (width - 1)` for every
+            // current power-of-two source carrier) and Trapping TRAPS on an
+            // out-of-range count -- both defined, no obligation. The width is the SHIFTED
             // operand's (decision 17 stays operand-driven: an anonymous lhs
             // falls back to the destination primitive, but the lhs DOMAIN
             // governs and a target `in Wrapping` never re-domains the count).
@@ -1973,8 +1974,9 @@ fn analyze(
                          shifts prove `count < {width}` (ch5 shift-count ruling -- \
                          proof-or-policy). Constrain the count's range (a ranged type, a \
                          `requires` clause, or a dominating guard), or pick a defined-count \
-                         policy on the SHIFTED operand (`{prim} in Wrapping` masks the count \
-                         to `count & {mask}`; `in Trapping` traps at runtime).",
+                         policy on the SHIFTED operand (`{prim} in Wrapping` reduces the count \
+                         modulo {width}, equivalently `count & {mask}` for this carrier; \
+                         `in Trapping` traps at runtime).",
                         prim = primitive_name(shift_primitive),
                         mask = width - 1,
                     )));

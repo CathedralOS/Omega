@@ -400,6 +400,11 @@ fn validate_scalar_term_depth(term: &ScalarTerm) -> Result<(), CodecError> {
                 pending.push((left, depth + 1));
                 pending.push((right, depth + 1));
             }
+            ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
+            | ScalarTerm::WrappingIntegerShiftRight { value, count, .. } => {
+                pending.push((value, depth + 1));
+                pending.push((count, depth + 1));
+            }
             ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => {}
         }
     }
@@ -706,6 +711,16 @@ fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), CodecError> {
                 writer.u8(16);
                 writer.id(left);
                 writer.id(right);
+            }
+            OperationKind::WrappingIntegerShiftLeft { value, count } => {
+                writer.u8(17);
+                writer.id(value);
+                writer.id(count);
+            }
+            OperationKind::WrappingIntegerShiftRight { value, count } => {
+                writer.u8(18);
+                writer.id(value);
+                writer.id(count);
             }
             OperationKind::WrappingIntegerAdd { left, right } => {
                 writer.u8(3);
@@ -1014,6 +1029,30 @@ fn encode_scalar_term(
             encode_integer_type(writer, *scalar_type);
             encode_scalar_term(writer, left, depth + 1)?;
             encode_scalar_term(writer, right, depth + 1)?;
+        }
+        ScalarTerm::WrappingIntegerShiftLeft {
+            value_type,
+            count_type,
+            value,
+            count,
+        } => {
+            writer.u8(18);
+            encode_integer_type(writer, *value_type);
+            encode_integer_type(writer, *count_type);
+            encode_scalar_term(writer, value, depth + 1)?;
+            encode_scalar_term(writer, count, depth + 1)?;
+        }
+        ScalarTerm::WrappingIntegerShiftRight {
+            value_type,
+            count_type,
+            value,
+            count,
+        } => {
+            writer.u8(19);
+            encode_integer_type(writer, *value_type);
+            encode_integer_type(writer, *count_type);
+            encode_scalar_term(writer, value, depth + 1)?;
+            encode_scalar_term(writer, count, depth + 1)?;
         }
         ScalarTerm::Integer { scalar_type, value } => {
             writer.u8(3);
@@ -1470,6 +1509,14 @@ fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError> {
                 left: reader.id("ValueId")?,
                 right: reader.id("ValueId")?,
             },
+            17 => OperationKind::WrappingIntegerShiftLeft {
+                value: reader.id("ValueId")?,
+                count: reader.id("ValueId")?,
+            },
+            18 => OperationKind::WrappingIntegerShiftRight {
+                value: reader.id("ValueId")?,
+                count: reader.id("ValueId")?,
+            },
             tag => return Err(CodecError::InvalidTag("OperationKind", tag)),
         };
         operations.push(Operation {
@@ -1770,6 +1817,22 @@ fn decode_scalar_term(reader: &mut Reader<'_>, depth: usize) -> Result<ScalarTer
             let left = decode_scalar_term(reader, depth + 1)?;
             let right = decode_scalar_term(reader, depth + 1)?;
             ScalarTerm::integer_bitwise_xor(scalar_type, left, right)
+                .map_err(CodecError::MalformedProposition)?
+        }
+        18 => {
+            let value_type = decode_integer_type(reader)?;
+            let count_type = decode_integer_type(reader)?;
+            let value = decode_scalar_term(reader, depth + 1)?;
+            let count = decode_scalar_term(reader, depth + 1)?;
+            ScalarTerm::wrapping_integer_shift_left(value_type, count_type, value, count)
+                .map_err(CodecError::MalformedProposition)?
+        }
+        19 => {
+            let value_type = decode_integer_type(reader)?;
+            let count_type = decode_integer_type(reader)?;
+            let value = decode_scalar_term(reader, depth + 1)?;
+            let count = decode_scalar_term(reader, depth + 1)?;
+            ScalarTerm::wrapping_integer_shift_right(value_type, count_type, value, count)
                 .map_err(CodecError::MalformedProposition)?
         }
         tag => return Err(CodecError::InvalidTag("ScalarTerm", tag)),
