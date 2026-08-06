@@ -11359,6 +11359,14 @@ pub fn read_wire_repeated_scalar_varint_width(
         + wire_decode_tail_width()
 }
 
+pub fn read_wire_repeated_scalar_varint_clobbers() -> RegisterSet {
+    read_wire_scalar_varint_clobbers()
+}
+
+pub fn read_wire_repeated_scalar_varint_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::new([MachineState::Flags])
+}
+
 /// LEB128-read one packed repeated element at the cursor into the target
 /// slot, ONLY IF the cursor sits strictly below the end bound the
 /// surrounding nested OPEN stored; the taken path also increments the
