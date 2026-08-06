@@ -220,11 +220,10 @@ Owners:
 
 Remaining:
 
-- Replay indirect `VtableSlot`, `VtableField`, and `TableFunction` calls from
-  their retained mechanism, operands, and call plan. Machine emission now
-  rejects these unclassified bytes instead of letting them bypass final-image
-  validation; restore the x86-64 and AArch64 indirect-dispatch canaries only
-  through exact replay and footprint evidence.
+- Extend the live x86-64 replay for indirect `VtableSlot`, `VtableField`, and
+  `TableFunction` calls to AArch64, including exact page relocations and result
+  stores from the retained mechanism, operands, and call plan. Unsupported
+  indirect-call architectures must continue to reject at final validation.
 - finish complete entry/body-region enumeration, including format-owned thunks,
   veneers, and generated stubs;
 - derive the complete final register/machine-state union and require exact

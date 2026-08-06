@@ -162,6 +162,9 @@ pub fn boundary_footprint_fragments_json(plan: &EncodedMachinePlan) -> String {
                 omega_abstract_operations::BoundaryFootprintFragmentOrigin::CompilerBodyOutboundAuthoredAggregateResult => {
                     "compiler_body_outbound_authored_aggregate_result"
                 }
+                omega_abstract_operations::BoundaryFootprintFragmentOrigin::CompilerBodyOutboundIndirectCall => {
+                    "compiler_body_outbound_indirect_call"
+                }
                 omega_abstract_operations::BoundaryFootprintFragmentOrigin::CompilerBodyOutboundOpenCreateImport => {
                     "compiler_body_outbound_open_create_import"
                 }

@@ -1421,6 +1421,35 @@ fn compiler_instruction_validation_kind(
                 };
                 return Ok(Some(validation));
             }
+            if matches!(
+                binding.mechanism,
+                omega_calling_conventions::HostBindingMechanism::VtableSlot { .. }
+                    | omega_calling_conventions::HostBindingMechanism::VtableField { .. }
+                    | omega_calling_conventions::HostBindingMechanism::TableFunction { .. }
+            ) {
+                let operands = emission_context
+                    .assigned_target_operations
+                    .instruction_operands(*operands)
+                    .ok_or_else(|| {
+                        Diagnostic::error(
+                            "compiler outbound indirect call lost its assigned operand span",
+                        )
+                    })?;
+                if operands.is_empty() {
+                    return Ok(None);
+                }
+                return Ok(Some(
+                    CompilerInstructionValidationKind::CompilerBodyOutboundIndirectCall {
+                        operands: operands.to_vec(),
+                        data_symbols: assigned_outbound_syscall_data_symbols(
+                            emission_context,
+                            operands,
+                        ),
+                        mechanism: binding.mechanism.clone(),
+                        plan: binding.call_plan().clone(),
+                    },
+                ));
+            }
             let omega_calling_conventions::HostBindingMechanism::Syscall { number, .. } =
                 &binding.mechanism
             else {
