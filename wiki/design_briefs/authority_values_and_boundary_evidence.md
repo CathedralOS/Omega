@@ -275,8 +275,8 @@ canonical set difference, which may contain several intervals. Equality is
 structural equality of those canonical forms.
 
 Implementation checkpoint (2026-08-02): this exact algebra is live in
-`omega-core`, including canonical construction, partial n-ary separation,
-containment, and fragmented residuals over exact proof naturals. Content
+`psi-language-semantics`, including canonical construction, partial n-ary
+separation, containment, and fragmented residuals over exact proof naturals. Content
 projection plans lift the core singleton spelling into an interval-set term;
 the set identity and member vector survive checked facts and debug artifacts
 under a schema-distinct stable fingerprint. Source-visible proof-only

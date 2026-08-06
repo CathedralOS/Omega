@@ -666,11 +666,10 @@ by itself establish that the right obligations were reconstructed.
 10. Add trusted native block metering while preserving accounting provenance
    through optimization; canonical block topology itself need not survive.
    Defer a separate Psi-to-native PCC chain.
-11. Add entry/current structural-place proposition terms, canonical
-   `IntervalSet<CoordinateSpace>`, partial n-ary separation, canonical residual
-   difference, and sealed introduction/custody-exit frontier rows. Migrate the
-   current transitional single-interval content carrier before this vocabulary
-   enters terminal Psi identity.
+11. Connect the canonical entry/current content vocabulary to sealed
+   introduction and custody-exit frontier rows. Terminal Psi already carries
+   canonical `IntervalSet<CoordinateSpace>`, partial n-ary separation, and
+   canonical residual difference.
 12. Add `CountedQuantity<Bytes>` with the package-level bump-allocation canary;
    retain exact tail placement and keep general fragmented allocators fallible
    unless they supply placement/reservation evidence.

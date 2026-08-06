@@ -63,10 +63,6 @@ Remaining:
   for partial bodyless boundaries and admit only provider custody acceptance.
   Infer only identity-preserving reshuffles; partition-changing primitives must
   author a theorem and wrappers may compose it.
-- Replace the transitional single `Interval<CoordinateSpace>` content carrier
-  with canonical `IntervalSet<CoordinateSpace>` before it becomes durable
-  terminal identity. Define deterministic ordering, adjacency merging, empty
-  representation, separated composition, and residual difference.
 - Add the closed namespace-origin policy and internal algebra account for every
   content-capable root. `ProgramLocal` capacity is owner-authorized declaration
   supply; `ProviderBacked` capacity requires admitted issuance. Report modeled
