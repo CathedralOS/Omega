@@ -5935,6 +5935,47 @@ fn validate_compiler_function_instruction_boundaries(
                             written_offset,
                         },
                     ),
+                    omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyWireScalarSliceAppend {
+                        source_region,
+                        source_offset,
+                        element_byte_size,
+                        zigzag,
+                        out_region,
+                        out_offset,
+                        out_length,
+                        written_region,
+                        written_offset,
+                    } => (
+                        None,
+                        match architecture {
+                            Architecture::X86_64 => omega_isa_x86_64::encode_append_wire_scalar_slice(
+                                source_region,
+                                source_offset,
+                                element_byte_size,
+                                zigzag,
+                                out_offset,
+                                out_length,
+                                written_offset,
+                            )?,
+                            Architecture::Aarch64 => omega_isa_aarch64::encode_append_wire_scalar_slice(
+                                source_region,
+                                source_offset,
+                                element_byte_size,
+                                zigzag,
+                                out_offset,
+                                out_length,
+                                written_offset,
+                            )?,
+                        },
+                        70u8,
+                        CompilerInstructionRelocationRecipe::WireSourceAppend {
+                            source_region,
+                            out_region,
+                            written_region,
+                            out_offset,
+                            written_offset,
+                        },
+                    ),
                     omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyWireExpectedByteRead {
                         buffer_region,
                         buffer_offset,
@@ -9775,6 +9816,20 @@ fn compiler_instruction_footprint(
                 ),
             }
         }
+        CompilerInstructionValidationKind::CompilerBodyWireScalarSliceAppend { .. } => {
+            match architecture {
+                Architecture::X86_64 => (
+                    BoundaryFootprintFragmentOrigin::CompilerBodyWireScalarSliceAppend,
+                    omega_isa_x86_64::append_wire_scalar_slice_clobbers(),
+                    omega_isa_x86_64::append_wire_scalar_slice_additional_machine_state(),
+                ),
+                Architecture::Aarch64 => (
+                    BoundaryFootprintFragmentOrigin::CompilerBodyWireScalarSliceAppend,
+                    omega_isa_aarch64::append_wire_scalar_slice_clobbers(),
+                    omega_isa_aarch64::append_wire_scalar_slice_additional_machine_state(),
+                ),
+            }
+        }
         CompilerInstructionValidationKind::CompilerBodyWireExpectedByteRead {
             read_offset,
             ok_offset,
@@ -10130,6 +10185,7 @@ fn validate_compiler_body_specification_footprints(
                 | BoundaryFootprintFragmentOrigin::CompilerBodyWireLiteralByteAppend
                 | BoundaryFootprintFragmentOrigin::CompilerBodyWireScalarVarintAppend
                 | BoundaryFootprintFragmentOrigin::CompilerBodyWireTextBytesAppend
+                | BoundaryFootprintFragmentOrigin::CompilerBodyWireScalarSliceAppend
                 | BoundaryFootprintFragmentOrigin::CompilerBodyWireExpectedByteRead
                 | BoundaryFootprintFragmentOrigin::CompilerBodyWireScalarVarintRead
                 | BoundaryFootprintFragmentOrigin::CompilerBodyTextAssemblyWrite
@@ -10335,6 +10391,10 @@ fn validate_compiler_body_specification_footprints(
         (
             51u8,
             BoundaryFootprintFragmentOrigin::CompilerBodyWireTextBytesAppend,
+        ),
+        (
+            52u8,
+            BoundaryFootprintFragmentOrigin::CompilerBodyWireScalarSliceAppend,
         ),
     ] {
         let evidence_rows = derived

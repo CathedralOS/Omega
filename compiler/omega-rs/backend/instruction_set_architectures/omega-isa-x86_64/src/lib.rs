@@ -10187,6 +10187,26 @@ pub fn append_wire_scalar_slice_width(
     .len()
 }
 
+pub fn append_wire_scalar_slice_clobbers() -> RegisterSet {
+    RegisterSet::new([
+        MachineRegister::X86Rax,
+        MachineRegister::X86Rcx,
+        MachineRegister::X86Rdx,
+        MachineRegister::X86Rsi,
+        MachineRegister::X86Rdi,
+        MachineRegister::X86R8,
+        MachineRegister::X86R9,
+        MachineRegister::X86R10,
+        MachineRegister::X86R11,
+        MachineRegister::X86R14,
+        MachineRegister::X86R15,
+    ])
+}
+
+pub fn append_wire_scalar_slice_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::new([MachineState::Flags])
+}
+
 pub fn encode_append_wire_scalar_slice(
     source_region: omega_target_operations::RuntimeStorageRegion,
     source_offset: usize,
