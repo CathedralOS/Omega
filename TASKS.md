@@ -216,9 +216,10 @@ Owners:
 
 Remaining:
 
-- inventory every `SelectedInstructionKind` that can still reach the final
-  image without a specific validation kind, then classify and replay the
-  remaining compiler-generated x86-64/AArch64 body and outbound-call classes;
+- make the audited selected-instruction coverage executable: checked assembly
+  stays in its separate closed validator, the four platform scaffolds remain
+  explicitly zero-width, and every other selected instruction must carry a
+  specific compiler-validation kind before it can reach the final image;
 - finish complete entry/body-region enumeration, including format-owned thunks,
   veneers, and generated stubs;
 - derive the complete final register/machine-state union and require exact

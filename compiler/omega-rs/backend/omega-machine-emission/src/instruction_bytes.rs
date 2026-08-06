@@ -8,8 +8,8 @@ use omega_assigned_target_operations::{
 };
 use omega_machine_bytes::{
     CheckedInstructionValidationKind, CheckedOperandLoaderKind, CheckedOperandLoaderRegister,
-    CheckedOperandLoaderValidation, CompilerInstructionValidationKind, EncodedMachineCode,
-    EncodedMachineInstruction,
+    CheckedOperandLoaderValidation, CompilerInstructionAtomicOperation,
+    CompilerInstructionValidationKind, EncodedMachineCode, EncodedMachineInstruction,
 };
 use omega_machine_instructions::{MachineInstruction, MachineInstructionPlan};
 use omega_target_operations::{InstructionOperandLike, RuntimeValueOperandSource};
@@ -1967,6 +1967,173 @@ fn compiler_instruction_validation_kind(
                 },
             )
         }
+        SelectedInstructionKind::AtomicLoad {
+            source_region,
+            source_offset,
+            byte_size,
+            result_region,
+            result_offset,
+            ordering,
+        } => Some(CompilerInstructionValidationKind::CompilerBodyAtomic(
+            CompilerInstructionAtomicOperation::Load {
+                source_region: *source_region,
+                source_offset: *source_offset,
+                byte_size: *byte_size,
+                result_region: *result_region,
+                result_offset: *result_offset,
+                ordering: *ordering,
+            },
+        )),
+        SelectedInstructionKind::AtomicStore {
+            target_region,
+            target_offset,
+            byte_size,
+            value,
+            ordering,
+        } => Some(CompilerInstructionValidationKind::CompilerBodyAtomic(
+            CompilerInstructionAtomicOperation::Store {
+                target_region: *target_region,
+                target_offset: *target_offset,
+                byte_size: *byte_size,
+                value: *value,
+                ordering: *ordering,
+            },
+        )),
+        SelectedInstructionKind::AtomicFetchAdd {
+            target_region,
+            target_offset,
+            byte_size,
+            result_region,
+            result_offset,
+            delta,
+            ordering,
+        } => Some(CompilerInstructionValidationKind::CompilerBodyAtomic(
+            CompilerInstructionAtomicOperation::FetchAdd {
+                target_region: *target_region,
+                target_offset: *target_offset,
+                byte_size: *byte_size,
+                result_region: *result_region,
+                result_offset: *result_offset,
+                delta: *delta,
+                ordering: *ordering,
+            },
+        )),
+        SelectedInstructionKind::AtomicFetchSub {
+            target_region,
+            target_offset,
+            byte_size,
+            result_region,
+            result_offset,
+            delta,
+            ordering,
+        } => Some(CompilerInstructionValidationKind::CompilerBodyAtomic(
+            CompilerInstructionAtomicOperation::FetchSub {
+                target_region: *target_region,
+                target_offset: *target_offset,
+                byte_size: *byte_size,
+                result_region: *result_region,
+                result_offset: *result_offset,
+                delta: *delta,
+                ordering: *ordering,
+            },
+        )),
+        SelectedInstructionKind::AtomicFetchXor {
+            target_region,
+            target_offset,
+            byte_size,
+            result_region,
+            result_offset,
+            value,
+            ordering,
+        } => Some(CompilerInstructionValidationKind::CompilerBodyAtomic(
+            CompilerInstructionAtomicOperation::FetchXor {
+                target_region: *target_region,
+                target_offset: *target_offset,
+                byte_size: *byte_size,
+                result_region: *result_region,
+                result_offset: *result_offset,
+                value: *value,
+                ordering: *ordering,
+            },
+        )),
+        SelectedInstructionKind::AtomicFetchOr {
+            target_region,
+            target_offset,
+            byte_size,
+            result_region,
+            result_offset,
+            value,
+            ordering,
+        } => Some(CompilerInstructionValidationKind::CompilerBodyAtomic(
+            CompilerInstructionAtomicOperation::FetchOr {
+                target_region: *target_region,
+                target_offset: *target_offset,
+                byte_size: *byte_size,
+                result_region: *result_region,
+                result_offset: *result_offset,
+                value: *value,
+                ordering: *ordering,
+            },
+        )),
+        SelectedInstructionKind::AtomicFetchAnd {
+            target_region,
+            target_offset,
+            byte_size,
+            result_region,
+            result_offset,
+            value,
+            ordering,
+        } => Some(CompilerInstructionValidationKind::CompilerBodyAtomic(
+            CompilerInstructionAtomicOperation::FetchAnd {
+                target_region: *target_region,
+                target_offset: *target_offset,
+                byte_size: *byte_size,
+                result_region: *result_region,
+                result_offset: *result_offset,
+                value: *value,
+                ordering: *ordering,
+            },
+        )),
+        SelectedInstructionKind::AtomicSwap {
+            target_region,
+            target_offset,
+            byte_size,
+            result_region,
+            result_offset,
+            new_value,
+            ordering,
+        } => Some(CompilerInstructionValidationKind::CompilerBodyAtomic(
+            CompilerInstructionAtomicOperation::Swap {
+                target_region: *target_region,
+                target_offset: *target_offset,
+                byte_size: *byte_size,
+                result_region: *result_region,
+                result_offset: *result_offset,
+                new_value: *new_value,
+                ordering: *ordering,
+            },
+        )),
+        SelectedInstructionKind::AtomicCompareExchange {
+            target_region,
+            target_offset,
+            byte_size,
+            result_region,
+            result_offset,
+            expected,
+            new_value,
+            ordering,
+        } => Some(CompilerInstructionValidationKind::CompilerBodyAtomic(
+            CompilerInstructionAtomicOperation::CompareExchange {
+                target_region: *target_region,
+                target_offset: *target_offset,
+                byte_size: *byte_size,
+                result_region: *result_region,
+                result_offset: *result_offset,
+                expected: *expected,
+                new_value: *new_value,
+                ordering: *ordering,
+            },
+        )),
         SelectedInstructionKind::WriteRuntimeStorageConvert {
             target_region,
             target_offset,
