@@ -1040,6 +1040,48 @@ fn emit_x86_64_expression_node(
             }
             emit_x86_64_normalize(bytes, scalar_type);
         }
+        TerminalAssignedIntegerExpression::WrappingShiftLeft {
+            count_type,
+            value,
+            count,
+            ..
+        }
+        | TerminalAssignedIntegerExpression::WrappingShiftRight {
+            count_type,
+            value,
+            count,
+            ..
+        } => {
+            emit_x86_64_expression_node(bytes, scalar_type, value, frame_byte_size, stack_depth)?;
+            bytes.push(0x50); // push rax
+            let nested_depth = stack_depth.checked_add(8).ok_or(
+                EmissionError::ExpressionStackDepthNotEncodable {
+                    value: expression_source(value),
+                },
+            )?;
+            emit_x86_64_expression_node(bytes, *count_type, count, frame_byte_size, nested_depth)?;
+            bytes.extend_from_slice(&[0x41, 0x5a]); // pop r10
+            bytes.extend_from_slice(&[0x48, 0x89, 0xc1]); // mov rcx, rax
+            bytes.extend_from_slice(&[0x83, 0xe1, (scalar_type.bits() - 1) as u8]); // and ecx, width - 1
+            match expression {
+                TerminalAssignedIntegerExpression::WrappingShiftLeft { .. } => {
+                    bytes.extend_from_slice(&[0x49, 0xd3, 0xe2]); // shl r10, cl
+                }
+                TerminalAssignedIntegerExpression::WrappingShiftRight { .. } => {
+                    match scalar_type.sign() {
+                        IntegerSign::Signed => {
+                            bytes.extend_from_slice(&[0x49, 0xd3, 0xfa]); // sar r10, cl
+                        }
+                        IntegerSign::Unsigned => {
+                            bytes.extend_from_slice(&[0x49, 0xd3, 0xea]); // shr r10, cl
+                        }
+                    }
+                }
+                _ => unreachable!("outer match admits only wrapping shifts"),
+            }
+            bytes.extend_from_slice(&[0x4c, 0x89, 0xd0]); // mov rax, r10
+            emit_x86_64_normalize(bytes, scalar_type);
+        }
         TerminalAssignedIntegerExpression::WrappingAdd { left, right, .. }
         | TerminalAssignedIntegerExpression::BitwiseAnd { left, right, .. }
         | TerminalAssignedIntegerExpression::BitwiseOr { left, right, .. }
@@ -1509,6 +1551,55 @@ fn emit_aarch64_expression_node(
             )?); // ldr x0, [sp, #value]
             emit_aarch64_normalize(instructions, scalar_type);
         }
+        TerminalAssignedIntegerExpression::WrappingShiftLeft {
+            count_type,
+            value,
+            count,
+            ..
+        }
+        | TerminalAssignedIntegerExpression::WrappingShiftRight {
+            count_type,
+            value,
+            count,
+            ..
+        } => {
+            emit_aarch64_expression_node(instructions, scalar_type, value, frame, stack_depth)?;
+            emit_aarch64_adjust_sp(instructions, 16, false)?;
+            instructions.push(aarch64_stack_access(
+                0xf900_0000,
+                0,
+                expression_source(value),
+                0,
+            )?); // str x0, [sp]
+            let nested_depth = stack_depth.checked_add(16).ok_or(
+                EmissionError::ExpressionStackDepthNotEncodable {
+                    value: expression_source(value),
+                },
+            )?;
+            emit_aarch64_expression_node(instructions, *count_type, count, frame, nested_depth)?;
+            instructions.push(aarch64_stack_access(
+                0xf940_0000,
+                9,
+                expression_source(value),
+                0,
+            )?); // ldr x9, [sp]
+            emit_aarch64_adjust_sp(instructions, 16, true)?;
+            let count_mask_bits = scalar_type.bits().trailing_zeros();
+            instructions.push(0x9240_0000 | ((count_mask_bits - 1) << 10)); // and x0, x0, #width-1
+            match expression {
+                TerminalAssignedIntegerExpression::WrappingShiftLeft { .. } => {
+                    instructions.push(0x9ac0_2120); // lslv x0, x9, x0
+                }
+                TerminalAssignedIntegerExpression::WrappingShiftRight { .. } => {
+                    instructions.push(match scalar_type.sign() {
+                        IntegerSign::Signed => 0x9ac0_2920,   // asrv x0, x9, x0
+                        IntegerSign::Unsigned => 0x9ac0_2520, // lsrv x0, x9, x0
+                    });
+                }
+                _ => unreachable!("outer match admits only wrapping shifts"),
+            }
+            emit_aarch64_normalize(instructions, scalar_type);
+        }
         TerminalAssignedIntegerExpression::WrappingAdd { left, right, .. }
         | TerminalAssignedIntegerExpression::BitwiseAnd { left, right, .. }
         | TerminalAssignedIntegerExpression::BitwiseOr { left, right, .. }
@@ -1746,6 +1837,8 @@ fn expression_source(expression: &TerminalAssignedIntegerExpression) -> ValueId 
         | TerminalAssignedIntegerExpression::BitwiseAnd { left, .. }
         | TerminalAssignedIntegerExpression::BitwiseOr { left, .. }
         | TerminalAssignedIntegerExpression::BitwiseXor { left, .. }
+        | TerminalAssignedIntegerExpression::WrappingShiftLeft { value: left, .. }
+        | TerminalAssignedIntegerExpression::WrappingShiftRight { value: left, .. }
         | TerminalAssignedIntegerExpression::SaturatingAdd { left, .. }
         | TerminalAssignedIntegerExpression::WrappingSubtract { left, .. }
         | TerminalAssignedIntegerExpression::SaturatingSubtract { left, .. }
@@ -2463,6 +2556,47 @@ mod tests {
     }
 
     #[test]
+    fn emits_modulo_count_wrapping_shifts_for_both_architectures() {
+        let u64_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
+        let i64_type = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
+        for (left_shift, value_type, x86_opcode, aarch64_opcode) in [
+            (true, u64_type, [0x49_u8, 0xd3, 0xe2], 0x9ac0_2120_u32),
+            (false, u64_type, [0x49, 0xd3, 0xea], 0x9ac0_2520),
+            (false, i64_type, [0x49, 0xd3, 0xfa], 0x9ac0_2920),
+        ] {
+            let x86 = emit_machine_code(&expression_plan(
+                NativeTarget::linux_x64(),
+                value_type,
+                shift_expression(
+                    left_shift,
+                    i64_type,
+                    TerminalScalarParameterLocation::Register(MachineRegister::X86Rdi),
+                    TerminalScalarParameterLocation::Register(MachineRegister::X86Rsi),
+                ),
+            ))
+            .expect("x86-64 wrapping shift emits");
+            let bytes = &x86.functions[0].bytes;
+            assert!(bytes.windows(3).any(|window| window == [0x83, 0xe1, 63]));
+            assert!(bytes.windows(3).any(|window| window == x86_opcode));
+
+            let aarch64 = emit_machine_code(&expression_plan(
+                NativeTarget::linux_arm64(),
+                value_type,
+                shift_expression(
+                    left_shift,
+                    i64_type,
+                    TerminalScalarParameterLocation::Register(MachineRegister::Aarch64X(0)),
+                    TerminalScalarParameterLocation::Register(MachineRegister::Aarch64X(1)),
+                ),
+            ))
+            .expect("AArch64 wrapping shift emits");
+            let instructions = aarch64_instructions(&aarch64.functions[0].bytes);
+            assert!(instructions.contains(&(0x9240_0000 | (5 << 10))));
+            assert!(instructions.contains(&aarch64_opcode));
+        }
+    }
+
+    #[test]
     fn emits_x86_expression_after_assignment_spills_a_scratch_conflict() {
         let scalar_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
         let emitted = emit_machine_code(&expression_plan(
@@ -3065,6 +3199,40 @@ mod tests {
                 right,
             },
             _ => panic!("unknown bitwise test kind"),
+        }
+    }
+
+    fn shift_expression(
+        left_shift: bool,
+        count_type: IntegerType,
+        value_location: TerminalScalarParameterLocation,
+        count_location: TerminalScalarParameterLocation,
+    ) -> TerminalTargetIntegerExpression {
+        let value = Box::new(TerminalTargetIntegerExpression::Parameter {
+            source_value: ValueId::new(1).expect("value"),
+            parameter_index: 0,
+            location: value_location,
+        });
+        let count = Box::new(TerminalTargetIntegerExpression::Parameter {
+            source_value: ValueId::new(2).expect("count"),
+            parameter_index: 1,
+            location: count_location,
+        });
+        let psi_operation = OperationId::new(3).expect("operation");
+        if left_shift {
+            TerminalTargetIntegerExpression::WrappingShiftLeft {
+                psi_operation,
+                count_type,
+                value,
+                count,
+            }
+        } else {
+            TerminalTargetIntegerExpression::WrappingShiftRight {
+                psi_operation,
+                count_type,
+                value,
+                count,
+            }
         }
     }
 

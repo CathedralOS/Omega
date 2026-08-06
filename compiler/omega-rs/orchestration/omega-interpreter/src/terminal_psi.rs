@@ -330,6 +330,54 @@ impl<'module> TerminalExecution<'module> {
                             TerminalScalarValue::Integer { scalar_type, value },
                         );
                     }
+                    OperationKind::WrappingIntegerShiftLeft { value, count }
+                    | OperationKind::WrappingIntegerShiftRight { value, count } => {
+                        let ScalarType::Integer(value_type) = operation.result.scalar_type else {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        };
+                        let TerminalScalarValue::Integer {
+                            scalar_type: actual_value_type,
+                            value,
+                        } = self
+                            .values
+                            .get(&value)
+                            .copied()
+                            .ok_or(TerminalInterpretError::VerifiedValueMissing(value))?
+                        else {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        };
+                        let TerminalScalarValue::Integer {
+                            scalar_type: count_type,
+                            value: count,
+                        } = self
+                            .values
+                            .get(&count)
+                            .copied()
+                            .ok_or(TerminalInterpretError::VerifiedValueMissing(count))?
+                        else {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        };
+                        if actual_value_type != value_type {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        let value = match operation.kind {
+                            OperationKind::WrappingIntegerShiftLeft { .. } => {
+                                value_type.wrapping_shift_left(value, count_type, count)
+                            }
+                            OperationKind::WrappingIntegerShiftRight { .. } => {
+                                value_type.wrapping_shift_right(value, count_type, count)
+                            }
+                            _ => unreachable!(),
+                        }
+                        .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                        self.values.insert(
+                            operation.result.id,
+                            TerminalScalarValue::Integer {
+                                scalar_type: value_type,
+                                value,
+                            },
+                        );
+                    }
                     OperationKind::WrappingIntegerAdd { left, right } => {
                         let ScalarType::Integer(scalar_type) = operation.result.scalar_type else {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);

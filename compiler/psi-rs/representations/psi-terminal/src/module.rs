@@ -37,6 +37,9 @@ use psi_core::{
 /// two already-defined values of one exact integer type.
 /// Version 20 adds total bitwise AND, OR, and XOR over two already-defined
 /// values of one exact integer type.
+/// Version 21 adds total wrapping left and right shifts. The shifted value and
+/// result share one exact integer type; the count retains its own integer type
+/// and is reduced modulo the shifted value's width.
 /// Older bytes retain their original meaning and identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SemanticVersion(NonZeroU16);
@@ -62,7 +65,8 @@ impl SemanticVersion {
     pub const V18: Self = Self(NonZeroU16::new(18).expect("eighteen is nonzero"));
     pub const V19: Self = Self(NonZeroU16::new(19).expect("nineteen is nonzero"));
     pub const V20: Self = Self(NonZeroU16::new(20).expect("twenty is nonzero"));
-    pub const CURRENT: Self = Self::V20;
+    pub const V21: Self = Self(NonZeroU16::new(21).expect("twenty-one is nonzero"));
+    pub const CURRENT: Self = Self::V21;
 
     pub fn new(raw: u16) -> Option<Self> {
         NonZeroU16::new(raw).map(Self)
@@ -321,6 +325,8 @@ pub enum OperationKind {
     IntegerBitwiseAnd { left: ValueId, right: ValueId },
     IntegerBitwiseOr { left: ValueId, right: ValueId },
     IntegerBitwiseXor { left: ValueId, right: ValueId },
+    WrappingIntegerShiftLeft { value: ValueId, count: ValueId },
+    WrappingIntegerShiftRight { value: ValueId, count: ValueId },
     WrappingIntegerAdd { left: ValueId, right: ValueId },
     SaturatingIntegerAdd { left: ValueId, right: ValueId },
     WrappingIntegerSubtract { left: ValueId, right: ValueId },

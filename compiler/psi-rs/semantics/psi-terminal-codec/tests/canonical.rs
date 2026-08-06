@@ -32,7 +32,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.semantic_version, SemanticVersion::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "67a74cdad08c13afc7628690fa38230b813bb8b6c1bdc91d3d59386ffe192dad"
+        "b83def13b9804b30e35ea9e88192cddfa89c184b8fd4ae80c3f774b97369e830"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -333,6 +333,25 @@ fn v20_integer_bitwise_has_stable_distinct_canonical_bytes() {
             "03939b9634885e2eb145699a615acc6c20d102661dd41c945739c3a62fafabac",
             "65c640057a6241b4c058a008fc60e52f4610f19493cf93add40bb4a9456a4db7",
             "dd37cd20f4ca3deda40ecd0ce94b410c5983d12207dcf8c9bf6d34161341a15d",
+        ]
+    );
+}
+
+#[test]
+fn v21_wrapping_shifts_have_stable_distinct_canonical_bytes() {
+    let mut fingerprints = Vec::new();
+    for left in [true, false] {
+        let module = wrapping_shift_fixture(left);
+        let bytes = encode_module(&module).expect("v21 wrapping shift should encode");
+        assert_eq!(decode_module(&bytes), Ok(module.clone()));
+        assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
+        fingerprints.push(semantic_fingerprint(&module).unwrap().to_string());
+    }
+    assert_eq!(
+        fingerprints,
+        [
+            "b87a1e7f569fc72959db367153851c407032a36ec126f9eb324467d4a7b27703",
+            "aaa2e02bb9b280e4344900e9a1cc59200a0caef1aca79f30e7420ddf5b784aa2",
         ]
     );
 }
@@ -1265,6 +1284,73 @@ fn bitwise_fixture(kind: u8, scalar_type: ScalarType) -> TerminalModule {
                         1 => OperationKind::IntegerBitwiseOr { left, right },
                         2 => OperationKind::IntegerBitwiseXor { left, right },
                         _ => unreachable!(),
+                    },
+                }],
+                terminator: Terminator::Return {
+                    edge: edge_id(12),
+                    value: computed,
+                },
+            }],
+            contract: MachineContract {
+                id: contract_id(12),
+                requires: vec![Proposition::Truth],
+                ensures: vec![ContractClause {
+                    obligation: obligation_id(12),
+                    proposition: Proposition::Truth,
+                }],
+            },
+        }],
+    }
+}
+
+fn wrapping_shift_fixture(left_shift: bool) -> TerminalModule {
+    let value_type =
+        ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 value type"));
+    let count_type =
+        ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 16).expect("i16 count type"));
+    let value = value_id(12);
+    let count = value_id(13);
+    let computed = value_id(14);
+    let result = value_id(15);
+    TerminalModule {
+        semantic_version: SemanticVersion::V21,
+        entry: machine_id(12),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        machines: vec![TerminalMachine {
+            id: machine_id(12),
+            parameters: vec![
+                ValueDeclaration {
+                    id: value,
+                    scalar_type: value_type,
+                },
+                ValueDeclaration {
+                    id: count,
+                    scalar_type: count_type,
+                },
+            ],
+            result: ValueDeclaration {
+                id: result,
+                scalar_type: value_type,
+            },
+            structural_places: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: block_id(12),
+            blocks: vec![Block {
+                id: block_id(12),
+                parameters: Vec::new(),
+                operations: vec![Operation {
+                    id: operation_id(12),
+                    result: ValueDeclaration {
+                        id: computed,
+                        scalar_type: value_type,
+                    },
+                    kind: if left_shift {
+                        OperationKind::WrappingIntegerShiftLeft { value, count }
+                    } else {
+                        OperationKind::WrappingIntegerShiftRight { value, count }
                     },
                 }],
                 terminator: Terminator::Return {

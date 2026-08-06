@@ -250,6 +250,18 @@ pub enum TerminalTargetIntegerExpression {
         left: Box<TerminalTargetIntegerExpression>,
         right: Box<TerminalTargetIntegerExpression>,
     },
+    WrappingShiftLeft {
+        psi_operation: OperationId,
+        count_type: IntegerType,
+        value: Box<TerminalTargetIntegerExpression>,
+        count: Box<TerminalTargetIntegerExpression>,
+    },
+    WrappingShiftRight {
+        psi_operation: OperationId,
+        count_type: IntegerType,
+        value: Box<TerminalTargetIntegerExpression>,
+        count: Box<TerminalTargetIntegerExpression>,
+    },
     WrappingAdd {
         psi_operation: OperationId,
         left: Box<TerminalTargetIntegerExpression>,

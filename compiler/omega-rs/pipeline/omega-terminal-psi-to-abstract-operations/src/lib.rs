@@ -49,6 +49,24 @@ fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, 
         .collect::<BTreeMap<_, _>>();
     let mut operations = Vec::new();
     let mut block_entries = Vec::with_capacity(machine.blocks.len());
+    let value_types = machine
+        .parameters
+        .iter()
+        .chain(std::iter::once(&machine.result))
+        .chain(
+            machine
+                .blocks
+                .iter()
+                .flat_map(|block| block.parameters.iter()),
+        )
+        .chain(
+            machine
+                .blocks
+                .iter()
+                .flat_map(|block| block.operations.iter().map(|operation| &operation.result)),
+        )
+        .map(|value| (value.id, value.scalar_type))
+        .collect::<BTreeMap<_, _>>();
 
     for block in &machine.blocks {
         block_entries.push(TerminalAbstractBlockEntry {
@@ -143,6 +161,39 @@ fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, 
                                 scalar_type,
                                 left,
                                 right,
+                            }
+                        }
+                        _ => unreachable!(),
+                    });
+                }
+                OperationKind::WrappingIntegerShiftLeft { value, count }
+                | OperationKind::WrappingIntegerShiftRight { value, count } => {
+                    let ScalarType::Integer(value_type) = operation.result.scalar_type else {
+                        return Err(LoweringError::VerifiedWrappingShiftMalformed(operation.id));
+                    };
+                    let Some(ScalarType::Integer(count_type)) = value_types.get(&count).copied()
+                    else {
+                        return Err(LoweringError::VerifiedWrappingShiftMalformed(operation.id));
+                    };
+                    operations.push(match operation.kind {
+                        OperationKind::WrappingIntegerShiftLeft { .. } => {
+                            TerminalAbstractOperation::WrappingIntegerShiftLeft {
+                                psi_operation: operation.id,
+                                result: operation.result.id,
+                                value_type,
+                                count_type,
+                                value,
+                                count,
+                            }
+                        }
+                        OperationKind::WrappingIntegerShiftRight { .. } => {
+                            TerminalAbstractOperation::WrappingIntegerShiftRight {
+                                psi_operation: operation.id,
+                                result: operation.result.id,
+                                value_type,
+                                count_type,
+                                value,
+                                count,
                             }
                         }
                         _ => unreachable!(),
@@ -345,6 +396,7 @@ pub enum LoweringError {
     VerifiedWrappingMultiplyMalformed(psi_core::OperationId),
     VerifiedSaturatingMultiplyMalformed(psi_core::OperationId),
     VerifiedIntegerBitwiseMalformed(psi_core::OperationId),
+    VerifiedWrappingShiftMalformed(psi_core::OperationId),
 }
 
 impl std::fmt::Display for LoweringError {

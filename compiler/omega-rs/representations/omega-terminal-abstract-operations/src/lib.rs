@@ -115,6 +115,22 @@ pub enum TerminalAbstractOperation {
         left: ValueId,
         right: ValueId,
     },
+    WrappingIntegerShiftLeft {
+        psi_operation: OperationId,
+        result: ValueId,
+        value_type: IntegerType,
+        count_type: IntegerType,
+        value: ValueId,
+        count: ValueId,
+    },
+    WrappingIntegerShiftRight {
+        psi_operation: OperationId,
+        result: ValueId,
+        value_type: IntegerType,
+        count_type: IntegerType,
+        value: ValueId,
+        count: ValueId,
+    },
     WrappingIntegerAdd {
         psi_operation: OperationId,
         result: ValueId,

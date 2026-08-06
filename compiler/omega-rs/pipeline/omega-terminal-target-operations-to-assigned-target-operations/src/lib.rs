@@ -521,6 +521,28 @@ fn assign_expression(
                 right,
             },
         ),
+        TerminalTargetIntegerExpression::WrappingShiftLeft {
+            psi_operation,
+            count_type,
+            value,
+            count,
+        } => Ok(TerminalAssignedIntegerExpression::WrappingShiftLeft {
+            psi_operation: *psi_operation,
+            count_type: *count_type,
+            value: Box::new(assign_expression(value, locations)?),
+            count: Box::new(assign_expression(count, locations)?),
+        }),
+        TerminalTargetIntegerExpression::WrappingShiftRight {
+            psi_operation,
+            count_type,
+            value,
+            count,
+        } => Ok(TerminalAssignedIntegerExpression::WrappingShiftRight {
+            psi_operation: *psi_operation,
+            count_type: *count_type,
+            value: Box::new(assign_expression(value, locations)?),
+            count: Box::new(assign_expression(count, locations)?),
+        }),
         TerminalTargetIntegerExpression::WrappingAdd {
             psi_operation,
             left,
@@ -721,6 +743,16 @@ fn expression_parameter_locations(
             | TerminalTargetIntegerExpression::BitwiseAnd { left, right, .. }
             | TerminalTargetIntegerExpression::BitwiseOr { left, right, .. }
             | TerminalTargetIntegerExpression::BitwiseXor { left, right, .. }
+            | TerminalTargetIntegerExpression::WrappingShiftLeft {
+                value: left,
+                count: right,
+                ..
+            }
+            | TerminalTargetIntegerExpression::WrappingShiftRight {
+                value: left,
+                count: right,
+                ..
+            }
             | TerminalTargetIntegerExpression::SaturatingAdd { left, right, .. }
             | TerminalTargetIntegerExpression::WrappingSubtract { left, right, .. }
             | TerminalTargetIntegerExpression::SaturatingSubtract { left, right, .. }

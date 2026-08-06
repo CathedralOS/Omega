@@ -67,15 +67,28 @@ pub struct LoweredTerminalPsi {
 enum LoweredDirectExpression {
     Parameter {
         position: usize,
+        scalar_type: ScalarType,
     },
     IntegerLiteral {
         value: IntegerValue,
+        scalar_type: ScalarType,
     },
     IntegerBinary {
         kind: LoweredIntegerBinaryKind,
+        scalar_type: ScalarType,
         left: Box<LoweredDirectExpression>,
         right: Box<LoweredDirectExpression>,
     },
+}
+
+impl LoweredDirectExpression {
+    const fn scalar_type(&self) -> ScalarType {
+        match self {
+            Self::Parameter { scalar_type, .. }
+            | Self::IntegerLiteral { scalar_type, .. }
+            | Self::IntegerBinary { scalar_type, .. } => *scalar_type,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -124,6 +137,8 @@ enum LoweredIntegerBinaryKind {
     BitwiseAnd,
     BitwiseOr,
     BitwiseXor,
+    WrappingShiftLeft,
+    WrappingShiftRight,
     WrappingAdd,
     SaturatingAdd,
     WrappingSubtract,
@@ -138,6 +153,14 @@ impl LoweredIntegerBinaryKind {
             Self::BitwiseAnd => OperationKind::IntegerBitwiseAnd { left, right },
             Self::BitwiseOr => OperationKind::IntegerBitwiseOr { left, right },
             Self::BitwiseXor => OperationKind::IntegerBitwiseXor { left, right },
+            Self::WrappingShiftLeft => OperationKind::WrappingIntegerShiftLeft {
+                value: left,
+                count: right,
+            },
+            Self::WrappingShiftRight => OperationKind::WrappingIntegerShiftRight {
+                value: left,
+                count: right,
+            },
             Self::WrappingAdd => OperationKind::WrappingIntegerAdd { left, right },
             Self::SaturatingAdd => OperationKind::SaturatingIntegerAdd { left, right },
             Self::WrappingSubtract => OperationKind::WrappingIntegerSubtract { left, right },
@@ -1543,9 +1566,6 @@ fn lower_integer_state_chain(
                 "linear-state machine result must be a primitive integer",
             ))?,
     )?;
-    let ScalarType::Integer(result_integer_type) = result_type else {
-        unreachable!("integer source result lowered to a non-integer scalar type");
-    };
     let mut state_parameter_types = Vec::with_capacity(states.len());
     state_parameter_types.push(parameter_types.clone());
     for state in &states[1..] {
@@ -1621,14 +1641,7 @@ fn lower_integer_state_chain(
                 &state_parameter_types[index],
                 *target_type,
             )?;
-            let ScalarType::Integer(target_integer_type) = target_type else {
-                unreachable!("linear state parameters were restricted to integers");
-            };
-            next_known_parameters.push(evaluate_direct_expression(
-                &expression,
-                &known_parameters,
-                *target_integer_type,
-            ));
+            next_known_parameters.push(evaluate_direct_expression(&expression, &known_parameters));
             expressions.push(expression);
         }
         jump_expressions.push(expressions);
@@ -1652,8 +1665,7 @@ fn lower_integer_state_chain(
             .expect("linear chain retains final parameter types"),
         result_type,
     )?;
-    let expected_value =
-        evaluate_direct_expression(&return_expression, &known_parameters, result_integer_type);
+    let expected_value = evaluate_direct_expression(&return_expression, &known_parameters);
 
     let contract_value = validate_contract(checked, machine, result_type, expected_value)?;
     let (identity_reshuffles, partition_compositions) =
@@ -2140,12 +2152,8 @@ fn lower_direct_parameter_machine(
         &parameter_types,
         result_type,
     )?;
-    let ScalarType::Integer(result_integer_type) = result_type else {
-        unreachable!("integer source result lowered to a non-integer scalar type");
-    };
     let known_parameters = vec![None; parameter_types.len()];
-    let expected_value =
-        evaluate_direct_expression(&return_expression, &known_parameters, result_integer_type);
+    let expected_value = evaluate_direct_expression(&return_expression, &known_parameters);
     let contract_value = validate_contract(checked, machine, result_type, expected_value)?;
     let (identity_reshuffles, partition_compositions) =
         lower_content_evidence(checked, machine, entry_state)?;
@@ -2166,25 +2174,45 @@ fn lower_direct_return_expression(
     parameter_types: &[ScalarType],
     result_type: ScalarType,
 ) -> Result<(LoweredDirectExpression, ArithmeticDomain), LoweringError> {
+    let (expression, domain) =
+        lower_direct_expression(checked, expression, parameters, parameter_types)?;
+    if expression.scalar_type() != result_type {
+        return unsupported("direct expression and destination types must match exactly");
+    }
+    Ok((expression, domain))
+}
+
+fn lower_direct_expression(
+    checked: &CheckedTrees,
+    expression: psi_checked_trees::expression::ExpressionHandle,
+    parameters: &[psi_checked_trees::signature::StateParameter],
+    parameter_types: &[ScalarType],
+) -> Result<(LoweredDirectExpression, ArithmeticDomain), LoweringError> {
     match checked.expression_table.expression(expression) {
         ExpressionNode::Name(path) => {
             let position = direct_parameter_position(checked, path, parameters)?;
-            if parameter_types[position] != result_type {
-                return unsupported(
-                    "returned parameter and machine result types must match exactly",
-                );
-            }
+            let scalar_type = parameter_types[position];
             Ok((
-                LoweredDirectExpression::Parameter { position },
+                LoweredDirectExpression::Parameter {
+                    position,
+                    scalar_type,
+                },
                 checked.arithmetic_domain_for_type_reference(parameters[position].type_reference),
             ))
         }
-        ExpressionNode::Integer(literal) => Ok((
-            LoweredDirectExpression::IntegerLiteral {
-                value: integer_value(literal, result_type)?,
-            },
-            ArithmeticDomain::Exact,
-        )),
+        ExpressionNode::Integer(literal) => {
+            let scalar_type = integer_landing_scalar_type(literal)?;
+            Ok((
+                LoweredDirectExpression::IntegerLiteral {
+                    value: integer_value(literal, scalar_type)?,
+                    scalar_type,
+                },
+                literal
+                    .landing()
+                    .map(|landing| landing.domain)
+                    .unwrap_or(ArithmeticDomain::Exact),
+            ))
+        }
         ExpressionNode::Mutable(_) => {
             unsupported("direct terminal expressions do not support mutable-place wrappers")
         }
@@ -2196,25 +2224,31 @@ fn lower_direct_return_expression(
                     "terminal integer binary expression must use the builtin operator",
                 );
             }
-            let (left, left_domain) = lower_direct_return_expression(
-                checked,
-                binary.left,
-                parameters,
-                parameter_types,
-                result_type,
-            )?;
-            let (right, right_domain) = lower_direct_return_expression(
-                checked,
-                binary.right,
-                parameters,
-                parameter_types,
-                result_type,
-            )?;
-            let domain = combine_terminal_arithmetic_domains(left_domain, right_domain)?;
+            let (left, left_domain) =
+                lower_direct_expression(checked, binary.left, parameters, parameter_types)?;
+            let (right, right_domain) =
+                lower_direct_expression(checked, binary.right, parameters, parameter_types)?;
+            let shift = matches!(
+                binary.operator,
+                BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
+            );
+            let domain = if shift {
+                left_domain
+            } else {
+                combine_terminal_arithmetic_domains(left_domain, right_domain)?
+            };
             let kind = lowered_integer_binary_kind(binary.operator, domain)?;
+            let scalar_type = left.scalar_type();
+            if !matches!(scalar_type, ScalarType::Integer(_))
+                || !matches!(right.scalar_type(), ScalarType::Integer(_))
+                || (!shift && right.scalar_type() != scalar_type)
+            {
+                return unsupported("terminal integer operation has incompatible operand types");
+            }
             Ok((
                 LoweredDirectExpression::IntegerBinary {
                     kind,
+                    scalar_type,
                     left: Box::new(left),
                     right: Box::new(right),
                 },
@@ -2228,20 +2262,40 @@ fn lower_direct_return_expression(
 fn evaluate_direct_expression(
     expression: &LoweredDirectExpression,
     parameters: &[Option<IntegerValue>],
-    integer_type: IntegerType,
 ) -> Option<IntegerValue> {
     match expression {
-        LoweredDirectExpression::Parameter { position } => {
+        LoweredDirectExpression::Parameter { position, .. } => {
             parameters.get(*position).copied().flatten()
         }
-        LoweredDirectExpression::IntegerLiteral { value } => Some(*value),
-        LoweredDirectExpression::IntegerBinary { kind, left, right } => {
-            let left = evaluate_direct_expression(left, parameters, integer_type)?;
-            let right = evaluate_direct_expression(right, parameters, integer_type)?;
+        LoweredDirectExpression::IntegerLiteral { value, .. } => Some(*value),
+        LoweredDirectExpression::IntegerBinary {
+            kind,
+            scalar_type,
+            left,
+            right,
+        } => {
+            let ScalarType::Integer(integer_type) = scalar_type else {
+                return None;
+            };
+            let count_type = right.scalar_type();
+            let left = evaluate_direct_expression(left, parameters)?;
+            let right = evaluate_direct_expression(right, parameters)?;
             match kind {
                 LoweredIntegerBinaryKind::BitwiseAnd => integer_type.bitwise_and(left, right),
                 LoweredIntegerBinaryKind::BitwiseOr => integer_type.bitwise_or(left, right),
                 LoweredIntegerBinaryKind::BitwiseXor => integer_type.bitwise_xor(left, right),
+                LoweredIntegerBinaryKind::WrappingShiftLeft => {
+                    let ScalarType::Integer(count_type) = count_type else {
+                        return None;
+                    };
+                    integer_type.wrapping_shift_left(left, count_type, right)
+                }
+                LoweredIntegerBinaryKind::WrappingShiftRight => {
+                    let ScalarType::Integer(count_type) = count_type else {
+                        return None;
+                    };
+                    integer_type.wrapping_shift_right(left, count_type, right)
+                }
                 LoweredIntegerBinaryKind::WrappingAdd => integer_type.wrapping_add(left, right),
                 LoweredIntegerBinaryKind::SaturatingAdd => integer_type.saturating_add(left, right),
                 LoweredIntegerBinaryKind::WrappingSubtract => {
@@ -2303,6 +2357,12 @@ fn lowered_integer_binary_kind(
         (BinaryOperator::BitwiseAnd, _) => Ok(LoweredIntegerBinaryKind::BitwiseAnd),
         (BinaryOperator::BitwiseOr, _) => Ok(LoweredIntegerBinaryKind::BitwiseOr),
         (BinaryOperator::BitwiseXor, _) => Ok(LoweredIntegerBinaryKind::BitwiseXor),
+        (BinaryOperator::ShiftLeft, ArithmeticDomain::Wrapping) => {
+            Ok(LoweredIntegerBinaryKind::WrappingShiftLeft)
+        }
+        (BinaryOperator::ShiftRight, ArithmeticDomain::Wrapping) => {
+            Ok(LoweredIntegerBinaryKind::WrappingShiftRight)
+        }
         (BinaryOperator::Add, ArithmeticDomain::Wrapping) => {
             Ok(LoweredIntegerBinaryKind::WrappingAdd)
         }
@@ -2501,6 +2561,29 @@ fn terminal_scalar_type(primitive: PrimitiveType) -> Result<ScalarType, Lowering
     }
 }
 
+fn integer_landing_scalar_type(
+    literal: &psi_numerics::literals::IntegerLiteral,
+) -> Result<ScalarType, LoweringError> {
+    use psi_numerics::literals::LandedIntegerType;
+
+    let primitive = match literal
+        .landing()
+        .ok_or(LoweringError::UnlandedIntegerLiteral)?
+        .landed_type
+    {
+        LandedIntegerType::I8 => PrimitiveType::I8,
+        LandedIntegerType::I16 => PrimitiveType::I16,
+        LandedIntegerType::I32 => PrimitiveType::I32,
+        LandedIntegerType::I64 => PrimitiveType::I64,
+        LandedIntegerType::U8 => PrimitiveType::U8,
+        LandedIntegerType::U16 => PrimitiveType::U16,
+        LandedIntegerType::U32 => PrimitiveType::U32,
+        LandedIntegerType::U64 => PrimitiveType::U64,
+        LandedIntegerType::Addr => PrimitiveType::Addr,
+    };
+    integer_scalar_type(primitive)
+}
+
 fn integer_value(
     literal: &psi_numerics::literals::IntegerLiteral,
     scalar_type: ScalarType,
@@ -2597,7 +2680,6 @@ fn build_integer_conditional_module(
     let true_value = emit_direct_expression(
         &when_true_expression,
         &true_parameters,
-        result_type,
         &mut next_value_identity,
         &mut all_operations,
     );
@@ -2605,7 +2687,6 @@ fn build_integer_conditional_module(
     let false_value = emit_direct_expression(
         &when_false_expression,
         &false_parameters,
-        result_type,
         &mut next_value_identity,
         &mut all_operations,
     );
@@ -3944,7 +4025,6 @@ fn build_direct_parameter_module(
     let returned = emit_direct_expression(
         &return_expression,
         &terminal_parameters,
-        result_type,
         &mut next_value_identity,
         &mut operations,
     );
@@ -4018,13 +4098,12 @@ fn build_direct_parameter_module(
 fn emit_direct_expression(
     expression: &LoweredDirectExpression,
     parameters: &[ValueDeclaration],
-    scalar_type: ScalarType,
     next_value_identity: &mut u64,
     operations: &mut Vec<Operation>,
 ) -> ValueId {
     match expression {
-        LoweredDirectExpression::Parameter { position } => parameters[*position].id,
-        LoweredDirectExpression::IntegerLiteral { value } => {
+        LoweredDirectExpression::Parameter { position, .. } => parameters[*position].id,
+        LoweredDirectExpression::IntegerLiteral { value, scalar_type } => {
             let id = value_id(*next_value_identity);
             *next_value_identity = next_value_identity
                 .checked_add(1)
@@ -4036,26 +4115,22 @@ fn emit_direct_expression(
                         .checked_add(1)
                         .expect("operation identity is nonzero"),
                 ),
-                result: ValueDeclaration { id, scalar_type },
+                result: ValueDeclaration {
+                    id,
+                    scalar_type: *scalar_type,
+                },
                 kind: OperationKind::IntegerConstant { value: *value },
             });
             id
         }
-        LoweredDirectExpression::IntegerBinary { kind, left, right } => {
-            let left = emit_direct_expression(
-                left,
-                parameters,
-                scalar_type,
-                next_value_identity,
-                operations,
-            );
-            let right = emit_direct_expression(
-                right,
-                parameters,
-                scalar_type,
-                next_value_identity,
-                operations,
-            );
+        LoweredDirectExpression::IntegerBinary {
+            kind,
+            scalar_type,
+            left,
+            right,
+        } => {
+            let left = emit_direct_expression(left, parameters, next_value_identity, operations);
+            let right = emit_direct_expression(right, parameters, next_value_identity, operations);
             let id = value_id(*next_value_identity);
             *next_value_identity = next_value_identity
                 .checked_add(1)
@@ -4067,7 +4142,10 @@ fn emit_direct_expression(
                         .checked_add(1)
                         .expect("operation identity is nonzero"),
                 ),
-                result: ValueDeclaration { id, scalar_type },
+                result: ValueDeclaration {
+                    id,
+                    scalar_type: *scalar_type,
+                },
                 kind: kind.operation(left, right),
             });
             id
@@ -4113,11 +4191,10 @@ fn build_integer_state_chain_module(
         let jump_values = jump_expressions
             .iter()
             .zip(target_types)
-            .map(|(jump_expression, scalar_type)| {
+            .map(|(jump_expression, _scalar_type)| {
                 emit_direct_expression(
                     jump_expression,
                     &current_parameters,
-                    *scalar_type,
                     &mut next_value_identity,
                     &mut all_operations,
                 )
@@ -4171,7 +4248,6 @@ fn build_integer_state_chain_module(
     let return_value = emit_direct_expression(
         &return_expression,
         &current_parameters,
-        result_type,
         &mut next_value_identity,
         &mut all_operations,
     );
