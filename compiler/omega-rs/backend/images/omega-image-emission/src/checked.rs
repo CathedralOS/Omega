@@ -445,6 +445,19 @@ fn outbound_relocated_operand_region(
                 .runtime_large_aggregate()
                 .map(|(region, _, _, _)| region)
         })
+        .or_else(|| operand.runtime_storage_address().map(|(region, _)| region))
+        .or_else(|| operand.runtime_string_pointer().map(|(region, _)| region))
+        .or_else(|| operand.runtime_string_length().map(|(region, _)| region))
+        .or_else(|| {
+            operand
+                .runtime_pointee_string_pointer()
+                .map(|(region, _)| region)
+        })
+        .or_else(|| {
+            operand
+                .runtime_pointee_string_length()
+                .map(|(region, _)| region)
+        })
 }
 
 fn encode_no_result_import(
@@ -462,7 +475,11 @@ fn encode_no_result_import(
 > {
     use omega_target_operations::InstructionOperandLike;
 
-    if plan.result.is_some()
+    let get_std_handle = matches!(
+        operation_key.operation,
+        omega_calling_conventions::HostOperation::GetStdHandle
+    );
+    if (plan.result.is_some() && !get_std_handle)
         || plan.parameters.len() != operands.len()
         || operands.is_empty()
         || !operands.iter().all(|operand| {
@@ -608,10 +625,19 @@ fn encode_integer_result_import(
             "final immediate-result import replay lost its scalar result storage",
         ));
     };
+    let win64_out_parameter = architecture == Architecture::X86_64
+        && operation_key.capability == omega_calling_conventions::HostCapability::Clock
+        && matches!(
+            operation_key.operation,
+            omega_calling_conventions::HostOperation::MonotonicTicks
+                | omega_calling_conventions::HostOperation::MonotonicTicksPerSecond
+                | omega_calling_conventions::HostOperation::WallClockRaw
+        );
     if !matches!(
         result.shape.class,
         omega_calling_conventions::ValueClass::Integer
-    ) || plan.parameters.len() + 1 != operands.len()
+    ) || (!win64_out_parameter && plan.parameters.len() + 1 != operands.len())
+        || (win64_out_parameter && operands.len() != 1)
         || !operands[1..].iter().all(|operand| {
             operand.immediate_integer().is_some() || operand.runtime_scalar_integer().is_some()
         })
@@ -792,12 +818,29 @@ fn encode_scalar_parameter_import(
 ) -> Result<(Vec<u8>, usize, Vec<(usize, OutboundCallRelocationTarget)>), Diagnostic> {
     use omega_target_operations::InstructionOperandLike;
 
-    let result_operand_count = usize::from(plan.result.is_some());
+    let win64_composite_io = architecture == Architecture::X86_64
+        && matches!(
+            (operation_key.capability, operation_key.operation),
+            (
+                omega_calling_conventions::HostCapability::Stdout
+                    | omega_calling_conventions::HostCapability::Stderr,
+                omega_calling_conventions::HostOperation::Write
+                    | omega_calling_conventions::HostOperation::WriteFile
+            ) | (
+                omega_calling_conventions::HostCapability::Stdin,
+                omega_calling_conventions::HostOperation::ReadFile
+            )
+        );
+    let result_operand_count = if win64_composite_io {
+        0
+    } else {
+        usize::from(plan.result.is_some())
+    };
     let arguments = operands.get(result_operand_count..).ok_or_else(|| {
         Diagnostic::error("final scalar-parameter import replay lost its result operand")
     })?;
     if operation_key.dereferences_result()
-        || plan.parameters.len() != arguments.len()
+        || (plan.parameters.len() != arguments.len() && !win64_composite_io)
         || !arguments.iter().all(|operand| {
             operand.immediate_integer().is_some()
                 || operand.runtime_scalar_integer().is_some()
@@ -807,21 +850,28 @@ fn encode_scalar_parameter_import(
                 || operand.runtime_small_aggregate().is_some()
                 || operand.runtime_large_aggregate().is_some()
                 || operand.data_address().is_some()
+                || operand.runtime_storage_address().is_some()
+                || operand.runtime_string_pointer().is_some()
+                || operand.runtime_string_length().is_some()
+                || operand.runtime_pointee_string_pointer().is_some()
+                || operand.runtime_pointee_string_length().is_some()
+                || operand.byte_length().is_some()
         })
-        || plan
-            .result
-            .as_ref()
-            .is_some_and(|result| match result.shape.class {
-                omega_calling_conventions::ValueClass::Integer => operands
-                    .first()
-                    .and_then(InstructionOperandLike::runtime_scalar_integer)
-                    .is_none(),
-                omega_calling_conventions::ValueClass::Float => operands
-                    .first()
-                    .and_then(InstructionOperandLike::runtime_scalar_float)
-                    .is_none(),
-                _ => true,
-            })
+        || (!win64_composite_io
+            && plan
+                .result
+                .as_ref()
+                .is_some_and(|result| match result.shape.class {
+                    omega_calling_conventions::ValueClass::Integer => operands
+                        .first()
+                        .and_then(InstructionOperandLike::runtime_scalar_integer)
+                        .is_none(),
+                    omega_calling_conventions::ValueClass::Float => operands
+                        .first()
+                        .and_then(InstructionOperandLike::runtime_scalar_float)
+                        .is_none(),
+                    _ => true,
+                }))
     {
         return Err(Diagnostic::error(
             "final scalar-parameter import replay requires scalar/data-address arguments and at most one direct scalar result",
@@ -4710,11 +4760,9 @@ fn validate_compiler_function_instruction_boundaries(
                             &data_symbols,
                             &plan,
                         )?;
-                        if !address_sites.iter().any(|(_, target)| {
-                            matches!(target, OutboundCallRelocationTarget::Data(_))
-                        }) {
+                        if address_sites.is_empty() {
                             return Err(Diagnostic::error(
-                                "final data-parameter import replay lost its data-object relocation",
+                                "final data-parameter import replay lost its address relocation",
                             ));
                         }
                         (
@@ -4744,11 +4792,11 @@ fn validate_compiler_function_instruction_boundaries(
                             &data_symbols,
                             &plan,
                         )?;
-                        if !address_sites.iter().any(|(_, target)| {
-                            matches!(target, OutboundCallRelocationTarget::Data(_))
-                        }) || !address_sites.iter().any(|(_, target)| {
-                            matches!(target, OutboundCallRelocationTarget::Storage(_))
-                        }) {
+                        if address_sites.len() < 2
+                            || !address_sites.iter().any(|(_, target)| {
+                                matches!(target, OutboundCallRelocationTarget::Storage(_))
+                            })
+                        {
                             return Err(Diagnostic::error(
                                 "final result-bearing data-parameter import replay lost its relocation roots",
                             ));

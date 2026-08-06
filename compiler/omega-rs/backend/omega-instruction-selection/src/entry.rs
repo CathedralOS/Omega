@@ -1872,7 +1872,11 @@ fn derive_boundary_compiler_body_outbound_direct_import_footprint(
             || selected_operands.is_empty()
             || match argument_class {
                 DirectImportArgumentClass::Immediate => {
-                    binding.call_plan().result.is_some()
+                    (binding.call_plan().result.is_some()
+                        && !matches!(
+                            operation.operation_key.operation,
+                            omega_calling_conventions::HostOperation::GetStdHandle
+                        ))
                         || binding.call_plan().parameters.len() != selected_operands.len()
                         || selected_operands.iter().any(|operand| {
                             !matches!(operand.kind, InstructionOperandKind::ImmediateInteger(_))
@@ -1896,12 +1900,23 @@ fn derive_boundary_compiler_body_outbound_direct_import_footprint(
                         })
                 }
                 DirectImportArgumentClass::ImmediateResult => {
+                    let win64_out_parameter = input.target.architecture
+                        == omega_target::Architecture::X86_64
+                        && operation.operation_key.capability == HostCapability::Clock
+                        && matches!(
+                            operation.operation_key.operation,
+                            omega_calling_conventions::HostOperation::MonotonicTicks
+                                | omega_calling_conventions::HostOperation::MonotonicTicksPerSecond
+                                | omega_calling_conventions::HostOperation::WallClockRaw
+                        );
                     !binding.call_plan().result.as_ref().is_some_and(|result| {
                         matches!(
                             result.shape.class,
                             omega_calling_conventions::ValueClass::Integer
                         )
-                    }) || binding.call_plan().parameters.len() + 1 != selected_operands.len()
+                    }) || (!win64_out_parameter
+                        && binding.call_plan().parameters.len() + 1 != selected_operands.len())
+                        || (win64_out_parameter && selected_operands.len() != 1)
                         || !matches!(
                             selected_operands.first().map(|operand| &operand.kind),
                             Some(InstructionOperandKind::RuntimeScalarInteger { .. })
@@ -1946,17 +1961,48 @@ fn derive_boundary_compiler_body_outbound_direct_import_footprint(
                         )
                 }
                 DirectImportArgumentClass::Data => {
-                    binding.call_plan().result.is_some()
-                        || binding.call_plan().parameters.len() != selected_operands.len()
+                    let win64_composite_io = input.target.architecture
+                        == omega_target::Architecture::X86_64
+                        && matches!(
+                            (
+                                operation.operation_key.capability,
+                                operation.operation_key.operation,
+                            ),
+                            (
+                                HostCapability::Stdout | HostCapability::Stderr,
+                                omega_calling_conventions::HostOperation::Write
+                                    | omega_calling_conventions::HostOperation::WriteFile
+                            ) | (
+                                HostCapability::Stdin,
+                                omega_calling_conventions::HostOperation::ReadFile
+                            )
+                        );
+                    (binding.call_plan().result.is_some() && !win64_composite_io)
+                        || (binding.call_plan().parameters.len() != selected_operands.len()
+                            && !win64_composite_io)
                         || !selected_operands.iter().any(|operand| {
-                            matches!(operand.kind, InstructionOperandKind::DataAddress { .. })
+                            matches!(
+                                operand.kind,
+                                InstructionOperandKind::DataAddress { .. }
+                                    | InstructionOperandKind::RuntimeStringPointer { .. }
+                                    | InstructionOperandKind::RuntimeStringLength { .. }
+                                    | InstructionOperandKind::RuntimePointeeStringPointer { .. }
+                                    | InstructionOperandKind::RuntimePointeeStringLength { .. }
+                                    | InstructionOperandKind::RuntimeStorageAddress { .. }
+                            )
                         })
                         || !selected_operands.iter().all(|operand| {
                             matches!(
                                 operand.kind,
                                 InstructionOperandKind::ImmediateInteger(_)
+                                    | InstructionOperandKind::ByteLength(_)
                                     | InstructionOperandKind::RuntimeScalarInteger { .. }
                                     | InstructionOperandKind::DataAddress { .. }
+                                    | InstructionOperandKind::RuntimeStringPointer { .. }
+                                    | InstructionOperandKind::RuntimeStringLength { .. }
+                                    | InstructionOperandKind::RuntimePointeeStringPointer { .. }
+                                    | InstructionOperandKind::RuntimePointeeStringLength { .. }
+                                    | InstructionOperandKind::RuntimeStorageAddress { .. }
                             )
                         })
                 }
@@ -1972,14 +2018,28 @@ fn derive_boundary_compiler_body_outbound_direct_import_footprint(
                             Some(InstructionOperandKind::RuntimeScalarInteger { .. })
                         )
                         || !selected_operands[1..].iter().any(|operand| {
-                            matches!(operand.kind, InstructionOperandKind::DataAddress { .. })
+                            matches!(
+                                operand.kind,
+                                InstructionOperandKind::DataAddress { .. }
+                                    | InstructionOperandKind::RuntimeStringPointer { .. }
+                                    | InstructionOperandKind::RuntimeStringLength { .. }
+                                    | InstructionOperandKind::RuntimePointeeStringPointer { .. }
+                                    | InstructionOperandKind::RuntimePointeeStringLength { .. }
+                                    | InstructionOperandKind::RuntimeStorageAddress { .. }
+                            )
                         })
                         || !selected_operands[1..].iter().all(|operand| {
                             matches!(
                                 operand.kind,
                                 InstructionOperandKind::ImmediateInteger(_)
+                                    | InstructionOperandKind::ByteLength(_)
                                     | InstructionOperandKind::RuntimeScalarInteger { .. }
                                     | InstructionOperandKind::DataAddress { .. }
+                                    | InstructionOperandKind::RuntimeStringPointer { .. }
+                                    | InstructionOperandKind::RuntimeStringLength { .. }
+                                    | InstructionOperandKind::RuntimePointeeStringPointer { .. }
+                                    | InstructionOperandKind::RuntimePointeeStringLength { .. }
+                                    | InstructionOperandKind::RuntimeStorageAddress { .. }
                             )
                         })
                 }
@@ -1992,6 +2052,7 @@ fn derive_boundary_compiler_body_outbound_direct_import_footprint(
                                 InstructionOperandKind::ImmediateInteger(_)
                                     | InstructionOperandKind::RuntimeScalarInteger { .. }
                                     | InstructionOperandKind::DataAddress { .. }
+                                    | InstructionOperandKind::RuntimeStorageAddress { .. }
                             )
                         })
                 }
@@ -2012,6 +2073,7 @@ fn derive_boundary_compiler_body_outbound_direct_import_footprint(
                                 InstructionOperandKind::ImmediateInteger(_)
                                     | InstructionOperandKind::RuntimeScalarInteger { .. }
                                     | InstructionOperandKind::DataAddress { .. }
+                                    | InstructionOperandKind::RuntimeStorageAddress { .. }
                             )
                         })
                 }
