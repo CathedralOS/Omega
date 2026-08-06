@@ -63,11 +63,11 @@ Remaining:
   for partial bodyless boundaries and admit only provider custody acceptance.
   Infer only identity-preserving reshuffles; partition-changing primitives must
   author a theorem and wrappers may compose it.
-- Add the closed namespace-origin policy and internal algebra account for every
-  content-capable root. `ProgramLocal` capacity is owner-authorized declaration
-  supply; `ProviderBacked` capacity requires admitted issuance. Report modeled
-  identity coverage and do not let quantity-only conservation imply unit
-  identity.
+- **NAMESPACE-ORIGIN — blocked on `OWNER_QUESTIONS.md` Q6.** Add the closed
+  namespace-origin policy and internal algebra account for every content-capable
+  root. `ProgramLocal` capacity is owner-authorized declaration supply;
+  `ProviderBacked` capacity requires admitted issuance. Report modeled identity
+  coverage and do not let quantity-only conservation imply unit identity.
 - **BOUNDARY-ISSUANCE — depends on the conservation work above.** Derive
   per-invocation geometry from ordinary parameters, entry places, and returned
   values. Retain external ownership, fresh issuance, custody delegation,
