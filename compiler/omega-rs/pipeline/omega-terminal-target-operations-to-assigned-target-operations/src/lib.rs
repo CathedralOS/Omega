@@ -622,6 +622,28 @@ fn assign_boolean_expression(
             left: Box::new(assign_expression(left, locations)?),
             right: Box::new(assign_expression(right, locations)?),
         }),
+        TerminalTargetBooleanExpression::IntegerLessThan {
+            psi_operation,
+            scalar_type,
+            left,
+            right,
+        } => Ok(TerminalAssignedBooleanExpression::IntegerLessThan {
+            psi_operation: *psi_operation,
+            scalar_type: *scalar_type,
+            left: Box::new(assign_expression(left, locations)?),
+            right: Box::new(assign_expression(right, locations)?),
+        }),
+        TerminalTargetBooleanExpression::IntegerLessOrEqual {
+            psi_operation,
+            scalar_type,
+            left,
+            right,
+        } => Ok(TerminalAssignedBooleanExpression::IntegerLessOrEqual {
+            psi_operation: *psi_operation,
+            scalar_type: *scalar_type,
+            left: Box::new(assign_expression(left, locations)?),
+            right: Box::new(assign_expression(right, locations)?),
+        }),
     }
 }
 
@@ -699,7 +721,9 @@ fn boolean_expression_parameter_locations(
                 collect(left, locations)?;
                 collect(right, locations)?;
             }
-            TerminalTargetBooleanExpression::IntegerEqual { left, right, .. } => {
+            TerminalTargetBooleanExpression::IntegerEqual { left, right, .. }
+            | TerminalTargetBooleanExpression::IntegerLessThan { left, right, .. }
+            | TerminalTargetBooleanExpression::IntegerLessOrEqual { left, right, .. } => {
                 for (parameter_index, (source_value, location)) in
                     expression_parameter_locations(left)?
                         .into_iter()

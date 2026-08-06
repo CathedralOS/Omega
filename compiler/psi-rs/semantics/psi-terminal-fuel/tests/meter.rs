@@ -40,6 +40,22 @@ fn current_vocabulary_has_explicit_v1_costs_and_attribution() {
         1,
         "Boolean equality has one explicit v1-schedule unit"
     );
+    for kind in [
+        OperationKind::IntegerLessThan {
+            left: value_id(1),
+            right: value_id(2),
+        },
+        OperationKind::IntegerLessOrEqual {
+            left: value_id(1),
+            right: value_id(2),
+        },
+    ] {
+        assert_eq!(
+            TerminalFuelSchedule::V1.operation_units(&kind),
+            1,
+            "each integer ordering operation has one explicit v1-schedule unit"
+        );
+    }
     let operation = operation();
     let jump = Terminator::Jump {
         edge: edge_id(1),

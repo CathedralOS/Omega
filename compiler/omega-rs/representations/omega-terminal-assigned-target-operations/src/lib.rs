@@ -118,6 +118,18 @@ pub enum TerminalAssignedBooleanExpression {
         left: Box<TerminalAssignedIntegerExpression>,
         right: Box<TerminalAssignedIntegerExpression>,
     },
+    IntegerLessThan {
+        psi_operation: OperationId,
+        scalar_type: IntegerType,
+        left: Box<TerminalAssignedIntegerExpression>,
+        right: Box<TerminalAssignedIntegerExpression>,
+    },
+    IntegerLessOrEqual {
+        psi_operation: OperationId,
+        scalar_type: IntegerType,
+        left: Box<TerminalAssignedIntegerExpression>,
+        right: Box<TerminalAssignedIntegerExpression>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

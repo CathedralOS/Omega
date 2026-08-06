@@ -32,7 +32,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.semantic_version, SemanticVersion::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "e1cd37c8aac140237fdc3840b5eadb653a87580fdb49791bf63efcaf60855b01"
+        "e2403c35e73bec7223d502c31fab9a1100416359518971acdbe30b3d3e4b7867"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -270,6 +270,48 @@ fn v18_integer_equality_has_stable_canonical_bytes() {
     assert_eq!(
         semantic_fingerprint(&module).unwrap().to_string(),
         "485cc2e33baf30365538ecc6086e14debdcd9acf860a4f547e48eb5a75c1ea67"
+    );
+}
+
+#[test]
+fn v19_integer_ordering_has_stable_distinct_canonical_bytes() {
+    let integer = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+    let scalar_type = ScalarType::Integer(integer);
+    let mut fingerprints = Vec::new();
+    for inclusive in [false, true] {
+        let mut module = boolean_fixture(SemanticVersion::V19);
+        module.machines[0].parameters = vec![
+            ValueDeclaration {
+                id: value_id(12),
+                scalar_type,
+            },
+            ValueDeclaration {
+                id: value_id(13),
+                scalar_type,
+            },
+        ];
+        module.machines[0].blocks[0].operations[0].kind = if inclusive {
+            OperationKind::IntegerLessOrEqual {
+                left: value_id(12),
+                right: value_id(13),
+            }
+        } else {
+            OperationKind::IntegerLessThan {
+                left: value_id(12),
+                right: value_id(13),
+            }
+        };
+        let bytes = encode_module(&module).expect("v19 integer ordering should encode");
+        assert_eq!(decode_module(&bytes), Ok(module.clone()));
+        assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
+        fingerprints.push(semantic_fingerprint(&module).unwrap().to_string());
+    }
+    assert_eq!(
+        fingerprints,
+        [
+            "b3ff100dce2ca7694563837ae403e3f6754be7e1d29a395d086f853ca0832032",
+            "d5b9ae3bdd3b3ced4fb6e9d03116f6df7128325c388035be437c4c3fb0d09baa",
+        ]
     );
 }
 

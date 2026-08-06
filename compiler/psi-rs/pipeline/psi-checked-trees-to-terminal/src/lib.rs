@@ -1684,7 +1684,7 @@ fn lower_boolean_machine(
                 })
         })
     {
-        return lower_integer_equality_machine(checked, machine, entry_state);
+        return lower_integer_comparison_machine(checked, machine, entry_state);
     }
     if parameters
         .iter()
@@ -1719,7 +1719,7 @@ fn lower_boolean_machine(
     ))
 }
 
-fn lower_integer_equality_machine(
+fn lower_integer_comparison_machine(
     checked: &CheckedTrees,
     machine: &psi_checked_trees::machine::Machine,
     entry_state: &psi_checked_trees::state::State,
@@ -1729,52 +1729,57 @@ fn lower_integer_equality_machine(
         .iter()
         .any(|parameter| parameter.is_self || parameter.is_const || parameter.is_mutable)
     {
-        return unsupported("qualified integer-equality parameters are not supported");
+        return unsupported("qualified integer-comparison parameters are not supported");
     }
     let statements = checked
         .statement_table
         .statements(entry_state.statement_nodes);
     let [StatementNode::Expression(expression)] = statements else {
-        return unsupported("integer-equality source machines require one value expression");
+        return unsupported("integer-comparison source machines require one value expression");
     };
     let ExpressionNode::Binary(binary) = checked.expression_table.expression(*expression) else {
-        return unsupported("integer-equality source machines require builtin `==` or `!=`");
+        return unsupported("integer-comparison source machines require a builtin comparison");
     };
     if !matches!(
         binary.operator,
-        BinaryOperator::Equal | BinaryOperator::NotEqual
+        BinaryOperator::Equal
+            | BinaryOperator::NotEqual
+            | BinaryOperator::Less
+            | BinaryOperator::LessOrEqual
+            | BinaryOperator::Greater
+            | BinaryOperator::GreaterOrEqual
     ) {
-        return unsupported("integer-equality source machines require builtin `==` or `!=`");
+        return unsupported("integer-comparison source machines require a builtin comparison");
     }
     if let Some(operator_use) = checked.facts.operators.expression_use(*expression)
         && operator_use.status != CheckedOperatorResolutionStatus::BuiltinFallback
     {
-        return unsupported("terminal integer equality must use the builtin operator");
+        return unsupported("terminal integer comparison must use the builtin operator");
     }
     let left = match checked.expression_table.expression(binary.left) {
         ExpressionNode::Name(path) => direct_parameter_position(checked, path, parameters)?,
-        _ => return unsupported("terminal integer equality operands must name parameters"),
+        _ => return unsupported("terminal integer comparison operands must name parameters"),
     };
     let right = match checked.expression_table.expression(binary.right) {
         ExpressionNode::Name(path) => direct_parameter_position(checked, path, parameters)?,
-        _ => return unsupported("terminal integer equality operands must name parameters"),
+        _ => return unsupported("terminal integer comparison operands must name parameters"),
     };
     let scalar_type = integer_scalar_type(
         checked
             .primitive_type_reference(parameters[left].type_reference)
             .ok_or(LoweringError::Unsupported(
-                "integer-equality operands must have primitive integer type",
+                "integer-comparison operands must have primitive integer type",
             ))?,
     )?;
     if integer_scalar_type(
         checked
             .primitive_type_reference(parameters[right].type_reference)
             .ok_or(LoweringError::Unsupported(
-                "integer-equality operands must have primitive integer type",
+                "integer-comparison operands must have primitive integer type",
             ))?,
     )? != scalar_type
     {
-        return unsupported("terminal integer equality operands must have one exact type");
+        return unsupported("terminal integer comparison operands must have one exact type");
     }
 
     let contract_value = validate_boolean_contract(checked, machine, None)?;
@@ -1795,18 +1800,18 @@ fn lower_integer_equality_machine(
                     checked
                         .primitive_type_reference(parameter.type_reference)
                         .ok_or(LoweringError::Unsupported(
-                            "integer-equality parameters must have primitive scalar type",
+                            "integer-comparison parameters must have primitive scalar type",
                         ))?,
                 )?,
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
-    Ok(build_integer_equality_module(
+    Ok(build_integer_comparison_module(
         terminal_parameters,
         scalar_type,
         left,
         right,
-        binary.operator == BinaryOperator::NotEqual,
+        binary.operator,
         contract_value,
         identity_reshuffles,
         partition_compositions,
@@ -3305,41 +3310,61 @@ fn build_boolean_module(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn build_integer_equality_module(
+fn build_integer_comparison_module(
     parameters: Vec<ValueDeclaration>,
     scalar_type: ScalarType,
     left_position: usize,
     right_position: usize,
-    negated: bool,
+    operator: BinaryOperator,
     contract_value: bool,
     identity_reshuffles: LoweredContentIdentityReshuffles,
     partition_compositions: LoweredContentPartitionCompositions,
 ) -> LoweredTerminalPsi {
-    let equality_value = value_id(
+    let comparison_value = value_id(
         u64::try_from(parameters.len())
             .expect("parameter count fits a semantic identity")
             .checked_add(1)
-            .expect("equality value identity is nonzero"),
+            .expect("comparison value identity is nonzero"),
     );
+    let left = parameters[left_position].id;
+    let right = parameters[right_position].id;
+    let (kind, negated) = match operator {
+        BinaryOperator::Equal => (OperationKind::IntegerEqual { left, right }, false),
+        BinaryOperator::NotEqual => (OperationKind::IntegerEqual { left, right }, true),
+        BinaryOperator::Less => (OperationKind::IntegerLessThan { left, right }, false),
+        BinaryOperator::LessOrEqual => (OperationKind::IntegerLessOrEqual { left, right }, false),
+        BinaryOperator::Greater => (
+            OperationKind::IntegerLessThan {
+                left: right,
+                right: left,
+            },
+            false,
+        ),
+        BinaryOperator::GreaterOrEqual => (
+            OperationKind::IntegerLessOrEqual {
+                left: right,
+                right: left,
+            },
+            false,
+        ),
+        _ => unreachable!("integer-comparison lowering filters operators"),
+    };
     let mut operations = vec![Operation {
         id: operation_id(1),
         result: ValueDeclaration {
-            id: equality_value,
+            id: comparison_value,
             scalar_type: ScalarType::Boolean,
         },
-        kind: OperationKind::IntegerEqual {
-            left: parameters[left_position].id,
-            right: parameters[right_position].id,
-        },
+        kind,
     }];
     debug_assert_eq!(parameters[left_position].scalar_type, scalar_type);
     debug_assert_eq!(parameters[right_position].scalar_type, scalar_type);
     let returned = if negated {
         let negated_value = value_id(
-            equality_value
+            comparison_value
                 .get()
                 .checked_add(1)
-                .expect("negated equality value identity advances"),
+                .expect("negated comparison value identity advances"),
         );
         operations.push(Operation {
             id: operation_id(2),
@@ -3348,18 +3373,18 @@ fn build_integer_equality_module(
                 scalar_type: ScalarType::Boolean,
             },
             kind: OperationKind::BooleanNot {
-                operand: equality_value,
+                operand: comparison_value,
             },
         });
         negated_value
     } else {
-        equality_value
+        comparison_value
     };
     let result_id = value_id(
         returned
             .get()
             .checked_add(1)
-            .expect("result identity follows equality operations"),
+            .expect("result identity follows comparison operations"),
     );
     let literal = ScalarTerm::boolean(contract_value);
     let goal = Proposition::Equal(literal.clone(), literal);

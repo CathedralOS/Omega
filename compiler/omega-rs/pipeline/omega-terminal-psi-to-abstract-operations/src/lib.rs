@@ -95,6 +95,22 @@ fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, 
                         right,
                     });
                 }
+                OperationKind::IntegerLessThan { left, right } => {
+                    operations.push(TerminalAbstractOperation::IntegerLessThan {
+                        psi_operation: operation.id,
+                        result: operation.result.id,
+                        left,
+                        right,
+                    });
+                }
+                OperationKind::IntegerLessOrEqual { left, right } => {
+                    operations.push(TerminalAbstractOperation::IntegerLessOrEqual {
+                        psi_operation: operation.id,
+                        result: operation.result.id,
+                        left,
+                        right,
+                    });
+                }
                 OperationKind::WrappingIntegerAdd { left, right } => {
                     let ScalarType::Integer(scalar_type) = operation.result.scalar_type else {
                         return Err(LoweringError::VerifiedWrappingAddMalformed(operation.id));

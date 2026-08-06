@@ -43,6 +43,8 @@ impl TerminalFuelSchedule {
             | OperationKind::BooleanNot { .. }
             | OperationKind::BooleanEqual { .. }
             | OperationKind::IntegerEqual { .. }
+            | OperationKind::IntegerLessThan { .. }
+            | OperationKind::IntegerLessOrEqual { .. }
             | OperationKind::WrappingIntegerAdd { .. }
             | OperationKind::SaturatingIntegerAdd { .. }
             | OperationKind::WrappingIntegerSubtract { .. }

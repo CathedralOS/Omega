@@ -1332,7 +1332,7 @@ fn checked_source_runtime_integer_equality_round_trips_and_reaches_native_code()
 
     assert_eq!(
         lowered.semantic_module.semantic_version,
-        SemanticVersion::V18
+        SemanticVersion::CURRENT
     );
     assert!(matches!(
         lowered.semantic_module.machines[0].blocks[0].operations[0].kind,
@@ -1408,6 +1408,145 @@ fn checked_source_runtime_integer_equality_round_trips_and_reaches_native_code()
                 run_host_machine_code_with_two_u64(entry.bytes(&object_artifact), left, right),
                 expected
             );
+        }
+    }
+}
+
+#[test]
+fn checked_source_runtime_integer_ordering_round_trips_and_preserves_signedness() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("runtime integer-ordering source canary should compile");
+    for (machine, inclusive, scalar_type, cases) in [
+        (
+            "terminal_unsigned_less_runtime",
+            false,
+            IntegerType::new(IntegerSign::Unsigned, 64).expect("u64"),
+            vec![
+                (IntegerValue::Unsigned(0), IntegerValue::Unsigned(1), true),
+                (
+                    IntegerValue::Unsigned(u64::MAX.into()),
+                    IntegerValue::Unsigned(0),
+                    false,
+                ),
+            ],
+        ),
+        (
+            "terminal_signed_less_or_equal_runtime",
+            true,
+            IntegerType::new(IntegerSign::Signed, 64).expect("i64"),
+            vec![
+                (IntegerValue::Signed(-1), IntegerValue::Signed(0), true),
+                (IntegerValue::Signed(1), IntegerValue::Signed(0), false),
+                (IntegerValue::Signed(1), IntegerValue::Signed(1), true),
+            ],
+        ),
+    ] {
+        let lowered = lower_machine(&checked, machine).expect("integer ordering should lower");
+        assert_eq!(
+            lowered.semantic_module.semantic_version,
+            SemanticVersion::V19
+        );
+        assert!(
+            matches!(
+                lowered.semantic_module.machines[0].blocks[0].operations[0].kind,
+                OperationKind::IntegerLessOrEqual { .. } if inclusive
+            ) || matches!(
+                lowered.semantic_module.machines[0].blocks[0].operations[0].kind,
+                OperationKind::IntegerLessThan { .. } if !inclusive
+            )
+        );
+        let bytes = encode_module(&lowered.semantic_module).expect("ordering encodes");
+        let decoded = decode_module(&bytes).expect("ordering decodes");
+        let verified = verify_module(
+            &decoded,
+            &lowered.proof_bundle,
+            &AdmissionProfile::default(),
+        )
+        .expect("ordering verifies");
+        assert_eq!(
+            derive_fixed_entry_fuel(&verified, decoded.entry)
+                .expect("ordering has fixed fuel")
+                .ceiling_units(),
+            2
+        );
+        for (left, right, expected) in &cases {
+            let measured = interpret_terminal_measured(
+                &verified,
+                &[
+                    TerminalScalarValue::Integer {
+                        scalar_type,
+                        value: *left,
+                    },
+                    TerminalScalarValue::Integer {
+                        scalar_type,
+                        value: *right,
+                    },
+                ],
+            )
+            .expect("ordering interprets");
+            assert_eq!(measured.value(), TerminalScalarValue::Boolean(*expected));
+            assert_eq!(measured.usage().total_units(), 2);
+        }
+
+        let abstract_operations =
+            lower_verified_module(&verified).expect("ordering crosses the Omega boundary");
+        let portable_target =
+            lower_to_target_operations(&abstract_operations, NativeTarget::linux_x64())
+                .expect("ordering selects for x86-64");
+        let portable_expression = match &portable_target.functions[0].operation {
+            TerminalTargetOperation::ReturnBooleanExpression { expression, .. } => expression,
+            operation => panic!("unexpected ordering operation: {operation:?}"),
+        };
+        assert!(
+            matches!(
+                portable_expression,
+                TerminalTargetBooleanExpression::IntegerLessOrEqual { .. } if inclusive
+            ) || matches!(
+                portable_expression,
+                TerminalTargetBooleanExpression::IntegerLessThan { .. } if !inclusive
+            )
+        );
+        let portable_assigned =
+            assign_registers(&portable_target).expect("ordering homes assign for x86-64");
+        emit_machine_code(&portable_assigned).expect("ordering emits for x86-64");
+
+        #[cfg(unix)]
+        {
+            let abstract_operations = lower_verified_module(&verified).expect("Omega lowering");
+            let target_operations =
+                lower_to_target_operations(&abstract_operations, NativeTarget::host())
+                    .expect("host selection");
+            let expected_expression = match &target_operations.functions[0].operation {
+                TerminalTargetOperation::ReturnBooleanExpression { expression, .. } => expression,
+                operation => panic!("unexpected ordering operation: {operation:?}"),
+            };
+            assert!(
+                matches!(
+                    expected_expression,
+                    TerminalTargetBooleanExpression::IntegerLessOrEqual { .. } if inclusive
+                ) || matches!(
+                    expected_expression,
+                    TerminalTargetBooleanExpression::IntegerLessThan { .. } if !inclusive
+                )
+            );
+            let assigned = assign_registers(&target_operations).expect("ordering homes assign");
+            let machine_code = emit_machine_code(&assigned).expect("ordering emits");
+            let object = build_terminal_object_artifact(&machine_code).expect("ordering object");
+            let entry = object.entry_function();
+            for (left, right, expected) in &cases {
+                let left = match left {
+                    IntegerValue::Unsigned(value) => *value as u64,
+                    IntegerValue::Signed(value) => *value as i64 as u64,
+                };
+                let right = match right {
+                    IntegerValue::Unsigned(value) => *value as u64,
+                    IntegerValue::Signed(value) => *value as i64 as u64,
+                };
+                assert_eq!(
+                    run_host_machine_code_with_two_u64(entry.bytes(&object), left, right),
+                    u64::from(*expected)
+                );
+            }
         }
     }
 }
