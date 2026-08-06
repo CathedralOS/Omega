@@ -164,11 +164,6 @@ Remaining:
 - Replace all remaining terminal-path `ExpressionHandle` and source-tree
   dependencies with lowered values and predicates. Absorb useful StateGraph /
   ControlFlow topology, then retire the legacy backend lane as consumers move.
-- Repair the pre-existing native regression pinned by
-  `runtime_nested_value_call_guard_exit`: the interpreter exits 70, but native
-  execution reaches the stale-ZII saturating-add arm and exits 5. This reproduces
-  at `35e3cb4f8` and is independent of the now-complete caller-bound inline guard
-  lowering.
 - Re-root the reference interpreter and abstract-operation construction fully
   on decoded, verified terminal Psi. Preserve the shared interpreter/native
   oracle over the same IR.

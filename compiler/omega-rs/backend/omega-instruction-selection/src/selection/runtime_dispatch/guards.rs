@@ -106,15 +106,32 @@ pub(super) fn select_runtime_straight_line_branch_guards(
         return Vec::new();
     }
 
+    let bindings = input
+        .runtime_branching_calls
+        .straight_line_bindings
+        .span(expansion.bindings)
+        .unwrap_or(&[]);
+    let mut resolved_expressions = ExpressionTable::with_expression_capacity(8);
+    let copied_guard = resolved_expressions.copy_from(
+        &input.runtime_branching_calls.expressions,
+        expansion.resolved_guard,
+    );
+    let resolved_guard =
+        crate::selection::bindings::resolve_straight_line_binding_expression_handle(
+            &input.runtime_branching_calls.expressions,
+            &mut resolved_expressions,
+            copied_guard,
+            bindings,
+        );
     select_runtime_branch_guard_conjuncts_in_table(
         input,
         expansion.dispatch_index,
         expansion.source_key,
         Some(expansion.branch_key),
-        false,
+        !bindings.is_empty(),
         expansion.statement_index,
-        &input.runtime_branching_calls.expressions,
-        expansion.resolved_guard,
+        &resolved_expressions,
+        resolved_guard,
         runtime_value_operands,
     )
 }
