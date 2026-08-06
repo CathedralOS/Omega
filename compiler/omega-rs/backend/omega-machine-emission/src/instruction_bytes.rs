@@ -1545,6 +1545,27 @@ fn compiler_instruction_validation_kind(
                 value: *value,
             },
         ),
+        SelectedInstructionKind::AppendWireScalarVarint {
+            source_region,
+            source_offset,
+            byte_size,
+            zigzag,
+            out_region,
+            out_offset,
+            written_region,
+            written_offset,
+        } => Some(
+            CompilerInstructionValidationKind::CompilerBodyWireScalarVarintAppend {
+                source_region: *source_region,
+                source_offset: *source_offset,
+                byte_size: *byte_size,
+                zigzag: *zigzag,
+                out_region: *out_region,
+                out_offset: *out_offset,
+                written_region: *written_region,
+                written_offset: *written_offset,
+            },
+        ),
         SelectedInstructionKind::MaterializeTextBufferToPlace { buffer, target }
             if emission_context.target.architecture == omega_target::Architecture::X86_64
                 || matches!(

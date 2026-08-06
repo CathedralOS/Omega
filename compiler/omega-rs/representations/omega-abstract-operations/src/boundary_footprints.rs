@@ -48,6 +48,7 @@ pub enum BoundaryFootprintFragmentOrigin {
     CompilerBodyPlaceBoundedBufferWrite,
     CompilerBodyPlaceStringWrite,
     CompilerBodyWireLiteralByteAppend,
+    CompilerBodyWireScalarVarintAppend,
     CompilerBodyTextAssemblyWrite,
     CompilerBodyPlaceBinaryWrite,
     CompilerBodyStorageConvertWrite,
