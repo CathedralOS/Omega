@@ -65,6 +65,7 @@ pub fn validate_module(
             | SemanticVersion::V17
             | SemanticVersion::V18
             | SemanticVersion::V19
+            | SemanticVersion::V20
     ) {
         return Err(ModuleError::UnsupportedSemanticVersion(
             module.semantic_version,
@@ -407,6 +408,22 @@ fn validate_machine(
                     }
                     if operation.result.scalar_type != ScalarType::Boolean {
                         return Err(ModuleError::IntegerOrderingRequiresBooleanResult(
+                            operation.id,
+                        ));
+                    }
+                }
+                OperationKind::IntegerBitwiseAnd { .. }
+                | OperationKind::IntegerBitwiseOr { .. }
+                | OperationKind::IntegerBitwiseXor { .. } => {
+                    if semantic_version < SemanticVersion::V20 {
+                        return Err(ModuleError::OperationRequiresSemanticVersion {
+                            operation: operation.id,
+                            required: SemanticVersion::V20,
+                            actual: semantic_version,
+                        });
+                    }
+                    if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
+                        return Err(ModuleError::IntegerBitwiseRequiresIntegerResult(
                             operation.id,
                         ));
                     }
@@ -1222,6 +1239,20 @@ fn validate_term_semantic_version(
     clause: ContractClauseKind,
 ) -> Result<(), ModuleError> {
     match term {
+        ScalarTerm::IntegerBitwiseAnd { left, right, .. }
+        | ScalarTerm::IntegerBitwiseOr { left, right, .. }
+        | ScalarTerm::IntegerBitwiseXor { left, right, .. } => {
+            if semantic_version < SemanticVersion::V20 {
+                return Err(ModuleError::PropositionRequiresSemanticVersion {
+                    contract,
+                    clause,
+                    required: SemanticVersion::V20,
+                    actual: semantic_version,
+                });
+            }
+            validate_term_semantic_version(left, semantic_version, contract, clause)?;
+            validate_term_semantic_version(right, semantic_version, contract, clause)
+        }
         ScalarTerm::IntegerLessThan { left, right, .. }
         | ScalarTerm::IntegerLessOrEqual { left, right, .. } => {
             if semantic_version < SemanticVersion::V19 {
@@ -1402,7 +1433,10 @@ fn validate_term_scope(
         | ScalarTerm::BooleanEqual { left, right }
         | ScalarTerm::IntegerEqual { left, right, .. }
         | ScalarTerm::IntegerLessThan { left, right, .. }
-        | ScalarTerm::IntegerLessOrEqual { left, right, .. } => {
+        | ScalarTerm::IntegerLessOrEqual { left, right, .. }
+        | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
+        | ScalarTerm::IntegerBitwiseOr { left, right, .. }
+        | ScalarTerm::IntegerBitwiseXor { left, right, .. } => {
             validate_term_scope(left, allowed, contract, clause)?;
             validate_term_scope(right, allowed, contract, clause)?;
         }
@@ -1676,6 +1710,28 @@ fn validate_operation_operands(
         }
         return Ok(());
     }
+    if let OperationKind::IntegerBitwiseAnd { left, right }
+    | OperationKind::IntegerBitwiseOr { left, right }
+    | OperationKind::IntegerBitwiseXor { left, right } = operation.kind
+    {
+        require_defined(left, value_types, defined)?;
+        require_defined(right, value_types, defined)?;
+        let expected = operation.result.scalar_type;
+        let left_type = value_types[&left];
+        let right_type = value_types[&right];
+        if !matches!(expected, ScalarType::Integer(_))
+            || left_type != expected
+            || right_type != expected
+        {
+            return Err(ModuleError::IntegerBitwiseOperandTypeMismatch {
+                operation: operation.id,
+                expected,
+                left: left_type,
+                right: right_type,
+            });
+        }
+        return Ok(());
+    }
     let Some((left, right, arithmetic)) = (match operation.kind {
         OperationKind::WrappingIntegerAdd { left, right } => {
             Some((left, right, ArithmeticOperandKind::WrappingAdd))
@@ -1701,7 +1757,10 @@ fn validate_operation_operands(
         | OperationKind::BooleanEqual { .. }
         | OperationKind::IntegerEqual { .. }
         | OperationKind::IntegerLessThan { .. }
-        | OperationKind::IntegerLessOrEqual { .. } => None,
+        | OperationKind::IntegerLessOrEqual { .. }
+        | OperationKind::IntegerBitwiseAnd { .. }
+        | OperationKind::IntegerBitwiseOr { .. }
+        | OperationKind::IntegerBitwiseXor { .. } => None,
     }) else {
         return Ok(());
     };
@@ -2032,6 +2091,13 @@ pub enum ModuleError {
     IntegerOrderingRequiresBooleanResult(OperationId),
     IntegerOrderingOperandTypeMismatch {
         operation: OperationId,
+        left: ScalarType,
+        right: ScalarType,
+    },
+    IntegerBitwiseRequiresIntegerResult(OperationId),
+    IntegerBitwiseOperandTypeMismatch {
+        operation: OperationId,
+        expected: ScalarType,
         left: ScalarType,
         right: ScalarType,
     },

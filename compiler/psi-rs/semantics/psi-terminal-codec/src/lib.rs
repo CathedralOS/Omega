@@ -388,6 +388,9 @@ fn validate_scalar_term_depth(term: &ScalarTerm) -> Result<(), CodecError> {
             | ScalarTerm::IntegerEqual { left, right, .. }
             | ScalarTerm::IntegerLessThan { left, right, .. }
             | ScalarTerm::IntegerLessOrEqual { left, right, .. }
+            | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
+            | ScalarTerm::IntegerBitwiseOr { left, right, .. }
+            | ScalarTerm::IntegerBitwiseXor { left, right, .. }
             | ScalarTerm::WrappingIntegerAdd { left, right, .. }
             | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
             | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
@@ -689,6 +692,21 @@ fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), CodecError> {
                 writer.id(left);
                 writer.id(right);
             }
+            OperationKind::IntegerBitwiseAnd { left, right } => {
+                writer.u8(14);
+                writer.id(left);
+                writer.id(right);
+            }
+            OperationKind::IntegerBitwiseOr { left, right } => {
+                writer.u8(15);
+                writer.id(left);
+                writer.id(right);
+            }
+            OperationKind::IntegerBitwiseXor { left, right } => {
+                writer.u8(16);
+                writer.id(left);
+                writer.id(right);
+            }
             OperationKind::WrappingIntegerAdd { left, right } => {
                 writer.u8(3);
                 writer.id(left);
@@ -963,6 +981,36 @@ fn encode_scalar_term(
             right,
         } => {
             writer.u8(14);
+            encode_integer_type(writer, *scalar_type);
+            encode_scalar_term(writer, left, depth + 1)?;
+            encode_scalar_term(writer, right, depth + 1)?;
+        }
+        ScalarTerm::IntegerBitwiseAnd {
+            scalar_type,
+            left,
+            right,
+        } => {
+            writer.u8(15);
+            encode_integer_type(writer, *scalar_type);
+            encode_scalar_term(writer, left, depth + 1)?;
+            encode_scalar_term(writer, right, depth + 1)?;
+        }
+        ScalarTerm::IntegerBitwiseOr {
+            scalar_type,
+            left,
+            right,
+        } => {
+            writer.u8(16);
+            encode_integer_type(writer, *scalar_type);
+            encode_scalar_term(writer, left, depth + 1)?;
+            encode_scalar_term(writer, right, depth + 1)?;
+        }
+        ScalarTerm::IntegerBitwiseXor {
+            scalar_type,
+            left,
+            right,
+        } => {
+            writer.u8(17);
             encode_integer_type(writer, *scalar_type);
             encode_scalar_term(writer, left, depth + 1)?;
             encode_scalar_term(writer, right, depth + 1)?;
@@ -1410,6 +1458,18 @@ fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError> {
                 left: reader.id("ValueId")?,
                 right: reader.id("ValueId")?,
             },
+            14 => OperationKind::IntegerBitwiseAnd {
+                left: reader.id("ValueId")?,
+                right: reader.id("ValueId")?,
+            },
+            15 => OperationKind::IntegerBitwiseOr {
+                left: reader.id("ValueId")?,
+                right: reader.id("ValueId")?,
+            },
+            16 => OperationKind::IntegerBitwiseXor {
+                left: reader.id("ValueId")?,
+                right: reader.id("ValueId")?,
+            },
             tag => return Err(CodecError::InvalidTag("OperationKind", tag)),
         };
         operations.push(Operation {
@@ -1689,6 +1749,27 @@ fn decode_scalar_term(reader: &mut Reader<'_>, depth: usize) -> Result<ScalarTer
             let left = decode_scalar_term(reader, depth + 1)?;
             let right = decode_scalar_term(reader, depth + 1)?;
             ScalarTerm::integer_less_or_equal(scalar_type, left, right)
+                .map_err(CodecError::MalformedProposition)?
+        }
+        15 => {
+            let scalar_type = decode_integer_type(reader)?;
+            let left = decode_scalar_term(reader, depth + 1)?;
+            let right = decode_scalar_term(reader, depth + 1)?;
+            ScalarTerm::integer_bitwise_and(scalar_type, left, right)
+                .map_err(CodecError::MalformedProposition)?
+        }
+        16 => {
+            let scalar_type = decode_integer_type(reader)?;
+            let left = decode_scalar_term(reader, depth + 1)?;
+            let right = decode_scalar_term(reader, depth + 1)?;
+            ScalarTerm::integer_bitwise_or(scalar_type, left, right)
+                .map_err(CodecError::MalformedProposition)?
+        }
+        17 => {
+            let scalar_type = decode_integer_type(reader)?;
+            let left = decode_scalar_term(reader, depth + 1)?;
+            let right = decode_scalar_term(reader, depth + 1)?;
+            ScalarTerm::integer_bitwise_xor(scalar_type, left, right)
                 .map_err(CodecError::MalformedProposition)?
         }
         tag => return Err(CodecError::InvalidTag("ScalarTerm", tag)),

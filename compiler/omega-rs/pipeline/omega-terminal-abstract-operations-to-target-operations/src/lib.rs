@@ -251,6 +251,58 @@ fn lower_function(
                 )?;
                 provenance.operations.push(*psi_operation);
             }
+            TerminalAbstractOperation::IntegerBitwiseAnd {
+                psi_operation,
+                result,
+                scalar_type,
+                left,
+                right,
+            }
+            | TerminalAbstractOperation::IntegerBitwiseOr {
+                psi_operation,
+                result,
+                scalar_type,
+                left,
+                right,
+            }
+            | TerminalAbstractOperation::IntegerBitwiseXor {
+                psi_operation,
+                result,
+                scalar_type,
+                left,
+                right,
+            } => {
+                let kind = match operation {
+                    TerminalAbstractOperation::IntegerBitwiseAnd { .. } => {
+                        IntegerBinaryKind::BitwiseAnd
+                    }
+                    TerminalAbstractOperation::IntegerBitwiseOr { .. } => {
+                        IntegerBinaryKind::BitwiseOr
+                    }
+                    TerminalAbstractOperation::IntegerBitwiseXor { .. } => {
+                        IntegerBinaryKind::BitwiseXor
+                    }
+                    _ => unreachable!(),
+                };
+                let value = lower_conditional_integer_binary(
+                    &values,
+                    *result,
+                    *scalar_type,
+                    *left,
+                    *right,
+                    kind,
+                    *psi_operation,
+                )?;
+                insert_value(
+                    &mut values,
+                    *result,
+                    KnownScalar::Integer {
+                        scalar_type: *scalar_type,
+                        value,
+                    },
+                )?;
+                provenance.operations.push(*psi_operation);
+            }
             TerminalAbstractOperation::WrappingIntegerAdd {
                 psi_operation,
                 result,
@@ -1610,6 +1662,52 @@ fn lower_conditional_scalar_operation(
                 *psi_operation,
             )?,
         ),
+        TerminalAbstractOperation::IntegerBitwiseAnd {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        }
+        | TerminalAbstractOperation::IntegerBitwiseOr {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        }
+        | TerminalAbstractOperation::IntegerBitwiseXor {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => {
+            let kind = match operation {
+                TerminalAbstractOperation::IntegerBitwiseAnd { .. } => {
+                    IntegerBinaryKind::BitwiseAnd
+                }
+                TerminalAbstractOperation::IntegerBitwiseOr { .. } => IntegerBinaryKind::BitwiseOr,
+                TerminalAbstractOperation::IntegerBitwiseXor { .. } => {
+                    IntegerBinaryKind::BitwiseXor
+                }
+                _ => unreachable!(),
+            };
+            (
+                *psi_operation,
+                *result,
+                *scalar_type,
+                lower_conditional_integer_binary(
+                    values,
+                    *result,
+                    *scalar_type,
+                    *left,
+                    *right,
+                    kind,
+                    *psi_operation,
+                )?,
+            )
+        }
         _ => return Ok(false),
     };
     insert_value(values, result, KnownScalar::Integer { scalar_type, value })?;
@@ -1619,6 +1717,9 @@ fn lower_conditional_scalar_operation(
 
 #[derive(Clone, Copy)]
 enum IntegerBinaryKind {
+    BitwiseAnd,
+    BitwiseOr,
+    BitwiseXor,
     WrappingAdd,
     SaturatingAdd,
     WrappingSubtract,
@@ -1662,6 +1763,9 @@ fn lower_conditional_integer_binary(
 impl IntegerBinaryKind {
     fn mismatch(self, result: ValueId) -> LoweringError {
         match self {
+            Self::BitwiseAnd | Self::BitwiseOr | Self::BitwiseXor => {
+                LoweringError::IntegerBitwiseOperandTypeMismatch(result)
+            }
             Self::WrappingAdd => LoweringError::WrappingAddOperandTypeMismatch(result),
             Self::SaturatingAdd => LoweringError::SaturatingAddOperandTypeMismatch(result),
             Self::WrappingSubtract => LoweringError::WrappingSubtractOperandTypeMismatch(result),
@@ -1682,6 +1786,9 @@ impl IntegerBinaryKind {
         right: IntegerValue,
     ) -> Option<IntegerValue> {
         match self {
+            Self::BitwiseAnd => scalar_type.bitwise_and(left, right),
+            Self::BitwiseOr => scalar_type.bitwise_or(left, right),
+            Self::BitwiseXor => scalar_type.bitwise_xor(left, right),
             Self::WrappingAdd => scalar_type.wrapping_add(left, right),
             Self::SaturatingAdd => scalar_type.saturating_add(left, right),
             Self::WrappingSubtract => scalar_type.wrapping_sub(left, right),
@@ -1700,6 +1807,21 @@ impl IntegerBinaryKind {
         let left = Box::new(left);
         let right = Box::new(right);
         match self {
+            Self::BitwiseAnd => TerminalTargetIntegerExpression::BitwiseAnd {
+                psi_operation,
+                left,
+                right,
+            },
+            Self::BitwiseOr => TerminalTargetIntegerExpression::BitwiseOr {
+                psi_operation,
+                left,
+                right,
+            },
+            Self::BitwiseXor => TerminalTargetIntegerExpression::BitwiseXor {
+                psi_operation,
+                left,
+                right,
+            },
             Self::WrappingAdd => TerminalTargetIntegerExpression::WrappingAdd {
                 psi_operation,
                 left,
@@ -2047,6 +2169,9 @@ fn conditional_provenance(
             | TerminalAbstractOperation::IntegerEqual { psi_operation, .. }
             | TerminalAbstractOperation::IntegerLessThan { psi_operation, .. }
             | TerminalAbstractOperation::IntegerLessOrEqual { psi_operation, .. }
+            | TerminalAbstractOperation::IntegerBitwiseAnd { psi_operation, .. }
+            | TerminalAbstractOperation::IntegerBitwiseOr { psi_operation, .. }
+            | TerminalAbstractOperation::IntegerBitwiseXor { psi_operation, .. }
             | TerminalAbstractOperation::WrappingIntegerAdd { psi_operation, .. }
             | TerminalAbstractOperation::SaturatingIntegerAdd { psi_operation, .. }
             | TerminalAbstractOperation::WrappingIntegerSubtract { psi_operation, .. }
@@ -2105,6 +2230,7 @@ pub enum LoweringError {
     UnsupportedRuntimeBooleanCondition(ValueId),
     IntegerConstantHasNonIntegerType(ValueId),
     IntegerConstantOutsideType(ValueId),
+    IntegerBitwiseOperandTypeMismatch(ValueId),
     WrappingAddOperandTypeMismatch(ValueId),
     SaturatingAddOperandTypeMismatch(ValueId),
     WrappingSubtractOperandTypeMismatch(ValueId),

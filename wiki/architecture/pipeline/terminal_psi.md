@@ -43,8 +43,9 @@ with ordered true/false successors; v14 adds canonical machine-local
 entry-claim bindings independently of output equality; v15 adds total Boolean
 logical negation; v16 adds canonical nominal proposition declarations and
 normalized application identities; v17 adds total Boolean equality; v18 adds
-total equality over two values of one exact integer type; and current v19 adds
-signedness-aware integer less-than and less-or-equal.
+total equality over two values of one exact integer type; v19 adds
+signedness-aware integer less-than and less-or-equal; and current v20 adds
+total bitwise AND, OR, and XOR over one exact integer type.
 None of v9-v14 or v16 adds an executable operation. The conditional is control vocabulary rather than an
 operation, and an entry-claim binding is identity metadata rather than a
 proposition.
@@ -117,7 +118,8 @@ integer machine may declare any sequence of ordinary primitive-integer
 parameters, including none, and return one exact named parameter, one landed
 literal, or a recursively nested
 expression over parameters and landed literals using the six builtin
-add/subtract/multiply operations in the settled Wrapping or Saturating domains.
+add/subtract/multiply operations in the settled Wrapping or Saturating domains,
+plus builtin bitwise AND, OR, and XOR without an arithmetic-policy choice.
 The linear integer form may declare any sequence of ordinary primitive-integer
 machine parameters, including none, and any sequence of at least two states.
 It computes a recursively nested parameter/literal add/subtract/multiply
@@ -228,6 +230,9 @@ operand integer type and two recursive integer expressions; assignment and
 emission compare their normalized exact-width representations on both native
 architectures. Runtime integer ordering follows the same lane and selects
 signed or unsigned `<`/`<=` conditions from the retained `IntegerType`.
+Runtime integer bitwise AND, OR, and XOR retain the same exact integer type and
+lower to one native logical instruction after recursively evaluating their
+operands.
 Recursive Boolean expressions may also serve as
 target control conditions and return leaves; assignment gives each expression
 its own frame, and emission tears that frame down before entering either arm.
@@ -602,8 +607,11 @@ equality; version 15 adds total `BooleanNot` operations and scalar terms;
 version 16 adds self-contained nominal proposition declarations and normalized
 applications without adding an operation; version 17 adds total `BooleanEqual`
 operations and recursive scalar terms; version 18 adds total `IntegerEqual`
-operations and recursive scalar terms; and current version 19 adds distinct
-`IntegerLessThan` and `IntegerLessOrEqual` operations and recursive scalar terms.
+operations and recursive scalar terms; version 19 adds distinct
+`IntegerLessThan` and `IntegerLessOrEqual` operations and recursive scalar
+terms; and current version 20 adds distinct `IntegerBitwiseAnd`,
+`IntegerBitwiseOr`, and `IntegerBitwiseXor` operations and recursive scalar
+terms.
 The arithmetic operations require two already defined operands of the exact
 result integer type and have distinct canonical recursive proposition terms for
 their exact logical results. Boolean equality requires two already defined
@@ -611,21 +619,24 @@ Boolean operands and reconstructs their exact equality result. Integer
 equality requires two already defined values of one exact integer type and
 reconstructs a Boolean result equating their representations. Integer ordering
 has the same operand/result discipline and reconstructs the exact signedness-
-aware relation. Validation and execution continue to accept valid v1 through
-v18 modules under their original meaning, while an older module
+aware relation. Bitwise operations require and return one exact integer type
+and reconstruct the exact representation-level result. Validation and
+execution continue to accept valid v1 through v19 modules under their original
+meaning, while an older module
 cannot claim a later operation, control form, or evidence row.
-`migrate_module_to_current` is an explicit validated older-to-v19 translation.
+`migrate_module_to_current` is an explicit validated older-to-v20 translation.
 For v10-v13 content rows it derives the new entry bindings from the already
 validated reshuffles and remaps claim references into dense machine-local IDs;
 it otherwise preserves the graph and obligations. Migration creates new
 canonical bytes and a new semantic fingerprint. An unchanged proof bundle
 retains its separate bytes and identity but is verified again against the
-migrated module. Golden tests retain archived v1 through v18 identities and
-independently freeze the current v19 fingerprint, v10 identity-reshuffle
+migrated module. Golden tests retain archived v1 through v19 identities and
+independently freeze the current v20 fingerprint, v10 identity-reshuffle
 fixture, v11 sum-case fixture, v12 partition-composition fixture, v14
 entry-claim fixture, v15 Boolean-negation fixture, v16 proposition-vocabulary
-fixture, v17 Boolean-equality fixture, v18 integer-equality fixture, and the
-distinct v19 integer-ordering fixtures.
+fixture, v17 Boolean-equality fixture, v18 integer-equality fixture, the
+distinct v19 integer-ordering fixtures, and the distinct v20 integer-bitwise
+fixtures.
 
 The same codec gives proof bundles their own canonical `PSIPRF` bytes and golden
 fingerprint. Proof format v1 remains the minimal frozen encoding for the
@@ -637,8 +648,9 @@ scalar term; format v7 adds the recursive saturating-multiply scalar term;
 format v8 adds content-conservation propositions and field/fixed-index
 structural-place terms; format v9 adds sum-case path segments; format v10 adds
 recursive Boolean-negation terms; format v11 adds recursive Boolean-equality
-terms; format v12 adds recursive integer-equality terms; and format v13 adds
-recursive integer less-than and less-or-equal terms. The encoder
+terms; format v12 adds recursive integer-equality terms; format v13 adds
+recursive integer less-than and less-or-equal terms; and format v14 adds
+recursive integer bitwise AND, OR, and XOR terms. The encoder
 selects the minimal format needed by a carried proof tree, and the
 decoder rejects a bundle encoded with a newer format than its proof tree needs.
 Evidence entries are strictly ordered by `ObligationId`; the
@@ -814,7 +826,7 @@ generic installation ladder. Migrating the Cathedral hard-root graph remains.
    proof bytes and role-separated semantic/proof/install/debug manifest hashes
    are also live. Semantic migration is exercised: archived v1 and v2 bytes
    retain their identities and migrate explicitly into separately fingerprinted
-   current-v19 modules; archived v3 wrapping-add, v4 saturating-add, v5
+   current-v20 modules; archived v3 wrapping-add, v4 saturating-add, v5
    wrapping-subtract, v6 saturating-subtract, and v7 wrapping-multiply
    identities plus the v8 saturating-multiply identity are frozen as well. Typed
    installation records, the canonical typed debug/source-map schema, and

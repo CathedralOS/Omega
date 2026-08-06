@@ -281,6 +281,55 @@ impl<'module> TerminalExecution<'module> {
                         self.values
                             .insert(operation.result.id, TerminalScalarValue::Boolean(result));
                     }
+                    OperationKind::IntegerBitwiseAnd { left, right }
+                    | OperationKind::IntegerBitwiseOr { left, right }
+                    | OperationKind::IntegerBitwiseXor { left, right } => {
+                        let ScalarType::Integer(scalar_type) = operation.result.scalar_type else {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        };
+                        let TerminalScalarValue::Integer {
+                            scalar_type: left_type,
+                            value: left_value,
+                        } = self
+                            .values
+                            .get(&left)
+                            .copied()
+                            .ok_or(TerminalInterpretError::VerifiedValueMissing(left))?
+                        else {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        };
+                        let TerminalScalarValue::Integer {
+                            scalar_type: right_type,
+                            value: right_value,
+                        } = self
+                            .values
+                            .get(&right)
+                            .copied()
+                            .ok_or(TerminalInterpretError::VerifiedValueMissing(right))?
+                        else {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        };
+                        if left_type != scalar_type || right_type != scalar_type {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        let value = match operation.kind {
+                            OperationKind::IntegerBitwiseAnd { .. } => {
+                                scalar_type.bitwise_and(left_value, right_value)
+                            }
+                            OperationKind::IntegerBitwiseOr { .. } => {
+                                scalar_type.bitwise_or(left_value, right_value)
+                            }
+                            OperationKind::IntegerBitwiseXor { .. } => {
+                                scalar_type.bitwise_xor(left_value, right_value)
+                            }
+                            _ => unreachable!(),
+                        }
+                        .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                        self.values.insert(
+                            operation.result.id,
+                            TerminalScalarValue::Integer { scalar_type, value },
+                        );
+                    }
                     OperationKind::WrappingIntegerAdd { left, right } => {
                         let ScalarType::Integer(scalar_type) = operation.result.scalar_type else {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);

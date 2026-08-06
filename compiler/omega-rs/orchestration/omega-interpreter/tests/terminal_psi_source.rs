@@ -1444,7 +1444,7 @@ fn checked_source_runtime_integer_ordering_round_trips_and_preserves_signedness(
         let lowered = lower_machine(&checked, machine).expect("integer ordering should lower");
         assert_eq!(
             lowered.semantic_module.semantic_version,
-            SemanticVersion::V19
+            SemanticVersion::CURRENT
         );
         assert!(
             matches!(
@@ -1547,6 +1547,119 @@ fn checked_source_runtime_integer_ordering_round_trips_and_preserves_signedness(
                     u64::from(*expected)
                 );
             }
+        }
+    }
+}
+
+#[test]
+fn checked_source_runtime_integer_bitwise_operations_cross_the_full_pipeline() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("runtime integer-bitwise source canary should compile");
+    let cases = [
+        (
+            "terminal_unsigned_bitwise_and_runtime",
+            0b1100_u64,
+            0b1010_u64,
+            0b1000_u64,
+            0_u8,
+        ),
+        (
+            "terminal_unsigned_bitwise_or_runtime",
+            0b1100,
+            0b0011,
+            0b1111,
+            1,
+        ),
+        (
+            "terminal_signed_bitwise_xor_runtime",
+            u64::MAX,
+            (-128_i64) as u64,
+            127,
+            2,
+        ),
+    ];
+    for (machine, left, right, expected, kind) in cases {
+        let lowered = lower_machine(&checked, machine).expect("integer bitwise should lower");
+        assert_eq!(
+            lowered.semantic_module.semantic_version,
+            SemanticVersion::V20
+        );
+        let operation = lowered.semantic_module.machines[0].blocks[0].operations[0].kind;
+        assert!(matches!(
+            (kind, operation),
+            (0, OperationKind::IntegerBitwiseAnd { .. })
+                | (1, OperationKind::IntegerBitwiseOr { .. })
+                | (2, OperationKind::IntegerBitwiseXor { .. })
+        ));
+        let bytes = encode_module(&lowered.semantic_module).expect("bitwise module encodes");
+        let decoded = decode_module(&bytes).expect("bitwise module decodes");
+        let verified = verify_module(
+            &decoded,
+            &lowered.proof_bundle,
+            &AdmissionProfile::default(),
+        )
+        .expect("bitwise module verifies");
+        assert_eq!(
+            derive_fixed_entry_fuel(&verified, decoded.entry)
+                .expect("bitwise machine has fixed fuel")
+                .ceiling_units(),
+            2
+        );
+        let scalar_type = if kind == 2 {
+            IntegerType::new(IntegerSign::Signed, 64).expect("i64")
+        } else {
+            IntegerType::new(IntegerSign::Unsigned, 64).expect("u64")
+        };
+        let input = |bits: u64| TerminalScalarValue::Integer {
+            scalar_type,
+            value: if kind == 2 {
+                IntegerValue::Signed(bits as i64 as i128)
+            } else {
+                IntegerValue::Unsigned(bits.into())
+            },
+        };
+        let measured = interpret_terminal_measured(&verified, &[input(left), input(right)])
+            .expect("bitwise operation interprets");
+        assert_eq!(measured.value(), input(expected));
+        assert_eq!(measured.usage().total_units(), 2);
+
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let abstract_operations =
+                lower_verified_module(&verified).expect("bitwise crosses the Omega boundary");
+            let target_operations = lower_to_target_operations(&abstract_operations, target)
+                .expect("bitwise operation selects on both native architectures");
+            let expression = match &target_operations.functions[0].operation {
+                TerminalTargetOperation::ReturnIntegerExpression { expression, .. } => expression,
+                operation => panic!("unexpected bitwise operation: {operation:?}"),
+            };
+            assert!(matches!(
+                (kind, expression),
+                (0, TerminalTargetIntegerExpression::BitwiseAnd { .. })
+                    | (1, TerminalTargetIntegerExpression::BitwiseOr { .. })
+                    | (2, TerminalTargetIntegerExpression::BitwiseXor { .. })
+            ));
+            let assigned =
+                assign_registers(&target_operations).expect("bitwise parameter homes assign");
+            emit_machine_code(&assigned).expect("bitwise operation emits exact native code");
+        }
+
+        #[cfg(unix)]
+        {
+            let abstract_operations = lower_verified_module(&verified).expect("Omega lowering");
+            let target_operations =
+                lower_to_target_operations(&abstract_operations, NativeTarget::host())
+                    .expect("host selection");
+            let assigned = assign_registers(&target_operations).expect("bitwise homes assign");
+            let machine_code = emit_machine_code(&assigned).expect("bitwise host emission");
+            let object = build_terminal_object_artifact(&machine_code).expect("bitwise object");
+            assert_eq!(
+                run_host_machine_code_with_two_u64(
+                    object.entry_function().bytes(&object),
+                    left,
+                    right,
+                ),
+                expected as i32
+            );
         }
     }
 }

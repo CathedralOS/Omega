@@ -69,6 +69,56 @@ impl IntegerType {
         }
     }
 
+    pub fn bitwise_and(self, left: IntegerValue, right: IntegerValue) -> Option<IntegerValue> {
+        self.bitwise(
+            left,
+            right,
+            |left, right| left & right,
+            |left, right| left & right,
+        )
+    }
+
+    pub fn bitwise_or(self, left: IntegerValue, right: IntegerValue) -> Option<IntegerValue> {
+        self.bitwise(
+            left,
+            right,
+            |left, right| left | right,
+            |left, right| left | right,
+        )
+    }
+
+    pub fn bitwise_xor(self, left: IntegerValue, right: IntegerValue) -> Option<IntegerValue> {
+        self.bitwise(
+            left,
+            right,
+            |left, right| left ^ right,
+            |left, right| left ^ right,
+        )
+    }
+
+    fn bitwise(
+        self,
+        left: IntegerValue,
+        right: IntegerValue,
+        signed: impl FnOnce(i128, i128) -> i128,
+        unsigned: impl FnOnce(u128, u128) -> u128,
+    ) -> Option<IntegerValue> {
+        if !self.admits(left) || !self.admits(right) {
+            return None;
+        }
+        match (self.sign, left, right) {
+            (
+                IntegerSign::Unsigned,
+                IntegerValue::Unsigned(left),
+                IntegerValue::Unsigned(right),
+            ) => Some(IntegerValue::Unsigned(unsigned(left, right))),
+            (IntegerSign::Signed, IntegerValue::Signed(left), IntegerValue::Signed(right)) => {
+                Some(IntegerValue::Signed(signed(left, right)))
+            }
+            _ => None,
+        }
+    }
+
     /// Add two admitted values modulo this exact integer width.
     ///
     /// Signed results use two's-complement interpretation of the reduced bit
@@ -312,6 +362,21 @@ pub enum ScalarTerm {
         left: Box<ScalarTerm>,
         right: Box<ScalarTerm>,
     },
+    IntegerBitwiseAnd {
+        scalar_type: IntegerType,
+        left: Box<ScalarTerm>,
+        right: Box<ScalarTerm>,
+    },
+    IntegerBitwiseOr {
+        scalar_type: IntegerType,
+        left: Box<ScalarTerm>,
+        right: Box<ScalarTerm>,
+    },
+    IntegerBitwiseXor {
+        scalar_type: IntegerType,
+        left: Box<ScalarTerm>,
+        right: Box<ScalarTerm>,
+    },
     Integer {
         scalar_type: IntegerType,
         value: IntegerValue,
@@ -406,7 +471,7 @@ impl ScalarTerm {
         left: ScalarTerm,
         right: ScalarTerm,
     ) -> Result<Self, PropositionError> {
-        validate_integer_comparison_operands(scalar_type, &left, &right)?;
+        validate_integer_operands(scalar_type, &left, &right)?;
         Ok(Self::IntegerLessThan {
             scalar_type,
             left: Box::new(left),
@@ -419,8 +484,47 @@ impl ScalarTerm {
         left: ScalarTerm,
         right: ScalarTerm,
     ) -> Result<Self, PropositionError> {
-        validate_integer_comparison_operands(scalar_type, &left, &right)?;
+        validate_integer_operands(scalar_type, &left, &right)?;
         Ok(Self::IntegerLessOrEqual {
+            scalar_type,
+            left: Box::new(left),
+            right: Box::new(right),
+        })
+    }
+
+    pub fn integer_bitwise_and(
+        scalar_type: IntegerType,
+        left: ScalarTerm,
+        right: ScalarTerm,
+    ) -> Result<Self, PropositionError> {
+        validate_integer_operands(scalar_type, &left, &right)?;
+        Ok(Self::IntegerBitwiseAnd {
+            scalar_type,
+            left: Box::new(left),
+            right: Box::new(right),
+        })
+    }
+
+    pub fn integer_bitwise_or(
+        scalar_type: IntegerType,
+        left: ScalarTerm,
+        right: ScalarTerm,
+    ) -> Result<Self, PropositionError> {
+        validate_integer_operands(scalar_type, &left, &right)?;
+        Ok(Self::IntegerBitwiseOr {
+            scalar_type,
+            left: Box::new(left),
+            right: Box::new(right),
+        })
+    }
+
+    pub fn integer_bitwise_xor(
+        scalar_type: IntegerType,
+        left: ScalarTerm,
+        right: ScalarTerm,
+    ) -> Result<Self, PropositionError> {
+        validate_integer_operands(scalar_type, &left, &right)?;
+        Ok(Self::IntegerBitwiseXor {
             scalar_type,
             left: Box::new(left),
             right: Box::new(right),
@@ -567,6 +671,9 @@ impl ScalarTerm {
             | Self::IntegerLessThan { .. }
             | Self::IntegerLessOrEqual { .. } => ScalarType::Boolean,
             Self::Integer { scalar_type, .. }
+            | Self::IntegerBitwiseAnd { scalar_type, .. }
+            | Self::IntegerBitwiseOr { scalar_type, .. }
+            | Self::IntegerBitwiseXor { scalar_type, .. }
             | Self::WrappingIntegerAdd { scalar_type, .. }
             | Self::SaturatingIntegerAdd { scalar_type, .. }
             | Self::WrappingIntegerSubtract { scalar_type, .. }
@@ -652,6 +759,34 @@ impl ScalarTerm {
                     return None;
                 }
                 Some((*scalar_type, scalar_type.saturating_mul(left, right)?))
+            }
+            Self::IntegerBitwiseAnd {
+                scalar_type,
+                left,
+                right,
+            }
+            | Self::IntegerBitwiseOr {
+                scalar_type,
+                left,
+                right,
+            }
+            | Self::IntegerBitwiseXor {
+                scalar_type,
+                left,
+                right,
+            } => {
+                let (left_type, left) = left.integer_value()?;
+                let (right_type, right) = right.integer_value()?;
+                if left_type != *scalar_type || right_type != *scalar_type {
+                    return None;
+                }
+                let value = match self {
+                    Self::IntegerBitwiseAnd { .. } => scalar_type.bitwise_and(left, right)?,
+                    Self::IntegerBitwiseOr { .. } => scalar_type.bitwise_or(left, right)?,
+                    Self::IntegerBitwiseXor { .. } => scalar_type.bitwise_xor(left, right)?,
+                    _ => unreachable!(),
+                };
+                Some((*scalar_type, value))
             }
             _ => None,
         }
@@ -755,7 +890,26 @@ impl ScalarTerm {
             } => {
                 left.validate()?;
                 right.validate()?;
-                validate_integer_comparison_operands(*scalar_type, left, right)
+                validate_integer_operands(*scalar_type, left, right)
+            }
+            Self::IntegerBitwiseAnd {
+                scalar_type,
+                left,
+                right,
+            }
+            | Self::IntegerBitwiseOr {
+                scalar_type,
+                left,
+                right,
+            }
+            | Self::IntegerBitwiseXor {
+                scalar_type,
+                left,
+                right,
+            } => {
+                left.validate()?;
+                right.validate()?;
+                validate_integer_operands(*scalar_type, left, right)
             }
             Self::Integer { scalar_type, value } => {
                 if scalar_type.admits(*value) {
@@ -1058,7 +1212,10 @@ impl PropositionContext {
             | ScalarTerm::BooleanEqual { left, right }
             | ScalarTerm::IntegerEqual { left, right, .. }
             | ScalarTerm::IntegerLessThan { left, right, .. }
-            | ScalarTerm::IntegerLessOrEqual { left, right, .. } => {
+            | ScalarTerm::IntegerLessOrEqual { left, right, .. }
+            | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
+            | ScalarTerm::IntegerBitwiseOr { left, right, .. }
+            | ScalarTerm::IntegerBitwiseXor { left, right, .. } => {
                 self.validate_term(left)?;
                 self.validate_term(right)?;
             }
@@ -1081,14 +1238,14 @@ fn require_same_type(left: &ScalarTerm, right: &ScalarTerm) -> Result<(), Propos
     Ok(())
 }
 
-fn validate_integer_comparison_operands(
+fn validate_integer_operands(
     integer_type: IntegerType,
     left: &ScalarTerm,
     right: &ScalarTerm,
 ) -> Result<(), PropositionError> {
     let expected = ScalarType::Integer(integer_type);
     if left.scalar_type() != expected || right.scalar_type() != expected {
-        return Err(PropositionError::IntegerComparisonTypeMismatch {
+        return Err(PropositionError::IntegerOperandTypeMismatch {
             expected,
             left: left.scalar_type(),
             right: right.scalar_type(),
@@ -1131,7 +1288,7 @@ pub enum PropositionError {
         left: ScalarType,
         right: ScalarType,
     },
-    IntegerComparisonTypeMismatch {
+    IntegerOperandTypeMismatch {
         expected: ScalarType,
         left: ScalarType,
         right: ScalarType,
@@ -1318,7 +1475,48 @@ mod tests {
         );
         assert!(matches!(
             ScalarTerm::integer_less_than(u8_type, unsigned(1), signed(-1)),
-            Err(PropositionError::IntegerComparisonTypeMismatch { .. })
+            Err(PropositionError::IntegerOperandTypeMismatch { .. })
+        ));
+    }
+
+    #[test]
+    fn integer_bitwise_operations_are_typed_and_reduce_closed_terms() {
+        let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let unsigned = |value| {
+            ScalarTerm::integer(u8_type, IntegerValue::Unsigned(value)).expect("u8 literal")
+        };
+        let and = ScalarTerm::integer_bitwise_and(u8_type, unsigned(0b1100), unsigned(0b1010))
+            .expect("matching integer operands");
+        let or = ScalarTerm::integer_bitwise_or(u8_type, unsigned(0b1100), unsigned(0b0011))
+            .expect("matching integer operands");
+        let xor = ScalarTerm::integer_bitwise_xor(u8_type, unsigned(0b1100), unsigned(0b1010))
+            .expect("matching integer operands");
+        assert_eq!(and.scalar_type(), ScalarType::Integer(u8_type));
+        assert_eq!(
+            and.integer_value(),
+            Some((u8_type, IntegerValue::Unsigned(0b1000)))
+        );
+        assert_eq!(
+            or.integer_value(),
+            Some((u8_type, IntegerValue::Unsigned(0b1111)))
+        );
+        assert_eq!(
+            xor.integer_value(),
+            Some((u8_type, IntegerValue::Unsigned(0b0110)))
+        );
+
+        let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let signed =
+            |value| ScalarTerm::integer(i8_type, IntegerValue::Signed(value)).expect("i8 literal");
+        assert_eq!(
+            ScalarTerm::integer_bitwise_xor(i8_type, signed(-1), signed(-128))
+                .unwrap()
+                .integer_value(),
+            Some((i8_type, IntegerValue::Signed(127)))
+        );
+        assert!(matches!(
+            ScalarTerm::integer_bitwise_and(u8_type, unsigned(1), signed(1)),
+            Err(PropositionError::IntegerOperandTypeMismatch { .. })
         ));
     }
 

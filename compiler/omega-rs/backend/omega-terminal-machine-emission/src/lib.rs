@@ -1041,6 +1041,9 @@ fn emit_x86_64_expression_node(
             emit_x86_64_normalize(bytes, scalar_type);
         }
         TerminalAssignedIntegerExpression::WrappingAdd { left, right, .. }
+        | TerminalAssignedIntegerExpression::BitwiseAnd { left, right, .. }
+        | TerminalAssignedIntegerExpression::BitwiseOr { left, right, .. }
+        | TerminalAssignedIntegerExpression::BitwiseXor { left, right, .. }
         | TerminalAssignedIntegerExpression::SaturatingAdd { left, right, .. }
         | TerminalAssignedIntegerExpression::WrappingSubtract { left, right, .. }
         | TerminalAssignedIntegerExpression::SaturatingSubtract { left, right, .. }
@@ -1056,6 +1059,18 @@ fn emit_x86_64_expression_node(
             emit_x86_64_expression_node(bytes, scalar_type, right, frame_byte_size, nested_depth)?;
             bytes.extend_from_slice(&[0x41, 0x5a]); // pop r10
             match expression {
+                TerminalAssignedIntegerExpression::BitwiseAnd { .. } => {
+                    bytes.extend_from_slice(&[0x4c, 0x21, 0xd0]); // and rax, r10
+                    emit_x86_64_normalize(bytes, scalar_type);
+                }
+                TerminalAssignedIntegerExpression::BitwiseOr { .. } => {
+                    bytes.extend_from_slice(&[0x4c, 0x09, 0xd0]); // or rax, r10
+                    emit_x86_64_normalize(bytes, scalar_type);
+                }
+                TerminalAssignedIntegerExpression::BitwiseXor { .. } => {
+                    bytes.extend_from_slice(&[0x4c, 0x31, 0xd0]); // xor rax, r10
+                    emit_x86_64_normalize(bytes, scalar_type);
+                }
                 TerminalAssignedIntegerExpression::WrappingAdd { .. } => {
                     bytes.extend_from_slice(&[0x4c, 0x01, 0xd0]); // add rax, r10
                     emit_x86_64_normalize(bytes, scalar_type);
@@ -1495,6 +1510,9 @@ fn emit_aarch64_expression_node(
             emit_aarch64_normalize(instructions, scalar_type);
         }
         TerminalAssignedIntegerExpression::WrappingAdd { left, right, .. }
+        | TerminalAssignedIntegerExpression::BitwiseAnd { left, right, .. }
+        | TerminalAssignedIntegerExpression::BitwiseOr { left, right, .. }
+        | TerminalAssignedIntegerExpression::BitwiseXor { left, right, .. }
         | TerminalAssignedIntegerExpression::SaturatingAdd { left, right, .. }
         | TerminalAssignedIntegerExpression::WrappingSubtract { left, right, .. }
         | TerminalAssignedIntegerExpression::SaturatingSubtract { left, right, .. }
@@ -1522,6 +1540,18 @@ fn emit_aarch64_expression_node(
             )?); // ldr x9, [sp]
             emit_aarch64_adjust_sp(instructions, 16, true)?;
             match expression {
+                TerminalAssignedIntegerExpression::BitwiseAnd { .. } => {
+                    instructions.push(0x8a00_0120); // and x0, x9, x0
+                    emit_aarch64_normalize(instructions, scalar_type);
+                }
+                TerminalAssignedIntegerExpression::BitwiseOr { .. } => {
+                    instructions.push(0xaa00_0120); // orr x0, x9, x0
+                    emit_aarch64_normalize(instructions, scalar_type);
+                }
+                TerminalAssignedIntegerExpression::BitwiseXor { .. } => {
+                    instructions.push(0xca00_0120); // eor x0, x9, x0
+                    emit_aarch64_normalize(instructions, scalar_type);
+                }
                 TerminalAssignedIntegerExpression::WrappingAdd { .. } => {
                     instructions.push(0x8b00_0120); // add x0, x9, x0
                     emit_aarch64_normalize(instructions, scalar_type);
@@ -1713,6 +1743,9 @@ fn expression_source(expression: &TerminalAssignedIntegerExpression) -> ValueId 
         TerminalAssignedIntegerExpression::Immediate { source_value, .. }
         | TerminalAssignedIntegerExpression::Parameter { source_value, .. } => *source_value,
         TerminalAssignedIntegerExpression::WrappingAdd { left, .. }
+        | TerminalAssignedIntegerExpression::BitwiseAnd { left, .. }
+        | TerminalAssignedIntegerExpression::BitwiseOr { left, .. }
+        | TerminalAssignedIntegerExpression::BitwiseXor { left, .. }
         | TerminalAssignedIntegerExpression::SaturatingAdd { left, .. }
         | TerminalAssignedIntegerExpression::WrappingSubtract { left, .. }
         | TerminalAssignedIntegerExpression::SaturatingSubtract { left, .. }
@@ -2388,6 +2421,48 @@ mod tests {
     }
 
     #[test]
+    fn emits_exact_parameter_fed_bitwise_instructions_for_both_architectures() {
+        let scalar_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        for (kind, x86_opcode, aarch64_opcode) in [
+            (0_u8, 0x21_u8, 0x8a00_0120_u32),
+            (1, 0x09, 0xaa00_0120),
+            (2, 0x31, 0xca00_0120),
+        ] {
+            let x86 = emit_machine_code(&expression_plan(
+                NativeTarget::linux_x64(),
+                scalar_type,
+                bitwise_expression(
+                    kind,
+                    TerminalScalarParameterLocation::Register(MachineRegister::X86Rdi),
+                    TerminalScalarParameterLocation::Register(MachineRegister::X86Rsi),
+                ),
+            ))
+            .expect("x86-64 bitwise expression emits");
+            let bytes = &x86.functions[0].bytes;
+            assert!(
+                bytes
+                    .windows(3)
+                    .any(|window| window == [0x4c, x86_opcode, 0xd0])
+            );
+
+            let aarch64 = emit_machine_code(&expression_plan(
+                NativeTarget::linux_arm64(),
+                scalar_type,
+                bitwise_expression(
+                    kind,
+                    TerminalScalarParameterLocation::Register(MachineRegister::Aarch64X(0)),
+                    TerminalScalarParameterLocation::Register(MachineRegister::Aarch64X(1)),
+                ),
+            ))
+            .expect("AArch64 bitwise expression emits");
+            assert!(
+                aarch64_instructions(&aarch64.functions[0].bytes).contains(&aarch64_opcode),
+                "bitwise kind {kind} must retain its exact AArch64 instruction"
+            );
+        }
+    }
+
+    #[test]
     fn emits_x86_expression_after_assignment_spills_a_scratch_conflict() {
         let scalar_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
         let emitted = emit_machine_code(&expression_plan(
@@ -2954,6 +3029,42 @@ mod tests {
                 parameter_index: 1,
                 location: right_location,
             }),
+        }
+    }
+
+    fn bitwise_expression(
+        kind: u8,
+        left_location: TerminalScalarParameterLocation,
+        right_location: TerminalScalarParameterLocation,
+    ) -> TerminalTargetIntegerExpression {
+        let left = Box::new(TerminalTargetIntegerExpression::Parameter {
+            source_value: ValueId::new(1).expect("left"),
+            parameter_index: 0,
+            location: left_location,
+        });
+        let right = Box::new(TerminalTargetIntegerExpression::Parameter {
+            source_value: ValueId::new(2).expect("right"),
+            parameter_index: 1,
+            location: right_location,
+        });
+        let psi_operation = OperationId::new(3).expect("operation");
+        match kind {
+            0 => TerminalTargetIntegerExpression::BitwiseAnd {
+                psi_operation,
+                left,
+                right,
+            },
+            1 => TerminalTargetIntegerExpression::BitwiseOr {
+                psi_operation,
+                left,
+                right,
+            },
+            2 => TerminalTargetIntegerExpression::BitwiseXor {
+                psi_operation,
+                left,
+                right,
+            },
+            _ => panic!("unknown bitwise test kind"),
         }
     }
 

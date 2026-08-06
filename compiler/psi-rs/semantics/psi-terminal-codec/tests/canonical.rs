@@ -32,7 +32,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.semantic_version, SemanticVersion::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "e2403c35e73bec7223d502c31fab9a1100416359518971acdbe30b3d3e4b7867"
+        "67a74cdad08c13afc7628690fa38230b813bb8b6c1bdc91d3d59386ffe192dad"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -311,6 +311,28 @@ fn v19_integer_ordering_has_stable_distinct_canonical_bytes() {
         [
             "b3ff100dce2ca7694563837ae403e3f6754be7e1d29a395d086f853ca0832032",
             "d5b9ae3bdd3b3ced4fb6e9d03116f6df7128325c388035be437c4c3fb0d09baa",
+        ]
+    );
+}
+
+#[test]
+fn v20_integer_bitwise_has_stable_distinct_canonical_bytes() {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let scalar_type = ScalarType::Integer(integer);
+    let mut fingerprints = Vec::new();
+    for kind in 0_u8..3 {
+        let module = bitwise_fixture(kind, scalar_type);
+        let bytes = encode_module(&module).expect("v20 integer bitwise should encode");
+        assert_eq!(decode_module(&bytes), Ok(module.clone()));
+        assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
+        fingerprints.push(semantic_fingerprint(&module).unwrap().to_string());
+    }
+    assert_eq!(
+        fingerprints,
+        [
+            "03939b9634885e2eb145699a615acc6c20d102661dd41c945739c3a62fafabac",
+            "65c640057a6241b4c058a008fc60e52f4610f19493cf93add40bb4a9456a4db7",
+            "dd37cd20f4ca3deda40ecd0ce94b410c5983d12207dcf8c9bf6d34161341a15d",
         ]
     );
 }
@@ -1193,6 +1215,70 @@ fn fixture() -> TerminalModule {
                         proposition: Proposition::Truth,
                     },
                 ],
+            },
+        }],
+    }
+}
+
+fn bitwise_fixture(kind: u8, scalar_type: ScalarType) -> TerminalModule {
+    let left = value_id(12);
+    let right = value_id(13);
+    let computed = value_id(14);
+    let result = value_id(15);
+    TerminalModule {
+        semantic_version: SemanticVersion::V20,
+        entry: machine_id(12),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        machines: vec![TerminalMachine {
+            id: machine_id(12),
+            parameters: vec![
+                ValueDeclaration {
+                    id: left,
+                    scalar_type,
+                },
+                ValueDeclaration {
+                    id: right,
+                    scalar_type,
+                },
+            ],
+            result: ValueDeclaration {
+                id: result,
+                scalar_type,
+            },
+            structural_places: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: block_id(12),
+            blocks: vec![Block {
+                id: block_id(12),
+                parameters: Vec::new(),
+                operations: vec![Operation {
+                    id: operation_id(12),
+                    result: ValueDeclaration {
+                        id: computed,
+                        scalar_type,
+                    },
+                    kind: match kind {
+                        0 => OperationKind::IntegerBitwiseAnd { left, right },
+                        1 => OperationKind::IntegerBitwiseOr { left, right },
+                        2 => OperationKind::IntegerBitwiseXor { left, right },
+                        _ => unreachable!(),
+                    },
+                }],
+                terminator: Terminator::Return {
+                    edge: edge_id(12),
+                    value: computed,
+                },
+            }],
+            contract: MachineContract {
+                id: contract_id(12),
+                requires: vec![Proposition::Truth],
+                ensures: vec![ContractClause {
+                    obligation: obligation_id(12),
+                    proposition: Proposition::Truth,
+                }],
             },
         }],
     }

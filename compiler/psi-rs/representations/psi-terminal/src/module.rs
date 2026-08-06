@@ -35,6 +35,8 @@ use psi_core::{
 /// one exact integer type.
 /// Version 19 adds signedness-aware integer less-than and less-or-equal over
 /// two already-defined values of one exact integer type.
+/// Version 20 adds total bitwise AND, OR, and XOR over two already-defined
+/// values of one exact integer type.
 /// Older bytes retain their original meaning and identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SemanticVersion(NonZeroU16);
@@ -59,7 +61,8 @@ impl SemanticVersion {
     pub const V17: Self = Self(NonZeroU16::new(17).expect("seventeen is nonzero"));
     pub const V18: Self = Self(NonZeroU16::new(18).expect("eighteen is nonzero"));
     pub const V19: Self = Self(NonZeroU16::new(19).expect("nineteen is nonzero"));
-    pub const CURRENT: Self = Self::V19;
+    pub const V20: Self = Self(NonZeroU16::new(20).expect("twenty is nonzero"));
+    pub const CURRENT: Self = Self::V20;
 
     pub fn new(raw: u16) -> Option<Self> {
         NonZeroU16::new(raw).map(Self)
@@ -315,6 +318,9 @@ pub enum OperationKind {
     IntegerEqual { left: ValueId, right: ValueId },
     IntegerLessThan { left: ValueId, right: ValueId },
     IntegerLessOrEqual { left: ValueId, right: ValueId },
+    IntegerBitwiseAnd { left: ValueId, right: ValueId },
+    IntegerBitwiseOr { left: ValueId, right: ValueId },
+    IntegerBitwiseXor { left: ValueId, right: ValueId },
     WrappingIntegerAdd { left: ValueId, right: ValueId },
     SaturatingIntegerAdd { left: ValueId, right: ValueId },
     WrappingIntegerSubtract { left: ValueId, right: ValueId },
