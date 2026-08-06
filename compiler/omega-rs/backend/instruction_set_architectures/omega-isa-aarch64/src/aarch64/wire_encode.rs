@@ -657,3 +657,24 @@ pub fn encode_append_wire_scalar_slice(
     );
     Ok(bytes)
 }
+
+pub fn append_wire_scalar_slice_clobbers() -> RegisterSet {
+    RegisterSet::new([
+        MachineRegister::Aarch64X(16),
+        MachineRegister::Aarch64X(17),
+        MachineRegister::Aarch64X(19),
+        MachineRegister::Aarch64X(20),
+        MachineRegister::Aarch64X(21),
+        MachineRegister::Aarch64X(22),
+        MachineRegister::Aarch64X(23),
+        MachineRegister::Aarch64X(24),
+        MachineRegister::Aarch64X(25),
+        MachineRegister::Aarch64X(26),
+        MachineRegister::Aarch64X(27),
+        MachineRegister::Aarch64X(28),
+    ])
+}
+
+pub fn append_wire_scalar_slice_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::new([MachineState::Flags])
+}

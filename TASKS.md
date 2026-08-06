@@ -234,8 +234,9 @@ compiler-function instruction rows, call/return mechanics, the live target-spec
 body subset, relocation coverage, and the growing ordinary place-copy/write
 matrix. Recent work closed constant nested-guard indexing and cross-region
 single/double-indexed pair replay, and added exact relocated-byte plus
-StatePlan-footprint replay for compact-binary literal-byte, scalar-varint, and
-bounded text appends plus framing-byte and ranged/signed scalar-varint reads.
+StatePlan-footprint replay for compact-binary literal-byte, scalar-varint,
+bounded text, and two-pass borrowed scalar-slice appends plus framing-byte and
+ranged/signed scalar-varint reads.
 
 Remaining:
 

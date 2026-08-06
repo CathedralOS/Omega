@@ -374,6 +374,17 @@ pub enum CompilerInstructionValidationKind {
         written_region: RuntimeStorageRegion,
         written_offset: usize,
     },
+    CompilerBodyWireScalarSliceAppend {
+        source_region: RuntimeStorageRegion,
+        source_offset: usize,
+        element_byte_size: usize,
+        zigzag: bool,
+        out_region: RuntimeStorageRegion,
+        out_offset: usize,
+        out_length: usize,
+        written_region: RuntimeStorageRegion,
+        written_offset: usize,
+    },
     CompilerBodyWireExpectedByteRead {
         buffer_region: RuntimeStorageRegion,
         buffer_offset: usize,
