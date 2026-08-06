@@ -1530,6 +1530,21 @@ fn compiler_instruction_validation_kind(
                 },
             )
         }
+        SelectedInstructionKind::AppendWireLiteralByte {
+            out_region,
+            out_offset,
+            written_region,
+            written_offset,
+            value,
+        } => Some(
+            CompilerInstructionValidationKind::CompilerBodyWireLiteralByteAppend {
+                out_region: *out_region,
+                out_offset: *out_offset,
+                written_region: *written_region,
+                written_offset: *written_offset,
+                value: *value,
+            },
+        ),
         SelectedInstructionKind::MaterializeTextBufferToPlace { buffer, target }
             if emission_context.target.architecture == omega_target::Architecture::X86_64
                 || matches!(

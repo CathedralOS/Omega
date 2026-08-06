@@ -341,6 +341,13 @@ pub enum CompilerInstructionValidationKind {
         data_symbol: Arc<str>,
         byte_length: usize,
     },
+    CompilerBodyWireLiteralByteAppend {
+        out_region: RuntimeStorageRegion,
+        out_offset: usize,
+        written_region: RuntimeStorageRegion,
+        written_offset: usize,
+        value: u8,
+    },
     CompilerBodyTextBufferMaterialize {
         buffer_symbol: Arc<str>,
         target: Place,

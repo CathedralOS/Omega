@@ -188,6 +188,11 @@ enum CompilerInstructionRelocationRecipe {
         storage_region: omega_target_operations::RuntimeStorageRegion,
         address_site: usize,
     },
+    WireLiteralByteAppend {
+        out_region: omega_target_operations::RuntimeStorageRegion,
+        written_region: omega_target_operations::RuntimeStorageRegion,
+        out_offset: usize,
+    },
     PlacePair {
         left: omega_target_operations::Place,
         right: omega_target_operations::Place,
@@ -5806,6 +5811,33 @@ fn validate_compiler_function_instruction_boundaries(
                             },
                         )
                     }
+                    omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyWireLiteralByteAppend {
+                        out_region,
+                        out_offset,
+                        written_region,
+                        written_offset,
+                        value,
+                    } => (
+                        None,
+                        match architecture {
+                            Architecture::X86_64 => omega_isa_x86_64::encode_append_wire_literal_byte(
+                                out_offset,
+                                written_offset,
+                                value,
+                            )?,
+                            Architecture::Aarch64 => omega_isa_aarch64::encode_append_wire_literal_byte(
+                                out_offset,
+                                written_offset,
+                                value,
+                            )?,
+                        },
+                        65u8,
+                        CompilerInstructionRelocationRecipe::WireLiteralByteAppend {
+                            out_region,
+                            written_region,
+                            out_offset,
+                        },
+                    ),
                     omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyTextBufferMaterialize {
                         buffer_symbol,
                         target,
@@ -6972,6 +7004,48 @@ fn validate_compiler_function_instruction_boundaries(
                                 &expected_bytes,
                                 final_instruction_bytes,
                                 &[address_site],
+                            )
+                    }
+                    CompilerInstructionRelocationRecipe::WireLiteralByteAppend {
+                        out_region,
+                        written_region,
+                        out_offset,
+                    } => {
+                        let address_sites = [
+                            (0, out_region),
+                            (
+                                match architecture {
+                                    Architecture::X86_64 => {
+                                        omega_isa_x86_64::wire_append_written_page_offset(
+                                            out_offset,
+                                        )
+                                    }
+                                    Architecture::Aarch64 => {
+                                        omega_isa_aarch64::wire_append_written_page_offset(
+                                            out_offset,
+                                        )
+                                    }
+                                },
+                                written_region,
+                            ),
+                        ];
+                        validate_compiler_data_address_relocations(
+                            architecture,
+                            object,
+                            relocations,
+                            instruction.selected_instruction_index,
+                            instruction_byte_offset,
+                            &address_sites,
+                        )?;
+                        encoded_instruction_bytes == expected_bytes
+                            && compiler_instruction_non_relocation_bits_match(
+                                architecture,
+                                &expected_bytes,
+                                final_instruction_bytes,
+                                &address_sites
+                                    .iter()
+                                    .map(|(offset, _)| *offset)
+                                    .collect::<Vec<_>>(),
                             )
                     }
                     CompilerInstructionRelocationRecipe::PlacePair { left, right } => {
@@ -9259,6 +9333,20 @@ fn compiler_instruction_footprint(
                 }
             }
         }
+        CompilerInstructionValidationKind::CompilerBodyWireLiteralByteAppend { .. } => {
+            match architecture {
+                Architecture::X86_64 => (
+                    BoundaryFootprintFragmentOrigin::CompilerBodyWireLiteralByteAppend,
+                    omega_isa_x86_64::append_wire_literal_byte_clobbers(),
+                    omega_isa_x86_64::append_wire_literal_byte_additional_machine_state(),
+                ),
+                Architecture::Aarch64 => (
+                    BoundaryFootprintFragmentOrigin::CompilerBodyWireLiteralByteAppend,
+                    omega_isa_aarch64::append_wire_literal_byte_clobbers(),
+                    MachineStateSet::empty(),
+                ),
+            }
+        }
         CompilerInstructionValidationKind::CompilerBodyTextBufferMaterialize { target, .. } => {
             let shape = compiler_body_place_integer_write_shape(&target).ok()?;
             let (registers, additional_state) = match (architecture, shape) {
@@ -9581,6 +9669,7 @@ fn validate_compiler_body_specification_footprints(
                 | BoundaryFootprintFragmentOrigin::CompilerBodyStorageBitFieldWrite
                 | BoundaryFootprintFragmentOrigin::CompilerBodyPlaceBoundedBufferWrite
                 | BoundaryFootprintFragmentOrigin::CompilerBodyPlaceStringWrite
+                | BoundaryFootprintFragmentOrigin::CompilerBodyWireLiteralByteAppend
                 | BoundaryFootprintFragmentOrigin::CompilerBodyTextAssemblyWrite
                 | BoundaryFootprintFragmentOrigin::CompilerBodyPlaceBinaryWrite
                 | BoundaryFootprintFragmentOrigin::CompilerBodyStorageConvertWrite
@@ -9764,6 +9853,10 @@ fn validate_compiler_body_specification_footprints(
         (
             46u8,
             BoundaryFootprintFragmentOrigin::CompilerBodyRuntimeLineRead,
+        ),
+        (
+            47u8,
+            BoundaryFootprintFragmentOrigin::CompilerBodyWireLiteralByteAppend,
         ),
     ] {
         let evidence_rows = derived

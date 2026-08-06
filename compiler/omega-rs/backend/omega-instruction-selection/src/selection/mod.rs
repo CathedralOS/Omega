@@ -37,6 +37,7 @@ use crate::{
     derive_boundary_compiler_body_storage_bit_field_write_footprint,
     derive_boundary_compiler_body_storage_convert_write_footprint,
     derive_boundary_compiler_body_text_assembly_write_footprint,
+    derive_boundary_compiler_body_wire_literal_byte_append_footprint,
     derive_boundary_dispatch_scaffold_footprint,
     derive_boundary_exit_indirect_result_copy_footprint,
     derive_boundary_exit_result_register_footprint, derive_boundary_place_guard_footprint,
@@ -1000,6 +1001,23 @@ fn retain_exit_footprints(
             },
         )
         .expect("retained compiler-body string-write footprint must name the entry boundary contract");
+    }
+    let evidence = derive_boundary_compiler_body_wire_literal_byte_append_footprint(
+        boundary,
+        instructions.iter().map(|instruction| &instruction.kind),
+    )
+    .expect(
+        "selected compiler-body wire literal-byte appends must fit the validated entry state ceiling",
+    );
+    if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
+        plan.retain_validated_fragment(
+            boundary,
+            omega_abstract_operations::BoundaryFootprintFragment {
+                origin: omega_abstract_operations::BoundaryFootprintFragmentOrigin::CompilerBodyWireLiteralByteAppend,
+                evidence,
+            },
+        )
+        .expect("retained compiler-body wire literal-byte footprint must name the entry boundary contract");
     }
     let evidence = derive_boundary_compiler_body_text_assembly_write_footprint(
         boundary,

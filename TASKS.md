@@ -233,12 +233,14 @@ The final certificate already binds exact relocated bytes, placements,
 compiler-function instruction rows, call/return mechanics, the live target-spec
 body subset, relocation coverage, and the growing ordinary place-copy/write
 matrix. Recent work closed constant nested-guard indexing and cross-region
-single/double-indexed pair replay.
+single/double-indexed pair replay, and added exact relocated-byte plus
+StatePlan-footprint replay for compact-binary literal-byte appends.
 
 Remaining:
 
 - finish classifying and replaying the unclassified compiler-generated
-  x86-64/AArch64 body rows and outbound-call classes;
+  x86-64/AArch64 body rows (including the remaining wire encode/decode
+  families) and outbound-call classes;
 - finish complete entry/body-region enumeration, including format-owned thunks,
   veneers, and generated stubs;
 - derive the complete final register/machine-state union and require exact
