@@ -137,6 +137,12 @@ pub enum TerminalTargetBooleanExpression {
         left: Box<TerminalTargetBooleanExpression>,
         right: Box<TerminalTargetBooleanExpression>,
     },
+    IntegerEqual {
+        psi_operation: OperationId,
+        scalar_type: IntegerType,
+        left: Box<TerminalTargetIntegerExpression>,
+        right: Box<TerminalTargetIntegerExpression>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

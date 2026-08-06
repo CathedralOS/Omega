@@ -206,6 +206,40 @@ impl<'module> TerminalExecution<'module> {
                             TerminalScalarValue::Boolean(left == right),
                         );
                     }
+                    OperationKind::IntegerEqual { left, right } => {
+                        if operation.result.scalar_type != ScalarType::Boolean {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        let TerminalScalarValue::Integer {
+                            scalar_type: left_type,
+                            value: left,
+                        } = self
+                            .values
+                            .get(&left)
+                            .copied()
+                            .ok_or(TerminalInterpretError::VerifiedValueMissing(left))?
+                        else {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        };
+                        let TerminalScalarValue::Integer {
+                            scalar_type: right_type,
+                            value: right,
+                        } = self
+                            .values
+                            .get(&right)
+                            .copied()
+                            .ok_or(TerminalInterpretError::VerifiedValueMissing(right))?
+                        else {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        };
+                        if left_type != right_type {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        self.values.insert(
+                            operation.result.id,
+                            TerminalScalarValue::Boolean(left == right),
+                        );
+                    }
                     OperationKind::WrappingIntegerAdd { left, right } => {
                         let ScalarType::Integer(scalar_type) = operation.result.scalar_type else {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);

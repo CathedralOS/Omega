@@ -31,6 +31,8 @@ use psi_core::{
 /// normalized application identities. Transparent aliases remain absent.
 /// Version 17 adds total Boolean equality over two already-defined Boolean
 /// values.
+/// Version 18 adds total integer equality over two already-defined values of
+/// one exact integer type.
 /// Older bytes retain their original meaning and identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SemanticVersion(NonZeroU16);
@@ -53,7 +55,8 @@ impl SemanticVersion {
     pub const V15: Self = Self(NonZeroU16::new(15).expect("fifteen is nonzero"));
     pub const V16: Self = Self(NonZeroU16::new(16).expect("sixteen is nonzero"));
     pub const V17: Self = Self(NonZeroU16::new(17).expect("seventeen is nonzero"));
-    pub const CURRENT: Self = Self::V17;
+    pub const V18: Self = Self(NonZeroU16::new(18).expect("eighteen is nonzero"));
+    pub const CURRENT: Self = Self::V18;
 
     pub fn new(raw: u16) -> Option<Self> {
         NonZeroU16::new(raw).map(Self)
@@ -306,6 +309,7 @@ pub enum OperationKind {
     BooleanConstant { value: bool },
     BooleanNot { operand: ValueId },
     BooleanEqual { left: ValueId, right: ValueId },
+    IntegerEqual { left: ValueId, right: ValueId },
     WrappingIntegerAdd { left: ValueId, right: ValueId },
     SaturatingIntegerAdd { left: ValueId, right: ValueId },
     WrappingIntegerSubtract { left: ValueId, right: ValueId },

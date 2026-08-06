@@ -611,6 +611,17 @@ fn assign_boolean_expression(
             left: Box::new(assign_boolean_expression(left, locations)?),
             right: Box::new(assign_boolean_expression(right, locations)?),
         }),
+        TerminalTargetBooleanExpression::IntegerEqual {
+            psi_operation,
+            scalar_type,
+            left,
+            right,
+        } => Ok(TerminalAssignedBooleanExpression::IntegerEqual {
+            psi_operation: *psi_operation,
+            scalar_type: *scalar_type,
+            left: Box::new(assign_expression(left, locations)?),
+            right: Box::new(assign_expression(right, locations)?),
+        }),
     }
 }
 
@@ -687,6 +698,24 @@ fn boolean_expression_parameter_locations(
             TerminalTargetBooleanExpression::Equal { left, right, .. } => {
                 collect(left, locations)?;
                 collect(right, locations)?;
+            }
+            TerminalTargetBooleanExpression::IntegerEqual { left, right, .. } => {
+                for (parameter_index, (source_value, location)) in
+                    expression_parameter_locations(left)?
+                        .into_iter()
+                        .chain(expression_parameter_locations(right)?)
+                {
+                    if let Some((_, established)) = locations.get(&parameter_index) {
+                        if established != &location {
+                            return Err(AssignmentError::ExpressionParameterLocationConflict {
+                                value: source_value,
+                                parameter_index,
+                            });
+                        }
+                    } else {
+                        locations.insert(parameter_index, (source_value, location));
+                    }
+                }
             }
         }
         Ok(())

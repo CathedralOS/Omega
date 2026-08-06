@@ -1197,7 +1197,7 @@ fn checked_source_boolean_equality_round_trips_and_reaches_native_code() {
 
     assert_eq!(
         lowered.semantic_module.semantic_version,
-        SemanticVersion::V17
+        SemanticVersion::CURRENT
     );
     assert!(
         lowered.semantic_module.machines[0].blocks[0]
@@ -1319,6 +1319,96 @@ fn checked_source_runtime_boolean_equality_reaches_native_code() {
             run_host_machine_code_with_two_bools(entry.bytes(&object_artifact), left, right,),
             expected
         );
+    }
+}
+
+#[test]
+fn checked_source_runtime_integer_equality_round_trips_and_reaches_native_code() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("runtime integer-equality source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_integer_equal_runtime")
+        .expect("runtime integer equality should lower");
+    drop(checked);
+
+    assert_eq!(
+        lowered.semantic_module.semantic_version,
+        SemanticVersion::V18
+    );
+    assert!(matches!(
+        lowered.semantic_module.machines[0].blocks[0].operations[0].kind,
+        OperationKind::IntegerEqual { .. }
+    ));
+    let semantic_bytes = encode_module(&lowered.semantic_module)
+        .expect("runtime integer equality should encode canonically");
+    let semantic_module =
+        decode_module(&semantic_bytes).expect("runtime integer equality should decode");
+    let verified = verify_module(
+        &semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("runtime integer equality should verify");
+    let fuel = derive_fixed_entry_fuel(&verified, semantic_module.entry)
+        .expect("runtime integer equality should have fixed fuel");
+    assert_eq!(fuel.ceiling_units(), 2);
+    let integer_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 terminal type");
+    for (left, right, expected) in [
+        (0_u64, 0_u64, true),
+        (0, 1, false),
+        (u64::MAX, u64::MAX, true),
+        (u64::MAX, u64::MAX - 1, false),
+    ] {
+        let measured = interpret_terminal_measured(
+            &verified,
+            &[
+                TerminalScalarValue::Integer {
+                    scalar_type: integer_type,
+                    value: IntegerValue::Unsigned(u128::from(left)),
+                },
+                TerminalScalarValue::Integer {
+                    scalar_type: integer_type,
+                    value: IntegerValue::Unsigned(u128::from(right)),
+                },
+            ],
+        )
+        .expect("runtime integer equality should interpret");
+        assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+        assert_eq!(measured.usage().total_units(), 2);
+    }
+
+    #[cfg(unix)]
+    {
+        let abstract_operations = lower_verified_module(&verified)
+            .expect("runtime integer equality should cross the Omega boundary");
+        let target_operations =
+            lower_to_target_operations(&abstract_operations, NativeTarget::host())
+                .expect("runtime integer equality should select for the host");
+        assert!(matches!(
+            &target_operations.functions[0].operation,
+            TerminalTargetOperation::ReturnBooleanExpression {
+                expression: TerminalTargetBooleanExpression::IntegerEqual { .. },
+                ..
+            }
+        ));
+        let assigned = assign_registers(&target_operations)
+            .expect("runtime integer equality homes should assign");
+        let machine_code =
+            emit_machine_code(&assigned).expect("runtime integer equality should emit");
+        let object_artifact = build_terminal_object_artifact(&machine_code)
+            .expect("runtime integer equality should form an object");
+        let entry = object_artifact.entry_function();
+        assert_eq!(entry.provenance.operations.len(), 1);
+        for (left, right, expected) in [
+            (0_u64, 0_u64, 1),
+            (0, 1, 0),
+            (u64::MAX, u64::MAX, 1),
+            (u64::MAX, u64::MAX - 1, 0),
+        ] {
+            assert_eq!(
+                run_host_machine_code_with_two_u64(entry.bytes(&object_artifact), left, right),
+                expected
+            );
+        }
     }
 }
 
@@ -2363,6 +2453,51 @@ int main(void) {{ return terminal_entry({first}, {second}, 3, 4, 5, 6, 7, 8, {ni
         .expect("execute terminal parameter canary")
         .code()
         .expect("terminal parameter canary exited normally")
+}
+
+#[cfg(unix)]
+fn run_host_machine_code_with_two_u64(bytes: &[u8], left: u64, right: u64) -> i32 {
+    let directory = fresh_scratch_directory("omega-terminal-integer-equality");
+    let _cleanup = ScratchDirectory(directory.clone());
+    let assembly_path = directory.join("entry.s");
+    let driver_path = directory.join("driver.c");
+    let executable_path = directory.join("entry");
+    let bytes = bytes
+        .iter()
+        .map(|byte| format!("0x{byte:02x}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let assembly = if cfg!(target_os = "macos") {
+        format!(".text\n.globl _terminal_entry\n.p2align 2\n_terminal_entry:\n.byte {bytes}\n")
+    } else {
+        format!(
+            ".text\n.globl terminal_entry\n.type terminal_entry,@function\nterminal_entry:\n.byte {bytes}\n.size terminal_entry, .-terminal_entry\n.section .note.GNU-stack,\"\",@progbits\n"
+        )
+    };
+    let driver = format!(
+        "#include <stdint.h>\n\
+extern uint8_t terminal_entry(uint64_t, uint64_t);\n\
+int main(void) {{ return terminal_entry({left}ULL, {right}ULL); }}\n"
+    );
+    std::fs::write(&assembly_path, assembly).expect("write integer-equality assembly harness");
+    std::fs::write(&driver_path, driver).expect("write integer-equality C harness");
+    let link = Command::new("cc")
+        .arg(&assembly_path)
+        .arg(&driver_path)
+        .arg("-o")
+        .arg(&executable_path)
+        .output()
+        .expect("invoke host C linker driver");
+    assert!(
+        link.status.success(),
+        "host linker rejected integer-equality terminal machine code:\n{}",
+        String::from_utf8_lossy(&link.stderr)
+    );
+    Command::new(&executable_path)
+        .status()
+        .expect("execute terminal integer-equality canary")
+        .code()
+        .expect("terminal integer-equality canary exited normally")
 }
 
 #[cfg(unix)]

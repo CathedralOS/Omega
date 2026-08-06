@@ -76,6 +76,12 @@ pub enum TerminalAbstractOperation {
         left: ValueId,
         right: ValueId,
     },
+    IntegerEqual {
+        psi_operation: OperationId,
+        result: ValueId,
+        left: ValueId,
+        right: ValueId,
+    },
     WrappingIntegerAdd {
         psi_operation: OperationId,
         result: ValueId,

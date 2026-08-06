@@ -87,6 +87,14 @@ fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, 
                         right,
                     });
                 }
+                OperationKind::IntegerEqual { left, right } => {
+                    operations.push(TerminalAbstractOperation::IntegerEqual {
+                        psi_operation: operation.id,
+                        result: operation.result.id,
+                        left,
+                        right,
+                    });
+                }
                 OperationKind::WrappingIntegerAdd { left, right } => {
                     let ScalarType::Integer(scalar_type) = operation.result.scalar_type else {
                         return Err(LoweringError::VerifiedWrappingAddMalformed(operation.id));
