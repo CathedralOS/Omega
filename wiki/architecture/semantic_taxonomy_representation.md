@@ -524,6 +524,13 @@ TargetSlotBinding {
     exact_machine_or_conformance,
     normalized_contract_or_map,
 }
+
+EntryAdapterShape {
+    arrival_requirement,
+    visible_parameters,
+    result,
+    receiver_provisioning: None | ProvisionedZii,
+}
 ```
 
 The slot declares the accepted semantic tier. Exact bindings expose only one
@@ -533,11 +540,14 @@ lifecycle and cardinality remain orthogonal. The selected target owns required-
 slot completeness, so a cross-profile binding, duplicate binding, or missing
 required build-bound slot rejects.
 
-An entry schema inherits the declaring requirement identity and contributes
-calling/state policy; it does not create a second target-local requirement.
-Generated bridges retain that identity and receive a compiler-derived
+An entry schema selects one physical arrival requirement, contributes
+calling/state policy, and declares the source-visible continuation shape.
+Generated bridges retain the arrival identity, provision an optional exclusive
+receiver beneath an admitted entry root, and receive a compiler-derived
 `MachineSemanticContract` whose crash, reach, write, work, stack/state,
-introduction, and provenance rows compose with the bound program closure.
+provisioning, introduction, and provenance rows compose with the bound source
+entry closure. The selected source machine is not a second physical entry
+requirement.
 
 Selected-provider closure also derives executable TCB metadata independently of
 the machine contract:

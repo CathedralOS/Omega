@@ -1275,6 +1275,11 @@ Working interpretation:
   core `Content<A>` conformance selecting a compiler-owned decomposition
   algebra; permissions govern operations, and carry governs mobility. None is
   inferred merely from the domain's spelling or multiplicity.
+- Content denominators remain pure proof vocabulary. Fresh root origin is
+  classified per occurrence from compiler-provisioned sealed declared capacity
+  or admitted provider issuance. A checked runtime route may expose or transform
+  an existing account but never originate one. Equal denominators do not imply
+  equal lineage, qualification, backing, or external authority.
 - Qualification and proof evidence erase from runtime code. Static semantic
   roles may affect later operator lowering without adding runtime metadata.
 - Qualification, explicit erasure, recast, validation, and noncanonical

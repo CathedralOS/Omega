@@ -26,27 +26,28 @@ deployment data, not compiler folklore.
 
 ## Typed entry handoff
 
-The image binds an ordinary exact satisfier for the stable semantic entry
-requirement. The target schema inherits that requirement and contributes its
-complete evaluated calling and machine-state policy; the generated entry bridge
-translates the platform arrival into typed Omega values.
+The target profile owns the physical arrival requirement and contributes its
+complete evaluated calling and machine-state policy. The bound source entry is
+the continuation the generated bridge calls after translating platform arrival
+into the typed parameters that the freestanding schema deliberately exposes.
 
 ```omega
 machine Application::start(
     image: Extent in Granted,
     initial_storage: Extent in Granted
 )
-    satisfies ProgramStorageEntry::enter
 {
     ...
 }
 ```
 
-The UEFI profile's `ProgramEntry` slot records schema `UefiApplication`, the one
-inherited `(ProgramStorageEntry, enter)` requirement identity, and
-`Calling<UefiX86_64>` policy. There is no second `UefiApplication::entry`
-identity. The domain route and exact satisfier therefore name the same core
-requirement while the target controls physical realization.
+The UEFI profile's `ProgramEntry` slot records schema `UefiApplication`, arrival
+requirement `ProgramStorageEntry::enter`, `Calling<UefiX86_64>` policy, and the
+two source-visible qualified parameters. The generated bridge is the installed
+implementation of that arrival requirement. At its external invocation the
+domain route introduces the two roots; the bridge then calls
+`Application::start` ordinarily with already-qualified values. The application
+does not itself impersonate the physical entry contract.
 
 The bridge/provider contract states pointer provenance, alignment, lifetime,
 paging and CPU regime, stack supply, entry/exit control, and any facts the
@@ -57,29 +58,34 @@ the generated bridge's crash routes, reach, writes, work, stack/state,
 introduced facts, and provenance and composes them with the application's
 portable closure. The code that first touches untrusted platform input is never
 outside the contract system. The old `boundary(<Plan>)` syntax is retired; plan
-identity belongs to the inherited requirement through `Calling<C>`.
+identity belongs to the arrival requirement through `Calling<C>`.
 
 Program storage begins from a small number of entry-provisioned content roots.
 The loader, firmware, or OS admits the image mapping and initial stack/storage
-roots as part of the typed entry handoff. The compiler derives statics and
-sections as subextents of the image root; later frames and task stacks are
-checked allocations from an existing root. It does not admit every object
-individually, and a static array cannot originate physical-memory content merely
-because its size is known.
+roots as part of the typed entry handoff. The compiler derives image sections
+as subextents of the image root; later frames and task stacks are checked
+allocations from an existing root. A receiver-bound entry may request one
+ZII-valid root object; the bridge provisions it as an accounted subextent and
+lends only `&mut self`. If the underlying root is also source-visible, the
+bridge forwards a conserved nonoverlapping residual rather than the original
+whole. It does not admit every object individually, and a
+compiler-known array cannot originate physical-memory content merely because
+its size is known.
 
-Those roots use the core-owned stable `ProgramStorageEntry::enter` requirement.
-Its two exact `Extent in Granted` parameter positions identify the image and
-initial storage roots. Target entry schemas such as `UefiApplication` inherit
-that semantic requirement; `Calling<C>`, target policy, and generated stubs
-refine its plan and ABI without replacing its identity.
+Those roots use the core-owned stable `ProgramStorageEntry::enter` arrival
+requirement. Its two exact `Extent in Granted` parameter positions identify the
+image and initial storage roots inside the generated bridge. Target entry
+schemas such as `UefiApplication` select that requirement; `Calling<C>`, target
+policy, generated stubs, and the source-visible continuation shape refine its
+realization without replacing its identity.
 `Extent::Granted` authorizes the core requirement as an alternative route, and
 installation introduces the matching parameters. Core therefore never depends
 on a UEFI/Cathedral domain, and the compiler never recognizes target-friendly
-names as storage authority. The source requirement and qualified-position
+names as storage authority. The arrival requirement and qualified-position
 identity are live. Installation now requires an exact selected calling-plan
 fingerprint and generated ABI capture for each semantic position, validates
 both `Granted::no_wrap` obligations before consuming either admitted grant,
-and returns both grants intact on rejection. Compiler-derived image/static
+and returns both grants intact on rejection. Compiler-derived image-section
 ranges remain borrowed views under the installed image root. Initial-storage
 allocations that leave the pool's ownership use an explicit conserved
 partition retaining every remainder and can recompose the exact parent.

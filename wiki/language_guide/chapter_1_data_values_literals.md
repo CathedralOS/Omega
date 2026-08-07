@@ -20,23 +20,27 @@ Omega starts with explicit data shapes and explicit values.
 
 ## Hello World
 
-The smallest console program has one root data object and one entry machine.
+The smallest console program has a free entry machine and no implicit state.
 
 ```omega
 use omega::language::std::console;
 
-data Main {
-    console: Console;
+machine start() {
+    Console::write_line("Hello, Omega.");
 }
 
-machine Main::main(&mut self) {
-    self.console.write_line("Hello, Omega.");
-    self.console.exit_process(0);
+machine build(builder: &mut Build) {
+    builder.target = windows_x86_64;
+    builder.roots.bind(windows_x86_64::ProgramEntry, start);
 }
 ```
 
-`Main` owns the process state. `Main::main` is the process entry machine.
-The string literal is passed to the console capability stored on `Main`.
+`build.omg` selects `start`; the language does not discover `main` by name. A
+hosted target's generated bridge performs platform storage and provider setup
+before calling this source-level entry, so ordinary applications do not receive
+raw image or stack extents. The target-selected Console provider services the
+call. Programs that need one persistent root object attach the selected entry
+machine to that object's data type; Chapter 3 shows that form.
 
 ## Data
 
@@ -327,9 +331,10 @@ pub const EFI_SUCCESS: EfiStatus = EfiStatus { code: 0 };
   it is what makes a `const` safe to reference from anywhere without analysis.
 - **Not authority.** A constant grants nothing, so free-floating constants are
   consistent with the capability model — unlike ambient *mutable* state, which
-  does not exist (there is no `static` keyword; persistent state is the root's
-  subtree — see
-  [Constants & the Static Root](../design_briefs/static_root_and_constants.md)).
+  does not exist. There is no `static` keyword. A receiver-bound program entry
+  gets one target-provisioned root object, reachable only through its explicit
+  `&mut self` parameter; see
+  [Constants And Provisioned Root State](../design_briefs/static_root_and_constants.md).
 
 ## String Literals And Bytes
 
