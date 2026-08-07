@@ -122,14 +122,15 @@ provider closure per hosted target, with checked
 target's existing `read_line`, `read_byte`, `write_byte`, and process-exit
 lowerings.
 
-The static build-root spelling is
-`b.select_provider<BoundaryTrait, ProviderType>();`. Both arguments are types,
-not static machine parameters. The declaration is harvested only from the
-authoritative `build.omg` machine, and selection succeeds only when that
-provider's own derived candidate exists in the loaded dependency closure,
-applies to the selected target, and covers the complete slot schema. Thus the
-marker grants neither rows nor trust; it spends the build root's slot-selection
-authority over an already-derived and independently admitted candidate.
+The static build root names a target-owned provider slot and one exact complete
+conformance, for example
+`builder.providers.bind(target::Console, SerialConsole::Polled)`. The binding is
+harvested only from the authoritative `build.omg` machine, and selection
+succeeds only when that conformance's derived candidate exists in the loaded
+dependency closure, applies to the selected target, and covers the complete
+slot schema. Thus the binding grants neither rows nor trust; it spends the build
+root's slot-selection authority over an already-derived and independently
+admitted candidate.
 
 The satisfied requirement supplies the public contract, including service
 reach, suspension, blocking, and guarded-crash ceilings. The external
@@ -549,21 +550,34 @@ reuses provider admission rather than creating an entry-specific trust system.
 
 ## Process entry
 
-`main` is an exported boundary callable with a typed handoff shape. A
-target-specific inbound stub translates the OS/firmware startup convention into
-that shape and records the accepted trust/calling-plan contract.
+Process entry is one required environment-to-program root slot in a hosted
+target profile. The program binds an exact semantic implementation while the
+target contributes the calling and machine-state policy.
 
 ```omega
-boundary machine Main::run(
-    &self,
-    handoff: ProcessHandoff
-) -> ExitStatus;
+machine Application::start(
+    image: Extent in Granted,
+    initial_storage: Extent in Granted
+)
+    satisfies ProgramStorageEntry::enter
+{
+    ...
+}
+
+machine build(builder: &mut Build) {
+    builder.target = windows_x86_64;
+    builder.roots.bind(
+        windows_x86_64::ProgramEntry,
+        Application::start
+    );
+}
 ```
 
-On Windows the stub may read the native command-line/environment surfaces; on
-ELF it may read the initial stack; on firmware it may consume a firmware
-handoff. Those details stay in providers. Image/subsystem selection belongs in
-`build.omg`, not a target-specific source dialect.
+On Windows the generated stub may read native command-line/environment
+surfaces; on ELF it may read the initial stack; on firmware it may consume a
+firmware handoff. Those details stay in scoped providers and generated bridge
+code. Target selection and slot binding belong in `build.omg`, not a
+target-specific source dialect or a `main` naming convention.
 
 ## Engineering order
 
@@ -588,8 +602,8 @@ handoff. Those details stay in providers. Image/subsystem selection belongs in
 Target-specific launch/exit details not covered by existing calling plans.
 
 Exact `Build` library method names for choosing a target profile remain
-ordinary library/API engineering. Per-requirement provider override has settled on
-`select_provider<BoundaryTrait, ProviderType>()`; equivalent scoped APIs for
-tests and replaceable-realization owners remain engineering work, not an open
-grammar question. "Binding" here is build/artifact state, not a source `slot`
-construct.
+ordinary library/API engineering. Provider override binds one target-owned
+typed slot to the exact satisfier or complete named conformance demanded by
+that slot; equivalent scoped APIs for tests and replaceable-realization owners
+remain engineering work, not an open grammar question. "Binding" here is
+build/artifact state, not a source `slot` construct.

@@ -455,6 +455,14 @@ instead produces an explicit conserved partition containing the selected range
 and every nonempty prefix/suffix remainder; invalid extraction returns the
 original pool and an unmodified partition recomposes the exact parent lineage.
 
+The target profile declares the external-root slot and its schema; `build.omg`
+binds the target-qualified slot to one exact implementation satisfying the core
+requirement. Slot selection does not authorize a claim by itself. The domain
+owner's route authorizes what an installed invocation may introduce, while the
+selected slot, generated bridge, and installation receipt identify the concrete
+occurrence. The generated bridge's derived contract and provenance compose into
+the artifact before target supply is admitted.
+
 The admitted root is a scoped hypothesis import, not a proof that external
 reality equals the compiler model. A selected provider states the exact
 correspondence between runtime geometry and one backing/root identity. The
@@ -719,6 +727,12 @@ names the exact implementation machine and state, propagated fact, semantic
 parameter, ABI placement, and generated write range. Failed occurrence or
 placement admission never enters the body; the selected schema alone remains
 insufficient.
+
+External roots and outbound providers share typed slot binding, completeness,
+admission, provenance, and lock-identity machinery. Direction distinguishes
+them: the environment invokes a root, while the program invokes a provider.
+Lifecycle, cardinality, sparseness, and runtime installation remain orthogonal
+slot properties.
 
 Mask transitions use the ordinary routed-result path. Core's `Active` domain
 names the exact exclusive-receiver `InterruptMaskControl::save_and_mask`

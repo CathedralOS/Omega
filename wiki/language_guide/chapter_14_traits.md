@@ -162,6 +162,13 @@ whole-trait bound, or licenses `dyn`. Clause order is signature, exact
 the checked body. An irreducible external realization uses `via <Binding>;`
 instead of a body.
 
+A target slot declares which tier it accepts. An `ExactRequirement` slot binds
+one exact satisfier and exposes only that requirement's normalized contract; no
+conformance exists from which a consumer could cite trait laws. A
+`CompleteConformance` slot binds one named closed conformance and exposes its
+requirements and laws together. Binding shape is part of the slot identity and
+is not inferred from the trait's current requirement count.
+
 ### Domain establishment requirements
 
 A domain may name an exact trait requirement in its body. This does not make

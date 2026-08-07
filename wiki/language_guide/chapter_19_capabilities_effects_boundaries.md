@@ -684,6 +684,28 @@ while having very different blast radii. One only writes into a folder supplied
 by the caller. The other prompts the user, consults the environment, or calls a
 raw host provider to acquire filesystem authority itself.
 
+### Package builds
+
+`build.omg` is an ordinary checked Omega program run with package-scoped build
+providers. It has no ambient filesystem, network, process, signing, secret, or
+package-acceptance authority. Before evaluation, its normalized contract gives
+policy the static service and authority ceiling; after evaluation, receipts
+record the realized observations and outputs.
+
+Dependency retrieval is a resolver operation performed before downloaded code
+runs. The resolver owns narrowly scoped network, archive-reading, expansion-
+limit, path-containment, and destination authority. A dependency's `build.omg`
+never inherits those providers. Imported boundary claims are inert until the
+root build accepts the dependency's fingerprinted complete claim set; any claim
+change invalidates that acceptance and appears in the lock/trust diff.
+
+Generated Omega source carries no build authority into the resulting program.
+It is checked under the consuming artifact's ordinary runtime reach, crash,
+work, conservation, and trust ceilings. Standard release-capable build
+providers are hermetic or return replay receipts for every observation;
+volatile providers are explicit development policy and cannot produce a
+source-rebuildable release.
+
 Target metadata such as library artifact, symbol, syscall number, calling
 convention, and boundary provider belongs in toolchain host packages or explicitly
 whitelisted boundary providers. Pulling in `Filesystem`, `Console`, or
@@ -757,8 +779,11 @@ not compiler tables.
 At the static root, an override is explicit and type-per-slot:
 
 ```omega
-machine build(b: &mut Build) {
-    b.select_provider<Console, TestConsole>();
+machine build(builder: &mut Build) {
+    builder.providers.bind(
+        selected_target::Console,
+        TestConsole::Complete
+    );
 }
 ```
 
@@ -820,23 +845,30 @@ vehicle for many of these providers -- the asm instruction contracts ARE
 hardware-fact declarations in small form.
 
 A freestanding target also needs an entry contract: who calls the entry, in
-what machine state (which firmware handoff, what is mapped, what is zeroed).
-The entry is an ordinary **exported callable** --
-`boundary machine Main::run(handoff: EfiHandoff) -> EfiStatus`. A
-`boundary machine` declares "we export this as a callable surface": its
-parameter list is the shape imposed over the platform's arrival bytes (the
-boundary performs the recast; a raw `&[u8]` parameter stays first-class for
-programs that want unclaimed bytes). The satisfied target requirement pins a
-normalized calling policy through ordinary `Calling<C>` trait composition.
+what machine state, what storage roots arrive, and what is mapped or zeroed.
+The target profile declares an environment-to-program root slot whose schema
+inherits a stable semantic requirement and pins a normalized calling policy
+through ordinary `Calling<C>` trait composition. `build.omg` binds that slot to
+one exact machine satisfying the inherited requirement; no source name is an
+entry by convention.
+
+For program storage, the one requirement identity is
+`ProgramStorageEntry::enter`. A schema such as `UefiApplication` inherits it and
+contributes `Calling<UefiX86_64>`; it does not redeclare an
+`UefiApplication::enter` identity. The generated inbound bridge maps platform
+arrival bytes and provider-private firmware handles to the semantic parameters.
+Its derived crash, reach, write, work, stack/state, introduction, and provenance
+contract composes with the bound program just like authored code.
+
 `C` satisfies the ordinary core `CallingPolicy` relationship; its compile-time
 machine evaluates the normalized signature to an accepted or structured-
 rejected boundary plan. Accepted plans are compiler-validated and canonicalized.
 The evaluated `CallPlan + StatePlan`, not the policy symbol or source body,
 belongs to requirement identity;
 `boundary(<Plan>)` is retired because it fused trust treatment with deployment
-policy. "No host" is `b.freestanding = true` in
-`build.omg` (an orthogonal `Build` field; see
-`design_briefs/build_and_package_model.md`). The machine-state
+policy. The selected target profile supplies the freestanding fact and empty
+host-provider baseline (see
+`../design_briefs/build_and_package_model.md`). The machine-state
 guarantees are normalized provider/entry-plan facts surfaced by the build
 artifact and checked or accepted through the ordinary admission spine.
 

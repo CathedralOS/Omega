@@ -503,6 +503,42 @@ contract/ceiling; validation and admission check the binding/provider behavior
 as a refinement and produce any trust receipt. `ProviderPlan` is then derived
 from explicit conformance closure rather than authored rows.
 
+Target profiles expose the same selection through typed slots:
+
+```text
+TargetSlotDeclaration {
+    identity,
+    schema,
+    direction: EnvironmentToProgram | ProgramToProvider,
+    binding_shape: ExactRequirement(requirement)
+                 | CompleteConformance(trait),
+    lifecycle,
+    cardinality,
+    index_policy,
+    installation_authority,
+}
+
+TargetSlotBinding {
+    target_profile,
+    slot,
+    exact_machine_or_conformance,
+    normalized_contract_or_map,
+}
+```
+
+The slot declares the accepted semantic tier. Exact bindings expose only one
+requirement contract; complete bindings retain the whole conformance map and
+laws. Direction distinguishes external roots from outbound providers, while
+lifecycle and cardinality remain orthogonal. The selected target owns required-
+slot completeness, so a cross-profile binding, duplicate binding, or missing
+required build-bound slot rejects.
+
+An entry schema inherits the declaring requirement identity and contributes
+calling/state policy; it does not create a second target-local requirement.
+Generated bridges retain that identity and receive a compiler-derived
+`MachineSemanticContract` whose crash, reach, write, work, stack/state,
+introduction, and provenance rows compose with the bound program closure.
+
 Selected-provider closure also derives executable TCB metadata independently of
 the machine contract:
 
