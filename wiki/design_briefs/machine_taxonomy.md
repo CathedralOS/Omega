@@ -130,7 +130,7 @@ Proposition declarations have their own non-executable forms: `;` introduces a
 primitive fact, a witness-bearing declaration publishes one canonical
 carrierless evidence interface, and `=` defines a transparent logical
 expansion. None is a machine body or machine supply mode. The exact dedicated
-source clause for the evidence interface remains `OWNER_QUESTIONS.md` Q4.
+source clause for the evidence interface remains `OWNER_QUESTIONS.md` Q3.
 
 The expression after `via` must be compile-time evaluable to a normalized
 `Binding` value. Its normalized identity enters the derived provider plan;
@@ -138,8 +138,8 @@ plan derivation validates it structurally, and admission assigns trust from
 the binding kind and evidence. Merely writing `via` asserts no trust class.
 
 `satisfies` identifies the requirement and inherits its contract. The
-requirement's service-reach row and `suspends`/`blocks` fields are public
-ceilings. The realization's checked provider behavior is derived from its
+requirement's service-reach row, `suspends`/`blocks` fields, and guarded
+`crashes` buckets are public ceilings. The realization's checked provider behavior is derived from its
 binding/provider contract and must refine every ceiling during validation and
 admission; a `via` declaration does not author a second copy of them.
 
@@ -190,7 +190,7 @@ declaration species.
 Compiler, runtime, and provider steps may be internal (`tau`) only after
 projection through the machine's declared observation surface, subject to the
 observation requirements imposed by its calling context. Declared service
-reach, operational ceilings, authority, resource bounds, failure,
+reach, operational and guarded-crash ceilings, authority, resource bounds, failure,
 cancellation, and temporal guarantees remain observable wherever the context
 requires them.
 

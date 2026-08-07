@@ -340,13 +340,14 @@ artifact.
   an acyclic body. Fresh owned argument graphs, fresh machine instances, and
   snapshot-only results enforce the no-escaping-mutation axis at the evaluator
   boundary. Reachable explicit linear runtime carriers also reject until a
-  proof/build-admission exists. Authority, trust, abnormal-outcome, and richer
-  resource axes still need to complete the common admission floor.
-- Abnormal non-return admission is design-blocked on
-  `OWNER_QUESTIONS.md` Q1. The language has not selected the complete-contract
-  spelling or normalized failure/control row; contextual parser `trap`
-  currently erases to an ordinary terminal edge and cannot serve as checked
-  evidence.
+  proof/build-admission exists. Authority, trust, guarded-crash, and richer
+  resource axes still need implementation in the common admission floor.
+- Build-time admission substitutes the concrete invocation into published
+  `crashes` routes and rejects when any route survives. This is
+  invocation-specific: a trap-capable operation such as division is admissible
+  when the supplied values disprove all of its routes. The evaluator never
+  interprets a crash as a value result, catchable failure, or ordinary terminal
+  edge.
 - The positive normalized termination variant, snapshots, artifacts,
   diagnostics, and code use the settled `Terminates` vocabulary.
 - Add the target semantic capsule and split semantic result keys from canonical

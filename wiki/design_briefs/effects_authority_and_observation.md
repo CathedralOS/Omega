@@ -1,9 +1,9 @@
 # Design Brief: Service Reach, Synchronous Invocation, Authority, And Observation
 
-Revised 2026-07-29. This brief defines a service-reach `reaches` row, a direct
-synchronous `invokes` ceiling, and independent `suspends` and `blocks`
-operational ceilings. `terminates` remains the separate positive progress
-guarantee settled by decision 23. It records each axis's
+Revised 2026-08-06. This brief defines a service-reach `reaches` row, a direct
+synchronous `invokes` ceiling, independent `suspends` and `blocks` operational
+ceilings, and the guarded `crashes` ceiling. `terminates` remains the separate
+positive progress guarantee settled by decision 23. It records each axis's
 propagation/refinement laws and its relationship to authority and trust.
 General trace theorems, quantitative resource entries, service-row
 polymorphism, and additional operational clauses remain explicitly deferred.
@@ -80,7 +80,8 @@ and artifact homes:
 | Trust reach | provider/admission receipts and the trust ledger |
 | Positive temporal guarantees | operation/provider contracts and context floors |
 | Resource consumption | explicit capabilities and dependent contracts in v1 |
-| Failure/control outcomes | return sums, traps, cancellation, and non-return |
+| Recoverable failure | returned sums and case-specific contracts |
+| Crash possibility | guarded `crashes` buckets and crash plans |
 | Mutation | ownership, borrows, and state contracts |
 
 Frame size is compiler-derived and reported. Task activation capacity is
@@ -107,15 +108,101 @@ declared `suspends` may return immediately on every invocation observed in one
 run.
 
 Internal machines may omit these clauses and receive inferred service,
-suspension, and blocking summaries. Exported machines, boundary operations,
-and trait requirements publish each ceiling. An omitted `reaches` row there is
-empty; omitted `suspends` means never parks; omitted `blocks` means never
-blocks a worker. Diagnostics name the violated axis.
+suspension, blocking, and crash summaries. Exported machines, boundary
+operations, and trait requirements publish each ceiling. An omitted `reaches`
+row there is empty; omitted `suspends` means never parks; omitted `blocks`
+means never blocks a worker; and an omitted crash cause is forbidden.
+Diagnostics name the violated axis.
 
 Authority possession and permission remain separate. Holding a Writable
 capability does not let a machine whose ceiling omits `Writable` exercise it.
 Conversely, listing `Writable` does not mint the capability required by the
 operation.
+
+### Guarded crash ceilings
+
+Crash possibility is the flow-sensitive may-axis:
+
+```omega
+machine divide(n: i32, d: i32) -> i32
+crashes Trap Activation
+    d == 0
+    n == i32::Minimum && d == -1
+crashes Abort ExecutionDomain
+    configuration_invalid
+{
+}
+```
+
+Each clause names one cause and one containment scope. Its indented entries are
+alternative routes, so the clause denotes their disjunction. An empty route
+list denotes `true`. `crashes Trap` is the conservative shorthand for an
+unconditional `Trap` route at `ExecutionDomain`, the permanent portable top.
+Omitting a cause from a published contract forbids that cause. Private omission
+infers a summary.
+
+The initial cause identities are `Trap` and `Abort`. Cause identity controls
+policy and lowering; both are no-successor, no-cleanup exits. Cause identities
+are append-only. Context crash policies are sparse maps keyed by cause, with an
+absent cause forbidden, so adding a cause does not change an existing context's
+identity.
+
+For each derived crash site, let `D` be its path-conditioned guard and
+`minimum(D)` the smallest termination scope required to keep survivors sound.
+The authored contract supplies route guards `C_i` and published containment
+demands `scope_i`. Coverage is two-dimensional:
+
+```text
+D implies OR_i(C_i && minimum(D) <= scope_i)
+```
+
+The declaration is a public ceiling, not an exact body summary. A body may
+derive narrower guards or scopes without changing exported identity. A wider
+body result rejects. Across calls, substitute arguments into the published
+routes and discard every route disproved by current facts. Surviving routes
+propagate upward; disproving all routes removes that cause at that invocation.
+Scopes are retained as separate buckets and compared independently, so the
+model needs only a stable partial order rather than a join operation.
+
+This refinement is deliberately unlike `suspends` and `blocks`. Whether a
+particular call parks or waits does not change those published booleans. Crash
+guards are propositions, and proving every route impossible removes the crash
+edge from the caller's semantic frontier. Specialized lowering may then erase
+the physical check; separate lowering need not.
+
+Local checked calls may use path-conditioned body summaries only when the body
+is inside the same fingerprinted verification unit. Imports, generic/dynamic
+requirements, boundaries, and separately verified artifacts use the published
+ceiling and its certificate. No discharged obligation may depend on a body that
+is absent from the verified artifact.
+
+An enclosing execution context publishes a maximum tolerated scope per cause.
+The map belongs to the activation, task, supervisor, or root that expects state
+to survive; leaf machines do not repeat it. Provider or Build APIs may construct
+that context plan, but the normalized sparse map is fingerprinted semantic
+content rather than installation-supplied policy.
+For every surviving route:
+
+```text
+derived_site_minimum
+    <= published_route_demand
+    <= context_maximum[cause]
+```
+
+Installation binds the nominal scopes to a selected target fault plan and must
+also establish:
+
+```text
+published_route_demand
+    <= realized_target_scope
+    <= context_maximum[cause]
+```
+
+The lower installation bound is not redundant: containing a fault to one
+activation is unsafe when that activation crashed with a domain-wide shared
+invariant open. The upper bound protects what the context expects to survive.
+Psi fingerprints and checks the portable demands; Omega installation retains
+the selected plan and evidence that realizes them.
 
 ## V1 composition algebra
 
@@ -142,14 +229,20 @@ provider_may_suspend => pinned_slot_suspends
 inferred_may_block => declared_blocks
 callee_may_block   => caller_blocks
 provider_may_block => pinned_slot_blocks
+
+derived crash sites covered-by declared crash buckets
+refined callee buckets         covered-by caller crash buckets
+provider crash buckets        covered-by pinned slot crash buckets
 ```
 
 Private omitted fields are the least conservative fixed points over the checked
-call graph. Recursive call components compute finite service, suspension, and
-blocking fixed points. Calls to local checked machines use checked callee
-summaries. Imports, generic/dynamic requirements, and boundary calls use their
-pinned requirement ceilings, never facts learned from an eventually selected
-provider.
+call graph. Recursive call components compute finite service, suspension,
+blocking, and guarded-crash fixed points. Crash propagation substitutes call
+arguments, conjoins caller path facts, and discards disproved routes rather
+than taking a plain unconditioned union. Calls to local checked machines use
+checked callee summaries. Imports, generic/dynamic requirements, and boundary
+calls use their pinned requirement ceilings, never facts learned from an
+eventually selected provider.
 
 Provider admission is deterministic. A machine compiled against a slot that
 `suspends` but does not `block` remains nonblocking; a provider whose checked or
@@ -268,10 +361,10 @@ ceiling.
 
 ## Published identity and proof gating
 
-The normalized authored service row and the authored suspension/blocking
-ceilings are independent parts of an exported machine's semantic contract
-identity, requirement-binding identity, and component compatibility surface. Body
-inference only checks inclusion on each axis.
+The normalized authored service row, suspension/blocking ceilings, and guarded
+crash buckets are independent parts of an exported machine's semantic contract
+identity, requirement-binding identity, and component compatibility surface.
+Body inference only checks inclusion on each axis.
 
 > **Published-identity law:** every published identity is owned by a small,
 > deterministic normalizer. The prover may gate legality, discharge an
@@ -279,10 +372,11 @@ inference only checks inclusion on each axis.
 > published identity.
 
 Proof strength therefore cannot silently shrink an exported service row, erase
-an operational ceiling, or change a contract hash. Internal legality may
-improve when a stronger prover establishes that a path is unreachable, but
-exported identity remains authored. Stable syntactic/CFG reachability feeds
-normalization; heuristic entailment does not.
+an operational ceiling, rewrite a published crash guard or scope demand, or
+change a contract hash. Internal legality may improve when a stronger prover
+establishes that a path is unreachable, but exported identity remains authored.
+Stable syntactic/CFG reachability feeds normalization; heuristic entailment
+does not.
 
 This is the service/operational-contract instance of decision 19's
 normalization-versus-entailment law and the component requirement-binding admission
@@ -342,9 +436,11 @@ composition are deterministic.
 ### Failure and control
 
 Recoverable failure remains a return sum with case-specific guarantees
-(decision 18). There is no `fails` clause. Traps, cancellation behavior, and
-non-return still appear in the normalized complete machine contract through
-their existing policies, sums, and totality/productivity rules.
+(decision 18). There is no `fails` clause. Cooperative cancellation remains a
+sum delivered to the task. `crashes` independently publishes non-returning
+`Trap` and `Abort` routes, their predicates, and their containment demands.
+Calling a process-exit service may contribute both `ProcessExit` reach and an
+`Abort` route, but neither axis is reconstructed from the other.
 
 ### Totality and positive liveness
 
@@ -362,10 +458,10 @@ and profile entailment remain deferred. See
 
 ## Staging and extensibility
 
-V1 recognizes service members from boundary-trait declarations and has two
-closed operational clauses, `suspends` and `blocks`. Additional operational
-clauses, quantitative service entries, and service-row polymorphism are
-deferred until their algebras have real customers.
+V1 recognizes service members from boundary-trait declarations and has the
+closed operational clauses `suspends`, `blocks`, and `crashes`. Additional
+operational clauses, quantitative service entries, and service-row
+polymorphism are deferred until their algebras have real customers.
 
 The compiler now uses the service-reach semantic model directly: suspension and blocking use
 dedicated recursive boolean summaries, while boundary-trait declarations

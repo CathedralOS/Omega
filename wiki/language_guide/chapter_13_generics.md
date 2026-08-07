@@ -247,7 +247,8 @@ Rules:
 
   Refinement is binder-positional: a selected generic schema may call its
   nested parameter something other than `Inner`, but its complete nested
-  parameter/result shape, service reach, suspension/blocking ceilings,
+  parameter/result shape, service reach, suspension/blocking ceilings, guarded
+  crash buckets,
   termination guarantee, and contracts must conservatively refine the authored
   requirement. Forwarding a distinct
   machine parameter uses that same judgment. Specialization first replaces
@@ -443,8 +444,8 @@ has `FixedBuffer<Item, 8>`, the obligation is easy. If a caller has an unknown
 `N`, that caller must carry a proof fact for `N > 0`.
 
 Generic service and operational ceilings work the same way: a generic
-requirement publishes the service reach and `suspends`/`blocks` possibilities
-of calls through it, and a caller must admit every axis. Allocation capacity
+requirement publishes the service reach, `suspends`/`blocks` possibilities, and
+guarded crash buckets of calls through it, and a caller must admit every axis. Allocation capacity
 and owned-resource cleanup are not service or operational clauses: they travel
 through explicit capability contracts and the multiplicity/ownership rules.
 

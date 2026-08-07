@@ -78,7 +78,7 @@ proposition rat_equivalent(left: Rat, right: Rat);
 A nominal `converges_together<Left, Right>(left, right)` proposition publishes
 `ConvergenceEvidence<Left, Right>` as its one opaque evidence interface. The
 exact dedicated source clause for that interface remains
-[`OWNER_QUESTIONS.md` Q4](../../OWNER_QUESTIONS.md); its semantic role is
+[`OWNER_QUESTIONS.md` Q3](../../OWNER_QUESTIONS.md); its semantic role is
 settled independently of that spelling.
 
 Its truth is inhabitance by checked proof evidence, not the result of running

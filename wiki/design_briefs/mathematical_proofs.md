@@ -9,7 +9,7 @@ names a fact; ordinary proof machines establish it through `ensures` and use it
 through `requires` or proof expressions. Primitive propositions end in `;`,
 witness-bearing propositions publish one carrierless evidence interface as
 fingerprinted proof content, and transparent proposition definitions use `=`.
-The exact evidence-clause spelling remains `OWNER_QUESTIONS.md` Q4. See
+The exact evidence-clause spelling remains `OWNER_QUESTIONS.md` Q3. See
 [Law-Bearing Relations, Evidence, And Quotients](law_bearing_relations_and_quotients.md)
 for the complete source and evidence model.
 

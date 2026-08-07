@@ -96,6 +96,16 @@ implementation work. Each one gets more expensive to retrofit every month.
   A `block` without a finite wait ceiling makes structured response unbounded
   through that named call.
 
+  Guarded `crashes Cause Scope` buckets are a separate may-axis. Psi proves
+  each path-conditioned crash site is covered and no surviving route demands
+  more containment than its enclosing per-cause context tolerates. Cathedral
+  installation maps the permanent portable `ExecutionDomain` top to the
+  selected Matrix or bare-metal execution root and proves the realized fault
+  scope is neither narrower than the damaged-state minimum nor wider than the
+  context permits. An activation-contained trap is legal across shared custody
+  only when the route is disproved or the resource exposes a checked owner-death
+  recovery outcome.
+
    Still compatible: a futex-shaped scheduler boundary, cancellation as an
    explicit outcome, ordinary machines started through an admitted
    `TaskRuntime`, linear `Task<T>` claims, compiler-planned local activation

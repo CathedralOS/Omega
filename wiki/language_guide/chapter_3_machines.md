@@ -192,8 +192,9 @@ The value after `via` must be compile-time evaluable to the closed `Binding`
 vocabulary. The compiler normalizes and validates it, derives the provider
 plan from explicit conformances, and assigns any trust expenditure only when
 the provider is admitted. `satisfies` supplies the requirement contract and
-public service/suspension/blocking ceilings; the binding/provider behavior must
-refine each one. A `via` machine does not repeat those clauses.
+public service/suspension/blocking and guarded-crash ceilings; the
+binding/provider behavior must refine each one. A `via` machine does not repeat
+those clauses.
 
 Composite adaptation is ordinary checked code. For example, an implementation
 of `Console::write_line` may call separately bound `get_stdout` and
@@ -312,6 +313,12 @@ ensures
 ```
 
 The caller must satisfy `requires`. The machine body must establish `ensures`.
+Independent may-ceilings publish service reach, suspension, blocking, and
+guarded crashes. In particular, `crashes Cause Scope` lists alternative route
+predicates; callers may disprove routes for a concrete invocation, while the
+body must keep every derived crash site within the published guards and
+containment demands. Chapter 16 defines the crash surface and its no-cleanup
+terminal semantics.
 
 ## Machine Graph Compatibility
 

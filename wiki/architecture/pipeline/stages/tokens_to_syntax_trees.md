@@ -60,7 +60,8 @@ source shape without turning nested syntax into scattered heap objects.
 - `parser/expression/postfix.rs` owns calls, argument lists, indexing/ranges, member access, and casts.
 - `parser/machine.rs` owns machine headers, body/member sequencing, implicit entry construction, and attached-data path splitting.
 - `parser/machine/clauses.rs` owns machine `satisfies`, external-realization
-  `via <Binding>`, `terminates [by ...]`, `reaches`, `invokes`, `requires`, and `ensures`
+  `via <Binding>`, `terminates [by ...]`, `reaches`, `invokes`, `suspends`,
+  `blocks`, `crashes`, `requires`, and `ensures`
   clauses. `via` is terminal and mutually exclusive with an executable body.
   The current standalone `decreases` parser is migration debt under decision
   23.
