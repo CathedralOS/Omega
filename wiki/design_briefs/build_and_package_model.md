@@ -80,10 +80,11 @@ profile. They are not repeated as independently mutable booleans or enums in
 each build. In-source `target ... {}` blocks are transitional syntax to remove;
 selection and slot bindings belong in `Build`.
 
-The platform's launch calling plan is checked against the explicitly bound
-entry machine for each built target. `build.omg` names the target-owned slot and
-exact implementation; it does not repeat the target's register/stack arrival
-contract or discover an export by spelling.
+The platform's launch calling plan is checked against the generated arrival
+bridge, while the explicitly bound source machine is checked against the
+target's entry shape. `build.omg` names the target-owned slot and exact source
+implementation; it does not repeat the target's register/stack arrival contract
+or discover an export by spelling.
 
 ## Target-declared slots
 
@@ -95,7 +96,8 @@ SlotDeclaration {
     schema,
     direction: EnvironmentToProgram | ProgramToProvider,
     binding_shape: ExactRequirement(requirement)
-                 | CompleteConformance(trait),
+                 | CompleteConformance(trait)
+                 | EntryMachine(entry_shape),
     lifecycle: BuildBound | RuntimeInstalled,
     cardinality,
     required_indices,
@@ -103,55 +105,75 @@ SlotDeclaration {
     reserved_indices,
     installation_authority,
 }
+
+EntryShape {
+    arrival_requirement,
+    visible_parameters,
+    result,
+    receiver: None | ProvisionedZii,
+}
 ```
 
 Direction is the root/provider distinction. An environment-to-program slot is
 an external root; a program-to-provider slot is an outbound service. Lifecycle,
 cardinality, and indexing are orthogonal to direction. Program entry, reset
 vectors, interrupt vectors, callbacks, and ordinary providers therefore use
-one binding model without becoming one undifferentiated slot kind.
+one binding model without becoming one undifferentiated slot kind. An entry
+machine binding additionally lets a target adapt its physical arrival contract
+to the smaller source signature it deliberately exposes.
 
 An installable artifact explicitly binds every required build-bound slot:
 
 ```omega
 machine build(builder: &mut Build) {
-    builder.target = cathedral::targets::uefi_x86_64;
+    builder.target = windows_x86_64;
     builder.roots.bind(
-        cathedral::targets::uefi_x86_64::ProgramEntry,
+        windows_x86_64::ProgramEntry,
         Application::start
     );
     builder.providers.bind(
-        cathedral::targets::uefi_x86_64::Console,
-        SerialConsole::Polled
+        windows_x86_64::Console,
+        TestConsole::Complete
     );
 }
 ```
 
-`Application::start` is an exact machine symbol satisfying the requirement
-named by `ProgramEntry`. `SerialConsole::Polled` is a named complete conformance
-because `Console` requests a complete trait surface. Binding shape is declared
-by the slot, not inferred from the trait's current requirement count. Exact
-slot consumers can cite only the selected requirement's normalized contract;
-they possess no conformance identity from which trait laws could be cited.
+`Application::start` is the exact machine selected by the entry-machine slot.
+It may be free or carry one `&mut self` receiver according to the slot's entry
+shape. `TestConsole::Complete` is a named complete conformance because `Console`
+requests a complete trait surface. Binding shape is declared by the slot, not
+inferred from the trait's current requirement count. Exact slot consumers can
+cite only the selected requirement's normalized contract; they possess no
+conformance identity from which trait laws could be cited.
 
-The target schema and inherited requirement are not parallel callable
-identities. For example, the UEFI profile records:
+The physical arrival requirement and selected source entry are different
+layers, not competing entry identities. For example, a hosted profile records:
 
 ```text
-slot:            uefi_x86_64::ProgramEntry
-schema:          UefiApplication
-requirement:     ProgramStorageEntry::enter
-calling policy:  UefiX86_64
-binding shape:   ExactRequirement
+slot:                 windows_x86_64::ProgramEntry
+schema:               HostedApplication
+arrival requirement:  ProgramStorageEntry::enter
+calling policy:       WindowsX86_64
+visible parameters:   ()
+receiver:             None | ProvisionedZii
+binding shape:        EntryMachine
 ```
 
-`UefiApplication` inherits the one `(ProgramStorageEntry, enter)` requirement
-identity and contributes `Calling<UefiX86_64>` policy. It does not redeclare an
-`UefiApplication::enter` requirement. The compiler generates a physical bridge
-for the inherited requirement, derives the bridge's complete crash, reach,
-write, work, stack/state, introduction, and provenance contract, and composes
-that contract with the bound application closure. Generated entry code is
-never outside portable demand checking.
+The compiler generates the installed physical bridge for the arrival
+requirement, derives the bridge's complete crash, reach, write, work,
+stack/state, introduction, provisioning, and provenance contract, and composes
+that contract with the bound application closure. A free source entry receives
+no implicit state. For an attached entry with one `&mut self`, the bridge derives
+storage beneath an admitted entry root, constructs exactly one ZII-valid
+receiver, and lends it for the activation. The receiver is never globally
+nameable. A root used for receiver storage cannot also be forwarded whole to the
+source entry; the schema must use separate hidden supply or an exact conserved
+residual. Generated entry code is never outside portable demand checking.
+
+A freestanding schema may instead publish image and initial-storage roots in its
+visible parameter list. Those are ordinary arguments to the selected source
+entry only because that target intentionally makes provisioning the program's
+job. A hosted program sees neither extent by default.
 
 The selected target determines the required-slot closure. Binding a slot owned
 by another profile rejects regardless of mutation order. Duplicate bindings
@@ -160,9 +182,9 @@ Package/library builds bind no roots. Runtime-installed slots may remain open,
 but installation must validate the same binding shape, portable demands,
 target supply, authority, and lifecycle before publishing reachability.
 
-There is no `main`, `Main::run`, uniquely visible export, or special entry
-field. Project templates may write ordinary slot bindings, but the language and
-build evaluator perform no entry discovery.
+There is no `main`, `Main::run`, uniquely visible export, special entry field,
+or ambient `static`. Project templates may write ordinary slot bindings, but
+the language and build evaluator perform no entry discovery.
 
 Stack demand is derived from WCSU and compared with the target's supplied
 `StackPlan`; ordinary `build.omg` files do not choose a stack size. An explicit

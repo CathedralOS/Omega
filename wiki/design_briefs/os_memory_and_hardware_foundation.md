@@ -84,24 +84,26 @@ pub boundary trait ExtentRootProvider {
 Program image and initial stack/storage roots use a second core-owned route on
 the same `Extent::Granted` domain. The live
 `ProgramStorageEntry::enter(image: Extent in Granted, initial_storage: Extent in
-Granted)` requirement names the exact qualified positions; target entry traits
-inherit it and refine only their plan/ABI. Installation binds those semantic
-positions to the selected calling-plan fingerprint and generated ABI captures,
-then introduces both roots only after validating both `Granted::no_wrap`
-obligations. Rejection returns both admitted grants without importing either
-complete fact. Image/static ranges remain borrowed views beneath the installed
-image root; owned initial-storage allocations produce a conserved partition
-with every nonempty remainder and can recompose the exact parent lineage.
-Target-owned root domains or name-based role recognition are not alternatives.
+Granted)` arrival requirement names the exact qualified positions inside the
+generated target bridge. Installation binds those positions to the selected
+calling-plan fingerprint and generated ABI captures, then introduces both roots
+only after validating both `Granted::no_wrap` obligations. Rejection returns
+both admitted grants without importing either complete fact. Image-section
+ranges remain borrowed views beneath the installed image root; owned
+initial-storage allocations produce a conserved partition with every nonempty
+remainder and can recompose the exact parent lineage. Target-owned root domains
+or name-based role recognition are not alternatives.
 
 The selected target profile owns a required environment-to-program slot whose
-schema inherits this one requirement identity and contributes its calling
-policy. `build.omg` binds the target-qualified slot to one exact machine
-satisfying `ProgramStorageEntry::enter`; it does not name a second target entry
-requirement or discover `main`. The compiler-generated bridge retains the same
-semantic positions and contributes its derived crash, reach, write, work,
-stack/state, introduction, and provenance contract to the artifact before
-installation compares portable demands with target supply.
+schema selects this arrival requirement, contributes its calling policy, and
+declares the smaller source entry shape exposed to the program. `build.omg`
+binds the target-qualified slot to one exact source machine; it does not discover
+`main`. A hosted source entry normally sees neither raw root, while a
+freestanding schema may forward both already-qualified values. The
+compiler-generated bridge retains the exact semantic positions and contributes
+its derived crash, reach, write, work, stack/state, provisioning, introduction,
+and provenance contract to the artifact before installation compares portable
+demands with target supply.
 
 The fields carry runtime geometry. `Extent::Granted` states that the geometry
 descends from a live admitted or checked authority claim. Constructing the same

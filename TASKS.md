@@ -1,6 +1,6 @@
 # Tasks
 
-Last pruned: 2026-08-06.
+Last pruned: 2026-08-07.
 
 This file is the current execution queue, not a changelog. Commits, canaries,
 architecture pages, and design briefs retain completed implementation history.
@@ -53,26 +53,38 @@ Remaining:
 
 - **ENTRY-CONTENT-ROOTS.** Implement target-declared typed slots and ordinary
   `Build` bindings. A target profile owns each slot identity, schema, direction,
-  lifecycle, cardinality, and exact-requirement versus complete-conformance
-  binding shape; `build.omg` names the exact implementation and performs no
-  discovery. Generate the target bridge from the inherited
-  `ProgramStorageEntry::enter` identity and selected calling policy, derive and
-  compose the bridge's complete contract, and bind emitted image and
-  initial-storage geometry to the exact qualified parameter positions. Derive
-  statics as subextents and allocate later frames/task stacks from the returned
-  storage pool. Do not recognize `main`, `Main::run`, or a unique export by
-  convention.
+  lifecycle, cardinality, and exact-requirement, complete-conformance, or
+  entry-machine binding shape; `build.omg` names the exact entry machine and
+  performs no discovery. Let a target entry schema expose only the parameters
+  its program author must handle. A hosted schema normally exposes none; a
+  freestanding schema may expose admitted image and initial-storage roots.
+  Generate the physical bridge from the target's arrival requirement and
+  selected calling policy, derive and compose the bridge's complete contract, and call the bound
+  entry through its declared source shape. A free entry gets no implicit state.
+  An entry with one `&mut self` receiver gets exactly one ZII-valid receiver,
+  provisioned beneath an admitted entry storage root and lent only for that
+  activation. Record its target-selected image or runtime-storage placement,
+  derive image sections as subextents, and allocate later frames/task stacks
+  from existing roots. Do not recognize `main`, `Main::run`, or a unique export
+  by convention, and do not introduce ambient `static` storage.
 - **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS.** Connect a real
   content-bearing source program to the existing terminal-Psi rows. Add sealed
   content-introduction and custody-exit frontier rows; derive residual geometry
   for partial bodyless boundaries and admit only provider custody acceptance.
   Infer only identity-preserving reshuffles; partition-changing primitives must
   author a theorem and wrappers may compose it.
-- **NAMESPACE-ORIGIN — blocked on `OWNER_QUESTIONS.md` Q1.** Add the closed
-  namespace-origin policy and internal algebra account for every content-capable
-  root. `ProgramLocal` capacity is owner-authorized declaration supply;
-  `ProviderBacked` capacity requires admitted issuance. Report modeled identity
-  coverage and do not let quantity-only conservation imply unit identity.
+- **ROOT-INTRODUCTION-AND-BACKING.** Give every content-capable root one internal
+  algebra account and classify each fresh establishment occurrence from its
+  authority source: compiler-provisioned sealed declared capacity is
+  program-local; selected admitted issuance is provider-backed. A checked
+  runtime establishment may expose or transform an existing account but never
+  originate one. Keep nominal data and algebra denominators free of origin
+  policy. Record exact route, capacity, lineage,
+  qualification, backing identity, and provenance per root. An operation that
+  realizes content against an external substrate must identify an exact
+  qualified root and carry correspondence to the same selected provider;
+  matching denominator arithmetic alone grants no authority. Report modeled
+  identity coverage and reject cross-root recomposition.
 - **BOUNDARY-ISSUANCE — depends on the conservation work above.** Derive
   per-invocation geometry from ordinary parameters, entry places, and returned
   values. Retain external ownership, fresh issuance, custody delegation,
@@ -84,9 +96,11 @@ Remaining:
   configuration; reconfiguration drains them rather than revoking them.
 
 Acceptance: reconstructed carriers mint no authority; every introduced content
-claim traces to a declared local root or admitted provider root; partition and
-residual arithmetic are compiler-derived; overlapping children, gaps without a
-custody exit, algebra drift, receipt replay, and cross-root recomposition reject.
+claim traces to compiler-provisioned sealed local capacity or admitted provider
+issuance; external effects have an exact root-to-provider backing chain;
+partition and residual arithmetic are compiler-derived; overlapping children,
+gaps without a custody exit, algebra drift, receipt replay, and cross-root
+recomposition reject.
 
 ### P2 — Source-visible materialization and placed access
 

@@ -164,10 +164,10 @@ comparison ladders, predicate guards — must close with `_`. An intentional
 A machine or state can complete by producing the machine's declared result.
 
 ```omega
-data Main {
+data Controller {
 }
 
-machine Main::main(&mut self) -> i32 {
+machine Controller::run(&mut self) -> i32 {
     transition {
         _ -> shutdown()
     }

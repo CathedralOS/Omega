@@ -1,126 +1,141 @@
-# Design Brief — Constants & the Static Root
+# Design Brief — Constants And Provisioned Root State
 
-> **Status:** Settled design; engineering incomplete. **Driver:** Cathedral's
-> boot/ABI/facts code is constant-heavy and wrote
-> C-style free-floating `NAME: T = value` declarations, which Omega had no home
-> for — exposing three tangled holes: where const lives, where static lives, and
-> why `main`'s `&self` looked like a generated-static-ref hack. · **Depends on:**
-> [`build_time_evaluation.md`](build_time_evaluation.md) (const-position eval),
-> `chapter_17_drops_and_cleanup.md` (the cleanup facts the const restriction
-> reads), `chapter_14` (the `::` path rule). · **Companion:** the freestanding
-> entry (`freestanding_boot_and_hardware_facts.md`; `main` is the entry).
+> **Status:** Settled design; engineering incomplete. **Driver:** Omega needs
+> immutable compile-time values and long-lived program state without ambient
+> mutable names or a magical `main` receiver. **Depends on:**
+> [`build_time_evaluation.md`](build_time_evaluation.md),
+> [`build_and_package_model.md`](build_and_package_model.md), and
+> [`freestanding_boot_and_hardware_facts.md`](freestanding_boot_and_hardware_facts.md).
 
 ## Bottom line
 
-The three holes are **two different problems**, and separating them dissolves
-most of the difficulty:
+Omega separates three things:
 
-1. **`const`** = an immutable compile-time **value** (no identity). Free-floating
-   + namespaced, Rust-like; restricted to *pure values*. Not authority → no
-   capability-model concern. **Closed.**
-2. **static state** = mutable runtime **state** (has identity). There is **no
-   free-floating `static`**; there is exactly **one root — `main`'s `&self`** —
-   and all persistent state is its subtree, reached only by borrowing *down*.
-   This is the capability model applied to storage.
-3. **`main`'s `&self`** is not a hack — it is the static root, made explicit: the
-   single static allocation, established by the entry before `main` runs, the
-   origin of both authority and persistent state.
+1. `const` declares an immutable compile-time value with no storage identity.
+2. A free program-entry machine requests no implicit state.
+3. A program-entry machine with one `&mut self` receiver requests exactly one
+   target-provisioned receiver instance. That instance is reachable only through
+   the entry borrow; it is not an ambient `static`.
 
-## 1. `const` — a pure value, free-floating, namespaced
+There is no `static` keyword, no globally nameable mutable object, and no
+special `main` spelling. `build.omg` binds a target-owned entry slot to an exact
+machine symbol.
 
-A `const` is a named value whose initializer is evaluated at build time (an
-build-time-admissible expression in constant position — `build_time_evaluation.md`). So it
-is a *value*, not storage:
+## Constants are pure values
+
+A `const` is a named value evaluated in a constant position:
 
 ```omega
 pub const PAGE_SIZE: u64 = 4096;
 pub const EFI_SUCCESS: EfiStatus = EfiStatus { code: 0 };
 ```
 
-- **Free-floating, namespaced by package/module** (the default), resolved by the
-  `::` path rule (a `const` is a compile-time name: `memory::PAGE_SIZE`). It may
-  also be **type-scoped** when it genuinely belongs to a type
-  (`EfiStatus::SUCCESS`) — declared like a machine (`const Type::NAME = …`),
-  **outside** the `data` block, never a member of it. (Binding *unrelated*
-  constants to a `data` symbol is worse design; scope only when related.)
-- **Never in the `data` block → never in `sizeof`, by construction.** This is
-  Rust's separation (constants live in `impl`, not the struct), achieved via
-  Omega's existing `::` type-scoping instead of a separate block. No "exclude
-  const members from layout" rule is needed, because a const is never a member.
-- **Immutable and a PURE VALUE** — the const's type must have **no cleanup
-  obligation, no shared ownership, no interior mutability**. It is copied freely
-  at each use, so it is trivially borrowable and trivially thread-safe (no shared
-  identity to race on). The restriction is *checked from the cleanup facts*
-  (ch17); a type with a drop obligation (an `Arc`-like handle, a lock, a
-  `Cell`-like cell) cannot be a `const`. This is precisely the rule that avoids
-  Rust's interior-mutability-in-const footgun (each use inlines a fresh copy —
-  surprising for a cell, harmless for a pure value) — Omega forbids the
-  surprising case rather than linting it.
-- **Not authority.** A constant grants nothing, so free-floating constants are
-  fully consistent with the capability model. The thing the model forbids is
-  ambient *mutable* state / capabilities — a `const` is neither.
+Constants may be free-standing or genuinely type-scoped:
 
-## 2. static state — one root, no free-floating `static`
+```omega
+const EfiStatus::SUCCESS = EfiStatus { code: 0 };
+```
 
-**There is no `static` keyword and no free-floating mutable static.** The reason
-is the same one that makes ambient authority forbidden, at the storage layer:
+They are never data fields and therefore never contribute to `sizeof`.
+Their types must have no cleanup obligation, shared ownership, or interior
+mutability. Each use may copy the value freely. A constant carries no storage
+identity and grants no authority.
 
-- A generic `static FOO` is hard to reason about *because it is name-reachable
-  from anywhere* — "who holds `&mut FOO`" becomes a **global** analysis. That is
-  the same shape as ambient authority: reachable-by-name-from-nowhere.
-- So: **exactly one static root — `main`'s `&self` — and every other piece of
-  persistent state is a field of it, reached only by borrowing down**, threaded
-  as parameters. You cannot *name* a static out of nowhere; you can only use a
-  borrow someone handed you.
+## Stateless entry
 
-Two payoffs:
+A hosted program that needs no root state binds a free machine:
 
-- **Borrow-checking over static goes local.** It is the ordinary borrow story
-  over an owned tree, not a special global escape hatch — because there is no
-  global name to grab.
-- **Thread-safety becomes ordinary.** One-root does *not* invent a static-safety
-  mechanism; it makes static state *subject to the existing one*. Two threads
-  wanting `&mut` into the root's subtree → refused by ordinary aliasing. Shared
-  `&` across activations → the ordinary borrow/access plus carry/runtime story.
-  Static stops being special. (Generic statics needed bespoke thread-safety analysis *precisely
-  because* they were name-reachable.)
+```omega
+machine start() {
+    Console::write_line("Hello, Omega.");
+}
 
-## 3. `main`'s `&self` — the root, made explicit
+machine build(builder: &mut Build) {
+    builder.target = windows_x86_64;
+    builder.roots.bind(windows_x86_64::ProgramEntry, start);
+}
+```
 
-`main`'s `&self` is **the static root**: the single static allocation, its
-subtree the program's entire persistent state, established by the entry/runtime
-*before* `main` runs. Naming it dissolves the "magic": it is the most
-load-bearing allocation in the program, honestly labelled, and it is the one
-blessed bootstrap step — worth documenting as *the* trusted setup rather than
-pretending it isn't there. On a foreign OS the entry stub constructs it; on
-Cathedral the launcher / SAS hand-off constructs it; under the boot entry the
-firmware hand-off does.
+The target bridge performs its platform handoff and calls `start`. No object is
+allocated merely because the artifact has an entry point.
 
-## The unification
+## Receiver-bound entry
 
-This is **the capability model applied to storage.** The capability model: no
-ambient *authority* — everything is a held/passed capability descending from a
-root. The static-root discipline: no ambient *state* — everything persistent is
-a field descending from a root. They are the same principle, and `main`'s
-`&self` is where both roots **coincide** — the single origin of authority and of
-persistent state. So "one static root" is not a new invariant to bolt on; it is
-the invariant the capability model already forces, reaching the storage layer.
+Attaching the selected entry to data and taking `&mut self` requests one root
+instance:
 
-## Honest caveat
+```omega
+data Application {
+    greeting_count: u64;
+}
 
-The discipline leans on there *being* a coherent single root — which works
-because the capability model already insists on it (root mints everything). A
-subsystem genuinely needing name-reachable global mutable state would pinch — but
-that is exactly the ambient-authority thing Cathedral refuses, so the pinch is a
-feature, not a gap.
+machine Application::start(&mut self) {
+    Console::write_line("Hello, Omega.");
+    self.greeting_count += 1;
+}
 
-## What Omega does
+machine build(builder: &mut Build) {
+    builder.target = windows_x86_64;
+    builder.roots.bind(
+        windows_x86_64::ProgramEntry,
+        Application::start
+    );
+}
+```
 
-- **Add `const`** (ch1): free-floating or `Type::`-scoped; build-time-evaluated;
-  pure-value restriction checked from the cleanup facts. Excluded from `sizeof`
-  by construction (never a `data` member).
-- **No `static` keyword.** Persistent mutable state is `main`'s subtree,
-  borrow-reached; document the entry's root allocation as the bootstrap step.
-- Cathedral's free-floating constants become `const`; foreign enums that want
-  full typing use case discriminants (ch1); most memory-type tags stay named
-  `const` u32s (robust to unknown firmware kinds).
+The binding and receiver jointly state that one `Application` must exist before
+the call. The generated bridge:
+
+1. derives storage from an admitted entry root;
+2. establishes one ZII-valid `Application` in that storage;
+3. lends the only reference as `&mut self`;
+4. runs ordinary cleanup if the entry returns normally; and
+5. records abandonment through the ordinary crash frontier otherwise.
+
+The receiver is not globally nameable. Interrupt handlers, tasks, and other
+roots cannot reach it unless the program explicitly transfers a capability,
+lease, or synchronized share through the normal concurrency machinery.
+
+If the receiver type is not valid under ZII, the binding rejects. The general
+form is a free entry machine that explicitly constructs state from resources
+exposed by its target schema.
+
+## Placement is target lowering
+
+The source declares the instance by selecting a receiver-bound entry; it does
+not declare a storage class. A hosted target may reserve the receiver in a
+writable image section. A freestanding target may partition it from supplied
+initial storage. Both lowerings preserve the same portable facts:
+
+- exactly one instance belongs to the entry activation;
+- its storage is a subextent of an admitted entry root;
+- its initialization is checked;
+- its only initial access is the explicit `&mut self`; and
+- its placement, root lineage, and backing provenance are recorded.
+
+Image sections, string bytes, and a receiver placed in writable image storage
+are derived subextents of the installed image root. A receiver placed in runtime
+storage is a conserved partition of that root. Neither case originates a new
+physical root merely because the compiler knows the size.
+
+## Hosted and freestanding source surfaces
+
+The target entry schema controls which non-receiver parameters the program sees.
+A hosted schema normally hides raw storage setup and exposes no extent
+parameters. A freestanding schema may expose image and initial-storage extents
+because provisioning them is the program's job. Receiver provisioning composes
+with either form: a freestanding entry may take both `&mut self` and the raw
+roots its schema publishes. The receiver's storage must not overlap an owned
+root handed to the source entry: the schema either provisions it from separate
+hidden supply or forwards only the conserved residual partition.
+
+The physical arrival contract remains target-owned. The generated bridge is the
+installed external root, derives its complete contract, and calls the selected
+source entry. The source machine does not become magical because it is bound.
+
+## Capability consequence
+
+This is the ordinary capability model applied to persistent state. Mutable state
+is usable only through a held borrow descending from an explicit root. Removing
+ambient `static` names keeps aliasing, task transfer, interrupt sharing, and
+replacement within the normal ownership and conservation rules.

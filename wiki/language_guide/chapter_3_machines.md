@@ -78,23 +78,50 @@ that are not naturally owned by one data type.
 
 ## Program Entry
 
-Executable programs should use an explicit root data type.
+`build.omg` binds a target-owned program-entry slot to one exact machine. A
+free entry machine has no implicit state:
 
 ```omega
-data Main {
+machine start() {
+    Console::write_line("Hello, Omega.");
+}
+```
+
+When the selected entry is attached and has one `&mut self` receiver, the
+receiver declaration requests exactly one program-root instance:
+
+```omega
+data Application {
     total: i32;
 }
 
-machine Main::main(&mut self) -> i32 {
+machine Application::start(&mut self) -> i32 {
     self.total = add_i32(3, 4);
     self.total
 }
 ```
 
-The process entry is the `main` machine on the `Main` root data object. Startup
-allocates the root object, then enters `Main::main(&mut root)`.
+The generated target bridge provisions one ZII-valid `Application` beneath an
+entry-supplied storage root and lends the only reference as `&mut self`. The
+value is not globally nameable and no `static` declaration exists. Its physical
+placement is target lowering: a hosted image may reserve it in writable image
+storage, while a freestanding target may partition initial storage. Either way,
+the artifact records the derived subextent and root lineage rather than minting
+a new storage root.
 
-This keeps process-owned state under one explicit owner.
+If the receiver cannot be validly constructed through ZII, the binding rejects.
+Use a free entry machine and explicitly construct the required state from the
+resources that target schema exposes. The target schema also controls ordinary
+entry parameters: hosted entry normally exposes none, while freestanding entry
+may intentionally expose raw image or initial-storage extents.
+
+The machine name is not special. The build binding, source signature, and
+target schema jointly determine entry.
+
+> **Implementation gate:** the current runner and canary corpus still use the
+> transitional `Main::main(&mut self)` convention. Target-declared entry-machine
+> slots, free hosted entry, and explicit receiver provisioning remain work under
+> `ENTRY-CONTENT-ROOTS` in `TASKS.md`.
 
 ## Parameters And Returns
 

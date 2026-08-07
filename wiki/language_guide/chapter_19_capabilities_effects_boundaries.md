@@ -339,7 +339,7 @@ empty ceiling. Declaring the block always means "this machine must not reach
 anything outside this set."
 
 ```text
-Main::main
+start
   declared: <none>
   direct:   <none>
   reached:  Console
@@ -776,7 +776,7 @@ manager holding selection authority may substitute a different admitted
 provider for an individual slot. Defaults are target-package declarations,
 not compiler tables.
 
-At the static root, an override is explicit and type-per-slot:
+At the build root, an override is explicit and type-per-slot:
 
 ```omega
 machine build(builder: &mut Build) {
@@ -844,21 +844,27 @@ audited inline-assembly subset
 vehicle for many of these providers -- the asm instruction contracts ARE
 hardware-fact declarations in small form.
 
-A freestanding target also needs an entry contract: who calls the entry, in
+A freestanding target also needs an arrival contract: who transfers control, in
 what machine state, what storage roots arrive, and what is mapped or zeroed.
 The target profile declares an environment-to-program root slot whose schema
-inherits a stable semantic requirement and pins a normalized calling policy
-through ordinary `Calling<C>` trait composition. `build.omg` binds that slot to
-one exact machine satisfying the inherited requirement; no source name is an
-entry by convention.
+selects a stable semantic arrival requirement, pins a normalized calling policy
+through ordinary `Calling<C>` trait composition, and declares which typed
+parameters the source entry sees. `build.omg` binds that slot to one exact source
+machine; no source name is an entry by convention.
 
-For program storage, the one requirement identity is
-`ProgramStorageEntry::enter`. A schema such as `UefiApplication` inherits it and
-contributes `Calling<UefiX86_64>`; it does not redeclare an
-`UefiApplication::enter` identity. The generated inbound bridge maps platform
-arrival bytes and provider-private firmware handles to the semantic parameters.
-Its derived crash, reach, write, work, stack/state, introduction, and provenance
-contract composes with the bound program just like authored code.
+For program storage, the physical arrival requirement is
+`ProgramStorageEntry::enter`. A schema such as `UefiApplication` selects it and
+contributes `Calling<UefiX86_64>` plus a source-visible continuation shape. The
+generated inbound bridge implements the arrival requirement, maps platform
+bytes and provider-private firmware handles to semantic roots, provisions an
+optional ZII-valid entry receiver, and calls the selected source machine. Its
+derived crash, reach, write, work, stack/state, provisioning, introduction, and
+provenance contract composes with the bound program just like authored code.
+
+Hosted schemas normally expose neither image nor initial-storage extents. A
+freestanding schema may forward them because the selected program must perform
+its own provisioning. A receiver-bound entry receives exactly one exclusively
+lent instance; no ambient `static` name is introduced.
 
 `C` satisfies the ordinary core `CallingPolicy` relationship; its compile-time
 machine evaluates the normalized signature to an accepted or structured-
@@ -1181,6 +1187,17 @@ transformation proves entry plus introduced content equals separated output
 plus content that left checked custody. Per-output containment and scalar
 measures do not establish this theorem. Ordinary claims without a projection
 remain fully accounted for by whole-claim frontier transfer and cleanup.
+
+Root origin is recorded per establishment occurrence. Compiler provisioning
+from an owner-authored sealed declaration with declared capacity creates a
+program-local account; selected admitted issuance creates a provider-backed
+account. A checked runtime route may expose or transform an existing account but
+never originate one. The algebra denominator is not an authority label: proof
+code may freely construct `IntervalSet<PhysicalMemory>`, while
+external access still requires an exact qualified root whose lineage carries
+backing or correspondence evidence for the selected provider. Terminal
+validation rejects external operations justified only by matching content
+arithmetic.
 
 Contracts call the exact owner-unique projection machine. Proof-only
 `entry(place)` selects an entry-version structural place, while compiler-owned

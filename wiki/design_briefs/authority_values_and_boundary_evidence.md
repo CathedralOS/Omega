@@ -407,61 +407,83 @@ Only an authorized establishment route introduces new content, and only an
 ordinary terminal claim consumer authorized by its contract transfers content
 out of the checked custody frontier.
 
-Root origination is a property of the content namespace, not of a constructor
-name. The normalized coordinate-space or unit identity carries one closed
-origin policy:
+Each root occurrence's origin is a property of its authority source, not of a
+nominal data declaration, content denominator, or constructor name. Every fresh
+internal account records one exact route, capacity, lineage, qualification, and
+authority source:
 
-- `ProgramLocal` permits owner-authorized sealed declarations to provision a
-  fresh logical root. Parser budgets, protocol sessions, and other fictions the
-  program itself maintains use this form.
-- `ProviderBacked` permits roots only through selected admitted provider
-  issuance. Physical memory, device slots, and other externally owned spaces
-  use this form.
+- compiler provisioning from an owner-authored sealed declaration with declared
+  capacity originates a program-local root, such as a parser budget or protocol
+  session; and
+- a selected admitted issuance establishes a provider-backed root, such as
+  physical memory or device slots.
 
-The policy is fingerprinted semantic identity and the artifact reports the
-declaring package. `ProgramLocal` is not itself an admitted fact: a package
-owns the meaning of its distinct logical namespace. Relating that namespace to
-external reality is a separate admitted correspondence. That correspondence
-states the unit mapping, while the compiler checks known capacity arithmetic.
-Multiple pools that spend one hardware capacity must be derived by separated
-split or lease from the same provider-issued external root; independently
-generated local pools cannot each discharge the hardware bound.
+A checked runtime establishment event may qualify, transfer, lease, split, or
+otherwise expose an existing account. It never originates a fresh root merely
+because its route fired.
+
+`PhysicalMemory` and other algebra parameters remain pure proof-level
+vocabulary. Arbitrary proof code may construct an
+`IntervalSet<PhysicalMemory>` value; doing so grants no authority. Two claims
+using the same denominator compose arithmetically, but conserved authority
+composes only through compatible root lineage, exact qualification, and backing
+evidence. Program-local and provider-backed roots may therefore share a
+denominator without becoming interchangeable.
+
+Relating a local root to external reality requires a separate admitted
+correspondence. That correspondence states the unit mapping and external
+capacity, while the compiler checks known containment arithmetic. Multiple
+pools that spend one hardware capacity must derive by separated split or lease
+from the same provider-issued root; independently generated local pools cannot
+each discharge the hardware bound.
 
 Every content-capable root has one internal canonical algebra account even
 when source exposes no `Content<A>` projection for it. Checked establishment
 may qualify or project content only by charging an existing account for the
 duration of a transfer or lease. It never creates a fresh runtime root.
-Fresh roots arise either from a `ProgramLocal` declaration or from admitted
-provider issuance. Thus checked sub-allocators transform existing content,
-while externally rooted conduits require admitted backing identity, fresh
-issuance, and custody evidence.
+A fresh local root exists only through compiler-provisioned owner-authored
+sealed declared capacity; an external root exists only at selected admitted
+issuance. Checked sub-allocators transform existing content, while
+externally rooted conduits require admitted backing identity, fresh issuance,
+and custody evidence.
+
+Any operation that realizes content against an external substrate must name an
+exact qualified root and carry backing or correspondence evidence connecting
+that root to the same selected provider. The verifier checks that the touched
+footprint lies within the qualified content and that its lineage matches the
+provider evidence. A bare content projection or matching denominator can never
+authorize hardware access. This rule belongs to terminal external-operation
+validation, not to author convention.
 
 Entry-provisioned image and initial-storage extents use the same inbound route
 rule as other admitted parameters. Core owns the stable
-`ProgramStorageEntry::enter` requirement, whose two exact `Extent in Granted`
-positions name the image and initial storage roots, and `Extent::Granted` lists
-it as an alternative route. Target entry traits inherit that exact requirement
-and may refine its selected plan; they do not replace its semantic identity or
-declare look-alike root domains. Those exact semantic parameter positions are
-the portable keys by which the compiler derives image sections, statics, and
-initial stack/storage subextents after installation. The installation bridge
-now joins the selected schema's requirement and calling-plan fingerprint to the
-generated captures for positions 0 and 1. Both runtime geometries must satisfy
+`ProgramStorageEntry::enter` arrival requirement, whose two exact
+`Extent in Granted` positions name the image and initial storage roots, and
+`Extent::Granted` lists it as an alternative route. A target entry schema
+selects that requirement and calling policy, then declares which already-typed
+values its source continuation sees. Hosted continuations normally see neither
+root; freestanding continuations may receive both. Those exact arrival positions
+remain the portable keys by which the compiler derives image sections,
+receiver storage, and initial stack/storage subextents after installation. The
+installation bridge joins the selected schema's requirement and calling-plan
+fingerprint to the generated captures for positions 0 and 1. Both runtime
+geometries must satisfy
 `Granted`'s `no_wrap` predicate before either admitted grant is consumed; a
 rejected handoff returns both grants without importing a complete qualified
-fact. Image sections/statics derive as borrowed subrange views under the one
+fact. Image sections derive as borrowed subrange views under the one
 installed image root. An independently owned allocation from initial storage
 instead produces an explicit conserved partition containing the selected range
 and every nonempty prefix/suffix remainder; invalid extraction returns the
 original pool and an unmodified partition recomposes the exact parent lineage.
 
 The target profile declares the external-root slot and its schema; `build.omg`
-binds the target-qualified slot to one exact implementation satisfying the core
-requirement. Slot selection does not authorize a claim by itself. The domain
-owner's route authorizes what an installed invocation may introduce, while the
-selected slot, generated bridge, and installation receipt identify the concrete
-occurrence. The generated bridge's derived contract and provenance compose into
-the artifact before target supply is admitted.
+binds the target-qualified slot to one exact source entry. The generated bridge
+implements the physical arrival requirement and calls that entry through the
+schema's visible shape. Slot selection does not authorize a claim by itself.
+The domain owner's route authorizes what the installed bridge invocation may
+introduce, while the selected slot, bridge, and installation receipt identify
+the concrete occurrence. The bridge's derived contract and provenance compose
+into the artifact before target supply is admitted.
 
 The admitted root is a scoped hypothesis import, not a proof that external
 reality equals the compiler model. A selected provider states the exact
@@ -471,8 +493,9 @@ premise and retains it in the provenance of every dependent fact. Only a sealed
 owner-authorized route at one selected provider invocation may introduce the
 hypothesis; ordinary source cannot admit a derivable obligation or fabricate
 equivalent evidence. PCC rechecks all derived consequences and discloses the
-external premise for profile acceptance. Checked roots derived from already
-owned storage need no admitted seam; external OS, firmware, and device roots do.
+external premise for profile acceptance. Checked partitions derived from
+already owned storage need no admitted seam; external OS, firmware, and device
+roots do.
 
 An underapproximating projection is safe but restricts access. An
 overapproximating projection rejects at checked establishment when the supplied

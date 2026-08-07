@@ -551,24 +551,20 @@ reuses provider admission rather than creating an entry-specific trust system.
 ## Process entry
 
 Process entry is one required environment-to-program root slot in a hosted
-target profile. The program binds an exact semantic implementation while the
-target contributes the calling and machine-state policy.
+target profile. The program binds an exact source machine while the target
+contributes the physical arrival contract, calling policy, provider setup, and
+source-visible entry shape.
 
 ```omega
-machine Application::start(
-    image: Extent in Granted,
-    initial_storage: Extent in Granted
-)
-    satisfies ProgramStorageEntry::enter
-{
-    ...
+machine start() {
+    Console::write_line("Hello, Omega.");
 }
 
 machine build(builder: &mut Build) {
     builder.target = windows_x86_64;
     builder.roots.bind(
         windows_x86_64::ProgramEntry,
-        Application::start
+        start
     );
 }
 ```
@@ -578,6 +574,14 @@ surfaces; on ELF it may read the initial stack; on firmware it may consume a
 firmware handoff. Those details stay in scoped providers and generated bridge
 code. Target selection and slot binding belong in `build.omg`, not a
 target-specific source dialect or a `main` naming convention.
+
+A hosted schema normally hides raw image and storage roots. If the bound entry
+has one `&mut self` receiver, the bridge provisions exactly one ZII-valid
+instance beneath an admitted storage root and lends it only to that activation.
+A freestanding schema may deliberately expose `image: Extent in Granted` and
+`initial_storage: Extent in Granted` because provisioning is then the
+application's responsibility. The generated bridge remains the installed
+external root in both cases and contributes its complete derived contract.
 
 ## Engineering order
 
