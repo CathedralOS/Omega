@@ -4,10 +4,11 @@ Omega should model host and compiler boundaries explicitly.
 
 > **Current service and operational contract model
 > ([effects_authority_and_observation.md](../design_briefs/effects_authority_and_observation.md)).**
-> `reaches` contains boundary-service reach only. Independent `suspends` and
-> `blocks` clauses publish operational may-ceilings; `terminates` remains a
-> separate positive progress guarantee. Authority remains capability values, trust remains
-> provider receipts, failure remains sums, mutation remains ownership, and v1
+> `reaches` contains boundary-service reach only. Independent `suspends`,
+> `blocks`, and guarded `crashes` clauses publish operational may-ceilings;
+> `terminates` remains a
+> separate positive progress guarantee. Authority remains capability values,
+> trust remains provider receipts, recoverable failure remains sums, mutation remains ownership, and v1
 > resource bounds remain dependent contracts. The lowercase fixed vocabulary
 > documented later in this chapter is the current compiler compatibility layer,
 > not the end-state language model.
@@ -229,9 +230,11 @@ machine backup(
 ```
 
 `suspends;` says the invocation may park its activation. `blocks;` says it may
-occupy its worker while waiting. `terminates;` separately guarantees eventual
-terminal progress under pinned premises. Service reach accumulates by row
-union; suspension and blocking accumulate independently by boolean may. If
+occupy its worker while waiting. `crashes Cause Scope` publishes guarded
+no-return routes and their containment demands. `terminates;` separately
+guarantees eventual terminal progress under pinned premises. Service reach
+accumulates by row union; suspension and blocking accumulate independently by
+boolean may; crash routes compose by predicate substitution and disproof. If
 `blocks` is omitted from a public contract, no checked callee or admitted
 provider may block a worker. If `Writable` is absent from `reaches`, the machine
 cannot reach that service even when it possesses Writable authority.
@@ -254,7 +257,8 @@ nest. Chapter 18 gives the full call-site rules.
 
 Internal service and operational fields may be inferred. Exports, trait
 requirements, and boundary operations publish them; omission means empty
-service reach, never suspends, or never blocks on the corresponding axis.
+service reach, never suspends, never blocks, or no permission for an omitted
+crash cause on the corresponding axis.
 Implementations and providers refine each ceiling independently. Imports use
 pinned requirement contracts, so later provider selection cannot widen a
 compiled consumer.
@@ -276,10 +280,10 @@ standard-service vocabulary or numeric reach bitset. `Console`,
 traits all enter the same symbol-resolved service-row model. Boundary-trait
 inheritance contributes parent closure.
 
-Purity on this axis is an empty service row. Possible suspension and blocking
-are independent: `suspends;` and `blocks;` publish those may-ceilings, and
-private bodies infer them. Empty service reach plus neither operational
-possibility still does not prove termination, absence of failure, absence of
+Purity on this axis is an empty service row. Possible suspension, blocking, and
+crashing are independent: their clauses publish separate may-ceilings, and
+private bodies infer them. Empty service reach plus no operational possibility
+still does not prove termination, absence of recoverable failure, absence of
 authority use, or absence of owned-state mutation.
 
 Declared reach rows are ceilings. A trait can say "any implementation of this
@@ -780,9 +784,9 @@ machines. Raw syscall numbers, imported DLL functions, firmware jumps,
 compiler intrinsics, and instruction leaves are binding details; sequences,
 argument reshaping, newline policy, caching, and other composition are normal
 checked Omega machines. The satisfied requirement contributes the public
-service-reach, suspension, and blocking ceilings, while the binding/provider
-contract supplies behavior that must refine each of them. Trust is assigned at
-admission rather than selected by source spelling.
+service-reach, suspension, blocking, and guarded-crash ceilings, while the
+binding/provider contract supplies behavior that must refine each of them.
+Trust is assigned at admission rather than selected by source spelling.
 
 ## Freestanding Targets And Hardware Facts
 
@@ -1195,7 +1199,8 @@ Each `BoundaryProvider` record carries:
   `DescriptorConstruction`, `Allocation`, or `HostAbiCall`.
 - the public contract it implements (a reference, so the proof obligation and
   signature stay visible).
-- its normalized service-reach row and suspension/blocking ceilings.
+- its normalized service-reach row, suspension/blocking ceilings, and guarded
+  crash buckets.
 - its target applicability.
 - the origin package that declared it.
 

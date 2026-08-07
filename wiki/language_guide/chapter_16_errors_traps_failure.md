@@ -139,60 +139,138 @@ There is no `expect`/`unwrap`. "I know this cannot fail here" is spelled by
 *proving* the failure case impossible (the provably-dead arm discharges
 exhaustiveness with no handler), not by asserting it at runtime.
 
-## Deliberate Termination Is An Explicit Control Outcome
+## Crashes Are Explicit, Guarded Control Ceilings
 
-A program that genuinely must die rather than recover opts into an explicit
-abort outcome in its complete machine contract. It is not a service-reach or
-operational reach-row member. The outcome is:
+`crashes` publishes the ways an invocation may leave without returning or
+running cleanup. The initial causes are `Trap` and `Abort`. `Trap` covers an
+operation- or platform-triggered fault; `Abort` is deliberate execution-domain
+termination. One clause names one cause and one abstract containment demand:
 
-- **contagious** — `main` declares it, and it propagates to every caller; a
-  boundary fronting something abortable must itself declare it;
-- **visible** — it appears in signatures and contract manifests, so a package
-  policy can refuse any dependency that carries it;
-- **nuclear** — it runs no cleanup and no unwinding; it lowers directly to an
-  `exit`/`abort` boundary call. Giving up does not tidy up.
+```omega
+machine divide(numerator: i32, denominator: i32) -> i32
+crashes Trap Activation
+    denominator == 0
+    numerator == i32::Minimum && denominator == -1
+{
+    // ...
+}
+```
 
-The contagion is the deterrent: aborting is annoying to opt into by design,
-reserved for services whose owner restarts them. It is not for ordinary error
-handling. The exact source spelling remains open in the totality brief and
-[`OWNER_QUESTIONS.md` Q1](../../OWNER_QUESTIONS.md#q1--what-is-the-complete-contract-surface-for-abnormal-non-return);
-this chapter does not introduce an `abort` effect keyword.
+The indented facts are alternative **routes**: any one permits the named crash.
+They are not the conjunctive list used by `requires`. Repeating a clause for the
+same cause and scope contributes more alternatives to the same canonical
+bucket. A route predicate is an ordinary Boolean proof expression and may use
+`&&`, `||`, or other ordinary operators internally.
 
-The control outcome and service reach are separate contract axes. Calling the
-process-exit boundary contributes the `ProcessExit` boundary-trait identity to
-the chapter 19 reach row. Nuclear abortability propagates separately as a
-non-returning control outcome. Both are normalized into the complete machine
-contract and artifacts; neither is hidden at a call boundary. A graceful
-`exit(code)` and an abort may therefore reach the same service while promising
-different cleanup and control behavior.
+One cause appears per clause. The formatter renders one route per line and
+starts routes below the cause and scope. A clause with no routes is
+unconditional. Omitting the scope uses the stable portable top:
 
-**Graceful shutdown is not `abort`.** Releasing resources and exiting cleanly is
-ordinary control flow: transition to a cleanup state, run its cleanup work, then call
-`exit(code)` (a normal host boundary). Only the no-cleanup, give-up case is the
-nuclear abort outcome.
+```omega
+crashes Trap
+```
 
-## No Hidden Unwind
+is equivalent to an unconditional `crashes Trap ExecutionDomain`. Omitting a
+cause entirely is the negative guarantee that the machine cannot crash for
+that cause. Private checked machines may infer crash ceilings; exports,
+requirements, and boundaries publish them.
 
-Cleanup happens along known graph edges. A failure edge is an **ordinary
-transition edge** with an ordinary per-edge drop set: the locals not moved into
-the target and still owned are dropped crossing that edge, exactly as on a
-success edge. There is no separate failure-cleanup mechanism and no invisible
-unwinder. (The drop model itself is chapter 17; ch16 commits only to "the failure
-edge is not special.")
+`crash Abort;` and `crash Trap;` are explicit no-return terminals. Operations
+with intrinsic crash behavior, such as `Trapping` arithmetic, contribute crash
+sites and guards without requiring a source terminal statement. Every checked
+site must be covered by the published routes:
+
+```text
+derived_site_guard
+    implies OR(published_route_guards for the same cause that cover its scope)
+```
+
+The derived guard includes the path condition. A trap-capable division inside
+`if x > 0` therefore contributes `x > 0 && denominator == 0`, not merely the
+primitive's local guard.
+
+At a call, arguments and current facts refine the published routes. A cause is
+removed only after every surviving route for that cause is disproved. This is
+why `divide(10, 2)` is crash-free at that invocation even though `divide` is
+published as trap-capable. Refinement may also remove only the broadly damaging
+routes, allowing a call to fit a narrower containment context without proving
+all crashes impossible.
+
+The explicit terminal outcome and service reach remain separate axes. An abort
+lowering may also reach the `ProcessExit` boundary service; neither fact implies
+the other. Graceful shutdown remains ordinary cleanup followed by `exit(code)`.
+
+## Containment Is A Two-Sided Contract
+
+Crash scopes are portable nominal tokens ordered by the breadth of execution
+they terminate. `ExecutionDomain` is the permanent portable top: the root of
+the execution owned by this artifact. Its physical realization is
+target-relative—a hosted process, a Cathedral Matrix, or a bare-metal image and
+its grants. New stable scopes may be inserted below that top without changing
+the meaning of existing artifacts.
+
+Each route publishes how much containment it may demand. Each enclosing
+execution context publishes, separately for each cause, the widest scope it
+tolerates. The map is owned by the activation, task, supervisor, or root that
+expects state to survive; ordinary leaf machines inherit it rather than
+repeating it. Absence from that sparse per-cause map means forbidden. After
+call-site refinement, Psi compares every surviving bucket independently; it
+does not require a join of incomparable scopes:
+
+```text
+derived damage minimum
+    <= published route demand
+    <= context maximum[cause]
+```
+
+The lower bound matters. If a crash occurs while a shared invariant is open or
+while the activation owns custody needed by survivors, killing only that
+activation may expose broken state. Such a site derives a wider minimum. In a
+context that expects activation-level survival, the offending wide-scope route
+must be disproved. A resource-specific owner-death protocol can reduce that
+minimum only when reacquisition returns a checked outcome such as
+`OwnerDied(recovery_custody)` and successful recovery re-establishes the
+resource invariant; there is no ambient poisoning mechanism.
+
+Psi proves this internal demand-versus-tolerance relation using only nominal
+scopes. Omega installation chooses a fault-containment plan and checks the
+second side:
+
+```text
+published route demand
+    <= realized target scope
+    <= context maximum[cause]
+```
+
+A realized scope that is too narrow leaves corrupted state visible to
+survivors. A realized scope that is too broad destroys state the context
+promised would survive. The portable fingerprint contains the authored routes,
+scope demands, and context maxima; the installation record contains the
+selected plan, realized scopes, and supporting evidence.
+
+## Crash Terminals Do Not Unwind
+
+Cleanup happens along known graph edges. A recoverable-failure edge is an
+**ordinary transition edge** with an ordinary per-edge drop set. A crash is a
+distinct no-successor terminator: it performs no cleanup and carries an
+explicit abandonment plan. Absence of a cleanup list does not encode
+abandonment, because the verifier must distinguish deliberate abandonment from
+compiler failure to compute an edge.
+
+The statically known local frontier recorded at a crash site is only a lower
+bound on what is abandoned. A trap abandons at least the faulting activation,
+including caller frames; an abort abandons the execution domain. Suspended
+continuations and other live activations need not be syntactically dominated by
+the crash site, so the exact dynamic set is not claimed to be edge-enumerable.
 
 If unwinding is ever added, it must be modelled as explicit graph edges with
 cleanup and proof obligations, never as a second control-flow system.
 
-There is likewise no asynchronous in-process force-termination path. Checked
-execution leaves through checked edges; component replacement uses cooperative
-drain, coexistence, or explicit migration. A false admitted premise or an
-unmodelled hardware failure is a violation of the proof basis, not a recoverable
-edge and not a reason to invent runtime proof-state poisoning. The language's
-terminal response is process-wide nuclear abort. A deployment may place that
-process inside an independently designed containment or redundant failover
-architecture. Detection and fault-attribution coverage may be reported as
-provider/deployment evidence, but absence of a report proves nothing about
-silent corruption.
+A fault handler may terminate the faulting activation or begin a fresh
+frontier. It cannot resume the abandoned activation; resumable faults require a
+different explicit protocol. Component replacement likewise uses cooperative
+drain, coexistence, or migration rather than asynchronous destruction hidden
+from the checked graph.
 
 ## Host Failure
 

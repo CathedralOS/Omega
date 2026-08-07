@@ -188,7 +188,7 @@ provider admission. Domain owners receive no ambient exception to these rules.
 
 A satisfying implementation inherits the requirement's authored contracts,
 including `requires`, `ensures`, service-reach ceiling, `suspends`/`blocks`
-ceilings, and bare `terminates` guarantee. A cyclic implementation may add
+ceilings, guarded `crashes` buckets, and bare `terminates` guarantee. A cyclic implementation may add
 `terminates by ...` as private ranking evidence; it does not restate or alter
 the requirement contract.
 
@@ -589,6 +589,8 @@ operational envelope: the operational projection of its normalized machine
 contract. It includes service reach, direct synchronous invocation, the
 inferred or signature-derived mutation summary, capability requirements,
 suspension, blocking, failure, termination, and quantitative resource ceilings.
+Guarded crash routes retain their predicates and containment demands as a
+separate may-axis.
 Carry remains a property of the dynamic value rather than of an individual
 requirement.
 
@@ -664,8 +666,10 @@ order-independent meet, and expansion happens before normalization and
 fingerprinting.
 
 Within a machine contract, an omitted `suspends` or `blocks` clause means
-false. Within a refinement, omission means inherit; `suspends false` and
-`blocks false` explicitly narrow. `reaches;` means an empty row, while
+false, and an omitted crash cause is forbidden. Within a refinement, omission
+means inherit; `suspends false` and `blocks false` explicitly narrow, while
+crash refinement may disprove inherited route predicates or lower their scope
+demands. `reaches;` means an empty row, while
 `reaches _;` introduces an independent abstract reach row for that
 requirement. Correlating several requirements with one named row is a later
 extension.
@@ -766,11 +770,12 @@ also "these calls preserve the obligations callers rely on."
 Trait machine requirements carry the same separate ceilings as other exported
 machines. `reaches` names reachable boundary traits such as `Readable` or
 `Writable`; `invokes` names boundary bindings the current invocation may enter
-before returning; `suspends` and `blocks` publish operational possibilities. An
+before returning; `suspends`, `blocks`, and `crashes` publish operational possibilities. An
 ordinary trait is not automatically a service member: it may state a service-
 reach ceiling for its machines, but only a boundary trait contributes a service
 identity. Omission on a trait requirement means an empty service row,
-never-suspends, or never-blocks on the corresponding axis.
+never-suspends, never-blocks, or no route for the omitted crash cause on the
+corresponding axis.
 
 Calls through the requirement acknowledge its statically retained operational
 envelope with `suspend` and `block`. A concrete or transparent refinement that

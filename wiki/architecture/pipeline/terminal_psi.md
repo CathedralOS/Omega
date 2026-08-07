@@ -468,6 +468,53 @@ exact residual—not the partition arithmetic. External root correspondence and
 fresh issuance remain scoped admitted hypotheses with provenance; downstream
 conservation remains derived.
 
+### Crash-control slice
+
+Terminal Psi represents `Trap` and `Abort` as closed crash causes attached to
+distinct no-successor terminators. A crash terminator is not an ordinary
+terminal transition and does not encode abandonment by omitting a cleanup list.
+It carries the path-conditioned site guard, derived damage-minimum scope,
+covering published route buckets, and the statically known local frontier as an
+explicit lower bound. The exact dynamically abandoned frontier is not claimed
+to be edge-enumerable.
+
+Published crash buckets are fingerprinted semantic content. Each bucket has
+one cause, one nominal containment demand, and a canonical disjunction of route
+predicates over the same lowered values and structural places as executable
+Psi. Buckets normalize only when both cause and scope match. Omitted scope has
+already elaborated to the permanent portable top `ExecutionDomain`; an
+unconditional clause contains the canonical `true` predicate.
+
+The verifier independently reconstructs every crash site and checks:
+
+```text
+site_guard implies
+    OR(covering_guard
+       && site_damage_minimum <= covering_containment_demand)
+```
+
+Call composition substitutes arguments and caller path facts into published
+routes. Disproving every route removes the corresponding crash edge from the
+caller's semantic frontier; disproving only wide-scope routes narrows the
+remaining containment demands. Evidence derived from a callee body is usable
+only when that body is within the same fingerprinted verification unit.
+Otherwise the verifier consumes the imported published ceiling and its
+certificate.
+
+Psi also checks every surviving route demand against the enclosing
+fingerprinted per-cause context maximum. It does not interpret scopes as
+processes, matrices, partitions, or machines. Omega binds those nominal tokens
+to a selected fault plan and records evidence that the realized target scope is
+at least the route's damage demand and no wider than the context permits.
+
+The reference interpreter does not return a crash as data. Reaching a crash
+terminator yields a distinct interpreter outcome carrying its cause and
+semantic site identity. Build-time evaluation rejects any invocation with a
+surviving crash route; a concrete invocation that disproves all routes remains
+admissible. Native lowering may retain a physical check even when a caller has
+proved its semantic edge unreachable, unless specialization makes erasure
+valid.
+
 Implementation checkpoint (2026-08-02): the source-to-checked precursor and
 the first terminal proposition slice are live. Exact owner-projection calls,
 entry/current structural-place versions, and flattened canonical

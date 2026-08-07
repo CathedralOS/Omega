@@ -118,6 +118,23 @@ rows, evaluates the optional profile, and carries the sealed acceptance to the
 filesystem installation gate. Named profile selection in `build.omg` remains
 ordinary `Build` API design; no method spelling is frozen here.
 
+Crash containment uses the same demand/supply boundary. Terminal Psi carries
+fingerprinted crash routes, nominal containment demands, and sparse per-cause
+context maxima. `ExecutionDomain` is the permanent portable top—the root of
+execution owned by the artifact—not a promise that every target implements a
+host process. Build selects a target fault plan and installation records the
+target-relative realization (for example a process, Cathedral Matrix, or
+bare-metal image). For every surviving route it proves:
+
+```text
+published route demand <= realized target scope <= context maximum[cause]
+```
+
+The lower check prevents a narrowly terminated activation from leaving shared
+corruption visible; the upper check protects state the context expects to
+survive. Co-location, handler mechanics, and physical isolation remain selected
+installation facts and never enter portable Psi semantics.
+
 A filesystem path or unresolved loader name is not executable identity.
 Ordinary package policy rejects an opaque provider whose content, signer, or
 profile-owned platform identity cannot be pinned. Explicit admission of a known

@@ -8,29 +8,7 @@ reference in the same change.
 
 Last pruned: 2026-08-06.
 
-## Q1 — What is the complete-contract surface for abnormal non-return?
-
-The settled model puts deliberate nuclear abort, explicit trapping arithmetic,
-and other non-returning control outcomes on a failure/control axis independent
-from service reach, suspension, blocking, and ordinary termination. It does not
-settle the source spelling or the normalized row propagated through callable
-contracts. Which surface is canonical?
-
-- add dedicated declaration and terminal-statement spellings for nuclear abort,
-  with trapping arithmetic contributing the same normalized control axis; or
-- add a general declared control-outcome row whose closed vocabulary includes
-  nuclear abort and trap, with statements and selected operations naming one
-  outcome from that row?
-
-The choice fixes contract identity and entailment, call-site propagation,
-whether trap-capable arithmetic is invocation-refined or categorically
-published, ordinary-edge versus no-cleanup terminator representation, terminal
-Psi vocabulary, and build-time admission diagnostics. The parser currently
-accepts contextual `trap` by lowering it to an ordinary terminal transition;
-that erases the required semantic distinction and must not be treated as a
-settled spelling or control-outcome fact.
-
-## Q2 — How does a `Respects` proof name a normalized argument record and domain?
+## Q1 — How does a `Respects` proof name a normalized argument record and domain?
 
 The settled quotient model normalizes every operation's attached receiver and
 parameters into one argument record, derives the representative-dependent
@@ -54,7 +32,7 @@ ambient-only preconditions. Until it is settled, the compiler must not bless
 the legacy flattened pair-of-calls scan as a `Respects` conformance or infer
 domain invariance merely because a result-congruence-shaped machine exists.
 
-## Q3 — How does Build select a target entry schema and its implementation?
+## Q2 — How does Build select a target entry schema and its implementation?
 
 Core now defines `ProgramStorageEntry::enter`, and target packages may inherit
 that stable semantic requirement while refining only target policy and ABI.
@@ -77,7 +55,7 @@ multiple candidates, and the input to generated ABI stubs. Until it is settled,
 the compiler must not recognize `Main::run`, `main`, or any other export by
 name, and Cathedral's raw UEFI callable remains transitional.
 
-## Q4 — How does a witness-bearing proposition declare its evidence contract?
+## Q3 — How does a witness-bearing proposition declare its evidence contract?
 
 A nominal witness-bearing proposition owns one canonical carrierless evidence
 interface. That interface determines what every establishing conformance must
@@ -107,7 +85,7 @@ evidence contract from ordinary generic bounds. Until it is settled, the
 current brace-shaped syntax node is provisional and must not be treated as the
 permanent language spelling.
 
-## Q5 — Where does a content namespace declare its origin policy?
+## Q4 — Where does a content namespace declare its origin policy?
 
 Every `IntervalSet<CoordinateSpace>` coordinate space and
 `CountedQuantity<Unit>` unit has one closed origin policy. `ProgramLocal`

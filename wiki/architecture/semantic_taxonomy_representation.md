@@ -819,6 +819,46 @@ BlockingPlan {
   checked_may_block: bool,
 }
 
+CrashCauseId = stable identity                     // initially Trap | Abort;
+                                                   // closed per semantic version,
+                                                   // append-only across versions
+CrashScopeId = stable nominal identity in a partial order
+CrashPredicateId = canonical lowered proof-expression identity
+ExecutionDomain = permanent portable top scope
+
+CrashRouteBucket {
+  cause: CrashCauseId,
+  containment_demand: CrashScopeId,
+  alternative_guards: NonEmpty<CrashPredicateId>,
+}
+
+CrashRouteSet = canonical set of CrashRouteBucket
+
+CrashPlan {
+  interface: InternalInferred | PublishedCeiling(CrashRouteSetId),
+  checked_inferred: CrashRouteSetId,
+}
+
+CrashContextPlan {
+  maximum_by_cause: SparseMap<CrashCauseId, CrashScopeId>,
+  // absent cause = forbidden
+}
+
+CrashTerminatorPlan {
+  cause: CrashCauseId,
+  derived_guard: CrashPredicateId,
+  derived_damage_minimum: CrashScopeId,
+  covering_route_buckets: NonEmpty<CrashRouteBucketId>,
+  known_local_frontier_lower_bound: FrontierId,
+}
+
+InstalledCrashContainment {
+  selected_fault_plan,
+  cause: CrashCauseId,
+  realized_scope: CrashScopeId,
+  evidence,
+}
+
 CallOperationalAcknowledgement {
   source_or_synthesized: Source | CompilerSynthesized,
   acknowledges_suspend: bool,
@@ -830,13 +870,45 @@ Boundary-trait declarations mint service identities. `invokes` publishes the
 boundary bindings the current invocation may enter before returning;
 composition substitutes each binding path with its selected conformance and
 retains the realized direct edges for cycle and stack-topology checks.
-`suspends;` and `blocks;` publish independent may-ceilings; omission on a
-public requirement is the corresponding negative guarantee. Private omission
-infers each axis. The
-deterministic normalizer owns service-row and operational contract identity;
+`suspends;`, `blocks;`, and `crashes` publish independent may-ceilings;
+omission on a public requirement is the corresponding negative guarantee.
+Private omission infers each axis. Crash routes normalize by `(cause,
+containment_demand)` bucket, flattening alternative guards only within an exact
+bucket. A route-less source clause contributes the canonical `true` guard, and
+omitted scope elaborates to `ExecutionDomain`. The deterministic normalizer
+owns service-row and operational contract identity;
 the entailment engine may gate reachability or legality but never rewrite a
 published ceiling. `MachineTerminationPlan` remains independent and retains
 the positive `terminates` guarantee and private ranking witness.
+
+The crash checker covers every path-conditioned derived site with authored
+routes whose demands are no narrower than the derived damage minimum. At a
+call, it substitutes arguments and removes only guards disproved by available
+facts. It compares each surviving bucket with the enclosing per-cause context
+maximum independently; no scope join is required. Proofs may use a checked body
+only when that body belongs to the same fingerprinted verification unit.
+Imported evidence cites the published contract and certificate.
+
+Psi owns these nominal demand checks. Omega installation supplies
+`InstalledCrashContainment` and verifies, for every surviving route:
+
+```text
+derived_damage_minimum
+    <= published_containment_demand
+    <= realized_scope
+    <= context_maximum[cause]
+```
+
+The lower realized-scope bound prevents a narrowly killed activation from
+leaving corrupted shared state visible. The upper bound protects the context's
+survivors. Physical meanings of scopes, fault handlers, and isolation units
+exist only in the installation record.
+
+`CrashTerminatorPlan` is a distinct no-successor terminal with no cleanup. Its
+frontier field is explicitly a lower bound: an activation crash includes caller
+frames, and an execution-domain abort can abandon unrelated live or suspended
+activations that the edge cannot enumerate. An explicit abandonment plan, not
+an absent cleanup list, distinguishes this outcome from incomplete lowering.
 
 `CallOperationalAcknowledgement` belongs to syntax/checked-call and diagnostic
 artifacts, not `MachineContractPlan` identity. Validation requires its two bits
@@ -1004,9 +1076,9 @@ independent semantic axis with the operational fixed point.
   plans; it does not repeat semantic resolution.
 - Semantic interface identity and physical ABI identity are distinct and both
   queryable.
-- Service reach, possible suspension, possible blocking, and positive
-  termination remain independent after parsing, normalization, inference,
-  diagnostics, and artifact emission.
+- Service reach, possible suspension, possible blocking, guarded crash routes,
+  and positive termination remain independent after parsing, normalization,
+  inference, diagnostics, and artifact emission.
 - An exported authored service/operational contract is stable when prover
   strength changes; internal omissions reach deterministic least fixed points
   in their checked call component.
@@ -1014,3 +1086,10 @@ independent semantic axis with the operational fixed point.
   `blocks`.
 - No semantic decision projects suspension or blocking from service reach, or
   service reach from an operational boolean.
+- Crash buckets normalize only within an exact cause and scope. Call-site
+  refinement may remove a bucket but cannot rewrite published contract identity.
+- Every verified crash site has an explicit no-cleanup terminator and frontier
+  lower bound; absence of cleanup is never used as abandonment evidence.
+- Psi checks nominal crash demands against per-cause context maxima, while
+  installation separately proves a selected target scope is neither narrower
+  than the damage demand nor wider than the context permits.

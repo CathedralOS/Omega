@@ -1,9 +1,10 @@
 # Design Brief: Totality, Productivity, And Bounded Computation
 
-Current design as of 2026-07-18. Frozen decision 23 settles the termination
+Current design as of 2026-08-06. Frozen decision 23 settles the termination
 surface, its public/private identity split, and opaque boundary progress
 profiles. The compiler and corpus still implement the superseded spelling.
-General trace logic, WCET, and non-returning control outcomes remain open.
+Guarded crash ceilings settle non-returning control independently. General
+trace logic and WCET remain open.
 
 ## Governing law
 
@@ -71,12 +72,19 @@ Logic failures such as unchecked overflow, invalid indexing, and impossible
 case extraction are proof obligations and reject by default. Recoverable
 failure remains a return sum with case-specific guarantees.
 
-Traps, cancellation, and deliberate non-return occupy the failure/control axis
-of the complete machine contract; they are not reach-row members. Reaching a
-process-exit boundary also contributes the `ProcessExit` service identity to
-the reach row. These facts are independent: graceful exit and nuclear abort
+`crashes Cause Scope` publishes guarded non-return routes on an independent
+may-axis of the complete machine contract. `Trap` and `Abort` are distinct
+causes; both terminate without cleanup. Call-site facts may disprove individual
+routes, removing that crash edge or only its wider containment demand for the
+invocation. Cooperative cancellation remains a returned task outcome rather
+than a crash.
+
+Reaching a process-exit boundary also contributes the `ProcessExit` service
+identity to the reach row. These facts are independent: graceful exit and abort
 may reach the same service while having different cleanup and control
-contracts.
+contracts. `terminates` remains a positive eventual-progress guarantee and
+cannot be used to name a crash cause; `terminates by ...` remains ranking
+evidence.
 
 ## WCET and quantitative resources
 
@@ -110,13 +118,15 @@ portable deadline or WCET.
 7. `terminates` does not imply fairness, no suspension, or a deadline.
 8. Effect-row absence cannot be used to launder an ambient progress or
    resource requirement.
+9. Every derived crash site is covered by a published route at a containment
+   demand no narrower than the site's damage minimum.
+10. An enclosing context may accept different maximum scopes for `Trap` and
+    `Abort`; absent causes remain forbidden.
 
 ## Still open
 
 - general trace propositions, deadline/starvation contracts, and entailment
   between opaque progress profiles;
-- the exact complete-contract spelling for deliberate non-return
-  (`OWNER_QUESTIONS.md` Q1);
 - target WCET proof scope and timing-model composition for profiles that require
   physical deadlines; and
 - richer productivity theorems for reactive systems.

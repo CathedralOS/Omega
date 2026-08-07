@@ -131,10 +131,11 @@ applies to the selected target, and covers the complete slot schema. Thus the
 marker grants neither rows nor trust; it spends the build root's slot-selection
 authority over an already-derived and independently admitted candidate.
 
-The satisfied requirement supplies the public contract, including service-
-reach, suspension, and blocking ceilings. The external realization's behavior
-is derived from the binding/provider contract and must refine every ceiling at
-validation/admission. A `via` machine does not repeat those clauses.
+The satisfied requirement supplies the public contract, including service
+reach, suspension, blocking, and guarded-crash ceilings. The external
+realization's behavior is derived from the binding/provider contract and must
+refine every ceiling at validation/admission. A `via` machine does not repeat
+those clauses.
 
 This is one boundary-contract shape, not FFI-only ceremony. A checked Omega
 provider derives facts from its body. An opaque provider supplies admitted
@@ -159,8 +160,8 @@ Decision 22 applies without an extern exception:
 - the boundary-trait identity contributes service reach;
 - capability/evidence values carry authority;
 - the selected external provider produces a trust receipt; and
-- `suspends`/`blocks` are independent operation/provider ceilings when
-    applicable.
+- `suspends`/`blocks` and guarded crash routes are independent
+  operation/provider ceilings when applicable.
 
 A checked wrapper may refine operational behavior or reduce trust expenditure;
 it does not erase the abstract service reach from callers compiled against that

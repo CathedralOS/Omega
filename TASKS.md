@@ -51,7 +51,7 @@ Owners:
 
 Remaining:
 
-- **ENTRY-CONTENT-ROOTS — blocked on `OWNER_QUESTIONS.md` Q3.** Connect the
+- **ENTRY-CONTENT-ROOTS — blocked on `OWNER_QUESTIONS.md` Q2.** Connect the
   live `ProgramStorageEntry::enter` requirement to Build selection and generated
   target entry stubs. Bind emitted image and initial-storage geometry to its
   exact qualified parameter positions. Derive statics as subextents and allocate
@@ -63,7 +63,7 @@ Remaining:
   for partial bodyless boundaries and admit only provider custody acceptance.
   Infer only identity-preserving reshuffles; partition-changing primitives must
   author a theorem and wrappers may compose it.
-- **NAMESPACE-ORIGIN — blocked on `OWNER_QUESTIONS.md` Q5.** Add the closed
+- **NAMESPACE-ORIGIN — blocked on `OWNER_QUESTIONS.md` Q4.** Add the closed
   namespace-origin policy and internal algebra account for every content-capable
   root. `ProgramLocal` capacity is owner-authorized declaration supply;
   `ProviderBacked` capacity requires admitted issuance. Report modeled identity
@@ -160,6 +160,15 @@ Remaining:
 - Replace all remaining terminal-path `ExpressionHandle` and source-tree
   dependencies with lowered values and predicates. Absorb useful StateGraph /
   ControlFlow topology, then retire the legacy backend lane as consumers move.
+- **CRASH-CONTRACT.** Parse `crashes Cause Scope` route clauses and explicit
+  `crash Cause;` terminals. Normalize fingerprinted per-cause/per-scope buckets,
+  derive path-conditioned crash sites and damage minima, refine routes at calls,
+  and enforce sparse per-cause context maxima. Terminal Psi must carry explicit
+  no-cleanup crash terminators and frontier lower bounds; remove the parser's
+  transitional lowering of contextual `trap` to an ordinary terminal edge.
+  Omega installation must bind nominal scopes to a selected fault plan and
+  prove the realized scope lies between each surviving route demand and its
+  context maximum.
 - Re-root the reference interpreter and abstract-operation construction fully
   on decoded, verified terminal Psi. Preserve the shared interpreter/native
   oracle over the same IR.
@@ -185,7 +194,10 @@ Acceptance: a canonical terminal artifact can be verified after source and
 producer state are discarded; the verifier independently reconstructs every
 obligation and rejects missing/extra/mismatched evidence; interpretation and
 native execution consume that same verified artifact; proof replacement does
-not change semantic identity.
+not change semantic identity. Crash sites are never represented as ordinary
+terminal transitions or absent cleanup, concrete safe invocations can disprove
+all crash routes, and installation rejects fault plans that kill either too
+little damaged state or too much context-owned state.
 
 ### P4 — Calling plans, final footprints, and callbacks
 
@@ -317,9 +329,9 @@ Owner: `wiki/design_briefs/law_bearing_relations_and_quotients.md`.
 
 Remaining N6/N8 work:
 
-- **WITNESS-EVIDENCE-CLAUSE — blocked on Q4.** Ratify the dedicated declaration
+- **WITNESS-EVIDENCE-CLAUSE — blocked on Q3.** Ratify the dedicated declaration
   position for a nominal proposition's fingerprinted evidence interface.
-- **SELECTED-WITNESS-EVIDENCE — blocked on Q4.** Bind a selected named
+- **SELECTED-WITNESS-EVIDENCE — blocked on Q3.** Bind a selected named
   conformance block to one carrierless proof term that introduction and
   elimination can reopen. Consume its complete normalized requirement map;
   do not infer evidence from attached state names.
@@ -366,10 +378,9 @@ checked-result arithmetic decision listed below.
   conformance implementation blocks, normalize inherited trait-qualified rows,
   instantiate defaults per conformance, and emit adapters/tables only from that
   retained map. Bare exact-requirement satisfiers never license `dyn`.
-- Complete hermetic semantic evaluation: invocation-specific admission,
-  target-semantic capsule, separate semantic result and usage identities,
-  deterministic progress, and constant/runtime equivalence. Abnormal non-return
-  reporting is blocked on Q1.
+- Complete hermetic semantic evaluation: invocation-specific crash-route
+  refinement, target-semantic capsule, separate semantic result and usage
+  identities, deterministic progress, and constant/runtime equivalence.
 - Add `Hermetic | Receipted | Volatile` observation ceilings and publish realized
   replay/rebuild provenance separately from source semantics.
 
@@ -425,15 +436,13 @@ can produce installed code; validation binds exact final bytes and placement.
 
 These entries are pointers, not duplicate specifications.
 
-- **Q1:** complete-contract spelling and propagation for abnormal non-return;
-  blocks build-time abnormal-outcome admission.
-- **Q2:** normalized argument-record/domain surface for `Respects`; blocks
+- **Q1:** normalized argument-record/domain surface for `Respects`; blocks
   quotient lifting and `%` migration.
-- **Q3:** Build entry-schema/implementation selection; blocks the generated
+- **Q2:** Build entry-schema/implementation selection; blocks the generated
   program-storage entry bridge.
-- **Q4:** witness-bearing proposition evidence-clause spelling; blocks the
+- **Q3:** witness-bearing proposition evidence-clause spelling; blocks the
   permanent source form and selected witness evidence.
-- **Q5:** content-namespace origin-policy spelling; blocks local/provider-backed
+- **Q4:** content-namespace origin-policy spelling; blocks local/provider-backed
   root origination and provenance.
 - **ATOMIC-EVENT-MODEL:** blocked on the portable atomic axioms and target
   refinement choices in `wiki/language_guide/appendix_open_questions.md`.

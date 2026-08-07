@@ -200,8 +200,9 @@ but its contract must expose that it may suspend or fail.
 `finish()` consumes the claim and returns an ordinary outcome sum. The
 task-produced `T` remains responsible for application-level recoverable
 failure; the outer task outcome distinguishes lifecycle events such as normal
-return, cancellation, and provider failure. Trap/abort behavior remains in the
-machine/provider contract rather than being fabricated as a returned value.
+return, cancellation, and provider failure. `Trap`/`Abort` routes remain in the
+machine/provider `crashes` contract rather than being fabricated as a returned
+value.
 
 Conditional ownership uses an ordinary sum:
 
