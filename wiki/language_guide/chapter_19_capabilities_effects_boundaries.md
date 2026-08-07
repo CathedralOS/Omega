@@ -196,12 +196,13 @@ data LoggingProxy {
     service: LoggingService;
 }
 
-machine LoggingProxy::write(&self, text: &[u8])
-    satisfies Logger::write as ComponentLogger
-    reaches LoggingService
-    suspends
-{
-    suspend self.service.write(text);
+LoggingProxy satisfies Logger as ComponentLogger {
+    machine write(&self, text: &[u8])
+        reaches LoggingService
+        suspends
+    {
+        suspend self.service.write(text);
+    }
 }
 ```
 

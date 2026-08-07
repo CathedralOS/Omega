@@ -9,7 +9,7 @@ names a fact; ordinary proof machines establish it through `ensures` and use it
 through `requires` or proof expressions. Primitive propositions end in `;`,
 witness-bearing propositions publish one carrierless evidence interface as
 fingerprinted proof content, and transparent proposition definitions use `=`.
-The exact evidence-clause spelling remains `OWNER_QUESTIONS.md` Q5. See
+The exact evidence-clause spelling remains `OWNER_QUESTIONS.md` Q4. See
 [Law-Bearing Relations, Evidence, And Quotients](law_bearing_relations_and_quotients.md)
 for the complete source and evidence model.
 
@@ -97,9 +97,12 @@ normalization through explicit conformance to an algebraic trait whose operation
 and law requirements are proved.
 
 `CommutativeSemiring` supplies operation slots (`zero`, `one`, `add`, `mul`) and
-law slots. Satisfiers bind machines to those slots with `satisfies`; law
-satisfiers must have checked `ensures` strong enough to establish the required
-law. Named satisfiers disambiguate multiple algebras over one carrier.
+law slots. One closed conformance block binds every inherited slot to a checked
+member, an explicit existing-machine reference, or that conformance's default
+instantiation. Law members must have checked `ensures` strong enough to
+establish the required law. Named conformances disambiguate multiple algebras
+over one carrier. A bare exact-requirement satisfier may serve as an ordinary
+lemma or provider realization, but does not assemble a selectable algebra.
 
 The judge may normalize only operations licensed by that conformance. It never
 enables algebra by noticing similarly named lemmas in scope. The current

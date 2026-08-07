@@ -1,6 +1,6 @@
 # Tasks
 
-Last pruned: 2026-08-05.
+Last pruned: 2026-08-06.
 
 This file is the current execution queue, not a changelog. Commits, canaries,
 architecture pages, and design briefs retain completed implementation history.
@@ -51,7 +51,7 @@ Owners:
 
 Remaining:
 
-- **ENTRY-CONTENT-ROOTS — blocked on `OWNER_QUESTIONS.md` Q4.** Connect the
+- **ENTRY-CONTENT-ROOTS — blocked on `OWNER_QUESTIONS.md` Q3.** Connect the
   live `ProgramStorageEntry::enter` requirement to Build selection and generated
   target entry stubs. Bind emitted image and initial-storage geometry to its
   exact qualified parameter positions. Derive statics as subextents and allocate
@@ -63,7 +63,7 @@ Remaining:
   for partial bodyless boundaries and admit only provider custody acceptance.
   Infer only identity-preserving reshuffles; partition-changing primitives must
   author a theorem and wrappers may compose it.
-- **NAMESPACE-ORIGIN — blocked on `OWNER_QUESTIONS.md` Q6.** Add the closed
+- **NAMESPACE-ORIGIN — blocked on `OWNER_QUESTIONS.md` Q5.** Add the closed
   namespace-origin policy and internal algebra account for every content-capable
   root. `ProgramLocal` capacity is owner-authorized declaration supply;
   `ProviderBacked` capacity requires admitted issuance. Report modeled identity
@@ -317,17 +317,22 @@ Owner: `wiki/design_briefs/law_bearing_relations_and_quotients.md`.
 
 Remaining N6/N8 work:
 
-- **WITNESS-EVIDENCE-CLAUSE — blocked on Q5.** Ratify the dedicated declaration
+- **WITNESS-EVIDENCE-CLAUSE — blocked on Q4.** Ratify the dedicated declaration
   position for a nominal proposition's fingerprinted evidence interface.
-- **SELECTED-WITNESS-EVIDENCE — blocked on Q1 and Q5.** Bind a selected named
-  conformance to one carrierless proof term that introduction and elimination
-  can reopen. Do not infer it from attached state names.
+- **SELECTED-WITNESS-EVIDENCE — blocked on Q4.** Bind a selected named
+  conformance block to one carrierless proof term that introduction and
+  elimination can reopen. Consume its complete normalized requirement map;
+  do not infer evidence from attached state names.
+- Add the subjectless conformance-block form used by carrierless evidence
+  interfaces. It has a package-scoped name and the same closed normalized row
+  map as a carrier-owned conformance; no arbitrary parameter is inferred as
+  its subject.
 - Add proof-only selected-conformance projection and by-value carrierless `dyn`
-  after Q1 supplies the complete requirement-to-satisfier map.
-- Add `Respects` over normalized callable argument records after Q3 settles its
+  from the complete conformance-block map.
+- Add `Respects` over normalized callable argument records after Q2 settles its
   source/identity surface.
 - Migrate `%` from executable-Boolean relations and suffix law discovery to
-  proposition evidence plus explicit selected conformances after Q1/Q3/Q5.
+  proposition evidence plus explicit selected conformances after Q2/Q4.
 - Expand the checked `Nat`, `Int`, `Rat`, sequence/Cauchy, and approximation
   corpus needed for `Real`; keep `Real` proof-only and core-level.
 
@@ -357,12 +362,14 @@ checked-result arithmetic decision listed below.
   propagation, parameter-backed storage, broader runtime-indexed expressions,
   state-parameter loan-root rebasing, and exact R5 preservation.
 - Continue local borrowed `dyn` lowering from the live nominal-conformance
-  selection and descriptor representation. **Dynamic adapter/table emission is
-  blocked on Q1**; do not guess a conformance's satisfiers from names.
+  selection and descriptor representation. Parse and check complete
+  conformance implementation blocks, normalize inherited trait-qualified rows,
+  instantiate defaults per conformance, and emit adapters/tables only from that
+  retained map. Bare exact-requirement satisfiers never license `dyn`.
 - Complete hermetic semantic evaluation: invocation-specific admission,
   target-semantic capsule, separate semantic result and usage identities,
   deterministic progress, and constant/runtime equivalence. Abnormal non-return
-  reporting is blocked on Q2.
+  reporting is blocked on Q1.
 - Add `Hermetic | Receipted | Volatile` observation ceilings and publish realized
   replay/rebuild provenance separately from source semantics.
 
@@ -418,16 +425,16 @@ can produce installed code; validation binds exact final bytes and placement.
 
 These entries are pointers, not duplicate specifications.
 
-- **Q1:** dynamic conformance satisfier maps, selected witness evidence,
-  proof-only conformance projection, and `%` migration.
-- **Q2:** complete-contract spelling and propagation for abnormal non-return;
+- **Q1:** complete-contract spelling and propagation for abnormal non-return;
   blocks build-time abnormal-outcome admission.
-- **Q3:** normalized argument-record/domain surface for `Respects`; blocks
+- **Q2:** normalized argument-record/domain surface for `Respects`; blocks
   quotient lifting and `%` migration.
-- **Q4:** Build entry-schema/implementation selection; blocks the generated
+- **Q3:** Build entry-schema/implementation selection; blocks the generated
   program-storage entry bridge.
-- **Q5:** witness-bearing proposition evidence-clause spelling; blocks the
+- **Q4:** witness-bearing proposition evidence-clause spelling; blocks the
   permanent source form and selected witness evidence.
+- **Q5:** content-namespace origin-policy spelling; blocks local/provider-backed
+  root origination and provenance.
 - **ATOMIC-EVENT-MODEL:** blocked on the portable atomic axioms and target
   refinement choices in `wiki/language_guide/appendix_open_questions.md`.
 - **CHECKED-RESULT-ARITHMETIC:** blocked on whether failure-returning checked

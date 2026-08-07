@@ -77,15 +77,11 @@ where
 
 data X86InterruptConvention;
 
-machine X86InterruptConvention::plan(
-    signature: BoundarySignature,
-) -> BoundaryPlanResult
-    satisfies CallingPolicy::plan
-{
-    ...
+X86InterruptConvention satisfies CallingPolicy {
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        ...
+    }
 }
-
-X86InterruptConvention satisfies CallingPolicy;
 
 boundary trait TimerInterrupt:
     Calling<X86InterruptConvention>
@@ -404,6 +400,15 @@ boundary plan. See
 artifact-private requirement table. The requirement owns one erased caller
 call shape; each selected satisfier supplies a checked adapter into its
 physical machine shape.
+
+The selected conformance is one closed `Type satisfies Trait as Name { ... }`
+implementation block. Its normalized map has exactly one row per inherited
+`(declaring trait, requirement)` slot, selecting the block member, an explicit
+existing-machine reference, or that conformance's own default instantiation.
+No adapter row is recovered from an attached-state name or a uniquely visible
+machine. An independent `machine ... satisfies Trait::requirement` remains a
+per-requirement provider/adapter realization and never supplies `dyn` by
+itself.
 
 Checked Psi now retains the first descriptor-selection input: a direct bare
 place coercion succeeds only for one unique complete nominal conformance and
@@ -885,8 +890,8 @@ identity. Policy type names and source bodies do not enter that fingerprint;
 boundaries without a calling policy retain their prior identities. The authored
 relationship span survives typed lowering and is attached to evaluation,
 rejection, invalid-plan, and signature-materialization diagnostics.
-Generic boundary declarations are inert until a standalone conformance supplies
-a concrete trait argument tuple. Each such instance resolves its policy and
+Generic boundary declarations are inert until a conformance block supplies a
+concrete trait argument tuple. Each such instance resolves its policy and
 forwarded signature types independently; provider schemas recover that same
 tuple, while only the evaluated plan fingerprint enters their public identity.
 The canonical call plan itself remains internal lowering evidence. Provider

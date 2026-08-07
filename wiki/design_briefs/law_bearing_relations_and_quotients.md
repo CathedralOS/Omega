@@ -78,7 +78,7 @@ proposition rat_equivalent(left: Rat, right: Rat);
 A nominal `converges_together<Left, Right>(left, right)` proposition publishes
 `ConvergenceEvidence<Left, Right>` as its one opaque evidence interface. The
 exact dedicated source clause for that interface remains
-[`OWNER_QUESTIONS.md` Q5](../../OWNER_QUESTIONS.md); its semantic role is
+[`OWNER_QUESTIONS.md` Q4](../../OWNER_QUESTIONS.md); its semantic role is
 settled independently of that spelling.
 
 Its truth is inhabitance by checked proof evidence, not the result of running
@@ -172,7 +172,11 @@ mathematical vocabulary.
 ## Relation-property hierarchy
 
 Relation laws are ordinary explicit conformances. The compiler does not find
-free machines by suffix or privileged global name.
+free machines by suffix or privileged global name. Each selected law
+conformance is one closed implementation block; proof machines written in that
+block or explicitly referenced by its trait-qualified rows supply the laws.
+Bare exact-requirement satisfiers remain usable as proof lemmas but do not by
+themselves form a selectable `Equivalence` conformance.
 
 The reusable properties are independent:
 
@@ -210,10 +214,17 @@ Transitive:
 ```
 
 `Equivalence` composes the three parent requirements and redeclares no law.
-Several proofs may satisfy the same property. Home-satisfier resolution selects
-one when unique; ambiguity uses the ordinary named-conformance selection.
+Several conformances may prove the same property. Ordinary selection may use
+one unique visible home conformance; ambiguity requires an explicit named
+conformance.
 Changing the proof conformance does not change the nominal relation or quotient
 identity.
+
+The proposition or other static subject of a law conformance is authored by
+the law surface, never inferred from parameter occurrence. A truly subjectless
+evidence interface uses the subjectless conformance form and receives a stable
+package-scoped name; it is not forced onto an arbitrary parameter merely to
+reuse a type-owned namespace.
 
 Fact-only versus witness-bearing classification does change proposition
 identity, because it changes what a consumer may eliminate. Primitive

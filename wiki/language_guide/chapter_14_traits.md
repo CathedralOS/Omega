@@ -21,35 +21,87 @@ trait Incrementable {
 }
 ```
 
-This means a type satisfies `Incrementable` if the required machine exists with
-a compatible signature.
+This means a type satisfies `Incrementable` through one complete conformance
+whose `increment` member implements the requirement with a compatible
+signature and contract.
 
 ```omega
 data Counter {
     value: i32;
 }
 
-machine Counter::increment(&mut self) satisfies Incrementable {
-    self.value = self.value + 1;
+Counter satisfies Incrementable {
+    machine increment(&mut self) {
+        self.value = self.value + 1;
+    }
 }
 ```
 
-The implementation is the machine. The trait gives the compiler and programmer
-a name for the required surface.
-
-`satisfies Incrementable` is an explicit binding: this machine intentionally
-fulfills the matching requirement from `Incrementable`.
+The implementation remains an ordinary machine. The enclosing conformance
+block gives the compiler and programmer one closed, reviewable unit that binds
+every requirement and law in the trait surface. At top level `machine` declares
+a free or attached machine; inside a trait it declares a requirement; inside a
+conformance block it declares the satisfier for that block's corresponding
+requirement. The lexically visible enclosure carries that distinction.
 
 ### Named conformances
 
 A type may satisfy one trait in several coherent ways. Each named conformance
-binds the complete trait surface; Omega never assembles one conformance from
-requirements supplied by different conformances.
+is one implementation block binding the complete trait surface; Omega never
+assembles one conformance by searching ambient machines.
 
 ```omega
-Card satisfies Ranked as PowerOrder;
-Card satisfies Ranked as CostOrder;
+Card satisfies Ranked as PowerOrder {
+    machine before(&self, other: &Card) -> bool {
+        self.power < other.power
+    }
+
+    machine rank_value(&self) -> u32 {
+        self.power
+    }
+}
+
+Card satisfies Ranked as CostOrder {
+    machine before(&self, other: &Card) -> bool {
+        self.cost < other.cost
+    }
+
+    machine rank_value(&self) -> u32 {
+        self.cost
+    }
+}
 ```
+
+Every requirement in the normalized inherited trait closure has one
+trait-qualified row. A member written in the block fills that row. An uncovered
+row uses the trait's default when one exists; otherwise the conformance is
+incomplete and rejects. The compiler never fills a row from a uniquely visible
+or similarly named machine. A default is instantiated for this conformance, so
+calls it makes to other requirements resolve through this same block.
+
+One existing machine may be shared deliberately by referencing it from
+several blocks. A reference row uses `=` to bind the conformance slot to that
+machine; it does not declare transparent machine identity:
+
+```omega
+machine Card::stable_rank_value(&self) -> u32 {
+    self.power + self.cost
+}
+
+Card satisfies Ranked as PowerOrder {
+    machine before(&self, other: &Card) -> bool {
+        self.power < other.power
+    }
+
+    Ranked::rank_value = Card::stable_rank_value;
+}
+```
+
+The normalized row key is always `(declaring trait, requirement)`, including
+inherited requirements whose short names collide. Private satisfier machines
+may back a public conformance: callers name the authorized conformance surface,
+not its private realization. Two semantic rows remain distinct even when a
+later lowering safely shares their physical code.
 
 Selection happens where concrete code meets an abstract requirement. A unique
 visible home conformance is inferred. If several conformances are eligible,
@@ -76,6 +128,12 @@ package or the trait's package. A third-party conformance is legal but
 named-only. Imports can therefore make a conformance name resolvable; they
 cannot silently change an unnamed selection.
 
+The package declaring a conformance owns its closed membership. Another package
+may declare a separately named conformance over the same type and trait, but it
+cannot add, replace, or duplicate rows in an existing one. Named third-party
+conformances therefore do not compete for one global unnamed implementation;
+ordinary visibility, name-collision, and home-inference coherence still apply.
+
 A trait may declare free-machine requirements:
 
 ```omega
@@ -84,11 +142,25 @@ trait Additive {
 }
 ```
 
-A requirement may carry contracts such as `ensures`; every conformance proves
-them. When requirement signatures collide, the machine's `satisfies` clause
-names the requirement path. Clause order is signature, `satisfies`,
-`terminates [by ...]`, ordinary contracts, then the checked body. An
-irreducible external realization uses `via <Binding>;` instead of a body.
+A requirement may carry contracts such as `ensures`; every whole conformance
+proves them member by member. Independent provider, operator, route, and proof
+realizations may instead implement one exact requirement without claiming a
+whole trait:
+
+```omega
+machine hardware_acquire(...)
+    satisfies DeviceProvider::acquire
+{
+    // Checked realization of this exact requirement only.
+}
+```
+
+This bare exact-requirement edge participates in provider selection and other
+requirement-local mechanisms. It never creates a whole conformance, satisfies a
+whole-trait bound, or licenses `dyn`. Clause order is signature, exact
+`satisfies Trait::requirement`, `terminates [by ...]`, ordinary contracts, then
+the checked body. An irreducible external realization uses `via <Binding>;`
+instead of a body.
 
 ### Domain establishment requirements
 
@@ -120,15 +192,16 @@ ceilings, and bare `terminates` guarantee. A cyclic implementation may add
 `terminates by ...` as private ranking evidence; it does not restate or alter
 the requirement contract.
 
-## Machine Binding
+## Exact Requirement Realization
 
-The preferred explicit spelling is post-signature metadata on the machine.
+An independent provider or adapter binds one exact requirement through
+post-signature metadata on the machine.
 
 ```omega
 machine Player::draw(
     &self,
     canvas: &mut Canvas
-) satisfies Drawable {
+) satisfies Drawable::draw {
     canvas.draw_sprite(self.sprite);
 }
 ```
@@ -136,7 +209,7 @@ machine Player::draw(
 This keeps machine identity clean:
 
 - `Player::draw` is still the machine.
-- `Drawable` is the trait requirement it satisfies.
+- `Drawable::draw` is the exact trait requirement it satisfies.
 - `Self` inside the trait requirement binds to `Player`.
 - The compiler checks that the params, return type, service reach, direct
   synchronous invocation ceiling, and obligations match the trait requirement.
@@ -148,7 +221,7 @@ machine Player::draw(
     &self,
     canvas: &mut Canvas
 )
-satisfies Drawable
+satisfies Drawable::draw
 where
     Canvas satisfies RasterTarget
 requires
@@ -160,11 +233,12 @@ reaches
 }
 ```
 
-Clause ordering is signature, `satisfies`, `terminates [by ...]`, ordinary
-contracts and service/operational ceilings, then body. Trait binding belongs
-with the machine contract, not inside the machine name. An irreducible external
-implementation instead ends with `via <Binding>;`; it inherits the requirement
-contract and cannot also carry a body or repeat those ceilings.
+Clause ordering is signature, exact `satisfies`, `terminates [by ...]`, ordinary
+contracts and service/operational ceilings, then body. Requirement binding
+belongs with the machine contract, not inside the machine name, and does not
+manufacture a whole conformance. An irreducible external implementation instead
+ends with `via <Binding>;`; it inherits the requirement contract and cannot also
+carry a body or repeat those ceilings.
 
 ## Individual Machine Requirements
 
@@ -429,9 +503,11 @@ for the two-word `{ instance, selected-conformance table }` carrier and retains
 the trait plus authored named selection in physical layout descriptors; it no
 longer models the second word as a slice length. Descriptor materialization,
 private table emission, and adapter lowering remain subsequent implementation
-rungs. The exact association between a named whole-trait edge and its attached
-requirement satisfiers is design-blocked on `OWNER_QUESTIONS.md` Q1; neither Psi
-nor Omega may infer adapter rows merely from matching state names.
+rungs. Those consumers use the complete normalized map authored by the selected
+conformance block. Each row retains the declaring trait, requirement, exact
+satisfier machine, default instantiation when applicable, normalized contracts,
+and selected conformance identity; neither Psi nor Omega infers adapter rows
+from matching state names.
 
 The table is a private realization. Logical identity records the trait,
 selected conformance, and normalized contracts rather than a table address.
@@ -594,10 +670,10 @@ false. Within a refinement, omission means inherit; `suspends false` and
 requirement. Correlating several requirements with one named row is a later
 extension.
 
-The `satisfies` token consequently has two related grammatical uses. On a
-machine or conformance item it creates a nominal conformance edge. In a
-generic `where` clause it tests an already-declared edge, optionally selecting
-its name.
+The `satisfies` token consequently has three related grammatical uses. A
+conformance block declares one complete nominal edge; a machine clause realizes
+one exact requirement without creating that edge; and a generic `where` clause
+tests an already-declared whole conformance, optionally selecting its name.
 
 ### Components are a different crossing
 
@@ -614,12 +690,13 @@ data LoggingProxy {
     service: LoggingService;
 }
 
-machine LoggingProxy::write(&self, text: &[u8])
-    satisfies Logger::write as ComponentLogger
-    reaches LoggingService
-    suspends
-{
-    suspend self.service.write(text);
+LoggingProxy satisfies Logger as ComponentLogger {
+    machine write(&self, text: &[u8])
+        reaches LoggingService
+        suspends
+    {
+        suspend self.service.write(text);
+    }
 }
 
 let logger: &dyn Logger =
@@ -633,8 +710,8 @@ effect, and resource costs at one named seam.
 ## Satisfaction
 
 Conformance is nominal. A matching set of machines does not silently make a
-type satisfy a trait; a `satisfies` clause or standalone conformance item
-declares the edge and gives the compiler a stable place to check it.
+type satisfy a trait. One conformance block declares the edge, owns its complete
+member map, and gives the compiler a stable place to check it.
 
 ```omega
 trait Incrementable {
@@ -645,11 +722,11 @@ data Counter {
     value: i32;
 }
 
-machine Counter::increment(&mut self) {
-    self.value = self.value + 1;
+Counter satisfies Incrementable {
+    machine increment(&mut self) {
+        self.value = self.value + 1;
+    }
 }
-
-Counter satisfies Incrementable;
 
 machine Scheduler::step<T>(
     subject: &mut T
@@ -661,11 +738,11 @@ where
 }
 ```
 
-A machine may bind a requirement directly with
-`satisfies Incrementable::increment`; a standalone conformance item binds and
-checks the complete surface. Structural checks still answer whether the
-declared conformance fits a transparent refinement, but they never create the
-nominal edge.
+A machine may realize a requirement directly with
+`satisfies Incrementable::increment`; that edge never implies the whole
+conformance above. Structural checks still answer whether the declared
+conformance fits a transparent refinement, but they never create its nominal
+edge.
 
 ## Invariants And Reach
 
@@ -733,12 +810,11 @@ trait WireEncodable<Message> {
     machine Self::to_wire(&self, out: &mut Message);
 }
 
-machine Player::to_wire(
-    &self,
-    out: &mut PlayerMessage
-) satisfies WireEncodable<PlayerMessage> {
-    out.name = self.name;
-    out.health = self.health;
+Player satisfies WireEncodable<PlayerMessage> {
+    machine to_wire(&self, out: &mut PlayerMessage) {
+        out.name = self.name;
+        out.health = self.health;
+    }
 }
 ```
 
@@ -780,9 +856,8 @@ first trait pass.
 Working guideline:
 
 - Use trait parameters first.
-- Bind concrete trait parameters on the satisfying machine with `satisfies`.
-- Bind a whole generic conformance explicitly at its standalone item, for
-  example `Player satisfies WireEncodable<PlayerMessage>;`.
+- Bind concrete trait parameters on the complete conformance block, for example
+  `Player satisfies WireEncodable<PlayerMessage> { ... }`.
 - Do not add associated constants, higher-kinded types, or type families until
   the language has a real need.
 
@@ -826,50 +901,56 @@ Prefer ordinary library machines when behavior is reusable without access to
 trait-member generation or `Self`-specific conformance. Trait bodies exist for
 the conformance story below.
 
-## Conformance Items
+## Conformance Blocks
 
-Trait implementations are ordinary attached machines; nothing trait-shaped
-appears on a `data` declaration. A standalone conformance item declares and
-checks the nominal relationship for a whole `(type, trait)` pair:
+Nothing trait-shaped appears on a `data` declaration. A conformance block
+declares and implements the nominal relationship for a whole `(type, trait)`
+pair:
 
 ```omega
-Point satisfies Equatable;
+Point satisfies Equatable {
+    machine equals(&self, other: &Point) -> bool {
+        self.x == other.x && self.y == other.y
+    }
+}
 ```
 
 A generic conformance carries its concrete arguments at the same site:
 
 ```omega
-Player satisfies WireEncodable<PlayerMessage>;
+Player satisfies WireEncodable<PlayerMessage> {
+    machine encode(&self, out: &mut WireBuffer) {
+        // ...
+    }
+}
 ```
 
 Those arguments specialize authored default signatures and bodies. They also
 compose through header parents, so a non-generic `trait IntSink: Sink<i32>`
 passes `i32` into defaults inherited from `Sink<T>`.
 
-The declared claim is discharged member by member:
+The declared implementation is discharged member by member:
 
-- a hand-written machine with the matching signature is CHECKED (today's
-  structural fit check),
+- a machine written inside the block is checked against its exact requirement,
+- an explicit reference row selects one already-declared exact machine,
 - a missing member whose trait declares a machine body gets that
-  body INSTANTIATED for the conforming type,
+  body instantiated for this conformance,
 - a missing member of a SYNTHESIZABLE core trait is generated by the compiler
   (below),
-- anything else is a loud conformance error at the item.
+- anything else is a loud conformance error at the block.
 
-Writing your own machine later flips that member from synthesize/default to
-check -- partial override needs no extra syntax.
+Writing a member in the block flips that row from synthesize/default to check;
+partial override needs no extra syntax. Default bodies call other requirements
+through the same block's normalized map.
 
-Foreign-type conformance (`ForeignType satisfies MyTrait;` declared in your
-package) follows the same rules as foreign-type domains: import-gated
-visibility, collisions are hard errors, never resolution priority.
+Foreign-type conformance (`ForeignType satisfies MyTrait as LocalName { ... }`
+declared in your package) follows the same visibility discipline as
+foreign-type domains. It is named-only outside a home package, owns a closed
+member set, and cannot extend another package's conformance. Two third parties
+may publish differently named conformances without competing for one global
+unnamed slot; identical visible names remain hard errors.
 
-This is the language's first identifier-led top-level item; `satisfies` stays
-a contextual keyword.[^conformance-open]
-
-[^conformance-open]: Open: whether a conformance item may appear inside a
-package other than the type's or trait's owner when BOTH are foreign (the
-orphan question, same as domains); diagnostics shape for partially-satisfied
-claims.
+The item remains identifier-led and `satisfies` stays a contextual keyword.
 
 ## Synthesized Core Traits
 
@@ -885,7 +966,7 @@ trait Equatable {
 }
 
 data Point { x: i32; y: i32; }
-Point satisfies Equatable;          // compiler emits Point::equals
+Point satisfies Equatable { }       // compiler emits this block's equals row
 ```
 
 This follows the established core pattern (operator declarations backed by
@@ -917,13 +998,14 @@ trait Hashable {
     }
 }
 
-Point satisfies Hashable;    // expands the body for Point's fields
+Point satisfies Hashable { } // expands this block's hash row for Point's fields
 ```
 
-  Build-time code runs ONLY where the trait declarer wrote it -- a
-  conformance item triggers expansion but never contains code -- and
-  generator bodies must carry empty reach. One auditable site per trait, no
-  IO at build time, ever.
+  Generated build-time code runs only where the trait declarer wrote the
+  default; an empty row in the conformance block selects that instantiation.
+  A block may instead provide an ordinary checked override. Generator bodies
+  must carry empty reach. One auditable generator site per trait, no IO at
+  build time, ever.
 
 Once trait generators exist, the synthesized core set above stops being
 special: `Equatable` becomes an ordinary core trait written this way, and the
@@ -932,7 +1014,7 @@ compiler privilege dissolves into the same mechanism.[^build-time-open]
 Equatable acquisition (frozen decision 11): IMPLICIT for primitives and
 payload-less sums -- tag identity is the only thing equality could mean
 there, and match desugaring depends on it -- and DECLARED
-(`Type satisfies Equatable;`) for records and payload-bearing sums. This is
+(`Type satisfies Equatable { }`) for records and payload-bearing sums. This is
 deliberately looser than Rust's universal derive: whole-program compilation
 removes the accidental-public-API pressure that motivates Rust's opt-in.
 The boundary is load-bearing: adding a payload case to a payload-less sum
@@ -941,19 +1023,24 @@ the conformance line is written. `in` (domain membership) never requires
 Equatable -- the tag test is domain algebra, not equality
 ([chapter 1](chapter_1_data_values_literals.md)).
 
-Status: Equatable synthesis is LIVE for records and payload-bearing sums. A
-declared `Type satisfies Equatable;` makes `==`/`!=` legal; the compiler
+Equatable synthesis is implemented for records and payload-bearing sums. A
+declared `Type satisfies Equatable { }` makes `==`/`!=` legal; the compiler
 expands the compare INLINE at lowering into field-by-field compares (for
 sums: a disjunction over cases, each arm tag compares first, then that
 case's payload fields), riding the existing comparison machinery. A callable
 compiler-owned `Type::equals` wrapper carries that same expansion; direct
 calls lower it in the caller's storage scope, so ordinary method calls and
-operators share the implementation. A
-hand-written `Type::equals` wins: `==` lowers to a call to it. Prerequisites
-are enforced at the conformance item: every field must be
+operators share the implementation. An `equals` member written in the block,
+or an explicit row referencing an existing exact machine, wins over synthesis;
+`==` lowers to that selected row. Prerequisites for synthesis are enforced at
+the conformance block: every field must be
 a scalar primitive, a payload-less sum, text (a byte-slice view or bounded byte carrier,
 compared by content), or itself Equatable-conforming; recursive types are
 rejected (inline expansion would not terminate).
+
+The implementation migration from the legacy standalone declaration parser to
+the conformance-block surface above is tracked in `TASKS.md`; synthesis and its
+eligibility rules remain unchanged by that parser migration.
 Without a conformance, `==` on a structural type stays a compile error
 suggesting the one-line conformance; payload-less sums keep `==` as the
 tag compare (which IS their total equality).
