@@ -1,6 +1,6 @@
 # Design Brief: Build And Package Model
 
-Current as of 2026-07-27. `build.omg` is ordinary Omega code interpreted in an
+Current as of 2026-08-07. `build.omg` is ordinary Omega code interpreted in an
 explicit build-host context. It produces inspectable build data and may stage
 assets or obtain external inputs through supplied services; it is not a second
 configuration language.
@@ -16,8 +16,8 @@ Each package may define:
 
 ```omega
 machine build(
-    b: &mut Build,
-    fs: &mut Filesystem
+    builder: &mut Build,
+    filesystem: &mut Filesystem
 )
     reaches Filesystem + Console
 {
@@ -39,13 +39,20 @@ provider machinery, but no service or authority is ambient.
 does not introduce `depends {}`, `target {}`, or another block dialect.
 
 ```omega
-machine build(b: &mut Build, fs: &mut Filesystem) {
-    b.depend("uefi", Source::Path("../../contracts/uefi"));
-    b.subsystem = Subsystem::EfiApplication;
-    b.freestanding = true;
-    b.entry = Main::run;
-    b.stack = 128 * KiB;
-    fs.copy("assets/font.bin", b.output("font.bin"));
+machine build(builder: &mut Build, filesystem: &mut Filesystem) {
+    builder.dependencies.bind(
+        "uefi",
+        Source::Path("../../contracts/uefi")
+    );
+    builder.target = cathedral::targets::uefi_x86_64;
+    builder.roots.bind(
+        cathedral::targets::uefi_x86_64::ProgramEntry,
+        Application::start
+    );
+    filesystem.copy(
+        "assets/font.bin",
+        builder.output("font.bin")
+    );
 }
 ```
 
@@ -53,33 +60,115 @@ Library values such as `Source::Path`, `KiB`, and `Subsystem` carry the
 vocabulary. Adding a target option normally extends `Build`/library data rather
 than the parser.
 
-## Current `Build` core
+## Normalized `Build` core
 
-The first schema contains only pipeline-consumed facts:
+The durable schema contains only pipeline-consumed selections and outputs:
 
 ```omega
-data Subsystem {
-    case Console;
-    case Gui;
-    case EfiApplication;
-    case Unspecified(value: u16);
-}
-
 data Build {
-    subsystem: Subsystem;
-    freestanding: bool;
-    // dependency aliases, targets, entry, stack, and output data grow here
+    target: TargetProfile;
+    dependencies: DependencyBindings;
+    roots: RootBindings;
+    providers: ProviderBindings;
+    outputs: BuildOutputs;
 }
 ```
 
-The zero case is the ordinary console/hosted default. `freestanding` remains an
-orthogonal fact rather than being fused into the EFI subsystem name. In-source
-`target ... {}` blocks are transitional syntax to remove; image facts belong in
-`Build`.
+Hosted versus freestanding, subsystem/image format, default providers, calling
+policies, fault supply, and resource supply belong to the selected target
+profile. They are not repeated as independently mutable booleans or enums in
+each build. In-source `target ... {}` blocks are transitional syntax to remove;
+selection and slot bindings belong in `Build`.
 
-The platform's launch calling plan is checked against the exported entry
-machine for each built target. `build.omg` selects the entry; it does not repeat
-the target's register/stack arrival contract.
+The platform's launch calling plan is checked against the explicitly bound
+entry machine for each built target. `build.omg` names the target-owned slot and
+exact implementation; it does not repeat the target's register/stack arrival
+contract or discover an export by spelling.
+
+## Target-declared slots
+
+A target profile declares a closed typed slot set. Each slot owns:
+
+```text
+SlotDeclaration {
+    identity,
+    schema,
+    direction: EnvironmentToProgram | ProgramToProvider,
+    binding_shape: ExactRequirement(requirement)
+                 | CompleteConformance(trait),
+    lifecycle: BuildBound | RuntimeInstalled,
+    cardinality,
+    required_indices,
+    optional_indices,
+    reserved_indices,
+    installation_authority,
+}
+```
+
+Direction is the root/provider distinction. An environment-to-program slot is
+an external root; a program-to-provider slot is an outbound service. Lifecycle,
+cardinality, and indexing are orthogonal to direction. Program entry, reset
+vectors, interrupt vectors, callbacks, and ordinary providers therefore use
+one binding model without becoming one undifferentiated slot kind.
+
+An installable artifact explicitly binds every required build-bound slot:
+
+```omega
+machine build(builder: &mut Build) {
+    builder.target = cathedral::targets::uefi_x86_64;
+    builder.roots.bind(
+        cathedral::targets::uefi_x86_64::ProgramEntry,
+        Application::start
+    );
+    builder.providers.bind(
+        cathedral::targets::uefi_x86_64::Console,
+        SerialConsole::Polled
+    );
+}
+```
+
+`Application::start` is an exact machine symbol satisfying the requirement
+named by `ProgramEntry`. `SerialConsole::Polled` is a named complete conformance
+because `Console` requests a complete trait surface. Binding shape is declared
+by the slot, not inferred from the trait's current requirement count. Exact
+slot consumers can cite only the selected requirement's normalized contract;
+they possess no conformance identity from which trait laws could be cited.
+
+The target schema and inherited requirement are not parallel callable
+identities. For example, the UEFI profile records:
+
+```text
+slot:            uefi_x86_64::ProgramEntry
+schema:          UefiApplication
+requirement:     ProgramStorageEntry::enter
+calling policy:  UefiX86_64
+binding shape:   ExactRequirement
+```
+
+`UefiApplication` inherits the one `(ProgramStorageEntry, enter)` requirement
+identity and contributes `Calling<UefiX86_64>` policy. It does not redeclare an
+`UefiApplication::enter` requirement. The compiler generates a physical bridge
+for the inherited requirement, derives the bridge's complete crash, reach,
+write, work, stack/state, introduction, and provenance contract, and composes
+that contract with the bound application closure. Generated entry code is
+never outside portable demand checking.
+
+The selected target determines the required-slot closure. Binding a slot owned
+by another profile rejects regardless of mutation order. Duplicate bindings
+report the first binding site; a missing required slot names the exact slot.
+Package/library builds bind no roots. Runtime-installed slots may remain open,
+but installation must validate the same binding shape, portable demands,
+target supply, authority, and lifecycle before publishing reachability.
+
+There is no `main`, `Main::run`, uniquely visible export, or special entry
+field. Project templates may write ordinary slot bindings, but the language and
+build evaluator perform no entry discovery.
+
+Stack demand is derived from WCSU and compared with the target's supplied
+`StackPlan`; ordinary `build.omg` files do not choose a stack size. An explicit
+target-supply override is deployment policy. When fixed platform supply is too
+small, diagnostics identify the responsible call path and require a program
+change rather than suggesting a nonexistent configuration knob.
 
 ## Provider selection
 
@@ -135,6 +224,12 @@ corruption visible; the upper check protects state the context expects to
 survive. Co-location, handler mechanics, and physical isolation remain selected
 installation facts and never enter portable Psi semantics.
 
+The artifact root has no enclosing Omega context, so its per-cause context
+maximum is `ExecutionDomain` by construction and needs no source declaration.
+Inner supervisors declare narrower survival expectations. The selected target
+fault plan is installation supply, not another portable maximum; it must realize
+each composed generated-bridge-plus-program demand within the portable bounds.
+
 A filesystem path or unresolved loader name is not executable identity.
 Ordinary package policy rejects an opaque provider whose content, signer, or
 profile-owned platform identity cannot be pinned. Explicit admission of a known
@@ -164,6 +259,27 @@ bounds, failure, and ordinary `terminates` guarantees must fit the build
 executor's policy. A blocking service must publish the progress/failure premise
 under which the build entry can satisfy `terminates`.
 
+Dependency source retrieval precedes dependency-code execution. The root build
+binds an alias to an exact content identity, local path, or repository revision;
+the resolver fetches and unpacks that source under resolver-owned authority.
+Downloaded `build.omg` code never receives the resolver's network or archive
+authority. The resolver is consequently a security boundary in its own right:
+retrieval identity, revision resolution, archive path containment, expansion
+limits, and destination writes are checked and receipted rather than treated as
+package plumbing.
+
+Each dependency build then runs with its own explicitly supplied, package-
+scoped providers. It does not inherit the root build's filesystem, network,
+process, signing, secret, or acceptance authority. A general host filesystem
+provider is not a compatibility escape; source and output roots remain explicit
+and anything broader is a separately admitted provider visible in policy.
+
+Generated Omega source crosses no authority from the build into the program.
+It is compiled and checked as ordinary source under the consuming artifact's
+runtime reach, crash, work, conservation, and trust ceilings. Build-time access
+to a network or schema file therefore cannot authorize generated runtime code
+to reach either one.
+
 ## Build observations and reproducibility
 
 Reproducibility is a property of selected build operations and their evidence,
@@ -190,7 +306,11 @@ Hermetic < Receipted < Volatile
 
 This is an operational-contract axis on the requirement/provider plan, not a
 keyword in `build.omg`. Selected implementations must refine the requirement's
-published ceiling.
+published ceiling. Standard release-capable providers are `Hermetic` or
+`Receipted`: clock, randomness, environment, directory enumeration, and similar
+observations must return replay evidence. `Volatile` remains an explicit
+development-policy class, never an ambient convenience provider and never
+eligible for a source-rebuildable release.
 
 The build entry records the same three columns used by other resource and
 operational plans:
@@ -280,7 +400,7 @@ The package is the dependency-reach boundary:
   package rather than a hidden nested manifest.
 
 The same authoritative build surface owns concrete channel/store compatibility
-demands. `b.require_wire_compatibility<Edge, Lineage, Local, Peer, ...>();`
+demands. `builder.require_wire_compatibility<Edge, Lineage, Local, Peer, ...>();`
 requests only the directional wire facts named after the first four type
 arguments. The compiler evaluates those requests against published schema,
 codec, unknown-member, canonicalization, and `FormatMigration` evidence; it
@@ -315,6 +435,13 @@ root-memory, DMA/IOMMU, executable-installation, interrupt-publication, or
 equivalent reach blocks unless deployment policy explicitly grants it,
 regardless of which transitive package introduced the change.
 
+Boundary statements imported from a dependency are inert requests. The root
+accepts one package claim set rather than repeating an approval for every
+statement. The accepted identity fingerprints the package plus its complete
+normalized claim set; adding, removing, or changing any claim invalidates the
+acceptance and presents the exact diff. A package cannot accept its own imported
+claims, and a claim the checker can refute remains an error despite acceptance.
+
 The complete manifest remains machine-readable. Human diffs are
 severity-ranked: checked local tokens collapse to a short summary, while new
 admitted providers, boundary-evidence permissions, provider-owned backing,
@@ -334,11 +461,13 @@ the build tool discovers the nearest enclosing workspace/build entry.
 The interpreter already has real/virtual filesystem modes and a scoped
 filesystem-backed build executor. Remaining work:
 
-- adopt the `build(b, fs)` entry and standard provider injection;
+- adopt the `build(builder, filesystem)` entry and standard provider injection;
 - replace the retired empty-effect gate with decision-22 normalized ceiling
   checks;
 - converge Console/platform entries onto boundary traits;
-- finish the `Build` dependency/target/entry schema;
+- finish the `Build` dependency and target-profile API;
+- implement target-declared typed root/provider slots, exact implementation
+  bindings, required-slot validation, and derived generated-bridge contracts;
 - expose target-profile defaults and type-per-slot provider overrides through
   ordinary `Build` library machines;
 - make name resolution consult the declared dependency aliases;
@@ -353,7 +482,6 @@ filesystem-backed build executor. Remaining work:
 - mutable dependency references and update policy;
 - workspace inheritance/ceiling details;
 - which additional standard provider families ship beyond Filesystem/Console;
-- exact build-entry discovery and default-entry behavior;
 - initial root policy profiles for volatile-capable, record-replayable, and
   source-rebuildable builds; and
 - UX for displaying the first failed provenance edge.

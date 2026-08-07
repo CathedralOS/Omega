@@ -8,30 +8,7 @@ reference in the same change.
 
 Last pruned: 2026-08-07.
 
-## Q1 — How does Build select a target entry schema and its implementation?
-
-Core now defines `ProgramStorageEntry::enter`, and target packages may inherit
-that stable semantic requirement while refining only target policy and ABI.
-The Build model, however, still leaves its final entry schema and exact
-entry-discovery/default behavior open. Cathedral can therefore declare
-`UefiApplication: ProgramStorageEntry`, but the compiler cannot yet select it
-and generate the UEFI-to-semantic geometry bridge without guessing. Which
-selection model is canonical?
-
-- make entry an explicit ordinary `Build` slot that names one target-entry
-  schema and one satisfying implementation/conformance, with no discovery or
-  implicit default; or
-- make the registered target profile name its required entry schema and have
-  Build resolve one eligible satisfying implementation under a specified
-  uniqueness/default rule?
-
-The choice fixes workspace composition, dependency visibility, multiple-entry
-packages, target-profile defaults, lock/trust identity, diagnostics for zero or
-multiple candidates, and the input to generated ABI stubs. Until it is settled,
-the compiler must not recognize `Main::run`, `main`, or any other export by
-name, and Cathedral's raw UEFI callable remains transitional.
-
-## Q2 — Where does a content namespace declare its origin policy?
+## Q1 — Where does a content namespace declare its origin policy?
 
 Every `IntervalSet<CoordinateSpace>` coordinate space and
 `CountedQuantity<Unit>` unit has one closed origin policy. `ProgramLocal`

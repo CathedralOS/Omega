@@ -51,19 +51,24 @@ Owners:
 
 Remaining:
 
-- **ENTRY-CONTENT-ROOTS — blocked on `OWNER_QUESTIONS.md` Q1.** Connect the
-  live `ProgramStorageEntry::enter` requirement to Build selection and generated
-  target entry stubs. Bind emitted image and initial-storage geometry to its
-  exact qualified parameter positions. Derive statics as subextents and allocate
-  later frames/task stacks from the returned storage pool. Do not recognize
-  `main`, `Main::run`, or a unique export by convention.
+- **ENTRY-CONTENT-ROOTS.** Implement target-declared typed slots and ordinary
+  `Build` bindings. A target profile owns each slot identity, schema, direction,
+  lifecycle, cardinality, and exact-requirement versus complete-conformance
+  binding shape; `build.omg` names the exact implementation and performs no
+  discovery. Generate the target bridge from the inherited
+  `ProgramStorageEntry::enter` identity and selected calling policy, derive and
+  compose the bridge's complete contract, and bind emitted image and
+  initial-storage geometry to the exact qualified parameter positions. Derive
+  statics as subextents and allocate later frames/task stacks from the returned
+  storage pool. Do not recognize `main`, `Main::run`, or a unique export by
+  convention.
 - **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS.** Connect a real
   content-bearing source program to the existing terminal-Psi rows. Add sealed
   content-introduction and custody-exit frontier rows; derive residual geometry
   for partial bodyless boundaries and admit only provider custody acceptance.
   Infer only identity-preserving reshuffles; partition-changing primitives must
   author a theorem and wrappers may compose it.
-- **NAMESPACE-ORIGIN — blocked on `OWNER_QUESTIONS.md` Q2.** Add the closed
+- **NAMESPACE-ORIGIN — blocked on `OWNER_QUESTIONS.md` Q1.** Add the closed
   namespace-origin policy and internal algebra account for every content-capable
   root. `ProgramLocal` capacity is owner-authorized declaration supply;
   `ProviderBacked` capacity requires admitted issuance. Report modeled identity
@@ -403,6 +408,17 @@ checked-result arithmetic decision listed below.
   identities, deterministic progress, and constant/runtime equivalence.
 - Add `Hermetic | Receipted | Volatile` observation ceilings and publish realized
   replay/rebuild provenance separately from source semantics.
+- Complete the ordinary `Build` API and package executor: bind dependency aliases
+  to exact sources, compile each dependency build against package-scoped
+  providers, reject ambient/general filesystem escape, and recheck generated
+  Omega under the consuming artifact's runtime ceilings.
+- Harden the resolver as a separate authority boundary with revision/content
+  verification, archive path containment, expansion limits, scoped destination
+  writes, and receipts. Generate the unified dependency/build/trust lock,
+  fingerprint imported boundary claims as one package claim set, and invalidate
+  root acceptance on any member diff. Release-capable standard providers must be
+  hermetic or receipted; volatile observations remain explicit development
+  policy and fail source-rebuildable release.
 
 ### Components and executable trust
 
@@ -456,9 +472,7 @@ can produce installed code; validation binds exact final bytes and placement.
 
 These entries are pointers, not duplicate specifications.
 
-- **Q1:** Build entry-schema/implementation selection; blocks the generated
-  program-storage entry bridge.
-- **Q2:** content-namespace origin-policy spelling; blocks local/provider-backed
+- **Q1:** content-namespace origin-policy spelling; blocks local/provider-backed
   root origination and provenance.
 - **ATOMIC-EVENT-MODEL:** blocked on the portable atomic axioms and target
   refinement choices in `wiki/language_guide/appendix_open_questions.md`.

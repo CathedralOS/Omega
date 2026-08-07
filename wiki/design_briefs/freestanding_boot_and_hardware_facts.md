@@ -1,6 +1,6 @@
 # Design Brief: Freestanding Boot And Hardware Facts
 
-Current direction as of 2026-07-22. Freestanding selection and the security
+Current direction as of 2026-08-07. Freestanding selection and the security
 model are settled. The reusable memory/hardware primitives are specified in
 [`os_memory_and_hardware_foundation.md`](os_memory_and_hardware_foundation.md);
 their source APIs and backend support remain incomplete.
@@ -8,44 +8,56 @@ their source APIs and backend support remain incomplete.
 ## Freestanding is a target/provider property
 
 ```omega
-machine build(b: &mut Build, fs: &mut Filesystem) {
-    b.freestanding = true;
-    b.entry = Main::run;
+machine build(builder: &mut Build) {
+    builder.target = cathedral::targets::uefi_x86_64;
+    builder.roots.bind(
+        cathedral::targets::uefi_x86_64::ProgramEntry,
+        Application::start
+    );
 }
 ```
 
 A freestanding target has no ambient hosted provider set. Firmware, memory,
 device, clock, scheduling, entry, and exit services must be selected from
-explicit target packages and admitted providers. `build.omg` supplies defaults
-and may override individual provider slots; this is ordinary deployment data,
-not compiler folklore.
+explicit target packages and admitted providers. The selected profile supplies
+the freestanding fact and ordinary provider defaults; `build.omg` binds required
+external roots and may override individual provider slots. This is ordinary
+deployment data, not compiler folklore.
 
 ## Typed entry handoff
 
-The image exports an ordinary boundary callable. The target requirement pins
-its complete evaluated calling and machine-state plan; the generated entry stub
+The image binds an ordinary exact satisfier for the stable semantic entry
+requirement. The target schema inherits that requirement and contributes its
+complete evaluated calling and machine-state policy; the generated entry bridge
 translates the platform arrival into typed Omega values.
 
 ```omega
-data UefiHandoff {
-    image: EfiHandle;
-    system_table: &mut EfiSystemTable;
-}
-
-boundary machine Main::run(
-    handoff: UefiHandoff,
-) -> BootOutcome
-    satisfies UefiApplication::entry
+machine Application::start(
+    image: Extent in Granted,
+    initial_storage: Extent in Granted
+)
+    satisfies ProgramStorageEntry::enter
 {
     ...
 }
 ```
 
-The stub/provider contract states pointer provenance, alignment, lifetime,
-paging and CPU regime, stack demand, entry/exit control, and any facts the
-checker cannot derive. Accepted facts appear in receipts and the boundary
-report. The old `boundary(<Plan>)` syntax is retired; plan identity belongs to
-the satisfied requirement through `Calling<C>`.
+The UEFI profile's `ProgramEntry` slot records schema `UefiApplication`, the one
+inherited `(ProgramStorageEntry, enter)` requirement identity, and
+`Calling<UefiX86_64>` policy. There is no second `UefiApplication::entry`
+identity. The domain route and exact satisfier therefore name the same core
+requirement while the target controls physical realization.
+
+The bridge/provider contract states pointer provenance, alignment, lifetime,
+paging and CPU regime, stack supply, entry/exit control, and any facts the
+checker cannot derive. Firmware handles and `SystemTable` are provider-private
+arrival inputs, not target-specific parameters added to the semantic entry.
+Accepted facts appear in receipts and the boundary report. The compiler derives
+the generated bridge's crash routes, reach, writes, work, stack/state,
+introduced facts, and provenance and composes them with the application's
+portable closure. The code that first touches untrusted platform input is never
+outside the contract system. The old `boundary(<Plan>)` syntax is retired; plan
+identity belongs to the inherited requirement through `Calling<C>`.
 
 Program storage begins from a small number of entry-provisioned content roots.
 The loader, firmware, or OS admits the image mapping and initial stack/storage
@@ -57,9 +69,9 @@ because its size is known.
 
 Those roots use the core-owned stable `ProgramStorageEntry::enter` requirement.
 Its two exact `Extent in Granted` parameter positions identify the image and
-initial storage roots. Target entry traits such as `UefiApplication::entry`
-inherit that semantic requirement; `Calling<C>`, target policy, and generated
-stubs refine its plan and ABI without replacing its identity.
+initial storage roots. Target entry schemas such as `UefiApplication` inherit
+that semantic requirement; `Calling<C>`, target policy, and generated stubs
+refine its plan and ABI without replacing its identity.
 `Extent::Granted` authorizes the core requirement as an alternative route, and
 installation introduces the matching parameters. Core therefore never depends
 on a UEFI/Cathedral domain, and the compiler never recognizes target-friendly
@@ -174,8 +186,8 @@ a Cathedral acceptance slice that composes the common pieces:
 3. a target-specific boundary requirement carrying `Calling<C>`, `CallPlan`,
     `StatePlan`, stack/preemption class, service/suspension/blocking and guarded
     crash ceilings, and acknowledgement protocol;
-4. an ordinary `boundary machine ... satisfies ...` handler;
-5. provider/build selection of the handler;
+4. an ordinary exact machine satisfying the entry requirement;
+5. binding that machine to the target-owned indexed interrupt-root slot;
 6. symbolic entry-stub identity resolved by a phase-aware materializer;
 7. a Cathedral-authored checked writer establishing a content-bound table fact
    over an exclusive unpublished placement;
@@ -194,6 +206,14 @@ saved-state guards restore exact prior states in LIFO order; and exit requires
 all obligations selected by the admitted plan to be settled. The concrete
 types, PIC/LAPIC protocol, timer source, vector policy, and transition machines
 belong to Cathedral.
+
+Program entry, reset vectors, interrupt vectors, and callbacks are instances of
+the same target-declared slot model. Direction distinguishes roots, which the
+environment activates, from providers, which the program calls. Lifecycle,
+indexing, sparseness, and cardinality remain orthogonal: an interrupt family may
+declare legal, required, optional, and reserved vectors, while a program-entry
+slot is one required build-bound root. Runtime installation performs the same
+binding-shape and demand/supply checks before publishing a handler to hardware.
 
 If Cathedral defers acknowledgement to a bottom half, the linear token leases
 the interrupt root and controller configuration until completion. Shutdown,

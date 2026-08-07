@@ -94,6 +94,15 @@ image root; owned initial-storage allocations produce a conserved partition
 with every nonempty remainder and can recompose the exact parent lineage.
 Target-owned root domains or name-based role recognition are not alternatives.
 
+The selected target profile owns a required environment-to-program slot whose
+schema inherits this one requirement identity and contributes its calling
+policy. `build.omg` binds the target-qualified slot to one exact machine
+satisfying `ProgramStorageEntry::enter`; it does not name a second target entry
+requirement or discover `main`. The compiler-generated bridge retains the same
+semantic positions and contributes its derived crash, reach, write, work,
+stack/state, introduction, and provenance contract to the artifact before
+installation compares portable demands with target supply.
+
 The fields carry runtime geometry. `Extent::Granted` states that the geometry
 descends from a live admitted or checked authority claim. Constructing the same
 fields creates an unqualified linear value. Operations that consume range

@@ -71,13 +71,21 @@ implementation work. Each one gets more expensive to retrofit every month.
    toolchain emits a unified lock/provenance artifact rather than asking the
    author to maintain a second configuration language. ch15 is updated to the
    end-state (package = reach boundary; imports resolve only against declared
-   deps). **Remaining
+   deps).
+   Target profiles declare typed root/provider slots; installable builds bind
+   each required build-bound slot to one exact satisfier or complete named
+   conformance according to the slot's declared shape. Direction distinguishes
+   environment-activated roots from program-called providers, while lifecycle,
+   cardinality, and indexing remain orthogonal. There is no entry discovery.
+   Dependency build code runs with package-scoped providers, generated Omega is
+   rechecked under runtime ceilings, and root acceptance fingerprints each
+   dependency's complete imported-claim set. **Remaining
    implementation ask — the import-side gate:** ch15 name resolution must
    consult the declared set so a fully-qualified path cannot bypass it
    (undeclared reach *unresolvable*, not lint-flagged), making the layer law
    self-enforcing. Interim enforcement is a graph check (`imports ⊆ declared
-   deps`, build-failing — the omega-architecture-test pattern). Open: the
-   `BuildDescription` schema and surface syntax.
+   deps`, build-failing — the omega-architecture-test pattern). Open: exact
+   ordinary `Build` library API spelling and the remaining implementation.
 
 5. **Concurrency: model under amendment.** Suspension remains an ordinary
    machine contract concern; there is no `async machine` species. Decisions
@@ -247,9 +255,9 @@ None block current compiler development; all should stay visible.
 - **TBD: operation-capabilities for secrets** (`Capability<SignWithKey(K)>`)
   and **purpose-tagged authority** (`Capability<Read<X>, Purpose<Y>>`) —
   likely generics + domains, may need no new core feature; prove it.
-- **DECIDED, engineering pending: interrupt entry** — an ordinary boundary
-  machine satisfies a target requirement carrying evaluated `CallPlan +
-  StatePlan`; build/provider selection retains sealed entry identity;
+- **DECIDED, engineering pending: interrupt entry** — an ordinary exact machine
+  satisfies a target requirement carrying evaluated `CallPlan + StatePlan`;
+  the target-owned indexed root-slot binding retains sealed entry identity;
   materialization fills the IDT; installation records an external root. Target
   roots inherit one stable core acknowledgement-entry requirement, and the
   `Pending` domain routes through that identity; installation, not a new source

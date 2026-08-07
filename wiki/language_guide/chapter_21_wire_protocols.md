@@ -307,8 +307,8 @@ the facts its deployment actually needs.
 The final build declares each concrete channel/store demand:
 
 ```omega
-machine build(b: &mut Build) {
-    b.require_wire_compatibility<
+machine build(builder: &mut Build) {
+    builder.require_wire_compatibility<
         RollingChannel,
         CounterDisk,
         CounterMessageV2,
