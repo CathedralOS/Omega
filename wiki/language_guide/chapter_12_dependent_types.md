@@ -461,8 +461,10 @@ The proof stratum now has an internal `Prop` universe for formulas, distinct
 from runtime `Type` and from effectful machine computation. A dedicated
 `proposition R(left: C, right: C);` declaration introduces a nominal family,
 and `R(left, right)` applies it in a fact position. Proof inhabitants are
-erased and cannot be stored, inspected by runtime code, or used as machine
-layout. The current source fragment exposes proposition-valued families over
+erased and cannot contribute runtime storage, be inspected by runtime code, or
+participate in machine layout. Explicit `[erased]` bindings may retain them in
+typed data for proof, multiplicity, validity, and provenance checking while
+lowering omits those bindings. The current source fragment exposes proposition-valued families over
 representative values with typed proof-static index telescopes and
 carrierless evidence; it does not yet expose `Prop` itself as an arbitrary
 first-class source value or admit value-to-runtime-`Type` computation. It must

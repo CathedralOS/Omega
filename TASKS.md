@@ -51,7 +51,7 @@ Owners:
 
 Remaining:
 
-- **ENTRY-CONTENT-ROOTS — blocked on `OWNER_QUESTIONS.md` Q2.** Connect the
+- **ENTRY-CONTENT-ROOTS — blocked on `OWNER_QUESTIONS.md` Q1.** Connect the
   live `ProgramStorageEntry::enter` requirement to Build selection and generated
   target entry stubs. Bind emitted image and initial-storage geometry to its
   exact qualified parameter positions. Derive statics as subextents and allocate
@@ -63,7 +63,7 @@ Remaining:
   for partial bodyless boundaries and admit only provider custody acceptance.
   Infer only identity-preserving reshuffles; partition-changing primitives must
   author a theorem and wrappers may compose it.
-- **NAMESPACE-ORIGIN — blocked on `OWNER_QUESTIONS.md` Q4.** Add the closed
+- **NAMESPACE-ORIGIN — blocked on `OWNER_QUESTIONS.md` Q2.** Add the closed
   namespace-origin policy and internal algebra account for every content-capable
   root. `ProgramLocal` capacity is owner-authorized declaration supply;
   `ProviderBacked` capacity requires admitted issuance. Report modeled identity
@@ -183,8 +183,11 @@ Remaining:
   Psi has wait/foreign edges from which the verifier can derive them. Migrate
   Cathedral hard roots and later add native metering that preserves accounting
   provenance. Keep target WCET and wall-clock conversion separate.
-- **PROOF-RELEVANCE-MIGRATION:** define explicit relevance and its precedence
-  over the transitional “recursive means proof-only” classifier.
+- **PROOF-RELEVANCE-MIGRATION:** implement binding-level `[erased]` relevance,
+  checked noninterference, erased-stripped layout, and obligation preservation.
+  Explicit relevance takes precedence over the transitional “recursive means
+  proof-only” classifier; non-layoutable `Type` values remain legal only in
+  erased positions. Do not infer carrier relation roles from relevance.
 - **EFFECTFUL-TYPED-COMPUTATION:** specify the value/computation judgments
   connecting effectful machines to the future typed proof calculus. Treat both
   migrations as staged semantic work, not prerequisites for extending the
@@ -329,9 +332,10 @@ Owner: `wiki/design_briefs/law_bearing_relations_and_quotients.md`.
 
 Remaining N6/N8 work:
 
-- **WITNESS-EVIDENCE-CLAUSE — blocked on Q3.** Ratify the dedicated declaration
-  position for a nominal proposition's fingerprinted evidence interface.
-- **SELECTED-WITNESS-EVIDENCE — blocked on Q3.** Bind a selected named
+- Implement the witness-bearing proposition brace form: exactly one
+  carrierless evidence-interface entry, no executable body, and a normalized
+  fingerprint distinct from transparent `=` expansion.
+- **SELECTED-WITNESS-EVIDENCE:** bind a selected named
   conformance block to one carrierless proof term that introduction and
   elimination can reopen. Consume its complete normalized requirement map;
   do not infer evidence from attached state names.
@@ -341,10 +345,26 @@ Remaining N6/N8 work:
   its subject.
 - Add proof-only selected-conformance projection and by-value carrierless `dyn`
   from the complete conformance-block map.
-- Add `Respects` over normalized callable argument records after Q1 settles its
-  source/identity surface.
+- Add `Respects` over compiler-derived parallel callable argument telescopes.
+  Positions are semantic and source names are debug aliases. Derive the
+  representative-dependent domain by semantic dependency, the pointwise input
+  relation from the selected quotient relations, and the result relation from
+  the requested lifted codomain.
+- Add proposition-valued heterogeneous constructor lifts selected for exact
+  `(quotient relation, container family)` pairs. Transparent dependent records
+  lift in dependency order; coarser earlier-field relations generate checked
+  proposition-transport obligations owned by the quotient. Do not add global
+  carrier roles or an ambient/default relator.
+- Extend R6's typed carrier-family binder so reusable relator traits quantify
+  over a constructor and expose proposition-valued members. This is the
+  higher-kinded/index-telescope prerequisite already owned by the dependent
+  ladder, not a quotient-local parallel abstraction.
+- Gate runtime decider derivation when a lifted relation depends on erased
+  `Type` content: require checked determination by the runtime projection or
+  report the undetermined component.
 - Migrate `%` from executable-Boolean relations and suffix law discovery to
-  proposition evidence plus explicit selected conformances after Q1/Q3.
+  proposition evidence plus explicit selected conformances after the work
+  above.
 - Expand the checked `Nat`, `Int`, `Rat`, sequence/Cauchy, and approximation
   corpus needed for `Real`; keep `Real` proof-only and core-level.
 
@@ -436,13 +456,9 @@ can produce installed code; validation binds exact final bytes and placement.
 
 These entries are pointers, not duplicate specifications.
 
-- **Q1:** normalized argument-record/domain surface for `Respects`; blocks
-  quotient lifting and `%` migration.
-- **Q2:** Build entry-schema/implementation selection; blocks the generated
+- **Q1:** Build entry-schema/implementation selection; blocks the generated
   program-storage entry bridge.
-- **Q3:** witness-bearing proposition evidence-clause spelling; blocks the
-  permanent source form and selected witness evidence.
-- **Q4:** content-namespace origin-policy spelling; blocks local/provider-backed
+- **Q2:** content-namespace origin-policy spelling; blocks local/provider-backed
   root origination and provenance.
 - **ATOMIC-EVENT-MODEL:** blocked on the portable atomic axioms and target
   refinement choices in `wiki/language_guide/appendix_open_questions.md`.

@@ -313,6 +313,28 @@ representative, so `CauchySeq<A>` may relate to `CauchySeq<B>` without erasing
 either generator identity. A nullary carrier such as `Rat` uses the same rule
 with empty packs.
 
+This does not assign a global relational role to a carrier parameter. The
+relation declaration chooses whether its subjects use independent packs or one
+shared pack:
+
+```omega
+proposition equivalent<machine A, machine B>(
+    left: Stream<A>,
+    right: Stream<B>
+);
+
+proposition same_source<machine S>(
+    left: Stream<S>,
+    right: Stream<S>
+);
+```
+
+The first formula permits heterogeneous generator indices; the second
+requires one generator. Merely declaring either formula proves nothing. Its
+evidence and selected relation-law conformances determine where it may be used.
+Static arguments otherwise remain nominally exact during structural lifting;
+heterogeneity is authored by each relation's own telescope.
+
 This is a proof-stratum interpretation of the machine parameters already
 defined above, not a runtime machine value and not a runtime-dependent carrier.
 The proposition-family extension that consumes these telescopes is ordered
