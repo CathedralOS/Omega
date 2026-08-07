@@ -1,6 +1,6 @@
 # Law-Bearing Relations, Evidence, And Quotients
 
-Current design as of 2026-08-03. This brief resolves the former law-bearing
+Current design as of 2026-08-07. This brief resolves the former law-bearing
 relations and quotients owner question. It
 supersedes the current quotient pilot's executable-`bool` relation and
 suffix-based discovery of `_reflexive`, `_symmetric`, `_transitive`, and
@@ -64,6 +64,22 @@ remaining instances of the same carrier-family identity. `Rat` is the
 nullary case, so its index packs disappear. Quotient carrier matching uses the
 family identity and rejects representatives from another family.
 
+Heterogeneity belongs to the proposition telescope, not to a global role on a
+carrier parameter. One proposition may bind independent `I` and `J` packs,
+while another over the same carrier may use one shared pack and therefore
+require identical indices. Declaring the proposition only forms that formula;
+checked evidence establishes its applications, selected relation-law
+conformances license quotient formation, and `Respects` licenses operations.
+Carrier declarations consequently have no `index` or `phantom` relation
+properties.
+
+Structural lifting is conservative when no authored relation says otherwise:
+corresponding static arguments must be identical. A heterogeneous proposition
+or selected relator may instead bind distinct left and right packs and prove
+the required relation. This keeps a static policy such as
+`Encoded<Utf8>` distinct from `Encoded<Ascii>` by default without preventing a
+different proposition from deliberately relating them.
+
 The committed telescopes here are proof-static. This brief does not admit a
 runtime-dependent carrier such as a vector indexed by a runtime value.
 
@@ -76,10 +92,20 @@ proposition rat_equivalent(left: Rat, right: Rat);
 ```
 
 A nominal `converges_together<Left, Right>(left, right)` proposition publishes
-`ConvergenceEvidence<Left, Right>` as its one opaque evidence interface. The
-exact dedicated source clause for that interface remains
-[`OWNER_QUESTIONS.md` Q3](../../OWNER_QUESTIONS.md); its semantic role is
-settled independently of that spelling.
+`ConvergenceEvidence<Left, Right>` as its one opaque evidence interface:
+
+```omega
+proposition converges_together<machine Left, machine Right>(
+    left: CauchySeq<Left>,
+    right: CauchySeq<Right>
+) {
+    ConvergenceEvidence<Left, Right>;
+}
+```
+
+The braces are a non-executable owner-controlled evidence list, as on a
+route-bearing domain. A witness-bearing proposition contains exactly one
+entry. No separate evidence-clause word is introduced.
 
 Its truth is inhabitance by checked proof evidence, not the result of running
 a `bool` machine. An arbitrary pair of generator machines cannot in general
@@ -89,11 +115,10 @@ universal law.
 `proposition` is a proof-formula declaration and generic binder kind. It has
 no result, runtime value, layout, operation contract, lowering, or executable
 body. A primitive fact-only declaration ends with `;`. A witness-bearing
-declaration contains exactly one canonical carrierless evidence interface in
-a dedicated declaration position. The owner thereby fixes both introduction
-and elimination: every establishing conformance supplies that interface, and
-eliminating the proposition reopens the exact retained evidence term in the
-proof stratum.
+declaration's brace entry is its one canonical carrierless evidence interface.
+The owner thereby fixes both introduction and elimination: every establishing
+conformance supplies that interface, and eliminating the proposition reopens
+the exact retained evidence term in the proof stratum.
 
 The proposition remains nominal rather than definitionally equal to its
 evidence package. Its interface is normalized, fingerprinted semantic content,
@@ -265,15 +290,25 @@ Equivalence licenses the quotient type; it does not license operations on it.
 Every lifted operation needs a selected `Respects` conformance.
 
 Normalize any machine's parameters, including an attached receiver, into one
-argument record:
+ordered argument telescope:
 
 ```text
-F : Arguments -> Result
-requires P(arguments)
+F : (argument_0, ..., argument_n) -> Result
+requires P(argument_0, ..., argument_n)
 ```
 
-Let `RA` relate argument records fieldwise and `RR` relate results.
-`Respects<F, RA, RR>` proves two clauses.
+The selected `Respects` requirement exposes two parallel copies of this
+telescope. Positions are semantic identity; source parameter names are local
+debug aliases and do not enter the fingerprint. Attached and free machines
+therefore share one form without a generated global record name or an
+author-declared adapter.
+
+`RA` is the pointwise lift of the quotient relations selected for the
+representative-bearing positions. It is never an arbitrary author-supplied
+relation: a relation that is too fine could make both respect obligations
+vacuous. `RR` comes from the requested lifted codomain relation, not merely
+from the result type, because one result carrier may support several
+quotients. `Respects<F, RA, RR>` proves two clauses.
 
 ### Domain invariance
 
@@ -286,6 +321,13 @@ For a total machine `P` is true and this clause discharges structurally.
 Only semantic preconditions depending on the representative participate.
 Fixed ambient facts, authority, and resource requirements do not vary by
 representative and remain ordinary machine-contract obligations.
+
+The compiler finds the representative-dependent portion by semantic
+dependency, not textual mention. A conjunct depending directly or indirectly
+on at least one quotiented position enters `P`; a conjunct depending only on
+ambient authority, capacity, or other fixed subjects does not. A conjunct
+mixing representative and ambient subjects is conservatively
+representative-dependent.
 
 ### Result congruence
 
@@ -300,8 +342,63 @@ For binary Real addition, `Arguments` contains both operands, `RA` is the
 fieldwise product of `ConvergesTogether` for both places, and `RR` is
 `ConvergesTogether`. Division additionally proves that equivalent
 denominators agree about being zero. Comparison uses equality as its result
-relation. The argument-record normalization avoids an open-ended
+relation. The parallel-telescope normalization avoids an open-ended
 `Respects1`/`Respects2`/`Respects3` hierarchy.
+
+## Relation lifting through constructors
+
+A relator supplies a proposition-valued `Lift` member. Its normalized form is
+inherently heterogeneous:
+
+```text
+Lift<I, J, R>(left: C<I>, right: C<J>) : Proposition
+```
+
+Instantiating both sides with one pack is the homogeneous case; it is not a
+different relator. The container owner may publish several named, checked lift
+policies, such as structural and unordered lifting. The quotient owner chooses
+the exact policy for each `(quotient relation, container family)` use. That
+selection is retained in semantic identity. There is no ambient default
+relator and no conformance-priority rule; an uncovered pair rejects at
+instantiation with the missing pair in the diagnostic.
+
+For a transparent non-dependent product, the compiler derives the structural
+lift recursively from the supplied field relations. An owner-provided coarser
+lift is accepted only with a checked bridge showing that the structural lift
+implies the chosen lift. An opaque constructor must publish the same bridge as
+checked evidence; admitted relation or `Respects` evidence cannot license `%`.
+
+Dependent records lift in dependency order rather than as independent fields.
+For example:
+
+```omega
+data Certified {
+    root: RootId;
+    proof [erased]: Authorized<root>;
+}
+```
+
+The lift first relates the two `root` fields, adds that fact to the relational
+environment, and then normalizes the two `Authorized<...>` applications. If
+the roots are equal, the proposition applications coincide and proof
+irrelevance discharges the evidence field. A coarser root relation requires an
+authored transport theorem for `Authorized` under that relation.
+
+The quotient owner must discharge that transport obligation because it chose
+the coarser relation. The dependent type owner may publish a conditional
+generic lift, and the proposition owner controls which elimination or
+transport laws its proposition exposes. If an opaque proposition exposes no
+sufficient theorem, the quotient owner cannot manufacture one and that lift
+is unavailable.
+
+An erased field remains part of this proof-side dependency analysis even
+though it has no runtime representation. A lifted relation depending on
+erased `Type` content is well-defined but has no derived runtime decider unless
+checked evidence shows that content is determined by the runtime-relevant
+projection. Requesting a decider without that evidence reports the exact
+undetermined erased component. Proof irrelevance hides evidence identity only
+after the proposition applications themselves agree; it never equates proofs
+of different propositions.
 
 ## Cauchy construction
 

@@ -554,6 +554,20 @@ several requirements within one conformance.
 
 ### Proof projection and carrierless evidence
 
+A trait body may declare a proposition-valued requirement with the ordinary
+`proposition` form:
+
+```omega
+trait Related {
+    proposition relates(left: Self, right: Self);
+}
+```
+
+A conformance block supplies that member with the transparent `=` proposition
+form. The proposition requirement contributes proof identity and laws but no
+runtime table slot. It uses the same closed conformance membership as machine
+requirements.
+
 Dynamic erasure uses one per-requirement projection with two strata. A
 carrier-bearing eligible machine contributes a runtime slot. A carrierless
 machine contributes a stable opaque proof symbol plus its normalized contract.

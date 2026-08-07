@@ -21,6 +21,11 @@ validity scope, and trust provenance. This is a semantic north star; it does
 not retroactively replace the current structural proof-only classification or
 make the effectful computation judgment an implementation prerequisite.
 
+Update 2026-08-07: explicit `[erased]` relevance belongs to binding
+occurrences and remains orthogonal to multiplicity, validity, conservation,
+and provenance. Relation heterogeneity belongs to each proposition's own
+left/right carrier telescope rather than to a global carrier-parameter role.
+
 ## The ambition
 
 Omega should make whole *classes* of existing tools redundant inside one
@@ -152,6 +157,34 @@ evidence, not to proposition identity, and composes through every proof so a
 deployment profile can reject a proof closure containing unacceptable
 admissions.
 
+The source relevance marker attaches to a binding occurrence:
+
+```omega
+data Certified<T> {
+    value: T;
+    proof [erased]: Valid<T>;
+}
+```
+
+The erased binding remains in typed terms, semantic identity, validity and
+obligation tracking, but contributes no runtime field, address, read, or
+cleanup. It may be consumed by proof computation or statically authorize an
+effectful call; it may not determine runtime data or control. Erasure never
+discharges linear custody, content conservation, validity scope, or provenance.
+Only reliance on runtime representation or runtime cleanup is forbidden.
+
+Layout and ABI use the erased-stripped form, while nominal identity and
+semantic fingerprints retain erased bindings. Construction supplies an erased
+term unless a visible accessible nullary constructor determines it
+structurally; no general inhabitance judgment or implicit zero/default
+construction is introduced.
+
+Relevance does not assign relational roles to carrier parameters. Heterogeneous
+indices are named by the proposition's independent left/right telescopes, and
+the same carrier may support another relation with one shared telescope.
+Erased proofs are irrelevant only after their proposition applications agree;
+proof irrelevance never identifies evidence for distinct propositions.
+
 ## Witnesses and elimination
 
 A fact-only proposition hides all proof identity. A witness-bearing nominal
@@ -172,7 +205,10 @@ erasure alone does not authorize eliminating a `Prop` inhabitant into runtime
 The current rule that recursive/non-layoutable mathematical data becomes
 proof-only remains live until explicit relevance replaces it. During migration,
 an explicit relevance annotation takes precedence; structural classification
-is then legacy inference for unannotated declarations. The later effectful
+is then legacy inference for unannotated declarations. The destination treats
+recursive and other non-layoutable values as ordinary `Type` inhabitants that
+may occupy erased bindings but not runtime-relevant ones; constructor tags as
+well as fields contribute representation. The later effectful
 computation judgment must account for Omega's states, transitions, effects,
 suspension, failure, work, and multiplicity rather than pretending machines
 are pure dependent functions. Neither migration blocks proposition families,

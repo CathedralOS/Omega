@@ -138,6 +138,12 @@ Layout reports should include:
 - total size,
 - target-specific assumptions.
 
+These rows cover the erased-stripped runtime form. An `[erased]` binding
+remains in semantic type identity but has no field offset, size, padding, or
+transfer operation. A placement plan establishes any proof fact it carries
+through its checked or admitted contract rather than pretending the fact
+occupies hardware bytes.
+
 Padding is not semantic data. Proofs and wire protocols must not rely on
 uninitialized padding bytes.
 

@@ -227,8 +227,9 @@ They are acquired exactly three ways:
 - COMPUTED: the compiler always knows (`sized`); never written. Transparent
   carry policy and whether zero establishes a checked-shape type are also
   derived structurally rather than annotated. The
-  `unbounded` property (chapter 10) is the proof-only marker: no machine
-  layout, no ZII, fact-position use only.
+  `unbounded` property (chapter 10) remains the transitional proof-only
+  classifier: no machine layout, no ZII, fact-position use only. Explicit
+  relevance replaces that classification as described below.
 - DECLARED + VERIFIED: the bracket list requests the property and the compiler
   checks its structural rule at the declaration (`copy`: every field copies;
   `linear`: mutually exclusive with `copy`, and every contained linear
@@ -257,6 +258,25 @@ data Box<T [copy]> [copy] {
     value: T;
 }
 ```
+
+### Binding relevance
+
+`[erased]` reuses bracket placement but applies to one binding occurrence, not
+to the bound type globally:
+
+```omega
+data Certified<T> {
+    value: T;
+    proof [erased]: Valid<T>;
+}
+```
+
+`Valid<T>` may appear relevant elsewhere. Here only `proof` is erased. The
+checker retains it for proof, multiplicity, validity, conservation, and
+provenance analysis while runtime layout omits it. Erased bindings may not
+determine runtime data or control and cannot rely on runtime cleanup; their
+static obligations remain live until discharged. See
+[Compile-Time Proofs](chapter_10_compile_time_proofs.md#explicit-relevance).
 
 ### Carry policy
 

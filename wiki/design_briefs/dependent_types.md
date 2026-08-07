@@ -1,6 +1,6 @@
 # Design Brief: Dependent Types — the Systems Fragment, Lifetimes, and the Lean Path
 
-Current staged design as of 2026-08-04; implementation remains incomplete.
+Current staged design as of 2026-08-07; implementation remains incomplete.
 Companion to [Chapter 12](../language_guide/chapter_12_dependent_types.md) (the
 user-facing surface) and
 [proof_engine_north_star.md](proof_engine_north_star.md) (the automation/kernel
@@ -153,6 +153,14 @@ proposition R<I, J>(left: C<I>, right: C<J>);
 erased selected-conformance projection. This is proposition-valued dependency only:
 it does not admit arbitrary value-to-runtime-`Type` computation, runtime proof
 fields, value-directed layout, or general Pi-type normalization.
+
+Independent packs are local to the proposition declaration. Carrier parameters
+have no global relation roles: another proposition over the same `C` may use
+one shared pack and require exact indices. Constructor lifting consumes a
+proposition-valued heterogeneous `Lift<I,J,R>` member selected for the exact
+quotient/container pair. Dependent fields are processed in dependency order;
+a coarser relation on an earlier field generates an explicit transport
+obligation for every later proposition application that no longer coincides.
 
 This fragment is a hard predecessor of evidence-bearing quotients. The
 relation-property hierarchy (`Reflexive`, `Symmetric`, `Transitive`,
@@ -587,10 +595,15 @@ Ordered rungs, each independently shippable, each with its acceptance driver:
   dependent facts across sibling-machine calls.
 - **R6 — Proof propositions and index telescopes:** add `proposition` families
   over representative values, typed proof-static carrier-family index packs,
-  and carrierless selected-conformance evidence. Establish one requirement
-  projection with runtime and proof strata; by-value `dyn` is legal only when
-  the complete normalized value has no runtime carrier. Then add the
-  decomposed relation-property hierarchy and `Respects` domain/result laws.
+  higher-kinded carrier-family binders for reusable relators,
+  proposition-valued heterogeneous constructor lifts, and carrierless
+  selected-conformance evidence. Establish one requirement projection with
+  runtime and proof strata; by-value `dyn` is legal only when the complete
+  normalized value has no runtime carrier. Derive parallel callable argument
+  telescopes and representative-dependent domains, then add dependency-ordered
+  structural lifting, checked proposition transport, the decomposed
+  relation-property hierarchy, and `Respects` domain/result laws. No global
+  carrier-parameter role or ambient default relator participates.
   This rung is the hard predecessor of N6 quotient migration, not an
   independently orderable follow-up. Drivers: a decidable rational relation,
   heterogeneous `CauchySeq<A>`/`CauchySeq<B>` convergence evidence, and a

@@ -401,8 +401,10 @@ accepts repeated `Bits` placements, and rejects unknown/missing fields, mixed
 whole/fragment placement, destination overlap/out-of-bounds ranges, and source
 fragments that do not tile the logical field exactly. Ordinary plan-laid value
 types accept either one fixed `At` placement or a complete set of fixed `Bits`
-placements for each primitive scalar field. Direct reads assemble the logical
-value from one or more fragments, and immediate writes use masked
+placements for each runtime-relevant primitive scalar field. `[erased]`
+bindings have no placement key or physical offset; their facts are established
+separately by the checked or admitted plan contract. Direct reads assemble the
+logical value from one or more fragments, and immediate writes use masked
 read-modify-write operations that preserve neighboring bits; both paths are
 live on x86-64 and AArch64. A target-neutral ordinary-scalar consumer takes
 only named values and this validated plan: there is no caller-supplied offset,

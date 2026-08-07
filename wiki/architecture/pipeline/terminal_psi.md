@@ -419,6 +419,19 @@ symbol. Transparent proposition definitions expand before terminal production,
 have no independent semantic identity, and retain their source names only in
 debug maps.
 
+Relation applications retain their independently bound left and right carrier
+index packs; no global carrier-parameter role is serialized. Selected
+constructor lifts, dependency-ordered field relations, and every required
+proposition-transport proof enter the semantic rows that justified a lifted
+operation. Callable argument telescopes use positional identity, with source
+parameter names confined to debug metadata.
+
+An erased binding remains in typed semantic and proof rows with its
+multiplicity, validity scope, conservation obligations, and provenance. It has
+no executable storage place or cleanup action. Runtime layout and operation
+encoding consume the erased-stripped form, while semantic fingerprints retain
+the binding and its type.
+
 Author-declared hardware geometry is semantic and may contain offsets, widths,
 and alignment. Omega begins where the target chooses native layout, stack and
 register placement, ABI classes, concrete storage regions, instructions, and

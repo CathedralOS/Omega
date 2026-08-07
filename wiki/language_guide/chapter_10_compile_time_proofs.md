@@ -58,6 +58,22 @@ so a convergence proof can recover its opaque modulus and law. Different
 conformances may carry different witnesses without changing the proposition's
 nominal symbol.
 
+The evidence interface is the proposition's sole brace entry:
+
+```omega
+proposition converges_together<machine Left, machine Right>(
+    left: CauchySeq<Left>,
+    right: CauchySeq<Right>
+) {
+    ConvergenceEvidence<Left, Right>;
+}
+```
+
+These braces are non-executable owner-controlled proof content, like the route
+list of a domain. A witness-bearing proposition has exactly one entry. The
+interface is not an ordinary `where` constraint, and `=` remains the distinct
+transparent-alias form.
+
 The evidence interface is nevertheless normalized and fingerprinted. Revising
 it is a breaking proof-interface change even though the proposition retains its
 name. Runtime extraction of a witness requires an ordinary `Type`-level package;
@@ -103,6 +119,46 @@ erased proof may still be linear, borrow-scoped, entry-scoped, invalidated by a
 write, or tied to a live lease. Admission marks the evidence chain, not the
 proposition name, so two proofs of the same formula may carry different trust
 and a deployment profile may accept one and reject the other.
+
+## Explicit relevance
+
+Relevance belongs to a binding occurrence, independently of its type,
+multiplicity, validity scope, and provenance. An erased field uses the same
+bracket-property convention as other binding properties:
+
+```omega
+data Certified<T> {
+    value: T;
+    proof [erased]: Valid<T>;
+}
+```
+
+The checker retains `proof` in the typed and proof calculi but lowering gives
+it no field offset, address, runtime read, or runtime cleanup. Erased data may
+be consumed by contracts, proofs, other erased bindings, and statically checked
+authorization for an effectful operation; it may not determine runtime data or
+control. This noninterference rule is checked through every call and
+projection. `[erased]` is therefore a relevance judgment, not a promise that
+the implementation happens not to inspect the field.
+
+Erasure does not discharge obligations. Erased evidence may remain linear,
+borrow-scoped, lease-scoped, content-bearing, or provenance-bearing, and its
+obligations remain in the compiler frontier until explicitly consumed. What is
+forbidden is a runtime destructor or cleanup action that relies on erased
+representation. A containing value cannot leave scope while an erased linear
+obligation remains live.
+
+Construction normally supplies an erased term even though it produces no
+runtime code. Omission is derived only for a structurally visible and
+accessible nullary constructor; the compiler does not invoke a general
+inhabitance judgment or synthesize a zero/default value. Ordinary authored
+field defaults remain ordinary defaults.
+
+Runtime layout, ABI classification, codec shape, and placement offsets use the
+erased-stripped form. Nominal type identity and semantic fingerprints retain
+the erased binding and its type. A placement gives an erased field no physical
+offset; any fact it carries must instead be established by the checked or
+admitted placement plan.
 
 ## Machines As Proofs
 
@@ -159,10 +215,10 @@ which proof rules apply.
 
 ## Proof-Only Data
 
-`Nat` and its kin are proof-only types: unbounded, with no machine layout, no
-ZII obligation, and no runtime existence. Nothing declares this — the
-structure does. Recursive data is legal, and recursion is what makes a type
-proof-only:
+`Nat` and its kin are currently classified as proof-only: unbounded, with no
+machine layout, no ZII obligation, and no runtime existence. Recursive data is
+legal, and recursion is the present structural reason no finite layout can be
+derived:
 
 ```omega
 data Nat {
@@ -192,6 +248,15 @@ Working rules:
   Most theorems about `u64` code cite dual-use machines directly and never
   need `Nat` at all; `Nat` appears when a claim is genuinely about unbounded
   mathematics.
+
+The explicit-relevance migration preserves the structural fact while removing
+the accidental universe split. A recursive or otherwise unlayoutable `Type`
+may occupy an erased binding and participate in proof computation, but cannot
+occupy a runtime-relevant binding. Explicit binding relevance takes precedence
+during migration; the existing recursive-propagation rule remains legacy
+inference for unannotated declarations until their surfaces are migrated.
+Constructor choices count as representation as well as fields, so an
+all-fieldless sum such as `bool` does not become erased by vacuity.
 
 Core ships the roster: `Nat`, `Seq<T>`, `Bag<T>`, and `Rat`. Every finite
 nonzero float embeds into signed `Rat` exactly (binary values are dyadic
@@ -335,9 +400,11 @@ bucket," never "same representative".
 
 Equivalence licenses the quotient type, not operations on it. A machine lifts
 only through a selected `Respects` conformance. Parameters, including an
-attached receiver, normalize into one argument record. Given an argument
-relation `RA`, result relation `RR`, and semantic precondition `P`,
-`Respects` proves both:
+attached receiver, normalize into one ordered telescope, and the proof surface
+receives parallel left and right copies. Parameter positions are semantic;
+source labels are debug aliases. Given the compiler-derived pointwise argument
+relation `RA`, the requested lifted codomain relation `RR`, and the
+representative-dependent semantic precondition `P`, `Respects` proves both:
 
 ```text
 RA(x, y) -> (P(x) <-> P(y))
@@ -345,12 +412,32 @@ RA(x, y) && P(x) -> RR(f(x), f(y))
 ```
 
 The first clause makes partiality representative-independent; it is trivial
-for a total machine. Fixed ambient facts, authority, and resource requirements
-do not vary by representative and remain ordinary contract obligations.
-Binary addition uses a fieldwise relation over both operands. Division must
+for a total machine. Semantic dependency, including indirect dependency,
+decides which precondition conjuncts enter `P`. Fixed ambient facts, authority,
+and resource requirements remain ordinary contract obligations; a conjunct
+mixing representative and ambient subjects enters `P` conservatively. Binary
+addition uses a pointwise relation over both operands. Division must
 additionally prove that equivalent denominators agree about being zero.
-Comparison uses equality as its result relation. Normalizing arguments as one
-record avoids separate respect traits for every arity.
+Comparison uses equality as its result relation. The normalized telescope
+avoids separate respect traits for every arity and creates no public synthetic
+record type.
+
+Carrier declarations do not assign global relational roles to their static
+parameters. A proposition may quantify independent left and right index packs,
+or use one shared pack, according to the relation it declares. A selected
+constructor relator is correspondingly heterogeneous, `Lift<I,J,R>`, and the
+quotient owner chooses the exact named lift for the known quotient/container
+pair. The exact selection is retained in semantic identity, and an uncovered
+pair rejects at instantiation.
+
+Transparent non-dependent products lift recursively. Dependent fields lift in
+dependency order: facts established for earlier left/right fields determine
+whether later proposition applications coincide or require an authored
+transport theorem. The quotient owner discharges transport required by its
+chosen relation; the proposition owner controls the laws available for opaque
+propositions. A relation depending on erased `Type` content remains proof-only
+unless checked evidence shows that content is determined by the runtime
+projection, in which case a runtime decider may be derived.
 
 An attached carrier operation used this way has a by-value receiver and is
 proof-side only: it does not install a method or reify a representative on the

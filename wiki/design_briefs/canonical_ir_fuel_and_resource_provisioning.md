@@ -373,6 +373,13 @@ The fingerprinted semantic module contains:
   evidence interface; changing that interface changes the semantic module,
   while transparent proposition definitions expand before this boundary and
   remain only in debug maps;
+- relation-local left/right carrier index packs, selected heterogeneous
+  constructor lifts, dependency-ordered field relations, and checked
+  proposition-transport evidence; carrier declarations contribute no global
+  relation-role row;
+- erased bindings with their semantic type, multiplicity, validity,
+  conservation, and provenance rows but no executable storage or cleanup;
+  runtime layouts consume the erased-stripped form;
 - target-neutral provider requirements and scoped ordering operations; and
 - stable identities shared by execution, propositions, proof evidence, fuel,
   diagnostics, and lowering provenance.
