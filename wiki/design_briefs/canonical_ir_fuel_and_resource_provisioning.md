@@ -56,7 +56,7 @@ verified module object and rejects out-of-range integer arguments before
 execution.
 
 The first Psi-owned checked-tree producer, `psi-checked-trees-to-terminal`,
-lowers six exact closed-contract source forms: a recursively nested Boolean
+lowers a closed set of scalar closed-contract source forms: a recursively nested Boolean
 expression over literals, exact named parameters, builtin negation, builtin
 equality/inequality, and short-circuit `&&`/`||` from ordinary Boolean
 parameters; direct builtin equality/inequality or ordering between two named
@@ -68,10 +68,12 @@ from a nonempty sequence of
 ordinary primitive-integer parameters; or an
 integer-constant/unconditional-jump whose return is the matching literal or a
 builtin parameter-plus-literal wrapping/saturating add, subtract, or multiply;
-or one ordered positive-Boolean/fallback conditional whose two successors bind
-already-defined integer entry parameters to direct-return branch states; the
-same ordered form supports ordinary Boolean entry/branch parameters with
-recursive short-circuit guards and branch returns.
+or a rooted acyclic integer-result graph whose blocks return, jump
+unconditionally, or select ordered positive-Boolean/fallback successors while
+binding exact-typed already-defined scalar parameters. Nested selections,
+linear prefixes, and convergent tails use the same terminal block and edge
+vocabulary. The ordered Boolean-result form supports ordinary Boolean
+entry/branch parameters with recursive short-circuit guards and branch returns.
 It emits the semantic module and proof bundle separately and fails closed on
 all other shapes. Its canaries drop the frontend trees before terminal
 verification and interpretation; ninth-parameter `bool` and `u8` machines
@@ -79,9 +81,9 @@ additionally cross the selected host incoming-stack ABI, while runtime wrapping
 add combines its ninth stack argument with its first register argument and a
 nested add-then-multiply expression reaches the same native lane. A three-state
 companion also carries two independently computed bindings across each
-unconditional edge. The source conditional executes both arms after frontend
-disposal, meters only the selected edge, and retains both successors at the
-Omega abstract boundary. Parsing
+unconditional edge. The source control canary executes each nested path after
+frontend disposal, meters only selected edges, and retains every successor and
+shared-tail edge at the Omega abstract boundary. Parsing
 through checked semantics and this first terminal producer are now Psi-owned;
 general terminal vocabulary must extend the same direction. The same producer
 independently revalidates checked content
@@ -227,9 +229,10 @@ and emit on both architectures. Cyclic semantics, reusable native block
 layout, and operations beyond the current scalar terminal vocabulary remain
 fail-closed.
 The Psi checked-source producer exercises both integer- and Boolean-result
-conditional forms; the Boolean canary survives frontend disposal and agrees
-across verification, fixed fuel, interpretation, assignment, and native
-execution.
+conditional forms. Its integer canary carries two runtime selections into a
+shared tail, and the Boolean canary preserves short-circuit control; both
+survive frontend disposal and agree across verification, fixed fuel,
+interpretation, assignment, and native emission.
 `psi-terminal-fuel` defines schedule v1 as one unit per executed terminal
 operation and one unit per taken terminal edge. The verified interpreter returns
 exact schedule-keyed usage attributed to stable operation/edge identities; a
@@ -244,8 +247,8 @@ block-to-edge segment certificates, including the endpoint charge, so adjacent
 segments neither omit nor double-charge a jump. The current-vocabulary semantic
 safe-point selector now returns the complete canonical graph partition at every
 explicit jump, conditional, or return edge; validation rejects omitted or
-reordered segments. Build-time migration, loop certificates, general
-target/native block lowering, and native metering remain.
+reordered segments. Build-time migration, loop certificates, reusable native
+block layout, and native metering remain.
 Direct-return Boolean `&&`/`||` lower to terminal conditional trees rather than
 eager operations. A deciding left operand bypasses the right subtree; measured
 usage is three units on that path versus four when the right operand is

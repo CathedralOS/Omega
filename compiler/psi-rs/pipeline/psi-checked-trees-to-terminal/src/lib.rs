@@ -147,6 +147,30 @@ enum LoweredIntegerBinaryKind {
     SaturatingMultiply,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum LoweredIntegerBranchTerminator {
+    Jump {
+        target: usize,
+        arguments: Vec<usize>,
+    },
+    Conditional {
+        condition: LoweredBooleanReturnExpression,
+        when_true_target: usize,
+        when_true_arguments: Vec<usize>,
+        when_false_target: usize,
+        when_false_arguments: Vec<usize>,
+    },
+    Return {
+        expression: LoweredDirectExpression,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct LoweredIntegerBranchState {
+    parameter_types: Vec<ScalarType>,
+    terminator: LoweredIntegerBranchTerminator,
+}
+
 impl LoweredIntegerBinaryKind {
     fn operation(self, left: ValueId, right: ValueId) -> OperationKind {
         match self {
@@ -1214,6 +1238,18 @@ fn lower_selected_machine(
         };
     }
     if states.len() >= 2
+        && states
+            .iter()
+            .any(|state| entry_has_ordered_boolean_conditional(checked, state))
+    {
+        return match checked.primitive_type_reference(states[0].return_type) {
+            Some(PrimitiveType::Bool) => {
+                unsupported("nested Boolean state control is not in the terminal-Psi source slice")
+            }
+            _ => lower_nested_integer_branch_machine(checked, machine, states),
+        };
+    }
+    if states.len() >= 2
         && checked.primitive_type_reference(states[0].return_type) == Some(PrimitiveType::Bool)
     {
         return lower_boolean_state_chain(checked, machine, states);
@@ -1532,6 +1568,270 @@ fn lower_integer_conditional_machine(
         identity_reshuffles,
         partition_compositions,
     ))
+}
+
+fn lower_nested_integer_branch_machine(
+    checked: &CheckedTrees,
+    machine: &psi_checked_trees::machine::Machine,
+    states: &[psi_checked_trees::state::State],
+) -> Result<LoweredTerminalPsi, LoweringError> {
+    if states
+        .iter()
+        .any(|state| !checked.state_contracts(state).is_empty())
+    {
+        return unsupported("nested branch state contracts are not supported");
+    }
+    let result_type = integer_scalar_type(
+        checked
+            .primitive_type_reference(states[0].return_type)
+            .ok_or(LoweringError::Unsupported(
+                "nested branch result must be a primitive integer",
+            ))?,
+    )?;
+    let mut lowered_states = Vec::with_capacity(states.len());
+    let mut successors = vec![Vec::new(); states.len()];
+    let mut indegree = vec![0usize; states.len()];
+
+    for (state_index, state) in states.iter().enumerate() {
+        if integer_scalar_type(checked.primitive_type_reference(state.return_type).ok_or(
+            LoweringError::Unsupported("nested branch states must return a primitive integer"),
+        )?)? != result_type
+        {
+            return unsupported("nested branch state result types must match exactly");
+        }
+        let parameters = checked.state_parameters(state);
+        if parameters
+            .iter()
+            .any(|parameter| parameter.is_self || parameter.is_const || parameter.is_mutable)
+        {
+            return unsupported("qualified nested branch parameters are not supported");
+        }
+        let parameter_types = parameters
+            .iter()
+            .map(|parameter| {
+                terminal_scalar_type(
+                    checked
+                        .primitive_type_reference(parameter.type_reference)
+                        .ok_or(LoweringError::Unsupported(
+                            "nested branch parameters must be primitive Boolean or integer values",
+                        ))?,
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let statements = checked.statement_table.statements(state.statement_nodes);
+        let terminator = match statements {
+            [StatementNode::Expression(return_expression)] => {
+                let (expression, _) = lower_direct_return_expression(
+                    checked,
+                    *return_expression,
+                    parameters,
+                    &parameter_types,
+                    result_type,
+                )?;
+                LoweredIntegerBranchTerminator::Return { expression }
+            }
+            [
+                StatementNode::Transition(when_true),
+                StatementNode::Transition(when_false),
+            ] if matches!(when_true.guard, TransitionGuardNode::When(_))
+                && when_false.guard == TransitionGuardNode::Always =>
+            {
+                if when_true.continuation.is_valid() || when_false.continuation.is_valid() {
+                    return unsupported("nested branch transitions cannot carry continuations");
+                }
+                let TransitionGuardNode::When(condition) = when_true.guard else {
+                    unreachable!("match guard establishes a conditional transition")
+                };
+                let condition = lower_positive_boolean_guard(checked, condition, parameters)?;
+                validate_short_circuit_expression(&condition)?;
+                if contains_short_circuit(&condition) {
+                    return unsupported(
+                        "nested branch guards cannot contain short-circuit Boolean operations yet",
+                    );
+                }
+                validate_boolean_parameter_types(&condition, &parameter_types)?;
+
+                let (when_true_target, when_true_arguments) = lower_nested_branch_successor(
+                    checked,
+                    states,
+                    parameters,
+                    &parameter_types,
+                    when_true,
+                )?;
+                let (when_false_target, when_false_arguments) = lower_nested_branch_successor(
+                    checked,
+                    states,
+                    parameters,
+                    &parameter_types,
+                    when_false,
+                )?;
+                successors[state_index] = vec![when_true_target, when_false_target];
+                indegree[when_true_target] = indegree[when_true_target]
+                    .checked_add(1)
+                    .expect("source state count fits usize");
+                indegree[when_false_target] = indegree[when_false_target]
+                    .checked_add(1)
+                    .expect("source state count fits usize");
+                LoweredIntegerBranchTerminator::Conditional {
+                    condition,
+                    when_true_target,
+                    when_true_arguments,
+                    when_false_target,
+                    when_false_arguments,
+                }
+            }
+            [StatementNode::Transition(transition)]
+                if transition.guard == TransitionGuardNode::Always =>
+            {
+                if transition.continuation.is_valid() {
+                    return unsupported("nested branch transitions cannot carry continuations");
+                }
+                let (target, arguments) = lower_nested_branch_successor(
+                    checked,
+                    states,
+                    parameters,
+                    &parameter_types,
+                    transition,
+                )?;
+                successors[state_index] = vec![target];
+                indegree[target] = indegree[target]
+                    .checked_add(1)
+                    .expect("source state count fits usize");
+                LoweredIntegerBranchTerminator::Jump { target, arguments }
+            }
+            _ => {
+                return unsupported(
+                    "nested branch states must return one integer expression, jump unconditionally, or contain one ordered Boolean transition",
+                );
+            }
+        };
+        lowered_states.push(LoweredIntegerBranchState {
+            parameter_types,
+            terminator,
+        });
+    }
+
+    if indegree[0] != 0 || indegree[1..].contains(&0) {
+        return unsupported(
+            "nested terminal branch control must be rooted at the machine entry and reach every state",
+        );
+    }
+    let mut visited = vec![false; states.len()];
+    let mut active = vec![false; states.len()];
+    validate_nested_branch_graph(0, &successors, &mut visited, &mut active)?;
+    if visited.iter().any(|visited| !*visited) {
+        return unsupported("nested terminal branch control contains an unreachable state");
+    }
+
+    let contract_value = validate_contract(checked, machine, result_type, None)?;
+    let (identity_reshuffles, partition_compositions) =
+        lower_content_evidence(checked, machine, &states[0])?;
+    Ok(build_nested_integer_branch_module(
+        &lowered_states,
+        result_type,
+        contract_value,
+        identity_reshuffles,
+        partition_compositions,
+    ))
+}
+
+fn lower_nested_branch_successor(
+    checked: &CheckedTrees,
+    states: &[psi_checked_trees::state::State],
+    parameters: &[psi_checked_trees::signature::StateParameter],
+    parameter_types: &[ScalarType],
+    transition: &psi_checked_trees::statement::TableTransition,
+) -> Result<(usize, Vec<usize>), LoweringError> {
+    let TransitionTargetNode::Named { path, arguments } =
+        checked.statement_table.transition_target(transition.target)
+    else {
+        return unsupported("nested branch successors must target named states");
+    };
+    let target = states
+        .iter()
+        .position(|candidate| candidate.symbol == path.symbol)
+        .ok_or(LoweringError::Unsupported(
+            "nested branch successor must belong to the selected machine",
+        ))?;
+    let target_parameters = checked.state_parameters(&states[target]);
+    let arguments = checked.statement_table.expression_handles(*arguments);
+    if arguments.len() != target_parameters.len() {
+        return unsupported(
+            "nested branch successor bindings must match the target parameter count",
+        );
+    }
+    let positions = arguments
+        .iter()
+        .zip(target_parameters)
+        .map(|(argument, target_parameter)| {
+            let ExpressionNode::Name(path) = checked.expression_table.expression(*argument) else {
+                return unsupported(
+                    "nested branch bindings currently require already-defined parameters",
+                );
+            };
+            let position = direct_parameter_position(checked, path, parameters)?;
+            let target_type = terminal_scalar_type(
+                checked
+                    .primitive_type_reference(target_parameter.type_reference)
+                    .ok_or(LoweringError::Unsupported(
+                        "nested branch target parameters must be primitive Boolean or integer values",
+                    ))?,
+            )?;
+            if parameter_types[position] != target_type {
+                return unsupported(
+                    "nested branch successor argument must match its target parameter type",
+                );
+            }
+            Ok(position)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok((target, positions))
+}
+
+fn validate_boolean_parameter_types(
+    expression: &LoweredBooleanReturnExpression,
+    parameter_types: &[ScalarType],
+) -> Result<(), LoweringError> {
+    match expression {
+        LoweredBooleanReturnExpression::Constant { .. } => Ok(()),
+        LoweredBooleanReturnExpression::Parameter { position } => {
+            if parameter_types.get(*position) == Some(&ScalarType::Boolean) {
+                Ok(())
+            } else {
+                unsupported("nested branch guard parameters must be Boolean")
+            }
+        }
+        LoweredBooleanReturnExpression::Not { operand } => {
+            validate_boolean_parameter_types(operand, parameter_types)
+        }
+        LoweredBooleanReturnExpression::Equal { left, right }
+        | LoweredBooleanReturnExpression::And { left, right }
+        | LoweredBooleanReturnExpression::Or { left, right } => {
+            validate_boolean_parameter_types(left, parameter_types)?;
+            validate_boolean_parameter_types(right, parameter_types)
+        }
+    }
+}
+
+fn validate_nested_branch_graph(
+    state: usize,
+    successors: &[Vec<usize>],
+    visited: &mut [bool],
+    active: &mut [bool],
+) -> Result<(), LoweringError> {
+    if active[state] {
+        return unsupported("nested terminal branch control must be acyclic");
+    }
+    if visited[state] {
+        return Ok(());
+    }
+    active[state] = true;
+    for successor in &successors[state] {
+        validate_nested_branch_graph(*successor, successors, visited, active)?;
+    }
+    active[state] = false;
+    visited[state] = true;
+    Ok(())
 }
 
 fn lower_integer_state_chain(
@@ -3293,6 +3593,218 @@ fn build_boolean_short_circuit_module(
             evidence: vec![ObligationEvidence {
                 obligation,
                 route: EvidenceRoute::KernelDerived(PrimitiveJudgment::ReflexiveEquality),
+            }],
+        },
+        debug_map: None,
+    }
+}
+
+fn build_nested_integer_branch_module(
+    states: &[LoweredIntegerBranchState],
+    result_type: ScalarType,
+    contract_value: IntegerValue,
+    identity_reshuffles: LoweredContentIdentityReshuffles,
+    partition_compositions: LoweredContentPartitionCompositions,
+) -> LoweredTerminalPsi {
+    let parameters = states[0]
+        .parameter_types
+        .iter()
+        .enumerate()
+        .map(|(index, scalar_type)| ValueDeclaration {
+            id: value_id(
+                u64::try_from(index)
+                    .expect("parameter index fits a semantic identity")
+                    .checked_add(1)
+                    .expect("parameter identity is nonzero"),
+            ),
+            scalar_type: *scalar_type,
+        })
+        .collect::<Vec<_>>();
+    let mut next_value_identity = u64::try_from(parameters.len())
+        .expect("parameter count fits a semantic identity")
+        .checked_add(1)
+        .expect("generated identities follow parameter identities");
+    let mut state_parameters = Vec::with_capacity(states.len());
+    state_parameters.push(parameters.clone());
+    for state in &states[1..] {
+        state_parameters.push(
+            state
+                .parameter_types
+                .iter()
+                .map(|scalar_type| {
+                    let parameter = ValueDeclaration {
+                        id: value_id(next_value_identity),
+                        scalar_type: *scalar_type,
+                    };
+                    next_value_identity = next_value_identity
+                        .checked_add(1)
+                        .expect("nested block parameter identities advance");
+                    parameter
+                })
+                .collect(),
+        );
+    }
+
+    let mut all_operations = Vec::new();
+    let mut next_edge_identity = 1_u64;
+    let mut blocks = Vec::with_capacity(states.len());
+    for (index, state) in states.iter().enumerate() {
+        let operation_start = all_operations.len();
+        let current_parameters = &state_parameters[index];
+        let terminator = match &state.terminator {
+            LoweredIntegerBranchTerminator::Jump { target, arguments } => {
+                let edge = edge_id(next_edge_identity);
+                next_edge_identity = next_edge_identity
+                    .checked_add(1)
+                    .expect("nested jump edge identities advance");
+                Terminator::Jump {
+                    edge,
+                    target: block_id(
+                        u64::try_from(*target)
+                            .expect("state index fits a semantic identity")
+                            .checked_add(1)
+                            .expect("block identity is nonzero"),
+                    ),
+                    arguments: arguments
+                        .iter()
+                        .map(|position| current_parameters[*position].id)
+                        .collect(),
+                }
+            }
+            LoweredIntegerBranchTerminator::Conditional {
+                condition,
+                when_true_target,
+                when_true_arguments,
+                when_false_target,
+                when_false_arguments,
+            } => {
+                let condition = emit_boolean_expression(
+                    condition,
+                    current_parameters,
+                    &mut next_value_identity,
+                    &mut all_operations,
+                );
+                let when_true_edge = edge_id(next_edge_identity);
+                next_edge_identity = next_edge_identity
+                    .checked_add(1)
+                    .expect("nested branch edge identities advance");
+                let when_false_edge = edge_id(next_edge_identity);
+                next_edge_identity = next_edge_identity
+                    .checked_add(1)
+                    .expect("nested branch edge identities advance");
+                Terminator::Conditional {
+                    condition,
+                    when_true: SuccessorEdge {
+                        edge: when_true_edge,
+                        target: block_id(
+                            u64::try_from(*when_true_target)
+                                .expect("state index fits a semantic identity")
+                                .checked_add(1)
+                                .expect("block identity is nonzero"),
+                        ),
+                        arguments: when_true_arguments
+                            .iter()
+                            .map(|position| current_parameters[*position].id)
+                            .collect(),
+                    },
+                    when_false: SuccessorEdge {
+                        edge: when_false_edge,
+                        target: block_id(
+                            u64::try_from(*when_false_target)
+                                .expect("state index fits a semantic identity")
+                                .checked_add(1)
+                                .expect("block identity is nonzero"),
+                        ),
+                        arguments: when_false_arguments
+                            .iter()
+                            .map(|position| current_parameters[*position].id)
+                            .collect(),
+                    },
+                }
+            }
+            LoweredIntegerBranchTerminator::Return { expression } => {
+                let value = emit_direct_expression(
+                    expression,
+                    current_parameters,
+                    &mut next_value_identity,
+                    &mut all_operations,
+                );
+                let edge = edge_id(next_edge_identity);
+                next_edge_identity = next_edge_identity
+                    .checked_add(1)
+                    .expect("nested return edge identities advance");
+                Terminator::Return { edge, value }
+            }
+        };
+        blocks.push(Block {
+            id: block_id(
+                u64::try_from(index)
+                    .expect("state index fits a semantic identity")
+                    .checked_add(1)
+                    .expect("block identity is nonzero"),
+            ),
+            parameters: if index == 0 {
+                Vec::new()
+            } else {
+                current_parameters.clone()
+            },
+            operations: all_operations[operation_start..].to_vec(),
+            terminator,
+        });
+    }
+    let result = ValueDeclaration {
+        id: value_id(next_value_identity),
+        scalar_type: result_type,
+    };
+    let ScalarType::Integer(integer_type) = result_type else {
+        unreachable!("nested branch source slice has an integer result")
+    };
+    let literal = ScalarTerm::integer(integer_type, contract_value)
+        .expect("validated source contract fits the result type");
+    let goal = Proposition::Equal(literal.clone(), literal);
+    let obligation = obligation_id(1);
+    let mut structural_places = identity_reshuffles
+        .structural_places
+        .into_iter()
+        .map(|place| (place.id, place.kind))
+        .collect::<BTreeMap<_, _>>();
+    for place in partition_compositions.structural_places {
+        merge_content_place_declaration(&mut structural_places, place)
+            .expect("checked lowering rejects conflicting structural places");
+    }
+    LoweredTerminalPsi {
+        semantic_module: TerminalModule {
+            semantic_version: SemanticVersion::CURRENT,
+            entry: machine_id(1),
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
+            machines: vec![TerminalMachine {
+                id: machine_id(1),
+                parameters,
+                result,
+                structural_places: structural_places
+                    .into_iter()
+                    .map(|(id, kind)| StructuralPlaceDeclaration { id, kind })
+                    .collect(),
+                content_entry_claims: identity_reshuffles.entry_claims,
+                content_identity_reshuffles: identity_reshuffles.reshuffles,
+                content_partition_compositions: partition_compositions.compositions,
+                entry: block_id(1),
+                blocks,
+                contract: MachineContract {
+                    id: contract_id(1),
+                    requires: vec![goal.clone()],
+                    ensures: vec![ContractClause {
+                        obligation,
+                        proposition: goal,
+                    }],
+                },
+            }],
+        },
+        proof_bundle: ProofBundle {
+            evidence: vec![ObligationEvidence {
+                obligation,
+                route: EvidenceRoute::KernelDerived(PrimitiveJudgment::ClosedIntegerRelation),
             }],
         },
         debug_map: None,

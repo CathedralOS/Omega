@@ -664,6 +664,82 @@ fn checked_source_conditional_survives_frontend_drop() {
     }
 }
 
+#[test]
+fn checked_source_acyclic_branch_graph_reaches_both_native_backends() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("nested terminal-Psi branch source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_nested_integer_branch")
+        .expect("nested ordered source branches should lower");
+    drop(checked);
+
+    assert_eq!(lowered.semantic_module.machines[0].blocks.len(), 6);
+    assert_eq!(
+        lowered.semantic_module.machines[0]
+            .blocks
+            .iter()
+            .filter(|block| matches!(block.terminator, Terminator::Conditional { .. }))
+            .count(),
+        2
+    );
+    let semantic_bytes = encode_module(&lowered.semantic_module)
+        .expect("nested source branch tree should encode canonically");
+    let proof_bytes = encode_proof_bundle(&lowered.proof_bundle)
+        .expect("nested source branch proof should encode canonically");
+    let semantic_module = decode_module(&semantic_bytes).expect("decode nested source branch tree");
+    let proof_bundle =
+        decode_proof_bundle(&proof_bytes).expect("decode nested source branch proof");
+    let verified = verify_module(
+        &semantic_module,
+        &proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("nested source branch tree should verify after frontend drop");
+    let fixed = derive_fixed_entry_fuel(&verified, semantic_module.entry)
+        .expect("nested branch tree should have an exact maximum fuel bound");
+    assert_eq!(fixed.ceiling_units(), 6);
+
+    let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let integer = |value| TerminalScalarValue::Integer {
+        scalar_type: u8_type,
+        value: IntegerValue::Unsigned(value),
+    };
+    for (first, second, expected, units) in [
+        (true, true, 11_u128, 6_u64),
+        (true, false, 21, 6),
+        (false, false, 31, 5),
+    ] {
+        let measured = interpret_terminal_measured(
+            &verified,
+            &[
+                TerminalScalarValue::Boolean(first),
+                TerminalScalarValue::Boolean(second),
+                integer(10),
+                integer(20),
+                integer(30),
+            ],
+        )
+        .expect("nested branch selection should interpret");
+        assert_eq!(measured.value(), integer(expected));
+        assert_eq!(measured.usage().total_units(), units);
+    }
+
+    let abstract_operations = lower_verified_module(&verified)
+        .expect("nested branch tree should cross the Omega abstract boundary");
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_operations = lower_to_target_operations(&abstract_operations, target)
+            .expect("nested branch tree should select for both native targets");
+        assert!(matches!(
+            target_operations.functions[0].operation,
+            TerminalTargetOperation::ReturnIntegerConditionalControl { .. }
+        ));
+        let assigned = assign_registers(&target_operations)
+            .expect("nested branch parameter homes should assign");
+        let machine_code =
+            emit_machine_code(&assigned).expect("nested branch machine code should emit");
+        assert!(!machine_code.functions[0].bytes.is_empty());
+    }
+}
+
 #[cfg(unix)]
 #[test]
 fn checked_source_literal_conditional_emits_only_its_selected_arm() {

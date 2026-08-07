@@ -69,14 +69,16 @@ value use; proof reconstruction retains only facts common to every return
 path. The canonical codec round-trips both ordered successors, the interpreter
 executes and charges only the selected edge, and Omega's source-independent
 abstract plan retains canonical block entries and both successor records.
-The checked-source producer lowers one exact conditional form whose branch
-states may compute integer expressions from their ordered, typed bound
-parameters and landed literals using the already-versioned arithmetic
-operations.
-The restricted fixed-work checker derives its maximum acyclic branch bound.
-That same three-block form now crosses target assignment and emits x86-64 and
-AArch64 code when a runtime Boolean selects between the two integer
-expressions. General block programs remain implementation work and fail closed.
+The checked-source producer lowers scalar integer-result acyclic control graphs
+whose blocks return, jump unconditionally, or select one ordered
+positive-Boolean/fallback successor pair. Edges bind already-defined scalar
+parameters with exact types. Nested selections and convergent tails retain
+their authored blocks and edges in terminal Psi; proof reconstruction
+intersects facts at joins, and the fixed-work checker derives the maximum
+entry-to-return cost. Omega recursively realizes the graph on x86-64 and
+AArch64, duplicating a pure shared tail where the current native tree form
+requires it while preserving canonical Psi provenance. Loops, short-circuit
+state guards, and computed bindings in branching graphs remain later slices.
 
 The checked-frontend migration also keeps the ownership firewall explicit:
 `psi-checked-trees` now owns the target-neutral checked representation and
@@ -95,7 +97,7 @@ Omega concerns, and Omega orchestration runs that admission explicitly after
 the Psi check.
 
 The first Psi-owned terminal source producer is live as
-`psi-checked-trees-to-terminal`. It accepts six exact free-machine forms. A
+`psi-checked-trees-to-terminal`. It accepts a closed set of scalar free-machine forms. A
 Boolean machine may return a literal, exact named parameter, or a recursively
 nested expression over builtin logical negation, Boolean equality/inequality,
 and short-circuit `&&`/`||` from any sequence of ordinary Boolean parameters,
@@ -135,19 +137,20 @@ must exactly match its target parameter type; later expressions may use any
 same-typed bound parameter and landed literals. When the whole chain is compile-known,
 the producer independently recomputes its result and rejects an unrelated
 reflexive contract. Both integer paths use the settled Wrapping or Saturating
-domains. The conditional integer form has one entry plus two branch states. Its
-first arm is the positive pattern of one Boolean entry parameter or literal,
-its second arm is the unconditional fallback, and each successor binds one
-ordered sequence of already-defined integer entry parameters to its branch
-state. Each target parameter must match its argument type exactly, and the
-state returns a recursively nested parameter/literal add/subtract/multiply
-expression in a settled Wrapping or Saturating domain. This preserves source
-ordering and keeps each branch's computation local to its selected path. The
+domains. The conditional integer form admits a rooted acyclic graph of source
+states. Each control block owns one ordered positive-Boolean/fallback pair,
+each linear block owns one unconditional successor, and leaves return a
+recursively nested integer expression. Successors bind ordered already-defined
+Boolean or integer parameters with exact target types; joins are explicit
+block-parameter merges. Direct guards currently exclude short-circuit
+operations and branching-graph edge bindings currently name existing
+parameters. This preserves source ordering and keeps each branch's computation
+local to its selected path. The
 parallel Boolean conditional form accepts the recursive Boolean vocabulary in
 its positive guard and both branch returns. A short-circuit guard sends its
 terminal test edges directly to the selected branch with the authored entry
 arguments; short-circuit arms remain local decision trees and only the selected
-arm is charged. All six forms require a matching closed
+arm is charged. All accepted forms require a matching closed
 `requires`/`ensures` pair. The producer rejects all other checked-tree shapes,
 including selected domain-owned operator meanings. The source canary lowers
 all six versioned integer-policy operations in both constant-fed and
@@ -156,27 +159,28 @@ equality/inequality, integer equality and ordering, and
 ninth-parameter returns, a
 three-state Boolean chain carrying its ninth parameter, a closed three-state
 integer chain, a direct zero-parameter integer literal, plus a nine-parameter
-integer direct return, discards
+integer direct return, and a six-block integer graph with nested runtime
+selection and a three-way convergent tail, discards
 `CheckedTrees`, then verifies and executes the produced semantic modules.
 Direct-return `&&`/`||` expressions lower to acyclic terminal conditional
 trees. Each evaluated operand owns its selected conditional edge; the deciding
 left operand bypasses the right subtree, and Boolean leaf constants plus return
 edges remain explicit and metered. No eager logical operation is introduced.
-The source conditional likewise survives frontend disposal, selects both arms,
-charges only the taken edge, crosses Omega's abstract boundary with both
-successors intact, and executes both selections through emitted host machine
-code. Target lowering accepts only this three-block shape, retaining each
-branch expression and its operation provenance through independent assigned
-frames and native emission. A compile-known Boolean literal now selects its
+The source conditional likewise survives frontend disposal, selects only its
+taken path, crosses Omega's abstract boundary with every successor intact, and
+executes through emitted native code. Nested runtime conditionals retain their
+branch expressions and operation provenance through independent assigned
+frames and native emission. A compile-known Boolean literal selects its
 exact arm during Omega target lowering: only that arm's operations, structural
 edge, and return edge reach emitted provenance, while terminal interpretation
 still validates and meters the original two-successor graph. The computed
 two-binding canary paths and the literal-selector canary each have a five-unit
 fixed-work certificate. The target continuation also follows each successor
 through an acyclic chain of unconditional blocks, substitutes computed jump
-bindings, and permits both arms to converge on one shared tail. Shared
-operations and edges appear once in canonical provenance. Nested conditionals
-and cyclic target programs remain fail-closed pending the general block form.
+bindings, and permits arms to converge on one shared tail. Shared operations
+and edges appear once in canonical Psi provenance; the current native tree
+realization may duplicate the pure tail on distinct paths. Cyclic target
+programs remain fail-closed.
 Constant-fed wrapping add and the Boolean literal reach emitted host machine
 code; direct ninth `bool` and `u8` returns cross the host incoming-stack ABI;
 and runtime wrapping add
@@ -326,8 +330,8 @@ and obligation subjects point to the exact authored `ensures` fact site rather
 than the enclosing machine declaration. The real-source
 canary encodes and manifests the debug section,
 drops checked trees, and decodes it against the reconstructed semantic module.
-General target/native CFG lowering, general register assignment, build-time
-fuel migration, and native fuel metering remain next.
+Reusable native block layout, general register assignment, build-time fuel
+migration, and native fuel metering remain next.
 The v5 wrapping-subtract canary independently round-trips, verifies,
 costs one operation plus one return edge, lowers, and executes parameter-fed
 `u8` 5-10 as 251 through a real C ABI call.

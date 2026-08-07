@@ -240,6 +240,42 @@ ensures 17u8 == 17u8
     }
 }
 
+machine terminal_nested_integer_branch(
+    first: bool,
+    second: bool,
+    high: u8 in Wrapping,
+    middle: u8 in Wrapping,
+    low: u8 in Wrapping
+) -> u8 in Wrapping
+requires 0u8 == 0u8
+ensures 0u8 == 0u8
+{
+    transition first {
+        true -> first_selected(second, high, middle)
+        _ -> low_selected(low)
+    }
+    state first_selected(
+        second: bool,
+        high: u8 in Wrapping,
+        middle: u8 in Wrapping
+    ) -> u8 in Wrapping {
+        transition second {
+            true -> high_selected(high)
+            _ -> middle_selected(middle)
+        }
+    }
+    state high_selected(value: u8 in Wrapping) -> u8 in Wrapping {
+        transition { _ -> finish(value) }
+    }
+    state middle_selected(value: u8 in Wrapping) -> u8 in Wrapping {
+        transition { _ -> finish(value) }
+    }
+    state low_selected(value: u8 in Wrapping) -> u8 in Wrapping {
+        transition { _ -> finish(value) }
+    }
+    state finish(value: u8 in Wrapping) -> u8 in Wrapping { value + 1u8 }
+}
+
 machine terminal_literal_conditional(value: u8 in Wrapping) -> u8 in Wrapping
 requires 20u8 == 20u8
 ensures 20u8 == 20u8
