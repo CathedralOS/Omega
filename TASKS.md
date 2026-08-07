@@ -341,10 +341,10 @@ Remaining N6/N8 work:
   its subject.
 - Add proof-only selected-conformance projection and by-value carrierless `dyn`
   from the complete conformance-block map.
-- Add `Respects` over normalized callable argument records after Q2 settles its
+- Add `Respects` over normalized callable argument records after Q1 settles its
   source/identity surface.
 - Migrate `%` from executable-Boolean relations and suffix law discovery to
-  proposition evidence plus explicit selected conformances after Q2/Q4.
+  proposition evidence plus explicit selected conformances after Q1/Q3.
 - Expand the checked `Nat`, `Int`, `Rat`, sequence/Cauchy, and approximation
   corpus needed for `Real`; keep `Real` proof-only and core-level.
 
