@@ -6,37 +6,9 @@ and deliberately deferred research live in `TASKS.md`. Questions are numbered
 consecutively; pruning or adding one requires updating every repository
 reference in the same change.
 
-Last pruned: 2026-08-03.
+Last pruned: 2026-08-06.
 
-## Q1 — How does a named whole-trait conformance bind its requirement satisfiers?
-
-Omega promises that `Type satisfies Trait as Name` selects one coherent,
-complete requirement surface and that one type may provide several such
-surfaces. The live representation gives the standalone whole-trait edge a
-stable `Type::Name` symbol, but validation currently chooses attached states by
-requirement name without consulting `Name`. Separately, a machine may spell
-`satisfies Trait::requirement as Name`; the guide's one-requirement proxy
-example treats that spelling as enough to cast to `dyn Type::Name`, even though
-no standalone whole-trait edge is declared. Which binding model is canonical?
-
-- make the standalone whole-trait declaration own an explicit, complete
-  requirement-to-satisfier map (including defaults and laws), with machine
-  aliases serving only as references used by that map; or
-- define a conformance as the coherent group of attached satisfiers carrying
-  the same `as Name`, with a precise rule for whether a standalone declaration
-  is required and whether unique unaliased/default satisfiers may fill missing
-  members.
-
-The choice fixes completeness checking, default-member inclusion, overload
-selection, whether two named conformances may deliberately share a satisfier,
-third-party conformance coherence, the exact per-requirement adapter rows
-stored in a local dynamic table, and the carrierless proof projection retained
-by a witness-bearing proposition. Checked selection may retain the stable edge
-identity, but Psi and Omega must not emit requirement adapters, a runtime
-table, or an opaque selected-evidence term by guessing satisfiers from matching
-state names until this association is settled.
-
-## Q2 — What is the complete-contract surface for abnormal non-return?
+## Q1 — What is the complete-contract surface for abnormal non-return?
 
 The settled model puts deliberate nuclear abort, explicit trapping arithmetic,
 and other non-returning control outcomes on a failure/control axis independent
@@ -58,7 +30,7 @@ accepts contextual `trap` by lowering it to an ordinary terminal transition;
 that erases the required semantic distinction and must not be treated as a
 settled spelling or control-outcome fact.
 
-## Q3 — How does a `Respects` proof name a normalized argument record and domain?
+## Q2 — How does a `Respects` proof name a normalized argument record and domain?
 
 The settled quotient model normalizes every operation's attached receiver and
 parameters into one argument record, derives the representative-dependent
@@ -82,7 +54,7 @@ ambient-only preconditions. Until it is settled, the compiler must not bless
 the legacy flattened pair-of-calls scan as a `Respects` conformance or infer
 domain invariance merely because a result-congruence-shaped machine exists.
 
-## Q4 — How does Build select a target entry schema and its implementation?
+## Q3 — How does Build select a target entry schema and its implementation?
 
 Core now defines `ProgramStorageEntry::enter`, and target packages may inherit
 that stable semantic requirement while refining only target policy and ABI.
@@ -105,7 +77,7 @@ multiple candidates, and the input to generated ABI stubs. Until it is settled,
 the compiler must not recognize `Main::run`, `main`, or any other export by
 name, and Cathedral's raw UEFI callable remains transitional.
 
-## Q5 — How does a witness-bearing proposition declare its evidence contract?
+## Q4 — How does a witness-bearing proposition declare its evidence contract?
 
 A nominal witness-bearing proposition owns one canonical carrierless evidence
 interface. That interface determines what every establishing conformance must
@@ -135,7 +107,7 @@ evidence contract from ordinary generic bounds. Until it is settled, the
 current brace-shaped syntax node is provisional and must not be treated as the
 permanent language spelling.
 
-## Q6 — Where does a content namespace declare its origin policy?
+## Q5 — Where does a content namespace declare its origin policy?
 
 Every `IntervalSet<CoordinateSpace>` coordinate space and
 `CountedQuantity<Unit>` unit has one closed origin policy. `ProgramLocal`

@@ -435,6 +435,44 @@ safety, and the no-cross-component rule are settled in
 [chapter 14](../language_guide/chapter_14_traits.md) and
 [calling plans](../design_briefs/calling_plans.md).
 
+### Named conformance map
+
+A whole-trait conformance is one closed implementation block, not a set
+recovered by searching attached machines. Its normalized representation owns:
+
+```text
+NamedTraitConformance {
+    subject: ConformanceSubject | None,
+    trait,
+    name: ConformanceName | Home,
+    rows: [(declaring_trait, requirement) -> ConformanceRow],
+    laws,
+    provenance,
+}
+
+ConformanceRow =
+    CheckedMember { machine }
+  | ExistingMachine { machine }
+  | InstantiatedDefault { declaration, substitutions }
+  | SynthesizedMember { rule, evidence }
+```
+
+The inherited trait closure determines the required row keys. Each key occurs
+exactly once; an uncovered row uses that conformance's instantiated default or
+rejects. Calls made by a default resolve through the same map. The declaring
+package owns the closed row set, while other packages may declare separately
+named conformances under the ordinary visibility and collision rules. Public
+conformances may retain private member identities because consumers name and
+invoke the authorized conformance surface.
+
+An exact `machine ... satisfies Trait::requirement` realization is a different
+semantic edge. It can supply a provider slot, operator, establishment route, or
+proof citation without claiming the inherited trait closure. It therefore
+cannot satisfy a whole-trait bound or license `dyn`. Dynamic descriptors,
+carrierless selected evidence, and law-bearing consumers use only the complete
+normalized conformance map above. Backend deduplication may share physical code
+between rows without merging their semantic identities.
+
 ### Machine semantic contract
 
 Introduce a normalized `MachineSemanticContract` (name provisional) containing

@@ -236,7 +236,7 @@ let x: bool = cmd == Command::Move;                  // ERROR: `Move` is not a v
 
 Equatable is implicit for primitives and payload-less sums (tag identity is
 the only thing it could mean); records and payload-bearing sums declare it
-(`Command satisfies Equatable;`), which synthesizes structural `equals` from
+(`Command satisfies Equatable { }`), which synthesizes structural `equals` from
 the members. Adding a payload case to a payload-less sum flips the type from
 implicit to declared, erroring every `==` site until the one-line conformance
 is written -- a deliberate re-affirmation after equality's meaning changed.
@@ -249,7 +249,7 @@ binding in transition arms), and the implicit case-domains at use sites now
 lower for `in` (`cmd in Command::Move`, unions included, value position and
 guard subjects; transition case arms desugar to membership, and the bare
 payload-bearing case name in `==` errors everywhere with a suggestion to use
-`in`). Equatable synthesis is LIVE: `Type satisfies Equatable;` on a record
+`in`). Equatable synthesis is implemented: `Type satisfies Equatable { }` on a record
 or payload-bearing sum makes `==`/`!=` legal, expanded inline into
 field-by-field compares (tag-guarded per case for sums; constructed case
 literals compare structurally). Without the conformance, `==` on a
@@ -266,8 +266,12 @@ patterns, value compares) make the error suggest `_`. The case-subset
   spelling is tracked with the domain-establishment work.
 Mixed shapes are live (see the rules above). Still pending:
 `match`-statement arms and recursive Equatable types (both rejected loudly at
-the conformance item). Bounded byte carriers participate in synthesized
+the conformance block). Bounded byte carriers participate in synthesized
 equality through their live length and bytes.[^case-members]
+
+The implementation migration to the conformance-block declaration surface is
+tracked in `TASKS.md`; the synthesis rule described here is the language
+surface.
 
 [^case-members]: Payload binding in `transition` arms uses the ordinary
 data-pattern machinery (`Case { field, fixed: value }`); a future `match`

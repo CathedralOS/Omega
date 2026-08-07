@@ -490,15 +490,16 @@ Julia muladd vs fma, C23 _Float32, HLSL float16_t. Rules:
 - Arithmetic comparison = the format's partial order (landed IEEE
   behavior; false-on-NaN; the folder's type-gated refusal to fold float
   self-compares stays).
-- Total order = a NAMED SATISFIER (ch14 machinery, designed for exactly
+- Total order = a NAMED CONFORMANCE (ch14 machinery, designed for exactly
   this): `sort_by<F64::TotalOrder>` — IEEE totalOrder via sign-magnitude
   integer compare. Rust needed a bolted-on method (total_cmp) and a
-  no-Ord-for-floats scar; the satisfier is the honest encoding. Posits
-  total-order natively, so their satisfier is a plain integer compare.
+  no-Ord-for-floats scar; the conformance is the honest encoding. Posits
+  total-order natively, so their `before` member is a plain integer compare.
 - Landed 2026-07-23: `omega::language::core::float_order` provides
-  `F32::TotalOrder` and `F64::TotalOrder` as ordinary `Order::before`
-  satisfiers. Their branchless unsigned-key transform is exercised through
-  static-machine selection in interpreter/native differential execution over
+  `F32::TotalOrder` and `F64::TotalOrder` as ordinary complete `Order`
+  conformances. Their branchless unsigned-key `before` member is exercised
+  through static-machine selection in interpreter/native differential
+  execution over
   both NaN signs and payload directions, infinities, and `-0.0 < +0.0`; no
   float-order intrinsic or ambient comparison mode exists.
 - NaN payloads: absent from the base semantic contract and never

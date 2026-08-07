@@ -172,7 +172,7 @@ The one machine construct has four explicit supply forms:
 |---|---|
 | Checked Omega implementation | `{ ... }` body |
 | Trait requirement | Bodyless declaration inside the trait |
-| External realization | `satisfies Requirement via <Binding>;` |
+| External requirement realization | `satisfies Trait::requirement via <Binding>;` |
 | Accepted claim | Bodyless `boundary machine ... ensures ...;` |
 
 An external realization binds an irreducible imported operation to a

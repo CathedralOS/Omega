@@ -325,8 +325,9 @@ partial orders reuse the same component properties. Law evidence is selected
 through those conformances rather than discovered from proof-machine names.
 
 `%` consumes the carrier family, proposition relation, and a selected
-`Equivalence` conformance. A unique home satisfier is inferred; ambiguity uses
-the ordinary named-conformance selection. Quotient formation remains
+`Equivalence` conformance. Ordinary selection may use one unique visible home
+conformance; otherwise the use names the complete conformance explicitly. It
+never selects an individual law satisfier. Quotient formation remains
 carrier-only (`seq as Real`; `42 as Real` does not compile — that road runs
 through `Rat` and a constant stream). Proven `ConvergesTogether(a, b)` makes
 `(a as Real) == (b as Real)` a fact. Equality on the quotient means "same

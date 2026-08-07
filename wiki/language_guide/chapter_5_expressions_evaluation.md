@@ -739,7 +739,7 @@ whatever bits are honestly there and makes no reproducibility promise.
 
 Arithmetic comparison is the partial order above — floats never pretend to
 be totally ordered in arithmetic position. Sorting and keying use a total
-order spelled as a named satisfier (chapter 14):
+order spelled as a named conformance (chapter 14):
 
 ```omega
 sort_by<F64::TotalOrder>(&mut samples);   // IEEE totalOrder — a sign-magnitude
@@ -748,10 +748,10 @@ sort_by<F64::TotalOrder>(&mut samples);   // IEEE totalOrder — a sign-magnitud
 
 The core spelling is provided by
 `omega::language::core::float_order`: `F32::TotalOrder` and
-`F64::TotalOrder` are ordinary `Order::before` satisfiers selected through a
-static machine parameter. They are library machines over honest recast bits,
-not privileged comparison operators; arithmetic `<` keeps its IEEE partial
-order independently.
+`F64::TotalOrder` are ordinary complete `Order` conformances selected through
+a static machine parameter. Their `before` members are library machines over
+honest recast bits, not privileged comparison operators; arithmetic `<` keeps
+its IEEE partial order independently.
 
 ### No ambient relaxation
 

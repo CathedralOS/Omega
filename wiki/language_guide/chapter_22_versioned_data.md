@@ -109,8 +109,8 @@ machine counter_v1_to_v2(
 ```
 
 The `Lineage` parameter prevents two histories that reuse the same carrier
-types from sharing a migration edge accidentally. The nominal conformance
-selects a checked machine; it adds no first-class version identity to either
+types from sharing a migration edge accidentally. The nominal exact-requirement
+edge selects a checked machine; it adds no first-class version identity to either
 data declaration. Reverse or fallible conversions are separate package
 requirements rather than properties inferred from an upgrade.
 

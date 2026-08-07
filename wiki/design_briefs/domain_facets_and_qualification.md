@@ -448,7 +448,8 @@ carry without changing this qualification model or indexed-domain syntax.
 ## Cross-references
 
 Chapter 8 owns the guide surface; chapter 5 owns primitive arithmetic;
-chapter 10 owns proof machines; chapter 14 owns traits and named satisfiers;
+chapter 10 owns proof machines; chapter 14 owns traits, complete named
+conformances, and exact-requirement satisfiers;
 chapter 16 owns terminal failure; and
 `authority_values_and_boundary_evidence.md` owns authority provenance and
 receipts.
