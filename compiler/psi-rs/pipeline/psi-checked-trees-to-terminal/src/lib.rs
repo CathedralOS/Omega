@@ -1069,6 +1069,22 @@ pub fn lower_machine(
     checked: &CheckedTrees,
     machine_name: &str,
 ) -> Result<LoweredTerminalPsi, LoweringError> {
+    lower_machine_with_crash_context(
+        checked,
+        machine_name,
+        psi_terminal::CrashContextMaximum::portable_root(),
+    )
+}
+
+/// Lower one checked machine under an already selected portable crash-context
+/// plan. This is the provider/Build composition seam for a narrower activation,
+/// task, or supervisor context; ordinary artifact-root lowering uses
+/// [`lower_machine`] and supplies `ExecutionDomain` for both closed causes.
+pub fn lower_machine_with_crash_context(
+    checked: &CheckedTrees,
+    machine_name: &str,
+    crash_context: Vec<psi_terminal::CrashContextMaximum>,
+) -> Result<LoweredTerminalPsi, LoweringError> {
     let mut matches = checked
         .machines()
         .iter()
@@ -1083,6 +1099,11 @@ pub fn lower_machine(
     let (declarations, applications) = lower_proposition_vocabulary(checked);
     lowered.semantic_module.proposition_declarations = declarations;
     lowered.semantic_module.proposition_applications = applications;
+    for machine in &mut lowered.semantic_module.machines {
+        machine.contract.crash_context = crash_context.clone();
+    }
+    psi_terminal_verifier::validate_module(&lowered.semantic_module)
+        .map_err(LoweringError::InvalidTerminalModule)?;
     lowered.debug_map = Some(build_debug_map(checked, machine, &lowered.semantic_module)?);
     Ok(lowered)
 }
@@ -5410,6 +5431,7 @@ pub enum LoweringError {
     MissingDebugSourceFile(usize),
     DebugSemanticCodec(psi_terminal_codec::CodecError),
     InvalidDebugMap(psi_terminal_codec::DebugMapError),
+    InvalidTerminalModule(psi_terminal_verifier::ModuleError),
     Unsupported(&'static str),
     InvalidPsiIntegerType,
     UnlandedIntegerLiteral,
