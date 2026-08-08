@@ -72,6 +72,7 @@ pub fn validate_module(
             | SemanticVersion::V23
             | SemanticVersion::V24
             | SemanticVersion::V25
+            | SemanticVersion::V26
     ) {
         return Err(ModuleError::UnsupportedSemanticVersion(
             module.semantic_version,
@@ -446,6 +447,18 @@ fn validate_machine(
                         return Err(ModuleError::IntegerBitwiseRequiresIntegerResult(
                             operation.id,
                         ));
+                    }
+                }
+                OperationKind::IntegerWiden { .. } => {
+                    if semantic_version < SemanticVersion::V26 {
+                        return Err(ModuleError::OperationRequiresSemanticVersion {
+                            operation: operation.id,
+                            required: SemanticVersion::V26,
+                            actual: semantic_version,
+                        });
+                    }
+                    if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
+                        return Err(ModuleError::IntegerWidenRequiresIntegerResult(operation.id));
                     }
                 }
                 OperationKind::WrappingIntegerShiftLeft { .. }
@@ -1389,6 +1402,17 @@ fn validate_term_semantic_version(
             }
             validate_term_semantic_version(operand, semantic_version, contract, clause)
         }
+        ScalarTerm::IntegerWiden { operand, .. } => {
+            if semantic_version < SemanticVersion::V26 {
+                return Err(ModuleError::PropositionRequiresSemanticVersion {
+                    contract,
+                    clause,
+                    required: SemanticVersion::V26,
+                    actual: semantic_version,
+                });
+            }
+            validate_term_semantic_version(operand, semantic_version, contract, clause)
+        }
         ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
         | ScalarTerm::WrappingIntegerShiftRight { value, count, .. } => {
             if semantic_version < SemanticVersion::V21 {
@@ -1608,7 +1632,9 @@ fn validate_term_scope(
             validate_term_scope(value, allowed, contract, clause)?;
             validate_term_scope(count, allowed, contract, clause)?;
         }
-        ScalarTerm::BooleanNot { operand } | ScalarTerm::IntegerBitwiseNot { operand, .. } => {
+        ScalarTerm::BooleanNot { operand }
+        | ScalarTerm::IntegerBitwiseNot { operand, .. }
+        | ScalarTerm::IntegerWiden { operand, .. } => {
             validate_term_scope(operand, allowed, contract, clause)?;
         }
         ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => {}
@@ -1823,6 +1849,26 @@ fn validate_operation_operands(
     value_types: &BTreeMap<ValueId, ScalarType>,
     defined: &BTreeSet<ValueId>,
 ) -> Result<(), ModuleError> {
+    if let OperationKind::IntegerWiden { operand } = operation.kind {
+        require_defined(operand, value_types, defined)?;
+        let actual = value_types[&operand];
+        let expected = operation.result.scalar_type;
+        let (ScalarType::Integer(source), ScalarType::Integer(target)) = (actual, expected) else {
+            return Err(ModuleError::IntegerWidenOperandTypeMismatch {
+                operation: operation.id,
+                source: actual,
+                target: expected,
+            });
+        };
+        if !source.can_widen_to(target) {
+            return Err(ModuleError::IntegerWidenOperandTypeMismatch {
+                operation: operation.id,
+                source: actual,
+                target: expected,
+            });
+        }
+        return Ok(());
+    }
     if let OperationKind::IntegerBitwiseNot { operand } = operation.kind {
         require_defined(operand, value_types, defined)?;
         let expected = operation.result.scalar_type;
@@ -1962,6 +2008,7 @@ fn validate_operation_operands(
         | OperationKind::IntegerLessThan { .. }
         | OperationKind::IntegerLessOrEqual { .. }
         | OperationKind::IntegerBitwiseNot { .. }
+        | OperationKind::IntegerWiden { .. }
         | OperationKind::IntegerBitwiseAnd { .. }
         | OperationKind::IntegerBitwiseOr { .. }
         | OperationKind::IntegerBitwiseXor { .. }
@@ -2337,6 +2384,12 @@ pub enum ModuleError {
         right: ScalarType,
     },
     IntegerBitwiseRequiresIntegerResult(OperationId),
+    IntegerWidenRequiresIntegerResult(OperationId),
+    IntegerWidenOperandTypeMismatch {
+        operation: OperationId,
+        source: ScalarType,
+        target: ScalarType,
+    },
     IntegerBitwiseNotOperandTypeMismatch {
         operation: OperationId,
         expected: ScalarType,

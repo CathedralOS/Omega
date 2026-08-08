@@ -157,6 +157,22 @@ fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, 
                         operand,
                     });
                 }
+                OperationKind::IntegerWiden { operand } => {
+                    let Some(ScalarType::Integer(source_type)) = value_types.get(&operand).copied()
+                    else {
+                        return Err(LoweringError::VerifiedIntegerWidenMalformed(operation.id));
+                    };
+                    let ScalarType::Integer(target_type) = operation.result.scalar_type else {
+                        return Err(LoweringError::VerifiedIntegerWidenMalformed(operation.id));
+                    };
+                    operations.push(TerminalAbstractOperation::IntegerWiden {
+                        psi_operation: operation.id,
+                        result: operation.result.id,
+                        source_type,
+                        target_type,
+                        operand,
+                    });
+                }
                 OperationKind::IntegerBitwiseAnd { left, right }
                 | OperationKind::IntegerBitwiseOr { left, right }
                 | OperationKind::IntegerBitwiseXor { left, right } => {
@@ -447,6 +463,7 @@ pub enum LoweringError {
     VerifiedWrappingMultiplyMalformed(psi_core::OperationId),
     VerifiedSaturatingMultiplyMalformed(psi_core::OperationId),
     VerifiedIntegerBitwiseMalformed(psi_core::OperationId),
+    VerifiedIntegerWidenMalformed(psi_core::OperationId),
     VerifiedWrappingShiftMalformed(psi_core::OperationId),
     CrashLoweringUnsupported {
         machine: MachineId,

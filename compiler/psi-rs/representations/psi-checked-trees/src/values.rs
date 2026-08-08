@@ -151,6 +151,10 @@ pub enum CheckedScalarExpression {
         primitive_type: psi_typed_trees::types::PrimitiveType,
         operand: Box<CheckedScalarExpression>,
     },
+    IntegerWiden {
+        primitive_type: psi_typed_trees::types::PrimitiveType,
+        operand: Box<CheckedScalarExpression>,
+    },
     Boolean(Box<CheckedBooleanExpression>),
 }
 

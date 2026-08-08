@@ -195,12 +195,22 @@ fn lower_scalar_expression(
                 parameters,
                 parameter_types,
             )?;
-            // Arithmetic-policy casts are semantic retags, not executable
-            // conversions, only when the primitive carrier is unchanged. The
-            // ordinary validator proves all broader cast laws; retaining a
-            // cross-carrier cast here would silently erase real conversion
-            // work from terminal Psi.
-            (scalar_expression_type(&operand)? == target_type).then_some((operand, cast.domain))
+            let source_type = scalar_expression_type(&operand)?;
+            if source_type == target_type {
+                return Some((operand, cast.domain));
+            }
+            // Only a full-carrier inclusion can cross the terminal boundary
+            // without retaining frontend range evidence. The first widening
+            // slice also admits unsigned-to-larger-signed casts because the
+            // complete source range fits. Narrowing, signed-to-unsigned, and
+            // occurrence-fact-dependent casts continue to fail closed.
+            integer_widen_is_total(source_type, target_type).then_some((
+                CheckedScalarExpression::IntegerWiden {
+                    primitive_type: target_type,
+                    operand: Box::new(operand),
+                },
+                cast.domain,
+            ))
         }
         ExpressionNode::Unary(unary)
             if unary.operator == UnaryOperator::BitwiseNot
@@ -520,9 +530,8 @@ fn scalar_expression_type(expression: &CheckedScalarExpression) -> Option<Primit
     match expression {
         CheckedScalarExpression::Parameter { primitive_type, .. }
         | CheckedScalarExpression::IntegerBinary { primitive_type, .. }
-        | CheckedScalarExpression::IntegerBitwiseNot { primitive_type, .. } => {
-            Some(*primitive_type)
-        }
+        | CheckedScalarExpression::IntegerBitwiseNot { primitive_type, .. }
+        | CheckedScalarExpression::IntegerWiden { primitive_type, .. } => Some(*primitive_type),
         CheckedScalarExpression::IntegerLiteral { literal } => {
             primitive_for_landed(literal.landing()?.landed_type)
         }
@@ -552,6 +561,31 @@ fn is_integer(primitive: PrimitiveType) -> bool {
         primitive,
         PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64
     )
+}
+
+fn integer_widen_is_total(source: PrimitiveType, target: PrimitiveType) -> bool {
+    fn shape(primitive: PrimitiveType) -> Option<(bool, u8)> {
+        Some(match primitive {
+            PrimitiveType::I8 => (true, 8),
+            PrimitiveType::I16 => (true, 16),
+            PrimitiveType::I32 => (true, 32),
+            PrimitiveType::I64 => (true, 64),
+            PrimitiveType::U8 => (false, 8),
+            PrimitiveType::U16 => (false, 16),
+            PrimitiveType::U32 => (false, 32),
+            PrimitiveType::U64 => (false, 64),
+            PrimitiveType::Addr | PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 => {
+                return None;
+            }
+        })
+    }
+    let Some((source_signed, source_bits)) = shape(source) else {
+        return false;
+    };
+    let Some((target_signed, target_bits)) = shape(target) else {
+        return false;
+    };
+    source_bits < target_bits && (!source_signed || target_signed)
 }
 
 fn operator_is_builtin(operators: &CheckedOperatorFacts, expression: ExpressionHandle) -> bool {
@@ -632,5 +666,38 @@ fn is_integer_comparison(expression: &CheckedBooleanExpression) -> bool {
             )
         }
         _ => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn retained_widening_requires_complete_fixed_integer_range_containment() {
+        assert!(integer_widen_is_total(
+            PrimitiveType::U8,
+            PrimitiveType::U64
+        ));
+        assert!(integer_widen_is_total(
+            PrimitiveType::I8,
+            PrimitiveType::I64
+        ));
+        assert!(integer_widen_is_total(
+            PrimitiveType::U8,
+            PrimitiveType::I16
+        ));
+        assert!(!integer_widen_is_total(
+            PrimitiveType::I8,
+            PrimitiveType::U16
+        ));
+        assert!(!integer_widen_is_total(
+            PrimitiveType::U16,
+            PrimitiveType::U8
+        ));
+        assert!(!integer_widen_is_total(
+            PrimitiveType::U32,
+            PrimitiveType::Addr
+        ));
     }
 }

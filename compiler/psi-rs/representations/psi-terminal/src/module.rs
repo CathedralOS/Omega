@@ -51,6 +51,8 @@ use psi_core::{
 /// maxima. Absence forbids that cause; older modules migrate with the legacy
 /// portable-root maximum for every cause used by one of their crash exits.
 /// Version 25 adds fixed-width integer bitwise complement.
+/// Version 26 adds universally total integer widening whose target contains the
+/// complete source range.
 /// Older bytes retain their original meaning and identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SemanticVersion(NonZeroU16);
@@ -81,7 +83,8 @@ impl SemanticVersion {
     pub const V23: Self = Self(NonZeroU16::new(23).expect("twenty-three is nonzero"));
     pub const V24: Self = Self(NonZeroU16::new(24).expect("twenty-four is nonzero"));
     pub const V25: Self = Self(NonZeroU16::new(25).expect("twenty-five is nonzero"));
-    pub const CURRENT: Self = Self::V25;
+    pub const V26: Self = Self(NonZeroU16::new(26).expect("twenty-six is nonzero"));
+    pub const CURRENT: Self = Self::V26;
 
     pub fn new(raw: u16) -> Option<Self> {
         NonZeroU16::new(raw).map(Self)
@@ -362,6 +365,7 @@ pub enum OperationKind {
     IntegerLessThan { left: ValueId, right: ValueId },
     IntegerLessOrEqual { left: ValueId, right: ValueId },
     IntegerBitwiseNot { operand: ValueId },
+    IntegerWiden { operand: ValueId },
     IntegerBitwiseAnd { left: ValueId, right: ValueId },
     IntegerBitwiseOr { left: ValueId, right: ValueId },
     IntegerBitwiseXor { left: ValueId, right: ValueId },

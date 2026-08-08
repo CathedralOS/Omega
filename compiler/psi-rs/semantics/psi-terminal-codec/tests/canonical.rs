@@ -32,7 +32,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.semantic_version, SemanticVersion::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "a332b7cb5a57493d8d2ffeae1ea16a4a69cae903fcb8d8d5a78a14c968905c1b"
+        "2b528398aed7eb72eca1f8f6f61d9b7940f3648ab9ed91a65fb93ff41ccbc181"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -471,6 +471,66 @@ fn v25_integer_bitwise_not_has_stable_canonical_bytes() {
     assert_eq!(
         semantic_fingerprint(&module).unwrap().to_string(),
         "9f6f66f8b172ad4e8f50b7f6ec65715321ebe13e897c00ee081ccd6e0a92d91c"
+    );
+}
+
+#[test]
+fn v26_integer_widen_has_stable_canonical_bytes() {
+    let source_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let target_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
+    let operand = value_id(16);
+    let computed = value_id(17);
+    let result = value_id(18);
+    let module = TerminalModule {
+        semantic_version: SemanticVersion::V26,
+        entry: machine_id(16),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        machines: vec![TerminalMachine {
+            id: machine_id(16),
+            parameters: vec![ValueDeclaration {
+                id: operand,
+                scalar_type: ScalarType::Integer(source_type),
+            }],
+            result: ValueDeclaration {
+                id: result,
+                scalar_type: ScalarType::Integer(target_type),
+            },
+            structural_places: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: block_id(16),
+            blocks: vec![Block {
+                id: block_id(16),
+                parameters: Vec::new(),
+                operations: vec![Operation {
+                    id: operation_id(16),
+                    result: ValueDeclaration {
+                        id: computed,
+                        scalar_type: ScalarType::Integer(target_type),
+                    },
+                    kind: OperationKind::IntegerWiden { operand },
+                }],
+                terminator: Terminator::Return {
+                    edge: edge_id(16),
+                    value: computed,
+                },
+            }],
+            contract: MachineContract {
+                id: contract_id(16),
+                crash_context: Vec::new(),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+            },
+        }],
+    };
+    let bytes = encode_module(&module).expect("v26 integer widen should encode");
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
+    assert_eq!(
+        semantic_fingerprint(&module).unwrap().to_string(),
+        "9ce4f4943b365ce4662fbf72477b81c6f97ab84d6e9d5af97ce0c0f9e346225f"
     );
 }
 

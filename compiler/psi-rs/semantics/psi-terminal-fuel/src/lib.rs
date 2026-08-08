@@ -46,6 +46,7 @@ impl TerminalFuelSchedule {
             | OperationKind::IntegerLessThan { .. }
             | OperationKind::IntegerLessOrEqual { .. }
             | OperationKind::IntegerBitwiseNot { .. }
+            | OperationKind::IntegerWiden { .. }
             | OperationKind::IntegerBitwiseAnd { .. }
             | OperationKind::IntegerBitwiseOr { .. }
             | OperationKind::IntegerBitwiseXor { .. }

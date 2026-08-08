@@ -519,6 +519,15 @@ fn assign_expression(
             psi_operation: *psi_operation,
             operand: Box::new(assign_expression(operand, locations)?),
         }),
+        TerminalTargetIntegerExpression::IntegerWiden {
+            psi_operation,
+            source_type,
+            operand,
+        } => Ok(TerminalAssignedIntegerExpression::IntegerWiden {
+            psi_operation: *psi_operation,
+            source_type: *source_type,
+            operand: Box::new(assign_expression(operand, locations)?),
+        }),
         TerminalTargetIntegerExpression::BitwiseAnd {
             psi_operation,
             left,
@@ -783,6 +792,9 @@ fn expression_parameter_locations(
                 }
             }
             TerminalTargetIntegerExpression::BitwiseNot { operand, .. } => {
+                collect(operand, locations)?;
+            }
+            TerminalTargetIntegerExpression::IntegerWiden { operand, .. } => {
                 collect(operand, locations)?;
             }
             TerminalTargetIntegerExpression::WrappingAdd { left, right, .. }

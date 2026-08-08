@@ -3086,7 +3086,7 @@ fn checked_source_runtime_integer_bitwise_not_crosses_canonical_artifacts_and_na
         .expect("integer bitwise-not should lower");
     assert_eq!(
         lowered.semantic_module.semantic_version,
-        SemanticVersion::V25
+        SemanticVersion::CURRENT
     );
     assert!(matches!(
         lowered.semantic_module.machines[0].blocks[0].operations[0].kind,
@@ -3153,10 +3153,6 @@ fn checked_source_same_carrier_policy_casts_retag_without_terminal_work() {
         .expect("same-carrier wrapping casts should select terminal wrapping addition");
     let erasure = lower_machine(&checked, "terminal_explicit_policy_erasure_runtime")
         .expect("same-carrier policy erasure should lower as an identity");
-    assert!(matches!(
-        lower_machine(&checked, "terminal_cross_carrier_cast_not_erased"),
-        Err(LoweringError::Unsupported(_))
-    ));
     assert!(matches!(
         &wrapping.semantic_module.machines[0].blocks[0].operations[..],
         [psi_terminal::Operation {
@@ -3284,6 +3280,154 @@ fn checked_source_same_carrier_policy_casts_retag_without_terminal_work() {
             ),
             73,
         );
+    }
+}
+
+#[test]
+fn checked_source_total_integer_widening_crosses_canonical_artifacts_and_native_targets() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("total integer-widening source canaries should compile");
+    let cases = [
+        (
+            "terminal_unsigned_widen_runtime",
+            IntegerType::new(IntegerSign::Unsigned, 8).expect("u8"),
+            IntegerType::new(IntegerSign::Unsigned, 64).expect("u64"),
+            IntegerValue::Unsigned(250),
+            IntegerValue::Unsigned(250),
+            2_u64,
+            false,
+        ),
+        (
+            "terminal_signed_widen_runtime",
+            IntegerType::new(IntegerSign::Signed, 8).expect("i8"),
+            IntegerType::new(IntegerSign::Signed, 64).expect("i64"),
+            IntegerValue::Signed(-128),
+            IntegerValue::Signed(-128),
+            2,
+            false,
+        ),
+        (
+            "terminal_unsigned_to_signed_widen_runtime",
+            IntegerType::new(IntegerSign::Unsigned, 8).expect("u8"),
+            IntegerType::new(IntegerSign::Signed, 16).expect("i16"),
+            IntegerValue::Unsigned(255),
+            IntegerValue::Signed(255),
+            2,
+            false,
+        ),
+        (
+            "terminal_unsigned_widen_then_wrapping_add",
+            IntegerType::new(IntegerSign::Unsigned, 8).expect("u8"),
+            IntegerType::new(IntegerSign::Unsigned, 64).expect("u64"),
+            IntegerValue::Unsigned(250),
+            IntegerValue::Unsigned(251),
+            4,
+            true,
+        ),
+    ];
+
+    for (machine, source_type, target_type, input, expected, fuel, nested_add) in cases {
+        let lowered = lower_machine(&checked, machine)
+            .unwrap_or_else(|error| panic!("{machine} should lower: {error:?}"));
+        assert_eq!(
+            lowered.semantic_module.semantic_version,
+            SemanticVersion::V26
+        );
+        assert!(
+            lowered.semantic_module.machines[0]
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .any(|operation| matches!(operation.kind, OperationKind::IntegerWiden { .. })),
+            "{machine} must retain widening as terminal work"
+        );
+        let semantic = encode_module(&lowered.semantic_module)
+            .unwrap_or_else(|error| panic!("{machine} semantic module should encode: {error:?}"));
+        let proof = encode_proof_bundle(&lowered.proof_bundle)
+            .unwrap_or_else(|error| panic!("{machine} proof should encode: {error:?}"));
+        drop(lowered);
+
+        let argument = |value| TerminalScalarValue::Integer {
+            scalar_type: source_type,
+            value,
+        };
+        let zero = match source_type.sign() {
+            IntegerSign::Signed => IntegerValue::Signed(0),
+            IntegerSign::Unsigned => IntegerValue::Unsigned(0),
+        };
+        let measured = interpret_terminal_artifact_measured(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            &[argument(input), argument(zero)],
+        )
+        .unwrap_or_else(|error| panic!("{machine} artifact should interpret: {error:?}"));
+        assert_eq!(
+            measured.value(),
+            TerminalScalarValue::Integer {
+                scalar_type: target_type,
+                value: expected,
+            },
+            "{machine} result"
+        );
+        assert_eq!(measured.usage().total_units(), fuel, "{machine} fuel");
+
+        let abstract_operations =
+            lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
+                .unwrap_or_else(|error| panic!("{machine} should cross Omega: {error:?}"));
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let target_operations = lower_to_target_operations(&abstract_operations, target)
+                .unwrap_or_else(|error| panic!("{machine} should select: {error:?}"));
+            let TerminalTargetOperation::ReturnIntegerExpression { expression, .. } =
+                &target_operations.functions[0].operation
+            else {
+                panic!("{machine} should return an integer expression");
+            };
+            if nested_add {
+                let TerminalTargetIntegerExpression::WrappingAdd { left, .. } = expression else {
+                    panic!("{machine} should retain its wrapping add");
+                };
+                assert!(matches!(
+                    left.as_ref(),
+                    TerminalTargetIntegerExpression::IntegerWiden { .. }
+                ));
+            } else {
+                assert!(matches!(
+                    expression,
+                    TerminalTargetIntegerExpression::IntegerWiden { .. }
+                ));
+            }
+            let assigned = assign_registers(&target_operations)
+                .unwrap_or_else(|error| panic!("{machine} homes should assign: {error:?}"));
+            emit_machine_code(&assigned)
+                .unwrap_or_else(|error| panic!("{machine} should emit: {error:?}"));
+        }
+
+        #[cfg(unix)]
+        {
+            let target_operations =
+                lower_to_target_operations(&abstract_operations, NativeTarget::host())
+                    .unwrap_or_else(|error| panic!("{machine} host selection: {error:?}"));
+            let assigned = assign_registers(&target_operations)
+                .unwrap_or_else(|error| panic!("{machine} host homes: {error:?}"));
+            let machine_code = emit_machine_code(&assigned)
+                .unwrap_or_else(|error| panic!("{machine} host emission: {error:?}"));
+            let object = build_terminal_object_artifact(&machine_code)
+                .unwrap_or_else(|error| panic!("{machine} host object: {error:?}"));
+            let bits = |value: IntegerValue| match value {
+                IntegerValue::Unsigned(value) => value as u64,
+                IntegerValue::Signed(value) => value as i64 as u64,
+            };
+            assert!(
+                host_machine_code_with_two_u64_matches(
+                    object.entry_function().bytes(&object),
+                    bits(input),
+                    0,
+                    bits(expected),
+                ),
+                "{machine} native result"
+            );
+        }
     }
 }
 

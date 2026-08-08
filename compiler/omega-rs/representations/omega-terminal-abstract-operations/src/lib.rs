@@ -100,6 +100,13 @@ pub enum TerminalAbstractOperation {
         scalar_type: IntegerType,
         operand: ValueId,
     },
+    IntegerWiden {
+        psi_operation: OperationId,
+        result: ValueId,
+        source_type: IntegerType,
+        target_type: IntegerType,
+        operand: ValueId,
+    },
     IntegerBitwiseAnd {
         psi_operation: OperationId,
         result: ValueId,

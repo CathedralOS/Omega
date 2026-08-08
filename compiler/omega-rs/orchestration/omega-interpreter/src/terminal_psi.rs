@@ -346,6 +346,32 @@ impl<'module> TerminalExecution<'module> {
                             TerminalScalarValue::Integer { scalar_type, value },
                         );
                     }
+                    OperationKind::IntegerWiden { operand } => {
+                        let ScalarType::Integer(target_type) = operation.result.scalar_type else {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        };
+                        let TerminalScalarValue::Integer {
+                            scalar_type: source_type,
+                            value,
+                        } = self
+                            .values
+                            .get(&operand)
+                            .copied()
+                            .ok_or(TerminalInterpretError::VerifiedValueMissing(operand))?
+                        else {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        };
+                        let value = source_type
+                            .widen_value_to(target_type, value)
+                            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                        self.values.insert(
+                            operation.result.id,
+                            TerminalScalarValue::Integer {
+                                scalar_type: target_type,
+                                value,
+                            },
+                        );
+                    }
                     OperationKind::IntegerBitwiseAnd { left, right }
                     | OperationKind::IntegerBitwiseOr { left, right }
                     | OperationKind::IntegerBitwiseXor { left, right } => {

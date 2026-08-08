@@ -777,11 +777,32 @@ ensures 0u64 == 0u64
     value as u64
 }
 
-machine terminal_cross_carrier_cast_not_erased(value: u8) -> u16
-requires 0u16 == 0u16
-ensures 0u16 == 0u16
+machine terminal_unsigned_widen_runtime(value: u8, ignored: u8) -> u64
+requires 0u64 == 0u64
+ensures 0u64 == 0u64
 {
-    value as u16
+    value as u64
+}
+
+machine terminal_signed_widen_runtime(value: i8, ignored: i8) -> i64
+requires 0i64 == 0i64
+ensures 0i64 == 0i64
+{
+    value as i64
+}
+
+machine terminal_unsigned_to_signed_widen_runtime(value: u8, ignored: u8) -> i16
+requires 0i16 == 0i16
+ensures 0i16 == 0i16
+{
+    value as i16
+}
+
+machine terminal_unsigned_widen_then_wrapping_add(value: u8, ignored: u8) -> u64 in Wrapping
+requires 0u64 == 0u64
+ensures 0u64 == 0u64
+{
+    (value as u64 in Wrapping) + 1u64
 }
 
 machine terminal_wrapping_negate_runtime(value: i8 in Wrapping, ignored: i8) -> i8 in Wrapping
