@@ -1322,14 +1322,8 @@ fn lower_selected_machine(
     {
         return lower_explicit_crash_machine(checked, machine, entry_state);
     }
-    if let [entry_state] = states {
-        return match checked.primitive_type_reference(entry_state.return_type) {
-            Some(PrimitiveType::Bool) => lower_boolean_machine(checked, machine, entry_state),
-            _ => lower_direct_parameter_machine(checked, machine, entry_state),
-        };
-    }
-    if states.len() >= 2 {
-        return lower_nested_scalar_branch_machine(checked, machine, states);
+    if !states.is_empty() {
+        return lower_scalar_graph_machine(checked, machine, states);
     }
     unsupported("machine must contain at least one state")
 }
@@ -1642,7 +1636,7 @@ fn evaluate_known_scalar_graph(states: &[LoweredScalarBranchState]) -> Option<Kn
         .then_some(expected)
 }
 
-fn lower_nested_scalar_branch_machine(
+fn lower_scalar_graph_machine(
     checked: &CheckedTrees,
     machine: &psi_checked_trees::machine::Machine,
     states: &[psi_checked_trees::state::State],
@@ -1651,13 +1645,13 @@ fn lower_nested_scalar_branch_machine(
         .iter()
         .any(|state| !checked.state_contracts(state).is_empty())
     {
-        return unsupported("nested branch state contracts are not supported");
+        return unsupported("scalar graph state contracts are not supported");
     }
     let result_type = terminal_scalar_type(
         checked
             .primitive_type_reference(states[0].return_type)
             .ok_or(LoweringError::Unsupported(
-                "nested branch result must be a primitive Boolean or integer",
+                "scalar graph result must be a primitive Boolean or integer",
             ))?,
     )?;
     let (identity_reshuffles, partition_compositions) =
@@ -1669,18 +1663,18 @@ fn lower_nested_scalar_branch_machine(
     for (state_index, state) in states.iter().enumerate() {
         if terminal_scalar_type(checked.primitive_type_reference(state.return_type).ok_or(
             LoweringError::Unsupported(
-                "nested branch states must return a primitive Boolean or integer",
+                "scalar graph states must return a primitive Boolean or integer",
             ),
         )?)? != result_type
         {
-            return unsupported("nested branch state result types must match exactly");
+            return unsupported("scalar graph state result types must match exactly");
         }
         let parameters = checked.state_parameters(state);
         if parameters
             .iter()
             .any(|parameter| parameter.is_self || parameter.is_const || parameter.is_mutable)
         {
-            return unsupported("qualified nested branch parameters are not supported");
+            return unsupported("qualified scalar graph parameters are not supported");
         }
         let parameter_types = parameters
             .iter()
@@ -1689,7 +1683,7 @@ fn lower_nested_scalar_branch_machine(
                     checked
                         .primitive_type_reference(parameter.type_reference)
                         .ok_or(LoweringError::Unsupported(
-                            "nested branch parameters must be primitive Boolean or integer values",
+                            "scalar graph parameters must be primitive Boolean or integer values",
                         ))?,
                 )
             })
@@ -1730,7 +1724,7 @@ fn lower_nested_scalar_branch_machine(
                 && when_false.guard == TransitionGuardNode::Always =>
             {
                 if when_true.continuation.is_valid() || when_false.continuation.is_valid() {
-                    return unsupported("nested branch transitions cannot carry continuations");
+                    return unsupported("scalar graph transitions cannot carry continuations");
                 }
                 let TransitionGuardNode::When(condition) = when_true.guard else {
                     unreachable!("match guard establishes a conditional transition")
@@ -1740,7 +1734,7 @@ fn lower_nested_scalar_branch_machine(
                 validate_boolean_parameter_types(&condition, &parameter_types)?;
 
                 let (when_true_target, when_true_arguments) =
-                    lower_nested_branch_conditional_successor(
+                    lower_scalar_graph_conditional_successor(
                         checked,
                         states,
                         parameters,
@@ -1748,7 +1742,7 @@ fn lower_nested_scalar_branch_machine(
                         when_true,
                     )?;
                 let (when_false_target, when_false_arguments) =
-                    lower_nested_branch_conditional_successor(
+                    lower_scalar_graph_conditional_successor(
                         checked,
                         states,
                         parameters,
@@ -1774,9 +1768,9 @@ fn lower_nested_scalar_branch_machine(
                 if transition.guard == TransitionGuardNode::Always =>
             {
                 if transition.continuation.is_valid() {
-                    return unsupported("nested branch transitions cannot carry continuations");
+                    return unsupported("scalar graph transitions cannot carry continuations");
                 }
-                let (target, arguments) = lower_nested_branch_jump_successor(
+                let (target, arguments) = lower_scalar_graph_jump_successor(
                     checked,
                     states,
                     parameters,
@@ -1791,7 +1785,7 @@ fn lower_nested_scalar_branch_machine(
             }
             _ => {
                 return unsupported(
-                    "nested branch states must return one scalar expression, jump unconditionally, crash explicitly, or contain one ordered Boolean transition",
+                    "scalar graph states must return one scalar expression, jump unconditionally, crash explicitly, or contain one ordered Boolean transition",
                 );
             }
         };
@@ -1808,7 +1802,7 @@ fn lower_nested_scalar_branch_machine(
     }
     let mut visited = vec![false; states.len()];
     let mut active = vec![false; states.len()];
-    validate_nested_branch_graph(0, &successors, &mut visited, &mut active)?;
+    validate_scalar_graph(0, &successors, &mut visited, &mut active)?;
     if visited.iter().any(|visited| !*visited) {
         return unsupported("nested terminal branch control contains an unreachable state");
     }
@@ -1832,7 +1826,7 @@ fn lower_nested_scalar_branch_machine(
             has_crash,
         )?),
     };
-    Ok(build_nested_scalar_branch_module(
+    Ok(build_scalar_graph_module(
         &lowered_states,
         result_type,
         contract_value,
@@ -1841,7 +1835,7 @@ fn lower_nested_scalar_branch_machine(
     ))
 }
 
-fn lower_nested_branch_conditional_successor(
+fn lower_scalar_graph_conditional_successor(
     checked: &CheckedTrees,
     states: &[psi_checked_trees::state::State],
     parameters: &[psi_checked_trees::signature::StateParameter],
@@ -1851,19 +1845,19 @@ fn lower_nested_branch_conditional_successor(
     let TransitionTargetNode::Named { path, arguments } =
         checked.statement_table.transition_target(transition.target)
     else {
-        return unsupported("nested branch successors must target named states");
+        return unsupported("scalar graph successors must target named states");
     };
     let target = states
         .iter()
         .position(|candidate| candidate.symbol == path.symbol)
         .ok_or(LoweringError::Unsupported(
-            "nested branch successor must belong to the selected machine",
+            "scalar graph successor must belong to the selected machine",
         ))?;
     let target_parameters = checked.state_parameters(&states[target]);
     let arguments = checked.statement_table.expression_handles(*arguments);
     if arguments.len() != target_parameters.len() {
         return unsupported(
-            "nested branch successor bindings must match the target parameter count",
+            "scalar graph successor bindings must match the target parameter count",
         );
     }
     let arguments = arguments
@@ -1874,7 +1868,7 @@ fn lower_nested_branch_conditional_successor(
                 checked
                     .primitive_type_reference(target_parameter.type_reference)
                     .ok_or(LoweringError::Unsupported(
-                        "nested branch target parameters must be primitive Boolean or integer values",
+                        "scalar graph target parameters must be primitive Boolean or integer values",
                     ))?,
             )?;
             lower_direct_return_expression(
@@ -1890,7 +1884,7 @@ fn lower_nested_branch_conditional_successor(
     Ok((target, arguments))
 }
 
-fn lower_nested_branch_jump_successor(
+fn lower_scalar_graph_jump_successor(
     checked: &CheckedTrees,
     states: &[psi_checked_trees::state::State],
     parameters: &[psi_checked_trees::signature::StateParameter],
@@ -1900,19 +1894,19 @@ fn lower_nested_branch_jump_successor(
     let TransitionTargetNode::Named { path, arguments } =
         checked.statement_table.transition_target(transition.target)
     else {
-        return unsupported("nested branch successors must target named states");
+        return unsupported("scalar graph successors must target named states");
     };
     let target = states
         .iter()
         .position(|candidate| candidate.symbol == path.symbol)
         .ok_or(LoweringError::Unsupported(
-            "nested branch successor must belong to the selected machine",
+            "scalar graph successor must belong to the selected machine",
         ))?;
     let target_parameters = checked.state_parameters(&states[target]);
     let arguments = checked.statement_table.expression_handles(*arguments);
     if arguments.len() != target_parameters.len() {
         return unsupported(
-            "nested branch successor bindings must match the target parameter count",
+            "scalar graph successor bindings must match the target parameter count",
         );
     }
     let arguments = arguments
@@ -1923,7 +1917,7 @@ fn lower_nested_branch_jump_successor(
                 checked
                     .primitive_type_reference(target_parameter.type_reference)
                     .ok_or(LoweringError::Unsupported(
-                        "nested branch target parameters must be primitive Boolean or integer values",
+                        "scalar graph target parameters must be primitive Boolean or integer values",
                     ))?,
             )?;
             lower_direct_return_expression(
@@ -1949,7 +1943,7 @@ fn validate_boolean_parameter_types(
             if parameter_types.get(*position) == Some(&ScalarType::Boolean) {
                 Ok(())
             } else {
-                unsupported("nested branch guard parameters must be Boolean")
+                unsupported("scalar graph guard parameters must be Boolean")
             }
         }
         LoweredBooleanReturnExpression::Not { operand } => {
@@ -1980,7 +1974,7 @@ fn validate_direct_parameter_types(
             if parameter_types.get(*position) == Some(scalar_type) {
                 Ok(())
             } else {
-                unsupported("nested branch integer guard parameter type does not match")
+                unsupported("scalar graph integer guard parameter type does not match")
             }
         }
         LoweredDirectExpression::IntegerLiteral { .. } => Ok(()),
@@ -1994,7 +1988,7 @@ fn validate_direct_parameter_types(
     }
 }
 
-fn validate_nested_branch_graph(
+fn validate_scalar_graph(
     state: usize,
     successors: &[Vec<usize>],
     visited: &mut [bool],
@@ -2008,127 +2002,11 @@ fn validate_nested_branch_graph(
     }
     active[state] = true;
     for successor in &successors[state] {
-        validate_nested_branch_graph(*successor, successors, visited, active)?;
+        validate_scalar_graph(*successor, successors, visited, active)?;
     }
     active[state] = false;
     visited[state] = true;
     Ok(())
-}
-
-fn lower_boolean_machine(
-    checked: &CheckedTrees,
-    machine: &psi_checked_trees::machine::Machine,
-    entry_state: &psi_checked_trees::state::State,
-) -> Result<LoweredTerminalPsi, LoweringError> {
-    if !checked.state_contracts(entry_state).is_empty() {
-        return unsupported("state contracts are not supported");
-    }
-    let parameters = checked.state_parameters(entry_state);
-    if !parameters.is_empty()
-        && parameters.iter().all(|parameter| {
-            checked
-                .primitive_type_reference(parameter.type_reference)
-                .is_some_and(|primitive| {
-                    !matches!(
-                        primitive,
-                        PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64
-                    )
-                })
-        })
-    {
-        return lower_integer_comparison_machine(checked, machine, entry_state);
-    }
-    if parameters
-        .iter()
-        .any(|parameter| parameter.is_self || parameter.is_const || parameter.is_mutable)
-    {
-        return unsupported("qualified Boolean machine parameters are not supported");
-    }
-    if parameters.iter().any(|parameter| {
-        checked.primitive_type_reference(parameter.type_reference) != Some(PrimitiveType::Bool)
-    }) {
-        return unsupported("Boolean source machines require Boolean parameters");
-    }
-    let statements = checked
-        .statement_table
-        .statements(entry_state.statement_nodes);
-    let [StatementNode::Expression(return_expression)] = statements else {
-        return unsupported("Boolean source machine must contain exactly one value expression");
-    };
-    let return_expression = lower_boolean_expression(checked, *return_expression, parameters)?;
-    validate_short_circuit_expression(&return_expression)?;
-    let known_parameters = vec![None; parameters.len()];
-    let expected_value = evaluate_boolean_expression(&return_expression, &known_parameters);
-    let contract_value = validate_boolean_contract(checked, machine, expected_value, false)?;
-    let (identity_reshuffles, partition_compositions) =
-        lower_content_evidence(checked, machine, entry_state)?;
-    Ok(build_boolean_module(
-        parameters.len(),
-        return_expression,
-        contract_value,
-        identity_reshuffles,
-        partition_compositions,
-    ))
-}
-
-fn lower_integer_comparison_machine(
-    checked: &CheckedTrees,
-    machine: &psi_checked_trees::machine::Machine,
-    entry_state: &psi_checked_trees::state::State,
-) -> Result<LoweredTerminalPsi, LoweringError> {
-    let parameters = checked.state_parameters(entry_state);
-    if parameters
-        .iter()
-        .any(|parameter| parameter.is_self || parameter.is_const || parameter.is_mutable)
-    {
-        return unsupported("qualified integer-comparison parameters are not supported");
-    }
-    let statements = checked
-        .statement_table
-        .statements(entry_state.statement_nodes);
-    let [StatementNode::Expression(expression)] = statements else {
-        return unsupported("integer-comparison source machines require one value expression");
-    };
-    let parameter_types = parameters
-        .iter()
-        .map(|parameter| {
-            integer_scalar_type(
-                checked
-                    .primitive_type_reference(parameter.type_reference)
-                    .ok_or(LoweringError::Unsupported(
-                        "integer-comparison parameters must have primitive integer type",
-                    ))?,
-            )
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let return_expression = lower_boolean_expression(checked, *expression, parameters)?;
-    if !is_integer_comparison_expression(&return_expression) {
-        return unsupported("integer-comparison source machines require a builtin comparison");
-    }
-
-    let contract_value = validate_boolean_contract(checked, machine, None, false)?;
-    let (identity_reshuffles, partition_compositions) =
-        lower_content_evidence(checked, machine, entry_state)?;
-    let terminal_parameters = parameter_types
-        .iter()
-        .enumerate()
-        .map(|(index, scalar_type)| ValueDeclaration {
-            id: value_id(
-                u64::try_from(index)
-                    .expect("parameter index fits a semantic identity")
-                    .checked_add(1)
-                    .expect("parameter identity is nonzero"),
-            ),
-            scalar_type: *scalar_type,
-        })
-        .collect::<Vec<_>>();
-    Ok(build_integer_comparison_module(
-        terminal_parameters,
-        return_expression,
-        contract_value,
-        identity_reshuffles,
-        partition_compositions,
-    ))
 }
 
 fn lower_boolean_expression(
@@ -2353,104 +2231,6 @@ fn is_integer_comparison_expression(expression: &LoweredBooleanReturnExpression)
         ),
         _ => false,
     }
-}
-
-fn evaluate_boolean_expression(
-    expression: &LoweredBooleanReturnExpression,
-    parameters: &[Option<bool>],
-) -> Option<bool> {
-    match expression {
-        LoweredBooleanReturnExpression::Constant { value } => Some(*value),
-        LoweredBooleanReturnExpression::Parameter { position } => {
-            parameters.get(*position).copied().flatten()
-        }
-        LoweredBooleanReturnExpression::Not { operand } => {
-            Some(!evaluate_boolean_expression(operand, parameters)?)
-        }
-        LoweredBooleanReturnExpression::Equal { left, right } => Some(
-            evaluate_boolean_expression(left, parameters)?
-                == evaluate_boolean_expression(right, parameters)?,
-        ),
-        LoweredBooleanReturnExpression::IntegerComparison { .. } => None,
-        LoweredBooleanReturnExpression::And { left, right } => {
-            let left = evaluate_boolean_expression(left, parameters)?;
-            if left {
-                evaluate_boolean_expression(right, parameters)
-            } else {
-                Some(false)
-            }
-        }
-        LoweredBooleanReturnExpression::Or { left, right } => {
-            let left = evaluate_boolean_expression(left, parameters)?;
-            if left {
-                Some(true)
-            } else {
-                evaluate_boolean_expression(right, parameters)
-            }
-        }
-    }
-}
-
-fn lower_direct_parameter_machine(
-    checked: &CheckedTrees,
-    machine: &psi_checked_trees::machine::Machine,
-    entry_state: &psi_checked_trees::state::State,
-) -> Result<LoweredTerminalPsi, LoweringError> {
-    if !checked.state_contracts(entry_state).is_empty() {
-        return unsupported("state contracts are not supported");
-    }
-    let parameters = checked.state_parameters(entry_state);
-    if parameters
-        .iter()
-        .any(|parameter| parameter.is_self || parameter.is_const || parameter.is_mutable)
-    {
-        return unsupported("qualified direct-machine parameters are not supported");
-    }
-    let parameter_types = parameters
-        .iter()
-        .map(|parameter| {
-            integer_scalar_type(
-                checked
-                    .primitive_type_reference(parameter.type_reference)
-                    .ok_or(LoweringError::Unsupported(
-                        "direct-machine parameters must be primitive integers",
-                    ))?,
-            )
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let result_type = integer_scalar_type(
-        checked
-            .primitive_type_reference(entry_state.return_type)
-            .ok_or(LoweringError::Unsupported(
-                "machine result must be a primitive integer",
-            ))?,
-    )?;
-    let statements = checked
-        .statement_table
-        .statements(entry_state.statement_nodes);
-    let [StatementNode::Expression(return_expression)] = statements else {
-        return unsupported("direct-parameter machine must contain exactly one value expression");
-    };
-    let (return_expression, _) = lower_direct_return_expression(
-        checked,
-        *return_expression,
-        parameters,
-        &parameter_types,
-        result_type,
-    )?;
-    let known_parameters = vec![None; parameter_types.len()];
-    let expected_value = evaluate_integer_direct_expression(&return_expression, &known_parameters);
-    let contract_value = validate_contract(checked, machine, result_type, expected_value, false)?;
-    let (identity_reshuffles, partition_compositions) =
-        lower_content_evidence(checked, machine, entry_state)?;
-    Ok(build_direct_parameter_module(
-        &parameter_types,
-        return_expression,
-        result_type,
-        contract_value,
-        identity_reshuffles,
-        partition_compositions,
-    ))
 }
 
 fn lower_direct_return_expression(
@@ -3629,216 +3409,7 @@ fn emit_reserved_boolean_tuple_stage_blocks(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn emit_boolean_decision_blocks(
-    decision: &LoweredBooleanDecision,
-    expression_parameters: &[ValueDeclaration],
-    block_parameters: Vec<ValueDeclaration>,
-    exit: LoweredBooleanDecisionExit,
-    next_value_identity: &mut u64,
-    next_edge_identity: &mut u64,
-    all_operations: &mut Vec<Operation>,
-    blocks: &mut Vec<Option<Block>>,
-) -> BlockId {
-    let block_index = blocks.len();
-    let block = block_id(
-        u64::try_from(block_index)
-            .expect("block index fits a semantic identity")
-            .checked_add(1)
-            .expect("block identity is nonzero"),
-    );
-    blocks.push(None);
-    let operation_start = all_operations.len();
-    let (terminator, operation_end) = match decision {
-        LoweredBooleanDecision::Value(expression) => {
-            let returned = emit_boolean_expression(
-                expression,
-                expression_parameters,
-                next_value_identity,
-                all_operations,
-            );
-            let edge = edge_id(*next_edge_identity);
-            *next_edge_identity = next_edge_identity
-                .checked_add(1)
-                .expect("short-circuit exit edge identities advance");
-            let terminator = match exit {
-                LoweredBooleanDecisionExit::Return => Terminator::Return {
-                    edge,
-                    value: returned,
-                },
-                LoweredBooleanDecisionExit::Jump { target } => Terminator::Jump {
-                    edge,
-                    target,
-                    arguments: vec![returned],
-                },
-            };
-            (terminator, all_operations.len())
-        }
-        LoweredBooleanDecision::Test {
-            condition,
-            when_true,
-            when_false,
-        } => {
-            let condition = emit_boolean_expression(
-                condition,
-                expression_parameters,
-                next_value_identity,
-                all_operations,
-            );
-            let operation_end = all_operations.len();
-            let true_edge = edge_id(*next_edge_identity);
-            let false_edge = edge_id(
-                next_edge_identity
-                    .checked_add(1)
-                    .expect("short-circuit false edge identity advances"),
-            );
-            *next_edge_identity = next_edge_identity
-                .checked_add(2)
-                .expect("short-circuit conditional edge identities advance");
-            let true_target = emit_boolean_decision_blocks(
-                when_true,
-                expression_parameters,
-                Vec::new(),
-                exit,
-                next_value_identity,
-                next_edge_identity,
-                all_operations,
-                blocks,
-            );
-            let false_target = emit_boolean_decision_blocks(
-                when_false,
-                expression_parameters,
-                Vec::new(),
-                exit,
-                next_value_identity,
-                next_edge_identity,
-                all_operations,
-                blocks,
-            );
-            (
-                Terminator::Conditional {
-                    condition,
-                    when_true: SuccessorEdge {
-                        edge: true_edge,
-                        target: true_target,
-                        arguments: Vec::new(),
-                    },
-                    when_false: SuccessorEdge {
-                        edge: false_edge,
-                        target: false_target,
-                        arguments: Vec::new(),
-                    },
-                },
-                operation_end,
-            )
-        }
-    };
-    blocks[block_index] = Some(Block {
-        id: block,
-        parameters: block_parameters,
-        operations: all_operations[operation_start..operation_end].to_vec(),
-        terminator,
-    });
-    block
-}
-
-#[allow(clippy::too_many_arguments)]
-fn build_boolean_short_circuit_module(
-    parameter_count: usize,
-    return_expression: LoweredBooleanReturnExpression,
-    contract_value: bool,
-    identity_reshuffles: LoweredContentIdentityReshuffles,
-    partition_compositions: LoweredContentPartitionCompositions,
-) -> LoweredTerminalPsi {
-    let parameters = (0..parameter_count)
-        .map(|index| ValueDeclaration {
-            id: value_id(
-                u64::try_from(index)
-                    .expect("parameter index fits a semantic identity")
-                    .checked_add(1)
-                    .expect("parameter identity is nonzero"),
-            ),
-            scalar_type: ScalarType::Boolean,
-        })
-        .collect::<Vec<_>>();
-    let mut next_value_identity = u64::try_from(parameter_count)
-        .expect("parameter count fits a semantic identity")
-        .checked_add(1)
-        .expect("generated identities follow parameter identities");
-    let decision = lower_boolean_value_decision(&return_expression);
-    let mut all_operations = Vec::new();
-    let mut blocks = Vec::new();
-    let mut next_edge_identity = 1_u64;
-    let entry = emit_boolean_decision_blocks(
-        &decision,
-        &parameters,
-        Vec::new(),
-        LoweredBooleanDecisionExit::Return,
-        &mut next_value_identity,
-        &mut next_edge_identity,
-        &mut all_operations,
-        &mut blocks,
-    );
-    let result = ValueDeclaration {
-        id: value_id(next_value_identity),
-        scalar_type: ScalarType::Boolean,
-    };
-    let literal = ScalarTerm::boolean(contract_value);
-    let goal = Proposition::Equal(literal.clone(), literal);
-    let obligation = obligation_id(1);
-    let mut structural_places = identity_reshuffles
-        .structural_places
-        .into_iter()
-        .map(|place| (place.id, place.kind))
-        .collect::<BTreeMap<_, _>>();
-    for place in partition_compositions.structural_places {
-        merge_content_place_declaration(&mut structural_places, place)
-            .expect("checked lowering rejects conflicting structural places");
-    }
-    LoweredTerminalPsi {
-        semantic_module: TerminalModule {
-            semantic_version: SemanticVersion::CURRENT,
-            entry: machine_id(1),
-            proposition_declarations: Vec::new(),
-            proposition_applications: Vec::new(),
-            machines: vec![TerminalMachine {
-                id: machine_id(1),
-                parameters,
-                result,
-                structural_places: structural_places
-                    .into_iter()
-                    .map(|(id, kind)| StructuralPlaceDeclaration { id, kind })
-                    .collect(),
-                content_entry_claims: identity_reshuffles.entry_claims,
-                content_identity_reshuffles: identity_reshuffles.reshuffles,
-                content_partition_compositions: partition_compositions.compositions,
-                entry,
-                blocks: blocks
-                    .into_iter()
-                    .map(|block| block.expect("every decision block is finalized"))
-                    .collect(),
-                contract: MachineContract {
-                    id: contract_id(1),
-                    crash_context: psi_terminal::CrashContextMaximum::portable_root(),
-                    requires: vec![goal.clone()],
-                    ensures: vec![ContractClause {
-                        obligation,
-                        proposition: goal,
-                    }],
-                },
-            }],
-        },
-        proof_bundle: ProofBundle {
-            evidence: vec![ObligationEvidence {
-                obligation,
-                route: EvidenceRoute::KernelDerived(PrimitiveJudgment::ReflexiveEquality),
-            }],
-        },
-        debug_map: None,
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
-fn build_nested_conditional_target(
+fn build_scalar_conditional_target(
     target: usize,
     arguments: &[LoweredDirectExpression],
     current_parameters: &[ValueDeclaration],
@@ -3980,7 +3551,7 @@ fn build_nested_conditional_target(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn build_nested_scalar_branch_module(
+fn build_scalar_graph_module(
     states: &[LoweredScalarBranchState],
     result_type: ScalarType,
     contract_value: KnownDirectScalar,
@@ -4019,7 +3590,7 @@ fn build_nested_scalar_branch_module(
                     };
                     next_value_identity = next_value_identity
                         .checked_add(1)
-                        .expect("nested block parameter identities advance");
+                        .expect("scalar graph block parameter identities advance");
                     parameter
                 })
                 .collect(),
@@ -4087,7 +3658,7 @@ fn build_nested_scalar_branch_module(
                     .iter()
                     .any(direct_expression_contains_short_circuit)
                 {
-                    let target = build_nested_conditional_target(
+                    let target = build_scalar_conditional_target(
                         *target,
                         arguments,
                         current_parameters,
@@ -4120,7 +3691,7 @@ fn build_nested_scalar_branch_module(
                     let edge = edge_id(next_edge_identity);
                     next_edge_identity = next_edge_identity
                         .checked_add(1)
-                        .expect("nested jump edge identities advance");
+                        .expect("scalar graph jump edge identities advance");
                     Terminator::Jump {
                         edge,
                         target: block_id(
@@ -4156,10 +3727,10 @@ fn build_nested_scalar_branch_module(
                     next_block_identity = next_block_identity
                         .checked_add(
                             u64::try_from(decision_block_count - 1)
-                                .expect("nested guard child count fits a semantic identity"),
+                                .expect("scalar graph guard child count fits a semantic identity"),
                         )
-                        .expect("nested guard block identities advance");
-                    let when_true = build_nested_conditional_target(
+                        .expect("scalar graph guard block identities advance");
+                    let when_true = build_scalar_conditional_target(
                         *when_true_target,
                         when_true_arguments,
                         current_parameters,
@@ -4168,7 +3739,7 @@ fn build_nested_scalar_branch_module(
                         &mut next_value_identity,
                         &mut pending_blocks,
                     );
-                    let when_false = build_nested_conditional_target(
+                    let when_false = build_scalar_conditional_target(
                         *when_false_target,
                         when_false_arguments,
                         current_parameters,
@@ -4202,12 +3773,12 @@ fn build_nested_scalar_branch_module(
                     let when_true_edge = edge_id(next_edge_identity);
                     next_edge_identity = next_edge_identity
                         .checked_add(1)
-                        .expect("nested branch edge identities advance");
+                        .expect("scalar graph edge identities advance");
                     let when_false_edge = edge_id(next_edge_identity);
                     next_edge_identity = next_edge_identity
                         .checked_add(1)
-                        .expect("nested branch edge identities advance");
-                    let when_true = build_nested_conditional_target(
+                        .expect("scalar graph edge identities advance");
+                    let when_true = build_scalar_conditional_target(
                         *when_true_target,
                         when_true_arguments,
                         current_parameters,
@@ -4216,7 +3787,7 @@ fn build_nested_scalar_branch_module(
                         &mut next_value_identity,
                         &mut pending_blocks,
                     );
-                    let when_false = build_nested_conditional_target(
+                    let when_false = build_scalar_conditional_target(
                         *when_false_target,
                         when_false_arguments,
                         current_parameters,
@@ -4277,7 +3848,7 @@ fn build_nested_scalar_branch_module(
                     let edge = edge_id(next_edge_identity);
                     next_edge_identity = next_edge_identity
                         .checked_add(1)
-                        .expect("nested return edge identities advance");
+                        .expect("scalar graph return edge identities advance");
                     Terminator::Return { edge, value }
                 }
             }
@@ -4507,191 +4078,6 @@ fn build_nested_scalar_branch_module(
     }
 }
 
-fn build_boolean_module(
-    parameter_count: usize,
-    return_expression: LoweredBooleanReturnExpression,
-    contract_value: bool,
-    identity_reshuffles: LoweredContentIdentityReshuffles,
-    partition_compositions: LoweredContentPartitionCompositions,
-) -> LoweredTerminalPsi {
-    if contains_short_circuit(&return_expression) {
-        return build_boolean_short_circuit_module(
-            parameter_count,
-            return_expression,
-            contract_value,
-            identity_reshuffles,
-            partition_compositions,
-        );
-    }
-    let parameters = (0..parameter_count)
-        .map(|index| ValueDeclaration {
-            id: value_id(
-                u64::try_from(index)
-                    .expect("parameter index fits a semantic identity")
-                    .checked_add(1)
-                    .expect("parameter identity is nonzero"),
-            ),
-            scalar_type: ScalarType::Boolean,
-        })
-        .collect::<Vec<_>>();
-    let mut next_value_identity = u64::try_from(parameter_count)
-        .expect("parameter count fits a semantic identity")
-        .checked_add(1)
-        .expect("generated identities follow the parameter identities");
-    let mut operations = Vec::new();
-    let returned = emit_boolean_expression(
-        &return_expression,
-        &parameters,
-        &mut next_value_identity,
-        &mut operations,
-    );
-    let result_id = value_id(next_value_identity);
-    let literal = ScalarTerm::boolean(contract_value);
-    let goal = Proposition::Equal(literal.clone(), literal);
-    let obligation = obligation_id(1);
-    let mut structural_places = identity_reshuffles
-        .structural_places
-        .into_iter()
-        .map(|place| (place.id, place.kind))
-        .collect::<BTreeMap<_, _>>();
-    for place in partition_compositions.structural_places {
-        merge_content_place_declaration(&mut structural_places, place)
-            .expect("checked lowering rejects conflicting structural places");
-    }
-    LoweredTerminalPsi {
-        semantic_module: TerminalModule {
-            semantic_version: SemanticVersion::CURRENT,
-            entry: machine_id(1),
-            proposition_declarations: Vec::new(),
-            proposition_applications: Vec::new(),
-            machines: vec![TerminalMachine {
-                id: machine_id(1),
-                parameters,
-                result: ValueDeclaration {
-                    id: result_id,
-                    scalar_type: ScalarType::Boolean,
-                },
-                structural_places: structural_places
-                    .into_iter()
-                    .map(|(id, kind)| StructuralPlaceDeclaration { id, kind })
-                    .collect(),
-                content_entry_claims: identity_reshuffles.entry_claims,
-                content_identity_reshuffles: identity_reshuffles.reshuffles,
-                content_partition_compositions: partition_compositions.compositions,
-                entry: block_id(1),
-                blocks: vec![Block {
-                    id: block_id(1),
-                    parameters: Vec::new(),
-                    operations,
-                    terminator: Terminator::Return {
-                        edge: edge_id(1),
-                        value: returned,
-                    },
-                }],
-                contract: MachineContract {
-                    id: contract_id(1),
-                    crash_context: psi_terminal::CrashContextMaximum::portable_root(),
-                    requires: vec![goal.clone()],
-                    ensures: vec![ContractClause {
-                        obligation,
-                        proposition: goal,
-                    }],
-                },
-            }],
-        },
-        proof_bundle: ProofBundle {
-            evidence: vec![ObligationEvidence {
-                obligation,
-                route: EvidenceRoute::KernelDerived(PrimitiveJudgment::ReflexiveEquality),
-            }],
-        },
-        debug_map: None,
-    }
-}
-
-fn build_integer_comparison_module(
-    parameters: Vec<ValueDeclaration>,
-    return_expression: LoweredBooleanReturnExpression,
-    contract_value: bool,
-    identity_reshuffles: LoweredContentIdentityReshuffles,
-    partition_compositions: LoweredContentPartitionCompositions,
-) -> LoweredTerminalPsi {
-    let mut next_value_identity = u64::try_from(parameters.len())
-        .expect("parameter count fits a semantic identity")
-        .checked_add(1)
-        .expect("comparison value identity is nonzero");
-    let mut operations = Vec::new();
-    let returned = emit_boolean_expression(
-        &return_expression,
-        &parameters,
-        &mut next_value_identity,
-        &mut operations,
-    );
-    let result_id = value_id(next_value_identity);
-    let literal = ScalarTerm::boolean(contract_value);
-    let goal = Proposition::Equal(literal.clone(), literal);
-    let obligation = obligation_id(1);
-    let mut structural_places = identity_reshuffles
-        .structural_places
-        .into_iter()
-        .map(|place| (place.id, place.kind))
-        .collect::<BTreeMap<_, _>>();
-    for place in partition_compositions.structural_places {
-        merge_content_place_declaration(&mut structural_places, place)
-            .expect("checked lowering rejects conflicting structural places");
-    }
-    LoweredTerminalPsi {
-        semantic_module: TerminalModule {
-            semantic_version: SemanticVersion::CURRENT,
-            entry: machine_id(1),
-            proposition_declarations: Vec::new(),
-            proposition_applications: Vec::new(),
-            machines: vec![TerminalMachine {
-                id: machine_id(1),
-                parameters,
-                result: ValueDeclaration {
-                    id: result_id,
-                    scalar_type: ScalarType::Boolean,
-                },
-                structural_places: structural_places
-                    .into_iter()
-                    .map(|(id, kind)| StructuralPlaceDeclaration { id, kind })
-                    .collect(),
-                content_entry_claims: identity_reshuffles.entry_claims,
-                content_identity_reshuffles: identity_reshuffles.reshuffles,
-                content_partition_compositions: partition_compositions.compositions,
-                entry: block_id(1),
-                blocks: vec![Block {
-                    id: block_id(1),
-                    parameters: Vec::new(),
-                    operations,
-                    terminator: Terminator::Return {
-                        edge: edge_id(1),
-                        value: returned,
-                    },
-                }],
-                contract: MachineContract {
-                    id: contract_id(1),
-                    crash_context: psi_terminal::CrashContextMaximum::portable_root(),
-                    requires: vec![goal.clone()],
-                    ensures: vec![ContractClause {
-                        obligation,
-                        proposition: goal,
-                    }],
-                },
-            }],
-        },
-        proof_bundle: ProofBundle {
-            evidence: vec![ObligationEvidence {
-                obligation,
-                route: EvidenceRoute::KernelDerived(PrimitiveJudgment::ReflexiveEquality),
-            }],
-        },
-        debug_map: None,
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
 fn emit_boolean_expression(
     expression: &LoweredBooleanReturnExpression,
     parameters: &[ValueDeclaration],
@@ -4789,106 +4175,6 @@ fn emit_boolean_expression(
         LoweredBooleanReturnExpression::And { .. } | LoweredBooleanReturnExpression::Or { .. } => {
             unreachable!("short-circuit Boolean expressions lower through terminal control")
         }
-    }
-}
-
-fn build_direct_parameter_module(
-    parameter_types: &[ScalarType],
-    return_expression: LoweredDirectExpression,
-    result_type: ScalarType,
-    contract_value: IntegerValue,
-    identity_reshuffles: LoweredContentIdentityReshuffles,
-    partition_compositions: LoweredContentPartitionCompositions,
-) -> LoweredTerminalPsi {
-    let terminal_parameters = parameter_types
-        .iter()
-        .enumerate()
-        .map(|(index, scalar_type)| ValueDeclaration {
-            id: value_id(
-                u64::try_from(index)
-                    .expect("parameter index fits a semantic identity")
-                    .checked_add(1)
-                    .expect("parameter identity is nonzero"),
-            ),
-            scalar_type: *scalar_type,
-        })
-        .collect::<Vec<_>>();
-    let mut next_value_identity = u64::try_from(parameter_types.len())
-        .expect("parameter count fits a semantic identity")
-        .checked_add(1)
-        .expect("generated identities follow the parameter identities");
-    let mut operations = Vec::new();
-    let returned = emit_direct_expression(
-        &return_expression,
-        &terminal_parameters,
-        &mut next_value_identity,
-        &mut operations,
-    );
-    let result_id = value_id(next_value_identity);
-    let ScalarType::Integer(integer_type) = result_type else {
-        unreachable!("source slice accepts only integer results");
-    };
-    let literal = ScalarTerm::integer(integer_type, contract_value)
-        .expect("validated source contract value fits its terminal integer type");
-    let goal = Proposition::Equal(literal.clone(), literal);
-    let obligation = obligation_id(1);
-    let mut structural_places = identity_reshuffles
-        .structural_places
-        .into_iter()
-        .map(|place| (place.id, place.kind))
-        .collect::<BTreeMap<_, _>>();
-    for place in partition_compositions.structural_places {
-        merge_content_place_declaration(&mut structural_places, place)
-            .expect("checked lowering rejects conflicting structural places");
-    }
-    LoweredTerminalPsi {
-        semantic_module: TerminalModule {
-            semantic_version: SemanticVersion::CURRENT,
-            entry: machine_id(1),
-            proposition_declarations: Vec::new(),
-            proposition_applications: Vec::new(),
-            machines: vec![TerminalMachine {
-                id: machine_id(1),
-                parameters: terminal_parameters,
-                result: ValueDeclaration {
-                    id: result_id,
-                    scalar_type: result_type,
-                },
-                structural_places: structural_places
-                    .into_iter()
-                    .map(|(id, kind)| StructuralPlaceDeclaration { id, kind })
-                    .collect(),
-                content_entry_claims: identity_reshuffles.entry_claims,
-                content_identity_reshuffles: identity_reshuffles.reshuffles,
-                content_partition_compositions: partition_compositions.compositions,
-                entry: block_id(1),
-                blocks: vec![Block {
-                    id: block_id(1),
-                    parameters: Vec::new(),
-                    operations,
-                    terminator: Terminator::Return {
-                        edge: edge_id(1),
-                        value: returned,
-                    },
-                }],
-                contract: MachineContract {
-                    id: contract_id(1),
-                    crash_context: psi_terminal::CrashContextMaximum::portable_root(),
-                    requires: vec![goal.clone()],
-                    ensures: vec![ContractClause {
-                        obligation,
-                        proposition: goal,
-                    }],
-                },
-            }],
-        },
-        proof_bundle: ProofBundle {
-            evidence: vec![ObligationEvidence {
-                obligation,
-                route: EvidenceRoute::KernelDerived(PrimitiveJudgment::ClosedIntegerRelation),
-            }],
-        },
-        debug_map: None,
     }
 }
 
