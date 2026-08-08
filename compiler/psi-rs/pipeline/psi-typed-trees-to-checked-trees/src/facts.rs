@@ -94,14 +94,9 @@ fn build_dynamic_conformance_facts(
             .and_then(|conformance| program.closed_conformance_rows(conformance))
             .unwrap_or_default()
         {
-            if matches!(
-                row.source,
-                psi_typed_trees::trait_definition::ConformanceRowSource::TraitDefault
-            ) || !row.realization_machine.is_valid()
-                || !row.realization_state.is_valid()
-            {
+            if !row.realization_machine.is_valid() || !row.realization_state.is_valid() {
                 diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
-                    "dynamic conformance row `{}::{}` reached checked lowering before its trait default was instantiated",
+                    "dynamic conformance row `{}::{}` reached checked lowering without an exact checked realization",
                     row.declaring_trait_name, row.requirement_name
                 )));
                 continue;
@@ -119,7 +114,7 @@ fn build_dynamic_conformance_facts(
                         psi_checked_trees::DynamicConformanceRowSource::Reference
                     }
                     psi_typed_trees::trait_definition::ConformanceRowSource::TraitDefault => {
-                        unreachable!("trait-default rows reject before checked facts")
+                        psi_checked_trees::DynamicConformanceRowSource::TraitDefault
                     }
                 },
             });

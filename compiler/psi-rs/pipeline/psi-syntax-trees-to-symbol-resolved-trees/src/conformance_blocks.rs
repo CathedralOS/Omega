@@ -115,7 +115,10 @@ pub(crate) fn route_inline_member_calls(program: &mut SymbolResolvedTrees) {
         plans.extend(
             rows.iter()
                 .filter(|row| {
-                    row.source == ConformanceRowSource::Inline && row.realization_machine.is_valid()
+                    matches!(
+                        row.source,
+                        ConformanceRowSource::Inline | ConformanceRowSource::TraitDefault
+                    ) && row.realization_machine.is_valid()
                 })
                 .map(|row| ConformanceRoutingPlan {
                     machine: row.realization_machine,

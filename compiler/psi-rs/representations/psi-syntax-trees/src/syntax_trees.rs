@@ -207,6 +207,13 @@ impl SyntaxTrees {
                                         self.copy_machine(other, machine),
                                     )
                                 }
+                                crate::item::ConformanceMember::TraitDefault {
+                                    declaring_trait,
+                                    machine,
+                                } => crate::item::ConformanceMember::TraitDefault {
+                                    declaring_trait: declaring_trait.clone(),
+                                    machine: self.copy_machine(other, machine),
+                                },
                                 crate::item::ConformanceMember::Reference {
                                     declaring_trait,
                                     requirement,

@@ -70,6 +70,13 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
                         crate::item::ConformanceMember::Machine(machine) => {
                             count_machine(syntax_trees, machine, counts)
                         }
+                        crate::item::ConformanceMember::TraitDefault {
+                            declaring_trait,
+                            machine,
+                        } => {
+                            count_identifier(declaring_trait, counts);
+                            count_machine(syntax_trees, machine, counts);
+                        }
                         crate::item::ConformanceMember::Reference {
                             declaring_trait,
                             requirement,

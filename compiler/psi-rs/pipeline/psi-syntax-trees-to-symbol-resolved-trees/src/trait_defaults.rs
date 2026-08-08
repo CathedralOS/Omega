@@ -12,7 +12,10 @@ use psi_syntax_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression,
 };
 use psi_syntax_trees::identifier::Identifier;
-use psi_syntax_trees::item::{Item, Machine, State, StateSignatureNode};
+use psi_syntax_trees::item::{
+    ConformanceBody, ConformanceItem, ConformanceMember, Item, ItemHandle, Machine, State,
+    StateSignatureNode,
+};
 use psi_syntax_trees::statement::StatementNode;
 use psi_syntax_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -39,7 +42,20 @@ struct DefaultCandidate {
 
 type EffectiveDefaults = BTreeMap<String, Vec<DefaultCandidate>>;
 
-pub(super) fn synthesize_trait_defaults(syntax: &mut SyntaxTrees) -> Result<(), Vec<Diagnostic>> {
+#[derive(Clone)]
+struct ConformanceInput {
+    handle: ItemHandle,
+    declaration: ConformanceItem,
+}
+
+#[derive(Clone)]
+struct RequirementInstance {
+    declaring_trait: String,
+    signature: StateSignatureNode,
+    substitution: HashMap<String, TypeReferenceHandle>,
+}
+
+pub fn synthesize_trait_defaults(syntax: &mut SyntaxTrees) -> Result<(), Vec<Diagnostic>> {
     let data_names = syntax
         .root_items()
         .filter_map(|item| match item {
@@ -112,16 +128,13 @@ pub(super) fn synthesize_trait_defaults(syntax: &mut SyntaxTrees) -> Result<(), 
         .collect::<HashMap<_, _>>();
 
     let conformances = syntax
-        .root_items()
-        .filter_map(|item| match item {
-            Item::Conformance(conformance) => Some((
-                conformance.type_name.as_str().to_string(),
-                conformance.trait_name.as_str().to_string(),
-                syntax
-                    .type_references
-                    .type_reference_handles(conformance.trait_arguments)
-                    .to_vec(),
-            )),
+        .root_item_handles()
+        .iter()
+        .filter_map(|handle| match syntax.root_item(*handle) {
+            Item::Conformance(conformance) => Some(ConformanceInput {
+                handle: *handle,
+                declaration: conformance.clone(),
+            }),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -144,7 +157,13 @@ pub(super) fn synthesize_trait_defaults(syntax: &mut SyntaxTrees) -> Result<(), 
 
     let mut diagnostics = Vec::new();
     let mut reported_conflicts = HashSet::new();
-    for (type_name, trait_name, arguments) in conformances {
+    for conformance in conformances {
+        let type_name = conformance.declaration.type_name.as_str().to_string();
+        let trait_name = conformance.declaration.trait_name.as_str().to_string();
+        let arguments = syntax
+            .type_references
+            .type_reference_handles(conformance.declaration.trait_arguments)
+            .to_vec();
         if !data_names.contains(&type_name) {
             continue;
         }
@@ -159,6 +178,106 @@ pub(super) fn synthesize_trait_defaults(syntax: &mut SyntaxTrees) -> Result<(), 
             )));
             continue;
         }
+        let substitution = conformed_trait
+            .parameter_names
+            .iter()
+            .cloned()
+            .zip(arguments.iter().copied())
+            .collect::<HashMap<_, _>>();
+
+        if let ConformanceBody::Closed { members } = conformance.declaration.body.clone() {
+            let mut closed_members = syntax.items.conformance_members(members).to_vec();
+            let mut requirements = Vec::new();
+            collect_requirement_instances(
+                syntax,
+                &trait_name,
+                &substitution,
+                &traits,
+                &mut HashSet::new(),
+                &mut HashSet::new(),
+                &mut requirements,
+            );
+            let mut covered = HashSet::new();
+            for member in &closed_members {
+                match member {
+                    ConformanceMember::Machine(machine) => {
+                        let matching = requirements
+                            .iter()
+                            .filter(|requirement| {
+                                requirement.signature.name.as_str() == machine.name.as_str()
+                            })
+                            .collect::<Vec<_>>();
+                        if let [requirement] = matching.as_slice() {
+                            covered.insert((
+                                requirement.declaring_trait.clone(),
+                                requirement.signature.name.as_str().to_string(),
+                            ));
+                        }
+                    }
+                    ConformanceMember::TraitDefault {
+                        declaring_trait,
+                        machine,
+                    } => {
+                        covered.insert((
+                            declaring_trait.as_str().to_string(),
+                            machine.name.as_str().to_string(),
+                        ));
+                    }
+                    ConformanceMember::Reference {
+                        declaring_trait,
+                        requirement,
+                        ..
+                    } => {
+                        covered.insert((
+                            declaring_trait.as_str().to_string(),
+                            requirement.as_str().to_string(),
+                        ));
+                    }
+                }
+            }
+
+            let mut added = false;
+            for requirement in requirements {
+                let key = (
+                    requirement.declaring_trait.clone(),
+                    requirement.signature.name.as_str().to_string(),
+                );
+                if covered.contains(&key) || !requirement.signature.is_default {
+                    continue;
+                }
+                let signature = if requirement.substitution.is_empty() {
+                    requirement.signature
+                } else {
+                    instantiate_default_signature(
+                        syntax,
+                        &requirement.signature,
+                        &requirement.substitution,
+                    )
+                };
+                let machine = machine_from_signature(
+                    syntax,
+                    &type_name,
+                    Identifier::generated(signature.name.as_str()),
+                    &signature,
+                );
+                closed_members.push(ConformanceMember::TraitDefault {
+                    declaring_trait: Identifier::generated(requirement.declaring_trait),
+                    machine,
+                });
+                covered.insert(key);
+                added = true;
+            }
+            if added {
+                replace_closed_members(
+                    syntax,
+                    conformance.handle,
+                    conformance.declaration,
+                    closed_members,
+                );
+            }
+            continue;
+        }
+
         if trait_name == "Equatable"
             && let Some(signature) = conformed_trait
                 .signatures
@@ -172,12 +291,6 @@ pub(super) fn synthesize_trait_defaults(syntax: &mut SyntaxTrees) -> Result<(), 
                 attached_methods.insert(attached_method);
             }
         }
-        let substitution = conformed_trait
-            .parameter_names
-            .iter()
-            .cloned()
-            .zip(arguments.iter().copied())
-            .collect();
         let defaults = collect_effective_defaults(
             syntax,
             &trait_name,
@@ -222,6 +335,99 @@ pub(super) fn synthesize_trait_defaults(syntax: &mut SyntaxTrees) -> Result<(), 
     } else {
         Err(diagnostics)
     }
+}
+
+/// Collect every exact requirement identity in the inherited closure together
+/// with the generic substitution at this conformance. Closed conformances keep
+/// exact `(declaring trait, requirement)` rows, so unlike legacy attached
+/// lookup this deliberately does not collapse or shadow same-leaf names.
+fn collect_requirement_instances(
+    syntax: &mut SyntaxTrees,
+    trait_name: &str,
+    substitution: &HashMap<String, TypeReferenceHandle>,
+    traits: &HashMap<String, TraitDefaultsInput>,
+    visiting: &mut HashSet<String>,
+    seen: &mut HashSet<(String, String)>,
+    output: &mut Vec<RequirementInstance>,
+) {
+    if !visiting.insert(trait_name.to_string()) {
+        return;
+    }
+    let Some(trait_definition) = traits.get(trait_name) else {
+        visiting.remove(trait_name);
+        return;
+    };
+
+    for signature in &trait_definition.signatures {
+        let key = (trait_name.to_string(), signature.name.as_str().to_string());
+        if seen.insert(key) {
+            output.push(RequirementInstance {
+                declaring_trait: trait_name.to_string(),
+                signature: signature.clone(),
+                substitution: substitution.clone(),
+            });
+        }
+    }
+
+    for requirement in &trait_definition.requirements {
+        let Some(required_trait) = traits.get(&requirement.name) else {
+            continue;
+        };
+        if requirement.arguments.len() != required_trait.parameter_names.len() {
+            continue;
+        }
+        let required_arguments = requirement
+            .arguments
+            .iter()
+            .map(|argument| substitute_type_reference(syntax, *argument, substitution))
+            .collect::<Vec<_>>();
+        let required_substitution = required_trait
+            .parameter_names
+            .iter()
+            .cloned()
+            .zip(required_arguments)
+            .collect::<HashMap<_, _>>();
+        collect_requirement_instances(
+            syntax,
+            &requirement.name,
+            &required_substitution,
+            traits,
+            visiting,
+            seen,
+            output,
+        );
+    }
+
+    visiting.remove(trait_name);
+}
+
+fn replace_closed_members(
+    syntax: &mut SyntaxTrees,
+    handle: ItemHandle,
+    mut conformance: ConformanceItem,
+    members: Vec<ConformanceMember>,
+) {
+    let mut start = psi_arena::Handle::invalid();
+    let mut count = 0u32;
+    for member in members {
+        let member = syntax.items.append_conformance_member(member);
+        if count == 0 {
+            start = member;
+        }
+        count = count
+            .checked_add(1)
+            .expect("conformance member span count overflow");
+    }
+    conformance.body = ConformanceBody::Closed {
+        members: if count == 0 {
+            HandleSpan::empty()
+        } else {
+            HandleSpan::from_parts(start, count)
+        },
+    };
+    syntax
+        .items
+        .replace_item(handle, Item::Conformance(conformance));
 }
 
 fn synthesize_equatable_machine(
@@ -580,6 +786,16 @@ fn synthesize_machine_named(
     machine_name: Identifier,
     signature: &StateSignatureNode,
 ) {
+    let machine = machine_from_signature(syntax, type_name, machine_name, signature);
+    syntax.push_root_item(Item::Machine(machine));
+}
+
+fn machine_from_signature(
+    syntax: &mut SyntaxTrees,
+    type_name: &str,
+    machine_name: Identifier,
+    signature: &StateSignatureNode,
+) -> Machine {
     let state = State {
         name: signature.name.clone(),
         parameters: signature.parameters,
@@ -589,7 +805,7 @@ fn synthesize_machine_named(
     };
     let state = syntax.items.insert_state(&state);
     let state = syntax.items.append_state_handle(state);
-    syntax.push_root_item(Item::Machine(Machine {
+    Machine {
         name: machine_name,
         attached_data: Some(Identifier::generated(type_name)),
         bodyless: false,
@@ -611,5 +827,5 @@ fn synthesize_machine_named(
         blocks: signature.blocks,
         contracts: signature.contracts,
         states: HandleSpan::from_parts(state, 1),
-    }));
+    }
 }

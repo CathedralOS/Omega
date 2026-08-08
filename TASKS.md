@@ -451,11 +451,11 @@ checked-result arithmetic decision listed below.
   one exact trait-qualified row for every inherited requirement, reject ambient
   attached-machine fallback, validate authored row signatures, and carry the
   selected exact row map into checked `dyn` facts. Inline member body and
-  contract calls to sibling requirements now route through that same map.
-  Finish lowering and checking each trait default body as a per-conformance
-  realization with identical routing; checked `dyn` lowering currently rejects
-  such a row until that realization exists. Then make descriptor adapters/tables
-  consume only the retained rows, migrate legacy attached-machine
+  contract calls to sibling requirements route through that same map. Trait
+  defaults are now instantiated before resolution as exact per-conformance
+  realizations, retain default provenance through checked `dyn` facts, and use
+  identical sibling routing, including inherited generic defaults. Make
+  descriptor adapters/tables consume only the retained rows, migrate legacy attached-machine
   conformances, and retire their lookup path. Bare exact-requirement satisfiers
   never license `dyn`.
 - Complete hermetic semantic evaluation: invocation-specific crash-route

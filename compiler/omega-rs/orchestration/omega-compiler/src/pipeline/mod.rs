@@ -31,7 +31,6 @@ mod stages;
 mod target_machines;
 mod task_plans;
 mod timing;
-mod trait_defaults;
 mod trust_lockfile;
 mod trust_report;
 mod wire_plans;
