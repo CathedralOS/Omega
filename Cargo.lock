@@ -1258,6 +1258,7 @@ dependencies = [
  "psi-language-core",
  "psi-language-semantics",
  "psi-numerics",
+ "psi-source",
  "psi-symbols",
  "psi-typed-trees",
 ]
@@ -1544,6 +1545,7 @@ dependencies = [
  "psi-language-semantics",
  "psi-numerics",
  "psi-proof",
+ "psi-source",
  "psi-source-files-to-tokens",
  "psi-symbol-resolved-trees-to-typed-trees",
  "psi-symbols",
