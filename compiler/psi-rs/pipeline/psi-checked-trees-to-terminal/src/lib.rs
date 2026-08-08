@@ -1053,9 +1053,9 @@ fn lower_content_place(
 /// ```
 ///
 /// The first explicit-crash slice also accepts a one-state scalar machine whose
-/// sole statement is `crash Cause;` and whose machine signature publishes
-/// exactly one unconditional `crashes Cause Scope` bucket. It emits a distinct
-/// terminal-Psi crash terminator; it never reuses ordinary return lowering.
+/// sole statement is `crash Cause;` and whose checked site cites exactly one
+/// prechecked guard-covering bucket. It emits a distinct terminal-Psi crash
+/// terminator; it never reuses ordinary return lowering.
 pub fn lower_machine(
     checked: &CheckedTrees,
     machine_name: &str,
@@ -1339,15 +1339,14 @@ fn lower_explicit_crash_machine(
     let Some(checked_site) = crash_plan.checked_site_at(entry_state.symbol, 0) else {
         return unsupported("explicit crash has no body-derived checked crash-site row");
     };
-    let matching_contracts = crash_plan
-        .published()
+    let matching_contracts = checked_site
+        .guard_covering_buckets()
         .iter()
-        .filter(|bucket| bucket.cause() == checked_site.cause() && bucket.is_unconditional())
-        .map(|bucket| bucket.containment_demand())
+        .filter_map(|bucket| crash_plan.published_bucket(*bucket))
         .collect::<Vec<_>>();
-    let [damage_scope] = matching_contracts.as_slice() else {
+    let [covering_bucket] = matching_contracts.as_slice() else {
         return unsupported(
-            "an explicit crash in the first terminal-Psi source slice requires exactly one unconditional published bucket for the same cause",
+            "an explicit crash in the first terminal-Psi source slice requires exactly one prechecked guard-covering bucket",
         );
     };
 
@@ -1398,7 +1397,7 @@ fn lower_explicit_crash_machine(
                             psi_checked_trees::CrashCause::Trap => TerminalCrashCause::Trap,
                             psi_checked_trees::CrashCause::Abort => TerminalCrashCause::Abort,
                         },
-                        damage_scope: (*damage_scope).to_owned(),
+                        damage_scope: covering_bucket.containment_demand().to_owned(),
                         frontier_lower_bound: Vec::new(),
                     },
                 }],

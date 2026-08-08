@@ -2308,6 +2308,13 @@ fn checked_crash_sites_are_body_evidence_not_contract_identity() {
     {
         crash Abort;
     }
+
+    machine guarded_body(flag: bool) -> i32
+    crashes Abort Activation
+        flag
+    {
+        crash Abort;
+    }
     "#;
 
     let tokens = Lexer::new(source)
@@ -2336,6 +2343,16 @@ fn checked_crash_sites_are_body_evidence_not_contract_identity() {
     };
     assert_eq!(site.cause(), psi_checked_trees::CrashCause::Abort);
     assert_eq!(site.location().statement_ordinal(), 0);
+    let [covering_bucket] = site.guard_covering_buckets() else {
+        panic!("an unconditional same-cause route should cover every site guard")
+    };
+    assert!(
+        plan("crashing_body")
+            .crash
+            .published_bucket(*covering_bucket)
+            .is_some_and(|bucket| bucket.is_unconditional()
+                && bucket.cause() == psi_checked_trees::CrashCause::Abort)
+    );
     assert_eq!(
         site.location().state(),
         checked.machine_states(
@@ -2346,6 +2363,14 @@ fn checked_crash_sites_are_body_evidence_not_contract_identity() {
                 .expect("crashing machine")
         )[0]
         .symbol
+    );
+
+    let [guarded_site] = plan("guarded_body").crash.checked_sites() else {
+        panic!("the guarded machine should retain its explicit crash site")
+    };
+    assert!(
+        guarded_site.guard_covering_buckets().is_empty(),
+        "a route predicate is not unconditional guard-coverage evidence"
     );
 }
 

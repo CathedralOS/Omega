@@ -202,11 +202,14 @@ Remaining:
   reinterpreting typed clauses. The independent checked body layer now retains
   every explicit crash site's state-local location and cause without placing
   that implementation evidence in the public fingerprint; reports expose the
-  rows separately and terminal production requires the matching row. Enrich
-  those sites with path-conditioned guards, coverage, damage minima, and
-  frontier lower bounds next, then finish call-site refinement/propagation and
-  sparse per-cause context maxima. Generalize source production beyond the
-  initial unconditional bucket.
+  rows separately and terminal production requires the matching row. Canonical
+  published buckets now have dense checked-plan identities, and each site
+  records every unconditional same-cause bucket already proven to cover any
+  path guard; terminal production consumes that checked join instead of
+  searching the published routes. Enrich those sites with path-conditioned
+  guard entailment, damage minima, and frontier lower bounds next, then finish
+  call-site refinement/propagation and sparse per-cause context maxima.
+  Generalize source production beyond the initial unconditional bucket.
   Terminal Psi v22 already carries the explicit no-successor terminator and its
   canonical machine-local frontier lower bound; native lowering remains closed
   until target crash plans exist.

@@ -888,6 +888,8 @@ CrashPlan {
 CheckedCrashSite {                              // checked-tree implementation evidence
   location: (StateId, state_local_statement_ordinal),
   cause: CrashCauseId,
+  guard_covering_buckets: Set<CrashRouteBucketId>,
+  // guard implication only; damage coverage is not implied
 }
 
 CrashContextPlan {
@@ -943,9 +945,12 @@ Imported evidence cites the published contract and certificate.
 Checked lowering first records each explicit body crash as a
 `CheckedCrashSite`. That row identifies the statement-handle-free state-local
 site and its cause, but is not a completed `CrashTerminatorPlan`: later checks
-add the path guard, damage minimum, covering route buckets, and frontier lower
-bound. Checked sites are implementation evidence and never enter the
-published contract fingerprint.
+add the path guard, damage minimum, complete covering buckets, and frontier
+lower bound. Canonical route buckets receive dense plan-local identities, and
+an unconditional same-cause bucket enters `guard_covering_buckets`
+structurally because `true` covers every path guard. Guarded buckets enter only
+through later path-conditioned entailment. Checked sites are implementation
+evidence and never enter the published contract fingerprint.
 
 Psi owns these nominal demand checks. Omega installation supplies
 `InstalledCrashContainment` and verifies, for every surviving route:
