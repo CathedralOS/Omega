@@ -402,16 +402,14 @@ fn proven_conditional_entry_claims(
     let mut proven = Vec::new();
 
     for entry in incoming.iter().filter(|entry| entry.holds_at(state.symbol)) {
-        let Some(arguments) = entry.direct_arguments() else {
-            continue;
-        };
-        let arguments = program.statement_table.expression_handles(arguments);
         let mut case_tests = Vec::new();
         collect_positive_case_tests(program, entry.guard(), &mut case_tests);
         for (subject, variant) in case_tests {
             let subject_label = program.expression_table.display_name(subject);
-            for (parameter, argument) in parameters.iter().zip(arguments) {
-                if program.expression_table.display_name(*argument) != subject_label {
+            for parameter in &parameters {
+                if entry.argument_label_for_parameter(parameter.symbol)
+                    != Some(subject_label.as_str())
+                {
                     continue;
                 }
                 for place in places.iter().filter(|place| {

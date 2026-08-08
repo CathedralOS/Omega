@@ -182,7 +182,7 @@ fn explicit_crash_retains_definitely_live_linear_frontier_without_cleanup() {
 }
 
 #[test]
-fn case_guard_promotes_only_the_proven_conditional_crash_claim() {
+fn multi_hop_case_guard_promotes_only_the_proven_conditional_crash_claim() {
     let checked = checked(
         r#"
         data Receipt [linear] { code: i32; }
@@ -195,8 +195,12 @@ fn case_guard_promotes_only_the_proven_conditional_crash_claim() {
         crashes Abort
         {
             transition choice {
-                MaybeReceipt::Live -> crash_live(choice)
+                MaybeReceipt::Live -> relay(choice)
                 MaybeReceipt::Empty -> 0
+            }
+
+            state relay(pending: MaybeReceipt) -> i32 {
+                transition { _ -> crash_live(pending) }
             }
 
             state crash_live(choice: MaybeReceipt) -> i32 {

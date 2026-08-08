@@ -180,12 +180,14 @@ Current ownership is:
   intrinsic damage minimum, selected published coverage, exact incoming guard
   conjunction, and a canonical definitely-live claim-frontier lower bound.
   Unconditional entry claims are included directly. A positive symbol-stamped
-  case-pattern guard on a direct named edge is rebound through the target
-  state's arguments and promotes only the selected conditional entry claim;
-  the claim identity preserves that proof across whole-value transfers without
-  transferring it to a replacement value. Unknown cases, indirect joins
-  without an argument map, and nested cases lacking proof at every case level
-  remain conservatively absent. A sibling
+  case-pattern guard on a named edge is rebound through the target state's
+  arguments and promotes only the selected conditional entry claim. A
+  single-predecessor walk composes the complete parameter map through
+  intermediate named states; ambiguous convergent edges and
+  multi-predecessor meets discard it. The claim identity preserves that proof
+  across whole-value transfers without transferring it to a replacement value.
+  Unknown cases, joins without a common argument map, and nested cases lacking
+  proof at every case level remain conservatively absent. A sibling
   checked-call layer uses the flow graph's state/statement/call coordinate,
   retains the callee target and contract fingerprint, and stores the surviving
   published buckets after invocation argument substitution. Routes are removed
