@@ -73,7 +73,8 @@ implementation work. Each one gets more expensive to retrofit every month.
    end-state (package = reach boundary; imports resolve only against declared
    deps).
    Target profiles declare typed root/provider slots; installable builds bind
-   each required build-bound slot to one exact satisfier or complete named
+   each required build-bound slot to one exact satisfier, one exact source entry
+   adapted through a target-owned entry schema, or one complete named
    conformance according to the slot's declared shape. Direction distinguishes
    environment-activated roots from program-called providers, while lifecycle,
    cardinality, and indexing remain orthogonal. There is no entry discovery.

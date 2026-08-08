@@ -119,6 +119,11 @@ may reserve it in writable image storage, while a freestanding target may
 partition initial storage. Either way, the artifact records the derived
 subextent and root lineage rather than minting a new storage root.
 
+This provisions one value occurrence. `Application` remains an ordinary
+nominal type; the bridge's admitted storage root and derived subextent carry
+the authority and qualification for this receiver. Other `Application` values
+follow the ordinary construction and ownership rules.
+
 If the receiver cannot be validly constructed through ZII, the binding rejects.
 Use a free entry machine and explicitly construct the required state from the
 resources that target schema exposes. The target schema also controls ordinary

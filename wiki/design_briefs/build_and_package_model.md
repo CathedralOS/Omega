@@ -174,6 +174,11 @@ whole to the source entry; the schema must use separate hidden supply or an
 exact conserved residual. Generated entry code is never outside portable demand
 checking.
 
+Receiver provisioning is occurrence-local. The receiver's nominal `data`
+declaration remains pure; the generated bridge records storage, qualification,
+lineage, and backing for the one provisioned occurrence rather than attaching
+root authority or a storage class to the type.
+
 A freestanding schema may instead publish image and initial-storage roots in its
 visible parameter list. Those are ordinary arguments to the selected source
 entry only because that target intentionally makes provisioning the program's

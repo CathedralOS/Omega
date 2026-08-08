@@ -43,6 +43,11 @@ raw image or stack extents. The target-selected Console provider services the
 call. Programs that need one program-lifetime receiver attach the selected entry
 machine to that receiver's data type; Chapter 3 shows that form.
 
+The receiver's `data` declaration remains an ordinary value shape. Selecting an
+attached entry provisions one occurrence. Storage authority, qualification,
+and root lineage belong to that provisioned occurrence; other values of the
+same type follow the ordinary construction and ownership rules.
+
 ## Data
 
 `data` declarations describe stored state. Fields inside `data` are owned by
@@ -335,7 +340,7 @@ pub const EFI_SUCCESS: EfiStatus = EfiStatus { code: 0 };
   does not exist. There is no `static` keyword. A receiver-bound program entry
   gets one target-provisioned receiver, reachable only through its explicit
   `&mut self` parameter; see
-  [Constants And Provisioned Root State](../design_briefs/static_root_and_constants.md).
+  [Constants And Provisioned Entry State](../design_briefs/static_root_and_constants.md).
 
 ## String Literals And Bytes
 

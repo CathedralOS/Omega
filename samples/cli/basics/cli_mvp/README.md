@@ -10,12 +10,15 @@ The compiler writes phase artifacts and executable output to local `build/`.
 That directory is ignored by this sample on purpose so the project can be copied
 without bringing stale compiler output with it.
 
-## Boundary Root
+## Boundary Providers
 
 The sample imports the portable Console requirement. Ordinary targets select
-their standard provider defaults, so this sample does not need a `build.omg`
-that enumerates every host leaf. An application only writes a build override
-when it intentionally substitutes a provider for a slot.
+their standard provider defaults, so `build.omg` does not enumerate every host
+leaf. The settled build shape still binds the target's program-entry slot to the
+exact source machine; an application adds provider bindings only when it
+intentionally substitutes a default. This sample's source and transitional
+target-only build file still exercise the compatibility entry path pending the
+corpus migration tracked by `ENTRY-CONTENT-ROOTS`.
 
 For cross-platform hello world, the boundary base is tiny:
 

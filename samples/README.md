@@ -6,11 +6,13 @@ user-code point of view.
 They are allowed to be rough while the language is moving, but each sample
 should still have a clear project shape:
 
-- `main.omg`: the entrypoint the compiler is pointed at.
-- `build.omg`: ordinary build/configuration code only when the sample overrides
-  target defaults, adds a dependency, or selects a provider slot. Do not add
-  legacy `target { boundary ... }` manifests; provider admission and selection
-  are derived from the selected target plus explicit overrides.
+- `main.omg`: the conventional source filename used by the sample harness. The
+  filename does not make a machine the program entry.
+- `build.omg`: ordinary build/configuration code. An installable sample selects
+  its target and binds the target's program-entry slot to one exact source
+  machine; dependencies and provider overrides are added only when needed. Do
+  not add legacy `target { boundary ... }` manifests; provider admission and
+  selection are derived from the selected target plus explicit overrides.
 - `.gitignore`: local sample ignore rules, including `/build/`.
 - Domain folders such as `data/`, `platform/`, `rooms/`, or `dungeon/`.
 
@@ -20,6 +22,11 @@ entrypoint. Do not check it in and do not make sample source depend on it.
 Samples should read like code someone might write. If a sample exposes a small
 missing compiler behavior, pin that behavior in `canaries/` with the smallest
 feature-shaped program, then come back to the sample.
+
+The corpus is migrating from the compatibility `main`/`Main::main` discovery
+path to explicit entry-slot bindings. During that migration, a sample may still
+exercise the compatibility path, but its documentation must not present the
+source filename or machine spelling as the language's entry-selection rule.
 
 Top-level sample domains:
 
