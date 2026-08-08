@@ -13,6 +13,9 @@ pub struct ProofFacts {
     pub contract_calls: Arena<ContractCallFact>,
     pub contract_exits: Arena<ContractExitFact>,
     pub contract_operator_uses: Arena<ContractOperatorUseFact>,
+    /// Canonical nominal proposition declarations and applications after
+    /// transparent aliases and source handles have been eliminated.
+    pub proposition_vocabulary: crate::CheckedPropositionVocabulary,
 }
 
 impl ProofFacts {
@@ -23,6 +26,7 @@ impl ProofFacts {
         contract_calls: Arena<ContractCallFact>,
         contract_exits: Arena<ContractExitFact>,
         contract_operator_uses: Arena<ContractOperatorUseFact>,
+        proposition_vocabulary: crate::CheckedPropositionVocabulary,
     ) -> Self {
         Self {
             obligations,
@@ -31,6 +35,7 @@ impl ProofFacts {
             contract_calls,
             contract_exits,
             contract_operator_uses,
+            proposition_vocabulary,
         }
     }
 }
@@ -51,6 +56,7 @@ mod tests {
         let contract_calls = Arena::<ContractCallFact>::with_capacity(4);
         let contract_exits = Arena::<ContractExitFact>::with_capacity(5);
         let contract_operator_uses = Arena::<ContractOperatorUseFact>::with_capacity(6);
+        let proposition_vocabulary = crate::CheckedPropositionVocabulary::default();
 
         let facts = ProofFacts::with_roots(
             obligations.clone(),
@@ -59,6 +65,7 @@ mod tests {
             contract_calls.clone(),
             contract_exits.clone(),
             contract_operator_uses.clone(),
+            proposition_vocabulary.clone(),
         );
 
         assert_eq!(facts.obligations, obligations);
@@ -67,5 +74,6 @@ mod tests {
         assert_eq!(facts.contract_calls, contract_calls);
         assert_eq!(facts.contract_exits, contract_exits);
         assert_eq!(facts.contract_operator_uses, contract_operator_uses);
+        assert_eq!(facts.proposition_vocabulary, proposition_vocabulary);
     }
 }

@@ -163,6 +163,12 @@ exact operation/edge/return axioms, and checks every `ensures` from a separate
 proof bundle. `omega-interpreter` executes only a `VerifiedTerminalModule` on
 this path.
 
+Checked proof facts retain nominal proposition declarations and normalized
+applications after transparent aliases and source handles have been removed.
+Terminal production assigns dense terminal identities from that checked
+vocabulary; it no longer walks typed proposition declarations or typed
+proof-fact applications.
+
 The first control-flow slice is live in v13. One conditional terminator reads
 an already-defined Boolean value and owns ordered true and false successor edge
 records, each with its own stable `EdgeId`, target, typed block-parameter

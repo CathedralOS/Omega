@@ -231,6 +231,10 @@ Remaining:
   Checked contract plans now retain the accepted closed Boolean/integer
   requires/ensures equality as a source-handle-free carrier; terminal
   production consumes that carrier and never reopens the typed contract fact.
+  Checked proof facts likewise retain the normalized nominal proposition
+  declarations and applications consumed by terminal Psi; transparent aliases,
+  typed proposition declarations, and proof-fact handles are no longer
+  terminal semantic inputs.
 - Replace all remaining terminal-path `ExpressionHandle` and source-tree
   dependencies with lowered values and predicates. Absorb useful StateGraph /
   ControlFlow topology, then retire the legacy backend lane as consumers move.
