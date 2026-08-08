@@ -271,8 +271,9 @@ Remaining:
   matches the surviving predicate, or is one of the invocation's retained
   path consequences. Positive conjunction, negated disjunction, nested
   negation, Boolean-literal equality/inequality normalization, comparison
-  operand reversal, and equality/inequality negation normalization feed that
-  same set without replacing the exact conjunction. Ordered-comparison
+  operand reversal, equality/inequality negation normalization, and checked
+  integer strict-order/equality consequences feed that same set without
+  replacing the exact conjunction. Ordered-comparison
   negation also normalizes when both operands have checked integer types;
   unknown, user-defined, and unordered-float operands remain opaque. Callable trait requirements
   and unresolved compile-time machine parameters now retain source-independent

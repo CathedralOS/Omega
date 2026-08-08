@@ -237,7 +237,9 @@ Current ownership is:
   path-conditioned guarded coverage. Comparison operand reversal and negated
   equality/inequality are also retained as equivalent consequences. Negated
   ordered comparisons use the complement only when both operands have checked
-  integer types; unknown, user-defined, and float operands remain opaque. The site
+  integer types; integer strict order also entails its non-strict bound and
+  inequality, and integer equality entails both non-strict bounds. Unknown,
+  user-defined, and float operands remain opaque. The site
   separately retains its exact incoming-predicate conjunction for downstream
   refinement and reporting.
 - `psi-checked-trees/src/proof/` owns proof-facing checked facts:

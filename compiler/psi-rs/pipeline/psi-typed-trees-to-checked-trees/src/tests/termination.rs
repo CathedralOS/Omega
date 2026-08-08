@@ -2683,6 +2683,39 @@ fn crash_guard_entailment_normalizes_comparison_equivalences() {
         state fail() -> i32 { crash Trap; }
     }
 
+    machine strict_order_weakens(left: i32, right: i32) -> i32
+    crashes Trap Activation
+        left <= right
+    {
+        transition {
+            left < right -> fail()
+            _ -> 0i32
+        }
+        state fail() -> i32 { crash Trap; }
+    }
+
+    machine strict_order_is_distinct(left: i32, right: i32) -> i32
+    crashes Trap Activation
+        left != right
+    {
+        transition {
+            left < right -> fail()
+            _ -> 0i32
+        }
+        state fail() -> i32 { crash Trap; }
+    }
+
+    machine integer_equality_bounds(left: i32, right: i32) -> i32
+    crashes Trap Activation
+        right >= left
+    {
+        transition {
+            left == right -> fail()
+            _ -> 0i32
+        }
+        state fail() -> i32 { crash Trap; }
+    }
+
     machine integer_order_fallthrough(left: i32, right: i32) -> i32
     crashes Trap Activation
         left >= right
@@ -2757,6 +2790,9 @@ fn crash_guard_entailment_normalizes_comparison_equivalences() {
 
     for name in [
         "reversed_order",
+        "strict_order_weakens",
+        "strict_order_is_distinct",
+        "integer_equality_bounds",
         "integer_order_fallthrough",
         "negated_equality",
         "reversed_equality",
