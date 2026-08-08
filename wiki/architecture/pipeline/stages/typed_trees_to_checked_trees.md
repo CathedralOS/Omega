@@ -198,22 +198,27 @@ Current ownership is:
   conservative monotone summary fixed point over the viable invocation graph:
   every explicit site becomes an unconditional `(cause, damage minimum)`
   bucket, a site-free leaf produces positive empty evidence, and a resolved
-  nested summary propagates cause/scope while collapsing predicates to
-  unconditional routes. Recursive components close over the finite bucket set.
+  nested summary carries a temporary canonical predicate tree and substitutes
+  positional arguments through every nonrecursive edge. Recursive SCC edges
+  widen to unconditional cause/scope buckets, so argument-changing cycles close
+  over a finite conservative bucket set while acyclic wrappers retain guards.
   An unknown dependency prunes its caller closure from the fixed point, so
   partial direct-site evidence cannot erase a nested crash. A published caller
   must cover every
   surviving call route independently with a same-cause bucket whose
   containment demand covers the selected demand. Guard coverage accepts an
-  unconditional caller route, the exact surviving predicate, or an exact
-  incoming path conjunct retained on that invocation. Private inferred callers
+  unconditional caller route, the exact surviving predicate, or a retained
+  structural consequence of the invocation's incoming path. Exact conjuncts
+  and consequences remain separate checked fields. Private inferred callers
   remain body-summary inputs rather than authored-ceiling obligations.
   Callable trait requirements and unresolved compile-time machine parameters
   instead select a checked crash-contract capsule. The capsule retains the
   normalized public crash buckets and pins them to the complete normalized
   callable-contract fingerprint, so call refinement never depends on a local
   body or reopens the authored signature after checked lowering. Separately
-  compiled imports still require the corresponding artifact-capsule input.
+  compiled imports still require the corresponding artifact-capsule input;
+  that input is design blocked until the semantic import/export carrier,
+  symbol identity, and certificate binding are specified.
   Published routes are removed
   only when the call evaluator proves them false; proved-true routes become
   unconditional, unknown routes are re-encoded in the caller's positional
@@ -224,7 +229,8 @@ Current ownership is:
   published buckets have dense plan-local identities. Each site cites every
   unconditional same-cause bucket as structurally proved guard coverage;
   exact incoming/fallthrough predicates and their sound conjunction/negated-
-  disjunction consequences add path-conditioned guarded coverage. The site
+  disjunction, nested-negation, and Boolean-literal relation consequences add
+  path-conditioned guarded coverage. The site
   separately retains its exact incoming-predicate conjunction for downstream
   refinement and reporting.
 - `psi-checked-trees/src/proof/` owns proof-facing checked facts:

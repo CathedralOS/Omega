@@ -910,6 +910,7 @@ CheckedCrashCallSite {
   target: (RequirementOwnerId | MachineId, StateSignatureId | StateId),
   target_contract_fingerprint: Fingerprint,
   exact_incoming_path_conjunction: List<CrashPredicateId>,
+  derived_path_consequences: Set<CrashPredicateId>,
   surviving_buckets: CrashRouteSet,
 }
 
@@ -996,10 +997,13 @@ because `true` covers every path guard. Exact retained incoming guards and
 their accumulated fallthrough negations join to identical canonical published
 predicates. The conservative structural entailment layer also decomposes
 positive conjunctions and negated disjunctions, including nested logical
-negation, without accepting their converses. The checked site separately
-retains the canonical conjunction of exact incoming predicates; consequences
-only establish bucket coverage and never replace that derived guard. The fully covering subset
-independently requires the bucket's containment demand to cover
+negation, and normalizes Boolean equality/inequality against a literal to the
+operand polarity it proves, without accepting their converses. Checked call
+rows retain the same source-independent consequence set for caller-ceiling
+coverage. The checked site and call rows separately retain the canonical
+conjunction of exact incoming predicates; consequences
+only establish bucket coverage and never replace that derived guard. The fully
+covering subset independently requires the bucket's containment demand to cover
 `damage_minimum`; exact identity plus the permanent
 `ExecutionDomain` top is the first conservative nominal order. Richer logical
 entailment remains. Declared intermediate
