@@ -114,6 +114,9 @@ the selected expression executes and consumes fuel. Nested selections, linear
 prefixes, and convergent tails use the same terminal block and edge
 vocabulary. The ordered Boolean-result form supports ordinary Boolean
 entry/branch parameters with recursive short-circuit guards and branch returns.
+The general Boolean-result form supports rooted acyclic nested selections and
+convergent tails with recursive non-short-circuit unconditional bindings and
+returns; short-circuit value bindings/returns remain closed.
 It emits the semantic module and proof bundle separately and fails closed on
 all other shapes. Its canaries drop the frontend trees before terminal
 verification and interpretation; ninth-parameter `bool` and `u8` machines

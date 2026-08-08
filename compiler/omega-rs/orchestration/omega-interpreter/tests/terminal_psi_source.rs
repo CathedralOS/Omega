@@ -1307,6 +1307,66 @@ fn checked_source_boolean_conditional_guard_preserves_short_circuit_control() {
     }
 }
 
+#[test]
+fn checked_source_nested_boolean_control_reaches_both_native_targets() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("nested Boolean source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_nested_boolean_control")
+        .expect("rooted acyclic Boolean control should lower");
+    drop(checked);
+
+    assert_eq!(lowered.semantic_module.machines[0].blocks.len(), 6);
+    let semantic_bytes =
+        encode_module(&lowered.semantic_module).expect("nested Boolean control should encode");
+    let proof_bytes =
+        encode_proof_bundle(&lowered.proof_bundle).expect("nested Boolean proof should encode");
+    let semantic_module =
+        decode_module(&semantic_bytes).expect("nested Boolean control should decode");
+    let proof_bundle =
+        decode_proof_bundle(&proof_bytes).expect("nested Boolean proof should decode");
+    let verified = verify_module(
+        &semantic_module,
+        &proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("nested Boolean control should verify after frontend drop");
+    assert_eq!(
+        derive_fixed_entry_fuel(&verified, semantic_module.entry)
+            .expect("nested Boolean control should have fixed fuel")
+            .ceiling_units(),
+        7
+    );
+
+    for (arguments, expected, units) in [
+        ([true, true, true, true, false, false], false, 6),
+        ([true, false, true, true, false, false], true, 6),
+        ([false, false, true, true, false, true], true, 6),
+        ([true, true, false, true, false, false], false, 7),
+    ] {
+        let arguments = arguments.map(TerminalScalarValue::Boolean);
+        let measured = interpret_terminal_measured(&verified, &arguments)
+            .expect("nested Boolean control should interpret");
+        assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+        assert_eq!(measured.usage().total_units(), units);
+    }
+
+    let abstract_operations = lower_verified_module(&verified)
+        .expect("nested Boolean control should cross the Omega boundary");
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_operations = lower_to_target_operations(&abstract_operations, target)
+            .expect("nested Boolean control should select for both native targets");
+        assert!(matches!(
+            target_operations.functions[0].operation,
+            TerminalTargetOperation::ReturnBooleanConditionalControl { .. }
+        ));
+        let assigned =
+            assign_registers(&target_operations).expect("nested Boolean homes should assign");
+        let machine_code =
+            emit_machine_code(&assigned).expect("nested Boolean control should emit");
+        assert!(!machine_code.functions[0].bytes.is_empty());
+    }
+}
+
 #[cfg(unix)]
 #[test]
 fn source_closed_integer_chain_matches_emitted_host_machine_code() {

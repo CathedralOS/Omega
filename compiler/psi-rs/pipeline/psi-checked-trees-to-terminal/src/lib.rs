@@ -204,6 +204,30 @@ struct LoweredIntegerBranchState {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+enum LoweredBooleanBranchTerminator {
+    Jump {
+        target: usize,
+        arguments: Vec<LoweredBooleanReturnExpression>,
+    },
+    Conditional {
+        condition: LoweredBooleanReturnExpression,
+        when_true_target: usize,
+        when_true_arguments: Vec<usize>,
+        when_false_target: usize,
+        when_false_arguments: Vec<usize>,
+    },
+    Return {
+        expression: LoweredBooleanReturnExpression,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct LoweredBooleanBranchState {
+    parameter_count: usize,
+    terminator: LoweredBooleanBranchTerminator,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct PendingConditionalBindingBlock {
     id: BlockId,
     parameters: Vec<ValueDeclaration>,
@@ -1344,7 +1368,7 @@ fn lower_selected_machine(
     {
         return match checked.primitive_type_reference(states[0].return_type) {
             Some(PrimitiveType::Bool) => {
-                unsupported("nested Boolean state control is not in the terminal-Psi source slice")
+                lower_nested_boolean_branch_machine(checked, machine, states)
             }
             _ => lower_nested_integer_branch_machine(checked, machine, states),
         };
@@ -1850,6 +1874,221 @@ fn lower_integer_conditional_machine(
         identity_reshuffles,
         partition_compositions,
     ))
+}
+
+fn lower_nested_boolean_branch_machine(
+    checked: &CheckedTrees,
+    machine: &psi_checked_trees::machine::Machine,
+    states: &[psi_checked_trees::state::State],
+) -> Result<LoweredTerminalPsi, LoweringError> {
+    if states
+        .iter()
+        .any(|state| !checked.state_contracts(state).is_empty())
+    {
+        return unsupported("nested Boolean state contracts are not supported");
+    }
+    let mut lowered_states = Vec::with_capacity(states.len());
+    let mut successors = vec![Vec::new(); states.len()];
+    let mut indegree = vec![0usize; states.len()];
+
+    for (state_index, state) in states.iter().enumerate() {
+        if checked.primitive_type_reference(state.return_type) != Some(PrimitiveType::Bool) {
+            return unsupported("nested Boolean state results must remain Boolean");
+        }
+        let parameters = checked.state_parameters(state);
+        if parameters.iter().any(|parameter| {
+            parameter.is_self
+                || parameter.is_const
+                || parameter.is_mutable
+                || checked.primitive_type_reference(parameter.type_reference)
+                    != Some(PrimitiveType::Bool)
+        }) {
+            return unsupported("nested Boolean parameters must be ordinary Boolean values");
+        }
+        let statements = checked.statement_table.statements(state.statement_nodes);
+        let terminator = match statements {
+            [StatementNode::Expression(return_expression)] => {
+                let expression = lower_boolean_expression(checked, *return_expression, parameters)?;
+                validate_short_circuit_expression(&expression)?;
+                if contains_short_circuit(&expression) {
+                    return unsupported(
+                        "nested Boolean return expressions cannot short-circuit yet",
+                    );
+                }
+                LoweredBooleanBranchTerminator::Return { expression }
+            }
+            [
+                StatementNode::Transition(when_true),
+                StatementNode::Transition(when_false),
+            ] if matches!(when_true.guard, TransitionGuardNode::When(_))
+                && when_false.guard == TransitionGuardNode::Always =>
+            {
+                if when_true.continuation.is_valid() || when_false.continuation.is_valid() {
+                    return unsupported("nested Boolean transitions cannot carry continuations");
+                }
+                let TransitionGuardNode::When(condition) = when_true.guard else {
+                    unreachable!("match guard establishes a conditional transition")
+                };
+                let condition = lower_positive_boolean_guard(checked, condition, parameters)?;
+                validate_short_circuit_expression(&condition)?;
+                let (when_true_target, when_true_arguments) =
+                    lower_nested_boolean_parameter_successor(
+                        checked, states, parameters, when_true,
+                    )?;
+                let (when_false_target, when_false_arguments) =
+                    lower_nested_boolean_parameter_successor(
+                        checked, states, parameters, when_false,
+                    )?;
+                successors[state_index] = vec![when_true_target, when_false_target];
+                indegree[when_true_target] = indegree[when_true_target]
+                    .checked_add(1)
+                    .expect("Boolean source state count fits usize");
+                indegree[when_false_target] = indegree[when_false_target]
+                    .checked_add(1)
+                    .expect("Boolean source state count fits usize");
+                LoweredBooleanBranchTerminator::Conditional {
+                    condition,
+                    when_true_target,
+                    when_true_arguments,
+                    when_false_target,
+                    when_false_arguments,
+                }
+            }
+            [StatementNode::Transition(transition)]
+                if transition.guard == TransitionGuardNode::Always =>
+            {
+                if transition.continuation.is_valid() {
+                    return unsupported("nested Boolean transitions cannot carry continuations");
+                }
+                let (target, arguments) =
+                    lower_nested_boolean_jump_successor(checked, states, parameters, transition)?;
+                successors[state_index] = vec![target];
+                indegree[target] = indegree[target]
+                    .checked_add(1)
+                    .expect("Boolean source state count fits usize");
+                LoweredBooleanBranchTerminator::Jump { target, arguments }
+            }
+            _ => {
+                return unsupported(
+                    "nested Boolean states must return one expression, jump unconditionally, or contain one ordered transition",
+                );
+            }
+        };
+        lowered_states.push(LoweredBooleanBranchState {
+            parameter_count: parameters.len(),
+            terminator,
+        });
+    }
+
+    if indegree[0] != 0 || indegree[1..].contains(&0) {
+        return unsupported(
+            "nested Boolean control must be rooted at the machine entry and reach every state",
+        );
+    }
+    let mut visited = vec![false; states.len()];
+    let mut active = vec![false; states.len()];
+    validate_nested_branch_graph(0, &successors, &mut visited, &mut active)?;
+    if visited.iter().any(|visited| !*visited) {
+        return unsupported("nested Boolean control contains an unreachable state");
+    }
+
+    let contract_value = validate_boolean_contract(checked, machine, None)?;
+    let (identity_reshuffles, partition_compositions) =
+        lower_content_evidence(checked, machine, &states[0])?;
+    Ok(build_nested_boolean_branch_module(
+        &lowered_states,
+        contract_value,
+        identity_reshuffles,
+        partition_compositions,
+    ))
+}
+
+fn lower_nested_boolean_parameter_successor(
+    checked: &CheckedTrees,
+    states: &[psi_checked_trees::state::State],
+    parameters: &[psi_checked_trees::signature::StateParameter],
+    transition: &psi_checked_trees::statement::TableTransition,
+) -> Result<(usize, Vec<usize>), LoweringError> {
+    let TransitionTargetNode::Named { path, arguments } =
+        checked.statement_table.transition_target(transition.target)
+    else {
+        return unsupported("nested Boolean successors must target named states");
+    };
+    let target = states
+        .iter()
+        .position(|candidate| candidate.symbol == path.symbol)
+        .ok_or(LoweringError::Unsupported(
+            "nested Boolean successor must belong to the selected machine",
+        ))?;
+    let target_parameters = checked.state_parameters(&states[target]);
+    let arguments = checked.statement_table.expression_handles(*arguments);
+    if arguments.len() != target_parameters.len() {
+        return unsupported(
+            "nested Boolean successor bindings must match the target parameter count",
+        );
+    }
+    let positions = arguments
+        .iter()
+        .zip(target_parameters)
+        .map(|(argument, target_parameter)| {
+            if checked.primitive_type_reference(target_parameter.type_reference)
+                != Some(PrimitiveType::Bool)
+            {
+                return unsupported("nested Boolean targets require Boolean parameters");
+            }
+            let ExpressionNode::Name(path) = checked.expression_table.expression(*argument) else {
+                return unsupported(
+                    "nested Boolean conditional bindings require already-defined parameters",
+                );
+            };
+            direct_parameter_position(checked, path, parameters)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok((target, positions))
+}
+
+fn lower_nested_boolean_jump_successor(
+    checked: &CheckedTrees,
+    states: &[psi_checked_trees::state::State],
+    parameters: &[psi_checked_trees::signature::StateParameter],
+    transition: &psi_checked_trees::statement::TableTransition,
+) -> Result<(usize, Vec<LoweredBooleanReturnExpression>), LoweringError> {
+    let TransitionTargetNode::Named { path, arguments } =
+        checked.statement_table.transition_target(transition.target)
+    else {
+        return unsupported("nested Boolean successors must target named states");
+    };
+    let target = states
+        .iter()
+        .position(|candidate| candidate.symbol == path.symbol)
+        .ok_or(LoweringError::Unsupported(
+            "nested Boolean successor must belong to the selected machine",
+        ))?;
+    let target_parameters = checked.state_parameters(&states[target]);
+    let arguments = checked.statement_table.expression_handles(*arguments);
+    if arguments.len() != target_parameters.len() {
+        return unsupported(
+            "nested Boolean successor bindings must match the target parameter count",
+        );
+    }
+    let arguments = arguments
+        .iter()
+        .zip(target_parameters)
+        .map(|(argument, target_parameter)| {
+            if checked.primitive_type_reference(target_parameter.type_reference)
+                != Some(PrimitiveType::Bool)
+            {
+                return unsupported("nested Boolean targets require Boolean parameters");
+            }
+            let expression = lower_boolean_expression(checked, *argument, parameters)?;
+            validate_short_circuit_expression(&expression)?;
+            if contains_short_circuit(&expression) {
+                return unsupported("nested Boolean jump bindings cannot short-circuit yet");
+            }
+            Ok(expression)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok((target, arguments))
 }
 
 fn lower_nested_integer_branch_machine(
@@ -4204,6 +4443,300 @@ fn build_nested_conditional_target(
             .iter()
             .map(|parameter| parameter.id)
             .collect(),
+    }
+}
+
+fn build_nested_boolean_branch_module(
+    states: &[LoweredBooleanBranchState],
+    contract_value: bool,
+    identity_reshuffles: LoweredContentIdentityReshuffles,
+    partition_compositions: LoweredContentPartitionCompositions,
+) -> LoweredTerminalPsi {
+    let parameters = (0..states[0].parameter_count)
+        .map(|index| ValueDeclaration {
+            id: value_id(
+                u64::try_from(index)
+                    .expect("parameter index fits a semantic identity")
+                    .checked_add(1)
+                    .expect("parameter identity is nonzero"),
+            ),
+            scalar_type: ScalarType::Boolean,
+        })
+        .collect::<Vec<_>>();
+    let mut next_value_identity = u64::try_from(parameters.len())
+        .expect("parameter count fits a semantic identity")
+        .checked_add(1)
+        .expect("nested Boolean values follow machine parameters");
+    let mut state_parameters = Vec::with_capacity(states.len());
+    state_parameters.push(parameters.clone());
+    for state in &states[1..] {
+        state_parameters.push(
+            (0..state.parameter_count)
+                .map(|_| {
+                    let parameter = ValueDeclaration {
+                        id: value_id(next_value_identity),
+                        scalar_type: ScalarType::Boolean,
+                    };
+                    next_value_identity = next_value_identity
+                        .checked_add(1)
+                        .expect("nested Boolean block parameter identities advance");
+                    parameter
+                })
+                .collect(),
+        );
+    }
+
+    let mut all_operations = Vec::new();
+    let mut next_edge_identity = 1_u64;
+    let mut next_block_identity = u64::try_from(states.len())
+        .expect("Boolean state count fits a semantic identity")
+        .checked_add(1)
+        .expect("Boolean decision blocks follow source blocks");
+    let mut pending_guards = Vec::new();
+    let mut blocks = Vec::with_capacity(states.len());
+    for (index, state) in states.iter().enumerate() {
+        let operation_start = all_operations.len();
+        let current_parameters = &state_parameters[index];
+        let terminator = match &state.terminator {
+            LoweredBooleanBranchTerminator::Jump { target, arguments } => {
+                let arguments = arguments
+                    .iter()
+                    .map(|argument| {
+                        emit_boolean_expression(
+                            argument,
+                            current_parameters,
+                            &mut next_value_identity,
+                            &mut all_operations,
+                        )
+                    })
+                    .collect();
+                let edge = edge_id(next_edge_identity);
+                next_edge_identity = next_edge_identity
+                    .checked_add(1)
+                    .expect("nested Boolean jump edge identities advance");
+                Terminator::Jump {
+                    edge,
+                    target: block_id(
+                        u64::try_from(*target)
+                            .expect("state index fits a semantic identity")
+                            .checked_add(1)
+                            .expect("block identity is nonzero"),
+                    ),
+                    arguments,
+                }
+            }
+            LoweredBooleanBranchTerminator::Conditional {
+                condition,
+                when_true_target,
+                when_true_arguments,
+                when_false_target,
+                when_false_arguments,
+            } => {
+                if contains_short_circuit(condition) {
+                    let decision = lower_boolean_control_decision(
+                        condition,
+                        LoweredBooleanDecision::Value(LoweredBooleanReturnExpression::Constant {
+                            value: true,
+                        }),
+                        LoweredBooleanDecision::Value(LoweredBooleanReturnExpression::Constant {
+                            value: false,
+                        }),
+                    );
+                    let decision_block_count = boolean_decision_test_count(&decision);
+                    let first_id = block_id(next_block_identity);
+                    next_block_identity = next_block_identity
+                        .checked_add(
+                            u64::try_from(decision_block_count)
+                                .expect("Boolean guard block count fits a semantic identity"),
+                        )
+                        .expect("Boolean guard block identities advance");
+                    let decision_parameters = (0..state.parameter_count)
+                        .map(|_| {
+                            let parameter = ValueDeclaration {
+                                id: value_id(next_value_identity),
+                                scalar_type: ScalarType::Boolean,
+                            };
+                            next_value_identity = next_value_identity
+                                .checked_add(1)
+                                .expect("Boolean guard parameter identities advance");
+                            parameter
+                        })
+                        .collect::<Vec<_>>();
+                    let target = |state: usize, positions: &[usize]| LoweredBooleanDecisionTarget {
+                        block: block_id(
+                            u64::try_from(state)
+                                .expect("state index fits a semantic identity")
+                                .checked_add(1)
+                                .expect("block identity is nonzero"),
+                        ),
+                        arguments: positions
+                            .iter()
+                            .map(|position| decision_parameters[*position].id)
+                            .collect(),
+                    };
+                    let when_true = target(*when_true_target, when_true_arguments);
+                    let when_false = target(*when_false_target, when_false_arguments);
+                    pending_guards.push(PendingShortCircuitGuardBlocks {
+                        first_id,
+                        parameters: decision_parameters,
+                        decision,
+                        when_true,
+                        when_false,
+                    });
+                    let edge = edge_id(next_edge_identity);
+                    next_edge_identity = next_edge_identity
+                        .checked_add(1)
+                        .expect("Boolean guard entry edge identity advances");
+                    Terminator::Jump {
+                        edge,
+                        target: first_id,
+                        arguments: current_parameters
+                            .iter()
+                            .map(|parameter| parameter.id)
+                            .collect(),
+                    }
+                } else {
+                    let condition = emit_boolean_expression(
+                        condition,
+                        current_parameters,
+                        &mut next_value_identity,
+                        &mut all_operations,
+                    );
+                    let true_edge = edge_id(next_edge_identity);
+                    let false_edge = edge_id(
+                        next_edge_identity
+                            .checked_add(1)
+                            .expect("Boolean false edge identity advances"),
+                    );
+                    next_edge_identity = next_edge_identity
+                        .checked_add(2)
+                        .expect("Boolean conditional edge identities advance");
+                    let successor = |edge, state: usize, positions: &[usize]| SuccessorEdge {
+                        edge,
+                        target: block_id(
+                            u64::try_from(state)
+                                .expect("state index fits a semantic identity")
+                                .checked_add(1)
+                                .expect("block identity is nonzero"),
+                        ),
+                        arguments: positions
+                            .iter()
+                            .map(|position| current_parameters[*position].id)
+                            .collect(),
+                    };
+                    Terminator::Conditional {
+                        condition,
+                        when_true: successor(true_edge, *when_true_target, when_true_arguments),
+                        when_false: successor(false_edge, *when_false_target, when_false_arguments),
+                    }
+                }
+            }
+            LoweredBooleanBranchTerminator::Return { expression } => {
+                let value = emit_boolean_expression(
+                    expression,
+                    current_parameters,
+                    &mut next_value_identity,
+                    &mut all_operations,
+                );
+                let edge = edge_id(next_edge_identity);
+                next_edge_identity = next_edge_identity
+                    .checked_add(1)
+                    .expect("nested Boolean return edge identity advances");
+                Terminator::Return { edge, value }
+            }
+        };
+        blocks.push(Block {
+            id: block_id(
+                u64::try_from(index)
+                    .expect("state index fits a semantic identity")
+                    .checked_add(1)
+                    .expect("block identity is nonzero"),
+            ),
+            parameters: if index == 0 {
+                Vec::new()
+            } else {
+                current_parameters.clone()
+            },
+            operations: all_operations[operation_start..].to_vec(),
+            terminator,
+        });
+    }
+    pending_guards.sort_by_key(|guard| guard.first_id);
+    for pending in pending_guards {
+        let mut decision_blocks = Vec::new();
+        let entry = emit_reserved_boolean_guard_decision_blocks(
+            &pending.decision,
+            &pending.parameters,
+            pending.parameters.clone(),
+            &pending.when_true,
+            &pending.when_false,
+            pending.first_id.get(),
+            &mut next_value_identity,
+            &mut next_edge_identity,
+            &mut all_operations,
+            &mut decision_blocks,
+        );
+        assert_eq!(entry.block, pending.first_id);
+        blocks.extend(
+            decision_blocks
+                .into_iter()
+                .map(|block| block.expect("every nested Boolean guard block is finalized")),
+        );
+    }
+
+    let result = ValueDeclaration {
+        id: value_id(next_value_identity),
+        scalar_type: ScalarType::Boolean,
+    };
+    let literal = ScalarTerm::boolean(contract_value);
+    let goal = Proposition::Equal(literal.clone(), literal);
+    let obligation = obligation_id(1);
+    let mut structural_places = identity_reshuffles
+        .structural_places
+        .into_iter()
+        .map(|place| (place.id, place.kind))
+        .collect::<BTreeMap<_, _>>();
+    for place in partition_compositions.structural_places {
+        merge_content_place_declaration(&mut structural_places, place)
+            .expect("checked lowering rejects conflicting structural places");
+    }
+    LoweredTerminalPsi {
+        semantic_module: TerminalModule {
+            semantic_version: SemanticVersion::CURRENT,
+            entry: machine_id(1),
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
+            machines: vec![TerminalMachine {
+                id: machine_id(1),
+                parameters,
+                result,
+                structural_places: structural_places
+                    .into_iter()
+                    .map(|(id, kind)| StructuralPlaceDeclaration { id, kind })
+                    .collect(),
+                content_entry_claims: identity_reshuffles.entry_claims,
+                content_identity_reshuffles: identity_reshuffles.reshuffles,
+                content_partition_compositions: partition_compositions.compositions,
+                entry: block_id(1),
+                blocks,
+                contract: MachineContract {
+                    id: contract_id(1),
+                    crash_context: psi_terminal::CrashContextMaximum::portable_root(),
+                    requires: vec![goal.clone()],
+                    ensures: vec![ContractClause {
+                        obligation,
+                        proposition: goal,
+                    }],
+                },
+            }],
+        },
+        proof_bundle: ProofBundle {
+            evidence: vec![ObligationEvidence {
+                obligation,
+                route: EvidenceRoute::KernelDerived(PrimitiveJudgment::ReflexiveEquality),
+            }],
+        },
+        debug_map: None,
     }
 }
 
