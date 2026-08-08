@@ -17,7 +17,8 @@ use omega_external_roots::{
     bind_installed_terminal_entry_fuel, compose_fixed_fuel, validate_installed_terminal_entry_fuel,
 };
 use omega_interpreter::{
-    TerminalExecution, TerminalExecutionStatus, TerminalScalarValue, interpret_terminal_measured,
+    TerminalExecution, TerminalExecutionStatus, TerminalScalarValue,
+    interpret_terminal_artifact_measured, interpret_terminal_measured,
 };
 use omega_target::NativeTarget;
 use omega_terminal_abstract_operations::{
@@ -32,7 +33,7 @@ use omega_terminal_image_emission::{
     validate_terminal_installation_record,
 };
 use omega_terminal_machine_emission::emit_machine_code;
-use omega_terminal_psi_to_abstract_operations::lower_verified_module;
+use omega_terminal_psi_to_abstract_operations::{lower_artifact_sections, lower_verified_module};
 use omega_terminal_target_operations::{
     TerminalTargetBooleanExpression, TerminalTargetIntegerControl, TerminalTargetIntegerExpression,
     TerminalTargetOperation,
@@ -219,10 +220,19 @@ fn checked_source_survives_frontend_drop_as_verified_terminal_psi() {
         .expect("source-independent consumer should recompute the certificate");
     assert_eq!(fixed_fuel.terminal_psi(), original_identity);
     assert_eq!(fixed_fuel.ceiling_units(), 4);
-    let abstract_operations = lower_verified_module(&verified)
-        .expect("verified terminal Psi should lower without source state");
-    let measured = interpret_terminal_measured(&verified, &[])
-        .expect("verified source-produced terminal Psi should execute with fuel");
+    let abstract_operations = lower_artifact_sections(
+        &canonical_bytes,
+        &canonical_proof_bytes,
+        &AdmissionProfile::default(),
+    )
+    .expect("canonical artifact sections should lower without producer state");
+    let measured = interpret_terminal_artifact_measured(
+        &canonical_bytes,
+        &canonical_proof_bytes,
+        &AdmissionProfile::default(),
+        &[],
+    )
+    .expect("canonical artifact sections should execute with fuel");
     assert_eq!(measured.usage().schedule().schedule_version(), 1);
     assert_eq!(measured.usage().total_units(), fixed_fuel.ceiling_units());
     assert_eq!(
