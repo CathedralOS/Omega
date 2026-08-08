@@ -85,18 +85,78 @@ pub(crate) fn build_check_facts(
 fn build_dynamic_conformance_facts(
     program: &TypedTrees,
 ) -> Result<psi_checked_trees::DynamicConformanceFacts, Vec<psi_diagnostics::Diagnostic>> {
-    let selections = psi_validation::collect_dynamic_conformance_selections(program)?
-        .into_iter()
-        .map(
-            |selection| psi_checked_trees::DynamicConformanceSelectionFact {
-                occurrence: selection.occurrence,
-                source_data: selection.source_data,
-                target_trait: selection.target_trait,
-                conformance: selection.conformance,
-            },
-        )
-        .collect();
+    let mut selections = Vec::new();
+    let mut diagnostics = Vec::new();
+    for selection in psi_validation::collect_dynamic_conformance_selections(program)? {
+        let selected = selected_data_conformance(program, &selection);
+        let mut rows = Vec::new();
+        for row in selected
+            .and_then(|conformance| program.closed_conformance_rows(conformance))
+            .unwrap_or_default()
+        {
+            if matches!(
+                row.source,
+                psi_typed_trees::trait_definition::ConformanceRowSource::TraitDefault
+            ) || !row.realization_machine.is_valid()
+                || !row.realization_state.is_valid()
+            {
+                diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                    "dynamic conformance row `{}::{}` reached checked lowering before its trait default was instantiated",
+                    row.declaring_trait_name, row.requirement_name
+                )));
+                continue;
+            }
+            rows.push(psi_checked_trees::DynamicConformanceRowFact {
+                declaring_trait: row.declaring_trait,
+                requirement: row.requirement,
+                realization_machine: row.realization_machine,
+                realization_state: row.realization_state,
+                source: match row.source {
+                    psi_typed_trees::trait_definition::ConformanceRowSource::Inline => {
+                        psi_checked_trees::DynamicConformanceRowSource::Inline
+                    }
+                    psi_typed_trees::trait_definition::ConformanceRowSource::Reference => {
+                        psi_checked_trees::DynamicConformanceRowSource::Reference
+                    }
+                    psi_typed_trees::trait_definition::ConformanceRowSource::TraitDefault => {
+                        unreachable!("trait-default rows reject before checked facts")
+                    }
+                },
+            });
+        }
+        selections.push(psi_checked_trees::DynamicConformanceSelectionFact {
+            occurrence: selection.occurrence,
+            source_data: selection.source_data,
+            target_trait: selection.target_trait,
+            conformance: selection.conformance,
+            rows,
+        });
+    }
+    if !diagnostics.is_empty() {
+        return Err(diagnostics);
+    }
     Ok(psi_checked_trees::DynamicConformanceFacts { selections })
+}
+
+fn selected_data_conformance<'program>(
+    program: &'program TypedTrees,
+    selection: &psi_validation::DynamicConformanceSelection,
+) -> Option<&'program psi_typed_trees::trait_definition::DataConformance> {
+    if let Some(symbol) = selection.conformance {
+        return program
+            .data_conformances()
+            .iter()
+            .find(|conformance| conformance.symbol == symbol);
+    }
+    let source_name = program.symbols.name(selection.source_data);
+    let trait_name = program.symbols.name(selection.target_trait);
+    let mut matches = program.data_conformances().iter().filter(|conformance| {
+        conformance.type_name.as_str() == source_name
+            && conformance.trait_name.as_str() == trait_name
+            && conformance.alias.is_none()
+    });
+    let selected = matches.next()?;
+    matches.next().is_none().then_some(selected)
 }
 
 /// STR4 checked plans (machine_taxonomy.md): assemble each machine's

@@ -7,29 +7,148 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 #[test]
-fn closed_conformance_blocks_never_fall_back_to_ambient_attached_machines() {
+fn lowers_closed_conformance_rows_to_exact_machine_states() {
     let source = r#"
-        trait Ranked { machine Self::before(&self, other: &Self) -> bool; }
+        trait Ranked {
+            machine Self::before(&self, other: &Self) -> bool;
+            machine Self::rank_value(&self) -> u32;
+        }
         data Card { }
-        machine Card::before(&self, other: &Card) -> bool { }
+        machine Card::stable_rank_value(&self) -> u32 { }
 
-        Card satisfies Ranked {
+        Card satisfies Ranked as PowerOrder {
             machine before(&self, other: &Card) -> bool { }
+            Ranked::rank_value = Card::stable_rank_value;
         }
     "#;
     let tokens = Lexer::new(source)
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("block syntax should parse");
+    let program = lower_syntax_trees(&syntax_trees).expect("closed rows should normalize");
+    let conformances = program.conformances.iter().collect::<Vec<_>>();
+    let [conformance] = conformances.as_slice() else {
+        panic!("one conformance");
+    };
+    let psi_symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
+        &conformance.implementation
+    else {
+        panic!("closed implementation retained");
+    };
+    assert_eq!(rows.len(), 2);
+    assert!(rows.iter().all(|row| {
+        row.declaring_trait.is_valid()
+            && row.requirement.is_valid()
+            && row.realization_machine.is_valid()
+            && row.realization_state.is_valid()
+    }));
+    let before = rows
+        .iter()
+        .find(|row| row.requirement_name.as_str() == "before")
+        .expect("inline row");
+    assert_eq!(before.realization_name.as_str(), "Card::PowerOrder::before");
+    let rank = rows
+        .iter()
+        .find(|row| row.requirement_name.as_str() == "rank_value")
+        .expect("reference row");
+    assert_eq!(rank.realization_name.as_str(), "Card::stable_rank_value");
+}
+
+#[test]
+fn closed_conformance_blocks_never_fall_back_to_ambient_attached_machines() {
+    let source = r#"
+        trait Ranked { machine Self::before(&self, other: &Self) -> bool; }
+        data Card { }
+        machine Card::before(&self, other: &Card) -> bool { }
+        Card satisfies Ranked { }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("block syntax should parse");
     let diagnostic = lower_syntax_trees(&syntax_trees)
-        .expect_err("unlowered closed rows must reject rather than use the attached look-alike");
+        .expect_err("closed map must ignore the ambient attached look-alike");
     assert!(
         diagnostic
             .message
-            .contains("normalized requirement-row lowering is not implemented yet"),
-        "unexpected diagnostic: {}",
-        diagnostic.message
+            .contains("is incomplete: missing `Ranked::before`")
     );
+}
+
+#[test]
+fn closed_conformance_retains_trait_default_selection_rows() {
+    let source = r#"
+        trait Ranked { machine Self::fallback(&self) { } }
+        data Card { }
+        Card satisfies Ranked { }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("block syntax should parse");
+    let program = lower_syntax_trees(&syntax_trees)
+        .expect("the selected trait-default template should cover the row");
+    let conformance = program.conformances.iter().next().expect("one conformance");
+    let psi_symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
+        &conformance.implementation
+    else {
+        panic!("closed implementation retained");
+    };
+    assert_eq!(rows.len(), 1);
+    assert_eq!(
+        rows[0].source,
+        psi_symbol_resolved_trees::trait_definition::ConformanceRowSource::TraitDefault
+    );
+}
+
+#[test]
+fn inherited_requirement_collisions_require_trait_qualified_rows() {
+    let ambiguous = r#"
+        trait LeftOrder { machine Self::before(&self, other: &Self); }
+        trait RightOrder { machine Self::before(&self, other: &Self); }
+        trait BothOrders: LeftOrder + RightOrder { }
+        data Card { }
+        Card satisfies BothOrders {
+            machine before(&self, other: &Card) { }
+        }
+    "#;
+    let tokens = Lexer::new(ambiguous)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("block syntax should parse");
+    let diagnostic = lower_syntax_trees(&syntax_trees)
+        .expect_err("a short row name must not choose one inherited declaration");
+    assert!(
+        diagnostic
+            .message
+            .contains("is ambiguous across inherited traits")
+    );
+
+    let qualified = r#"
+        trait LeftOrder { machine Self::before(&self, other: &Self); }
+        trait RightOrder { machine Self::before(&self, other: &Self); }
+        trait BothOrders: LeftOrder + RightOrder { }
+        data Card { }
+        machine Card::left_before(&self, other: &Card) { }
+        machine Card::right_before(&self, other: &Card) { }
+        Card satisfies BothOrders {
+            LeftOrder::before = Card::left_before;
+            RightOrder::before = Card::right_before;
+        }
+    "#;
+    let tokens = Lexer::new(qualified)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("qualified rows should parse");
+    let program = lower_syntax_trees(&syntax_trees).expect("qualified rows should normalize");
+    let conformance = program.conformances.iter().next().expect("one conformance");
+    let psi_symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
+        &conformance.implementation
+    else {
+        panic!("closed implementation retained");
+    };
+    assert_eq!(rows.len(), 2);
+    assert_ne!(rows[0].declaring_trait, rows[1].declaring_trait);
 }
 
 #[test]

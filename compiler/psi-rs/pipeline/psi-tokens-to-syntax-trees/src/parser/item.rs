@@ -20,8 +20,8 @@ use psi_arena::{Handle, HandleSpan};
 use psi_syntax_trees::SyntaxTrees;
 use psi_syntax_trees::item::{
     ConformanceBody, ConformanceMember, ExternalBinding, Item, ModuleDeclaration,
-    PackageDeclaration, ProviderDeclaration, WireDataDefinition, WireDataField, WireDataMember,
-    WireDataReserved, WireDataVersion,
+    PackageDeclaration, ProviderDeclaration, State, WireDataDefinition, WireDataField,
+    WireDataMember, WireDataReserved, WireDataVersion,
 };
 use psi_syntax_trees::operator_spelling::ProviderCategory;
 use psi_tokens::{KeywordKind, PunctuationKind};
@@ -377,7 +377,7 @@ fn parse_conformance_body<'tokens, 'source>(
     while !input.at_punctuation(PunctuationKind::RightBrace) {
         let (member, rest) = if input.at_keyword(KeywordKind::Machine) {
             let after_machine = input.take_keyword(KeywordKind::Machine, "machine")?;
-            let (machine, rest) = parse_machine(syntax_trees, after_machine)?;
+            let (mut machine, rest) = parse_machine(syntax_trees, after_machine)?;
             if machine.attached_data.is_some() {
                 return Err(input.error_here(
                     "a conformance-block machine names only its requirement slot; the enclosing conformance supplies the carrier",
@@ -393,6 +393,7 @@ fn parse_conformance_body<'tokens, 'source>(
                     "a conformance-block machine already belongs to its enclosing conformance; remove its nested `satisfies` clause",
                 ));
             }
+            normalize_conformance_machine_entry(syntax_trees, &mut machine);
             (ConformanceMember::Machine(machine), rest)
         } else {
             let (declaring_trait, rest) = input.take_identifier()?;
@@ -430,6 +431,31 @@ fn parse_conformance_body<'tokens, 'source>(
         HandleSpan::from_parts(member_start, member_count)
     };
     Ok((ConformanceBody::Closed { members }, input))
+}
+
+fn normalize_conformance_machine_entry(
+    syntax_trees: &mut SyntaxTrees,
+    machine: &mut psi_syntax_trees::item::Machine,
+) {
+    let requirement_name = machine.name.clone();
+    let state_handles = syntax_trees.items.state_handles(machine.states).to_vec();
+    if let Some(first) = state_handles.first().copied() {
+        let state = syntax_trees.items.state_mut(first);
+        if state.name.as_str() == "entry" && !state.name.is_source_backed() {
+            state.name = requirement_name;
+        }
+        return;
+    }
+
+    let state = syntax_trees.items.insert_state(&State {
+        name: requirement_name,
+        parameters: HandleSpan::empty(),
+        return_type: psi_syntax_trees::types::TypeReferenceHandle::invalid(),
+        contracts: HandleSpan::empty(),
+        statements: HandleSpan::empty(),
+    });
+    let state = syntax_trees.items.append_state_handle(state);
+    machine.states = HandleSpan::from_parts(state, 1);
 }
 
 /// Parse the body of an IDENTITY-NUMBERED data declaration (ch20): the caller

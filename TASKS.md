@@ -392,8 +392,9 @@ Remaining N6/N8 work:
 - Add the subjectless conformance-block form used by carrierless evidence
   interfaces. It has a package-scoped name and the same closed normalized row
   map as a carrier-owned conformance; no arbitrary parameter is inferred as
-  its subject. Generic source spelling is blocked on owner Q1; concrete
-  subjectless blocks and the shared row representation are not.
+  its subject. Carrier-owned blocks now retain that shared resolved/typed row
+  representation; concrete subjectless construction remains unblocked.
+  Generic subjectless source spelling is blocked on owner Q1.
 - Add proof-only selected-conformance projection and by-value carrierless `dyn`
   from the complete conformance-block map.
 - Add `Respects` over compiler-derived parallel callable argument telescopes.
@@ -445,10 +446,17 @@ checked-result arithmetic decision listed below.
   propagation, parameter-backed storage, broader runtime-indexed expressions,
   state-parameter loan-root rebasing, and exact R5 preservation.
 - Continue local borrowed `dyn` lowering from the live nominal-conformance
-  selection and descriptor representation. Parse and check complete
-  conformance implementation blocks, normalize inherited trait-qualified rows,
-  instantiate defaults per conformance, and emit adapters/tables only from that
-  retained map. Bare exact-requirement satisfiers never license `dyn`.
+  selection and descriptor representation. Closed carrier conformance blocks
+  now retain inline members and explicit existing-machine references, normalize
+  one exact trait-qualified row for every inherited requirement, reject ambient
+  attached-machine fallback, validate authored row signatures, and carry the
+  selected exact row map into checked `dyn` facts. Finish lowering and checking
+  each trait default body as a per-conformance realization whose sibling calls
+  route through that same map; checked `dyn` lowering currently rejects such a
+  row until that realization exists. Then make descriptor adapters/tables
+  consume only the retained rows, migrate legacy attached-machine
+  conformances, and retire their lookup path. Bare exact-requirement satisfiers
+  never license `dyn`.
 - Complete hermetic semantic evaluation: invocation-specific crash-route
   refinement, target-semantic capsule, separate semantic result and usage
   identities, deterministic progress, and constant/runtime equivalence.

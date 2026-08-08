@@ -63,6 +63,7 @@ pub enum ItemSnapshot {
         trait_arguments: Vec<TypeReferenceSnapshot>,
         #[serde(skip_serializing_if = "Option::is_none")]
         alias: Option<IdentifierSnapshot>,
+        body: ConformanceBodySnapshot,
     },
     Const {
         scope: IdentifierSnapshot,
@@ -180,6 +181,28 @@ pub enum ItemSnapshot {
         name: IdentifierSnapshot,
         encoding: Option<IdentifierSnapshot>,
         members: Vec<WireDataMemberSnapshot>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum ConformanceBodySnapshot {
+    LegacyAttachedMachines,
+    Closed {
+        members: Vec<ConformanceMemberSnapshot>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum ConformanceMemberSnapshot {
+    Machine {
+        declaration: Box<ItemSnapshot>,
+    },
+    Reference {
+        declaring_trait: IdentifierSnapshot,
+        requirement: IdentifierSnapshot,
+        target: Vec<IdentifierSnapshot>,
     },
 }
 
@@ -680,6 +703,41 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                 .map(|argument| snapshot_type_reference_handle(syntax_trees, *argument))
                 .collect(),
             alias: value.alias.as_ref().map(snapshot_identifier),
+            body: match value.body {
+                crate::item::ConformanceBody::LegacyAttachedMachines => {
+                    ConformanceBodySnapshot::LegacyAttachedMachines
+                }
+                crate::item::ConformanceBody::Closed { members } => {
+                    ConformanceBodySnapshot::Closed {
+                        members: syntax_trees
+                            .items
+                            .conformance_members(members)
+                            .iter()
+                            .map(|member| match member {
+                                crate::item::ConformanceMember::Machine(machine) => {
+                                    ConformanceMemberSnapshot::Machine {
+                                        declaration: Box::new(snapshot_item(
+                                            syntax_trees,
+                                            &Item::Machine(machine.clone()),
+                                        )),
+                                    }
+                                }
+                                crate::item::ConformanceMember::Reference {
+                                    declaring_trait,
+                                    requirement,
+                                    target,
+                                } => ConformanceMemberSnapshot::Reference {
+                                    declaring_trait: snapshot_identifier(declaring_trait),
+                                    requirement: snapshot_identifier(requirement),
+                                    target: snapshot_identifier_slice(
+                                        syntax_trees.items.identifier_path_members(*target),
+                                    ),
+                                },
+                            })
+                            .collect(),
+                    }
+                }
+            },
         },
         Item::Const(value) => ItemSnapshot::Const {
             scope: snapshot_identifier(&value.scope),

@@ -105,6 +105,15 @@ pub fn count_identity_storage(typed_trees: &TypedTrees) -> IdentityStorageCounts
         {
             count_type_reference_handle(&typed_trees.type_reference_table, *argument, &mut counts);
         }
+        if let crate::trait_definition::ConformanceImplementation::Closed { rows } =
+            &conformance.implementation
+        {
+            for row in rows {
+                count_declaration_name(&row.declaring_trait_name, &mut counts);
+                count_declaration_name(&row.requirement_name, &mut counts);
+                count_declaration_name(&row.realization_name, &mut counts);
+            }
+        }
     }
 
     for trait_definition in typed_trees.traits() {

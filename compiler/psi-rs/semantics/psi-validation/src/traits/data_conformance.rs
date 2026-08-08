@@ -19,6 +19,8 @@ use psi_typed_trees::TypedTrees;
 use psi_typed_trees::machine::Machine;
 use psi_typed_trees::state::State;
 use psi_typed_trees::trait_definition::TraitDefinition;
+use psi_typed_trees::trait_definition::{ConformanceImplementation, ConformanceRowSource};
+use psi_typed_trees::types::TypeReferenceHandle;
 
 pub(crate) fn validate_data_conformances(
     program: &TypedTrees,
@@ -87,15 +89,147 @@ pub(crate) fn validate_data_conformances(
             diagnostics,
         );
 
-        validate_data_satisfies_trait(
+        match &conformance.implementation {
+            ConformanceImplementation::LegacyAttachedMachines => validate_data_satisfies_trait(
+                program,
+                type_name,
+                trait_definition,
+                arguments,
+                diagnostics,
+                &mut Vec::new(),
+            ),
+            ConformanceImplementation::Closed { rows } => validate_closed_rows(
+                program,
+                type_name,
+                trait_definition,
+                arguments,
+                rows,
+                diagnostics,
+            ),
+        }
+    }
+}
+
+fn validate_closed_rows(
+    program: &TypedTrees,
+    type_name: &str,
+    root_trait: &TraitDefinition,
+    root_arguments: &[TypeReferenceHandle],
+    rows: &[psi_typed_trees::trait_definition::ConformanceRow],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for row in rows {
+        let Some(declaring_trait) = trait_definition_by_symbol(program, row.declaring_trait) else {
+            diagnostics.push(Diagnostic::error(format!(
+                "closed conformance `{type_name} satisfies {}` retains an unresolved declaring trait for row `{}`",
+                root_trait.name, row.requirement_name
+            )));
+            continue;
+        };
+        let Some(requirement) = program
+            .trait_machine_signatures(declaring_trait)
+            .iter()
+            .find(|requirement| requirement.symbol == row.requirement)
+        else {
+            diagnostics.push(Diagnostic::error(format!(
+                "closed conformance `{type_name} satisfies {}` retains an unresolved requirement `{}::{}`",
+                root_trait.name, row.declaring_trait_name, row.requirement_name
+            )));
+            continue;
+        };
+        if row.source == ConformanceRowSource::TraitDefault {
+            if !requirement.is_default {
+                diagnostics.push(Diagnostic::error(format!(
+                    "closed conformance `{type_name} satisfies {}` selects a default for bodyless requirement `{}::{}`",
+                    root_trait.name, row.declaring_trait_name, row.requirement_name
+                )));
+            }
+            continue;
+        }
+        let Some(machine) = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == row.realization_machine)
+        else {
+            diagnostics.push(Diagnostic::error(format!(
+                "closed conformance `{type_name} satisfies {}` row `{}::{}` retains no exact realization machine",
+                root_trait.name, row.declaring_trait_name, row.requirement_name
+            )));
+            continue;
+        };
+        let Some(state) = program
+            .machine_states(machine)
+            .iter()
+            .find(|state| state.symbol == row.realization_state)
+        else {
+            diagnostics.push(Diagnostic::error(format!(
+                "closed conformance `{type_name} satisfies {}` row `{}::{}` retains no exact realization state",
+                root_trait.name, row.declaring_trait_name, row.requirement_name
+            )));
+            continue;
+        };
+        let Some(arguments) = arguments_for_declaring_trait(
             program,
-            type_name,
-            trait_definition,
-            arguments,
-            diagnostics,
+            root_trait,
+            root_arguments,
+            row.declaring_trait,
             &mut Vec::new(),
+        ) else {
+            diagnostics.push(Diagnostic::error(format!(
+                "closed conformance `{type_name} satisfies {}` cannot instantiate inherited row `{}::{}`",
+                root_trait.name, row.declaring_trait_name, row.requirement_name
+            )));
+            continue;
+        };
+        super::conformance::validate_machine_state_satisfies_trait_signature_with_arguments(
+            program,
+            machine,
+            state,
+            declaring_trait,
+            requirement,
+            &arguments,
+            diagnostics,
         );
     }
+}
+
+fn arguments_for_declaring_trait(
+    program: &TypedTrees,
+    current_trait: &TraitDefinition,
+    current_arguments: &[TypeReferenceHandle],
+    target_trait: psi_symbols::SymbolHandle,
+    visited: &mut Vec<psi_symbols::SymbolHandle>,
+) -> Option<Vec<TypeReferenceHandle>> {
+    if current_trait.symbol == target_trait {
+        return Some(current_arguments.to_vec());
+    }
+    if visited.contains(&current_trait.symbol) {
+        return None;
+    }
+    visited.push(current_trait.symbol);
+    for parent in program.trait_requirements(current_trait) {
+        let Some(parent_trait) = trait_definition_by_symbol(program, parent.symbol) else {
+            continue;
+        };
+        let parent_arguments = super::conformance::compose_forwarded_trait_arguments(
+            program,
+            current_trait,
+            current_arguments,
+            program
+                .type_reference_table
+                .type_reference_handles(parent.arguments),
+        );
+        if let Some(arguments) = arguments_for_declaring_trait(
+            program,
+            parent_trait,
+            &parent_arguments,
+            target_trait,
+            visited,
+        ) {
+            return Some(arguments);
+        }
+    }
+    None
 }
 
 fn validate_data_satisfies_trait(

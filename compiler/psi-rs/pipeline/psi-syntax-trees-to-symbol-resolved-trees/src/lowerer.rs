@@ -171,6 +171,9 @@ impl Lowerer {
             &mut self.symbol_resolved_trees,
         )?;
         crate::symbols::assign_symbols(&mut self.symbol_resolved_trees, self.sources);
+        crate::conformance_blocks::normalize_closed_conformance_blocks(
+            &mut self.symbol_resolved_trees,
+        )?;
         crate::domain_establishment::normalize_domain_establishment_routes(
             &mut self.symbol_resolved_trees,
         )?;
