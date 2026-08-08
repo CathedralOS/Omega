@@ -14,7 +14,8 @@ use psi_checked_trees::{
     CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
     CheckedPropositionBinderArgumentKind, CheckedPropositionBinderKind, CheckedPropositionEvidence,
     CheckedScalarExpression, CheckedScalarExpressionRole, CheckedScalarMachineGraph,
-    CheckedScalarStateTerminator, CheckedScalarSuccessor, CheckedTrees, ClosedScalarContractValue,
+    CheckedScalarStateTerminator, CheckedScalarSuccessor, CheckedTerminalMachineSelection,
+    CheckedTerminalSignatureEligibility, CheckedTrees, ClosedScalarContractValue,
     ClosedScalarValueContractPlan, ContentIdentityReshuffleFact, ContentPartitionCompositionFact,
     expression::ExpressionNode,
     signature::SignatureContractKind,
@@ -1146,16 +1147,19 @@ pub fn lower_machine_with_crash_context(
     crash_context: Vec<psi_terminal::CrashContextMaximum>,
 ) -> Result<LoweredTerminalPsi, LoweringError> {
     let mut matches = checked
-        .machines()
+        .facts
+        .flow
+        .terminal_machines
+        .machines
         .iter()
-        .filter(|machine| machine.name.as_str() == machine_name);
-    let machine = matches
+        .filter(|machine| machine.name == machine_name);
+    let selection = matches
         .next()
         .ok_or_else(|| LoweringError::MachineNotFound(machine_name.to_owned()))?;
     if matches.next().is_some() {
         return Err(LoweringError::AmbiguousMachineName(machine_name.to_owned()));
     }
-    let mut lowered = lower_selected_machine(checked, machine)?;
+    let mut lowered = lower_selected_machine(checked, selection)?;
     let (declarations, applications) = lower_proposition_vocabulary(checked);
     lowered.semantic_module.proposition_declarations = declarations;
     lowered.semantic_module.proposition_applications = applications;
@@ -1164,7 +1168,18 @@ pub fn lower_machine_with_crash_context(
     }
     psi_terminal_verifier::validate_module(&lowered.semantic_module)
         .map_err(LoweringError::InvalidTerminalModule)?;
-    lowered.debug_map = Some(build_debug_map(checked, machine, &lowered.semantic_module)?);
+    let source_machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == selection.machine)
+        .ok_or(LoweringError::Unsupported(
+            "checked terminal machine has no typed debug source",
+        ))?;
+    lowered.debug_map = Some(build_debug_map(
+        checked,
+        source_machine,
+        &lowered.semantic_module,
+    )?);
     Ok(lowered)
 }
 
@@ -1288,35 +1303,27 @@ fn lower_proposition_vocabulary(
 
 fn lower_selected_machine(
     checked: &CheckedTrees,
-    machine: &psi_checked_trees::machine::Machine,
+    selection: &CheckedTerminalMachineSelection,
 ) -> Result<LoweredTerminalPsi, LoweringError> {
-    if machine.attached_data.is_some() {
-        return unsupported("attached machines are not in the first terminal-Psi source slice");
-    }
-    if !machine.type_parameters.is_empty()
-        || !machine.owned_data.is_empty()
-        || !machine.satisfies.is_empty()
-        || !machine.decreases.is_empty()
-        || !machine.decrease_view_arguments.is_empty()
-        || machine.decrease_range.is_valid()
-        || !machine.service_reaches.is_empty()
-        || !machine.invokes.is_empty()
-        || machine.suspends
-        || machine.blocks
-        || machine.boundary
-    {
-        return unsupported("machine signature is outside the first terminal-Psi source slice");
+    match selection.signature {
+        CheckedTerminalSignatureEligibility::Eligible => {}
+        CheckedTerminalSignatureEligibility::Attached => {
+            return unsupported("attached machines are not in the first terminal-Psi source slice");
+        }
+        CheckedTerminalSignatureEligibility::Unsupported => {
+            return unsupported("machine signature is outside the first terminal-Psi source slice");
+        }
     }
 
     let graph = checked
         .facts
         .flow
         .terminal_scalar_graphs
-        .for_machine(machine.symbol)
+        .for_machine(selection.machine)
         .ok_or(LoweringError::Unsupported(
             "machine has no source-independent checked scalar control plan",
         ))?;
-    lower_scalar_graph_machine(checked, machine, graph)
+    lower_scalar_graph_machine(checked, selection.machine, graph)
 }
 
 fn lower_checked_crash_frontier(
@@ -1339,7 +1346,7 @@ fn lower_checked_crash_frontier(
 
 fn lower_checked_crash_exit(
     checked: &CheckedTrees,
-    machine: &psi_checked_trees::machine::Machine,
+    machine: psi_symbols::SymbolHandle,
     state: psi_symbols::SymbolHandle,
     statement_ordinal: u32,
     source_claims: &[(PermissionClaimIdentity, ClaimId)],
@@ -1347,7 +1354,7 @@ fn lower_checked_crash_exit(
     let Some(crash_plan) = checked
         .facts
         .contract_plans
-        .for_machine(machine.symbol)
+        .for_machine(machine)
         .map(|contract| &contract.crash)
     else {
         return unsupported("explicit crash has no checked machine-contract plan");
@@ -1506,7 +1513,7 @@ fn evaluate_known_scalar_graph(states: &[LoweredScalarBranchState]) -> Option<Kn
 
 fn lower_scalar_graph_machine(
     checked: &CheckedTrees,
-    machine: &psi_checked_trees::machine::Machine,
+    machine: psi_symbols::SymbolHandle,
     graph: &CheckedScalarMachineGraph,
 ) -> Result<LoweredTerminalPsi, LoweringError> {
     let states = &graph.states;
@@ -2081,7 +2088,7 @@ fn evaluate_compile_known_boolean_expression(
 
 fn lower_content_evidence(
     checked: &CheckedTrees,
-    machine: &psi_checked_trees::machine::Machine,
+    machine: psi_symbols::SymbolHandle,
     state: psi_symbols::SymbolHandle,
 ) -> Result<
     (
@@ -2096,7 +2103,7 @@ fn lower_content_evidence(
         .content
         .identity_reshuffles
         .iter()
-        .filter(|fact| fact.machine_symbol == machine.symbol && fact.state_symbol == state)
+        .filter(|fact| fact.machine_symbol == machine && fact.state_symbol == state)
         .cloned()
         .collect::<Vec<_>>();
     let mut identity_reshuffles = lower_content_identity_reshuffles(&identity_facts)?;
@@ -2106,7 +2113,7 @@ fn lower_content_evidence(
         .content
         .partition_compositions
         .iter()
-        .filter(|fact| fact.machine_symbol == machine.symbol && fact.state_symbol == state)
+        .filter(|fact| fact.machine_symbol == machine && fact.state_symbol == state)
         .cloned()
         .collect::<Vec<_>>();
     let partition_compositions =
@@ -2114,14 +2121,14 @@ fn lower_content_evidence(
     Ok((identity_reshuffles, partition_compositions))
 }
 
-fn closed_scalar_contract_plan<'checked>(
-    checked: &'checked CheckedTrees,
-    machine: &psi_checked_trees::machine::Machine,
-) -> Result<&'checked ClosedScalarValueContractPlan, LoweringError> {
+fn closed_scalar_contract_plan(
+    checked: &CheckedTrees,
+    machine: psi_symbols::SymbolHandle,
+) -> Result<&ClosedScalarValueContractPlan, LoweringError> {
     checked
         .facts
         .contract_plans
-        .for_machine(machine.symbol)
+        .for_machine(machine)
         .map(|plan| &plan.closed_scalar_values)
         .ok_or(LoweringError::Unsupported(
             "machine has no source-independent checked contract plan",
@@ -2130,7 +2137,7 @@ fn closed_scalar_contract_plan<'checked>(
 
 fn validate_closed_scalar_contract(
     checked: &CheckedTrees,
-    machine: &psi_checked_trees::machine::Machine,
+    machine: psi_symbols::SymbolHandle,
     result_type: ScalarType,
     expected_value: Option<KnownDirectScalar>,
     allow_crash_contracts: bool,

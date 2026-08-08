@@ -163,8 +163,9 @@ before terminal production; the producer no longer derives any of that meaning
 from typed expression nodes. Typed statement topology and debug spans remain a
 temporary presentation input only: checked flow facts now retain ordered state
 identity, primitive signatures, terminator shape, stable successors, and
-argument arity for semantic production. Machine selection/signature eligibility
-and replaceable debug-map attachment remain the typed-tree seams.
+argument arity for semantic production. Stable checked machine-name and
+signature-eligibility rows also drive selection. Replaceable debug-map
+attachment is the remaining typed-tree seam in this scalar producer.
 It emits the semantic module and proof bundle separately and fails closed on
 all other shapes. Its canaries drop the frontend trees before terminal
 verification and interpretation; ninth-parameter `bool` and `u8` machines

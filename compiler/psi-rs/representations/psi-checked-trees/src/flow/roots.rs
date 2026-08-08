@@ -134,6 +134,9 @@ pub struct FlowFacts {
     /// Source-handle-free control topology for the live terminal-Psi scalar
     /// producer. General terminal control will replace this bootstrap carrier.
     pub terminal_scalar_graphs: super::CheckedScalarGraphPlans,
+    /// Stable machine selection and signature-eligibility rows for terminal
+    /// production.
+    pub terminal_machines: super::CheckedTerminalMachineSelections,
 }
 
 impl FlowFacts {
@@ -153,6 +156,7 @@ impl FlowFacts {
             boundaries,
             control,
             terminal_scalar_graphs: super::CheckedScalarGraphPlans::default(),
+            terminal_machines: super::CheckedTerminalMachineSelections::default(),
         }
     }
 }

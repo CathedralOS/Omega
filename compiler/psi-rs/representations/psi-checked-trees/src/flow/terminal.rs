@@ -1,6 +1,27 @@
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::types::PrimitiveType;
 
+/// Stable machine identities and names used to select the bootstrap terminal
+/// producer without reopening the typed machine table.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedTerminalMachineSelections {
+    pub machines: Vec<CheckedTerminalMachineSelection>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedTerminalMachineSelection {
+    pub machine: SymbolHandle,
+    pub name: String,
+    pub signature: CheckedTerminalSignatureEligibility,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CheckedTerminalSignatureEligibility {
+    Eligible,
+    Attached,
+    Unsupported,
+}
+
 /// Source-handle-free control plans accepted by the bootstrap terminal-Psi
 /// scalar producer.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

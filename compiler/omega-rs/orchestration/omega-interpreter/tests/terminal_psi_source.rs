@@ -508,6 +508,52 @@ fn terminal_scalar_control_consumes_the_source_independent_checked_plan() {
 }
 
 #[test]
+fn terminal_machine_selection_consumes_the_source_independent_checked_plan() {
+    let checked = compile_to_checked(&source_canary(), None).unwrap_or_else(|diagnostics| {
+        panic!(
+            "terminal-Psi source canary should compile:\n{}",
+            diagnostics
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    });
+    let expected = lower_machine(&checked, "terminal_constant")
+        .expect("the checked machine selection should lower");
+    let replacement_name = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() != "terminal_constant")
+        .expect("a replacement machine name")
+        .name
+        .clone();
+
+    let mut without_typed_selection = checked.clone();
+    let source_machine = without_typed_selection
+        .typed
+        .machines_mut()
+        .iter_mut()
+        .find(|machine| machine.name.as_str() == "terminal_constant")
+        .expect("terminal constant machine");
+    source_machine.name = replacement_name;
+    source_machine.boundary = true;
+
+    let actual = lower_machine(&without_typed_selection, "terminal_constant")
+        .expect("terminal production must not reopen typed machine selection or eligibility");
+    assert_eq!(actual.semantic_module, expected.semantic_module);
+    assert_eq!(actual.proof_bundle, expected.proof_bundle);
+
+    let mut without_checked_selection = checked;
+    without_checked_selection.facts.flow.terminal_machines = Default::default();
+    assert_eq!(
+        lower_machine(&without_checked_selection, "terminal_constant")
+            .expect_err("terminal production must fail without checked machine selection"),
+        LoweringError::MachineNotFound("terminal_constant".to_owned())
+    );
+}
+
+#[test]
 fn terminal_proposition_vocabulary_consumes_checked_proof_facts() {
     let checked = compile_to_checked(&source_canary(), None).unwrap_or_else(|diagnostics| {
         panic!(

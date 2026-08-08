@@ -242,13 +242,15 @@ Remaining:
   state order, primitive signatures, terminator kind, stable successors, and
   argument arity as a source-handle-free control plan; terminal semantic and
   proof production no longer reads typed statements or transitions. Those
-  source tables remain only behind replaceable debug-map construction.
+  source tables remain only behind replaceable debug-map construction. Checked
+  flow facts also retain stable machine names and the bootstrap signature-
+  eligibility decision, so semantic machine selection no longer walks or
+  reclassifies typed machine declarations.
 - Replace all remaining terminal-path `ExpressionHandle` and source-tree
   dependencies with lowered values and predicates. The executable scalar
-  vocabulary and topology are migrated; next retain machine selection and
-  signature eligibility independently of typed trees, isolate debug-source
-  attachment behind its own optional carrier, then retire the legacy backend
-  lane as consumers move.
+  vocabulary, topology, machine selection, and signature eligibility are
+  migrated. Next isolate debug-source attachment behind its own optional
+  carrier, then retire the legacy backend lane as consumers move.
 - **CRASH-CONTRACT.** Source now parses fingerprinted `crashes Cause Scope`
   buckets, including multiple alternative route facts and the unconditional
   `crashes Cause` shorthand, and preserves explicit `crash Cause;` exits through

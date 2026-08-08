@@ -47,6 +47,7 @@ pub(crate) fn build_check_facts(
     values.scalar_expressions =
         crate::values::build_checked_scalar_expression_plans(program, &operators);
     flow.terminal_scalar_graphs = crate::flow::build_checked_scalar_graph_plans(program);
+    flow.terminal_machines = crate::flow::build_checked_terminal_machine_selections(program);
     let capabilities = build_capability_facts(program, &service_reach_inference, &flow);
     // TPR3 slice 4: the checker-established termination summaries (built
     // from the same pure functions the termination CHECK uses -- facts and
