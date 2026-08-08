@@ -351,12 +351,7 @@ fn record_crash_frontier_lower_bounds(
                     })
                     .map(|frontier| frontier.claims.clone())
                     .unwrap_or_else(|| site.frontier_lower_bound().to_vec());
-                psi_checked_trees::CheckedCrashSite::new(
-                    location,
-                    site.cause(),
-                    site.guard_covering_buckets().to_vec(),
-                    frontier,
-                )
+                site.clone().with_frontier_lower_bound(frontier)
             })
             .collect();
         contract.crash = contract

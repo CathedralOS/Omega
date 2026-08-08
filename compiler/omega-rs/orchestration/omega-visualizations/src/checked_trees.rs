@@ -1691,8 +1691,20 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
                         psi_checked_trees::CrashCause::Abort => "Abort",
                     },
                 );
+                json.push_str(", \"damage_minimum\": ");
+                push_json_string(&mut json, site.damage_minimum());
                 json.push_str(", \"guard_covering_buckets\": [");
                 for (coverage_index, bucket) in site.guard_covering_buckets().iter().enumerate() {
+                    if coverage_index > 0 {
+                        json.push_str(", ");
+                    }
+                    json.push_str(&bucket.get().to_string());
+                }
+                json.push(']');
+                json.push_str(", \"covering_buckets\": [");
+                for (coverage_index, (bucket, _)) in
+                    contract.crash.covering_buckets_for_site(site).enumerate()
+                {
                     if coverage_index > 0 {
                         json.push_str(", ");
                     }
@@ -3274,7 +3286,7 @@ mod tests {
         assert!(!contract.contains("remaining"));
         assert!(json[implementation_start..].contains("\"inferred_write_frames\": []"));
         assert!(json[implementation_start..].contains(
-            "\"checked_crash_sites\": [\n          {\"state\": \"entry\", \"statement_ordinal\": 4, \"cause\": \"Abort\", \"guard_covering_buckets\": [1], \"frontier_lower_bound\": [{\"kind\": \"established\""
+            "\"checked_crash_sites\": [\n          {\"state\": \"entry\", \"statement_ordinal\": 4, \"cause\": \"Abort\", \"damage_minimum\": \"ExecutionDomain\", \"guard_covering_buckets\": [1], \"covering_buckets\": [1], \"frontier_lower_bound\": [{\"kind\": \"established\""
         ));
         assert!(
             json[implementation_start..]

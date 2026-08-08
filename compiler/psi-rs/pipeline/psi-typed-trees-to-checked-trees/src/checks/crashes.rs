@@ -7,7 +7,7 @@
 //! derived condition implies the bucket guard. This is checked implementation
 //! evidence and never enters the public contract fingerprint.
 
-use psi_checked_trees::{CheckFacts, CheckedCrashSite, CrashRouteGuard};
+use psi_checked_trees::{CheckFacts, CrashRouteGuard};
 use psi_typed_trees::TypedTrees;
 
 pub(crate) fn infer_path_conditioned_guard_coverage(program: &TypedTrees, facts: &mut CheckFacts) {
@@ -71,12 +71,7 @@ pub(crate) fn infer_path_conditioned_guard_coverage(program: &TypedTrees, facts:
                     covering.push(bucket_id);
                 }
 
-                CheckedCrashSite::new(
-                    site.location(),
-                    site.cause(),
-                    covering,
-                    site.frontier_lower_bound().to_vec(),
-                )
+                site.clone().with_guard_covering_buckets(covering)
             })
             .collect();
         facts.contract_plans.machines[contract_index].crash = crash_plan

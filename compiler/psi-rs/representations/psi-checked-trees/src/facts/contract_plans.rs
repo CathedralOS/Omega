@@ -16,10 +16,27 @@ use psi_language_semantics::{
 };
 use psi_symbols::SymbolHandle;
 
+pub use psi_language_semantics::crash::{
+    ACTIVATION_CRASH_SCOPE, EXECUTION_DOMAIN_CRASH_SCOPE,
+    scope_covers_minimum as crash_scope_covers_minimum,
+};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CrashCause {
     Trap,
     Abort,
+}
+
+impl CrashCause {
+    /// The first checked damage-minimum slice follows the language's intrinsic
+    /// cause law. Later invariant/custody analysis may widen `Trap`; it can
+    /// never narrow either cause below this seed.
+    pub const fn intrinsic_damage_minimum(self) -> &'static str {
+        match self {
+            Self::Trap => ACTIVATION_CRASH_SCOPE,
+            Self::Abort => EXECUTION_DOMAIN_CRASH_SCOPE,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -106,15 +123,17 @@ impl CrashSiteLocation {
     }
 }
 
-/// Body-derived seed for a crash-terminator plan. Structurally unconditional
-/// guard coverage may already be attached, but this row deliberately does not
-/// pretend that path-conditioned entailment, damage comparison, or frontier
-/// reconstruction has happened; those independent checked fields are added by
-/// later CRASH-CONTRACT passes.
+/// Body-derived seed for a crash-terminator plan. Intrinsic cause minima and
+/// structurally unconditional guard coverage are attached immediately;
+/// path-conditioned entailment, invariant/custody widening, and frontier
+/// reconstruction remain independent later passes.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedCrashSite {
     location: CrashSiteLocation,
     cause: CrashCause,
+    /// Smallest nominal termination scope currently proved necessary to keep
+    /// surviving state sound. This is body evidence, not public identity.
+    damage_minimum: String,
     /// Published buckets whose guard implication is already established for
     /// this site. This is not yet complete crash coverage: damage-minimum and
     /// containment-demand comparison remains an independent check.
@@ -140,6 +159,7 @@ impl CheckedCrashSite {
         Self {
             location,
             cause,
+            damage_minimum: cause.intrinsic_damage_minimum().to_owned(),
             guard_covering_buckets,
             frontier_lower_bound,
         }
@@ -151,6 +171,39 @@ impl CheckedCrashSite {
 
     pub const fn cause(&self) -> CrashCause {
         self.cause
+    }
+
+    pub fn damage_minimum(&self) -> &str {
+        &self.damage_minimum
+    }
+
+    pub fn with_damage_minimum(mut self, damage_minimum: impl Into<String>) -> Option<Self> {
+        let damage_minimum = damage_minimum.into();
+        if !crash_scope_covers_minimum(self.cause.intrinsic_damage_minimum(), &damage_minimum) {
+            return None;
+        }
+        self.damage_minimum = damage_minimum;
+        Some(self)
+    }
+
+    pub fn with_guard_covering_buckets(
+        mut self,
+        mut guard_covering_buckets: Vec<CrashRouteBucketId>,
+    ) -> Self {
+        guard_covering_buckets.sort_unstable();
+        guard_covering_buckets.dedup();
+        self.guard_covering_buckets = guard_covering_buckets;
+        self
+    }
+
+    pub fn with_frontier_lower_bound(
+        mut self,
+        mut frontier_lower_bound: Vec<psi_language_semantics::PermissionClaimIdentity>,
+    ) -> Self {
+        frontier_lower_bound.sort_by_key(|identity| crash_frontier_claim_sort_key(*identity));
+        frontier_lower_bound.dedup();
+        self.frontier_lower_bound = frontier_lower_bound;
+        self
     }
 
     pub fn guard_covering_buckets(&self) -> &[CrashRouteBucketId] {
@@ -294,12 +347,14 @@ impl CrashPlan {
             return None;
         }
         if checked_sites.iter().any(|site| {
-            site.guard_covering_buckets.iter().any(|bucket| {
-                self.published_bucket(*bucket)
-                    .is_none_or(|published| published.cause != site.cause)
-            }) || site.frontier_lower_bound.iter().any(|identity| {
-                *identity == psi_language_semantics::PermissionClaimIdentity::Unknown
-            })
+            !crash_scope_covers_minimum(site.cause.intrinsic_damage_minimum(), &site.damage_minimum)
+                || site.guard_covering_buckets.iter().any(|bucket| {
+                    self.published_bucket(*bucket)
+                        .is_none_or(|published| published.cause != site.cause)
+                })
+                || site.frontier_lower_bound.iter().any(|identity| {
+                    *identity == psi_language_semantics::PermissionClaimIdentity::Unknown
+                })
         }) {
             return None;
         }
@@ -330,6 +385,24 @@ impl CrashPlan {
 
     pub fn checked_sites(&self) -> &[CheckedCrashSite] {
         &self.checked_sites
+    }
+
+    /// Published buckets whose guards and containment demands both cover this
+    /// checked body site.
+    pub fn covering_buckets_for_site<'plan>(
+        &'plan self,
+        site: &'plan CheckedCrashSite,
+    ) -> impl Iterator<Item = (CrashRouteBucketId, &'plan CrashRouteBucket)> + 'plan {
+        site.guard_covering_buckets.iter().filter_map(move |id| {
+            self.published_bucket(*id).and_then(|bucket| {
+                (bucket.cause == site.cause
+                    && crash_scope_covers_minimum(
+                        site.damage_minimum(),
+                        bucket.containment_demand(),
+                    ))
+                .then_some((*id, bucket))
+            })
+        })
     }
 
     pub fn checked_site_at(
@@ -659,6 +732,58 @@ mod tests {
         assert_eq!(
             plan.checked_sites()[0].guard_covering_buckets(),
             &[abort_id]
+        );
+    }
+
+    #[test]
+    fn crash_damage_minima_filter_guard_covering_buckets_independently() {
+        let plan = CrashPlan::published_ceiling(vec![
+            CrashRouteBucket::unconditional(CrashCause::Abort, ACTIVATION_CRASH_SCOPE),
+            CrashRouteBucket::unconditional(CrashCause::Abort, EXECUTION_DOMAIN_CRASH_SCOPE),
+        ]);
+        let ids = plan
+            .published_with_ids()
+            .map(|(id, _)| id)
+            .collect::<Vec<_>>();
+        let site = CheckedCrashSite::new(
+            CrashSiteLocation::new(SymbolHandle::from_arena_index(4), 0),
+            CrashCause::Abort,
+            ids,
+            Vec::new(),
+        );
+        assert_eq!(site.damage_minimum(), EXECUTION_DOMAIN_CRASH_SCOPE);
+
+        let covering = plan
+            .covering_buckets_for_site(&site)
+            .map(|(_, bucket)| bucket.containment_demand())
+            .collect::<Vec<_>>();
+        assert_eq!(covering, [EXECUTION_DOMAIN_CRASH_SCOPE]);
+        assert!(crash_scope_covers_minimum(
+            ACTIVATION_CRASH_SCOPE,
+            EXECUTION_DOMAIN_CRASH_SCOPE
+        ));
+        assert!(!crash_scope_covers_minimum(
+            EXECUTION_DOMAIN_CRASH_SCOPE,
+            ACTIVATION_CRASH_SCOPE
+        ));
+
+        let trap = CheckedCrashSite::new(
+            CrashSiteLocation::new(SymbolHandle::from_arena_index(5), 0),
+            CrashCause::Trap,
+            Vec::new(),
+            Vec::new(),
+        );
+        assert_eq!(trap.damage_minimum(), ACTIVATION_CRASH_SCOPE);
+        assert_eq!(
+            trap.clone()
+                .with_damage_minimum(EXECUTION_DOMAIN_CRASH_SCOPE)
+                .expect("a trap minimum may widen to the portable top")
+                .damage_minimum(),
+            EXECUTION_DOMAIN_CRASH_SCOPE
+        );
+        assert!(
+            site.with_damage_minimum(ACTIVATION_CRASH_SCOPE).is_none(),
+            "an abort minimum cannot narrow below ExecutionDomain"
         );
     }
 

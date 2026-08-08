@@ -210,16 +210,24 @@ Remaining:
   path guard; terminal production consumes that checked join instead of
   searching the published routes. Exact retained incoming path guards and
   their fallthrough negations now join to identical normalized published
-  alternatives; broader guard entailment remains. Checked ownership also
-  records a canonical stable-claim lower bound containing every definitely-live,
+  alternatives; broader guard entailment remains. Each site now retains the
+  intrinsic cause minimum (`Trap <= Activation`, `Abort <= ExecutionDomain`),
+  and the checked plan distinguishes guard-covering buckets from buckets whose
+  containment demand also covers that minimum. Reports expose both sets;
+  terminal production rejects a narrow demand while v22 continues to carry
+  the selected published demand. A later semantic version must carry the
+  derived minimum and published demand separately.
+  Checked ownership also records a canonical stable-claim lower bound
+  containing every definitely-live,
   unconditional linear obligation at each site. Exhaustive crash paths abandon
   those claims rather than inventing cleanup or consumption, reports expose
   the lower bound,
   and terminal production rejects any checked identity it cannot map to a dense
   terminal claim. Extend that frontier with conditionally live claims when path
   evidence proves their membership. Extend path-conditioned guard entailment
-  beyond exact retained predicates and add damage minima next, then finish
-  call-site refinement/propagation and sparse per-cause context maxima.
+  beyond exact retained predicates, widen damage minima from open
+  invariant/custody evidence, and retain declared nominal scope ordering; then
+  finish call-site refinement/propagation and sparse per-cause context maxima.
   Generalize source production beyond the initial unconditional bucket.
   Terminal Psi v22 already carries the explicit no-successor terminator and its
   canonical machine-local frontier lower bound; native lowering remains closed

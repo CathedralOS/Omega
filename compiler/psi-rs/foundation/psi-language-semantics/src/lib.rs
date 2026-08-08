@@ -9,6 +9,7 @@
 pub mod byte_predicates;
 pub mod const_value;
 pub mod content;
+pub mod crash;
 pub mod value_domain;
 pub mod wire;
 

@@ -576,6 +576,12 @@ machine terminal_unpublished_abort() -> i32 {
     crash Abort;
 }
 
+machine terminal_narrow_abort() -> i32
+crashes Abort Activation
+{
+    crash Abort;
+}
+
 machine terminal_guarded_abort(flag: bool) -> i32
 crashes Abort Activation
     flag
