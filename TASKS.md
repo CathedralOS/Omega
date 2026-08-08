@@ -232,8 +232,14 @@ Remaining:
   those claims rather than inventing cleanup or consumption, reports expose
   the lower bound,
   and terminal production rejects any checked identity it cannot map to a dense
-  terminal claim. Extend that frontier with conditionally live claims when path
-  evidence proves their membership. Direct calls to local machines with
+  terminal claim. Direct positive case-pattern edges now rebind the guarded
+  subject through named-state arguments and add exactly the selected
+  conditional entry claim; the ownership join also treats exhaustive case runs
+  as exhaustive and removes impossible earlier alternatives before comparing
+  arm outcomes. Unknown active cases and nested cases without proof at every
+  level remain outside the lower bound. Extend this evidence through
+  source-independent joins and composed/transitive state-argument maps. Direct
+  calls to local machines with
   published crash ceilings now retain source-independent checked invocation
   rows keyed by state/statement/call ordinal and target contract fingerprint.
   The producer substitutes arguments into canonical route predicates, drops
