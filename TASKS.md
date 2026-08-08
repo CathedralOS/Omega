@@ -213,7 +213,10 @@ Remaining:
   exact-type integer comparison), preserve them across terminal block
   parameters, and use the resulting recursive Boolean target expression as
   native control on both architectures. Mixed-scalar short-circuit bindings
-  remain a later vertical slice.
+  now lower through typed left-to-right tuple stages on unconditional and
+  conditional edges; selected-path fuel preserves `&&`/`||` bypass, an
+  unselected conditional payload is not executed or charged, and both forms
+  reach both native targets.
 - Replace all remaining terminal-path `ExpressionHandle` and source-tree
   dependencies with lowered values and predicates. Absorb useful StateGraph /
   ControlFlow topology, then retire the legacy backend lane as consumers move.
