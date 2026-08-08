@@ -637,6 +637,29 @@ ensures true == true
     state finish(value: bool) -> bool { value }
 }
 
+machine terminal_boolean_chain_short_circuit_tuple(
+    choose_staged: bool,
+    first: bool,
+    second: bool,
+    third: bool,
+    fourth: bool
+) -> bool
+requires true == true
+ensures true == true
+{
+    transition choose_staged {
+        true -> bind_tuple(first, second, third, fourth)
+        _ -> direct_tuple(first, third)
+    }
+    state bind_tuple(first: bool, second: bool, third: bool, fourth: bool) -> bool {
+        transition { _ -> finish_tuple(first || second, third && fourth) }
+    }
+    state direct_tuple(any: bool, both: bool) -> bool {
+        transition { _ -> finish_tuple(any, both) }
+    }
+    state finish_tuple(any: bool, both: bool) -> bool { any == both }
+}
+
 machine terminal_boolean_chain_wrong_contract() -> bool
 requires false == false
 ensures false == false

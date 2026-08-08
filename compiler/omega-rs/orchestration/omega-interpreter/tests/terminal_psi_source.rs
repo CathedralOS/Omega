@@ -1367,6 +1367,67 @@ fn checked_source_nested_boolean_control_reaches_both_native_targets() {
     }
 }
 
+#[test]
+fn checked_source_short_circuit_tuple_binding_is_staged_left_to_right() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("short-circuit tuple-binding source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_boolean_chain_short_circuit_tuple")
+        .expect("short-circuit tuple bindings should lower in ordered stages");
+    drop(checked);
+
+    assert_eq!(lowered.semantic_module.machines[0].blocks.len(), 15);
+    let semantic_bytes = encode_module(&lowered.semantic_module)
+        .expect("short-circuit tuple binding should encode canonically");
+    let proof_bytes = encode_proof_bundle(&lowered.proof_bundle)
+        .expect("short-circuit tuple-binding proof should encode canonically");
+    let semantic_module =
+        decode_module(&semantic_bytes).expect("short-circuit tuple binding should decode");
+    let proof_bundle =
+        decode_proof_bundle(&proof_bytes).expect("short-circuit tuple-binding proof should decode");
+    let verified = verify_module(
+        &semantic_module,
+        &proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("short-circuit tuple binding should verify after frontend drop");
+    assert_eq!(
+        derive_fixed_entry_fuel(&verified, semantic_module.entry)
+            .expect("short-circuit tuple binding should have exact fuel")
+            .ceiling_units(),
+        13
+    );
+
+    for (arguments, expected, units) in [
+        ([true, true, false, false, true], false, 11),
+        ([true, false, true, false, false], false, 12),
+        ([true, true, false, true, true], true, 12),
+        ([true, false, false, true, false], true, 13),
+        ([false, true, false, true, false], true, 4),
+    ] {
+        let measured =
+            interpret_terminal_measured(&verified, &arguments.map(TerminalScalarValue::Boolean))
+                .expect("short-circuit tuple binding should interpret");
+        assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+        assert_eq!(measured.usage().total_units(), units);
+    }
+
+    let abstract_operations = lower_verified_module(&verified)
+        .expect("short-circuit tuple binding should cross the Omega boundary");
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_operations = lower_to_target_operations(&abstract_operations, target)
+            .expect("short-circuit tuple binding should select for both native targets");
+        assert!(matches!(
+            target_operations.functions[0].operation,
+            TerminalTargetOperation::ReturnBooleanConditionalControl { .. }
+        ));
+        let assigned = assign_registers(&target_operations)
+            .expect("short-circuit tuple-binding homes should assign");
+        let machine_code = emit_machine_code(&assigned)
+            .expect("short-circuit tuple-binding machine code should emit");
+        assert!(!machine_code.functions[0].bytes.is_empty());
+    }
+}
+
 #[cfg(unix)]
 #[test]
 fn source_closed_integer_chain_matches_emitted_host_machine_code() {
