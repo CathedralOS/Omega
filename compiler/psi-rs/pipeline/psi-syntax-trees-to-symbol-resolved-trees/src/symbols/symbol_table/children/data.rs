@@ -42,7 +42,13 @@ pub(in crate::symbols::symbol_table) fn insert_data_symbol_children(
                 program
                     .conformances
                     .iter()
-                    .filter(|conformance| conformance.type_name == data_definition.name)
+                    .filter(|conformance| {
+                        matches!(
+                            &conformance.subject,
+                            psi_symbol_resolved_trees::trait_definition::ConformanceSubject::Carrier(type_name)
+                                if *type_name == data_definition.name
+                        )
+                    })
                     .filter_map(|conformance| {
                         conformance
                             .alias

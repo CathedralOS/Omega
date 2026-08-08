@@ -821,9 +821,13 @@ fn generic_boundary_conformance_selects_and_publishes_its_policy_instance() {
         .expect("Tick boundary trait");
     let conformance = checked
         .typed
-        .data_conformances()
+        .conformances()
         .iter()
-        .find(|conformance| conformance.type_name.as_str() == "TickProvider")
+        .find(|conformance| {
+            conformance
+                .carrier_name()
+                .is_some_and(|carrier| carrier.as_str() == "TickProvider")
+        })
         .expect("TickProvider conformance");
     let arguments = checked
         .typed

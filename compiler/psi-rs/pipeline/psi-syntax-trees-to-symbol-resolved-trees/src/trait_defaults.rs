@@ -169,13 +169,30 @@ pub fn synthesize_trait_defaults(syntax: &mut SyntaxTrees) -> Result<(), Vec<Dia
     let mut diagnostics = Vec::new();
     let mut reported_conflicts = HashSet::new();
     for conformance in conformances {
-        let type_name = conformance.declaration.type_name.as_str().to_string();
+        let carrier_name = match &conformance.declaration.subject {
+            psi_syntax_trees::item::ConformanceSubject::Carrier(type_name) => {
+                Some(type_name.as_str().to_string())
+            }
+            psi_syntax_trees::item::ConformanceSubject::Subjectless => None,
+        };
+        let conformance_name = carrier_name.clone().unwrap_or_else(|| {
+            conformance
+                .declaration
+                .alias
+                .as_ref()
+                .expect("parsed subjectless conformances are named")
+                .as_str()
+                .to_string()
+        });
         let trait_name = conformance.declaration.trait_name.as_str().to_string();
         let arguments = syntax
             .type_references
             .type_reference_handles(conformance.declaration.trait_arguments)
             .to_vec();
-        if !data_names.contains(&type_name) {
+        if carrier_name
+            .as_ref()
+            .is_some_and(|type_name| !data_names.contains(type_name))
+        {
             continue;
         }
         let Some(conformed_trait) = traits.get(&trait_name) else {
@@ -183,7 +200,7 @@ pub fn synthesize_trait_defaults(syntax: &mut SyntaxTrees) -> Result<(), Vec<Dia
         };
         if arguments.len() != conformed_trait.parameter_names.len() {
             diagnostics.push(Diagnostic::error(format!(
-                "conformance `{type_name} satisfies {trait_name}` expects {} generic argument(s), got {}",
+                "conformance `{conformance_name} satisfies {trait_name}` expects {} generic argument(s), got {}",
                 conformed_trait.parameter_names.len(),
                 arguments.len()
             )));
@@ -241,7 +258,7 @@ pub fn synthesize_trait_defaults(syntax: &mut SyntaxTrees) -> Result<(), Vec<Dia
                 };
                 let machine = machine_from_signature(
                     syntax,
-                    &type_name,
+                    &conformance_name,
                     Identifier::generated(signature.name.as_str()),
                     &signature,
                 );
@@ -263,6 +280,10 @@ pub fn synthesize_trait_defaults(syntax: &mut SyntaxTrees) -> Result<(), Vec<Dia
             }
             continue;
         }
+
+        let Some(type_name) = carrier_name else {
+            continue;
+        };
 
         if trait_name == "Equatable"
             && let Some(signature) = conformed_trait

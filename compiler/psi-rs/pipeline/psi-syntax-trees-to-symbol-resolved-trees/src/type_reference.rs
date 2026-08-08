@@ -105,8 +105,10 @@ fn lower_dynamic_trait_reference(
         .root_items()
         .filter_map(|item| match item {
             syntax::item::Item::Conformance(conformance)
-                if conformance.type_name == *name
-                    && conformance.alias.as_ref() == Some(conformance_name) =>
+                if matches!(
+                    &conformance.subject,
+                    syntax::item::ConformanceSubject::Carrier(type_name) if type_name == name
+                ) && conformance.alias.as_ref() == Some(conformance_name) =>
             {
                 Some(conformance)
             }

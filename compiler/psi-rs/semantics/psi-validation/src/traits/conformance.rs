@@ -84,7 +84,7 @@ pub(crate) fn generic_bound_requirement_call<'program>(
     for bound in &bounds {
         let trait_definition = if let Some(selected) = bound.conformance {
             let declaration = program
-                .data_conformances()
+                .conformances()
                 .iter()
                 .find(|declaration| declaration.symbol == selected)
                 .ok_or_else(|| {
@@ -512,7 +512,7 @@ fn validate_conformance_bounds(
 
         if let Some(selected) = bound.conformance {
             let Some(declaration) = program
-                .data_conformances()
+                .conformances()
                 .iter()
                 .find(|declaration| declaration.symbol == selected)
             else {
@@ -526,7 +526,7 @@ fn validate_conformance_bounds(
                 )));
                 continue;
             };
-            if declaration.type_name != bound.carrier_name {
+            if declaration.carrier_name() != Some(&bound.carrier_name) {
                 diagnostics.push(Diagnostic::error(format!(
                     "{owner_kind} `{owner_name}` conformance bound selection `{}::{}` does not belong to carrier `{}`",
                     bound.carrier_name,
@@ -534,7 +534,9 @@ fn validate_conformance_bounds(
                         .conformance_name
                         .as_ref()
                         .map_or("<missing>", |name| name.as_str()),
-                    declaration.type_name,
+                    declaration
+                        .carrier_name()
+                        .map_or("<subjectless>", |name| name.as_str()),
                 )));
             }
             continue;
@@ -624,7 +626,7 @@ pub(super) fn validate_trait_application_obligations(
 
         if let Some(selected) = obligation.conformance {
             let Some(declaration) = program
-                .data_conformances()
+                .conformances()
                 .iter()
                 .find(|declaration| declaration.symbol == selected)
             else {
@@ -637,8 +639,9 @@ pub(super) fn validate_trait_application_obligations(
                         candidate.subject == subject_symbol
                             && candidate.conformance == Some(selected)
                     })
-                }) || concrete_data_type_name(program, actual_subject)
-                    == Some(declaration.type_name.as_str());
+                }) || declaration.carrier_name().is_some_and(|carrier| {
+                    concrete_data_type_name(program, actual_subject) == Some(carrier.as_str())
+                });
             if !has_exact_evidence {
                 diagnostics.push(Diagnostic::error(format!(
                     "{application_label} does not meet trait `{}` header obligation `{}` satisfies exact conformance `{}::{}`: argument `{}` is not data `{}`",
@@ -650,7 +653,9 @@ pub(super) fn validate_trait_application_obligations(
                         .as_ref()
                         .map_or("<missing>", |name| name.as_str()),
                     program.display_type_reference(actual_subject),
-                    declaration.type_name,
+                    declaration
+                        .carrier_name()
+                        .map_or("<subjectless>", |name| name.as_str()),
                 )));
             }
             continue;
@@ -682,10 +687,12 @@ pub(super) fn validate_trait_application_obligations(
                     .count()
             } else if let Some(type_name) = concrete_data_type_name(program, actual_subject) {
                 program
-                    .data_conformances()
+                    .conformances()
                     .iter()
                     .filter(|candidate| {
-                        candidate.type_name.as_str() == type_name
+                        candidate
+                            .carrier_name()
+                            .is_some_and(|carrier| carrier.as_str() == type_name)
                             && candidate.trait_name == required_trait.name
                             && conformance_arguments_match_application(
                                 program,
@@ -962,7 +969,7 @@ fn bound_proves_trait_application(
 ) -> bool {
     if let Some(selected) = bound.conformance {
         return program
-            .data_conformances()
+            .conformances()
             .iter()
             .find(|declaration| declaration.symbol == selected)
             .is_some_and(|declaration| {

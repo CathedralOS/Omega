@@ -382,11 +382,23 @@ fn item_label(syntax: &SyntaxTrees, item: &Item) -> String {
     match item {
         Item::Capability(value) => format!("capability {}", value.name.as_str()),
         Item::Const(value) => format!("const {}::{}", value.scope.as_str(), value.name.as_str()),
-        Item::Conformance(value) => format!(
-            "{} satisfies {}",
-            value.type_name.as_str(),
-            value.trait_name.as_str()
-        ),
+        Item::Conformance(value) => match &value.subject {
+            psi_syntax_trees::item::ConformanceSubject::Carrier(type_name) => {
+                format!(
+                    "{} satisfies {}",
+                    type_name.as_str(),
+                    value.trait_name.as_str()
+                )
+            }
+            psi_syntax_trees::item::ConformanceSubject::Subjectless => format!(
+                "satisfies {} as {}",
+                value.trait_name.as_str(),
+                value
+                    .alias
+                    .as_ref()
+                    .map_or("<unnamed>", |alias| alias.as_str())
+            ),
+        },
         Item::Data(value) => format!(
             "data {}\nmembers: {}",
             value.name.as_str(),

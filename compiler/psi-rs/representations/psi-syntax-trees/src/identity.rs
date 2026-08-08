@@ -53,7 +53,9 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
             }
         }
         Item::Conformance(conformance) => {
-            count_identifier(&conformance.type_name, counts);
+            if let crate::item::ConformanceSubject::Carrier(type_name) = &conformance.subject {
+                count_identifier(type_name, counts);
+            }
             count_identifier(&conformance.trait_name, counts);
             if let Some(alias) = &conformance.alias {
                 count_identifier(alias, counts);

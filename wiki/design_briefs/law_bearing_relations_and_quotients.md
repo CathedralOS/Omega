@@ -251,6 +251,21 @@ evidence interface uses the subjectless conformance form and receives a stable
 package-scoped name; it is not forced onto an arbitrary parameter merely to
 reuse a type-owned namespace.
 
+The concrete source form is live:
+
+```omega
+satisfies ConvergenceEvidence as TogetherEvidence {
+    // one closed row for every inherited requirement
+}
+```
+
+It lowers to the shared resolved/typed conformance representation with an
+explicit subjectless marker, a package-root `TogetherEvidence` symbol, and the
+same exact normalized row keys used by carrier-owned blocks. Its inline
+realizations have no attached data carrier. Generic evidence interfaces still
+need the binder-telescope spelling in `OWNER_QUESTIONS.md` Q1; trait arguments
+alone never infer that telescope or a carrier.
+
 Fact-only versus witness-bearing classification does change proposition
 identity, because it changes what a consumer may eliminate. Primitive
 proposition symbols, binders, and that classification are fingerprinted in

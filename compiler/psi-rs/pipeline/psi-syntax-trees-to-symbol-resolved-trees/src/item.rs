@@ -135,16 +135,26 @@ pub(crate) fn lower_item(
                     }
                 }
             };
-            lowerer.symbol_resolved_trees.conformances.push(
-                psi_symbol_resolved_trees::trait_definition::DataConformance {
-                    symbol: psi_symbols::SymbolHandle::invalid(),
-                    type_name: crate::name::lower_name(&conformance.type_name),
-                    trait_name: crate::name::lower_name(&conformance.trait_name),
-                    arguments,
-                    alias: conformance.alias.as_ref().map(crate::name::lower_name),
-                    implementation,
+            lowerer
+                .symbol_resolved_trees
+                .conformances
+                .push(psi_symbol_resolved_trees::trait_definition::Conformance {
+                symbol: psi_symbols::SymbolHandle::invalid(),
+                subject: match &conformance.subject {
+                    syntax::item::ConformanceSubject::Carrier(type_name) => {
+                        psi_symbol_resolved_trees::trait_definition::ConformanceSubject::Carrier(
+                            crate::name::lower_name(type_name),
+                        )
+                    }
+                    syntax::item::ConformanceSubject::Subjectless => {
+                        psi_symbol_resolved_trees::trait_definition::ConformanceSubject::Subjectless
+                    }
                 },
-            );
+                trait_name: crate::name::lower_name(&conformance.trait_name),
+                arguments,
+                alias: conformance.alias.as_ref().map(crate::name::lower_name),
+                implementation,
+            });
         }
         syntax::item::Item::Measure(measure) => {
             let measure = lower_measure_definition(lowerer, syntax_trees, measure)?;
@@ -202,20 +212,18 @@ fn lower_closed_machine_row(
     source: psi_symbol_resolved_trees::trait_definition::ConformanceRowSource,
 ) -> Result<psi_symbol_resolved_trees::trait_definition::ConformanceRow, Diagnostic> {
     let requirement_name = machine.name.clone();
+    let namespace = match &conformance.subject {
+        syntax::item::ConformanceSubject::Carrier(type_name) => {
+            format!("{}::{conformance_name}", type_name.as_str())
+        }
+        syntax::item::ConformanceSubject::Subjectless => conformance_name.to_owned(),
+    };
     let realization_name = declaring_trait.map_or_else(
-        || {
-            format!(
-                "{}::{}::{}",
-                conformance.type_name.as_str(),
-                conformance_name,
-                requirement_name.as_str(),
-            )
-        },
+        || format!("{}::{}", namespace, requirement_name.as_str(),),
         |declaring_trait| {
             format!(
-                "{}::{}::{}::{}",
-                conformance.type_name.as_str(),
-                conformance_name,
+                "{}::{}::{}",
+                namespace,
                 declaring_trait.as_str(),
                 requirement_name.as_str(),
             )
@@ -224,7 +232,10 @@ fn lower_closed_machine_row(
     let realization_ordinal = lowerer.symbol_resolved_trees.machines.len();
     let mut realization = machine.clone();
     realization.name = syntax::identifier::Identifier::generated(realization_name.clone());
-    realization.attached_data = Some(conformance.type_name.clone());
+    realization.attached_data = match &conformance.subject {
+        syntax::item::ConformanceSubject::Carrier(type_name) => Some(type_name.clone()),
+        syntax::item::ConformanceSubject::Subjectless => None,
+    };
     lower_machine_into(lowerer, syntax_trees, &realization)?;
     Ok(
         psi_symbol_resolved_trees::trait_definition::ConformanceRow {

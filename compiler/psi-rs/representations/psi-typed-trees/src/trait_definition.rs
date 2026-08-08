@@ -32,18 +32,35 @@ impl Default for TraitDefinition {
     }
 }
 
-/// One whole nominal conformance. A closed implementation retains its exact
-/// inherited requirement rows and is the only form eligible for local dynamic
-/// dispatch. The bodyless form remains a static conformance declaration whose
-/// satisfiers are validated separately.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct DataConformance {
+pub enum ConformanceSubject {
+    #[default]
+    Subjectless,
+    Carrier(Identifier),
+}
+
+/// One whole conformance. Every closed implementation retains its exact
+/// inherited requirement rows. Carrier-owned closed forms alone are eligible
+/// for local dynamic dispatch; subjectless forms remain proof evidence. The
+/// bodyless form remains a carrier-owned static declaration whose satisfiers
+/// are validated separately.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Conformance {
     pub symbol: SymbolHandle,
-    pub type_name: Identifier,
+    pub subject: ConformanceSubject,
     pub trait_name: Identifier,
     pub arguments: HandleSpan<crate::types::TypeReferenceHandle>,
     pub alias: Option<Identifier>,
     pub implementation: ConformanceImplementation,
+}
+
+impl Conformance {
+    pub fn carrier_name(&self) -> Option<&Identifier> {
+        match &self.subject {
+            ConformanceSubject::Carrier(name) => Some(name),
+            ConformanceSubject::Subjectless => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

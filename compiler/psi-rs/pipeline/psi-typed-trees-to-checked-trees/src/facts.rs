@@ -150,17 +150,19 @@ fn build_dynamic_conformance_facts(
 fn selected_data_conformance<'program>(
     program: &'program TypedTrees,
     selection: &psi_validation::DynamicConformanceSelection,
-) -> Option<&'program psi_typed_trees::trait_definition::DataConformance> {
+) -> Option<&'program psi_typed_trees::trait_definition::Conformance> {
     if let Some(symbol) = selection.conformance {
         return program
-            .data_conformances()
+            .conformances()
             .iter()
             .find(|conformance| conformance.symbol == symbol);
     }
     let source_name = program.symbols.name(selection.source_data);
     let trait_name = program.symbols.name(selection.target_trait);
-    let mut matches = program.data_conformances().iter().filter(|conformance| {
-        conformance.type_name.as_str() == source_name
+    let mut matches = program.conformances().iter().filter(|conformance| {
+        conformance
+            .carrier_name()
+            .is_some_and(|carrier| carrier.as_str() == source_name)
             && conformance.trait_name.as_str() == trait_name
             && conformance.alias.is_none()
     });

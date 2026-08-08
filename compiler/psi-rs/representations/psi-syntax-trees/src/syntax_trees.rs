@@ -248,7 +248,7 @@ impl SyntaxTrees {
                     }
                 };
                 Item::Conformance(crate::item::ConformanceItem {
-                    type_name: conformance.type_name.clone(),
+                    subject: conformance.subject.clone(),
                     trait_name: conformance.trait_name.clone(),
                     trait_arguments: self
                         .copy_type_reference_handle_span(other, conformance.trait_arguments),

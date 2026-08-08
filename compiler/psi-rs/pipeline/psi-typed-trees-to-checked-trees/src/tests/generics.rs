@@ -1,6 +1,26 @@
 use super::{Lexer, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees};
 use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 
+#[test]
+fn concrete_subjectless_conformance_checks_as_carrierless_evidence() {
+    let source = r#"
+        trait Evidence {
+            machine witness(value: i32);
+        }
+
+        satisfies Evidence as ConcreteEvidence {
+            machine witness(value: i32) { }
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    lower_typed_trees(typed).expect("subjectless evidence rows should validate");
+}
+
 /// MP1: the machine-parameter requirement is semantic tree data. It is
 /// populated once from the declaration and copied through the resolved tree
 /// into the typed tree; later rungs consume it for modular checking and

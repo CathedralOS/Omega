@@ -125,10 +125,12 @@ pub fn collect_dynamic_conformance_selections(
                     continue;
                 };
                 let nominal_matches = program
-                    .data_conformances()
+                    .conformances()
                     .iter()
                     .filter(|conformance| {
-                        conformance.type_name.as_str() == source_name
+                        conformance
+                            .carrier_name()
+                            .is_some_and(|carrier| carrier.as_str() == source_name)
                             && conformance.trait_name == trait_definition.name
                             && conformance.arguments.is_empty()
                     })
@@ -403,10 +405,12 @@ fn validate_dynamic_call_arguments(
             continue;
         };
         let complete_count = program
-            .data_conformances()
+            .conformances()
             .iter()
             .filter(|conformance| {
-                conformance.type_name.as_str() == source_name
+                conformance
+                    .carrier_name()
+                    .is_some_and(|carrier| carrier.as_str() == source_name)
                     && conformance.trait_name == trait_definition.name
                     && conformance.arguments.is_empty()
                     && matches!(

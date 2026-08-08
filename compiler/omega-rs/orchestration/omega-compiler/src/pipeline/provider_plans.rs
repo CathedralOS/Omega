@@ -1227,9 +1227,13 @@ fn provider_plan_schema_targets(
     });
 
     let mut refined = typed
-        .data_conformances()
+        .conformances()
         .iter()
-        .filter(|conformance| same_semantic_name(conformance.type_name.as_str(), provider_type))
+        .filter(|conformance| {
+            conformance
+                .carrier_name()
+                .is_some_and(|carrier| same_semantic_name(carrier.as_str(), provider_type))
+        })
         .filter_map(|conformance| {
             let definition = typed.traits().iter().find(|definition| {
                 definition.is_boundary
@@ -1481,10 +1485,12 @@ fn provider_boundary_arguments(
     provider_type: &str,
 ) -> Vec<psi_typed_trees::types::TypeReferenceHandle> {
     typed
-        .data_conformances()
+        .conformances()
         .iter()
         .find(|conformance| {
-            same_semantic_name(conformance.type_name.as_str(), provider_type)
+            conformance
+                .carrier_name()
+                .is_some_and(|carrier| same_semantic_name(carrier.as_str(), provider_type))
                 && same_semantic_name(conformance.trait_name.as_str(), boundary.name.as_str())
         })
         .map(|conformance| {

@@ -81,7 +81,9 @@ pub(crate) fn equatable_conformance_declared(
 ) -> bool {
     program.conformances.iter().any(|conformance| {
         conformance.trait_name.as_str() == EQUATABLE_TRAIT
-            && conformance.type_name.as_str() == type_name
+            && conformance
+                .carrier_name()
+                .is_some_and(|carrier| carrier.as_str() == type_name)
     })
 }
 
@@ -188,7 +190,9 @@ pub(crate) fn validate_equatable_conformances(
         if conformance.trait_name.as_str() != EQUATABLE_TRAIT {
             continue;
         }
-        let type_name = conformance.type_name.as_str();
+        let Some(type_name) = conformance.carrier_name().map(|name| name.as_str()) else {
+            continue;
+        };
         let Some(data) = data_definition_by_name(program, type_name) else {
             continue;
         };

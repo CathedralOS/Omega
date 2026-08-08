@@ -58,7 +58,10 @@ pub enum ItemSnapshot {
         members: Vec<CapabilityMemberSnapshot>,
     },
     Conformance {
-        type_name: IdentifierSnapshot,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        type_name: Option<IdentifierSnapshot>,
+        #[serde(skip_serializing_if = "is_false")]
+        subjectless: bool,
         trait_name: IdentifierSnapshot,
         trait_arguments: Vec<TypeReferenceSnapshot>,
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -182,6 +185,10 @@ pub enum ItemSnapshot {
         encoding: Option<IdentifierSnapshot>,
         members: Vec<WireDataMemberSnapshot>,
     },
+}
+
+fn is_false(value: &bool) -> bool {
+    !*value
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -699,7 +706,13 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                 .collect(),
         },
         Item::Conformance(value) => ItemSnapshot::Conformance {
-            type_name: snapshot_identifier(&value.type_name),
+            type_name: match &value.subject {
+                crate::item::ConformanceSubject::Carrier(type_name) => {
+                    Some(snapshot_identifier(type_name))
+                }
+                crate::item::ConformanceSubject::Subjectless => None,
+            },
+            subjectless: matches!(value.subject, crate::item::ConformanceSubject::Subjectless),
             trait_name: snapshot_identifier(&value.trait_name),
             trait_arguments: syntax_trees
                 .type_references

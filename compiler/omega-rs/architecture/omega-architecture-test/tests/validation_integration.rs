@@ -1111,11 +1111,7 @@ fn closed_conformance_instantiates_an_inherited_generic_trait_default() {
 
     validate_program(&typed)
         .expect("the inherited default should be instantiated with Parent<i32>");
-    let conformance = typed
-        .data_conformances()
-        .iter()
-        .next()
-        .expect("one conformance");
+    let conformance = typed.conformances().iter().next().expect("one conformance");
     let [row] = typed
         .closed_conformance_rows(conformance)
         .expect("closed rows")
@@ -1513,10 +1509,13 @@ fn named_whole_trait_conformance_survives_typing() {
         "#,
     );
 
-    let [conformance] = typed.data_conformances() else {
+    let [conformance] = typed.conformances() else {
         panic!("one conformance");
     };
-    assert_eq!(conformance.type_name.as_str(), "Item");
+    assert_eq!(
+        conformance.carrier_name().map(|name| name.as_str()),
+        Some("Item")
+    );
     assert_eq!(conformance.trait_name.as_str(), "Marker");
     assert_eq!(
         conformance.alias.as_ref().map(|alias| alias.as_str()),
