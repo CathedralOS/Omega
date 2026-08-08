@@ -91,9 +91,8 @@ pub(crate) fn collect_machine_state_calls(
                     target,
                 );
 
-                // A closed local `dyn` selection routes through its retained
-                // exact row. The legacy multi-implementation parameter form
-                // remains a compatibility fallback.
+                // A local or parameter `dyn` selection routes only through
+                // exact rows retained by complete closed conformances.
                 let dyn_candidates = if resolved_target.is_none() {
                     resolve_dynamic_call_candidates(
                         &context.control_flow,
@@ -102,7 +101,6 @@ pub(crate) fn collect_machine_state_calls(
                         *receiver_symbol,
                         receiver,
                         *target_symbol,
-                        target,
                     )
                 } else {
                     Vec::new()
@@ -527,11 +525,10 @@ fn collect_expression_state_calls_in_table(
                 receiver.is_present,
                 &call.target,
             );
-            // A method call through a MULTI-IMPL `dyn Trait` reference param has
-            // no single target: monomorphize it over the trait's closed world,
-            // ONE candidate record per impl (distinct call_ordinals). The
-            // receiver's static type at each call site selects among the
-            // candidates' inline expansions during selection.
+            // A method call through a multi-conformance `dyn Trait` reference
+            // parameter has no single target. Retain one exact row candidate
+            // per complete conformance; the concrete call-site receiver
+            // selects among their inline expansions during selection.
             if resolved_target.is_none() {
                 let candidates = resolve_dynamic_call_candidates(
                     &context.control_flow,
@@ -540,7 +537,6 @@ fn collect_expression_state_calls_in_table(
                     receiver.symbol,
                     &receiver.name,
                     call.target_symbol,
-                    &call.target,
                 );
                 if !candidates.is_empty() {
                     let dynamic_receiver = dynamic_source_receiver(
@@ -1121,10 +1117,10 @@ fn resolve_state_call_target(
     None
 }
 
-/// Resolve a dynamic receiver without rediscovering a closed conformance from
-/// names. A local coercion consumes the exact checked row retained for its
-/// binding. Only the legacy dynamic-parameter form falls back to the historic
-/// closed-artifact candidate list.
+/// Resolve a dynamic receiver exclusively from checked closed-conformance
+/// rows. A local coercion carries one exact selection; a bare parameter carries
+/// every eligible complete conformance. Carrier and requirement spellings are
+/// never used to rediscover an implementation.
 fn resolve_dynamic_call_candidates(
     control_flow: &ControlFlowPlan,
     source_key: StateKey,
@@ -1132,7 +1128,6 @@ fn resolve_dynamic_call_candidates(
     receiver_symbol: SymbolHandle,
     receiver_name: &Identifier,
     target_symbol: SymbolHandle,
-    target_state: &Identifier,
 ) -> Vec<ResolvedStateCall> {
     if !receiver_symbol.is_valid() && receiver_name.as_str().is_empty() {
         return Vec::new();
@@ -1201,19 +1196,21 @@ fn resolve_dynamic_call_candidates(
             .collect();
     }
     parameter
-        .dyn_impl_type_names
+        .dyn_conformance_candidates
         .iter()
-        .filter_map(|type_name| {
-            resolve_attached_data_state_key_by_name(
-                control_flow,
-                type_name,
-                target_symbol,
-                target_state,
-            )
-            .map(|key| ResolvedStateCall {
-                key,
-                resolution: StateCallResolution::ContainedMachine,
-            })
+        .flat_map(|candidate| candidate.rows.iter())
+        .filter(|row| row.requirement == target_symbol)
+        .filter_map(|row| {
+            control_flow
+                .states
+                .iter()
+                .find(|(_, state)| {
+                    state.key.state == row.realization_state && state.key.segment_index == 0
+                })
+                .map(|(_, state)| ResolvedStateCall {
+                    key: state.key,
+                    resolution: StateCallResolution::ContainedMachine,
+                })
         })
         .collect()
 }
@@ -1651,6 +1648,115 @@ mod tests {
             StateCallResolution::ContainedMachine
         );
         assert_ne!(dynamic_call.target_key.state, ambient_target);
+    }
+
+    #[test]
+    fn bare_dynamic_parameter_candidates_retain_only_closed_exact_rows() {
+        let source = r#"
+            trait Shape { machine code(&self) -> i32; }
+
+            data Circle {}
+            machine Circle::code(&self) -> i32 { transition { _ -> 1 } }
+            Circle satisfies Shape as Primary {
+                machine code(&self) -> i32 { transition { _ -> 7 } }
+            }
+
+            data Square {}
+            machine Square::code(&self) -> i32 { transition { _ -> 2 } }
+            Square satisfies Shape as Primary {
+                machine code(&self) -> i32 { transition { _ -> 9 } }
+            }
+
+            machine run(erased: &dyn Shape) {
+                let result: i32 = erased.code();
+            }
+        "#;
+
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        psi_validation::validate_program(&typed).expect("validate");
+        let checked = lower_typed_trees(typed).expect("check");
+        let exact_targets = ["Circle::Primary::code", "Square::Primary::code"]
+            .into_iter()
+            .map(|name| {
+                checked
+                    .machines()
+                    .iter()
+                    .find(|machine| machine.name.as_str() == name)
+                    .and_then(|machine| checked.machine_states(machine).first())
+                    .map(|state| state.symbol)
+                    .unwrap_or_else(|| panic!("exact state `{name}`"))
+            })
+            .collect::<Vec<_>>();
+        let ambient_targets = ["Circle::code", "Square::code"]
+            .into_iter()
+            .map(|name| {
+                checked
+                    .machines()
+                    .iter()
+                    .find(|machine| machine.name.as_str() == name)
+                    .and_then(|machine| checked.machine_states(machine).first())
+                    .map(|state| state.symbol)
+                    .unwrap_or_else(|| panic!("ambient state `{name}`"))
+            })
+            .collect::<Vec<_>>();
+
+        let state_graph =
+            omega_checked_trees_to_state_graph::build_state_graph(&checked).expect("state graph");
+        let control_flow = build_control_flow_plan(&state_graph).expect("control flow");
+        let machine = control_flow
+            .machines
+            .iter()
+            .find(|(_, machine)| machine.name.as_str() == "run")
+            .map(|(_, machine)| machine)
+            .expect("run machine");
+        let entry_key = control_flow
+            .states
+            .span(machine.states)
+            .and_then(|states| states.first())
+            .map(|state| state.key)
+            .expect("run state");
+        let [parameter] = control_flow
+            .state_by_key(entry_key)
+            .map(|state| control_flow.state_parameters(state))
+            .expect("run parameters")
+        else {
+            panic!("one dynamic parameter");
+        };
+        assert!(parameter.dyn_conformance_rows.is_empty());
+        assert_eq!(parameter.dyn_conformance_candidates.len(), 2);
+        let retained_targets = parameter
+            .dyn_conformance_candidates
+            .iter()
+            .flat_map(|candidate| candidate.rows.iter())
+            .map(|row| row.realization_state)
+            .collect::<Vec<_>>();
+        assert_eq!(retained_targets, exact_targets);
+        assert!(
+            ambient_targets
+                .iter()
+                .all(|ambient| !retained_targets.contains(ambient)),
+            "ambient same-named attached machines must not enter dynamic candidates"
+        );
+
+        let runtime_flow = build_runtime_flow_plan(&control_flow, entry_key).expect("runtime flow");
+        let target = omega_target::NativeTarget::linux_arm64();
+        let host_abi = build_host_abi_plan(target);
+        let host_calls = build_host_call_plan(&checked, target, &host_abi).expect("host calls");
+        let context = StateCallPlanningContext {
+            control_flow: Arc::new(control_flow.clone()),
+            host_calls: Arc::new(host_calls),
+            runtime_flow: Arc::new(runtime_flow),
+        };
+        let calls = collect_machine_state_calls(&context, machine);
+        let call_targets = calls
+            .iter()
+            .filter(|call| call.role == StateCallRole::AssignmentValue)
+            .map(|call| call.target_key.state)
+            .collect::<Vec<_>>();
+        assert_eq!(call_targets, exact_targets);
     }
 
     #[test]

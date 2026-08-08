@@ -431,6 +431,15 @@ materialization and erased-shape adapters remain necessary for dynamic values
 that pass onward, are rebound, join, are stored, or otherwise escape this exact
 use.
 
+A bare dynamic parameter retains every eligible complete closed conformance as
+an exact candidate map. Call-site specialization selects from those maps by the
+concrete receiver and routes to each row's retained realization symbol. It does
+not enumerate carrier names or recover attached machines by method spelling. A
+concrete carrier passed to a bare dynamic parameter must have exactly one such
+conformance; a parameter that intends one of several names it exactly in its
+dynamic type. Bodyless static conformances have no normalized row map and
+therefore never enter this candidate set.
+
 When the physical descriptor remains, the dynamic requirement's operational
 envelope accounts for the complete dispatch path:
 

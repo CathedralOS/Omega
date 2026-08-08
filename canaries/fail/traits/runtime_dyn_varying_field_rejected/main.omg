@@ -19,8 +19,12 @@ data Square {}
 machine Square::code(&mut self) -> i32 {
     transition { _ -> 4 }
 }
-Circle satisfies Shape;
-Square satisfies Shape;
+Circle satisfies Shape as Primary {
+    Shape::code = Circle::code;
+}
+Square satisfies Shape as Primary {
+    Shape::code = Square::code;
+}
 data Main {
     console: Console;
     c: Circle;

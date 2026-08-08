@@ -49,7 +49,7 @@ pub(crate) fn remap_parameter_owned(parameter: StateParameterNode) -> StateParam
         type_symbol: parameter.type_symbol,
         type_name: parameter.type_name,
         is_mutable_reference: parameter.is_mutable_reference,
-        dyn_impl_type_names: parameter.dyn_impl_type_names,
+        dyn_conformance_candidates: parameter.dyn_conformance_candidates,
         dyn_conformance_rows: parameter.dyn_conformance_rows,
     }
 }
@@ -89,7 +89,7 @@ fn remap_parameter(parameter: &StateParameterNode) -> StateParameterFlow {
         type_symbol: parameter.type_symbol,
         type_name: parameter.type_name.clone(),
         is_mutable_reference: parameter.is_mutable_reference,
-        dyn_impl_type_names: parameter.dyn_impl_type_names.clone(),
+        dyn_conformance_candidates: parameter.dyn_conformance_candidates.clone(),
         dyn_conformance_rows: parameter.dyn_conformance_rows.clone(),
     }
 }

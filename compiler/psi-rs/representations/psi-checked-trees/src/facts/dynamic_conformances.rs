@@ -42,6 +42,20 @@ pub struct DynamicConformanceRowFact {
     pub source: DynamicConformanceRowSource,
 }
 
+/// One complete nominal conformance eligible for a bare dynamic parameter.
+///
+/// The candidate retains exact checked rows rather than a carrier name from
+/// which a backend could rediscover attached machines. A concrete call site
+/// may select one candidate by its source carrier; physical descriptor
+/// lowering uses the same rows to materialize the selected table.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DynamicConformanceCandidateFact {
+    pub source_data: SymbolHandle,
+    pub source_name: Identifier,
+    pub conformance: Option<SymbolHandle>,
+    pub rows: Vec<DynamicConformanceRowFact>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DynamicConformanceRowSource {
     Inline,

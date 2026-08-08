@@ -513,11 +513,16 @@ call. This changes only lowering. A dynamic value that is passed onward,
 rebound, stored, joined with another selection, or otherwise escapes that
 closed use retains the two-word representation above.
 
-The checked implementation now retains the first selection rung for a direct
-place coercion bound to a borrowed local. A bare `&T as &dyn Trait` selects only
-when one complete nominal conformance is unique and records the exact data,
-trait, and optional named-conformance symbols for later descriptor lowering;
-missing or ambiguous selection rejects. Exact `&dyn Type::Conformance`
+Only a closed conformance block licenses local dynamic dispatch. A bodyless
+whole-trait conformance remains useful for static checking, but has no complete
+row map from which a descriptor table could be built. A bare exact-requirement
+satisfier likewise supplies no whole-trait dynamic surface.
+
+The checked implementation retains the first selection rung for a direct place
+coercion bound to a borrowed local. A bare `&T as &dyn Trait` selects only when
+one complete closed conformance is unique and records the exact data, trait,
+optional named-conformance symbol, and normalized rows for later descriptor
+lowering; missing or ambiguous selection rejects. Exact `&dyn Type::Conformance`
 coercion targets now retain that path through parsing, resolved and typed
 identity, derive the dynamic trait from the named declaration, and consume its
 stable child symbol during checked selection. Unknown paths and paths belonging
@@ -529,13 +534,19 @@ now consume the retained row and original source place for whole-artifact
 devirtualization. Every dynamic call occurrence in a machine body retains the
 exact declaring-trait requirement symbol, including calls to inherited slots;
 same-spelled inherited requirements reject as ambiguous. Checked rows and
-backend dispatch match that symbol only. Physical descriptor materialization,
-private table emission, and the remaining pass-through/rebinding/escaping
-adapters remain subsequent implementation rungs. Those consumers use the
-complete normalized map authored by the selected conformance block. Each row
-retains the declaring trait, requirement, exact satisfier machine, default
-instantiation when applicable, normalized contracts, and selected conformance
-identity; neither Psi nor Omega infers adapter rows from matching state names.
+backend dispatch match that symbol only. A bare dynamic parameter retains every
+eligible complete closed conformance as an exact candidate row map through
+state graph and control flow; current call-site specialization consumes those
+rows without searching attached machines by carrier or method name. Passing a
+concrete carrier to a bare dynamic parameter requires exactly one eligible
+closed conformance for that carrier. When the carrier has several, the
+parameter type names the intended conformance, such as
+`&dyn Card::PowerOrder`. Physical
+descriptor materialization, private table emission, and the remaining
+pass-through/rebinding/escaping adapters remain subsequent implementation
+rungs. Those consumers use the same complete normalized maps. Each row retains
+the declaring trait, requirement, exact satisfier machine, default instantiation
+when applicable, normalized contracts, and selected conformance identity.
 
 The table is a private realization. Logical identity records the trait,
 selected conformance, and normalized contracts rather than a table address.
