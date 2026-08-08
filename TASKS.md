@@ -290,6 +290,8 @@ Remaining:
   Checked-integer order relations now compose transitively across positive path
   conjunctions: a chain containing at least one strict edge proves a strict
   endpoint bound, while an all-nonstrict chain proves only a nonstrict bound.
+  Opposed nonstrict integer paths now apply antisymmetry and prove endpoint
+  equality; one-sided bounds and unordered floats remain opaque.
   The same source-independent closure feeds explicit sites and checked calls;
   unrelated endpoints and unordered floats do not compose. Each site separately
   retains the canonical conjunction of exact incoming predicates so implication
