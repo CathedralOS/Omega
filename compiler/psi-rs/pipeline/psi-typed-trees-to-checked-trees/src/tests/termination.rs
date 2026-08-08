@@ -2793,6 +2793,39 @@ fn crash_guard_entailment_normalizes_comparison_equivalences() {
         state fail() -> i32 { crash Trap; }
     }
 
+    machine integer_order_antisymmetry(left: i32, right: i32) -> i32
+    crashes Trap Activation
+        left == right
+    {
+        transition {
+            left <= right && right <= left -> fail()
+            _ -> 0i32
+        }
+        state fail() -> i32 { crash Trap; }
+    }
+
+    machine one_sided_order_does_not_prove_equality(left: i32, right: i32) -> i32
+    crashes Trap Activation
+        left == right
+    {
+        transition {
+            left <= right -> fail()
+            _ -> 0i32
+        }
+        state fail() -> i32 { crash Trap; }
+    }
+
+    machine float_order_antisymmetry_stays_opaque(left: f32, right: f32) -> i32
+    crashes Trap Activation
+        left == right
+    {
+        transition {
+            left <= right && right <= left -> fail()
+            _ -> 0i32
+        }
+        state fail() -> i32 { crash Trap; }
+    }
+
     machine transitive_order_across_states(left: i32, middle: i32, right: i32) -> i32
     crashes Trap Activation
         left < right
@@ -2846,6 +2879,17 @@ fn crash_guard_entailment_normalizes_comparison_equivalences() {
         }
         state invoke() -> i32 { risky() }
     }
+
+    machine antisymmetric_guarded_call(left: i32, right: i32) -> i32
+    crashes Trap Activation
+        left == right
+    {
+        transition {
+            left <= right && right <= left -> invoke()
+            _ -> 0i32
+        }
+        state invoke() -> i32 { risky() }
+    }
     "#;
 
     let tokens = Lexer::new(source)
@@ -2874,6 +2918,7 @@ fn crash_guard_entailment_normalizes_comparison_equivalences() {
         "reversed_equality",
         "transitive_integer_order",
         "transitive_nonstrict_order",
+        "integer_order_antisymmetry",
         "transitive_order_across_states",
     ] {
         let [site] = plan(name).crash.checked_sites() else {
@@ -2904,6 +2949,14 @@ fn crash_guard_entailment_normalizes_comparison_equivalences() {
             "nonstrict_chain_does_not_prove_strict",
             "an all-nonstrict chain must not imply a strict endpoint relation",
         ),
+        (
+            "one_sided_order_does_not_prove_equality",
+            "one nonstrict direction must not imply integer equality",
+        ),
+        (
+            "float_order_antisymmetry_stays_opaque",
+            "unordered float relations must not enter integer antisymmetry",
+        ),
     ] {
         let [site] = plan(name).crash.checked_sites() else {
             panic!("{name} should retain one crash site")
@@ -2924,6 +2977,13 @@ fn crash_guard_entailment_normalizes_comparison_equivalences() {
     assert!(
         transitive_call.path_guard_consequences().len() > call.path_guard_consequences().len(),
         "transitive integer order should add source-independent call-path consequences"
+    );
+    let [antisymmetric_call] = plan("antisymmetric_guarded_call").crash.checked_calls() else {
+        panic!("antisymmetric_guarded_call should retain one checked call")
+    };
+    assert!(
+        antisymmetric_call.path_guard_consequences().len() > call.path_guard_consequences().len(),
+        "integer antisymmetry should add source-independent call-path equality"
     );
 }
 

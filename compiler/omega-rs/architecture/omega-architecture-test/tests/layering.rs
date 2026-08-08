@@ -607,9 +607,8 @@ fn first_terminal_psi_source_slice_stays_fail_closed() {
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
     let manifest_path =
         root.join("compiler/psi-rs/pipeline/psi-checked-trees-to-terminal/Cargo.toml");
-    let manifest = std::fs::read_to_string(&manifest_path).unwrap_or_else(|error| {
-        panic!("failed to read {}: {error}", manifest_path.display())
-    });
+    let manifest = std::fs::read_to_string(&manifest_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", manifest_path.display()));
 
     assert_eq!(
         source.matches("pub fn lower_machine(").count(),

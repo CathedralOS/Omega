@@ -561,6 +561,31 @@ fn push_transitive_integer_order_consequences(
         relations.extend(added);
     }
 
+    let nonstrict_equalities = relations
+        .iter()
+        .filter(|relation| {
+            !relation.strict
+                && relations.iter().any(|reverse| {
+                    !reverse.strict
+                        && reverse.left_identity == relation.right_identity
+                        && reverse.right_identity == relation.left_identity
+                })
+        })
+        .map(|relation| (relation.left, relation.right))
+        .collect::<Vec<_>>();
+    for (left, right) in nonstrict_equalities {
+        push_comparison_consequences(
+            program,
+            psi_typed_trees::expression::BinaryOperator::Equal,
+            left,
+            right,
+            true,
+            parameter_names,
+            content_conservation,
+            output,
+        );
+    }
+
     for relation in relations {
         push_comparison_consequences(
             program,

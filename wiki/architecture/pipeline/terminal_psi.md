@@ -106,6 +106,9 @@ law. For checked integers, strict order also entails its non-strict bound and
 inequality, while equality entails both non-strict bounds. Integer order chains
 compose across positive path conjunctions: any strict link makes the derived
 endpoint relation strict, while an all-nonstrict chain remains nonstrict.
+Opposed nonstrict integer relations apply antisymmetry and retain the resulting
+endpoint equality for both explicit-site and checked-call coverage. A one-sided
+bound does not imply equality.
 Canonical operand identities join the links; unrelated endpoints and unordered
 float relations do not compose. Checked sites
 retain their exact incoming-predicate conjunction separately from these
