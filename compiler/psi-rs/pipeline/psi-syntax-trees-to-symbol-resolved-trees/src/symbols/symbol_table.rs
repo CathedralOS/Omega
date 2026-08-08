@@ -50,6 +50,18 @@ pub(super) fn build_symbol_table(
                         .iter()
                         .map(|data| symbol_seed(SymbolKind::Data, &data.name, has_sources)),
                 )
+                .chain(program.conformances.iter().filter_map(|conformance| {
+                    if !matches!(
+                        conformance.subject,
+                        psi_symbol_resolved_trees::trait_definition::ConformanceSubject::Subjectless
+                    ) {
+                        return None;
+                    }
+                    conformance
+                        .alias
+                        .as_ref()
+                        .map(|alias| symbol_seed(SymbolKind::Conformance, alias, has_sources))
+                }))
                 .chain(
                     program.machines.iter().map(|machine| {
                         symbol_seed(SymbolKind::Machine, &machine.name, has_sources)
@@ -103,6 +115,15 @@ pub(super) fn build_symbol_table(
                 data_definition,
                 has_sources,
             );
+        }
+    }
+    for conformance in &program.conformances {
+        if matches!(
+            conformance.subject,
+            psi_symbol_resolved_trees::trait_definition::ConformanceSubject::Subjectless
+        ) && conformance.alias.is_some()
+        {
+            let _ = root_children.next();
         }
     }
     for machine in &program.machines {

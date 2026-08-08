@@ -514,6 +514,59 @@ fn parses_generic_standalone_conformance_arguments() {
 }
 
 #[test]
+fn parses_named_concrete_subjectless_conformance_block() {
+    let source = r#"
+        trait Evidence {
+            machine witness(value: i32);
+        }
+
+        satisfies Evidence as ConcreteEvidence {
+            machine witness(value: i32) { }
+        }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("subjectless conformance should parse");
+    let conformance = parsed
+        .root_items()
+        .find_map(|item| match item {
+            psi_syntax_trees::item::Item::Conformance(conformance) => Some(conformance),
+            _ => None,
+        })
+        .expect("conformance root item");
+    assert!(matches!(
+        conformance.subject,
+        psi_syntax_trees::item::ConformanceSubject::Subjectless
+    ));
+    assert_eq!(
+        conformance.alias.as_ref().map(|alias| alias.as_str()),
+        Some("ConcreteEvidence")
+    );
+    assert!(matches!(
+        conformance.body,
+        psi_syntax_trees::item::ConformanceBody::Closed { .. }
+    ));
+}
+
+#[test]
+fn subjectless_conformance_requires_a_name_and_closed_body() {
+    for source in [
+        "satisfies Evidence { }",
+        "satisfies Evidence as ConcreteEvidence;",
+    ] {
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        assert!(
+            parse_syntax_trees(&tokens).is_err(),
+            "subjectless shorthand must not parse: {source}"
+        );
+    }
+}
+
+#[test]
 fn parses_closed_conformance_block_members() {
     let source = r#"
         trait Ranked {

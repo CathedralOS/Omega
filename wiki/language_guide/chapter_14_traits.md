@@ -82,6 +82,23 @@ a row from a uniquely visible or similarly named machine. A default is
 instantiated separately for each overload in this conformance, so calls it
 makes to other requirements resolve through this same block.
 
+A carrierless evidence implementation uses the concrete subjectless form:
+
+```omega
+satisfies Evidence as ConcreteEvidence {
+    machine witness(value: i32) {
+        // proof-only implementation
+    }
+}
+```
+
+`ConcreteEvidence` is a package-scoped conformance identity. The block owns
+the same complete normalized row map as a carrier-owned block, but it has no
+data subject, no attached realization machines, and no eligibility for nominal
+data or runtime dynamic-conformance selection. Its trait arguments do not
+implicitly nominate a carrier. A generic subjectless block still awaits the
+binder-telescope spelling recorded in `OWNER_QUESTIONS.md` Q1.
+
 One existing machine may be shared deliberately by referencing it from
 several blocks. A reference row uses `=` to bind the conformance slot to that
 machine; it does not declare transparent machine identity:

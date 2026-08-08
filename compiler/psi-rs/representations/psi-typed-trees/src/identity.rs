@@ -93,8 +93,12 @@ pub fn count_identity_storage(typed_trees: &TypedTrees) -> IdentityStorageCounts
         }
     }
 
-    for conformance in typed_trees.data_conformances() {
-        count_declaration_name(&conformance.type_name, &mut counts);
+    for conformance in typed_trees.conformances() {
+        if let crate::trait_definition::ConformanceSubject::Carrier(type_name) =
+            &conformance.subject
+        {
+            count_declaration_name(type_name, &mut counts);
+        }
         count_declaration_name(&conformance.trait_name, &mut counts);
         if let Some(alias) = &conformance.alias {
             count_declaration_name(alias, &mut counts);

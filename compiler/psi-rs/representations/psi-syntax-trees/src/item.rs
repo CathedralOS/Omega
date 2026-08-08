@@ -555,12 +555,23 @@ pub struct QuotientDefinition {
     pub relation: HandleSpan<Identifier>,
 }
 
+/// The subject of a whole-trait conformance. Carrier-owned conformances inherit
+/// the carrier's static telescope. Subjectless conformances own proof evidence
+/// only and therefore never infer an arbitrary parameter as a carrier.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum ConformanceSubject {
+    #[default]
+    Subjectless,
+    Carrier(Identifier),
+}
+
 /// A whole-trait conformance. The legacy `Point satisfies Equatable;` form
 /// checks separately attached machines. A block owns a closed member map:
-/// `Point satisfies Equatable { machine equals(...) { ... } }`.
+/// `Point satisfies Equatable { machine equals(...) { ... } }`. The concrete
+/// subjectless form is `satisfies Evidence as Name { ... }` and must be named.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ConformanceItem {
-    pub type_name: Identifier,
+    pub subject: ConformanceSubject,
     pub trait_name: Identifier,
     pub trait_arguments: HandleSpan<crate::types::TypeReferenceHandle>,
     pub alias: Option<Identifier>,

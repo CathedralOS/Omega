@@ -55,6 +55,110 @@ fn lowers_closed_conformance_rows_to_exact_machine_states() {
 }
 
 #[test]
+fn lowers_subjectless_conformance_to_package_symbol_and_closed_rows() {
+    let source = r#"
+        trait Evidence {
+            machine witness(value: i32);
+        }
+
+        satisfies Evidence as ConcreteEvidence {
+            machine witness(value: i32) { }
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("subjectless block should parse");
+    let program = lower_syntax_trees(&syntax_trees).expect("subjectless rows should normalize");
+    let conformance = program.conformances.iter().next().expect("one conformance");
+    assert!(matches!(
+        conformance.subject,
+        psi_symbol_resolved_trees::trait_definition::ConformanceSubject::Subjectless
+    ));
+    assert!(conformance.symbol.is_valid());
+    assert_eq!(program.symbols.name(conformance.symbol), "ConcreteEvidence");
+    assert_eq!(
+        program.symbols.get(conformance.symbol).parent,
+        program.symbols.root()
+    );
+    let psi_symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
+        &conformance.implementation
+    else {
+        panic!("closed implementation retained");
+    };
+    let [row] = rows.as_slice() else {
+        panic!("one normalized evidence row");
+    };
+    assert!(row.requirement.is_valid());
+    assert!(row.realization_machine.is_valid());
+    assert!(row.realization_state.is_valid());
+    assert_eq!(row.realization_name.as_str(), "ConcreteEvidence::witness");
+    let realization = program
+        .machines
+        .iter()
+        .find(|machine| machine.symbol == row.realization_machine)
+        .expect("inline realization machine");
+    assert!(realization.attached_data.is_none());
+}
+
+#[test]
+fn subjectless_inline_calls_route_through_the_same_closed_map() {
+    let source = r#"
+        trait Evidence {
+            machine first(value: i32);
+            machine second(value: i32);
+        }
+
+        satisfies Evidence as ConcreteEvidence {
+            machine first(value: i32) { second(value); }
+            machine second(value: i32) { }
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("subjectless block should parse");
+    let program = lower_syntax_trees(&syntax_trees).expect("subjectless rows should normalize");
+    let conformance = program.conformances.iter().next().expect("one conformance");
+    let psi_symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
+        &conformance.implementation
+    else {
+        panic!("closed implementation retained");
+    };
+    let first = rows
+        .iter()
+        .find(|row| row.requirement_name.as_str() == "first")
+        .expect("first row");
+    let second = rows
+        .iter()
+        .find(|row| row.requirement_name.as_str() == "second")
+        .expect("second row");
+    let first_machine = program
+        .machines
+        .iter()
+        .find(|machine| machine.symbol == first.realization_machine)
+        .expect("first realization");
+    let first_state = program.machine_state(
+        *program
+            .machine_state_handles(first_machine.states)
+            .first()
+            .expect("first realization state"),
+    );
+    let call = program
+        .tables
+        .bodies
+        .statements
+        .statements(first_state.statement_nodes)
+        .iter()
+        .find_map(|statement| match statement {
+            psi_symbol_resolved_trees::statement::StatementNode::Call(call) => Some(call),
+            _ => None,
+        })
+        .expect("first calls second");
+    assert_eq!(call.target_symbol, second.realization_state);
+}
+
+#[test]
 fn closed_conformance_blocks_never_fall_back_to_ambient_attached_machines() {
     let source = r#"
         trait Ranked { machine Self::before(&self, other: &Self) -> bool; }

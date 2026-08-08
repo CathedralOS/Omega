@@ -34,6 +34,29 @@ pub(super) fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbol
 
     assign_domain_symbols(program, symbols, &mut root_children);
     assign_data_symbols(program, symbols, &mut root_children);
+    let subjectless_symbols = program
+        .conformances
+        .iter()
+        .filter(|conformance| {
+            matches!(
+                conformance.subject,
+                psi_symbol_resolved_trees::trait_definition::ConformanceSubject::Subjectless
+            ) && conformance.alias.is_some()
+        })
+        .map(|_| next_child_of_kind(&mut root_children, symbols, SymbolKind::Conformance))
+        .collect::<Vec<_>>();
+    let mut subjectless_symbols = subjectless_symbols.into_iter();
+    program.conformances.for_each_mut(|conformance| {
+        if matches!(
+            conformance.subject,
+            psi_symbol_resolved_trees::trait_definition::ConformanceSubject::Subjectless
+        ) && conformance.alias.is_some()
+        {
+            conformance.symbol = subjectless_symbols
+                .next()
+                .unwrap_or_else(SymbolHandle::invalid);
+        }
+    });
     assign_machine_symbols(program, symbols, &mut root_children);
     assign_proposition_symbols(program, symbols, &mut root_children);
     assign_root_operator_symbols(program, symbols, &mut root_children);

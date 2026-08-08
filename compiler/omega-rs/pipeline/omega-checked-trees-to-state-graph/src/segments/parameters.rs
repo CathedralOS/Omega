@@ -65,7 +65,7 @@ fn selected_dynamic_conformance_rows(
         return Vec::new();
     };
     let Some(conformance) = program
-        .data_conformances()
+        .conformances()
         .iter()
         .find(|conformance| conformance.symbol == conformance_symbol)
     else {
@@ -94,8 +94,8 @@ fn eligible_dynamic_conformance_candidates(
 
     let mut candidates = Vec::new();
     for data in program.data_definitions() {
-        for conformance in program.data_conformances().iter().filter(|conformance| {
-            conformance.type_name == data.name
+        for conformance in program.conformances().iter().filter(|conformance| {
+            conformance.carrier_name() == Some(&data.name)
                 && conformance.trait_name == trait_definition.name
                 && conformance.arguments.is_empty()
                 && matches!(
@@ -116,7 +116,7 @@ fn eligible_dynamic_conformance_candidates(
 
 fn checked_rows_for_conformance(
     program: &CheckedTrees,
-    conformance: &psi_checked_trees::trait_definition::DataConformance,
+    conformance: &psi_checked_trees::trait_definition::Conformance,
 ) -> Vec<psi_checked_trees::DynamicConformanceRowFact> {
     program
         .closed_conformance_rows(conformance)

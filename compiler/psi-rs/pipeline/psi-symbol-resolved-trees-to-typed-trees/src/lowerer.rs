@@ -97,9 +97,18 @@ pub fn lower_symbol_resolved_trees(
                 .type_reference_table
                 .push_type_reference_handle(&mut arguments, argument);
         }
-        let conformance = psi_typed_trees::trait_definition::DataConformance {
+        let conformance = psi_typed_trees::trait_definition::Conformance {
             symbol: conformance.symbol,
-            type_name: crate::name::lower_name(&conformance.type_name),
+            subject: match &conformance.subject {
+                psi_symbol_resolved_trees::trait_definition::ConformanceSubject::Carrier(
+                    type_name,
+                ) => psi_typed_trees::trait_definition::ConformanceSubject::Carrier(
+                    crate::name::lower_name(type_name),
+                ),
+                psi_symbol_resolved_trees::trait_definition::ConformanceSubject::Subjectless => {
+                    psi_typed_trees::trait_definition::ConformanceSubject::Subjectless
+                }
+            },
             trait_name: crate::name::lower_name(&conformance.trait_name),
             arguments,
             alias: conformance.alias.as_ref().map(crate::name::lower_name),
@@ -130,7 +139,7 @@ pub fn lower_symbol_resolved_trees(
                 }
             },
         };
-        lowerer.typed_trees.push_data_conformance(conformance);
+        lowerer.typed_trees.push_conformance(conformance);
     }
 
     for wire_schema in &symbol_resolved_trees.wire_schemas {

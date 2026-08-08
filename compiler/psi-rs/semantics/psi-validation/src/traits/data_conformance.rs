@@ -22,48 +22,72 @@ use psi_typed_trees::trait_definition::TraitDefinition;
 use psi_typed_trees::trait_definition::{ConformanceImplementation, ConformanceRowSource};
 use psi_typed_trees::types::TypeReferenceHandle;
 
-pub(crate) fn validate_data_conformances(
+pub(crate) fn validate_conformances(
     program: &TypedTrees,
     symbols: &TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for (index, conformance) in program.data_conformances().iter().enumerate() {
-        let type_name = conformance.type_name.as_str();
+    for (index, conformance) in program.conformances().iter().enumerate() {
+        let (subject_name, carrier_name) = match &conformance.subject {
+            psi_typed_trees::trait_definition::ConformanceSubject::Carrier(type_name) => {
+                (type_name.as_str(), Some(type_name.as_str()))
+            }
+            psi_typed_trees::trait_definition::ConformanceSubject::Subjectless => (
+                conformance
+                    .alias
+                    .as_ref()
+                    .map_or("<subjectless>", |alias| alias.as_str()),
+                None,
+            ),
+        };
         let trait_name = conformance.trait_name.as_str();
 
-        for previous in &program.data_conformances()[..index] {
-            if previous.type_name != conformance.type_name {
-                continue;
-            }
-            match (&previous.alias, &conformance.alias) {
-                (Some(previous), Some(alias)) if previous == alias => {
+        for previous in &program.conformances()[..index] {
+            match (&previous.subject, &conformance.subject) {
+                (
+                    psi_typed_trees::trait_definition::ConformanceSubject::Carrier(previous_type),
+                    psi_typed_trees::trait_definition::ConformanceSubject::Carrier(type_name),
+                ) if previous_type == type_name => match (&previous.alias, &conformance.alias) {
+                    (Some(previous), Some(alias)) if previous == alias => {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "data `{subject_name}` declares conformance name `{alias}` more than once"
+                        )));
+                    }
+                    (None, None) if previous.trait_name == conformance.trait_name => {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "data `{subject_name}` declares unnamed conformance to `{trait_name}` more than once"
+                        )));
+                    }
+                    _ => {}
+                },
+                (
+                    psi_typed_trees::trait_definition::ConformanceSubject::Subjectless,
+                    psi_typed_trees::trait_definition::ConformanceSubject::Subjectless,
+                ) if previous.alias == conformance.alias => {
                     diagnostics.push(Diagnostic::error(format!(
-                        "data `{type_name}` declares conformance name `{alias}` more than once"
-                    )));
-                }
-                (None, None) if previous.trait_name == conformance.trait_name => {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "data `{type_name}` declares unnamed conformance to `{trait_name}` more than once"
+                        "subjectless conformance name `{subject_name}` is declared more than once"
                     )));
                 }
                 _ => {}
             }
         }
 
-        let data_exists = program
-            .data_definitions()
-            .iter()
-            .any(|definition| definition.name.as_str() == type_name);
-        if !data_exists {
-            diagnostics.push(Diagnostic::error(format!(
-                "conformance `{type_name} satisfies {trait_name}` names unknown data `{type_name}`"
-            )));
-            continue;
+        if let Some(type_name) = carrier_name {
+            let data_exists = program
+                .data_definitions()
+                .iter()
+                .any(|definition| definition.name.as_str() == type_name);
+            if !data_exists {
+                diagnostics.push(Diagnostic::error(format!(
+                    "conformance `{type_name} satisfies {trait_name}` names unknown data `{type_name}`"
+                )));
+                continue;
+            }
         }
 
         let Some(trait_definition) = symbols.trait_definition(trait_name) else {
             diagnostics.push(Diagnostic::error(format!(
-                "conformance `{type_name} satisfies {trait_name}` names unknown trait `{trait_name}`"
+                "conformance `{subject_name} satisfies {trait_name}` names unknown trait `{trait_name}`"
             )));
             continue;
         };
@@ -74,7 +98,7 @@ pub(crate) fn validate_data_conformances(
         let expected = program.trait_type_parameters(trait_definition).len();
         if arguments.len() != expected {
             diagnostics.push(Diagnostic::error(format!(
-                "conformance `{type_name} satisfies {trait_name}` expects {expected} generic argument(s), got {}",
+                "conformance `{subject_name} satisfies {trait_name}` expects {expected} generic argument(s), got {}",
                 arguments.len()
             )));
             continue;
@@ -85,22 +109,30 @@ pub(crate) fn validate_data_conformances(
             trait_definition,
             arguments,
             &[],
-            &format!("conformance `{type_name} satisfies {trait_name}`"),
+            &format!("conformance `{subject_name} satisfies {trait_name}`"),
             diagnostics,
         );
 
         match &conformance.implementation {
-            ConformanceImplementation::LegacyAttachedMachines => validate_data_satisfies_trait(
-                program,
-                type_name,
-                trait_definition,
-                arguments,
-                diagnostics,
-                &mut Vec::new(),
-            ),
+            ConformanceImplementation::LegacyAttachedMachines => {
+                if let Some(type_name) = carrier_name {
+                    validate_data_satisfies_trait(
+                        program,
+                        type_name,
+                        trait_definition,
+                        arguments,
+                        diagnostics,
+                        &mut Vec::new(),
+                    );
+                } else {
+                    diagnostics.push(Diagnostic::error(
+                        "a subjectless conformance must own a closed member map",
+                    ));
+                }
+            }
             ConformanceImplementation::Closed { rows } => validate_closed_rows(
                 program,
-                type_name,
+                subject_name,
                 trait_definition,
                 arguments,
                 rows,

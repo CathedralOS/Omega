@@ -4,6 +4,47 @@ use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use psi_tokens_to_syntax_trees::parse_syntax_trees;
 
 #[test]
+fn retains_subjectless_conformance_and_exact_typed_rows() {
+    let source = r#"
+        trait Evidence {
+            machine witness(value: i32);
+        }
+
+        satisfies Evidence as ConcreteEvidence {
+            machine witness(value: i32) { }
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax_trees).expect("resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let [conformance] = typed.conformances() else {
+        panic!("one typed conformance");
+    };
+    assert!(matches!(
+        conformance.subject,
+        psi_typed_trees::trait_definition::ConformanceSubject::Subjectless
+    ));
+    assert!(conformance.symbol.is_valid());
+    assert_eq!(
+        conformance.alias.as_ref().map(|name| name.as_str()),
+        Some("ConcreteEvidence")
+    );
+    let Some(rows) = typed.closed_conformance_rows(conformance) else {
+        panic!("closed rows retained");
+    };
+    let [row] = rows else {
+        panic!("one exact typed row");
+    };
+    assert!(row.declaring_trait.is_valid());
+    assert!(row.requirement.is_valid());
+    assert!(row.realization_machine.is_valid());
+    assert!(row.realization_state.is_valid());
+}
+
+#[test]
 fn types_nested_index_hoists_from_explicit_local_collections() {
     let source = r#"
         data Main {}

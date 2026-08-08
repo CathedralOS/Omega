@@ -1407,10 +1407,12 @@ fn validate_candidate_conformance_bounds(
         }
 
         let matches = program
-            .data_conformances()
+            .conformances()
             .iter()
             .filter(|conformance| {
-                conformance.type_name.as_str() == type_name
+                conformance
+                    .carrier_name()
+                    .is_some_and(|carrier| carrier.as_str() == type_name)
                     && conformance.trait_name == bound.carrier_name
                     && conformance_arguments_match_candidate(program, candidate, bound, conformance)
             })
@@ -1465,7 +1467,7 @@ fn conformance_arguments_match_candidate(
     program: &TypedTrees,
     candidate: &Candidate,
     bound: &psi_typed_trees::machine::GenericConformanceBound,
-    conformance: &psi_typed_trees::trait_definition::DataConformance,
+    conformance: &psi_typed_trees::trait_definition::Conformance,
 ) -> bool {
     let actual = program
         .type_reference_table

@@ -33,7 +33,7 @@ pub struct SymbolResolvedRoots {
     pub operators: OrderedRootArena<operator::OperatorDefinition>,
     pub propositions: OrderedRootArena<proposition::PropositionDefinition>,
     pub traits: OrderedRootArena<crate::trait_definition::TraitDefinition>,
-    pub conformances: OrderedRootArena<crate::trait_definition::DataConformance>,
+    pub conformances: OrderedRootArena<crate::trait_definition::Conformance>,
     pub wire_schemas: OrderedRootArena<wire::WireSchema>,
 }
 

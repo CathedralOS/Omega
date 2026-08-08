@@ -356,10 +356,13 @@ fn boundary_policy_instances(
 
     let mut instances = Vec::new();
     for conformance in typed
-        .data_conformances()
+        .conformances()
         .iter()
         .filter(|conformance| names_match(conformance.trait_name.as_str(), boundary.name.as_str()))
     {
+        let Some(carrier_name) = conformance.carrier_name() else {
+            continue;
+        };
         let arguments = typed
             .type_reference_table
             .type_reference_handles(conformance.arguments)
@@ -367,7 +370,7 @@ fn boundary_policy_instances(
         if arguments.len() != parameters.len() {
             return Err(format!(
                 "conformance `{} satisfies {}` supplies {} argument(s), expected {}",
-                conformance.type_name,
+                carrier_name,
                 conformance.trait_name,
                 arguments.len(),
                 parameters.len()

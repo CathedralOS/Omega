@@ -66,7 +66,7 @@ use crate::state_signatures::{
 use crate::symbols::MachineSymbols;
 pub use crate::symbols::TopLevelSymbols;
 use crate::traits::{
-    validate_data_conformances, validate_external_leaf_native_shapes,
+    validate_conformances, validate_external_leaf_native_shapes,
     validate_generic_conformance_bounds, validate_machine_trait_conformances,
     validate_trait_conformance_bounds, validate_trait_requirements,
 };
@@ -160,7 +160,7 @@ fn validate_program_internal(
     content_projections::validate_content_projection_conformances(program, &mut diagnostics);
     content_conservation::validate_content_conservation_contracts(program, &mut diagnostics);
     qualification_evidence::validate_qualification_authorization(program, &mut diagnostics);
-    validate_data_conformances(program, &symbols, &mut diagnostics);
+    validate_conformances(program, &symbols, &mut diagnostics);
     if let Err(mut dynamic_diagnostics) = collect_dynamic_conformance_selections(program) {
         diagnostics.append(&mut dynamic_diagnostics);
     }

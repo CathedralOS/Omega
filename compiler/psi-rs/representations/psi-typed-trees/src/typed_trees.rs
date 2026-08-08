@@ -219,7 +219,7 @@ pub struct TypedTreeTables {
     pub machine_states: Arena<crate::state::State>,
     pub state_parameters: Arena<signature::StateParameter>,
     pub traits: Arena<trait_definition::TraitDefinition>,
-    pub data_conformances: Arena<trait_definition::DataConformance>,
+    pub conformances: Arena<trait_definition::Conformance>,
     pub trait_requirements: Arena<trait_definition::TraitRequirement>,
     pub trait_machine_signatures: Arena<signature::StateSignature>,
     pub decrease_orders: Arena<crate::name::Identifier>,
@@ -243,7 +243,7 @@ pub struct TypedTreeRoots {
     pub operators: HandleSpan<crate::operator::OperatorDefinition>,
     pub propositions: HandleSpan<proposition::PropositionDefinition>,
     pub traits: HandleSpan<trait_definition::TraitDefinition>,
-    pub data_conformances: HandleSpan<trait_definition::DataConformance>,
+    pub conformances: HandleSpan<trait_definition::Conformance>,
     pub wire_schemas: HandleSpan<wire::WireSchema>,
 }
 
@@ -265,7 +265,7 @@ impl TypedTreeRoots {
             operators,
             propositions: HandleSpan::default(),
             traits,
-            data_conformances: HandleSpan::default(),
+            conformances: HandleSpan::default(),
             wire_schemas: HandleSpan::default(),
         }
     }
@@ -941,21 +941,21 @@ impl TypedTrees {
         self.tables.traits.span_or_empty(self.roots.traits)
     }
 
-    pub fn push_data_conformance(&mut self, conformance: trait_definition::DataConformance) {
+    pub fn push_conformance(&mut self, conformance: trait_definition::Conformance) {
         self.tables
-            .data_conformances
-            .append_to_span(&mut self.roots.data_conformances, conformance);
+            .conformances
+            .append_to_span(&mut self.roots.conformances, conformance);
     }
 
-    pub fn data_conformances(&self) -> &[trait_definition::DataConformance] {
+    pub fn conformances(&self) -> &[trait_definition::Conformance] {
         self.tables
-            .data_conformances
-            .span_or_empty(self.roots.data_conformances)
+            .conformances
+            .span_or_empty(self.roots.conformances)
     }
 
     pub fn closed_conformance_rows<'conformance>(
         &self,
-        conformance: &'conformance trait_definition::DataConformance,
+        conformance: &'conformance trait_definition::Conformance,
     ) -> Option<&'conformance [trait_definition::ConformanceRow]> {
         match &conformance.implementation {
             trait_definition::ConformanceImplementation::LegacyAttachedMachines => None,

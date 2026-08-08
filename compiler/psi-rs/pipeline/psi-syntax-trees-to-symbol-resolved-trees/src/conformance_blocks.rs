@@ -68,7 +68,17 @@ pub(crate) fn normalize_closed_conformance_blocks(
             }
             ConformanceImplementation::Closed { rows } => normalize_one(
                 program,
-                conformance.type_name.as_str(),
+                match &conformance.subject {
+                    psi_symbol_resolved_trees::trait_definition::ConformanceSubject::Carrier(
+                        type_name,
+                    ) => type_name.as_str(),
+                    psi_symbol_resolved_trees::trait_definition::ConformanceSubject::Subjectless => {
+                        conformance
+                            .alias
+                            .as_ref()
+                            .map_or("<subjectless>", DiagnosticName::as_str)
+                    }
+                },
                 conformance.trait_name.as_str(),
                 rows,
                 &trait_catalog,
@@ -146,22 +156,29 @@ pub(crate) fn route_inline_member_calls(program: &mut SymbolResolvedTrees) {
                 realization_state: row.realization_state,
             })
             .collect::<Vec<_>>();
-        let subject_states = program
-            .machines
-            .iter()
-            .filter(|machine| {
-                machine
-                    .attached_data
-                    .as_ref()
-                    .is_some_and(|subject| subject.as_str() == conformance.type_name.as_str())
-            })
-            .flat_map(|machine| {
+        let subject_states = match &conformance.subject {
+            psi_symbol_resolved_trees::trait_definition::ConformanceSubject::Carrier(type_name) => {
                 program
-                    .machine_state_handles(machine.states)
+                    .machines
                     .iter()
-                    .map(|handle| program.machine_state(*handle).symbol)
-            })
-            .collect::<Vec<_>>();
+                    .filter(|machine| {
+                        machine
+                            .attached_data
+                            .as_ref()
+                            .is_some_and(|subject| subject.as_str() == type_name.as_str())
+                    })
+                    .flat_map(|machine| {
+                        program
+                            .machine_state_handles(machine.states)
+                            .iter()
+                            .map(|handle| program.machine_state(*handle).symbol)
+                    })
+                    .collect::<Vec<_>>()
+            }
+            psi_symbol_resolved_trees::trait_definition::ConformanceSubject::Subjectless => {
+                Vec::new()
+            }
+        };
         plans.extend(
             rows.iter()
                 .filter(|row| {
