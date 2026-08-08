@@ -394,13 +394,13 @@ Remaining:
   prove the realized scope lies between each surviving route demand and its
   context maximum.
 - Re-root the reference interpreter and abstract-operation construction fully
-  on decoded, verified terminal Psi. The terminal interpreter now has an
-  artifact-root entry that canonical-decodes semantic/proof section bytes and
-  verifies them under an explicit admission profile before execution; no
-  producer-owned module or checked tree crosses that entry. Continue replacing
-  the legacy checked-tree vocabulary and route abstract/native construction
-  through the same decoded verified IR so the shared interpreter/native oracle
-  covers the complete language.
+  on decoded, verified terminal Psi. The terminal interpreter and
+  terminal-Psi-to-abstract-operation builder now have parallel artifact-root
+  entries that canonical-decode semantic/proof section bytes and verify them
+  under an explicit admission profile before execution or realization
+  planning; no producer-owned module or checked tree crosses either entry.
+  Continue replacing the legacy checked-tree vocabulary so the shared
+  interpreter/native oracle covers the complete language.
 - **PCC verifier closure.** The artifact determines its complete obligation
   set; proof bundles only discharge it. Connect `psi-terminal-verifier` to the
   low-rung proof-kernel calculus and choose one auditable closure recorded in

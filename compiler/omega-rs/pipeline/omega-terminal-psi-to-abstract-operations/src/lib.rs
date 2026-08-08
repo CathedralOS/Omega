@@ -15,6 +15,23 @@ use psi_terminal::{OperationKind, TerminalMachine, Terminator};
 use psi_terminal_codec::{CodecError, terminal_psi_identity};
 use psi_terminal_verifier::VerifiedTerminalModule;
 
+/// Canonical-decode and verify terminal-Psi semantic/proof artifact sections
+/// before constructing Omega's source-independent realization requirements.
+/// Producer-owned modules and frontend trees cannot cross this boundary.
+pub fn lower_artifact_sections(
+    semantic_bytes: &[u8],
+    proof_bytes: &[u8],
+    profile: &psi_proof_kernel::AdmissionProfile,
+) -> Result<TerminalAbstractOperationPlan, ArtifactLoweringError> {
+    let module = psi_terminal_codec::decode_module(semantic_bytes)
+        .map_err(ArtifactLoweringError::SemanticDecode)?;
+    let proof = psi_terminal_codec::decode_proof_bundle(proof_bytes)
+        .map_err(ArtifactLoweringError::ProofDecode)?;
+    let verified = psi_terminal_verifier::verify_module(&module, &proof, profile)
+        .map_err(ArtifactLoweringError::Verification)?;
+    lower_verified_module(&verified).map_err(ArtifactLoweringError::Lowering)
+}
+
 /// Consume the complete verified module without consulting source or producer
 /// state. The initial terminal vocabulary has one unconditional executable
 /// chain per machine, so its Omega requirement stream is flat and ordered.
@@ -428,6 +445,22 @@ pub enum LoweringError {
         containment_demand: String,
     },
 }
+
+#[derive(Debug)]
+pub enum ArtifactLoweringError {
+    SemanticDecode(psi_terminal_codec::CodecError),
+    ProofDecode(psi_terminal_codec::ProofCodecError),
+    Verification(psi_terminal_verifier::VerificationError),
+    Lowering(LoweringError),
+}
+
+impl std::fmt::Display for ArtifactLoweringError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "{self:?}")
+    }
+}
+
+impl std::error::Error for ArtifactLoweringError {}
 
 impl std::fmt::Display for LoweringError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
