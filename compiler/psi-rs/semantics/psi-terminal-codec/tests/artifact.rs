@@ -910,6 +910,7 @@ fn semantic_module() -> TerminalModule {
             }],
             contract: MachineContract {
                 id: contract_id(1),
+                crash_context: Vec::new(),
                 requires: vec![goal.clone()],
                 ensures: vec![ContractClause {
                     obligation: obligation_id(1),

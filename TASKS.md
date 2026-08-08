@@ -271,13 +271,18 @@ Remaining:
   entailment beyond the live structural propositional consequences and widen
   damage minima from open invariant/custody evidence; then retain guarded
   predicates while composing nonleaf routes through the recursive fixed point,
-  add separately compiled
-  imported-artifact capsules, and sparse per-cause context maxima.
+  and add separately compiled imported-artifact capsules. Terminal Psi v24 now
+  carries canonical sparse per-cause context maxima in each machine contract;
+  the codec fingerprints them, archived modules migrate only their used causes
+  to the legacy `ExecutionDomain` root, and the verifier requires every crash
+  demand to fit the matching maximum. Artifact-root crash production publishes
+  the portable top for both closed causes. Plumb narrower activation/task/
+  supervisor context plans from their checked provider or Build source.
   Retaining declared intermediate nominal scope ordering is design blocked on
   `OWNER_QUESTIONS.md` Q2.
   Generalize guarded source production beyond the live structural implication
   rules and current acyclic integer-control shape.
-  Terminal Psi v23 already carries the explicit no-successor terminator, both
+  Terminal Psi v24 already carries the explicit no-successor terminator, both
   crash scopes, and its canonical machine-local frontier lower bound; native
   lowering remains closed until target crash plans exist.
   Omega installation must bind nominal scopes to a selected fault plan and

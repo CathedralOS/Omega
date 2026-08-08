@@ -32,7 +32,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.semantic_version, SemanticVersion::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "4befdf5eaf17353409908bd2aac945f7d2d141dc40f1620f5a70c21975bb1c84"
+        "a4ecd2a8f515f9ad5e815f41c33df470a7adf8643c7eea6ef3bfc67fb871ca7f"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -41,8 +41,9 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
 }
 
 #[test]
-fn v23_crash_round_trips_and_every_semantic_field_enters_identity() {
+fn v24_crash_round_trips_and_every_semantic_field_enters_identity() {
     let mut module = fixture();
+    module.machines[0].contract.crash_context = psi_terminal::CrashContextMaximum::portable_root();
     module.machines[0].blocks[1].terminator = Terminator::Crash {
         edge: edge_id(2),
         cause: CrashCause::Trap,
@@ -93,6 +94,11 @@ fn v23_crash_round_trips_and_every_semantic_field_enters_identity() {
         semantic_fingerprint(&module).expect("changed demand identity"),
         baseline
     );
+    module.machines[0].contract.crash_context[0].maximum_scope = "Activation".to_owned();
+    assert_ne!(
+        semantic_fingerprint(&module).expect("changed context maximum identity"),
+        baseline
+    );
 }
 
 #[test]
@@ -110,7 +116,14 @@ fn v22_crash_decodes_its_single_scope_as_equal_minimum_and_demand() {
     let decoded = decode_module(&bytes).expect("v22 crash decodes");
     assert_eq!(decoded, module);
     let migrated = migrate_module_to_current(&decoded).expect("v22 crash migrates");
-    assert_eq!(migrated.semantic_version, SemanticVersion::V23);
+    assert_eq!(migrated.semantic_version, SemanticVersion::V24);
+    assert_eq!(
+        migrated.machines[0].contract.crash_context,
+        vec![psi_terminal::CrashContextMaximum {
+            cause: CrashCause::Trap,
+            maximum_scope: "ExecutionDomain".to_owned(),
+        }]
+    );
     assert!(matches!(
         &migrated.machines[0].blocks[1].terminator,
         Terminator::Crash {
@@ -1122,6 +1135,7 @@ fn decoder_rejects_noncanonical_or_ambiguous_bytes() {
     let mut reordered_requirements = bytes.clone();
     let contract_prefix = [
         1, 0, 0, 0, 0, 0, 0, 0, // ContractId(1)
+        0, 0, 0, 0, // zero crash context maxima
         8, 0, 0, 0, // eight requirements
         1, 2, 3, // Truth, Falsehood, Atom
     ];
@@ -1129,7 +1143,7 @@ fn decoder_rejects_noncanonical_or_ambiguous_bytes() {
         .windows(contract_prefix.len())
         .position(|window| window == contract_prefix)
         .expect("fixture contract prefix should be unique");
-    reordered_requirements.swap(contract_offset + 12, contract_offset + 13);
+    reordered_requirements.swap(contract_offset + 16, contract_offset + 17);
     assert_eq!(
         decode_module(&reordered_requirements),
         Err(CodecError::NonCanonicalOrder("requires propositions"))
@@ -1296,6 +1310,7 @@ fn fixture() -> TerminalModule {
             ],
             contract: MachineContract {
                 id: contract_id(1),
+                crash_context: Vec::new(),
                 requires: vec![
                     Proposition::Truth,
                     Proposition::Falsehood,
@@ -1381,6 +1396,7 @@ fn bitwise_fixture(kind: u8, scalar_type: ScalarType) -> TerminalModule {
             }],
             contract: MachineContract {
                 id: contract_id(12),
+                crash_context: Vec::new(),
                 requires: vec![Proposition::Truth],
                 ensures: vec![ContractClause {
                     obligation: obligation_id(12),
@@ -1448,6 +1464,7 @@ fn wrapping_shift_fixture(left_shift: bool) -> TerminalModule {
             }],
             contract: MachineContract {
                 id: contract_id(12),
+                crash_context: Vec::new(),
                 requires: vec![Proposition::Truth],
                 ensures: vec![ContractClause {
                     obligation: obligation_id(12),
@@ -1494,6 +1511,7 @@ fn boolean_fixture(semantic_version: SemanticVersion) -> TerminalModule {
             }],
             contract: MachineContract {
                 id: contract_id(10),
+                crash_context: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
             },
@@ -1572,6 +1590,7 @@ fn content_conservation_fixture(semantic_version: SemanticVersion) -> TerminalMo
             }],
             contract: MachineContract {
                 id: contract_id(80),
+                crash_context: Vec::new(),
                 requires: Vec::new(),
                 ensures: vec![ContractClause {
                     obligation: obligation_id(80),
@@ -1789,6 +1808,7 @@ fn wrapping_add_fixture(semantic_version: SemanticVersion) -> TerminalModule {
             }],
             contract: MachineContract {
                 id: contract_id(20),
+                crash_context: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
             },

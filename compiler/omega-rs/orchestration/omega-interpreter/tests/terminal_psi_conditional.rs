@@ -771,6 +771,7 @@ fn conditional_module(semantic_version: SemanticVersion) -> TerminalModule {
             ],
             contract: MachineContract {
                 id: ContractId::new(1).unwrap(),
+                crash_context: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
             },
@@ -875,6 +876,7 @@ fn conditional_shared_tail_module() -> TerminalModule {
             ],
             contract: MachineContract {
                 id: ContractId::new(1).unwrap(),
+                crash_context: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
             },
@@ -992,6 +994,7 @@ fn nested_constant_conditional_module() -> TerminalModule {
             ],
             contract: MachineContract {
                 id: ContractId::new(1).unwrap(),
+                crash_context: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
             },
@@ -1089,6 +1092,7 @@ fn nested_boolean_conditional_module() -> TerminalModule {
             ],
             contract: MachineContract {
                 id: ContractId::new(1).unwrap(),
+                crash_context: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
             },

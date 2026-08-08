@@ -8,7 +8,7 @@ use psi_core::{
 };
 use psi_language_semantics::crash::scope_covers_minimum;
 use psi_terminal::{
-    ContentPartitionComposition, OperationKind, PropositionBinderArgumentKind,
+    ContentPartitionComposition, CrashCause, OperationKind, PropositionBinderArgumentKind,
     PropositionBinderKind, PropositionEvidence, SemanticVersion, TerminalMachine, TerminalModule,
     Terminator,
 };
@@ -70,6 +70,7 @@ pub fn validate_module(
             | SemanticVersion::V21
             | SemanticVersion::V22
             | SemanticVersion::V23
+            | SemanticVersion::V24
     ) {
         return Err(ModuleError::UnsupportedSemanticVersion(
             module.semantic_version,
@@ -650,6 +651,32 @@ fn validate_crash_frontiers(
     machine: &TerminalMachine,
     semantic_version: SemanticVersion,
 ) -> Result<(), ModuleError> {
+    if semantic_version < SemanticVersion::V24 && !machine.contract.crash_context.is_empty() {
+        return Err(ModuleError::CrashContextRequiresSemanticVersion {
+            machine: machine.id,
+            required: SemanticVersion::V24,
+            actual: semantic_version,
+        });
+    }
+    if machine
+        .contract
+        .crash_context
+        .windows(2)
+        .any(|pair| pair[0].cause >= pair[1].cause)
+    {
+        return Err(ModuleError::NonCanonicalCrashContext(machine.id));
+    }
+    if let Some(maximum) = machine
+        .contract
+        .crash_context
+        .iter()
+        .find(|maximum| maximum.maximum_scope.is_empty())
+    {
+        return Err(ModuleError::EmptyCrashContextMaximum {
+            machine: machine.id,
+            cause: maximum.cause,
+        });
+    }
     let expected = machine
         .content_entry_claims
         .iter()
@@ -657,6 +684,7 @@ fn validate_crash_frontiers(
         .collect::<Vec<_>>();
     for block in &machine.blocks {
         let Terminator::Crash {
+            cause,
             damage_minimum,
             containment_demand,
             frontier_lower_bound,
@@ -680,6 +708,20 @@ fn validate_crash_frontiers(
         }
         if !scope_covers_minimum(damage_minimum, containment_demand) {
             return Err(ModuleError::CrashContainmentDemandTooNarrow { block: block.id });
+        }
+        if semantic_version >= SemanticVersion::V24 {
+            let maximum = machine
+                .contract
+                .crash_context
+                .iter()
+                .find(|maximum| maximum.cause == *cause)
+                .ok_or(ModuleError::MissingCrashContextMaximum {
+                    block: block.id,
+                    cause: *cause,
+                })?;
+            if !scope_covers_minimum(containment_demand, &maximum.maximum_scope) {
+                return Err(ModuleError::CrashContextMaximumTooNarrow { block: block.id });
+            }
         }
         if frontier_lower_bound
             .windows(2)
@@ -2137,6 +2179,11 @@ pub enum ModuleError {
         required: SemanticVersion,
         actual: SemanticVersion,
     },
+    CrashContextRequiresSemanticVersion {
+        machine: MachineId,
+        required: SemanticVersion,
+        actual: SemanticVersion,
+    },
     SeparatedCrashScopesRequireSemanticVersion {
         block: BlockId,
         required: SemanticVersion,
@@ -2145,6 +2192,18 @@ pub enum ModuleError {
     EmptyCrashDamageMinimum(BlockId),
     EmptyCrashContainmentDemand(BlockId),
     CrashContainmentDemandTooNarrow {
+        block: BlockId,
+    },
+    NonCanonicalCrashContext(MachineId),
+    EmptyCrashContextMaximum {
+        machine: MachineId,
+        cause: CrashCause,
+    },
+    MissingCrashContextMaximum {
+        block: BlockId,
+        cause: CrashCause,
+    },
+    CrashContextMaximumTooNarrow {
         block: BlockId,
     },
     NonCanonicalCrashFrontier(BlockId),

@@ -36,7 +36,7 @@ use psi_core::{
 use psi_terminal::{
     Block, ClaimContentProjection, ContentEntryClaim, ContentIdentityReshuffle,
     ContentPartitionComposition, ContentPlaceSubstitution, ContractClause, CrashCause,
-    MachineContract, Operation, OperationKind, PropositionApplicationIdentity,
+    CrashContextMaximum, MachineContract, Operation, OperationKind, PropositionApplicationIdentity,
     PropositionBinderArgumentIdentity, PropositionBinderArgumentKind, PropositionBinderDeclaration,
     PropositionBinderKind, PropositionDeclaration, PropositionEvidence, SemanticVersion,
     StructuralPlaceDeclaration, SuccessorEdge, TerminalMachine, TerminalModule, Terminator,
@@ -135,6 +135,27 @@ pub fn migrate_module_to_current(module: &TerminalModule) -> Result<TerminalModu
                 .collect();
         }
     }
+    if migrated.semantic_version < SemanticVersion::V24 {
+        for machine in &mut migrated.machines {
+            let mut causes = machine
+                .blocks
+                .iter()
+                .filter_map(|block| match block.terminator {
+                    Terminator::Crash { cause, .. } => Some(cause),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            causes.sort();
+            causes.dedup();
+            machine.contract.crash_context = causes
+                .into_iter()
+                .map(|cause| CrashContextMaximum {
+                    cause,
+                    maximum_scope: "ExecutionDomain".to_owned(),
+                })
+                .collect();
+        }
+    }
     migrated.semantic_version = SemanticVersion::CURRENT;
     validate_canonical_order(&migrated)?;
     validate_module(&migrated).map_err(CodecError::InvalidModule)?;
@@ -202,6 +223,16 @@ fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
         return Err(CodecError::NonCanonicalOrder("machines by MachineId"));
     }
     for machine in &module.machines {
+        if machine
+            .contract
+            .crash_context
+            .windows(2)
+            .any(|pair| pair[0].cause >= pair[1].cause)
+        {
+            return Err(CodecError::NonCanonicalOrder(
+                "crash context maxima by cause",
+            ));
+        }
         if !strictly_increasing(machine.blocks.iter().map(|block| block.id)) {
             return Err(CodecError::NonCanonicalOrder("blocks by BlockId"));
         }
@@ -568,7 +599,7 @@ fn encode_machine(
     for block in &machine.blocks {
         encode_block(writer, semantic_version, block)?;
     }
-    encode_contract(writer, &machine.contract)
+    encode_contract(writer, semantic_version, &machine.contract)
 }
 
 fn encode_content_entry_claim(
@@ -824,8 +855,22 @@ fn encode_successor_edge(writer: &mut Writer, successor: &SuccessorEdge) -> Resu
     Ok(())
 }
 
-fn encode_contract(writer: &mut Writer, contract: &MachineContract) -> Result<(), CodecError> {
+fn encode_contract(
+    writer: &mut Writer,
+    semantic_version: SemanticVersion,
+    contract: &MachineContract,
+) -> Result<(), CodecError> {
     writer.id(contract.id);
+    if semantic_version >= SemanticVersion::V24 {
+        writer.len("crash context maxima", contract.crash_context.len())?;
+        for maximum in &contract.crash_context {
+            writer.u8(match maximum.cause {
+                CrashCause::Trap => 1,
+                CrashCause::Abort => 2,
+            });
+            writer.string("crash context maximum", &maximum.maximum_scope)?;
+        }
+    }
     writer.len("requires", contract.requires.len())?;
     for proposition in &contract.requires {
         encode_proposition(writer, proposition, 0)?;
@@ -1350,7 +1395,7 @@ fn decode_machine(
     for _ in 0..block_count {
         blocks.push(decode_block(reader, semantic_version)?);
     }
-    let contract = decode_contract(reader)?;
+    let contract = decode_contract(reader, semantic_version)?;
     Ok(TerminalMachine {
         id,
         parameters,
@@ -1634,8 +1679,29 @@ fn decode_successor_edge(reader: &mut Reader<'_>) -> Result<SuccessorEdge, Codec
     })
 }
 
-fn decode_contract(reader: &mut Reader<'_>) -> Result<MachineContract, CodecError> {
+fn decode_contract(
+    reader: &mut Reader<'_>,
+    semantic_version: SemanticVersion,
+) -> Result<MachineContract, CodecError> {
     let id = reader.id("ContractId")?;
+    let crash_context = if semantic_version >= SemanticVersion::V24 {
+        let count = reader.count()?;
+        let mut maxima = Vec::with_capacity(count as usize);
+        for _ in 0..count {
+            let cause = match reader.u8()? {
+                1 => CrashCause::Trap,
+                2 => CrashCause::Abort,
+                tag => return Err(CodecError::InvalidTag("CrashCause", tag)),
+            };
+            maxima.push(CrashContextMaximum {
+                cause,
+                maximum_scope: reader.string("crash context maximum")?,
+            });
+        }
+        maxima
+    } else {
+        Vec::new()
+    };
     let requires_count = reader.count()?;
     let mut requires = Vec::new();
     for _ in 0..requires_count {
@@ -1651,6 +1717,7 @@ fn decode_contract(reader: &mut Reader<'_>) -> Result<MachineContract, CodecErro
     }
     Ok(MachineContract {
         id,
+        crash_context,
         requires,
         ensures,
     })

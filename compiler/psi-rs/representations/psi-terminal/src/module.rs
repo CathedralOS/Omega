@@ -47,6 +47,9 @@ use psi_core::{
 /// Version 23 separates the body-derived damage minimum from the selected
 /// published containment demand. Version 22 decodes conservatively with both
 /// fields equal to its single encoded scope.
+/// Version 24 adds each machine's effective sparse per-cause crash-context
+/// maxima. Absence forbids that cause; older modules migrate with the legacy
+/// portable-root maximum for every cause used by one of their crash exits.
 /// Older bytes retain their original meaning and identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SemanticVersion(NonZeroU16);
@@ -75,7 +78,8 @@ impl SemanticVersion {
     pub const V21: Self = Self(NonZeroU16::new(21).expect("twenty-one is nonzero"));
     pub const V22: Self = Self(NonZeroU16::new(22).expect("twenty-two is nonzero"));
     pub const V23: Self = Self(NonZeroU16::new(23).expect("twenty-three is nonzero"));
-    pub const CURRENT: Self = Self::V23;
+    pub const V24: Self = Self(NonZeroU16::new(24).expect("twenty-four is nonzero"));
+    pub const CURRENT: Self = Self::V24;
 
     pub fn new(raw: u16) -> Option<Self> {
         NonZeroU16::new(raw).map(Self)
@@ -255,8 +259,32 @@ impl ContentPartitionComposition {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineContract {
     pub id: ContractId,
+    /// Strictly ordered by cause. Missing causes are forbidden in this
+    /// execution context.
+    pub crash_context: Vec<CrashContextMaximum>,
     pub requires: Vec<Proposition>,
     pub ensures: Vec<ContractClause>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CrashContextMaximum {
+    pub cause: CrashCause,
+    pub maximum_scope: String,
+}
+
+impl CrashContextMaximum {
+    pub fn portable_root() -> Vec<Self> {
+        vec![
+            Self {
+                cause: CrashCause::Trap,
+                maximum_scope: "ExecutionDomain".to_owned(),
+            },
+            Self {
+                cause: CrashCause::Abort,
+                maximum_scope: "ExecutionDomain".to_owned(),
+            },
+        ]
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
