@@ -990,7 +990,11 @@ event for them.
 
 The row is still not a completed `CrashTerminatorPlan`. It seeds the intrinsic
 cause minimum (`Trap <= Activation`, `Abort <= ExecutionDomain`); later
-invariant and custody analysis may widen that value but cannot narrow it.
+invariant and custody analysis may widen that value but cannot narrow it. The
+first such analysis is live: an explicit crash with any open default-domain
+invariant window retains the invariant-bearing data identities on the checked
+site and widens the minimum to the conservative portable top,
+`ExecutionDomain`. Finer custody-derived nominal scopes remain future work.
 Canonical route buckets receive dense plan-local identities, and an
 unconditional same-cause bucket enters `guard_covering_buckets` structurally
 because `true` covers every path guard. Exact retained incoming guards and

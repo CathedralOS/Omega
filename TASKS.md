@@ -274,8 +274,11 @@ Remaining:
   crash-contract capsules: each capsule pins the normalized public crash
   buckets to the complete callable-contract fingerprint, and checked calls
   select and substitute those buckets exactly like local published ceilings. Extend
-  path-conditioned guard entailment beyond the live structural rules above and
-  widen damage minima from open invariant/custody evidence. Separately compiled
+  path-conditioned guard entailment beyond the live structural rules above.
+  Explicit crashes now retain the invariant-bearing data identities for every
+  open default-domain window and conservatively widen the site's damage minimum
+  to `ExecutionDomain`; add finer custody-derived nominal scopes when that
+  evidence exists. Separately compiled
   imported-artifact capsules are design blocked on the semantic import/export
   carrier, symbol identity, and certificate binding requested by
   `wiki/language_guide/appendix_open_questions.md`; diagnostic JSON is not an

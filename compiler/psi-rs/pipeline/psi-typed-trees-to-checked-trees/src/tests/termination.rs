@@ -2666,6 +2666,79 @@ fn crash_guard_entailment_normalizes_boolean_literal_relations() {
 }
 
 #[test]
+fn open_default_domain_window_widens_crash_damage_minimum() {
+    let source = r#"
+    data MemoryMap
+    where
+        count <= len,
+    {
+        len: u32;
+        count: u32;
+    }
+
+    data Holder { map: MemoryMap; }
+
+    machine Holder::fail(&mut self) -> i32
+    crashes Trap ExecutionDomain
+    {
+        self.map.len = 8;
+        self.map.count = 3;
+        self.map.len = 2;
+        crash Trap;
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let checked = lower_typed_trees(typed)
+        .expect("a wide crash ceiling may abandon an open invariant window");
+    let plan = checked
+        .facts
+        .contract_plans
+        .for_machine(symbol_of_checked(&checked, "Holder::fail"))
+        .expect("fail contract plan");
+    let [site] = plan.crash.checked_sites() else {
+        panic!("fail should retain one crash site")
+    };
+    assert_eq!(
+        site.damage_minimum(),
+        psi_checked_trees::EXECUTION_DOMAIN_CRASH_SCOPE
+    );
+    assert_eq!(site.open_invariant_data().len(), 1);
+
+    let narrow = source.replace("crashes Trap ExecutionDomain", "crashes Trap Activation");
+    let tokens = Lexer::new(&narrow)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let narrow_checked = lower_typed_trees(typed)
+        .expect("checked evidence should retain the uncovered narrow ceiling for diagnostics");
+    let narrow_plan = narrow_checked
+        .facts
+        .contract_plans
+        .for_machine(symbol_of_checked(&narrow_checked, "Holder::fail"))
+        .expect("narrow fail contract plan");
+    let [narrow_site] = narrow_plan.crash.checked_sites() else {
+        panic!("narrow fail should retain one crash site")
+    };
+    assert_eq!(narrow_site.damage_minimum(), "ExecutionDomain");
+    assert_eq!(
+        narrow_plan
+            .crash
+            .covering_buckets_for_site(narrow_site)
+            .count(),
+        0,
+        "Activation containment must not cover the widened damage minimum"
+    );
+}
+
+#[test]
 fn checked_crash_calls_retain_invocation_specific_route_refinement() {
     let source = r#"
     machine risky(flag: bool) -> i32

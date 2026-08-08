@@ -177,6 +177,7 @@ fn build_contract_plans(
 ) -> psi_checked_trees::MachineContractPlans {
     let mut machines = Vec::new();
     let content_conservation = psi_validation::build_content_conservation_plans(program);
+    let open_invariant_crashes = psi_validation::build_open_invariant_crash_sites(program);
     let frame_resolver = psi_validation::CallFrameResolver::new(program);
     let invocation_inference = psi_effects::infer_synchronous_invocations(program);
     for machine in program.machines() {
@@ -312,8 +313,13 @@ fn build_contract_plans(
                     .collect()
             })
             .unwrap_or_default();
-        let crash =
-            build_published_crash_plan(program, machine, &parameter_names, &content_conservation);
+        let crash = build_published_crash_plan(
+            program,
+            machine,
+            &parameter_names,
+            &content_conservation,
+            &open_invariant_crashes,
+        );
         canonical_facts.extend(encode_contract_set_canonical(
             program,
             program.machine_contracts(machine),
@@ -563,6 +569,7 @@ fn build_published_crash_plan(
     machine: &psi_typed_trees::machine::Machine,
     parameter_names: &[String],
     content_conservation: &[psi_validation::ContentConservationSourcePlan],
+    open_invariant_crashes: &[psi_validation::OpenInvariantCrashSite],
 ) -> psi_checked_trees::CrashPlan {
     let published = build_published_crash_buckets(
         program,
@@ -577,7 +584,7 @@ fn build_published_crash_plan(
     } else {
         psi_checked_trees::CrashPlan::default()
     };
-    let checked_sites = build_checked_crash_sites(program, machine, &plan);
+    let checked_sites = build_checked_crash_sites(program, machine, &plan, open_invariant_crashes);
     plan.with_checked_sites(checked_sites)
         .expect("one checked crash cause occupies each transition site")
 }
@@ -655,6 +662,7 @@ fn build_checked_crash_sites(
     program: &TypedTrees,
     machine: &psi_typed_trees::machine::Machine,
     crash_plan: &psi_checked_trees::CrashPlan,
+    open_invariant_crashes: &[psi_validation::OpenInvariantCrashSite],
 ) -> Vec<psi_checked_trees::CheckedCrashSite> {
     let mut sites = Vec::new();
     for state in program.machine_states(machine) {
@@ -686,16 +694,31 @@ fn build_checked_crash_sites(
                     (bucket.cause() == cause && bucket.is_unconditional()).then_some(id)
                 })
                 .collect();
-            sites.push(psi_checked_trees::CheckedCrashSite::new(
-                psi_checked_trees::CrashSiteLocation::new(
-                    state.symbol,
-                    u32::try_from(statement_ordinal)
-                        .expect("state-local statement ordinal exceeds checked identity range"),
-                ),
-                cause,
-                guard_covering_buckets,
-                Vec::new(),
-            ));
+            let open_invariant_data = open_invariant_crashes
+                .iter()
+                .find(|evidence| {
+                    evidence.machine() == machine.symbol
+                        && evidence.state() == state.symbol
+                        && evidence.statement_ordinal()
+                            == u32::try_from(statement_ordinal).expect(
+                                "state-local statement ordinal exceeds checked identity range",
+                            )
+                })
+                .map(|evidence| evidence.open_data().to_vec())
+                .unwrap_or_default();
+            sites.push(
+                psi_checked_trees::CheckedCrashSite::new(
+                    psi_checked_trees::CrashSiteLocation::new(
+                        state.symbol,
+                        u32::try_from(statement_ordinal)
+                            .expect("state-local statement ordinal exceeds checked identity range"),
+                    ),
+                    cause,
+                    guard_covering_buckets,
+                    Vec::new(),
+                )
+                .with_open_invariant_data(open_invariant_data),
+            );
         }
     }
     sites

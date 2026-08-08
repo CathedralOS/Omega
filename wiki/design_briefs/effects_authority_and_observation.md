@@ -221,6 +221,13 @@ invariant open. The upper bound protects what the context expects to survive.
 Psi fingerprints and checks the portable demands; Omega installation retains
 the selected plan and evidence that realizes them.
 
+The first checked widening rule is deliberately conservative. An explicit
+crash with any default-domain invariant window open retains the
+invariant-bearing data identity and raises `derived_site_minimum` to
+`ExecutionDomain`. A normal return, call, read, borrow, or continuing transition
+still requires the window to close. Future custody evidence may justify finer
+nominal minima without weakening this rule in its absence.
+
 ## V1 composition algebra
 
 Service reach normalizes by deterministic, idempotent set union plus trait-

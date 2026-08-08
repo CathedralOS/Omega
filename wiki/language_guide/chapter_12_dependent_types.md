@@ -166,7 +166,10 @@ Working rules:
   (chapter 11). Write the witness and its dependents in either order; the
   coupling is re-proven from the flow facts at the next consumption point —
   read, borrow, call, transition, or return. Nothing can observe the value
-  mid-window. Init-syntax (construct a valid whole) remains the idiomatic
+  mid-window. An explicit `crash` is the one no-successor exception: it may
+  abandon the open window, but that evidence widens the crash's portable
+  damage minimum to `ExecutionDomain`; an authored narrower crash route cannot
+  cover it. Init-syntax (construct a valid whole) remains the idiomatic
   form when rebuilding is cheap:
 
   ```omega

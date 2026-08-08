@@ -177,8 +177,12 @@ Current ownership is:
   rather than re-reading typed crash clauses. The same plan keeps an
   independent, non-fingerprinted checked-site layer keyed by state and
   state-local statement ordinal. Each site records the body-derived cause, its
-  intrinsic damage minimum, selected published coverage, exact incoming guard
-  conjunction, and a canonical definitely-live claim-frontier lower bound.
+  derived damage minimum, selected published coverage, exact incoming guard
+  conjunction, open default-domain invariant data identities, and a canonical
+  definitely-live claim-frontier lower bound. The intrinsic cause supplies the
+  initial minimum; abandoning any open invariant window widens it to the
+  conservative portable `ExecutionDomain` top until finer custody evidence is
+  available.
   Unconditional entry claims are included directly. A positive symbol-stamped
   case-pattern guard on a named edge is rebound through the target state's
   arguments and promotes only the selected conditional entry claim. A
