@@ -76,10 +76,12 @@ A crash route while a shared invariant window is open derives a containment
 demand wide enough to terminate everything that could observe the broken
 state. In a context that promises narrower survival, that route must be
 disproved before the site; merely publishing `crashes Trap` does not make the
-window safe. A resource may lower this damage minimum only through an explicit
-owner-death recovery protocol whose acquisition outcome forces survivors to
-observe and repair the abandoned invariant. There is no ambient poisoning or
-asynchronous destruction hidden from the checked graph.
+window safe. The current portable rule retains the invariant-bearing data
+identity at the checked crash site and widens its damage minimum to
+`ExecutionDomain`. A resource may lower this damage minimum only through an
+explicit owner-death recovery protocol whose acquisition outcome forces
+survivors to observe and repair the abandoned invariant. There is no ambient
+poisoning or asynchronous destruction hidden from the checked graph.
 
 Unestablished storage is different from an established value whose invariant
 was later broken. If establishment fails, no `T` exists and the raw storage may

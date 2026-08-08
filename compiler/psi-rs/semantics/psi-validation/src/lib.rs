@@ -48,6 +48,7 @@ pub use crate::content_conservation::{
 };
 pub use crate::content_projections::build_content_projection_plans;
 use crate::contract_entailment::validate_machine_contract_entailment;
+
 pub use crate::data::data_requires_establishment;
 use crate::data::validate_data_field_types;
 use crate::domains::validate_domain_definitions;
@@ -73,6 +74,7 @@ use crate::transitions::validate_transition_target_node;
 use crate::type_references::{
     TypeReferenceOwner, validate_type_reference_handle_with_type_parameters,
 };
+pub use default_domains::{OpenInvariantCrashSite, build_open_invariant_crash_sites};
 pub use effects::{validate_asm_discharge, validate_behavior_plan};
 /// The declared type of a simple place argument (bare name / `self.field`,
 /// through the `&mut` marker), WITH its Constrained shells -- exposed for the

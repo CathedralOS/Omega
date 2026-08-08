@@ -1693,6 +1693,20 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
                 );
                 json.push_str(", \"damage_minimum\": ");
                 push_json_string(&mut json, site.damage_minimum());
+                json.push_str(", \"open_invariant_data\": [");
+                for (evidence_index, data_symbol) in site.open_invariant_data().iter().enumerate() {
+                    if evidence_index > 0 {
+                        json.push_str(", ");
+                    }
+                    let data_name = program
+                        .data_definitions()
+                        .iter()
+                        .find(|data| data.symbol == *data_symbol)
+                        .map(|data| data.name.as_str())
+                        .unwrap_or_else(|| program.symbols.name(*data_symbol));
+                    push_json_string(&mut json, data_name);
+                }
+                json.push(']');
                 json.push_str(", \"path_guard_conjuncts\": [");
                 for (guard_index, predicate) in site.path_guard_conjuncts().iter().enumerate() {
                     if guard_index > 0 {
@@ -3420,7 +3434,7 @@ mod tests {
         assert!(!contract.contains("remaining"));
         assert!(json[implementation_start..].contains("\"inferred_write_frames\": []"));
         assert!(json[implementation_start..].contains(
-            "\"checked_crash_sites\": [\n          {\"state\": \"entry\", \"statement_ordinal\": 4, \"cause\": \"Abort\", \"damage_minimum\": \"ExecutionDomain\", \"path_guard_conjuncts\": [\"0x010900000000\"], \"guard_covering_buckets\": [1], \"covering_buckets\": [1], \"frontier_lower_bound\": [{\"kind\": \"established\""
+            "\"checked_crash_sites\": [\n          {\"state\": \"entry\", \"statement_ordinal\": 4, \"cause\": \"Abort\", \"damage_minimum\": \"ExecutionDomain\", \"open_invariant_data\": [], \"path_guard_conjuncts\": [\"0x010900000000\"], \"guard_covering_buckets\": [1], \"covering_buckets\": [1], \"frontier_lower_bound\": [{\"kind\": \"established\""
         ));
         assert!(json[implementation_start..].contains(
             "\"checked_crash_calls\": [\n          {\"state\": \"entry\", \"statement_ordinal\": 7, \"call_ordinal\": 2, \"target_machine\": \"Worker::run\", \"target_state\": \"entry\", \"target_contract_fingerprint\": \"0x0000000000001234\", \"path_guard_conjuncts\": [\"0x010401\"], \"path_guard_consequences\": [], \"surviving_buckets\": [{\"cause\": \"Trap\", \"containment_demand\": \"Activation\", \"alternative_guards\": [\"true\"]}]"

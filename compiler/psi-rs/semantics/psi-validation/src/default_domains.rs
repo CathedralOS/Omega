@@ -24,9 +24,66 @@ use psi_typed_trees::machine::Machine;
 use psi_typed_trees::state::State;
 use psi_typed_trees::statement::StatementNode;
 
+type InvariantWindow = (String, String, psi_symbols::SymbolHandle);
+
+/// Source-independent evidence that one explicit crash occurs while at least
+/// one default-domain invariant window is open. The place spelling remains a
+/// validator diagnostic concern; checked damage evidence retains only the
+/// invariant-bearing data identities.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OpenInvariantCrashSite {
+    machine: psi_symbols::SymbolHandle,
+    state: psi_symbols::SymbolHandle,
+    statement_ordinal: u32,
+    open_data: Vec<psi_symbols::SymbolHandle>,
+}
+
+impl OpenInvariantCrashSite {
+    pub const fn machine(&self) -> psi_symbols::SymbolHandle {
+        self.machine
+    }
+
+    pub const fn state(&self) -> psi_symbols::SymbolHandle {
+        self.state
+    }
+
+    pub const fn statement_ordinal(&self) -> u32 {
+        self.statement_ordinal
+    }
+
+    pub fn open_data(&self) -> &[psi_symbols::SymbolHandle] {
+        &self.open_data
+    }
+}
+
 pub(crate) fn validate_default_domain_writes(
     program: &TypedTrees,
     diagnostics: &mut Vec<Diagnostic>,
+) {
+    analyze_default_domain_writes(program, diagnostics, &mut Vec::new());
+}
+
+pub fn build_open_invariant_crash_sites(program: &TypedTrees) -> Vec<OpenInvariantCrashSite> {
+    let mut diagnostics = Vec::new();
+    let mut sites = Vec::new();
+    analyze_default_domain_writes(program, &mut diagnostics, &mut sites);
+    sites.sort_by_key(|site| {
+        (
+            site.machine.arena_index(),
+            site.machine.generation(),
+            site.state.arena_index(),
+            site.state.generation(),
+            site.statement_ordinal,
+        )
+    });
+    sites.dedup();
+    sites
+}
+
+fn analyze_default_domain_writes(
+    program: &TypedTrees,
+    diagnostics: &mut Vec<Diagnostic>,
+    crash_sites: &mut Vec<OpenInvariantCrashSite>,
 ) {
     // R2 rung 3 slice 11 (+ multi-state extension): per-machine
     // establishment SUMMARIES -- the self places a callee DEFINITELY
@@ -41,6 +98,7 @@ pub(crate) fn validate_default_domain_writes(
     // as nothing -- conservative.
     let mut summaries: Vec<(psi_symbols::SymbolHandle, Vec<String>)> = Vec::new();
     let mut throwaway = Vec::new();
+    let mut throwaway_crash_sites = Vec::new();
     for machine in program.machines() {
         let states = program.machine_states(machine);
         if states.is_empty() {
@@ -60,6 +118,8 @@ pub(crate) fn validate_default_domain_writes(
                         false,
                         true,
                         &mut throwaway,
+                        &mut throwaway_crash_sites,
+                        false,
                     )
                     .0,
                 ],
@@ -84,6 +144,8 @@ pub(crate) fn validate_default_domain_writes(
                             false,
                             true,
                             &mut throwaway,
+                            &mut throwaway_crash_sites,
+                            false,
                         )
                         .0
                     })
@@ -180,13 +242,13 @@ pub(crate) fn validate_default_domain_writes(
         entry_valuations[0] = Some(Vec::new());
         // WINDOW TRANSPORT: open windows at each state's entry -- the
         // MAY-union of predecessor exits (an obligation from ANY path in).
-        let mut entry_windows: Vec<Vec<(String, String)>> = vec![Vec::new(); states.len()];
+        let mut entry_windows: Vec<Vec<InvariantWindow>> = vec![Vec::new(); states.len()];
         // A TERMINAL state (no outgoing transition) is where the machine
         // returns: its exit is a hard consumption point for open windows.
         let is_terminal = |index: usize| !edges.iter().any(|(from, _)| *from == index);
         loop {
             let mut changed = false;
-            let exits: Vec<(Vec<String>, Vec<PlaceValuation>, Vec<(String, String)>)> = states
+            let exits: Vec<(Vec<String>, Vec<PlaceValuation>, Vec<InvariantWindow>)> = states
                 .iter()
                 .enumerate()
                 .map(|(index, state)| {
@@ -201,6 +263,8 @@ pub(crate) fn validate_default_domain_writes(
                         born_zero(index),
                         is_terminal(index),
                         &mut throwaway,
+                        &mut throwaway_crash_sites,
+                        false,
                     )
                 })
                 .collect();
@@ -231,7 +295,7 @@ pub(crate) fn validate_default_domain_writes(
                     changed = true;
                 }
                 // Window MAY-union: open from ANY predecessor -> open here.
-                let mut window_union: Vec<(String, String)> = Vec::new();
+                let mut window_union: Vec<InvariantWindow> = Vec::new();
                 for predecessor in &predecessors {
                     for window in &exits[*predecessor].2 {
                         if !window_union.contains(window) {
@@ -239,7 +303,14 @@ pub(crate) fn validate_default_domain_writes(
                         }
                     }
                 }
-                window_union.sort();
+                window_union.sort_by(|left, right| {
+                    (&left.0, &left.1, left.2.arena_index(), left.2.generation()).cmp(&(
+                        &right.0,
+                        &right.1,
+                        right.2.arena_index(),
+                        right.2.generation(),
+                    ))
+                });
                 if window_union != entry_windows[index] {
                     entry_windows[index] = window_union;
                     changed = true;
@@ -285,6 +356,8 @@ pub(crate) fn validate_default_domain_writes(
                 born_zero(index),
                 is_terminal(index),
                 diagnostics,
+                crash_sites,
+                true,
             );
         }
     }
@@ -407,12 +480,14 @@ fn walk_state(
     state: &State,
     entry_established: &[String],
     entry_valuations: &[PlaceValuation],
-    entry_windows: &[(String, String)],
+    entry_windows: &[InvariantWindow],
     summaries: &[(psi_symbols::SymbolHandle, Vec<String>)],
     born_zero: bool,
     exit_is_terminal: bool,
     diagnostics: &mut Vec<Diagnostic>,
-) -> (Vec<String>, Vec<PlaceValuation>, Vec<(String, String)>) {
+    crash_sites: &mut Vec<OpenInvariantCrashSite>,
+    record_crash_sites: bool,
+) -> (Vec<String>, Vec<PlaceValuation>, Vec<InvariantWindow>) {
     let mut tracked: Vec<TrackedPlace> = Vec::new();
     // Known calls poison only transported valuations they may write. An
     // opaque call poisons every valuation; establishment survives either
@@ -426,10 +501,17 @@ fn walk_state(
     // WINDOW TRANSPORT: windows still open from predecessor states
     // ((spelling, data name) pairs, MAY-union over predecessors). A write
     // in this state that re-proves the facts closes the inherited window;
-    // calls and TERMINAL exits stay hard consumption points.
-    let mut inherited_windows: Vec<(String, String)> = entry_windows.to_vec();
+    // calls and ordinary TERMINAL exits stay hard consumption points; an
+    // explicit crash may abandon the window only by retaining damage evidence.
+    let mut inherited_windows: Vec<InvariantWindow> = entry_windows.to_vec();
+    let mut has_explicit_crash = false;
 
-    for statement in program.statement_table.statements(state.statement_nodes) {
+    for (statement_ordinal, statement) in program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .enumerate()
+    {
         // R2 rung 3 slice 2: reads of an unestablished GATED place refuse
         // BEFORE this statement's own write effect is applied.
         scan_statement_reads(
@@ -460,7 +542,7 @@ fn walk_state(
                 );
                 // A write that re-proved the facts (tracked window CLOSED)
                 // closes the inherited window on the same place.
-                inherited_windows.retain(|(spelling, _)| {
+                inherited_windows.retain(|(spelling, _, _)| {
                     !tracked
                         .iter()
                         .any(|place| place.spelling == *spelling && !place.window_open)
@@ -530,6 +612,38 @@ fn walk_state(
                     );
                 }
             }
+            StatementNode::Transition(transition)
+                if matches!(
+                    transition.exit,
+                    psi_typed_trees::statement::TransitionExit::Crash(_)
+                ) =>
+            {
+                has_explicit_crash = true;
+                if record_crash_sites {
+                    let mut open_data = tracked
+                        .iter()
+                        .filter(|place| place.window_open)
+                        .map(|place| place.definition.symbol)
+                        .chain(
+                            inherited_windows
+                                .iter()
+                                .map(|(_, _, data_symbol)| *data_symbol),
+                        )
+                        .collect::<Vec<_>>();
+                    open_data.sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
+                    open_data.dedup();
+                    if !open_data.is_empty() {
+                        crash_sites.push(OpenInvariantCrashSite {
+                            machine: machine.symbol,
+                            state: state.symbol,
+                            statement_ordinal: u32::try_from(statement_ordinal).expect(
+                                "state-local statement ordinal exceeds crash evidence range",
+                            ),
+                            open_data,
+                        });
+                    }
+                }
+            }
             _ => {}
         }
     }
@@ -538,7 +652,7 @@ fn walk_state(
     // point -- an open window may not escape the machine. A non-terminal
     // exit passes its open windows to the successors (the fixpoint
     // MAY-unions them), whose own consumption points police closure.
-    if exit_is_terminal {
+    if exit_is_terminal && !has_explicit_crash {
         refuse_open_windows(&tracked, &inherited_windows, "state exit", diagnostics);
     }
 
@@ -591,11 +705,12 @@ fn walk_state(
     {
         if !exit_windows
             .iter()
-            .any(|(spelling, _)| *spelling == place.spelling)
+            .any(|(spelling, _, _)| *spelling == place.spelling)
         {
             exit_windows.push((
                 place.spelling.clone(),
                 place.definition.name.as_str().to_owned(),
+                place.definition.symbol,
             ));
         }
     }
@@ -679,7 +794,7 @@ fn collect_call_summaries(
 /// windows and the ones transported from predecessor states.
 fn refuse_open_windows(
     tracked: &[TrackedPlace<'_>],
-    inherited_windows: &[(String, String)],
+    inherited_windows: &[InvariantWindow],
     consumption_point: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -692,7 +807,7 @@ fn refuse_open_windows(
             place.spelling
         )));
     }
-    for (spelling, data_name) in inherited_windows {
+    for (spelling, data_name, _) in inherited_windows {
         if tracked.iter().any(|place| place.spelling == *spelling) {
             // The tracked entry already reported (open) or closed it.
             continue;
@@ -957,7 +1072,7 @@ fn scan_statement_reads(
     tracked: &[TrackedPlace<'_>],
     entry_established: &[String],
     call_established: &[String],
-    inherited_windows: &[(String, String)],
+    inherited_windows: &[InvariantWindow],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let mut reads: Vec<ExpressionHandle> = Vec::new();
@@ -1036,7 +1151,7 @@ fn scan_expression_reads(
     tracked: &[TrackedPlace<'_>],
     entry_established: &[String],
     call_established: &[String],
-    inherited_windows: &[(String, String)],
+    inherited_windows: &[InvariantWindow],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if !expression.is_valid() {
@@ -1280,7 +1395,7 @@ fn validate_data_read(
     tracked: &[TrackedPlace<'_>],
     entry_established: &[String],
     call_established: &[String],
-    inherited_windows: &[(String, String)],
+    inherited_windows: &[InvariantWindow],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let place = tracked
@@ -1328,7 +1443,7 @@ fn validate_data_read(
     if place.is_none()
         && inherited_windows
             .iter()
-            .any(|(spelling, _)| spelling == receiver_spelling)
+            .any(|(spelling, _, _)| spelling == receiver_spelling)
     {
         diagnostics.push(Diagnostic::error(format!(
             "reading `{receiver_spelling}.{member_name}` inside an OPEN invariant window \

@@ -115,13 +115,17 @@ them through the dense source-claim table and rejects an unmapped identity
 rather than silently weakening the frontier. Checked sites now also retain the
 intrinsic cause minimum: `Trap` requires at least `Activation`, while `Abort`
 requires `ExecutionDomain`. Exact nominal identity and the permanent
-`ExecutionDomain` top provide the first conservative scope order. Reports
+`ExecutionDomain` top provide the first conservative scope order. If a crash
+abandons an open default-domain invariant window, the checked site retains the
+invariant-bearing data identity and widens its damage minimum to
+`ExecutionDomain`. This is the conservative portable top until finer custody
+evidence can select an intermediate nominal scope. Reports
 separate guard-covering buckets from the subset whose containment demand also
 covers the minimum; terminal production consumes that two-dimensional subset,
 rejects narrower authored demand, and emits both the derived minimum and
 selected published demand into v23. Archived v22 bytes decode conservatively
 with both in-memory fields equal to their single encoded scope. Conditional
-frontier membership, invariant/custody-based minimum widening, broader guarded
+frontier membership, finer custody-based minimum widening, broader guarded
 production, narrower supervisor/task context production, and installation
 realization remain the rest of CRASH-CONTRACT. Terminal Psi v24 stores each
 effective sparse per-cause context maximum in the fingerprinted machine

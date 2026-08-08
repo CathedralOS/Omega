@@ -171,6 +171,10 @@ pub struct CheckedCrashSite {
     /// Their conjunction is the retained derived path guard; implication
     /// consequences remain separate coverage evidence.
     path_guard_conjuncts: Vec<CrashPredicateIdentity>,
+    /// Invariant-bearing data identities whose default-domain windows are
+    /// open at this crash. Any such evidence widens the portable minimum to
+    /// `ExecutionDomain` until a finer custody scope is proved.
+    open_invariant_data: Vec<SymbolHandle>,
     /// Published buckets whose guard implication is already established for
     /// this site. This is not yet complete crash coverage: damage-minimum and
     /// containment-demand comparison remains an independent check.
@@ -198,6 +202,7 @@ impl CheckedCrashSite {
             cause,
             damage_minimum: cause.intrinsic_damage_minimum().to_owned(),
             path_guard_conjuncts: Vec::new(),
+            open_invariant_data: Vec::new(),
             guard_covering_buckets,
             frontier_lower_bound,
         }
@@ -217,7 +222,10 @@ impl CheckedCrashSite {
 
     pub fn with_damage_minimum(mut self, damage_minimum: impl Into<String>) -> Option<Self> {
         let damage_minimum = damage_minimum.into();
-        if !crash_scope_covers_minimum(self.cause.intrinsic_damage_minimum(), &damage_minimum) {
+        if !crash_scope_covers_minimum(self.cause.intrinsic_damage_minimum(), &damage_minimum)
+            || (!self.open_invariant_data.is_empty()
+                && damage_minimum != EXECUTION_DOMAIN_CRASH_SCOPE)
+        {
             return None;
         }
         self.damage_minimum = damage_minimum;
@@ -231,6 +239,16 @@ impl CheckedCrashSite {
         guard_covering_buckets.sort_unstable();
         guard_covering_buckets.dedup();
         self.guard_covering_buckets = guard_covering_buckets;
+        self
+    }
+
+    pub fn with_open_invariant_data(mut self, mut open_invariant_data: Vec<SymbolHandle>) -> Self {
+        open_invariant_data.sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
+        open_invariant_data.dedup();
+        if !open_invariant_data.is_empty() {
+            self.damage_minimum = EXECUTION_DOMAIN_CRASH_SCOPE.to_owned();
+        }
+        self.open_invariant_data = open_invariant_data;
         self
     }
 
@@ -260,6 +278,10 @@ impl CheckedCrashSite {
 
     pub fn path_guard_conjuncts(&self) -> &[CrashPredicateIdentity] {
         &self.path_guard_conjuncts
+    }
+
+    pub fn open_invariant_data(&self) -> &[SymbolHandle] {
+        &self.open_invariant_data
     }
 
     pub fn frontier_lower_bound(&self) -> &[psi_language_semantics::PermissionClaimIdentity] {
@@ -537,6 +559,12 @@ impl CrashPlan {
         }
         if checked_sites.iter().any(|site| {
             !crash_scope_covers_minimum(site.cause.intrinsic_damage_minimum(), &site.damage_minimum)
+                || (!site.open_invariant_data.is_empty()
+                    && site.damage_minimum != EXECUTION_DOMAIN_CRASH_SCOPE)
+                || site
+                    .open_invariant_data
+                    .iter()
+                    .any(|symbol| !symbol.is_valid())
                 || site.guard_covering_buckets.iter().any(|bucket| {
                     self.published_bucket(*bucket)
                         .is_none_or(|published| published.cause != site.cause)
@@ -1091,6 +1119,37 @@ mod tests {
         assert!(
             site.with_damage_minimum(ACTIVATION_CRASH_SCOPE).is_none(),
             "an abort minimum cannot narrow below ExecutionDomain"
+        );
+    }
+
+    #[test]
+    fn open_invariant_evidence_widens_and_normalizes_the_damage_minimum() {
+        let first = SymbolHandle::from_arena_index(7);
+        let second = SymbolHandle::from_arena_index(3);
+        let site = CheckedCrashSite::new(
+            CrashSiteLocation::new(SymbolHandle::from_arena_index(5), 0),
+            CrashCause::Trap,
+            Vec::new(),
+            Vec::new(),
+        )
+        .with_open_invariant_data(vec![first, second, first]);
+
+        assert_eq!(site.damage_minimum(), EXECUTION_DOMAIN_CRASH_SCOPE);
+        assert_eq!(site.open_invariant_data(), &[second, first]);
+        assert!(
+            site.clone()
+                .with_damage_minimum(ACTIVATION_CRASH_SCOPE)
+                .is_none(),
+            "open invariant evidence cannot be narrowed after construction"
+        );
+
+        let plan = CrashPlan::published_ceiling(vec![CrashRouteBucket::unconditional(
+            CrashCause::Trap,
+            EXECUTION_DOMAIN_CRASH_SCOPE,
+        )]);
+        assert!(
+            plan.with_checked_sites(vec![site]).is_some(),
+            "normalized invariant evidence is a valid checked crash site"
         );
     }
 
