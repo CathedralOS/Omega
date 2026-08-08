@@ -68,8 +68,9 @@ The source frontend now retains fingerprinted `crashes Cause Scope` buckets and
 explicit `crash Cause;` exits. Source production accepts exactly one prechecked
 covering bucket, emits its selected containment demand and the site's derived
 damage minimum on the crash terminator, and fails closed for absent or
-ambiguous coverage. This covers crash-only unconditional machines and exact
-incoming-path guards in the acyclic integer-control slice. Route facts are already
+ambiguous coverage. This covers crash-only unconditional machines and
+checker-proved incoming-path guards in the acyclic integer-control slice,
+including nested-negation implication. Route facts are already
 restricted to Boolean expressions. Public contract and generic-template
 identities already merge exact `(cause, scope)` buckets, discard duplicate
 routes, and let a route-less or explicit-`true` route subsume guarded

@@ -596,6 +596,24 @@ crashes Trap ExecutionDomain
     state succeed() -> i32 { 0i32 }
 }
 
+machine terminal_implied_guarded_trap(flag: bool) -> i32
+requires 0i32 == 0i32
+ensures 0i32 == 0i32
+crashes Trap ExecutionDomain
+    flag
+{
+    transition {
+        !!flag -> fail()
+        _ -> succeed()
+    }
+
+    state fail() -> i32 {
+        crash Trap;
+    }
+
+    state succeed() -> i32 { 0i32 }
+}
+
 machine terminal_unpublished_abort() -> i32 {
     crash Abort;
 }
