@@ -181,7 +181,9 @@ Current ownership is:
   published buckets have dense plan-local identities. Each site cites every
   unconditional same-cause bucket as structurally proved guard coverage;
   exact incoming/fallthrough predicates and their sound conjunction/negated-
-  disjunction consequences add path-conditioned guarded coverage.
+  disjunction consequences add path-conditioned guarded coverage. The site
+  separately retains its exact incoming-predicate conjunction for downstream
+  refinement and reporting.
 - `psi-checked-trees/src/proof/` owns proof-facing checked facts:
   `obligations.rs` owns explicit proof obligations, `contracts.rs` owns
   contract proof facts/call/exit indexes, and `roots.rs` owns the grouped

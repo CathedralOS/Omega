@@ -2462,6 +2462,10 @@ fn checked_crash_sites_are_body_evidence_not_contract_identity() {
         guarded_site.guard_covering_buckets().is_empty(),
         "a route predicate is not unconditional guard-coverage evidence"
     );
+    assert!(
+        guarded_site.path_guard_conjuncts().is_empty(),
+        "an unconditional body crash has no incoming path predicate"
+    );
 
     let [path_guarded_site] = plan("path_guarded_body").crash.checked_sites() else {
         panic!("the guarded target state should retain its explicit crash site")
@@ -2469,6 +2473,7 @@ fn checked_crash_sites_are_body_evidence_not_contract_identity() {
     let [path_covering_bucket] = path_guarded_site.guard_covering_buckets() else {
         panic!("the exact incoming path guard should cover its published route")
     };
+    assert_eq!(path_guarded_site.path_guard_conjuncts().len(), 1);
     assert!(
         plan("path_guarded_body")
             .crash
@@ -2483,6 +2488,7 @@ fn checked_crash_sites_are_body_evidence_not_contract_identity() {
     let [fallthrough_covering_bucket] = fallthrough_guarded_site.guard_covering_buckets() else {
         panic!("the negated incoming path guard should cover its published route")
     };
+    assert_eq!(fallthrough_guarded_site.path_guard_conjuncts().len(), 1);
     assert!(
         plan("fallthrough_guarded_body")
             .crash
@@ -2498,6 +2504,11 @@ fn checked_crash_sites_are_body_evidence_not_contract_identity() {
         let [bucket] = site.guard_covering_buckets() else {
             panic!("{name} should prove its structurally implied route")
         };
+        assert_eq!(
+            site.path_guard_conjuncts().len(),
+            1,
+            "the exact derived guard remains separate from its consequences"
+        );
         assert!(
             plan(name)
                 .crash

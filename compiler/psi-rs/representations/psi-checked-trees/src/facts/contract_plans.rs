@@ -134,6 +134,10 @@ pub struct CheckedCrashSite {
     /// Smallest nominal termination scope currently proved necessary to keep
     /// surviving state sound. This is body evidence, not public identity.
     damage_minimum: String,
+    /// Exact canonical predicates known to hold on every path into this site.
+    /// Their conjunction is the retained derived path guard; implication
+    /// consequences remain separate coverage evidence.
+    path_guard_conjuncts: Vec<CrashPredicateIdentity>,
     /// Published buckets whose guard implication is already established for
     /// this site. This is not yet complete crash coverage: damage-minimum and
     /// containment-demand comparison remains an independent check.
@@ -160,6 +164,7 @@ impl CheckedCrashSite {
             location,
             cause,
             damage_minimum: cause.intrinsic_damage_minimum().to_owned(),
+            path_guard_conjuncts: Vec::new(),
             guard_covering_buckets,
             frontier_lower_bound,
         }
@@ -196,6 +201,16 @@ impl CheckedCrashSite {
         self
     }
 
+    pub fn with_path_guard_conjuncts(
+        mut self,
+        mut path_guard_conjuncts: Vec<CrashPredicateIdentity>,
+    ) -> Self {
+        path_guard_conjuncts.sort();
+        path_guard_conjuncts.dedup();
+        self.path_guard_conjuncts = path_guard_conjuncts;
+        self
+    }
+
     pub fn with_frontier_lower_bound(
         mut self,
         mut frontier_lower_bound: Vec<psi_language_semantics::PermissionClaimIdentity>,
@@ -208,6 +223,10 @@ impl CheckedCrashSite {
 
     pub fn guard_covering_buckets(&self) -> &[CrashRouteBucketId] {
         &self.guard_covering_buckets
+    }
+
+    pub fn path_guard_conjuncts(&self) -> &[CrashPredicateIdentity] {
+        &self.path_guard_conjuncts
     }
 
     pub fn frontier_lower_bound(&self) -> &[psi_language_semantics::PermissionClaimIdentity] {
@@ -646,12 +665,14 @@ mod tests {
             source: psi_language_semantics::PermissionEventSource::Statement { statement_index: 1 },
             ordinal: 1,
         };
+        let path_guard = CrashPredicateIdentity::from_canonical_bytes(vec![1, 9, 0, 0, 0, 0]);
         let first = CheckedCrashSite::new(
             CrashSiteLocation::new(first_state, 2),
             CrashCause::Abort,
             Vec::new(),
             vec![second_claim, first_claim, second_claim],
-        );
+        )
+        .with_path_guard_conjuncts(vec![path_guard.clone(), path_guard.clone()]);
         let second = CheckedCrashSite::new(
             CrashSiteLocation::new(second_state, 0),
             CrashCause::Trap,
@@ -667,6 +688,10 @@ mod tests {
             plan.checked_sites()[0].frontier_lower_bound(),
             &[first_claim, second_claim],
             "frontier identity is canonical and duplicate-free"
+        );
+        assert_eq!(
+            plan.checked_sites()[0].path_guard_conjuncts(),
+            &[path_guard]
         );
         assert_eq!(
             plan.checked_site_at(first_state, 2)

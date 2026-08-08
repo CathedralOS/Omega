@@ -44,6 +44,19 @@ pub(crate) fn infer_path_conditioned_guard_coverage(program: &TypedTrees, facts:
             .iter()
             .map(|site| {
                 let mut covering = site.guard_covering_buckets().to_vec();
+                let path_guard_conjuncts = incoming
+                    .iter()
+                    .filter(|guard| guard.applies_at(site.location().state()))
+                    .map(|guard| {
+                        crate::facts::canonical_crash_path_predicate(
+                            program,
+                            guard.guard(),
+                            guard.is_negated(),
+                            &parameter_names,
+                            &content_conservation,
+                        )
+                    })
+                    .collect::<Vec<_>>();
                 let mut path_predicates = Vec::new();
                 for guard in incoming
                     .iter()
@@ -74,7 +87,9 @@ pub(crate) fn infer_path_conditioned_guard_coverage(program: &TypedTrees, facts:
                     covering.push(bucket_id);
                 }
 
-                site.clone().with_guard_covering_buckets(covering)
+                site.clone()
+                    .with_path_guard_conjuncts(path_guard_conjuncts)
+                    .with_guard_covering_buckets(covering)
             })
             .collect();
         facts.contract_plans.machines[contract_index].crash = crash_plan

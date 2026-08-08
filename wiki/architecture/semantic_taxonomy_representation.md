@@ -968,11 +968,13 @@ because `true` covers every path guard. Exact retained incoming guards and
 their accumulated fallthrough negations join to identical canonical published
 predicates. The conservative structural entailment layer also decomposes
 positive conjunctions and negated disjunctions, including nested logical
-negation, without accepting their converses. The fully covering subset
+negation, without accepting their converses. The checked site separately
+retains the canonical conjunction of exact incoming predicates; consequences
+only establish bucket coverage and never replace that derived guard. The fully covering subset
 independently requires the bucket's containment demand to cover
 `damage_minimum`; exact identity plus the permanent
 `ExecutionDomain` top is the first conservative nominal order. Richer logical
-entailment and explicit path-guard retention remain. Declared intermediate
+entailment remains. Declared intermediate
 scope ordering is blocked on `OWNER_QUESTIONS.md` Q2. Checked sites are
 implementation evidence and never enter the
 published contract fingerprint.
