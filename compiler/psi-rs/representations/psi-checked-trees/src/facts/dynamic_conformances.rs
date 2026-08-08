@@ -37,10 +37,6 @@ pub struct DynamicConformanceSelectionFact {
 pub struct DynamicConformanceRowFact {
     pub declaring_trait: SymbolHandle,
     pub requirement: SymbolHandle,
-    /// Stable slot spelling used only when an older call occurrence has no
-    /// resolved requirement symbol. The conformance row remains authoritative;
-    /// this never searches implementation names.
-    pub requirement_name: Identifier,
     pub realization_machine: SymbolHandle,
     pub realization_state: SymbolHandle,
     pub source: DynamicConformanceRowSource,

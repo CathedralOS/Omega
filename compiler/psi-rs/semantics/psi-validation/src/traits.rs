@@ -10,6 +10,9 @@ pub(crate) use conformance::{
     validate_machine_trait_conformances, validate_trait_conformance_bounds,
 };
 pub(crate) use data_conformance::validate_data_conformances;
-pub use dynamic::{DynamicConformanceSelection, collect_dynamic_conformance_selections};
+pub use dynamic::{
+    DynamicConformanceSelection, collect_dynamic_conformance_selections,
+    resolve_dynamic_call_targets,
+};
 pub(crate) use dynamic::{dynamic_requirement_call_error, dynamic_trait_symbol};
 pub(crate) use requirements::validate_trait_requirements;

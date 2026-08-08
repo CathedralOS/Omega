@@ -1152,13 +1152,7 @@ fn resolve_dynamic_call_candidates(
         return selection
             .rows
             .iter()
-            .filter(|row| {
-                if target_symbol.is_valid() {
-                    row.requirement == target_symbol
-                } else {
-                    row.requirement_name == *target_state
-                }
-            })
+            .filter(|row| row.requirement == target_symbol)
             .filter_map(|row| {
                 control_flow
                     .states
@@ -1191,13 +1185,7 @@ fn resolve_dynamic_call_candidates(
         return parameter
             .dyn_conformance_rows
             .iter()
-            .filter(|row| {
-                if target_symbol.is_valid() {
-                    row.requirement == target_symbol
-                } else {
-                    row.requirement_name == *target_state
-                }
-            })
+            .filter(|row| row.requirement == target_symbol)
             .filter_map(|row| {
                 control_flow
                     .states
@@ -1673,6 +1661,7 @@ mod tests {
             Item satisfies Shape as Primary {
                 machine code(&self) -> i32 { transition { _ -> 7 } }
             }
+            machine code() -> i32 { transition { _ -> 4 } }
             machine run(item: Item) -> i32 {
                 let erased: &dyn Shape = &item as &dyn Item::Primary;
                 let result: i32 = erased.code();
@@ -1701,6 +1690,20 @@ mod tests {
                 .map(|segment| segment.as_str())
                 .collect::<Vec<_>>(),
             vec!["item"]
+        );
+        let dynamic_call_target = checked
+            .expression_table
+            .expression_entries()
+            .find_map(|(_, expression)| {
+                let ExpressionNode::Call(call) = expression else {
+                    return None;
+                };
+                (call.target.as_str() == "code").then_some(call.target_symbol)
+            })
+            .expect("typed dynamic call target");
+        assert_eq!(
+            dynamic_call_target, checked_selection.rows[0].requirement,
+            "dynamic call must retain the exact declaring-trait requirement symbol"
         );
 
         let state_graph =

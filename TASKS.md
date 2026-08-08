@@ -462,13 +462,16 @@ checked-result arithmetic decision listed below.
   retain their original source place. Direct nonescaping local calls now
   devirtualize through the exact retained row with that source place as the
   concrete receiver, including member-place receivers, without reading an
-  unmaterialized descriptor. Finish physical descriptor/table materialization
-  for pass-through, rebound, and escaping values, make every remaining
-  descriptor adapter consume only retained rows, retain exact requirement
-  symbols on every dynamic call occurrence and remove the compatibility
-  slot-spelling fallback, migrate legacy attached-machine conformances, and
-  retire their closed-artifact candidate lookup. Bare exact-requirement
-  satisfiers never license `dyn`.
+  unmaterialized descriptor. Dynamic calls now retain exact declaring-trait
+  requirement symbols, including inherited statement slots; same-spelled
+  inherited requirements reject, checked rows carry no compatibility spelling,
+  and backend row matching is symbol-only. Finish physical descriptor/table
+  materialization for pass-through, rebound, and escaping values, make every
+  remaining descriptor adapter consume only retained rows, key closed-
+  conformance default synthesis and normalization by complete overloaded
+  requirement identity rather than `(declaring trait, leaf name)`, migrate
+  legacy attached-machine conformances, and retire their closed-artifact
+  candidate lookup. Bare exact-requirement satisfiers never license `dyn`.
 - Complete hermetic semantic evaluation: invocation-specific crash-route
   refinement, target-semantic capsule, separate semantic result and usage
   identities, deterministic progress, and constant/runtime equivalence.

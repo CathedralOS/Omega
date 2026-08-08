@@ -405,6 +405,10 @@ The selected conformance is one closed `Type satisfies Trait as Name { ... }`
 implementation block. Its normalized map has exactly one row per inherited
 `(declaring trait, requirement)` slot, selecting the block member, an explicit
 existing-machine reference, or that conformance's own default instantiation.
+Typed dynamic calls carry that exact requirement symbol through checked Psi and
+state-call planning, including inherited slots; a backend never recovers the
+row from a method spelling. An unqualified call to distinct same-spelled
+inherited requirements rejects as ambiguous.
 No adapter row is recovered from an attached-state name or a uniquely visible
 machine. An independent `machine ... satisfies Trait::requirement` remains a
 per-requirement provider/adapter realization and never supplies `dyn` by
