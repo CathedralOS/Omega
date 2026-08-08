@@ -386,8 +386,151 @@ fn build_contract_plans(
             fingerprint,
         });
     }
-    crash_calls::attach_checked_crash_calls(program, flow, &content_conservation, &mut machines);
-    psi_checked_trees::MachineContractPlans { machines }
+    let crash_capsules = build_crash_contract_capsules(program, &content_conservation);
+    crash_calls::attach_checked_crash_calls(
+        program,
+        flow,
+        &content_conservation,
+        &crash_capsules,
+        &mut machines,
+    );
+    psi_checked_trees::MachineContractPlans {
+        machines,
+        crash_capsules,
+    }
+}
+
+fn build_crash_contract_capsules(
+    program: &TypedTrees,
+    content_conservation: &[psi_validation::ContentConservationSourcePlan],
+) -> Vec<psi_checked_trees::CrashContractCapsule> {
+    let mut signatures = Vec::new();
+    for machine in program.machines() {
+        for parameter in program.machine_type_parameters(machine) {
+            let psi_typed_trees::data::TypeParameterKind::Machine { contract } = &parameter.kind
+            else {
+                continue;
+            };
+            signatures.push((parameter.symbol, parameter.symbol, contract));
+            if contract.symbol != parameter.symbol {
+                signatures.push((contract.symbol, contract.symbol, contract));
+            }
+        }
+    }
+    for definition in program.traits() {
+        for signature in program.trait_machine_signatures(definition) {
+            signatures.push((definition.symbol, signature.symbol, signature));
+        }
+    }
+
+    let mut capsules = signatures
+        .into_iter()
+        .map(|(target_machine, target_state, signature)| {
+            let parameters = program.state_signature_parameters(signature);
+            let parameter_names = parameters
+                .iter()
+                .map(|parameter| parameter.name.as_str().to_owned())
+                .collect::<Vec<_>>();
+            let contracts = program.state_signature_contracts(signature);
+            let published = build_published_crash_buckets(
+                program,
+                contracts,
+                &parameter_names,
+                content_conservation,
+            );
+            let crash = psi_checked_trees::CrashPlan::published_ceiling(published.clone());
+
+            let published_service_names = program
+                .service_reach_rows
+                .services(signature.service_reach_row)
+                .iter()
+                .filter_map(|service| program.service_reaches.definition(*service))
+                .map(|definition| definition.name.clone())
+                .collect::<Vec<_>>();
+            let published_invocations = program
+                .state_signature_invokes(signature)
+                .iter()
+                .map(|invocation| invocation.as_str().to_owned())
+                .collect::<Vec<_>>();
+
+            let generic_binders = program
+                .state_signature_type_parameters(signature)
+                .iter()
+                .enumerate()
+                .map(|(index, parameter)| {
+                    (parameter.name.as_str().to_owned(), format!("$G{index}"))
+                })
+                .collect::<Vec<_>>();
+            let mut callable_shape = vec![0xa0];
+            for parameter in parameters {
+                callable_shape.push(u8::from(parameter.is_self));
+                callable_shape.push(u8::from(parameter.is_mutable));
+                callable_shape.push(u8::from(parameter.is_const));
+                encode_type_spelling(
+                    &program.display_type_reference(parameter.type_reference),
+                    &generic_binders,
+                    &mut callable_shape,
+                );
+            }
+            callable_shape.push(0xaf);
+            encode_type_spelling(
+                &program.display_type_reference(signature.return_type),
+                &generic_binders,
+                &mut callable_shape,
+            );
+            for contract in encode_contract_set_canonical(
+                program,
+                contracts,
+                &parameter_names,
+                content_conservation,
+                &[0xae],
+                true,
+                false,
+            ) {
+                callable_shape.extend(contract);
+                callable_shape.push(0xad);
+            }
+            let canonical_facts = vec![callable_shape];
+            let termination = psi_language_semantics::TerminationInterface::Published(
+                if signature.terminates_guarantee {
+                    psi_language_semantics::TerminationGuarantee::Terminates {
+                        premises: Vec::new(),
+                    }
+                } else {
+                    psi_language_semantics::TerminationGuarantee::NoGuarantee
+                },
+            );
+            let fingerprint = psi_checked_trees::contract_fingerprint(
+                psi_language_semantics::MachineSupplyMode::Requirement,
+                &published_service_names,
+                psi_language_semantics::SynchronousInvocationInterface::PublishedCeiling,
+                &published_invocations,
+                psi_language_semantics::SuspensionInterface::PublishedMaySuspend(
+                    signature.suspends,
+                ),
+                psi_language_semantics::BlockingInterface::PublishedMayBlock(signature.blocks),
+                &crash,
+                &termination,
+                &canonical_facts,
+            );
+            psi_checked_trees::CrashContractCapsule::new(
+                target_machine,
+                target_state,
+                fingerprint,
+                published,
+            )
+        })
+        .collect::<Vec<_>>();
+    capsules.sort_by_key(|capsule| {
+        (
+            capsule.target_machine().arena_index(),
+            capsule.target_machine().generation(),
+            capsule.target_state().arena_index(),
+            capsule.target_state().generation(),
+        )
+    });
+    capsules.dedup();
+    capsules
 }
 
 fn encode_signature_contract_kind(
@@ -421,6 +564,30 @@ fn build_published_crash_plan(
     parameter_names: &[String],
     content_conservation: &[psi_validation::ContentConservationSourcePlan],
 ) -> psi_checked_trees::CrashPlan {
+    let published = build_published_crash_buckets(
+        program,
+        program.machine_contracts(machine),
+        parameter_names,
+        content_conservation,
+    );
+    let plan = if machine.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody
+        || !published.is_empty()
+    {
+        psi_checked_trees::CrashPlan::published_ceiling(published)
+    } else {
+        psi_checked_trees::CrashPlan::default()
+    };
+    let checked_sites = build_checked_crash_sites(program, machine, &plan);
+    plan.with_checked_sites(checked_sites)
+        .expect("one checked crash cause occupies each transition site")
+}
+
+fn build_published_crash_buckets(
+    program: &TypedTrees,
+    contracts: &[psi_typed_trees::signature::SignatureContract],
+    parameter_names: &[String],
+    content_conservation: &[psi_validation::ContentConservationSourcePlan],
+) -> Vec<psi_checked_trees::CrashRouteBucket> {
     use std::collections::BTreeMap;
 
     #[derive(Default)]
@@ -429,7 +596,6 @@ fn build_published_crash_plan(
         routes: Vec<psi_checked_trees::CrashPredicateIdentity>,
     }
 
-    let contracts = program.machine_contracts(machine);
     let mut buckets = BTreeMap::<(psi_checked_trees::CrashCause, String), Bucket>::new();
     for contract in contracts {
         let psi_typed_trees::signature::SignatureContractKind::Crashes { cause, scope } =
@@ -465,7 +631,7 @@ fn build_published_crash_plan(
         }
     }
 
-    let published = buckets
+    buckets
         .into_iter()
         .map(|((cause, containment_demand), mut bucket)| {
             let alternative_guards = if bucket.unconditional {
@@ -482,17 +648,7 @@ fn build_published_crash_plan(
             psi_checked_trees::CrashRouteBucket::new(cause, containment_demand, alternative_guards)
                 .expect("an authored crash bucket has a canonical nonempty route set")
         })
-        .collect::<Vec<_>>();
-    let plan = if machine.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody
-        || !published.is_empty()
-    {
-        psi_checked_trees::CrashPlan::published_ceiling(published)
-    } else {
-        psi_checked_trees::CrashPlan::default()
-    };
-    let checked_sites = build_checked_crash_sites(program, machine, &plan);
-    plan.with_checked_sites(checked_sites)
-        .expect("one checked crash cause occupies each transition site")
+        .collect()
 }
 
 fn build_checked_crash_sites(

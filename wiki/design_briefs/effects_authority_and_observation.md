@@ -183,8 +183,11 @@ exact incoming path conjunction, and the independently surviving
 cause/containment buckets. Concrete false routes disappear, concrete true
 routes normalize to unconditional alternatives, unknown routes are retained in
 the caller's positional parameter namespace, and a call with no survivors
-remains explicit crash-free evidence. Same-unit body-summary selection,
-recursive guarded-crash fixed points, and modular requirement/import capsules
+remains explicit crash-free evidence. Same-unit body-summary selection is
+live. Callable trait requirements and unresolved compile-time machine
+parameters now use source-independent crash-contract capsules that pin their
+published buckets to the complete normalized callable-contract fingerprint.
+Recursive guarded-crash fixed points and separately compiled import capsules
 remain subsequent composition steps over that carrier.
 
 An enclosing execution context publishes a maximum tolerated scope per cause.

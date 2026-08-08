@@ -1756,7 +1756,7 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
                     .find(|target| target.symbol == call.target_machine());
                 let target_machine_name = target_machine
                     .map(|target| target.name.as_str())
-                    .unwrap_or("<unknown>");
+                    .unwrap_or_else(|| program.symbols.name(call.target_machine()));
                 let target_state_name = target_machine
                     .and_then(|target| {
                         program
@@ -1765,7 +1765,7 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
                             .find(|state| state.symbol == call.target_state())
                     })
                     .map(|state| state.name.as_str())
-                    .unwrap_or("<unknown>");
+                    .unwrap_or_else(|| program.symbols.name(call.target_state()));
                 json.push_str("\n          {\"state\": ");
                 push_json_string(&mut json, state_name);
                 json.push_str(", \"statement_ordinal\": ");
@@ -1834,7 +1834,32 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
         }
         json.push_str("\n      }\n    }");
     }
-    json.push_str("\n  ],\n  \"specializations\": [");
+    json.push_str("\n  ],\n  \"crash_contract_capsules\": [");
+    for (index, capsule) in program
+        .facts
+        .contract_plans
+        .crash_capsules
+        .iter()
+        .enumerate()
+    {
+        if index > 0 {
+            json.push(',');
+        }
+        json.push_str("\n    {\"target_machine\": ");
+        push_json_string(&mut json, program.symbols.name(capsule.target_machine()));
+        json.push_str(", \"target_state\": ");
+        push_json_string(&mut json, program.symbols.name(capsule.target_state()));
+        json.push_str(", \"target_contract_fingerprint\": \"0x");
+        json.push_str(&format!("{:016x}", capsule.target_contract_fingerprint()));
+        json.push_str("\", \"published_buckets\": [");
+        push_crash_buckets_json(&mut json, capsule.published_buckets());
+        json.push_str("]}");
+    }
+    if !program.facts.contract_plans.crash_capsules.is_empty() {
+        json.push('\n');
+        json.push_str("  ");
+    }
+    json.push_str("],\n  \"specializations\": [");
     for (index, specialization) in program.machine_specializations.iter().enumerate() {
         if index > 0 {
             json.push(',');

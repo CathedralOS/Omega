@@ -899,6 +899,20 @@ CheckedCrashSite {                              // checked-tree implementation e
   // full coverage also requires damage_minimum <= bucket.containment_demand
 }
 
+CrashContractCapsule {                         // abstract callable, no local body plan
+  target: (RequirementOwnerId, StateSignatureId),
+  target_contract_fingerprint: Fingerprint,
+  published_buckets: CrashRouteSet,
+}
+
+CheckedCrashCallSite {
+  location: (StateId, state_local_statement_ordinal, call_ordinal),
+  target: (RequirementOwnerId | MachineId, StateSignatureId | StateId),
+  target_contract_fingerprint: Fingerprint,
+  exact_incoming_path_conjunction: List<CrashPredicateId>,
+  surviving_buckets: CrashRouteSet,
+}
+
 CrashContextPlan {
   maximum_by_cause: SparseMap<CrashCauseId, CrashScopeId>,
   // absent cause = forbidden

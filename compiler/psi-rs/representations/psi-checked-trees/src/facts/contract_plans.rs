@@ -283,6 +283,52 @@ pub struct CheckedCrashCallSite {
     surviving_buckets: Vec<CrashRouteBucket>,
 }
 
+/// Source-independent crash-contract projection for a callable requirement
+/// that has no local `MachineContractPlan`. The fingerprint pins the complete
+/// normalized callable contract; `published_buckets` is the crash ceiling that
+/// call-site selection may refine without reopening the authored signature.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CrashContractCapsule {
+    target_machine: SymbolHandle,
+    target_state: SymbolHandle,
+    target_contract_fingerprint: u64,
+    published_buckets: Vec<CrashRouteBucket>,
+}
+
+impl CrashContractCapsule {
+    pub fn new(
+        target_machine: SymbolHandle,
+        target_state: SymbolHandle,
+        target_contract_fingerprint: u64,
+        mut published_buckets: Vec<CrashRouteBucket>,
+    ) -> Self {
+        published_buckets.sort();
+        published_buckets.dedup();
+        Self {
+            target_machine,
+            target_state,
+            target_contract_fingerprint,
+            published_buckets,
+        }
+    }
+
+    pub const fn target_machine(&self) -> SymbolHandle {
+        self.target_machine
+    }
+
+    pub const fn target_state(&self) -> SymbolHandle {
+        self.target_state
+    }
+
+    pub const fn target_contract_fingerprint(&self) -> u64 {
+        self.target_contract_fingerprint
+    }
+
+    pub fn published_buckets(&self) -> &[CrashRouteBucket] {
+        &self.published_buckets
+    }
+}
+
 impl CheckedCrashCallSite {
     pub fn new(
         location: CrashCallSiteLocation,
@@ -585,11 +631,25 @@ impl CrashPlan {
 pub struct MachineContractPlans {
     /// One entry per machine, in machine order.
     pub machines: Vec<MachineContractPlan>,
+    /// Trait requirements and compile-time machine-parameter contracts do not
+    /// own local machine plans. Their normalized callable identity and crash
+    /// projection live here for modular call-site selection.
+    pub crash_capsules: Vec<CrashContractCapsule>,
 }
 
 impl MachineContractPlans {
     pub fn for_machine(&self, machine: SymbolHandle) -> Option<&MachineContractPlan> {
         self.machines.iter().find(|plan| plan.machine == machine)
+    }
+
+    pub fn crash_capsule(
+        &self,
+        target_machine: SymbolHandle,
+        target_state: SymbolHandle,
+    ) -> Option<&CrashContractCapsule> {
+        self.crash_capsules.iter().find(|capsule| {
+            capsule.target_machine == target_machine && capsule.target_state == target_state
+        })
     }
 }
 
@@ -900,6 +960,33 @@ mod tests {
                 .with_checked_calls(vec![call, conflicting])
                 .is_none(),
             "one invocation coordinate cannot name two checked crash refinements"
+        );
+    }
+
+    #[test]
+    fn crash_contract_capsules_are_canonical_and_addressable() {
+        let target_machine = SymbolHandle::from_arena_index(11);
+        let target_state = SymbolHandle::from_arena_index(12);
+        let capsule = CrashContractCapsule::new(
+            target_machine,
+            target_state,
+            0xfeed,
+            vec![
+                CrashRouteBucket::unconditional(CrashCause::Abort, EXECUTION_DOMAIN_CRASH_SCOPE),
+                CrashRouteBucket::unconditional(CrashCause::Trap, ACTIVATION_CRASH_SCOPE),
+                CrashRouteBucket::unconditional(CrashCause::Abort, EXECUTION_DOMAIN_CRASH_SCOPE),
+            ],
+        );
+        assert_eq!(capsule.published_buckets().len(), 2);
+        let plans = MachineContractPlans {
+            machines: Vec::new(),
+            crash_capsules: vec![capsule],
+        };
+        assert_eq!(
+            plans
+                .crash_capsule(target_machine, target_state)
+                .map(CrashContractCapsule::target_contract_fingerprint),
+            Some(0xfeed)
         );
     }
 

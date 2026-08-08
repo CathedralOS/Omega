@@ -206,6 +206,12 @@ Current ownership is:
   unconditional caller route, the exact surviving predicate, or an exact
   incoming path conjunct retained on that invocation. Private inferred callers
   remain body-summary inputs rather than authored-ceiling obligations.
+  Callable trait requirements and unresolved compile-time machine parameters
+  instead select a checked crash-contract capsule. The capsule retains the
+  normalized public crash buckets and pins them to the complete normalized
+  callable-contract fingerprint, so call refinement never depends on a local
+  body or reopens the authored signature after checked lowering. Separately
+  compiled imports still require the corresponding artifact-capsule input.
   Published routes are removed
   only when the call evaluator proves them false; proved-true routes become
   unconditional, unknown routes are re-encoded in the caller's positional
