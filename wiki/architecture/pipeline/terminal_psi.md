@@ -283,11 +283,12 @@ must exactly match its target parameter type; later expressions may use any
 same-typed bound parameter and landed literals. When the whole chain is
 compile-known, the producer independently recomputes its result and rejects an
 unrelated reflexive contract. Integer operations use the settled Wrapping or
-Saturating domains. The general multi-state integer form admits a rooted
-acyclic graph of source states. Each control block owns one ordered
-positive-Boolean/fallback pair,
-each linear block owns one unconditional successor, and leaves return a
-recursively nested integer expression. Successors bind ordered already-defined
+Saturating domains. The general multi-state scalar form admits a rooted
+acyclic graph of source states with a Boolean or integer result. Each control
+block owns one ordered
+positive-Boolean/fallback pair, each linear block owns one unconditional
+successor, and leaves return a recursively nested Boolean or integer
+expression. Successors bind ordered already-defined
 Boolean or integer parameters with exact target types; an unconditional jump
 may instead compute recursively nested parameter/literal integer expressions
 or Boolean expressions before binding its target. Mixed-scalar tuples that
@@ -296,16 +297,19 @@ left-to-right in typed stages, carrying original parameters and earlier results
 until one convergence jump binds the authored target. The same staging is
 arm-local for conditional-edge payloads, so an unselected tuple has no executed
 operations, edges, or fuel charge. Joins are explicit block-parameter merges.
-Every multi-state integer-result machine uses this general typed DAG producer,
-including pure unconditional integer-only and mixed-scalar graphs. The former
-specialized integer-chain lowerer and terminal builder are retired; no source
-conditional is required to select the general path.
+Every multi-state scalar-result machine uses this general typed DAG producer,
+including pure unconditional graphs and three-state conditionals. A
+Boolean-result graph may carry and compute mixed Boolean/integer bindings,
+retain recursive short-circuit returns, or end a checked branch in an explicit
+crash. The former integer-chain, three-state conditional, Boolean-chain, and
+Boolean-DAG lowerers/builders are retired; source shape no longer selects a
+parallel terminal producer.
 Short-circuit guards use explicit decision blocks, and computed conditional
 edge bindings use selected-arm blocks because terminal edges do not own
 operations. This preserves source ordering and keeps each branch's computation
 local to its selected path. The
-parallel Boolean conditional form accepts the recursive Boolean vocabulary in
-its positive guard and both branch returns. A short-circuit guard sends its
+Boolean results accept the recursive Boolean vocabulary in positive guards and
+branch returns. A short-circuit guard sends its
 terminal test edges directly to the selected branch with the authored entry
 arguments; computed successor payloads remain arm-local decision trees and only
 the selected arm is charged. All accepted forms require a matching closed

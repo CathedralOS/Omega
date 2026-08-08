@@ -1247,13 +1247,13 @@ fn checked_source_short_circuit_guard_keeps_computed_bindings_arm_local() {
     drop(checked);
 
     let machine = &lowered.semantic_module.machines[0];
-    assert_eq!(machine.blocks.len(), 6);
+    assert_eq!(machine.blocks.len(), 5);
     assert!(matches!(
         machine.blocks[0].terminator,
-        Terminator::Jump { target, .. } if target.get() == 3
+        Terminator::Conditional { .. }
     ));
     assert!(matches!(
-        &machine.blocks[4].operations[..],
+        &machine.blocks[3].operations[..],
         [
             psi_terminal::Operation {
                 kind: OperationKind::IntegerConstant { .. },
@@ -1266,7 +1266,7 @@ fn checked_source_short_circuit_guard_keeps_computed_bindings_arm_local() {
         ]
     ));
     assert!(matches!(
-        &machine.blocks[5].operations[..],
+        &machine.blocks[4].operations[..],
         [
             psi_terminal::Operation {
                 kind: OperationKind::IntegerConstant { .. },
@@ -1297,7 +1297,7 @@ fn checked_source_short_circuit_guard_keeps_computed_bindings_arm_local() {
         derive_fixed_entry_fuel(&verified, semantic_module.entry)
             .expect("short-circuit computed edge should have fixed fuel")
             .ceiling_units(),
-        7
+        6
     );
 
     let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
@@ -1306,9 +1306,9 @@ fn checked_source_short_circuit_guard_keeps_computed_bindings_arm_local() {
         value: IntegerValue::Unsigned(value),
     };
     for (first, second, expected, units) in [
-        (false, true, 14_u128, 6),
-        (true, false, 14, 7),
-        (true, true, 8, 7),
+        (false, true, 14_u128, 5),
+        (true, false, 14, 6),
+        (true, true, 8, 6),
     ] {
         let measured = interpret_terminal_measured(
             &verified,
@@ -1647,7 +1647,7 @@ fn checked_source_nested_boolean_control_reaches_both_native_targets() {
         .expect("rooted acyclic Boolean control should lower");
     drop(checked);
 
-    assert_eq!(lowered.semantic_module.machines[0].blocks.len(), 16);
+    assert_eq!(lowered.semantic_module.machines[0].blocks.len(), 13);
     let semantic_bytes =
         encode_module(&lowered.semantic_module).expect("nested Boolean control should encode");
     let proof_bytes =
@@ -1666,14 +1666,14 @@ fn checked_source_nested_boolean_control_reaches_both_native_targets() {
         derive_fixed_entry_fuel(&verified, semantic_module.entry)
             .expect("nested Boolean control should have fixed fuel")
             .ceiling_units(),
-        15
+        12
     );
 
     for (arguments, expected, units) in [
-        ([true, true, true, true, false, false], true, 8),
-        ([true, false, true, true, false, false], true, 10),
-        ([false, false, true, true, false, true], true, 10),
-        ([true, true, false, true, false, false], true, 13),
+        ([true, true, true, true, false, false], true, 6),
+        ([true, false, true, true, false, false], true, 8),
+        ([false, false, true, true, false, true], true, 7),
+        ([true, true, false, true, false, false], true, 10),
     ] {
         let arguments = arguments.map(TerminalScalarValue::Boolean);
         let measured = interpret_terminal_measured(&verified, &arguments)
@@ -1767,7 +1767,7 @@ fn checked_source_boolean_conditional_edges_compute_only_on_the_selected_arm() {
         .expect("computed Boolean conditional edges should lower into selected-arm blocks");
     drop(checked);
 
-    assert_eq!(lowered.semantic_module.machines[0].blocks.len(), 18);
+    assert_eq!(lowered.semantic_module.machines[0].blocks.len(), 17);
     let semantic_bytes = encode_module(&lowered.semantic_module)
         .expect("computed Boolean conditional edges should encode canonically");
     let proof_bytes = encode_proof_bundle(&lowered.proof_bundle)
@@ -1786,14 +1786,14 @@ fn checked_source_boolean_conditional_edges_compute_only_on_the_selected_arm() {
         derive_fixed_entry_fuel(&verified, semantic_module.entry)
             .expect("computed Boolean conditional edges should have exact fuel")
             .ceiling_units(),
-        15
+        14
     );
 
     for (arguments, expected, units) in [
-        ([false, true, true, true, false], false, 7),
-        ([true, false, true, true, true], false, 8),
-        ([true, true, false, true, false], false, 13),
-        ([true, true, true, true, false], true, 14),
+        ([false, true, true, true, false], false, 6),
+        ([true, false, true, true, true], false, 7),
+        ([true, true, false, true, false], false, 12),
+        ([true, true, true, true, false], true, 13),
     ] {
         let measured =
             interpret_terminal_measured(&verified, &arguments.map(TerminalScalarValue::Boolean))
@@ -1816,6 +1816,138 @@ fn checked_source_boolean_conditional_edges_compute_only_on_the_selected_arm() {
         let machine_code = emit_machine_code(&assigned)
             .expect("computed Boolean conditional-edge machine code should emit");
         assert!(!machine_code.functions[0].bytes.is_empty());
+    }
+}
+
+#[test]
+fn checked_source_mixed_scalar_boolean_graph_uses_the_typed_dag() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("mixed-scalar Boolean source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_mixed_scalar_boolean_graph")
+        .expect("mixed-scalar Boolean graph should lower through terminal Psi");
+    drop(checked);
+
+    let semantic_bytes =
+        encode_module(&lowered.semantic_module).expect("mixed-scalar Boolean graph should encode");
+    let proof_bytes = encode_proof_bundle(&lowered.proof_bundle)
+        .expect("mixed-scalar Boolean proof should encode");
+    let semantic_module =
+        decode_module(&semantic_bytes).expect("mixed-scalar Boolean graph should decode");
+    let proof_bundle =
+        decode_proof_bundle(&proof_bytes).expect("mixed-scalar Boolean proof should decode");
+    let verified = verify_module(
+        &semantic_module,
+        &proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("mixed-scalar Boolean graph should verify after frontend drop");
+    assert_eq!(
+        derive_fixed_entry_fuel(&verified, semantic_module.entry)
+            .expect("mixed-scalar Boolean graph should have fixed fuel")
+            .ceiling_units(),
+        9
+    );
+
+    let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let integer = |value| TerminalScalarValue::Integer {
+        scalar_type: u8_type,
+        value: IntegerValue::Unsigned(value),
+    };
+    for (choose_less, left, right, expected) in [
+        (true, 1, 2, true),
+        (true, 5, 2, false),
+        (false, 3, 2, true),
+        (false, 1, 2, false),
+    ] {
+        let measured = interpret_terminal_measured(
+            &verified,
+            &[
+                TerminalScalarValue::Boolean(choose_less),
+                integer(left),
+                integer(right),
+            ],
+        )
+        .expect("mixed-scalar Boolean graph should interpret");
+        assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+        assert_eq!(measured.usage().total_units(), 9);
+    }
+
+    let abstract_operations = lower_verified_module(&verified)
+        .expect("mixed-scalar Boolean graph should cross the Omega boundary");
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_operations = lower_to_target_operations(&abstract_operations, target)
+            .expect("mixed-scalar Boolean graph should select for both native targets");
+        assert!(matches!(
+            target_operations.functions[0].operation,
+            TerminalTargetOperation::ReturnBooleanConditionalControl { .. }
+        ));
+        let assigned =
+            assign_registers(&target_operations).expect("mixed-scalar Boolean homes should assign");
+        let machine_code =
+            emit_machine_code(&assigned).expect("mixed-scalar Boolean graph should emit");
+        assert!(!machine_code.functions[0].bytes.is_empty());
+    }
+}
+
+#[test]
+fn checked_source_mixed_scalar_boolean_short_circuit_preserves_selected_fuel() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("mixed-scalar Boolean short-circuit canary should compile");
+    let lowered = lower_machine(&checked, "terminal_mixed_scalar_boolean_short_circuit")
+        .expect("mixed-scalar Boolean short-circuit graph should lower");
+    drop(checked);
+
+    let verified = verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("mixed-scalar Boolean short-circuit graph should verify");
+    assert_eq!(
+        derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry)
+            .expect("mixed-scalar Boolean short-circuit graph should have fixed fuel")
+            .ceiling_units(),
+        15
+    );
+    let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let integer = |value| TerminalScalarValue::Integer {
+        scalar_type: u8_type,
+        value: IntegerValue::Unsigned(value),
+    };
+    for (first, second, value, limit, expected, expected_units) in [
+        (false, true, 1, 4, false, 12),
+        (true, false, 1, 4, false, 13),
+        (true, true, 1, 4, true, 15),
+        (true, true, 4, 4, false, 15),
+    ] {
+        let measured = interpret_terminal_measured(
+            &verified,
+            &[
+                TerminalScalarValue::Boolean(first),
+                TerminalScalarValue::Boolean(second),
+                integer(value),
+                integer(limit),
+            ],
+        )
+        .expect("mixed-scalar Boolean short-circuit graph should interpret");
+        assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+        assert_eq!(measured.usage().total_units(), expected_units);
+    }
+
+    let abstract_operations = lower_verified_module(&verified)
+        .expect("mixed-scalar Boolean short-circuit graph should cross the Omega boundary");
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_operations = lower_to_target_operations(&abstract_operations, target)
+            .expect("mixed-scalar Boolean short-circuit graph should select natively");
+        let assigned = assign_registers(&target_operations)
+            .expect("mixed-scalar Boolean short-circuit homes should assign");
+        assert!(
+            !emit_machine_code(&assigned)
+                .expect("mixed-scalar Boolean short-circuit graph should emit")
+                .functions[0]
+                .bytes
+                .is_empty()
+        );
     }
 }
 
@@ -3441,6 +3573,63 @@ fn psi_terminal_producer_rejects_source_outside_its_declared_slice() {
 }
 
 #[test]
+fn boolean_result_graph_retains_guarded_crash_exit() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("Boolean guarded-crash source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_boolean_guarded_trap")
+        .expect("Boolean-result graph should retain its guarded crash exit");
+    drop(checked);
+
+    let semantic_bytes =
+        encode_module(&lowered.semantic_module).expect("Boolean guarded crash should encode");
+    let proof_bytes = encode_proof_bundle(&lowered.proof_bundle)
+        .expect("Boolean guarded-crash proof should encode");
+    let semantic_module =
+        decode_module(&semantic_bytes).expect("Boolean guarded crash should decode");
+    let proof_bundle =
+        decode_proof_bundle(&proof_bytes).expect("Boolean guarded-crash proof should decode");
+    let verified = verify_module(
+        &semantic_module,
+        &proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("Boolean guarded crash should verify after frontend drop");
+    assert!(matches!(
+        semantic_module.machines[0].blocks[1].terminator,
+        Terminator::Crash {
+            cause: CrashCause::Trap,
+            ..
+        }
+    ));
+
+    for (flag, expected) in [
+        (
+            true,
+            TerminalExecutionStatus::Crashed(omega_interpreter::TerminalCrash {
+                cause: CrashCause::Trap,
+                damage_minimum: "Activation".to_owned(),
+                containment_demand: "ExecutionDomain".to_owned(),
+                frontier_lower_bound: Vec::new(),
+            }),
+        ),
+        (
+            false,
+            TerminalExecutionStatus::Complete(TerminalScalarValue::Boolean(true)),
+        ),
+    ] {
+        let mut execution =
+            TerminalExecution::start(&verified, &[TerminalScalarValue::Boolean(flag)])
+                .expect("Boolean guarded-crash execution should start");
+        assert_eq!(
+            execution
+                .resume(&mut TerminalFuelMeter::unbounded())
+                .expect("Boolean guarded-crash execution should finish"),
+            expected
+        );
+    }
+}
+
+#[test]
 fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("terminal-Psi source canary should compile");
@@ -3618,10 +3807,10 @@ fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
     }
     let transitive_trap = lower_machine(&checked, "terminal_transitive_guarded_trap")
         .expect("a transitive integer conjunction should lower as short-circuit control");
-    assert_eq!(transitive_trap.semantic_module.machines[0].blocks.len(), 5);
+    assert_eq!(transitive_trap.semantic_module.machines[0].blocks.len(), 4);
     assert!(matches!(
         transitive_trap.semantic_module.machines[0].blocks[0].terminator,
-        Terminator::Jump { target, .. } if target.get() == 4
+        Terminator::Conditional { .. }
     ));
     let transitive_semantic_bytes = encode_module(&transitive_trap.semantic_module)
         .expect("transitive guarded crash should encode");
@@ -3641,15 +3830,15 @@ fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
         derive_fixed_entry_fuel(&transitive_verified, transitive_semantic_module.entry)
             .expect("transitive guarded crash should have fixed fuel")
             .ceiling_units(),
-        7
+        6
     );
     let signed = |value| TerminalScalarValue::Integer {
         scalar_type: i32_type,
         value: IntegerValue::Signed(value),
     };
     for (left, middle, right, expected, expected_units) in [
-        (5, 3, 10, TerminalExecutionStatus::Complete(signed(0)), 5),
-        (1, 5, 3, TerminalExecutionStatus::Complete(signed(0)), 7),
+        (5, 3, 10, TerminalExecutionStatus::Complete(signed(0)), 4),
+        (1, 5, 3, TerminalExecutionStatus::Complete(signed(0)), 6),
         (
             1,
             2,
@@ -3660,7 +3849,7 @@ fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
                 containment_demand: "ExecutionDomain".to_owned(),
                 frontier_lower_bound: Vec::new(),
             }),
-            6,
+            5,
         ),
     ] {
         let mut execution = TerminalExecution::start(
