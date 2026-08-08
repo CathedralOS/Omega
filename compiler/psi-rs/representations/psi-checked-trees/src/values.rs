@@ -73,11 +73,15 @@ pub struct CheckedValueFact {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedValueFacts {
     pub values: Arena<CheckedValueFact>,
+    pub scalar_expressions: CheckedScalarExpressionPlans,
 }
 
 impl CheckedValueFacts {
     pub fn with_roots(values: Arena<CheckedValueFact>) -> Self {
-        Self { values }
+        Self {
+            values,
+            scalar_expressions: CheckedScalarExpressionPlans::default(),
+        }
     }
 
     pub fn expression_values(
@@ -88,4 +92,108 @@ impl CheckedValueFacts {
             .iter()
             .filter(move |(_, value)| value.expression == expression)
     }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedScalarExpressionPlans {
+    pub expressions: Vec<CheckedLocatedScalarExpression>,
+}
+
+impl CheckedScalarExpressionPlans {
+    pub fn expression_at(
+        &self,
+        state: SymbolHandle,
+        statement_ordinal: u32,
+        role: CheckedScalarExpressionRole,
+    ) -> Option<&CheckedScalarExpression> {
+        self.expressions
+            .iter()
+            .find(|expression| {
+                expression.state == state
+                    && expression.statement_ordinal == statement_ordinal
+                    && expression.role == role
+            })
+            .map(|expression| &expression.expression)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedLocatedScalarExpression {
+    pub state: SymbolHandle,
+    pub statement_ordinal: u32,
+    pub role: CheckedScalarExpressionRole,
+    pub expression: CheckedScalarExpression,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CheckedScalarExpressionRole {
+    Return,
+    Guard,
+    TransitionArgument { argument_ordinal: u32 },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CheckedScalarExpression {
+    Parameter {
+        position: usize,
+        primitive_type: psi_typed_trees::types::PrimitiveType,
+    },
+    IntegerLiteral {
+        literal: psi_numerics::literals::IntegerLiteral,
+    },
+    IntegerBinary {
+        kind: CheckedIntegerBinaryKind,
+        primitive_type: psi_typed_trees::types::PrimitiveType,
+        left: Box<CheckedScalarExpression>,
+        right: Box<CheckedScalarExpression>,
+    },
+    Boolean(Box<CheckedBooleanExpression>),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CheckedIntegerBinaryKind {
+    WrappingAdd,
+    SaturatingAdd,
+    WrappingSubtract,
+    SaturatingSubtract,
+    WrappingMultiply,
+    SaturatingMultiply,
+    BitwiseAnd,
+    BitwiseOr,
+    BitwiseXor,
+    WrappingShiftLeft,
+    WrappingShiftRight,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CheckedBooleanExpression {
+    Constant(bool),
+    Parameter {
+        position: usize,
+    },
+    Not(Box<CheckedBooleanExpression>),
+    Equal {
+        left: Box<CheckedBooleanExpression>,
+        right: Box<CheckedBooleanExpression>,
+    },
+    IntegerComparison {
+        kind: CheckedIntegerComparisonKind,
+        left: Box<CheckedScalarExpression>,
+        right: Box<CheckedScalarExpression>,
+    },
+    And {
+        left: Box<CheckedBooleanExpression>,
+        right: Box<CheckedBooleanExpression>,
+    },
+    Or {
+        left: Box<CheckedBooleanExpression>,
+        right: Box<CheckedBooleanExpression>,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CheckedIntegerComparisonKind {
+    Equal,
+    LessThan,
+    LessOrEqual,
 }

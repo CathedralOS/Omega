@@ -21,7 +21,7 @@ pub(crate) fn build_check_facts(
     operational: OperationalPlan,
 ) -> Result<CheckFacts, Vec<psi_diagnostics::Diagnostic>> {
     let borrow = build_borrow_facts(program);
-    let values = build_value_facts(program, proof_plan);
+    let mut values = build_value_facts(program, proof_plan);
     let mut operators = build_operator_facts(program, &values);
     let proof = build_proof_facts_with_operators(program, proof_plan, &borrow, &operators);
     let invariants = build_invariant_facts(program);
@@ -44,6 +44,8 @@ pub(crate) fn build_check_facts(
     // Domain-owned meanings are selected only from declarations, mints, and
     // signature `requires`; the selector accepts no flow/fact environment.
     select_pending_domain_operator_meanings(program, &mut operators);
+    values.scalar_expressions =
+        crate::values::build_checked_scalar_expression_plans(program, &operators);
     let capabilities = build_capability_facts(program, &service_reach_inference, &flow);
     // TPR3 slice 4: the checker-established termination summaries (built
     // from the same pure functions the termination CHECK uses -- facts and

@@ -11,11 +11,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use psi_checked_trees::{
-    CheckedOperatorResolutionStatus, CheckedPropositionBinderArgumentKind,
-    CheckedPropositionBinderKind, CheckedPropositionEvidence, CheckedTrees,
-    ClosedScalarContractValue, ClosedScalarValueContractPlan, ContentIdentityReshuffleFact,
-    ContentPartitionCompositionFact,
-    expression::{BinaryOperator, ExpressionNode, UnaryOperator},
+    CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
+    CheckedPropositionBinderArgumentKind, CheckedPropositionBinderKind, CheckedPropositionEvidence,
+    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedTrees, ClosedScalarContractValue,
+    ClosedScalarValueContractPlan, ContentIdentityReshuffleFact, ContentPartitionCompositionFact,
+    expression::ExpressionNode,
     signature::SignatureContractKind,
     statement::{StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode},
     types::PrimitiveType,
@@ -36,7 +36,6 @@ use psi_language_semantics::content::{
     ContentPlaceVersion as CheckedContentPlaceVersion,
     ContentStructuralPlace as CheckedContentStructuralPlace, conservation_fingerprint,
 };
-use psi_numerics::arithmetic::ArithmeticDomain;
 use psi_proof_kernel::{EvidenceRoute, PrimitiveJudgment};
 use psi_terminal::{
     Block, ClaimContentProjection, ContentEntryClaim, ContentIdentityReshuffle,
@@ -1554,13 +1553,12 @@ fn lower_scalar_graph_machine(
             .collect::<Result<Vec<_>, _>>()?;
         let statements = checked.statement_table.statements(state.statement_nodes);
         let terminator = match statements {
-            [StatementNode::Expression(return_expression)] => {
-                let (expression, _) = lower_direct_return_expression(
+            [StatementNode::Expression(_)] => {
+                let expression = lower_checked_scalar_expression_at(
                     checked,
-                    *return_expression,
-                    parameters,
-                    &parameter_types,
-                    result_type,
+                    state.symbol,
+                    0,
+                    CheckedScalarExpressionRole::Return,
                 )?;
                 LoweredScalarBranchTerminator::Return { expression }
             }
@@ -1590,29 +1588,28 @@ fn lower_scalar_graph_machine(
                 if when_true.continuation.is_valid() || when_false.continuation.is_valid() {
                     return unsupported("scalar graph transitions cannot carry continuations");
                 }
-                let TransitionGuardNode::When(condition) = when_true.guard else {
+                let TransitionGuardNode::When(_) = when_true.guard else {
                     unreachable!("match guard establishes a conditional transition")
                 };
-                let condition = lower_positive_boolean_guard(checked, condition, parameters)?;
+                let LoweredDirectExpression::Boolean {
+                    expression: condition,
+                } = lower_checked_scalar_expression_at(
+                    checked,
+                    state.symbol,
+                    0,
+                    CheckedScalarExpressionRole::Guard,
+                )?
+                else {
+                    return unsupported("checked scalar graph guard must be Boolean");
+                };
+                let condition = *condition;
                 validate_short_circuit_expression(&condition)?;
                 validate_boolean_parameter_types(&condition, &parameter_types)?;
 
                 let (when_true_target, when_true_arguments) =
-                    lower_scalar_graph_conditional_successor(
-                        checked,
-                        states,
-                        parameters,
-                        &parameter_types,
-                        when_true,
-                    )?;
+                    lower_scalar_graph_successor(checked, states, state.symbol, 0, when_true)?;
                 let (when_false_target, when_false_arguments) =
-                    lower_scalar_graph_conditional_successor(
-                        checked,
-                        states,
-                        parameters,
-                        &parameter_types,
-                        when_false,
-                    )?;
+                    lower_scalar_graph_successor(checked, states, state.symbol, 1, when_false)?;
                 successors[state_index] = vec![when_true_target, when_false_target];
                 indegree[when_true_target] = indegree[when_true_target]
                     .checked_add(1)
@@ -1634,13 +1631,8 @@ fn lower_scalar_graph_machine(
                 if transition.continuation.is_valid() {
                     return unsupported("scalar graph transitions cannot carry continuations");
                 }
-                let (target, arguments) = lower_scalar_graph_jump_successor(
-                    checked,
-                    states,
-                    parameters,
-                    &parameter_types,
-                    transition,
-                )?;
+                let (target, arguments) =
+                    lower_scalar_graph_successor(checked, states, state.symbol, 0, transition)?;
                 successors[state_index] = vec![target];
                 indegree[target] = indegree[target]
                     .checked_add(1)
@@ -1708,11 +1700,11 @@ fn lower_scalar_graph_machine(
     ))
 }
 
-fn lower_scalar_graph_conditional_successor(
+fn lower_scalar_graph_successor(
     checked: &CheckedTrees,
     states: &[psi_checked_trees::state::State],
-    parameters: &[psi_checked_trees::signature::StateParameter],
-    parameter_types: &[ScalarType],
+    source_state: psi_symbols::SymbolHandle,
+    statement_ordinal: u32,
     transition: &psi_checked_trees::statement::TableTransition,
 ) -> Result<(usize, Vec<LoweredDirectExpression>), LoweringError> {
     let TransitionTargetNode::Named { path, arguments } =
@@ -1736,7 +1728,8 @@ fn lower_scalar_graph_conditional_successor(
     let arguments = arguments
         .iter()
         .zip(target_parameters)
-        .map(|(argument, target_parameter)| {
+        .enumerate()
+        .map(|(argument_index, (_argument, target_parameter))| {
             let target_type = terminal_scalar_type(
                 checked
                     .primitive_type_reference(target_parameter.type_reference)
@@ -1744,66 +1737,144 @@ fn lower_scalar_graph_conditional_successor(
                         "scalar graph target parameters must be primitive Boolean or integer values",
                     ))?,
             )?;
-            lower_direct_return_expression(
+            let expression = lower_checked_scalar_expression_at(
                 checked,
-                *argument,
-                parameters,
-                parameter_types,
-                target_type,
-            )
-            .map(|(expression, _)| expression)
+                source_state,
+                statement_ordinal,
+                CheckedScalarExpressionRole::TransitionArgument {
+                    argument_ordinal: u32::try_from(argument_index)
+                        .map_err(|_| LoweringError::ScalarExpressionOrdinalOverflow)?,
+                },
+            )?;
+            (expression.scalar_type() == target_type)
+                .then_some(expression)
+                .ok_or(LoweringError::Unsupported(
+                    "checked scalar successor expression type must match its target",
+                ))
         })
         .collect::<Result<Vec<_>, _>>()?;
     Ok((target, arguments))
 }
 
-fn lower_scalar_graph_jump_successor(
+fn lower_checked_scalar_expression_at(
     checked: &CheckedTrees,
-    states: &[psi_checked_trees::state::State],
-    parameters: &[psi_checked_trees::signature::StateParameter],
-    parameter_types: &[ScalarType],
-    transition: &psi_checked_trees::statement::TableTransition,
-) -> Result<(usize, Vec<LoweredDirectExpression>), LoweringError> {
-    let TransitionTargetNode::Named { path, arguments } =
-        checked.statement_table.transition_target(transition.target)
-    else {
-        return unsupported("scalar graph successors must target named states");
-    };
-    let target = states
-        .iter()
-        .position(|candidate| candidate.symbol == path.symbol)
+    state: psi_symbols::SymbolHandle,
+    statement_ordinal: u32,
+    role: CheckedScalarExpressionRole,
+) -> Result<LoweredDirectExpression, LoweringError> {
+    let expression = checked
+        .facts
+        .values
+        .scalar_expressions
+        .expression_at(state, statement_ordinal, role)
         .ok_or(LoweringError::Unsupported(
-            "scalar graph successor must belong to the selected machine",
+            "scalar expression has no source-independent checked value plan",
         ))?;
-    let target_parameters = checked.state_parameters(&states[target]);
-    let arguments = checked.statement_table.expression_handles(*arguments);
-    if arguments.len() != target_parameters.len() {
-        return unsupported(
-            "scalar graph successor bindings must match the target parameter count",
-        );
+    lower_checked_scalar_expression(expression)
+}
+
+fn lower_checked_scalar_expression(
+    expression: &CheckedScalarExpression,
+) -> Result<LoweredDirectExpression, LoweringError> {
+    match expression {
+        CheckedScalarExpression::Parameter {
+            position,
+            primitive_type,
+        } => Ok(LoweredDirectExpression::Parameter {
+            position: *position,
+            scalar_type: terminal_scalar_type(*primitive_type)?,
+        }),
+        CheckedScalarExpression::IntegerLiteral { literal } => {
+            let scalar_type = integer_landing_scalar_type(literal)?;
+            Ok(LoweredDirectExpression::IntegerLiteral {
+                value: integer_value(literal, scalar_type)?,
+                scalar_type,
+            })
+        }
+        CheckedScalarExpression::IntegerBinary {
+            kind,
+            primitive_type,
+            left,
+            right,
+        } => Ok(LoweredDirectExpression::IntegerBinary {
+            kind: match kind {
+                CheckedIntegerBinaryKind::WrappingAdd => LoweredIntegerBinaryKind::WrappingAdd,
+                CheckedIntegerBinaryKind::SaturatingAdd => LoweredIntegerBinaryKind::SaturatingAdd,
+                CheckedIntegerBinaryKind::WrappingSubtract => {
+                    LoweredIntegerBinaryKind::WrappingSubtract
+                }
+                CheckedIntegerBinaryKind::SaturatingSubtract => {
+                    LoweredIntegerBinaryKind::SaturatingSubtract
+                }
+                CheckedIntegerBinaryKind::WrappingMultiply => {
+                    LoweredIntegerBinaryKind::WrappingMultiply
+                }
+                CheckedIntegerBinaryKind::SaturatingMultiply => {
+                    LoweredIntegerBinaryKind::SaturatingMultiply
+                }
+                CheckedIntegerBinaryKind::BitwiseAnd => LoweredIntegerBinaryKind::BitwiseAnd,
+                CheckedIntegerBinaryKind::BitwiseOr => LoweredIntegerBinaryKind::BitwiseOr,
+                CheckedIntegerBinaryKind::BitwiseXor => LoweredIntegerBinaryKind::BitwiseXor,
+                CheckedIntegerBinaryKind::WrappingShiftLeft => {
+                    LoweredIntegerBinaryKind::WrappingShiftLeft
+                }
+                CheckedIntegerBinaryKind::WrappingShiftRight => {
+                    LoweredIntegerBinaryKind::WrappingShiftRight
+                }
+            },
+            scalar_type: terminal_scalar_type(*primitive_type)?,
+            left: Box::new(lower_checked_scalar_expression(left)?),
+            right: Box::new(lower_checked_scalar_expression(right)?),
+        }),
+        CheckedScalarExpression::Boolean(expression) => Ok(LoweredDirectExpression::Boolean {
+            expression: Box::new(lower_checked_boolean_expression(expression)?),
+        }),
     }
-    let arguments = arguments
-        .iter()
-        .zip(target_parameters)
-        .map(|(argument, target_parameter)| {
-            let target_type = terminal_scalar_type(
-                checked
-                    .primitive_type_reference(target_parameter.type_reference)
-                    .ok_or(LoweringError::Unsupported(
-                        "scalar graph target parameters must be primitive Boolean or integer values",
-                    ))?,
-            )?;
-            lower_direct_return_expression(
-                checked,
-                *argument,
-                parameters,
-                parameter_types,
-                target_type,
-            )
-            .map(|(expression, _)| expression)
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok((target, arguments))
+}
+
+fn lower_checked_boolean_expression(
+    expression: &CheckedBooleanExpression,
+) -> Result<LoweredBooleanReturnExpression, LoweringError> {
+    Ok(match expression {
+        CheckedBooleanExpression::Constant(value) => {
+            LoweredBooleanReturnExpression::Constant { value: *value }
+        }
+        CheckedBooleanExpression::Parameter { position } => {
+            LoweredBooleanReturnExpression::Parameter {
+                position: *position,
+            }
+        }
+        CheckedBooleanExpression::Not(operand) => LoweredBooleanReturnExpression::Not {
+            operand: Box::new(lower_checked_boolean_expression(operand)?),
+        },
+        CheckedBooleanExpression::Equal { left, right } => LoweredBooleanReturnExpression::Equal {
+            left: Box::new(lower_checked_boolean_expression(left)?),
+            right: Box::new(lower_checked_boolean_expression(right)?),
+        },
+        CheckedBooleanExpression::IntegerComparison { kind, left, right } => {
+            LoweredBooleanReturnExpression::IntegerComparison {
+                kind: match kind {
+                    CheckedIntegerComparisonKind::Equal => LoweredIntegerComparisonKind::Equal,
+                    CheckedIntegerComparisonKind::LessThan => {
+                        LoweredIntegerComparisonKind::LessThan
+                    }
+                    CheckedIntegerComparisonKind::LessOrEqual => {
+                        LoweredIntegerComparisonKind::LessOrEqual
+                    }
+                },
+                left: Box::new(lower_checked_scalar_expression(left)?),
+                right: Box::new(lower_checked_scalar_expression(right)?),
+            }
+        }
+        CheckedBooleanExpression::And { left, right } => LoweredBooleanReturnExpression::And {
+            left: Box::new(lower_checked_boolean_expression(left)?),
+            right: Box::new(lower_checked_boolean_expression(right)?),
+        },
+        CheckedBooleanExpression::Or { left, right } => LoweredBooleanReturnExpression::Or {
+            left: Box::new(lower_checked_boolean_expression(left)?),
+            right: Box::new(lower_checked_boolean_expression(right)?),
+        },
+    })
 }
 
 fn validate_boolean_parameter_types(
@@ -1882,144 +1953,6 @@ fn validate_scalar_graph(
     Ok(())
 }
 
-fn lower_boolean_expression(
-    checked: &CheckedTrees,
-    expression: psi_checked_trees::expression::ExpressionHandle,
-    parameters: &[psi_checked_trees::signature::StateParameter],
-) -> Result<LoweredBooleanReturnExpression, LoweringError> {
-    match checked.expression_table.expression(expression) {
-        ExpressionNode::Boolean(value) => {
-            Ok(LoweredBooleanReturnExpression::Constant { value: *value })
-        }
-        ExpressionNode::Name(path) => Ok(LoweredBooleanReturnExpression::Parameter {
-            position: direct_parameter_position(checked, path, parameters)?,
-        }),
-        ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
-            if let Some(operator_use) = checked.facts.operators.expression_use(expression)
-                && operator_use.status != CheckedOperatorResolutionStatus::BuiltinFallback
-            {
-                return unsupported("terminal Boolean negation must use the builtin operator");
-            }
-            Ok(LoweredBooleanReturnExpression::Not {
-                operand: Box::new(lower_boolean_expression(
-                    checked,
-                    unary.operand,
-                    parameters,
-                )?),
-            })
-        }
-        ExpressionNode::Binary(binary)
-            if matches!(
-                binary.operator,
-                BinaryOperator::Equal
-                    | BinaryOperator::NotEqual
-                    | BinaryOperator::Less
-                    | BinaryOperator::LessOrEqual
-                    | BinaryOperator::Greater
-                    | BinaryOperator::GreaterOrEqual
-            ) =>
-        {
-            if let Some(operator_use) = checked.facts.operators.expression_use(expression)
-                && operator_use.status != CheckedOperatorResolutionStatus::BuiltinFallback
-            {
-                return unsupported("terminal Boolean comparison must use the builtin operator");
-            }
-            let parameter_types = parameters
-                .iter()
-                .map(|parameter| {
-                    terminal_scalar_type(
-                        checked
-                            .primitive_type_reference(parameter.type_reference)
-                            .ok_or(LoweringError::Unsupported(
-                                "terminal comparison parameters must be primitive scalar values",
-                            ))?,
-                    )
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            let integer_operands = (|| {
-                let (left, _) =
-                    lower_direct_expression(checked, binary.left, parameters, &parameter_types)?;
-                let (right, _) =
-                    lower_direct_expression(checked, binary.right, parameters, &parameter_types)?;
-                if !matches!(left.scalar_type(), ScalarType::Integer(_))
-                    || left.scalar_type() != right.scalar_type()
-                {
-                    return unsupported(
-                        "terminal integer comparison operands must have one exact integer type",
-                    );
-                }
-                Ok((left, right))
-            })();
-            if !matches!(
-                binary.operator,
-                BinaryOperator::Equal | BinaryOperator::NotEqual
-            ) || integer_operands.is_ok()
-            {
-                let (mut left, mut right) = integer_operands?;
-                let (kind, negated) = match binary.operator {
-                    BinaryOperator::Equal => (LoweredIntegerComparisonKind::Equal, false),
-                    BinaryOperator::NotEqual => (LoweredIntegerComparisonKind::Equal, true),
-                    BinaryOperator::Less => (LoweredIntegerComparisonKind::LessThan, false),
-                    BinaryOperator::LessOrEqual => {
-                        (LoweredIntegerComparisonKind::LessOrEqual, false)
-                    }
-                    BinaryOperator::Greater => {
-                        std::mem::swap(&mut left, &mut right);
-                        (LoweredIntegerComparisonKind::LessThan, false)
-                    }
-                    BinaryOperator::GreaterOrEqual => {
-                        std::mem::swap(&mut left, &mut right);
-                        (LoweredIntegerComparisonKind::LessOrEqual, false)
-                    }
-                    _ => unreachable!("comparison expression filters operators"),
-                };
-                let comparison = LoweredBooleanReturnExpression::IntegerComparison {
-                    kind,
-                    left: Box::new(left),
-                    right: Box::new(right),
-                };
-                return Ok(if negated {
-                    LoweredBooleanReturnExpression::Not {
-                        operand: Box::new(comparison),
-                    }
-                } else {
-                    comparison
-                });
-            }
-            let equality = LoweredBooleanReturnExpression::Equal {
-                left: Box::new(lower_boolean_expression(checked, binary.left, parameters)?),
-                right: Box::new(lower_boolean_expression(checked, binary.right, parameters)?),
-            };
-            Ok(if binary.operator == BinaryOperator::NotEqual {
-                LoweredBooleanReturnExpression::Not {
-                    operand: Box::new(equality),
-                }
-            } else {
-                equality
-            })
-        }
-        ExpressionNode::Binary(binary)
-            if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) =>
-        {
-            if let Some(operator_use) = checked.facts.operators.expression_use(expression)
-                && operator_use.status != CheckedOperatorResolutionStatus::BuiltinFallback
-            {
-                return unsupported("terminal short-circuit logic must use the builtin operator");
-            }
-            let left = Box::new(lower_boolean_expression(checked, binary.left, parameters)?);
-            let right = Box::new(lower_boolean_expression(checked, binary.right, parameters)?);
-            Ok(if binary.operator == BinaryOperator::And {
-                LoweredBooleanReturnExpression::And { left, right }
-            } else {
-                LoweredBooleanReturnExpression::Or { left, right }
-            })
-        }
-        _ => unsupported(
-            "Boolean terminal expressions require a literal, declared parameter, logical not, builtin Boolean equality/inequality, exact-type integer comparison, or short-circuit logic",
-        ),
-    }
-}
-
 fn contains_short_circuit(expression: &LoweredBooleanReturnExpression) -> bool {
     match expression {
         LoweredBooleanReturnExpression::Constant { .. }
@@ -2062,150 +1995,6 @@ fn validate_short_circuit_expression(
             validate_short_circuit_expression(left)?;
             validate_short_circuit_expression(right)
         }
-    }
-}
-
-fn lower_positive_boolean_guard(
-    checked: &CheckedTrees,
-    expression: psi_checked_trees::expression::ExpressionHandle,
-    parameters: &[psi_checked_trees::signature::StateParameter],
-) -> Result<LoweredBooleanReturnExpression, LoweringError> {
-    let ExpressionNode::Binary(binary) = checked.expression_table.expression(expression) else {
-        return lower_boolean_expression(checked, expression, parameters);
-    };
-    if binary.operator == BinaryOperator::Equal {
-        match (
-            checked.expression_table.expression(binary.left),
-            checked.expression_table.expression(binary.right),
-        ) {
-            (ExpressionNode::Boolean(true), _) => {
-                return lower_boolean_expression(checked, binary.right, parameters);
-            }
-            (_, ExpressionNode::Boolean(true)) => {
-                return lower_boolean_expression(checked, binary.left, parameters);
-            }
-            _ => {}
-        }
-    }
-    let guard = lower_boolean_expression(checked, expression, parameters)?;
-    if is_integer_comparison_expression(&guard) || contains_short_circuit(&guard) {
-        Ok(guard)
-    } else {
-        unsupported("conditional guards require a positive Boolean pattern")
-    }
-}
-
-fn is_integer_comparison_expression(expression: &LoweredBooleanReturnExpression) -> bool {
-    match expression {
-        LoweredBooleanReturnExpression::IntegerComparison { .. } => true,
-        LoweredBooleanReturnExpression::Not { operand } => matches!(
-            operand.as_ref(),
-            LoweredBooleanReturnExpression::IntegerComparison { .. }
-        ),
-        _ => false,
-    }
-}
-
-fn lower_direct_return_expression(
-    checked: &CheckedTrees,
-    expression: psi_checked_trees::expression::ExpressionHandle,
-    parameters: &[psi_checked_trees::signature::StateParameter],
-    parameter_types: &[ScalarType],
-    result_type: ScalarType,
-) -> Result<(LoweredDirectExpression, ArithmeticDomain), LoweringError> {
-    if result_type == ScalarType::Boolean {
-        let expression = lower_boolean_expression(checked, expression, parameters)?;
-        validate_short_circuit_expression(&expression)?;
-        validate_boolean_parameter_types(&expression, parameter_types)?;
-        return Ok((
-            LoweredDirectExpression::Boolean {
-                expression: Box::new(expression),
-            },
-            ArithmeticDomain::Exact,
-        ));
-    }
-    let (expression, domain) =
-        lower_direct_expression(checked, expression, parameters, parameter_types)?;
-    if expression.scalar_type() != result_type {
-        return unsupported("direct expression and destination types must match exactly");
-    }
-    Ok((expression, domain))
-}
-
-fn lower_direct_expression(
-    checked: &CheckedTrees,
-    expression: psi_checked_trees::expression::ExpressionHandle,
-    parameters: &[psi_checked_trees::signature::StateParameter],
-    parameter_types: &[ScalarType],
-) -> Result<(LoweredDirectExpression, ArithmeticDomain), LoweringError> {
-    match checked.expression_table.expression(expression) {
-        ExpressionNode::Name(path) => {
-            let position = direct_parameter_position(checked, path, parameters)?;
-            let scalar_type = parameter_types[position];
-            Ok((
-                LoweredDirectExpression::Parameter {
-                    position,
-                    scalar_type,
-                },
-                checked.arithmetic_domain_for_type_reference(parameters[position].type_reference),
-            ))
-        }
-        ExpressionNode::Integer(literal) => {
-            let scalar_type = integer_landing_scalar_type(literal)?;
-            Ok((
-                LoweredDirectExpression::IntegerLiteral {
-                    value: integer_value(literal, scalar_type)?,
-                    scalar_type,
-                },
-                literal
-                    .landing()
-                    .map(|landing| landing.domain)
-                    .unwrap_or(ArithmeticDomain::Exact),
-            ))
-        }
-        ExpressionNode::Mutable(_) => {
-            unsupported("direct terminal expressions do not support mutable-place wrappers")
-        }
-        ExpressionNode::Binary(binary) => {
-            if let Some(operator_use) = checked.facts.operators.expression_use(expression)
-                && operator_use.status != CheckedOperatorResolutionStatus::BuiltinFallback
-            {
-                return unsupported(
-                    "terminal integer binary expression must use the builtin operator",
-                );
-            }
-            let (left, left_domain) =
-                lower_direct_expression(checked, binary.left, parameters, parameter_types)?;
-            let (right, right_domain) =
-                lower_direct_expression(checked, binary.right, parameters, parameter_types)?;
-            let shift = matches!(
-                binary.operator,
-                BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
-            );
-            let domain = if shift {
-                left_domain
-            } else {
-                combine_terminal_arithmetic_domains(left_domain, right_domain)?
-            };
-            let kind = lowered_integer_binary_kind(binary.operator, domain)?;
-            let scalar_type = left.scalar_type();
-            if !matches!(scalar_type, ScalarType::Integer(_))
-                || !matches!(right.scalar_type(), ScalarType::Integer(_))
-                || (!shift && right.scalar_type() != scalar_type)
-            {
-                return unsupported("terminal integer operation has incompatible operand types");
-            }
-            Ok((
-                LoweredDirectExpression::IntegerBinary {
-                    kind,
-                    scalar_type,
-                    left: Box::new(left),
-                    right: Box::new(right),
-                },
-                domain,
-            ))
-        }
-        _ => unsupported("direct-parameter machine must return a supported integer expression"),
     }
 }
 
@@ -2349,79 +2138,6 @@ fn evaluate_compile_known_boolean_expression(
                 evaluate_compile_known_boolean_expression(right, parameters)
             }
         }
-    }
-}
-
-fn combine_terminal_arithmetic_domains(
-    left: ArithmeticDomain,
-    right: ArithmeticDomain,
-) -> Result<ArithmeticDomain, LoweringError> {
-    match (left, right) {
-        (ArithmeticDomain::Exact, domain) | (domain, ArithmeticDomain::Exact) => Ok(domain),
-        (left, right) if left == right => Ok(left),
-        _ => unsupported("terminal integer binary expression cannot mix arithmetic domains"),
-    }
-}
-
-fn direct_parameter_position(
-    checked: &CheckedTrees,
-    path: &psi_checked_trees::expression::TableNamePath,
-    parameters: &[psi_checked_trees::signature::StateParameter],
-) -> Result<usize, LoweringError> {
-    if checked
-        .expression_table
-        .name_path_members(path.members)
-        .len()
-        != 1
-    {
-        return unsupported("direct expression operand must name one declared parameter");
-    }
-    parameters
-        .iter()
-        .position(|parameter| {
-            parameter.symbol == path.symbol || parameter.symbol == path.head_symbol
-        })
-        .ok_or(LoweringError::Unsupported(
-            "direct expression operand must name one declared parameter",
-        ))
-}
-
-fn lowered_integer_binary_kind(
-    operator: BinaryOperator,
-    domain: ArithmeticDomain,
-) -> Result<LoweredIntegerBinaryKind, LoweringError> {
-    match (operator, domain) {
-        (BinaryOperator::BitwiseAnd, _) => Ok(LoweredIntegerBinaryKind::BitwiseAnd),
-        (BinaryOperator::BitwiseOr, _) => Ok(LoweredIntegerBinaryKind::BitwiseOr),
-        (BinaryOperator::BitwiseXor, _) => Ok(LoweredIntegerBinaryKind::BitwiseXor),
-        (BinaryOperator::ShiftLeft, ArithmeticDomain::Wrapping) => {
-            Ok(LoweredIntegerBinaryKind::WrappingShiftLeft)
-        }
-        (BinaryOperator::ShiftRight, ArithmeticDomain::Wrapping) => {
-            Ok(LoweredIntegerBinaryKind::WrappingShiftRight)
-        }
-        (BinaryOperator::Add, ArithmeticDomain::Wrapping) => {
-            Ok(LoweredIntegerBinaryKind::WrappingAdd)
-        }
-        (BinaryOperator::Add, ArithmeticDomain::Saturating) => {
-            Ok(LoweredIntegerBinaryKind::SaturatingAdd)
-        }
-        (BinaryOperator::Subtract, ArithmeticDomain::Wrapping) => {
-            Ok(LoweredIntegerBinaryKind::WrappingSubtract)
-        }
-        (BinaryOperator::Subtract, ArithmeticDomain::Saturating) => {
-            Ok(LoweredIntegerBinaryKind::SaturatingSubtract)
-        }
-        (BinaryOperator::Multiply, ArithmeticDomain::Wrapping) => {
-            Ok(LoweredIntegerBinaryKind::WrappingMultiply)
-        }
-        (BinaryOperator::Multiply, ArithmeticDomain::Saturating) => {
-            Ok(LoweredIntegerBinaryKind::SaturatingMultiply)
-        }
-        (BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply, _) => {
-            unsupported("terminal integer binary expression requires Wrapping or Saturating")
-        }
-        _ => unsupported("terminal source producer does not support this integer operation"),
     }
 }
 
@@ -4316,6 +4032,7 @@ pub enum LoweringError {
     AmbiguousMachineName(String),
     DebugSourceFileCountOverflow,
     DebugSourceLengthOverflow,
+    ScalarExpressionOrdinalOverflow,
     MissingDebugSourceFile(usize),
     DebugSemanticCodec(psi_terminal_codec::CodecError),
     InvalidDebugMap(psi_terminal_codec::DebugMapError),

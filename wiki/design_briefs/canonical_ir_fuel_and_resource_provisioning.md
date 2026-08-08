@@ -155,6 +155,13 @@ Checked proof facts also retain nominal proposition declarations and normalized
 applications after transparent aliases and source handles are eliminated, so
 terminal production assigns its dense proposition identities without reopening
 typed proof facts.
+Checked value facts retain the accepted executable scalar expression tree for
+each return, guard, and transition argument under a stable state/statement-role
+location. Operator selection, primitive types, landed literals, arithmetic
+domains, comparison normalization, and positive-guard normalization are fixed
+before terminal production; the producer no longer derives any of that meaning
+from typed expression nodes. Typed statement topology and debug spans remain a
+temporary producer input pending the topology carrier.
 It emits the semantic module and proof bundle separately and fails closed on
 all other shapes. Its canaries drop the frontend trees before terminal
 verification and interpretation; ninth-parameter `bool` and `u8` machines

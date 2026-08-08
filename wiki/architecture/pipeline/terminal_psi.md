@@ -3,7 +3,7 @@
 [Pipeline](pipeline.md)
 
 Status: target architecture settled 2026-08-02; implementation checkpoint
-updated 2026-08-07. This document records the implementation cut and migration
+updated 2026-08-08. This document records the implementation cut and migration
 from the current bootstrap pipeline. The
 semantic and evidence contract is owned by
 [`canonical_ir_fuel_and_resource_provisioning.md`](../../design_briefs/canonical_ir_fuel_and_resource_provisioning.md).
@@ -169,6 +169,16 @@ Terminal production assigns dense terminal identities from that checked
 vocabulary; it no longer walks typed proposition declarations or typed
 proof-fact applications.
 
+Checked value facts likewise retain the complete accepted executable scalar
+expression vocabulary after operator selection and type checking. Recursive
+return values, positive guards, and transition arguments are keyed by stable
+state identity, state-local statement ordinal, and semantic role rather than
+`ExpressionHandle`. Terminal production fails closed when that carrier is
+absent and does not reopen typed expression nodes. It still reads typed
+statement and transition records for control topology and typed source spans
+for the replaceable debug map; migrating that topology is the next
+source-independence boundary.
+
 The first control-flow slice is live in v13. One conditional terminator reads
 an already-defined Boolean value and owns ordered true and false successor edge
 records, each with its own stable `EdgeId`, target, typed block-parameter
@@ -263,7 +273,10 @@ than replacing their proof and fuel sites with a truth-table branch.
 Compile-known Boolean bindings likewise must match the closed reflexive
 contract. Checked contract plans retain that accepted Boolean/integer equality
 as a source-handle-free value carrier, and terminal production fails closed on
-an absent or unrecognized carrier instead of reopening typed contract facts. A
+an absent or unrecognized carrier instead of reopening typed contract facts.
+Checked value facts separately retain every executable return, guard, and
+successor argument in this scalar vocabulary, so terminal production no longer
+uses a typed expression handle to recover executable meaning. A
 single-state Boolean-result machine over ordinary primitive-integer parameters
 may compare two recursively nested integer
 expressions of one exact type with builtin `==`, `!=`, `<`, `<=`, `>`, or `>=`.

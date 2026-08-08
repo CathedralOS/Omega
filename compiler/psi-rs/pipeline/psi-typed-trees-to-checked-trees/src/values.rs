@@ -8,8 +8,11 @@ use psi_typed_trees::TypedTrees;
 use psi_typed_trees::expression::ExpressionHandle;
 
 mod expression;
+mod scalar;
 mod statement;
 mod transition;
+
+pub(crate) use scalar::build_checked_scalar_expression_plans;
 
 pub(crate) fn build_value_facts(
     program: &TypedTrees,
