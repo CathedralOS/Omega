@@ -58,6 +58,11 @@ so a convergence proof can recover its opaque modulus and law. Different
 conformances may carry different witnesses without changing the proposition's
 nominal symbol.
 
+The concrete subjectless conformance exists, but the syntax that selects it at
+proposition introduction and opens the retained term at elimination remains
+an owner decision in `OWNER_QUESTIONS.md` Q3. A bare proposition fact therefore
+does not infer evidence from whichever conformance happens to be visible.
+
 The evidence interface is the proposition's sole brace entry:
 
 ```omega
