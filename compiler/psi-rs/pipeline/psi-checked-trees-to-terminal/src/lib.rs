@@ -236,9 +236,19 @@ struct PendingBooleanValueBlocks {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+struct PendingBooleanTupleBindingBlocks {
+    first_id: BlockId,
+    original_parameter_count: usize,
+    arguments: Vec<LoweredBooleanReturnExpression>,
+    stage_parameters: Vec<Vec<ValueDeclaration>>,
+    target: BlockId,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum PendingBooleanBlockGroup {
     Guard(PendingShortCircuitGuardBlocks),
     Value(PendingBooleanValueBlocks),
+    TupleBinding(PendingBooleanTupleBindingBlocks),
 }
 
 impl PendingBooleanBlockGroup {
@@ -246,6 +256,7 @@ impl PendingBooleanBlockGroup {
         match self {
             Self::Guard(blocks) => blocks.first_id,
             Self::Value(blocks) => blocks.first_id,
+            Self::TupleBinding(blocks) => blocks.first_id,
         }
     }
 }
@@ -2103,9 +2114,6 @@ fn lower_nested_boolean_jump_successor(
             Ok(expression)
         })
         .collect::<Result<Vec<_>, _>>()?;
-    if arguments.len() != 1 && arguments.iter().any(contains_short_circuit) {
-        return unsupported("nested Boolean multi-value jump bindings cannot short-circuit yet");
-    }
     Ok((target, arguments))
 }
 
@@ -4257,6 +4265,121 @@ fn emit_reserved_boolean_value_blocks(
 }
 
 #[allow(clippy::too_many_arguments)]
+fn emit_reserved_boolean_tuple_stage_blocks(
+    decision: &LoweredBooleanDecision,
+    parameters: &[ValueDeclaration],
+    block_parameters: Vec<ValueDeclaration>,
+    next_stage: BlockId,
+    carried_arguments: &[ValueId],
+    first_block_identity: u64,
+    next_value_identity: &mut u64,
+    next_edge_identity: &mut u64,
+    all_operations: &mut Vec<Operation>,
+    blocks: &mut Vec<Option<Block>>,
+) -> BlockId {
+    let block_index = blocks.len();
+    let block = block_id(
+        first_block_identity
+            .checked_add(
+                u64::try_from(block_index)
+                    .expect("reserved Boolean tuple block count fits a semantic identity"),
+            )
+            .expect("reserved Boolean tuple block identity advances"),
+    );
+    blocks.push(None);
+    let operation_start = all_operations.len();
+    let (terminator, operation_end) = match decision {
+        LoweredBooleanDecision::Value(expression) => {
+            let value = emit_boolean_expression(
+                expression,
+                parameters,
+                next_value_identity,
+                all_operations,
+            );
+            let edge = edge_id(*next_edge_identity);
+            *next_edge_identity = next_edge_identity
+                .checked_add(1)
+                .expect("reserved Boolean tuple value edge identity advances");
+            let mut arguments = carried_arguments.to_vec();
+            arguments.push(value);
+            (
+                Terminator::Jump {
+                    edge,
+                    target: next_stage,
+                    arguments,
+                },
+                all_operations.len(),
+            )
+        }
+        LoweredBooleanDecision::Test {
+            condition,
+            when_true,
+            when_false,
+        } => {
+            let condition =
+                emit_boolean_expression(condition, parameters, next_value_identity, all_operations);
+            let operation_end = all_operations.len();
+            let true_edge = edge_id(*next_edge_identity);
+            let false_edge = edge_id(
+                next_edge_identity
+                    .checked_add(1)
+                    .expect("reserved Boolean tuple false edge identity advances"),
+            );
+            *next_edge_identity = next_edge_identity
+                .checked_add(2)
+                .expect("reserved Boolean tuple decision edges advance");
+            let when_true = emit_reserved_boolean_tuple_stage_blocks(
+                when_true,
+                parameters,
+                Vec::new(),
+                next_stage,
+                carried_arguments,
+                first_block_identity,
+                next_value_identity,
+                next_edge_identity,
+                all_operations,
+                blocks,
+            );
+            let when_false = emit_reserved_boolean_tuple_stage_blocks(
+                when_false,
+                parameters,
+                Vec::new(),
+                next_stage,
+                carried_arguments,
+                first_block_identity,
+                next_value_identity,
+                next_edge_identity,
+                all_operations,
+                blocks,
+            );
+            (
+                Terminator::Conditional {
+                    condition,
+                    when_true: SuccessorEdge {
+                        edge: true_edge,
+                        target: when_true,
+                        arguments: Vec::new(),
+                    },
+                    when_false: SuccessorEdge {
+                        edge: false_edge,
+                        target: when_false,
+                        arguments: Vec::new(),
+                    },
+                },
+                operation_end,
+            )
+        }
+    };
+    blocks[block_index] = Some(Block {
+        id: block,
+        parameters: block_parameters,
+        operations: all_operations[operation_start..operation_end].to_vec(),
+        terminator,
+    });
+    block
+}
+
+#[allow(clippy::too_many_arguments)]
 fn emit_boolean_decision_blocks(
     decision: &LoweredBooleanDecision,
     expression_parameters: &[ValueDeclaration],
@@ -4634,7 +4757,66 @@ fn build_nested_boolean_branch_module(
                         .checked_add(1)
                         .expect("block identity is nonzero"),
                 );
-                if let [argument] = arguments.as_slice()
+                if arguments.len() > 1 && arguments.iter().any(contains_short_circuit) {
+                    let first_id = block_id(next_block_identity);
+                    let reserved_block_count = arguments
+                        .iter()
+                        .map(|argument| {
+                            if contains_short_circuit(argument) {
+                                boolean_decision_block_count(&lower_boolean_value_decision(
+                                    argument,
+                                ))
+                            } else {
+                                1
+                            }
+                        })
+                        .sum::<usize>()
+                        .checked_add(1)
+                        .expect("Boolean tuple convergence block count advances");
+                    next_block_identity = next_block_identity
+                        .checked_add(
+                            u64::try_from(reserved_block_count)
+                                .expect("Boolean tuple block count fits a semantic identity"),
+                        )
+                        .expect("Boolean tuple block identities advance");
+                    let stage_parameters = (0..=arguments.len())
+                        .map(|completed_argument_count| {
+                            (0..state.parameter_count + completed_argument_count)
+                                .map(|_| {
+                                    let parameter = ValueDeclaration {
+                                        id: value_id(next_value_identity),
+                                        scalar_type: ScalarType::Boolean,
+                                    };
+                                    next_value_identity = next_value_identity
+                                        .checked_add(1)
+                                        .expect("Boolean tuple parameter identities advance");
+                                    parameter
+                                })
+                                .collect::<Vec<_>>()
+                        })
+                        .collect::<Vec<_>>();
+                    pending_blocks.push(PendingBooleanBlockGroup::TupleBinding(
+                        PendingBooleanTupleBindingBlocks {
+                            first_id,
+                            original_parameter_count: state.parameter_count,
+                            arguments: arguments.clone(),
+                            stage_parameters,
+                            target,
+                        },
+                    ));
+                    let edge = edge_id(next_edge_identity);
+                    next_edge_identity = next_edge_identity
+                        .checked_add(1)
+                        .expect("Boolean tuple entry edge identity advances");
+                    Terminator::Jump {
+                        edge,
+                        target: first_id,
+                        arguments: current_parameters
+                            .iter()
+                            .map(|parameter| parameter.id)
+                            .collect(),
+                    }
+                } else if let [argument] = arguments.as_slice()
                     && contains_short_circuit(argument)
                 {
                     let decision = lower_boolean_value_decision(argument);
@@ -4913,6 +5095,95 @@ fn build_nested_boolean_branch_module(
                     &mut decision_blocks,
                 );
                 assert_eq!(entry, pending.first_id);
+            }
+            PendingBooleanBlockGroup::TupleBinding(pending) => {
+                let mut next_stage_identity = pending.first_id.get();
+                for (index, argument) in pending.arguments.iter().enumerate() {
+                    let parameters = &pending.stage_parameters[index];
+                    let carried_arguments = parameters
+                        .iter()
+                        .map(|parameter| parameter.id)
+                        .collect::<Vec<_>>();
+                    if contains_short_circuit(argument) {
+                        let decision = lower_boolean_value_decision(argument);
+                        let stage_block_count = boolean_decision_block_count(&decision);
+                        let next_stage =
+                            block_id(
+                                next_stage_identity
+                                    .checked_add(u64::try_from(stage_block_count).expect(
+                                        "Boolean tuple stage count fits a semantic identity",
+                                    ))
+                                    .expect("Boolean tuple stage block identities advance"),
+                            );
+                        let mut stage_blocks = Vec::with_capacity(stage_block_count);
+                        let entry = emit_reserved_boolean_tuple_stage_blocks(
+                            &decision,
+                            parameters,
+                            parameters.clone(),
+                            next_stage,
+                            &carried_arguments,
+                            next_stage_identity,
+                            &mut next_value_identity,
+                            &mut next_edge_identity,
+                            &mut all_operations,
+                            &mut stage_blocks,
+                        );
+                        assert_eq!(entry.get(), next_stage_identity);
+                        decision_blocks.extend(stage_blocks);
+                        next_stage_identity = next_stage.get();
+                    } else {
+                        let operation_start = all_operations.len();
+                        let value = emit_boolean_expression(
+                            argument,
+                            parameters,
+                            &mut next_value_identity,
+                            &mut all_operations,
+                        );
+                        let mut arguments = carried_arguments;
+                        arguments.push(value);
+                        let next_stage = block_id(
+                            next_stage_identity
+                                .checked_add(1)
+                                .expect("Boolean tuple stage block identity advances"),
+                        );
+                        let edge = edge_id(next_edge_identity);
+                        next_edge_identity = next_edge_identity
+                            .checked_add(1)
+                            .expect("Boolean tuple stage edge identity advances");
+                        decision_blocks.push(Some(Block {
+                            id: block_id(next_stage_identity),
+                            parameters: parameters.clone(),
+                            operations: all_operations[operation_start..].to_vec(),
+                            terminator: Terminator::Jump {
+                                edge,
+                                target: next_stage,
+                                arguments,
+                            },
+                        }));
+                        next_stage_identity = next_stage.get();
+                    }
+                }
+                let parameters = pending
+                    .stage_parameters
+                    .last()
+                    .expect("Boolean tuple has a convergence parameter set");
+                let edge = edge_id(next_edge_identity);
+                next_edge_identity = next_edge_identity
+                    .checked_add(1)
+                    .expect("Boolean tuple convergence edge identity advances");
+                decision_blocks.push(Some(Block {
+                    id: block_id(next_stage_identity),
+                    parameters: parameters.clone(),
+                    operations: Vec::new(),
+                    terminator: Terminator::Jump {
+                        edge,
+                        target: pending.target,
+                        arguments: parameters[pending.original_parameter_count..]
+                            .iter()
+                            .map(|parameter| parameter.id)
+                            .collect(),
+                    },
+                }));
             }
         }
         blocks.extend(

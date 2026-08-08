@@ -196,9 +196,10 @@ Remaining:
   Rooted acyclic Boolean-result graphs now likewise support nested selections,
   convergent tails, recursive non-short-circuit unconditional bindings,
   recursive short-circuit returns, verification, exact fuel, and both
-  native targets. Single-value short-circuit Boolean jump bindings now converge
-  through the same value-producing decision blocks. Ordered multi-value
-  short-circuit binding tuples remain for a later producer slice.
+  native targets. Short-circuit Boolean jump bindings now converge through
+  value-producing decision blocks, including ordered multi-value tuples whose
+  elements evaluate left-to-right in staged blocks while carrying earlier
+  results to the authored target.
 - Replace all remaining terminal-path `ExpressionHandle` and source-tree
   dependencies with lowered values and predicates. Absorb useful StateGraph /
   ControlFlow topology, then retire the legacy backend lane as consumers move.

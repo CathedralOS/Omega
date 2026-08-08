@@ -115,10 +115,10 @@ prefixes, and convergent tails use the same terminal block and edge
 vocabulary. The ordered Boolean-result form supports ordinary Boolean
 entry/branch parameters with recursive short-circuit guards and branch returns.
 The general Boolean-result form supports rooted acyclic nested selections and
-convergent tails with recursive non-short-circuit unconditional bindings and
-recursive short-circuit returns. Single-value short-circuit jumps converge at
-value-producing decision leaves; ordered multi-value short-circuit tuples
-remain closed.
+convergent tails with recursive unconditional bindings and short-circuit
+returns. Short-circuit jumps converge at value-producing decision leaves;
+ordered multi-value tuples use left-to-right stages that carry already-produced
+values through each later decision tree before one final target jump.
 It emits the semantic module and proof bundle separately and fails closed on
 all other shapes. Its canaries drop the frontend trees before terminal
 verification and interpretation; ninth-parameter `bool` and `u8` machines
@@ -305,12 +305,14 @@ expression preserve the same metered semantics through native AArch64/x86-64
 control. The same construction composes with linear Boolean state chains:
 decision leaves carry canonical Boolean values through ordinary jump bindings,
 and deciding paths bypass the unused subtree before converging on the next
-source state. Explicit Boolean conditionals use terminal test edges from a
-short-circuit guard directly to the selected branch, while each selected arm
-may independently contain the same decision form. Equality and inequality may
-also consume short-circuit operands: value-producing leaves retain the
-`BooleanEqual` operation and, for inequality, its canonical `BooleanNot`, so
-schedule-v1 still charges those explicit semantic sites.
+source state. Multi-value jump bindings repeat that construction in authored
+tuple order, threading prior values through each stage so evaluation order and
+fuel provenance remain explicit. Explicit Boolean conditionals use terminal
+test edges from a short-circuit guard directly to the selected branch, while
+each selected arm may independently contain the same decision form. Equality
+and inequality may also consume short-circuit operands: value-producing leaves
+retain the `BooleanEqual` operation and, for inequality, its canonical
+`BooleanNot`, so schedule-v1 still charges those explicit semantic sites.
 Attributed response reporting additionally waits on executable terminal
 wait/foreign-edge variants carrying their response-contract status. The current
 total operation plus unconditional jump/return vocabulary can close a bounded

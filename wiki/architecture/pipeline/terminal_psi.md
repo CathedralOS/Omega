@@ -199,9 +199,10 @@ parameters: nested selections, convergent tails, recursive non-short-circuit
 unconditional bindings, recursive short-circuit returns, and short-circuit
 guards all reach verification, exact fuel, interpretation, and both native
 targets. Short-circuit return leaves use reserved value-producing decision
-blocks; a one-value unconditional jump may use the same leaves to bind its
-authored target. Loops and ordered multi-value short-circuit Boolean binding
-tuples remain later slices.
+blocks. Unconditional jumps use the same leaves to bind authored targets;
+multi-value tuples evaluate each element left-to-right in a separate stage,
+carry prior results through later decision trees, and converge once before the
+authored target. Loops remain a later slice.
 
 The checked-frontend migration also keeps the ownership firewall explicit:
 `psi-checked-trees` now owns the target-neutral checked representation and
