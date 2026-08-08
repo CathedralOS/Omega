@@ -22,9 +22,9 @@ pub struct TraitStorage {
     pub machines: HandleSpan<StateSignature>,
 }
 
-/// A standalone conformance item (`Point satisfies Equatable as ValueEq;`,
-/// frozen decision 8): a data type claims a whole, optionally generic trait;
-/// validation checks its written/default attached machines.
+/// One whole nominal conformance. A closed implementation retains its exact
+/// inherited requirement rows; the legacy bodyless form temporarily retains
+/// attached-machine lookup until corpus migration removes that path.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DataConformance {
     pub symbol: SymbolHandle,
@@ -32,6 +32,41 @@ pub struct DataConformance {
     pub trait_name: DiagnosticName,
     pub arguments: HandleSpan<crate::types::TypeReference>,
     pub alias: Option<DiagnosticName>,
+    pub implementation: ConformanceImplementation,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum ConformanceImplementation {
+    #[default]
+    LegacyAttachedMachines,
+    Closed {
+        rows: Vec<ConformanceRow>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConformanceRow {
+    /// Exact declaring trait after normalization. Inline short names begin
+    /// with an invalid symbol and empty diagnostic name, then resolve against
+    /// the inherited requirement closure before typed lowering.
+    pub declaring_trait: SymbolHandle,
+    pub declaring_trait_name: DiagnosticName,
+    pub requirement: SymbolHandle,
+    pub requirement_name: DiagnosticName,
+    /// Exact authored realization. A selected trait-default template keeps
+    /// these invalid until per-conformance default instantiation creates its
+    /// checked machine; checked dynamic lowering rejects it meanwhile.
+    pub realization_machine: SymbolHandle,
+    pub realization_state: SymbolHandle,
+    pub realization_name: DiagnosticName,
+    pub source: ConformanceRowSource,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConformanceRowSource {
+    Inline,
+    Reference,
+    TraitDefault,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

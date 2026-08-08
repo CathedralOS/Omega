@@ -103,6 +103,32 @@ pub fn lower_symbol_resolved_trees(
             trait_name: crate::name::lower_name(&conformance.trait_name),
             arguments,
             alias: conformance.alias.as_ref().map(crate::name::lower_name),
+            implementation: match &conformance.implementation {
+                psi_symbol_resolved_trees::trait_definition::ConformanceImplementation::LegacyAttachedMachines => {
+                    psi_typed_trees::trait_definition::ConformanceImplementation::LegacyAttachedMachines
+                }
+                psi_symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } => {
+                    psi_typed_trees::trait_definition::ConformanceImplementation::Closed {
+                        rows: rows
+                            .iter()
+                            .map(|row| psi_typed_trees::trait_definition::ConformanceRow {
+                                declaring_trait: row.declaring_trait,
+                                declaring_trait_name: crate::name::lower_name(&row.declaring_trait_name),
+                                requirement: row.requirement,
+                                requirement_name: crate::name::lower_name(&row.requirement_name),
+                                realization_machine: row.realization_machine,
+                                realization_state: row.realization_state,
+                                realization_name: crate::name::lower_name(&row.realization_name),
+                                source: match row.source {
+                                    psi_symbol_resolved_trees::trait_definition::ConformanceRowSource::Inline => psi_typed_trees::trait_definition::ConformanceRowSource::Inline,
+                                    psi_symbol_resolved_trees::trait_definition::ConformanceRowSource::Reference => psi_typed_trees::trait_definition::ConformanceRowSource::Reference,
+                                    psi_symbol_resolved_trees::trait_definition::ConformanceRowSource::TraitDefault => psi_typed_trees::trait_definition::ConformanceRowSource::TraitDefault,
+                                },
+                            })
+                            .collect(),
+                    }
+                }
+            },
         };
         lowerer.typed_trees.push_data_conformance(conformance);
     }

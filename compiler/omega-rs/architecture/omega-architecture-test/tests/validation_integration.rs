@@ -17,6 +17,58 @@ fn typed_program_from_source(source: &str) -> psi_typed_trees::TypedTrees {
 }
 
 #[test]
+fn closed_conformance_validates_its_exact_inline_and_reference_rows() {
+    let typed = typed_program_from_source(
+        r#"
+        trait Ranked {
+            machine Self::before(&self, other: &Self) -> bool;
+            machine Self::rank_value(&self) -> u32;
+        }
+
+        data Card {}
+        machine Card::stable_rank_value(&self) -> u32 {
+            transition { _ -> (0) }
+        }
+
+        Card satisfies Ranked as PowerOrder {
+            machine before(&self, other: &Card) -> bool {
+                transition { _ -> (false) }
+            }
+            Ranked::rank_value = Card::stable_rank_value;
+        }
+        "#,
+    );
+
+    validate_program(&typed).expect("the closed row map should validate without ambient lookup");
+}
+
+#[test]
+fn closed_conformance_rejects_an_incompatible_inline_row() {
+    let typed = typed_program_from_source(
+        r#"
+        trait Ranked {
+            machine Self::before(&self, other: &Self) -> bool;
+        }
+
+        data Card {}
+        Card satisfies Ranked {
+            machine before(&self, other: i32) -> bool {
+                transition { _ -> (false) }
+            }
+        }
+        "#,
+    );
+
+    let diagnostics =
+        validate_program(&typed).expect_err("the retained inline row has the wrong signature");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("does not satisfy trait `Ranked` machine `before`")
+    }));
+}
+
+#[test]
 fn witness_proposition_requires_a_direct_carrierless_trait_interface() {
     let typed = typed_program_from_source(
         r#"
@@ -914,6 +966,70 @@ fn local_dynamic_coercion_retains_one_complete_nominal_conformance() {
         Some("Primary")
     );
     assert!(selection.occurrence.is_valid());
+}
+
+#[test]
+fn local_dynamic_coercion_retains_closed_conformance_rows() {
+    let typed = typed_program_from_source(
+        r#"
+        trait Shape {
+            machine code(&self) -> i32;
+        }
+        data Item {}
+        Item satisfies Shape as Primary {
+            machine code(&self) -> i32 {
+                transition { _ -> (7) }
+            }
+        }
+
+        machine erase(item: Item) {
+            let erased: &dyn Shape = &item as &dyn Item::Primary;
+        }
+        "#,
+    );
+
+    validate_program(&typed).expect("the closed conformance should license local dyn selection");
+    let checked = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+        .expect("checked lowering should retain the selected row map");
+    let [selection] = checked.facts.dynamic_conformances.selections.as_slice() else {
+        panic!("one dynamic conformance selection");
+    };
+    let [row] = selection.rows.as_slice() else {
+        panic!("one normalized dynamic row");
+    };
+    assert_eq!(checked.symbols.name(row.declaring_trait), "Shape");
+    assert_eq!(checked.symbols.name(row.requirement), "code");
+    assert_eq!(
+        checked.symbols.name(row.realization_machine),
+        "Item::Primary::code"
+    );
+    assert_eq!(checked.symbols.name(row.realization_state), "code");
+}
+
+#[test]
+fn local_dynamic_coercion_rejects_an_uninstantiated_trait_default_row() {
+    let typed = typed_program_from_source(
+        r#"
+        trait Shape {
+            machine touch(&self) {}
+        }
+        data Item {}
+        Item satisfies Shape as Primary {}
+
+        machine erase(item: Item) {
+            let erased: &dyn Shape = &item as &dyn Item::Primary;
+        }
+        "#,
+    );
+
+    validate_program(&typed).expect("the closed map retains the selected default template");
+    let diagnostics = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+        .expect_err("checked dyn facts must never retain an unrealized default row");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("reached checked lowering before its trait default was instantiated")
+    }));
 }
 
 #[test]

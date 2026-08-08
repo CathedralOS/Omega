@@ -953,6 +953,16 @@ impl TypedTrees {
             .span_or_empty(self.roots.data_conformances)
     }
 
+    pub fn closed_conformance_rows<'conformance>(
+        &self,
+        conformance: &'conformance trait_definition::DataConformance,
+    ) -> Option<&'conformance [trait_definition::ConformanceRow]> {
+        match &conformance.implementation {
+            trait_definition::ConformanceImplementation::LegacyAttachedMachines => None,
+            trait_definition::ConformanceImplementation::Closed { rows } => Some(rows),
+        }
+    }
+
     pub fn push_trait_type_parameter(
         &mut self,
         trait_definition: &mut trait_definition::TraitDefinition,

@@ -64,6 +64,27 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
             {
                 count_type_reference_handle(syntax_trees, *argument, counts);
             }
+            if let crate::item::ConformanceBody::Closed { members } = conformance.body {
+                for member in syntax_trees.items.conformance_members(members) {
+                    match member {
+                        crate::item::ConformanceMember::Machine(machine) => {
+                            count_machine(syntax_trees, machine, counts)
+                        }
+                        crate::item::ConformanceMember::Reference {
+                            declaring_trait,
+                            requirement,
+                            target,
+                        } => {
+                            count_identifier(declaring_trait, counts);
+                            count_identifier(requirement, counts);
+                            count_identifier_members(
+                                syntax_trees.items.identifier_path_members(*target),
+                                counts,
+                            );
+                        }
+                    }
+                }
+            }
         }
         Item::Const(constant) => {
             count_identifier(&constant.scope, counts);
@@ -218,26 +239,7 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
                 count_identifier(alias, counts);
             }
         }
-        Item::Machine(machine) => {
-            count_identifier(&machine.name, counts);
-            for parameter in syntax_trees.items.type_parameters(machine.type_parameters) {
-                count_identifier(&parameter.name, counts);
-                count_type_parameter_kind(syntax_trees, &parameter.kind, counts);
-            }
-            for state in syntax_trees.items.state_handles(machine.states) {
-                let state = syntax_trees.items.state(*state);
-                count_identifier(&state.name, counts);
-                for parameter in syntax_trees.items.state_parameters(state.parameters) {
-                    count_state_parameter(syntax_trees, *parameter, counts);
-                }
-                if state.return_type.is_valid() {
-                    count_type_reference_handle(syntax_trees, state.return_type, counts);
-                }
-                for statement in syntax_trees.items.statements(state.statements) {
-                    count_statement_node(syntax_trees, *statement, counts);
-                }
-            }
-        }
+        Item::Machine(machine) => count_machine(syntax_trees, machine, counts),
 
         Item::Trait(trait_definition) => {
             count_identifier(&trait_definition.name, counts);
@@ -302,6 +304,31 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
                 count_identifier(encoding, counts);
             }
             count_wire_data_members(syntax_trees, wire_data.members, counts);
+        }
+    }
+}
+
+fn count_machine(
+    syntax_trees: &SyntaxTrees,
+    machine: &crate::item::Machine,
+    counts: &mut AstIdentityStorageCounts,
+) {
+    count_identifier(&machine.name, counts);
+    for parameter in syntax_trees.items.type_parameters(machine.type_parameters) {
+        count_identifier(&parameter.name, counts);
+        count_type_parameter_kind(syntax_trees, &parameter.kind, counts);
+    }
+    for state in syntax_trees.items.state_handles(machine.states) {
+        let state = syntax_trees.items.state(*state);
+        count_identifier(&state.name, counts);
+        for parameter in syntax_trees.items.state_parameters(state.parameters) {
+            count_state_parameter(syntax_trees, *parameter, counts);
+        }
+        if state.return_type.is_valid() {
+            count_type_reference_handle(syntax_trees, state.return_type, counts);
+        }
+        for statement in syntax_trees.items.statements(state.statements) {
+            count_statement_node(syntax_trees, *statement, counts);
         }
     }
 }

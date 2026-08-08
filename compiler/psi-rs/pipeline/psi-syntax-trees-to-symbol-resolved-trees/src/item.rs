@@ -53,18 +53,91 @@ pub(crate) fn lower_item(
             lowerer.symbol_resolved_trees.traits.push(trait_definition);
         }
         syntax::item::Item::Conformance(conformance) => {
-            if matches!(
-                conformance.body,
-                syntax::item::ConformanceBody::Closed { .. }
-            ) {
-                return Err(Diagnostic::error(format!(
-                    "closed conformance block `{} satisfies {}` is retained by parsing but its normalized requirement-row lowering is not implemented yet",
-                    conformance.type_name.as_str(),
-                    conformance.trait_name.as_str(),
-                )));
-            }
             let arguments =
                 lower_child_type_references(lowerer, syntax_trees, conformance.trait_arguments)?;
+            let implementation = match &conformance.body {
+                syntax::item::ConformanceBody::LegacyAttachedMachines => {
+                    psi_symbol_resolved_trees::trait_definition::ConformanceImplementation::LegacyAttachedMachines
+                }
+                syntax::item::ConformanceBody::Closed { members } => {
+                    let conformance_name = conformance
+                        .alias
+                        .as_ref()
+                        .unwrap_or(&conformance.trait_name)
+                        .as_str();
+                    let mut rows = Vec::new();
+                    for member in syntax_trees.items.conformance_members(*members) {
+                        match member {
+                            syntax::item::ConformanceMember::Machine(machine) => {
+                                let requirement_name = machine.name.clone();
+                                let realization_name = format!(
+                                    "{}::{}::{}",
+                                    conformance.type_name.as_str(),
+                                    conformance_name,
+                                    requirement_name.as_str(),
+                                );
+                                let mut realization = machine.clone();
+                                realization.name = syntax::identifier::Identifier::generated(
+                                    realization_name.clone(),
+                                );
+                                realization.attached_data = Some(conformance.type_name.clone());
+                                lower_machine_into(lowerer, syntax_trees, &realization)?;
+                                rows.push(
+                                    psi_symbol_resolved_trees::trait_definition::ConformanceRow {
+                                        declaring_trait: psi_symbols::SymbolHandle::invalid(),
+                                        declaring_trait_name:
+                                            psi_symbol_resolved_trees::name::DiagnosticName::default(),
+                                        requirement: psi_symbols::SymbolHandle::invalid(),
+                                        requirement_name: crate::name::lower_name(
+                                            &requirement_name,
+                                        ),
+                                        realization_machine: psi_symbols::SymbolHandle::invalid(),
+                                        realization_state: psi_symbols::SymbolHandle::invalid(),
+                                        realization_name:
+                                            psi_symbol_resolved_trees::name::DiagnosticName::generated(
+                                                realization_name,
+                                            ),
+                                        source: psi_symbol_resolved_trees::trait_definition::ConformanceRowSource::Inline,
+                                    },
+                                );
+                            }
+                            syntax::item::ConformanceMember::Reference {
+                                declaring_trait,
+                                requirement,
+                                target,
+                            } => {
+                                let realization_name = syntax_trees
+                                    .items
+                                    .identifier_path_members(*target)
+                                    .iter()
+                                    .map(|member| member.as_str())
+                                    .collect::<Vec<_>>()
+                                    .join("::");
+                                rows.push(
+                                    psi_symbol_resolved_trees::trait_definition::ConformanceRow {
+                                        declaring_trait: psi_symbols::SymbolHandle::invalid(),
+                                        declaring_trait_name: crate::name::lower_name(
+                                            declaring_trait,
+                                        ),
+                                        requirement: psi_symbols::SymbolHandle::invalid(),
+                                        requirement_name: crate::name::lower_name(requirement),
+                                        realization_machine: psi_symbols::SymbolHandle::invalid(),
+                                        realization_state: psi_symbols::SymbolHandle::invalid(),
+                                        realization_name:
+                                            psi_symbol_resolved_trees::name::DiagnosticName::generated(
+                                                realization_name,
+                                            ),
+                                        source: psi_symbol_resolved_trees::trait_definition::ConformanceRowSource::Reference,
+                                    },
+                                );
+                            }
+                        }
+                    }
+                    psi_symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed {
+                        rows,
+                    }
+                }
+            };
             lowerer.symbol_resolved_trees.conformances.push(
                 psi_symbol_resolved_trees::trait_definition::DataConformance {
                     symbol: psi_symbols::SymbolHandle::invalid(),
@@ -72,6 +145,7 @@ pub(crate) fn lower_item(
                     trait_name: crate::name::lower_name(&conformance.trait_name),
                     arguments,
                     alias: conformance.alias.as_ref().map(crate::name::lower_name),
+                    implementation,
                 },
             );
         }

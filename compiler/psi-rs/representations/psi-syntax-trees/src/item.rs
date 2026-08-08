@@ -982,6 +982,10 @@ impl ItemTable {
         self.state_storage.states.get(handle)
     }
 
+    pub fn state_mut(&mut self, handle: StateHandle) -> &mut StateNode {
+        self.state_storage.states.get_mut(handle)
+    }
+
     pub fn machine(&self, handle: MachineHandle) -> &MachineNode {
         self.state_storage.machines.get(handle)
     }
