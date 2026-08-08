@@ -1420,7 +1420,14 @@ fn lower_selected_machine(
     if states.len() >= 2
         && checked.primitive_type_reference(states[0].return_type) == Some(PrimitiveType::Bool)
     {
-        return lower_boolean_state_chain(checked, machine, states);
+        return if states[1..]
+            .iter()
+            .all(|state| checked.state_parameters(state).len() == 1)
+        {
+            lower_boolean_state_chain(checked, machine, states)
+        } else {
+            lower_nested_boolean_branch_machine(checked, machine, states)
+        };
     }
     if states.len() >= 2 {
         return lower_integer_state_chain(checked, machine, states);

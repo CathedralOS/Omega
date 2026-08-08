@@ -199,9 +199,11 @@ Remaining:
   native targets. Short-circuit Boolean jump bindings now converge through
   value-producing decision blocks, including ordered multi-value tuples whose
   elements evaluate left-to-right in staged blocks while carrying earlier
-  results to the authored target. Computed Boolean conditional-edge bindings
-  use the same arm-local construction, including short-circuit tuples, so the
-  unselected payload is neither evaluated nor charged.
+  results to the authored target; an unconditional multi-value graph no longer
+  needs an artificial selector to reach the general lowerer. Computed Boolean
+  conditional-edge bindings use the same arm-local construction, including
+  short-circuit tuples, so the unselected payload is neither evaluated nor
+  charged.
 - Replace all remaining terminal-path `ExpressionHandle` and source-tree
   dependencies with lowered values and predicates. Absorb useful StateGraph /
   ControlFlow topology, then retire the legacy backend lane as consumers move.

@@ -118,7 +118,9 @@ The general Boolean-result form supports rooted acyclic nested selections and
 convergent tails with recursive unconditional bindings and short-circuit
 returns. Short-circuit jumps converge at value-producing decision leaves;
 ordered multi-value tuples use left-to-right stages that carry already-produced
-values through each later decision tree before one final target jump.
+values through each later decision tree before one final target jump. The
+general path accepts pure unconditional multi-value graphs without a synthetic
+selector.
 Conditional successors use those same arm-local binding blocks, so recursive
 and short-circuit payloads execute only after their edge is selected.
 It emits the semantic module and proof bundle separately and fails closed on
