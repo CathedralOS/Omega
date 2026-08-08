@@ -152,7 +152,7 @@ enum LoweredIntegerBinaryKind {
 enum LoweredIntegerBranchTerminator {
     Jump {
         target: usize,
-        arguments: Vec<usize>,
+        arguments: Vec<LoweredDirectExpression>,
     },
     Conditional {
         condition: LoweredBooleanReturnExpression,
@@ -1898,20 +1898,22 @@ fn lower_nested_integer_branch_machine(
                 }
                 validate_boolean_parameter_types(&condition, &parameter_types)?;
 
-                let (when_true_target, when_true_arguments) = lower_nested_branch_successor(
-                    checked,
-                    states,
-                    parameters,
-                    &parameter_types,
-                    when_true,
-                )?;
-                let (when_false_target, when_false_arguments) = lower_nested_branch_successor(
-                    checked,
-                    states,
-                    parameters,
-                    &parameter_types,
-                    when_false,
-                )?;
+                let (when_true_target, when_true_arguments) =
+                    lower_nested_branch_parameter_successor(
+                        checked,
+                        states,
+                        parameters,
+                        &parameter_types,
+                        when_true,
+                    )?;
+                let (when_false_target, when_false_arguments) =
+                    lower_nested_branch_parameter_successor(
+                        checked,
+                        states,
+                        parameters,
+                        &parameter_types,
+                        when_false,
+                    )?;
                 successors[state_index] = vec![when_true_target, when_false_target];
                 indegree[when_true_target] = indegree[when_true_target]
                     .checked_add(1)
@@ -1933,7 +1935,7 @@ fn lower_nested_integer_branch_machine(
                 if transition.continuation.is_valid() {
                     return unsupported("nested branch transitions cannot carry continuations");
                 }
-                let (target, arguments) = lower_nested_branch_successor(
+                let (target, arguments) = lower_nested_branch_jump_successor(
                     checked,
                     states,
                     parameters,
@@ -1983,7 +1985,7 @@ fn lower_nested_integer_branch_machine(
     ))
 }
 
-fn lower_nested_branch_successor(
+fn lower_nested_branch_parameter_successor(
     checked: &CheckedTrees,
     states: &[psi_checked_trees::state::State],
     parameters: &[psi_checked_trees::signature::StateParameter],
@@ -2034,6 +2036,55 @@ fn lower_nested_branch_successor(
         })
         .collect::<Result<Vec<_>, _>>()?;
     Ok((target, positions))
+}
+
+fn lower_nested_branch_jump_successor(
+    checked: &CheckedTrees,
+    states: &[psi_checked_trees::state::State],
+    parameters: &[psi_checked_trees::signature::StateParameter],
+    parameter_types: &[ScalarType],
+    transition: &psi_checked_trees::statement::TableTransition,
+) -> Result<(usize, Vec<LoweredDirectExpression>), LoweringError> {
+    let TransitionTargetNode::Named { path, arguments } =
+        checked.statement_table.transition_target(transition.target)
+    else {
+        return unsupported("nested branch successors must target named states");
+    };
+    let target = states
+        .iter()
+        .position(|candidate| candidate.symbol == path.symbol)
+        .ok_or(LoweringError::Unsupported(
+            "nested branch successor must belong to the selected machine",
+        ))?;
+    let target_parameters = checked.state_parameters(&states[target]);
+    let arguments = checked.statement_table.expression_handles(*arguments);
+    if arguments.len() != target_parameters.len() {
+        return unsupported(
+            "nested branch successor bindings must match the target parameter count",
+        );
+    }
+    let arguments = arguments
+        .iter()
+        .zip(target_parameters)
+        .map(|(argument, target_parameter)| {
+            let target_type = terminal_scalar_type(
+                checked
+                    .primitive_type_reference(target_parameter.type_reference)
+                    .ok_or(LoweringError::Unsupported(
+                        "nested branch target parameters must be primitive Boolean or integer values",
+                    ))?,
+            )?;
+            lower_direct_return_expression(
+                checked,
+                *argument,
+                parameters,
+                parameter_types,
+                target_type,
+            )
+            .map(|(expression, _)| expression)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok((target, arguments))
 }
 
 fn validate_boolean_parameter_types(
@@ -3923,6 +3974,17 @@ fn build_nested_integer_branch_module(
         let current_parameters = &state_parameters[index];
         let terminator = match &state.terminator {
             LoweredIntegerBranchTerminator::Jump { target, arguments } => {
+                let arguments = arguments
+                    .iter()
+                    .map(|argument| {
+                        emit_direct_expression(
+                            argument,
+                            current_parameters,
+                            &mut next_value_identity,
+                            &mut all_operations,
+                        )
+                    })
+                    .collect();
                 let edge = edge_id(next_edge_identity);
                 next_edge_identity = next_edge_identity
                     .checked_add(1)
@@ -3935,10 +3997,7 @@ fn build_nested_integer_branch_module(
                             .checked_add(1)
                             .expect("block identity is nonzero"),
                     ),
-                    arguments: arguments
-                        .iter()
-                        .map(|position| current_parameters[*position].id)
-                        .collect(),
+                    arguments,
                 }
             }
             LoweredIntegerBranchTerminator::Conditional {

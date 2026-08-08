@@ -181,7 +181,10 @@ Remaining:
   behavior, Omega lowering, canonical encoding, and fuel identity land
   together. Add general blocks, calls, aggregate values, structural places,
   cleanup/transfer actions, and boundary operations without restoring an
-  Omega-to-Psi bridge.
+  Omega-to-Psi bridge. Rooted acyclic integer graphs now lower computed
+  expressions on unconditional jump bindings through verification,
+  interpretation, fuel, and both native targets. Conditional-edge computation
+  remains until operations can stay local to the selected edge.
 - Replace all remaining terminal-path `ExpressionHandle` and source-tree
   dependencies with lowered values and predicates. Absorb useful StateGraph /
   ControlFlow topology, then retire the legacy backend lane as consumers move.

@@ -742,6 +742,76 @@ fn checked_source_acyclic_branch_graph_reaches_both_native_backends() {
     }
 }
 
+#[test]
+fn checked_source_nested_jump_expressions_reach_terminal_and_native_lowering() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("computed nested-jump source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_nested_jump_expression")
+        .expect("an unconditional nested jump may compute its arguments");
+    drop(checked);
+
+    assert_eq!(lowered.semantic_module.machines[0].blocks.len(), 4);
+    assert_eq!(
+        lowered.semantic_module.machines[0].blocks[1]
+            .operations
+            .len(),
+        2
+    );
+    assert_eq!(
+        lowered.semantic_module.machines[0].blocks[2]
+            .operations
+            .len(),
+        2
+    );
+    let semantic_bytes = encode_module(&lowered.semantic_module)
+        .expect("computed nested jump should encode canonically");
+    let proof_bytes = encode_proof_bundle(&lowered.proof_bundle)
+        .expect("computed nested-jump proof should encode canonically");
+    let semantic_module =
+        decode_module(&semantic_bytes).expect("decode computed nested-jump module");
+    let proof_bundle =
+        decode_proof_bundle(&proof_bytes).expect("decode computed nested-jump proof");
+    let verified = verify_module(
+        &semantic_module,
+        &proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("computed nested jump should verify after frontend drop");
+    assert_eq!(
+        derive_fixed_entry_fuel(&verified, semantic_module.entry)
+            .expect("computed nested jump should have an exact fuel bound")
+            .ceiling_units(),
+        5
+    );
+
+    let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let integer = |value| TerminalScalarValue::Integer {
+        scalar_type: u8_type,
+        value: IntegerValue::Unsigned(value),
+    };
+    for (choose_add, expected) in [(true, 8_u128), (false, 14)] {
+        let measured = interpret_terminal_measured(
+            &verified,
+            &[TerminalScalarValue::Boolean(choose_add), integer(7)],
+        )
+        .expect("computed nested jump should interpret");
+        assert_eq!(measured.value(), integer(expected));
+        assert_eq!(measured.usage().total_units(), 5);
+    }
+
+    let abstract_operations = lower_verified_module(&verified)
+        .expect("computed nested jump should cross the Omega abstract boundary");
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_operations = lower_to_target_operations(&abstract_operations, target)
+            .expect("computed nested jump should select for both native targets");
+        let assigned = assign_registers(&target_operations)
+            .expect("computed nested-jump parameter homes should assign");
+        let machine_code =
+            emit_machine_code(&assigned).expect("computed nested-jump machine code should emit");
+        assert!(!machine_code.functions[0].bytes.is_empty());
+    }
+}
+
 #[cfg(unix)]
 #[test]
 fn checked_source_literal_conditional_emits_only_its_selected_arm() {

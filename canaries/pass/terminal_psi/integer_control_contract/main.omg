@@ -276,6 +276,26 @@ ensures 0u8 == 0u8
     state finish(value: u8 in Wrapping) -> u8 in Wrapping { value + 1u8 }
 }
 
+machine terminal_nested_jump_expression(
+    choose_add: bool,
+    value: u8 in Wrapping
+) -> u8 in Wrapping
+requires 0u8 == 0u8
+ensures 0u8 == 0u8
+{
+    transition choose_add {
+        true -> add_selected(value)
+        _ -> multiply_selected(value)
+    }
+    state add_selected(value: u8 in Wrapping) -> u8 in Wrapping {
+        transition { _ -> finish_computed(value + 1u8) }
+    }
+    state multiply_selected(value: u8 in Wrapping) -> u8 in Wrapping {
+        transition { _ -> finish_computed(value * 2u8) }
+    }
+    state finish_computed(value: u8 in Wrapping) -> u8 in Wrapping { value }
+}
+
 machine terminal_literal_conditional(value: u8 in Wrapping) -> u8 in Wrapping
 requires 20u8 == 20u8
 ensures 20u8 == 20u8

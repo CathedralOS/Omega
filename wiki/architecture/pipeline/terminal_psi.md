@@ -167,8 +167,10 @@ executes and charges only the selected edge, and Omega's source-independent
 abstract plan retains canonical block entries and both successor records.
 The checked-source producer lowers scalar integer-result acyclic control graphs
 whose blocks return, jump unconditionally, or select one ordered
-positive-Boolean/fallback successor pair. Edges bind already-defined scalar
-parameters with exact types. Nested selections and convergent tails retain
+positive-Boolean/fallback successor pair. Unconditional jumps may compute
+recursive exact-typed integer expressions for their bindings; conditional
+successor bindings remain already-defined scalar parameters so unselected-arm
+work is neither evaluated nor charged. Nested selections and convergent tails retain
 their authored blocks and edges in terminal Psi; proof reconstruction
 intersects facts at joins, and the fixed-work checker derives the maximum
 entry-to-return cost. Omega recursively realizes the graph on x86-64 and
@@ -237,10 +239,12 @@ domains. The conditional integer form admits a rooted acyclic graph of source
 states. Each control block owns one ordered positive-Boolean/fallback pair,
 each linear block owns one unconditional successor, and leaves return a
 recursively nested integer expression. Successors bind ordered already-defined
-Boolean or integer parameters with exact target types; joins are explicit
-block-parameter merges. Direct guards currently exclude short-circuit
-operations and branching-graph edge bindings currently name existing
-parameters. This preserves source ordering and keeps each branch's computation
+Boolean or integer parameters with exact target types; an unconditional jump
+may instead compute recursively nested parameter/literal integer expressions
+before binding its target. Joins are explicit block-parameter merges. Direct
+guards currently exclude short-circuit operations, and conditional edge
+bindings still name existing parameters because terminal edges do not own
+operations. This preserves source ordering and keeps each branch's computation
 local to its selected path. The
 parallel Boolean conditional form accepts the recursive Boolean vocabulary in
 its positive guard and both branch returns. A short-circuit guard sends its

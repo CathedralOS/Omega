@@ -98,9 +98,10 @@ ordinary primitive-integer parameters; or an
 integer-constant/unconditional-jump whose return is the matching literal or a
 builtin parameter-plus-literal wrapping/saturating add, subtract, or multiply;
 or a rooted acyclic integer-result graph whose blocks return, jump
-unconditionally, or select ordered positive-Boolean/fallback successors while
-binding exact-typed already-defined scalar parameters. Nested selections,
-linear prefixes, and convergent tails use the same terminal block and edge
+unconditionally, or select ordered positive-Boolean/fallback successors.
+Unconditional jumps may compute recursive exact-typed integer bindings;
+conditional edges bind already-defined scalar parameters so the unselected arm
+does no work. Nested selections, linear prefixes, and convergent tails use the same terminal block and edge
 vocabulary. The ordered Boolean-result form supports ordinary Boolean
 entry/branch parameters with recursive short-circuit guards and branch returns.
 It emits the semantic module and proof bundle separately and fails closed on
