@@ -4,7 +4,8 @@ This sample explores Omega as a console program rather than a windowed game.
 
 What it is trying to prove:
 
-- `data Main` plus `machine Main::main(&mut self)` can drive a terminal application
+- an attached entry machine with one `&mut self` receiver can drive a terminal
+  application
 - console input/output is isolated behind a platform machine
 - room entry is explicit and visible in the state graph
 - level data can be hardcoded without hardcoding traversal logic
@@ -43,6 +44,12 @@ Sample layout:
 - `rooms/`, `inventory/`, `events/`, `combat/`, `player/`, `enemies/`,
   and `rewards/`: domain-owned models plus their behavior
 - `platform/`: console boundary
+
+The source currently uses the compatibility `Main::main` spelling and the
+legacy target manifest. In the settled model, an installable `build.omg` binds
+the target's program-entry slot to that exact attached machine. The binding
+requests one target-provisioned receiver; it does not make `Main` static, pass a
+receiver value, or give the `data` declaration storage authority.
 
 Build output:
 
