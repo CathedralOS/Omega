@@ -2715,6 +2715,85 @@ fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
         let mut guarded_meter = TerminalFuelMeter::unbounded();
         assert_eq!(execution.resume(&mut guarded_meter).unwrap(), expected);
     }
+    let integer_guarded_trap = lower_machine(&checked, "terminal_integer_guarded_trap")
+        .expect("exact-type integer comparison should open a guarded crash branch");
+    assert!(matches!(
+        &integer_guarded_trap.semantic_module.machines[0].blocks[0].operations[..],
+        [
+            psi_terminal::Operation {
+                kind: psi_terminal::OperationKind::IntegerConstant { .. },
+                ..
+            },
+            psi_terminal::Operation {
+                kind: psi_terminal::OperationKind::WrappingIntegerAdd { .. },
+                ..
+            },
+            psi_terminal::Operation {
+                kind: psi_terminal::OperationKind::IntegerLessOrEqual { left, right },
+                ..
+            },
+        ] if left.get() == 2 && right.get() == 4
+    ));
+    let integer_guarded_semantic_bytes = encode_module(&integer_guarded_trap.semantic_module)
+        .expect("integer-guarded crash should encode");
+    let integer_guarded_proof_bytes = encode_proof_bundle(&integer_guarded_trap.proof_bundle)
+        .expect("integer-guarded crash proof should encode");
+    let integer_guarded_semantic_module = decode_module(&integer_guarded_semantic_bytes)
+        .expect("integer-guarded crash should decode");
+    let integer_guarded_proof_bundle = decode_proof_bundle(&integer_guarded_proof_bytes)
+        .expect("integer-guarded crash proof should decode");
+    let integer_guarded_verified = verify_module(
+        &integer_guarded_semantic_module,
+        &integer_guarded_proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("the integer-guarded crash branch should verify");
+    assert_eq!(
+        derive_fixed_entry_fuel(
+            &integer_guarded_verified,
+            integer_guarded_semantic_module.entry
+        )
+        .expect("integer-guarded crash control should have a fixed entry ceiling")
+        .ceiling_units(),
+        6
+    );
+    for (value, limit, expected) in [
+        (
+            1,
+            2,
+            TerminalExecutionStatus::Crashed(omega_interpreter::TerminalCrash {
+                cause: CrashCause::Trap,
+                damage_minimum: "Activation".to_owned(),
+                containment_demand: "ExecutionDomain".to_owned(),
+                frontier_lower_bound: Vec::new(),
+            }),
+        ),
+        (
+            1,
+            3,
+            TerminalExecutionStatus::Complete(TerminalScalarValue::Integer {
+                scalar_type: i32_type,
+                value: IntegerValue::Signed(0),
+            }),
+        ),
+    ] {
+        let mut execution = TerminalExecution::start(
+            &integer_guarded_verified,
+            &[
+                TerminalScalarValue::Integer {
+                    scalar_type: i32_type,
+                    value: IntegerValue::Signed(value),
+                },
+                TerminalScalarValue::Integer {
+                    scalar_type: i32_type,
+                    value: IntegerValue::Signed(limit),
+                },
+            ],
+        )
+        .expect("integer-guarded crash execution should start");
+        let mut meter = TerminalFuelMeter::unbounded();
+        assert_eq!(execution.resume(&mut meter).unwrap(), expected);
+    }
     let implied_trap = lower_machine(&checked, "terminal_implied_guarded_trap")
         .expect("structurally implied guard coverage should reach terminal production");
     let implied_verified = verify_module(

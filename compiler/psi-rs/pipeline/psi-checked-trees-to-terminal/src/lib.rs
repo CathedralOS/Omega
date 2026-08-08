@@ -107,6 +107,11 @@ enum LoweredBooleanReturnExpression {
         left: Box<LoweredBooleanReturnExpression>,
         right: Box<LoweredBooleanReturnExpression>,
     },
+    IntegerComparison {
+        kind: LoweredIntegerComparisonKind,
+        left: Box<LoweredDirectExpression>,
+        right: Box<LoweredDirectExpression>,
+    },
     And {
         left: Box<LoweredBooleanReturnExpression>,
         right: Box<LoweredBooleanReturnExpression>,
@@ -115,6 +120,23 @@ enum LoweredBooleanReturnExpression {
         left: Box<LoweredBooleanReturnExpression>,
         right: Box<LoweredBooleanReturnExpression>,
     },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LoweredIntegerComparisonKind {
+    Equal,
+    LessThan,
+    LessOrEqual,
+}
+
+impl LoweredIntegerComparisonKind {
+    const fn operation(self, left: ValueId, right: ValueId) -> OperationKind {
+        match self {
+            Self::Equal => OperationKind::IntegerEqual { left, right },
+            Self::LessThan => OperationKind::IntegerLessThan { left, right },
+            Self::LessOrEqual => OperationKind::IntegerLessOrEqual { left, right },
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2109,6 +2131,33 @@ fn validate_boolean_parameter_types(
             validate_boolean_parameter_types(left, parameter_types)?;
             validate_boolean_parameter_types(right, parameter_types)
         }
+        LoweredBooleanReturnExpression::IntegerComparison { left, right, .. } => {
+            validate_direct_parameter_types(left, parameter_types)?;
+            validate_direct_parameter_types(right, parameter_types)
+        }
+    }
+}
+
+fn validate_direct_parameter_types(
+    expression: &LoweredDirectExpression,
+    parameter_types: &[ScalarType],
+) -> Result<(), LoweringError> {
+    match expression {
+        LoweredDirectExpression::Parameter {
+            position,
+            scalar_type,
+        } => {
+            if parameter_types.get(*position) == Some(scalar_type) {
+                Ok(())
+            } else {
+                unsupported("nested branch integer guard parameter type does not match")
+            }
+        }
+        LoweredDirectExpression::IntegerLiteral { .. } => Ok(()),
+        LoweredDirectExpression::IntegerBinary { left, right, .. } => {
+            validate_direct_parameter_types(left, parameter_types)?;
+            validate_direct_parameter_types(right, parameter_types)
+        }
     }
 }
 
@@ -2567,13 +2616,80 @@ fn lower_boolean_expression(
         ExpressionNode::Binary(binary)
             if matches!(
                 binary.operator,
-                BinaryOperator::Equal | BinaryOperator::NotEqual
+                BinaryOperator::Equal
+                    | BinaryOperator::NotEqual
+                    | BinaryOperator::Less
+                    | BinaryOperator::LessOrEqual
+                    | BinaryOperator::Greater
+                    | BinaryOperator::GreaterOrEqual
             ) =>
         {
             if let Some(operator_use) = checked.facts.operators.expression_use(expression)
                 && operator_use.status != CheckedOperatorResolutionStatus::BuiltinFallback
             {
                 return unsupported("terminal Boolean comparison must use the builtin operator");
+            }
+            let parameter_types = parameters
+                .iter()
+                .map(|parameter| {
+                    terminal_scalar_type(
+                        checked
+                            .primitive_type_reference(parameter.type_reference)
+                            .ok_or(LoweringError::Unsupported(
+                                "terminal comparison parameters must be primitive scalar values",
+                            ))?,
+                    )
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            let integer_operands = (|| {
+                let (left, _) =
+                    lower_direct_expression(checked, binary.left, parameters, &parameter_types)?;
+                let (right, _) =
+                    lower_direct_expression(checked, binary.right, parameters, &parameter_types)?;
+                if !matches!(left.scalar_type(), ScalarType::Integer(_))
+                    || left.scalar_type() != right.scalar_type()
+                {
+                    return unsupported(
+                        "terminal integer comparison operands must have one exact integer type",
+                    );
+                }
+                Ok((left, right))
+            })();
+            if !matches!(
+                binary.operator,
+                BinaryOperator::Equal | BinaryOperator::NotEqual
+            ) || integer_operands.is_ok()
+            {
+                let (mut left, mut right) = integer_operands?;
+                let (kind, negated) = match binary.operator {
+                    BinaryOperator::Equal => (LoweredIntegerComparisonKind::Equal, false),
+                    BinaryOperator::NotEqual => (LoweredIntegerComparisonKind::Equal, true),
+                    BinaryOperator::Less => (LoweredIntegerComparisonKind::LessThan, false),
+                    BinaryOperator::LessOrEqual => {
+                        (LoweredIntegerComparisonKind::LessOrEqual, false)
+                    }
+                    BinaryOperator::Greater => {
+                        std::mem::swap(&mut left, &mut right);
+                        (LoweredIntegerComparisonKind::LessThan, false)
+                    }
+                    BinaryOperator::GreaterOrEqual => {
+                        std::mem::swap(&mut left, &mut right);
+                        (LoweredIntegerComparisonKind::LessOrEqual, false)
+                    }
+                    _ => unreachable!("comparison expression filters operators"),
+                };
+                let comparison = LoweredBooleanReturnExpression::IntegerComparison {
+                    kind,
+                    left: Box::new(left),
+                    right: Box::new(right),
+                };
+                return Ok(if negated {
+                    LoweredBooleanReturnExpression::Not {
+                        operand: Box::new(comparison),
+                    }
+                } else {
+                    comparison
+                });
             }
             let equality = LoweredBooleanReturnExpression::Equal {
                 left: Box::new(lower_boolean_expression(checked, binary.left, parameters)?),
@@ -2604,7 +2720,7 @@ fn lower_boolean_expression(
             })
         }
         _ => unsupported(
-            "Boolean terminal expressions require a literal, declared parameter, logical not, builtin equality/inequality, or short-circuit logic",
+            "Boolean terminal expressions require a literal, declared parameter, logical not, builtin Boolean equality/inequality, exact-type integer comparison, or short-circuit logic",
         ),
     }
 }
@@ -2612,7 +2728,8 @@ fn lower_boolean_expression(
 fn contains_short_circuit(expression: &LoweredBooleanReturnExpression) -> bool {
     match expression {
         LoweredBooleanReturnExpression::Constant { .. }
-        | LoweredBooleanReturnExpression::Parameter { .. } => false,
+        | LoweredBooleanReturnExpression::Parameter { .. }
+        | LoweredBooleanReturnExpression::IntegerComparison { .. } => false,
         LoweredBooleanReturnExpression::Not { operand } => contains_short_circuit(operand),
         LoweredBooleanReturnExpression::Equal { left, right } => {
             contains_short_circuit(left) || contains_short_circuit(right)
@@ -2628,7 +2745,8 @@ fn validate_short_circuit_expression(
 ) -> Result<(), LoweringError> {
     match expression {
         LoweredBooleanReturnExpression::Constant { .. }
-        | LoweredBooleanReturnExpression::Parameter { .. } => Ok(()),
+        | LoweredBooleanReturnExpression::Parameter { .. }
+        | LoweredBooleanReturnExpression::IntegerComparison { .. } => Ok(()),
         LoweredBooleanReturnExpression::Not { operand } => {
             validate_short_circuit_expression(operand)
         }
@@ -2652,20 +2770,33 @@ fn lower_positive_boolean_guard(
     let ExpressionNode::Binary(binary) = checked.expression_table.expression(expression) else {
         return lower_boolean_expression(checked, expression, parameters);
     };
-    if binary.operator != BinaryOperator::Equal {
-        return unsupported("conditional guards require a positive Boolean pattern");
+    if binary.operator == BinaryOperator::Equal {
+        match (
+            checked.expression_table.expression(binary.left),
+            checked.expression_table.expression(binary.right),
+        ) {
+            (ExpressionNode::Boolean(true), _) => {
+                return lower_boolean_expression(checked, binary.right, parameters);
+            }
+            (_, ExpressionNode::Boolean(true)) => {
+                return lower_boolean_expression(checked, binary.left, parameters);
+            }
+            _ => {}
+        }
     }
-    match (
-        checked.expression_table.expression(binary.left),
-        checked.expression_table.expression(binary.right),
-    ) {
-        (ExpressionNode::Boolean(true), _) => {
-            lower_boolean_expression(checked, binary.right, parameters)
-        }
-        (_, ExpressionNode::Boolean(true)) => {
-            lower_boolean_expression(checked, binary.left, parameters)
-        }
-        _ => unsupported("conditional guards require a positive Boolean pattern"),
+    let guard = lower_boolean_expression(checked, expression, parameters)?;
+    let is_integer_comparison = match &guard {
+        LoweredBooleanReturnExpression::IntegerComparison { .. } => true,
+        LoweredBooleanReturnExpression::Not { operand } => matches!(
+            operand.as_ref(),
+            LoweredBooleanReturnExpression::IntegerComparison { .. }
+        ),
+        _ => false,
+    };
+    if is_integer_comparison {
+        Ok(guard)
+    } else {
+        unsupported("conditional guards require a positive Boolean pattern")
     }
 }
 
@@ -2685,6 +2816,7 @@ fn evaluate_boolean_expression(
             evaluate_boolean_expression(left, parameters)?
                 == evaluate_boolean_expression(right, parameters)?,
         ),
+        LoweredBooleanReturnExpression::IntegerComparison { .. } => None,
         LoweredBooleanReturnExpression::And { left, right } => {
             let left = evaluate_boolean_expression(left, parameters)?;
             if left {
@@ -3540,7 +3672,8 @@ fn lower_boolean_value_decision(
             })
         }
         LoweredBooleanReturnExpression::Constant { .. }
-        | LoweredBooleanReturnExpression::Parameter { .. } => {
+        | LoweredBooleanReturnExpression::Parameter { .. }
+        | LoweredBooleanReturnExpression::IntegerComparison { .. } => {
             unreachable!("non-short-circuit expressions return above")
         }
     }
@@ -4585,6 +4718,28 @@ fn emit_boolean_expression(
                     scalar_type: ScalarType::Boolean,
                 },
                 kind: OperationKind::BooleanConstant { value: *value },
+            });
+            id
+        }
+        LoweredBooleanReturnExpression::IntegerComparison { kind, left, right } => {
+            let left = emit_direct_expression(left, parameters, next_value_identity, operations);
+            let right = emit_direct_expression(right, parameters, next_value_identity, operations);
+            let id = value_id(*next_value_identity);
+            *next_value_identity = next_value_identity
+                .checked_add(1)
+                .expect("generated value identity advances after integer comparison");
+            operations.push(Operation {
+                id: operation_id(
+                    u64::try_from(operations.len())
+                        .expect("operation count fits a semantic identity")
+                        .checked_add(1)
+                        .expect("operation identity is nonzero"),
+                ),
+                result: ValueDeclaration {
+                    id,
+                    scalar_type: ScalarType::Boolean,
+                },
+                kind: kind.operation(left, right),
             });
             id
         }

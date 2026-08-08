@@ -82,7 +82,10 @@ negated equality/inequality. Ordered-comparison negation is admitted only for
 checked integer operands; integer strict order also yields its non-strict bound
 and inequality, while integer equality yields both non-strict bounds. Unknown,
 user-defined, and float operands remain opaque so unordered values remain
-sound. Broader guard entailment and source shapes remain.
+sound. Exact-type integer comparisons now also lower as executable control
+guards over the established recursive integer-expression vocabulary. Greater
+forms swap operands into canonical less operations and inequality composes
+terminal Boolean negation. Broader guard entailment and source shapes remain.
 
 The first Psi-owned checked-tree producer, `psi-checked-trees-to-terminal`,
 lowers a closed set of scalar closed-contract source forms: a recursively nested Boolean
@@ -99,6 +102,8 @@ integer-constant/unconditional-jump whose return is the matching literal or a
 builtin parameter-plus-literal wrapping/saturating add, subtract, or multiply;
 or a rooted acyclic integer-result graph whose blocks return, jump
 unconditionally, or select ordered positive-Boolean/fallback successors.
+Selection guards may be Boolean parameters or exact-type builtin integer
+comparisons over recursive integer expressions.
 Unconditional jumps may compute recursive exact-typed integer bindings;
 conditional edges bind already-defined scalar parameters so the unselected arm
 does no work. Nested selections, linear prefixes, and convergent tails use the same terminal block and edge

@@ -71,7 +71,11 @@ covering bucket, emits its selected containment demand and the site's derived
 damage minimum on the crash terminator, and fails closed for absent or
 ambiguous coverage. This covers crash-only unconditional machines and
 checker-proved incoming-path guards in the acyclic integer-control slice,
-including nested-negation implication and portable comparison equivalences.
+including exact-type integer comparison guards, nested-negation implication,
+and portable comparison equivalences. Integer guard operands may use the same
+recursive scalar-expression vocabulary as integer results; equality and order
+retain terminal operations, inequality composes `BooleanNot`, and greater forms
+swap operands into the canonical less relation.
 Route facts are already
 restricted to Boolean expressions. Public contract and generic-template
 identities already merge exact `(cause, scope)` buckets, discard duplicate
@@ -136,7 +140,8 @@ rejects narrower authored demand, and emits both the derived minimum and
 selected published demand into v23. Archived v22 bytes decode conservatively
 with both in-memory fields equal to their single encoded scope. Conditional
 frontier membership, finer custody-based minimum widening, broader guarded
-production, narrower supervisor/task context production, and installation
+production beyond the scalar acyclic slice, narrower supervisor/task context
+production, and installation
 realization remain the rest of CRASH-CONTRACT. Terminal Psi v24 stores each
 effective sparse per-cause context maximum in the fingerprinted machine
 contract and the verifier enforces `containment demand <= context
