@@ -1582,3 +1582,23 @@ pub(crate) fn canonical_crash_binary_path_predicate(
     );
     psi_checked_trees::CrashPredicateIdentity::from_canonical_bytes(bytes)
 }
+
+/// Canonical source-handle-free identity for one operand participating in a
+/// checker-derived crash-predicate relation. This is an internal join key;
+/// only complete predicate identities enter checked crash plans.
+pub(crate) fn canonical_crash_operand_identity(
+    program: &TypedTrees,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+    parameter_names: &[String],
+    content_conservation: &[psi_validation::ContentConservationSourcePlan],
+) -> psi_checked_trees::CrashPredicateIdentity {
+    let mut bytes = vec![0x6f]; // checker-private operand namespace
+    encode_contract_expression_canonical(
+        program,
+        expression,
+        parameter_names,
+        content_conservation,
+        &mut bytes,
+    );
+    psi_checked_trees::CrashPredicateIdentity::from_canonical_bytes(bytes)
+}
