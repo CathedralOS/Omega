@@ -412,6 +412,29 @@ ensures true == true
     state finish_boolean(value: bool) -> bool { value || !value }
 }
 
+machine terminal_boolean_computed_conditional_edges(
+    first: bool,
+    second: bool,
+    third: bool,
+    fourth: bool,
+    fallback: bool
+) -> bool
+requires true == true
+ensures true == true
+{
+    transition first && second {
+        true -> staged_boolean_edge(first || third, third && fourth)
+        _ -> direct_boolean_edge(!fallback, fallback)
+    }
+    state staged_boolean_edge(any: bool, both: bool) -> bool {
+        transition { _ -> finish_boolean_edge(any, both) }
+    }
+    state direct_boolean_edge(inverted: bool, original: bool) -> bool {
+        transition { _ -> finish_boolean_edge(inverted, original) }
+    }
+    state finish_boolean_edge(left: bool, right: bool) -> bool { left == right }
+}
+
 machine terminal_runtime_saturating_add(value: u8 in Saturating) -> u8 in Saturating
 requires 255u8 == 255u8
 ensures 255u8 == 255u8

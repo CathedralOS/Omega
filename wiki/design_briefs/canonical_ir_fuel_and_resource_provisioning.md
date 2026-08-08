@@ -119,6 +119,8 @@ convergent tails with recursive unconditional bindings and short-circuit
 returns. Short-circuit jumps converge at value-producing decision leaves;
 ordered multi-value tuples use left-to-right stages that carry already-produced
 values through each later decision tree before one final target jump.
+Conditional successors use those same arm-local binding blocks, so recursive
+and short-circuit payloads execute only after their edge is selected.
 It emits the semantic module and proof bundle separately and fails closed on
 all other shapes. Its canaries drop the frontend trees before terminal
 verification and interpretation; ninth-parameter `bool` and `u8` machines
@@ -127,7 +129,9 @@ add combines its ninth stack argument with its first register argument and a
 nested add-then-multiply expression reaches the same native lane. A three-state
 companion also carries two independently computed bindings across each
 unconditional edge. A selected-edge companion computes distinct add/multiply
-bindings in synthesized true/false blocks and reaches both native targets. The
+bindings in synthesized true/false blocks and reaches both native targets. A
+Boolean companion selects either a staged short-circuit tuple or an ordinary
+computed tuple without executing the other arm. The
 source control canary executes each nested path after
 frontend disposal, meters only selected edges, and retains every successor and
 shared-tail edge at the Omega abstract boundary. Parsing

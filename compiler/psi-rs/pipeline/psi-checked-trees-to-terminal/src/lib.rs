@@ -212,9 +212,9 @@ enum LoweredBooleanBranchTerminator {
     Conditional {
         condition: LoweredBooleanReturnExpression,
         when_true_target: usize,
-        when_true_arguments: Vec<usize>,
+        when_true_arguments: Vec<LoweredBooleanReturnExpression>,
         when_false_target: usize,
-        when_false_arguments: Vec<usize>,
+        when_false_arguments: Vec<LoweredBooleanReturnExpression>,
     },
     Return {
         expression: LoweredBooleanReturnExpression,
@@ -245,10 +245,19 @@ struct PendingBooleanTupleBindingBlocks {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+struct PendingBooleanDirectBindingBlock {
+    id: BlockId,
+    parameters: Vec<ValueDeclaration>,
+    target: BlockId,
+    arguments: Vec<LoweredBooleanReturnExpression>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum PendingBooleanBlockGroup {
     Guard(PendingShortCircuitGuardBlocks),
     Value(PendingBooleanValueBlocks),
     TupleBinding(PendingBooleanTupleBindingBlocks),
+    DirectBinding(PendingBooleanDirectBindingBlock),
 }
 
 impl PendingBooleanBlockGroup {
@@ -257,6 +266,7 @@ impl PendingBooleanBlockGroup {
             Self::Guard(blocks) => blocks.first_id,
             Self::Value(blocks) => blocks.first_id,
             Self::TupleBinding(blocks) => blocks.first_id,
+            Self::DirectBinding(block) => block.id,
         }
     }
 }
@@ -1961,11 +1971,11 @@ fn lower_nested_boolean_branch_machine(
                 let condition = lower_positive_boolean_guard(checked, condition, parameters)?;
                 validate_short_circuit_expression(&condition)?;
                 let (when_true_target, when_true_arguments) =
-                    lower_nested_boolean_parameter_successor(
+                    lower_nested_boolean_conditional_successor(
                         checked, states, parameters, when_true,
                     )?;
                 let (when_false_target, when_false_arguments) =
-                    lower_nested_boolean_parameter_successor(
+                    lower_nested_boolean_conditional_successor(
                         checked, states, parameters, when_false,
                     )?;
                 successors[state_index] = vec![when_true_target, when_false_target];
@@ -2032,12 +2042,12 @@ fn lower_nested_boolean_branch_machine(
     ))
 }
 
-fn lower_nested_boolean_parameter_successor(
+fn lower_nested_boolean_conditional_successor(
     checked: &CheckedTrees,
     states: &[psi_checked_trees::state::State],
     parameters: &[psi_checked_trees::signature::StateParameter],
     transition: &psi_checked_trees::statement::TableTransition,
-) -> Result<(usize, Vec<usize>), LoweringError> {
+) -> Result<(usize, Vec<LoweredBooleanReturnExpression>), LoweringError> {
     let TransitionTargetNode::Named { path, arguments } =
         checked.statement_table.transition_target(transition.target)
     else {
@@ -2056,7 +2066,7 @@ fn lower_nested_boolean_parameter_successor(
             "nested Boolean successor bindings must match the target parameter count",
         );
     }
-    let positions = arguments
+    let arguments = arguments
         .iter()
         .zip(target_parameters)
         .map(|(argument, target_parameter)| {
@@ -2065,15 +2075,12 @@ fn lower_nested_boolean_parameter_successor(
             {
                 return unsupported("nested Boolean targets require Boolean parameters");
             }
-            let ExpressionNode::Name(path) = checked.expression_table.expression(*argument) else {
-                return unsupported(
-                    "nested Boolean conditional bindings require already-defined parameters",
-                );
-            };
-            direct_parameter_position(checked, path, parameters)
+            let expression = lower_boolean_expression(checked, *argument, parameters)?;
+            validate_short_circuit_expression(&expression)?;
+            Ok(expression)
         })
         .collect::<Result<Vec<_>, _>>()?;
-    Ok((target, positions))
+    Ok((target, arguments))
 }
 
 fn lower_nested_boolean_jump_successor(
@@ -4698,6 +4705,152 @@ fn build_nested_conditional_target(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+fn build_nested_boolean_conditional_target(
+    target: usize,
+    arguments: &[LoweredBooleanReturnExpression],
+    current_parameters: &[ValueDeclaration],
+    next_block_identity: &mut u64,
+    next_value_identity: &mut u64,
+    pending_blocks: &mut Vec<PendingBooleanBlockGroup>,
+) -> LoweredBooleanDecisionTarget {
+    let target = block_id(
+        u64::try_from(target)
+            .expect("state index fits a semantic identity")
+            .checked_add(1)
+            .expect("block identity is nonzero"),
+    );
+    let direct_arguments = arguments
+        .iter()
+        .map(|argument| match argument {
+            LoweredBooleanReturnExpression::Parameter { position } => {
+                Some(current_parameters[*position].id)
+            }
+            LoweredBooleanReturnExpression::Constant { .. }
+            | LoweredBooleanReturnExpression::Not { .. }
+            | LoweredBooleanReturnExpression::Equal { .. }
+            | LoweredBooleanReturnExpression::IntegerComparison { .. }
+            | LoweredBooleanReturnExpression::And { .. }
+            | LoweredBooleanReturnExpression::Or { .. } => None,
+        })
+        .collect::<Option<Vec<_>>>();
+    if let Some(arguments) = direct_arguments {
+        return LoweredBooleanDecisionTarget {
+            block: target,
+            arguments,
+        };
+    }
+
+    let first_id = block_id(*next_block_identity);
+    if let [argument] = arguments
+        && contains_short_circuit(argument)
+    {
+        let decision = lower_boolean_value_decision(argument);
+        *next_block_identity = next_block_identity
+            .checked_add(
+                u64::try_from(boolean_decision_block_count(&decision))
+                    .expect("Boolean edge binding block count fits a semantic identity"),
+            )
+            .expect("Boolean edge binding block identities advance");
+        let parameters = current_parameters
+            .iter()
+            .map(|_| {
+                let parameter = ValueDeclaration {
+                    id: value_id(*next_value_identity),
+                    scalar_type: ScalarType::Boolean,
+                };
+                *next_value_identity = next_value_identity
+                    .checked_add(1)
+                    .expect("Boolean edge binding parameter identities advance");
+                parameter
+            })
+            .collect::<Vec<_>>();
+        pending_blocks.push(PendingBooleanBlockGroup::Value(PendingBooleanValueBlocks {
+            first_id,
+            parameters,
+            decision,
+            exit: LoweredBooleanDecisionExit::Jump { target },
+        }));
+    } else if arguments.iter().any(contains_short_circuit) {
+        let reserved_block_count = arguments
+            .iter()
+            .map(|argument| {
+                if contains_short_circuit(argument) {
+                    boolean_decision_block_count(&lower_boolean_value_decision(argument))
+                } else {
+                    1
+                }
+            })
+            .sum::<usize>()
+            .checked_add(1)
+            .expect("Boolean edge tuple convergence block count advances");
+        *next_block_identity = next_block_identity
+            .checked_add(
+                u64::try_from(reserved_block_count)
+                    .expect("Boolean edge tuple block count fits a semantic identity"),
+            )
+            .expect("Boolean edge tuple block identities advance");
+        let stage_parameters = (0..=arguments.len())
+            .map(|completed_argument_count| {
+                (0..current_parameters.len() + completed_argument_count)
+                    .map(|_| {
+                        let parameter = ValueDeclaration {
+                            id: value_id(*next_value_identity),
+                            scalar_type: ScalarType::Boolean,
+                        };
+                        *next_value_identity = next_value_identity
+                            .checked_add(1)
+                            .expect("Boolean edge tuple parameter identities advance");
+                        parameter
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+        pending_blocks.push(PendingBooleanBlockGroup::TupleBinding(
+            PendingBooleanTupleBindingBlocks {
+                first_id,
+                original_parameter_count: current_parameters.len(),
+                arguments: arguments.to_vec(),
+                stage_parameters,
+                target,
+            },
+        ));
+    } else {
+        *next_block_identity = next_block_identity
+            .checked_add(1)
+            .expect("Boolean direct edge binding block identities advance");
+        let parameters = current_parameters
+            .iter()
+            .map(|_| {
+                let parameter = ValueDeclaration {
+                    id: value_id(*next_value_identity),
+                    scalar_type: ScalarType::Boolean,
+                };
+                *next_value_identity = next_value_identity
+                    .checked_add(1)
+                    .expect("Boolean direct edge binding parameter identities advance");
+                parameter
+            })
+            .collect::<Vec<_>>();
+        pending_blocks.push(PendingBooleanBlockGroup::DirectBinding(
+            PendingBooleanDirectBindingBlock {
+                id: first_id,
+                parameters,
+                target,
+                arguments: arguments.to_vec(),
+            },
+        ));
+    }
+
+    LoweredBooleanDecisionTarget {
+        block: first_id,
+        arguments: current_parameters
+            .iter()
+            .map(|parameter| parameter.id)
+            .collect(),
+    }
+}
+
 fn build_nested_boolean_branch_module(
     states: &[LoweredBooleanBranchState],
     contract_value: bool,
@@ -4919,20 +5072,22 @@ fn build_nested_boolean_branch_module(
                             parameter
                         })
                         .collect::<Vec<_>>();
-                    let target = |state: usize, positions: &[usize]| LoweredBooleanDecisionTarget {
-                        block: block_id(
-                            u64::try_from(state)
-                                .expect("state index fits a semantic identity")
-                                .checked_add(1)
-                                .expect("block identity is nonzero"),
-                        ),
-                        arguments: positions
-                            .iter()
-                            .map(|position| decision_parameters[*position].id)
-                            .collect(),
-                    };
-                    let when_true = target(*when_true_target, when_true_arguments);
-                    let when_false = target(*when_false_target, when_false_arguments);
+                    let when_true = build_nested_boolean_conditional_target(
+                        *when_true_target,
+                        when_true_arguments,
+                        &decision_parameters,
+                        &mut next_block_identity,
+                        &mut next_value_identity,
+                        &mut pending_blocks,
+                    );
+                    let when_false = build_nested_boolean_conditional_target(
+                        *when_false_target,
+                        when_false_arguments,
+                        &decision_parameters,
+                        &mut next_block_identity,
+                        &mut next_value_identity,
+                        &mut pending_blocks,
+                    );
                     pending_blocks.push(PendingBooleanBlockGroup::Guard(
                         PendingShortCircuitGuardBlocks {
                             first_id,
@@ -4970,23 +5125,34 @@ fn build_nested_boolean_branch_module(
                     next_edge_identity = next_edge_identity
                         .checked_add(2)
                         .expect("Boolean conditional edge identities advance");
-                    let successor = |edge, state: usize, positions: &[usize]| SuccessorEdge {
-                        edge,
-                        target: block_id(
-                            u64::try_from(state)
-                                .expect("state index fits a semantic identity")
-                                .checked_add(1)
-                                .expect("block identity is nonzero"),
-                        ),
-                        arguments: positions
-                            .iter()
-                            .map(|position| current_parameters[*position].id)
-                            .collect(),
-                    };
+                    let when_true = build_nested_boolean_conditional_target(
+                        *when_true_target,
+                        when_true_arguments,
+                        current_parameters,
+                        &mut next_block_identity,
+                        &mut next_value_identity,
+                        &mut pending_blocks,
+                    );
+                    let when_false = build_nested_boolean_conditional_target(
+                        *when_false_target,
+                        when_false_arguments,
+                        current_parameters,
+                        &mut next_block_identity,
+                        &mut next_value_identity,
+                        &mut pending_blocks,
+                    );
                     Terminator::Conditional {
                         condition,
-                        when_true: successor(true_edge, *when_true_target, when_true_arguments),
-                        when_false: successor(false_edge, *when_false_target, when_false_arguments),
+                        when_true: SuccessorEdge {
+                            edge: true_edge,
+                            target: when_true.block,
+                            arguments: when_true.arguments,
+                        },
+                        when_false: SuccessorEdge {
+                            edge: false_edge,
+                            target: when_false.block,
+                            arguments: when_false.arguments,
+                        },
                     }
                 }
             }
@@ -5182,6 +5348,35 @@ fn build_nested_boolean_branch_module(
                             .iter()
                             .map(|parameter| parameter.id)
                             .collect(),
+                    },
+                }));
+            }
+            PendingBooleanBlockGroup::DirectBinding(pending) => {
+                let operation_start = all_operations.len();
+                let arguments = pending
+                    .arguments
+                    .iter()
+                    .map(|argument| {
+                        emit_boolean_expression(
+                            argument,
+                            &pending.parameters,
+                            &mut next_value_identity,
+                            &mut all_operations,
+                        )
+                    })
+                    .collect();
+                let edge = edge_id(next_edge_identity);
+                next_edge_identity = next_edge_identity
+                    .checked_add(1)
+                    .expect("Boolean direct binding edge identity advances");
+                decision_blocks.push(Some(Block {
+                    id: pending.id,
+                    parameters: pending.parameters,
+                    operations: all_operations[operation_start..].to_vec(),
+                    terminator: Terminator::Jump {
+                        edge,
+                        target: pending.target,
+                        arguments,
                     },
                 }));
             }
