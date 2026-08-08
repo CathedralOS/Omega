@@ -2038,7 +2038,8 @@ fn lower_nested_boolean_branch_machine(
         return unsupported("nested Boolean control contains an unreachable state");
     }
 
-    let contract_value = validate_boolean_contract(checked, machine, None)?;
+    let expected_value = evaluate_known_boolean_graph(&lowered_states);
+    let contract_value = validate_boolean_contract(checked, machine, expected_value)?;
     let (identity_reshuffles, partition_compositions) =
         lower_content_evidence(checked, machine, &states[0])?;
     Ok(build_nested_boolean_branch_module(
@@ -2047,6 +2048,122 @@ fn lower_nested_boolean_branch_machine(
         identity_reshuffles,
         partition_compositions,
     ))
+}
+
+fn merge_known_boolean_parameters(
+    current: &mut Option<Vec<Option<bool>>>,
+    incoming: Vec<Option<bool>>,
+) {
+    if let Some(current) = current {
+        assert_eq!(current.len(), incoming.len());
+        for (current, incoming) in current.iter_mut().zip(incoming) {
+            if *current != incoming {
+                *current = None;
+            }
+        }
+    } else {
+        *current = Some(incoming);
+    }
+}
+
+fn evaluate_known_boolean_graph(states: &[LoweredBooleanBranchState]) -> Option<bool> {
+    let successors = states
+        .iter()
+        .map(|state| match &state.terminator {
+            LoweredBooleanBranchTerminator::Jump { target, .. } => vec![*target],
+            LoweredBooleanBranchTerminator::Conditional {
+                when_true_target,
+                when_false_target,
+                ..
+            } => vec![*when_true_target, *when_false_target],
+            LoweredBooleanBranchTerminator::Return { .. } => Vec::new(),
+        })
+        .collect::<Vec<_>>();
+    let mut indegree = vec![0_usize; states.len()];
+    for targets in &successors {
+        for target in targets {
+            indegree[*target] = indegree[*target]
+                .checked_add(1)
+                .expect("Boolean source state count fits usize");
+        }
+    }
+    let mut ready = indegree
+        .iter()
+        .enumerate()
+        .filter_map(|(index, indegree)| (*indegree == 0).then_some(index))
+        .collect::<BTreeSet<_>>();
+    let mut topological_order = Vec::with_capacity(states.len());
+    while let Some(state) = ready.iter().next().copied() {
+        ready.remove(&state);
+        topological_order.push(state);
+        for target in &successors[state] {
+            indegree[*target] = indegree[*target]
+                .checked_sub(1)
+                .expect("Boolean graph indegree is positive before traversal");
+            if indegree[*target] == 0 {
+                ready.insert(*target);
+            }
+        }
+    }
+    assert_eq!(topological_order.len(), states.len());
+
+    let mut known_parameters = vec![None; states.len()];
+    known_parameters[0] = Some(vec![None; states[0].parameter_count]);
+    let mut return_values = Vec::new();
+    for state_index in topological_order {
+        let Some(parameters) = known_parameters[state_index].clone() else {
+            continue;
+        };
+        let evaluate_arguments = |arguments: &[LoweredBooleanReturnExpression]| {
+            arguments
+                .iter()
+                .map(|argument| evaluate_boolean_expression(argument, &parameters))
+                .collect::<Vec<_>>()
+        };
+        match &states[state_index].terminator {
+            LoweredBooleanBranchTerminator::Jump { target, arguments } => {
+                merge_known_boolean_parameters(
+                    &mut known_parameters[*target],
+                    evaluate_arguments(arguments),
+                );
+            }
+            LoweredBooleanBranchTerminator::Conditional {
+                condition,
+                when_true_target,
+                when_true_arguments,
+                when_false_target,
+                when_false_arguments,
+            } => match evaluate_boolean_expression(condition, &parameters) {
+                Some(true) => merge_known_boolean_parameters(
+                    &mut known_parameters[*when_true_target],
+                    evaluate_arguments(when_true_arguments),
+                ),
+                Some(false) => merge_known_boolean_parameters(
+                    &mut known_parameters[*when_false_target],
+                    evaluate_arguments(when_false_arguments),
+                ),
+                None => {
+                    merge_known_boolean_parameters(
+                        &mut known_parameters[*when_true_target],
+                        evaluate_arguments(when_true_arguments),
+                    );
+                    merge_known_boolean_parameters(
+                        &mut known_parameters[*when_false_target],
+                        evaluate_arguments(when_false_arguments),
+                    );
+                }
+            },
+            LoweredBooleanBranchTerminator::Return { expression } => {
+                return_values.push(evaluate_boolean_expression(expression, &parameters));
+            }
+        }
+    }
+
+    let expected = return_values.first().copied().flatten()?;
+    return_values
+        .into_iter()
+        .all(|value| value == Some(expected))
+        .then_some(expected)
 }
 
 fn lower_nested_boolean_conditional_successor(

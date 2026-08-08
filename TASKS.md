@@ -203,7 +203,9 @@ Remaining:
   needs an artificial selector to reach the general lowerer. Computed Boolean
   conditional-edge bindings use the same arm-local construction, including
   short-circuit tuples, so the unselected payload is neither evaluated nor
-  charged.
+  charged. Compile-known values now propagate over the lowered acyclic Boolean
+  graph, meet conservatively at joins, and reject an unrelated reflexive
+  contract without re-reading source expressions.
 - Replace all remaining terminal-path `ExpressionHandle` and source-tree
   dependencies with lowered values and predicates. Absorb useful StateGraph /
   ControlFlow topology, then retire the legacy backend lane as consumers move.
