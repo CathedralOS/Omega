@@ -259,7 +259,11 @@ Remaining:
   operations, and erase before terminal execution and fuel; direct policy
   erasure remains an ordinary parameter return. Cross-carrier and declared
   semantic-domain casts still fail closed rather than disappearing as
-  identities.
+  identities. Source unary integer negation now keeps the parser's settled
+  `0 - value` meaning: checked retention contextually lands only that generated
+  zero at the validated operand carrier, then the existing Wrapping or
+  Saturating subtraction vocabulary crosses artifacts, fuel, interpretation,
+  and both native targets.
 - Retire the legacy backend lane as terminal-Psi vocabulary and consumers grow;
   do not restore any `ExpressionHandle` or source-tree dependency in the live
   scalar terminal path.

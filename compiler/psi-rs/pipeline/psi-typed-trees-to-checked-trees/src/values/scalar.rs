@@ -3,7 +3,10 @@ use psi_checked_trees::{
     CheckedLocatedScalarExpression, CheckedOperatorFacts, CheckedOperatorResolutionStatus,
     CheckedScalarExpression, CheckedScalarExpressionPlans, CheckedScalarExpressionRole,
 };
-use psi_numerics::arithmetic::ArithmeticDomain;
+use psi_numerics::{
+    arithmetic::ArithmeticDomain,
+    literals::{IntegerLanding, LandedIntegerType},
+};
 use psi_typed_trees::{
     TypedTrees,
     expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator},
@@ -220,7 +223,7 @@ fn lower_scalar_expression(
             ))
         }
         ExpressionNode::Binary(binary) if operator_is_builtin(operators, expression) => {
-            let (left, left_domain) = lower_scalar_expression(
+            let (mut left, left_domain) = lower_scalar_expression(
                 program,
                 operators,
                 binary.left,
@@ -244,8 +247,18 @@ fn lower_scalar_expression(
                 combine_arithmetic_domains(left_domain, right_domain)?
             };
             let kind = checked_integer_binary_kind(binary.operator, domain)?;
-            let primitive_type = scalar_expression_type(&left)?;
             let right_type = scalar_expression_type(&right)?;
+            // Unary `-value` is parsed as a compiler-generated anonymous
+            // `0 - value`. That zero has no parse-site suffix from which the
+            // ordinary literal stamper can learn a carrier, so retain the
+            // binary expression's already-checked operand carrier here. This
+            // is contextual literal landing, not a new negation meaning.
+            if binary.operator == BinaryOperator::Subtract
+                && scalar_expression_type(&left).is_none()
+            {
+                left = land_anonymous_zero(left, right_type)?;
+            }
+            let primitive_type = scalar_expression_type(&left)?;
             if !is_integer(primitive_type)
                 || !is_integer(right_type)
                 || (!shift && right_type != primitive_type)
@@ -264,6 +277,36 @@ fn lower_scalar_expression(
         }
         _ => None,
     }
+}
+
+fn land_anonymous_zero(
+    expression: CheckedScalarExpression,
+    primitive_type: PrimitiveType,
+) -> Option<CheckedScalarExpression> {
+    let CheckedScalarExpression::IntegerLiteral { literal } = expression else {
+        return None;
+    };
+    if literal.landing().is_some() || literal.value_i64() != Some(0) {
+        return None;
+    }
+    let landed_type = match primitive_type {
+        PrimitiveType::I8 => LandedIntegerType::I8,
+        PrimitiveType::I16 => LandedIntegerType::I16,
+        PrimitiveType::I32 => LandedIntegerType::I32,
+        PrimitiveType::I64 => LandedIntegerType::I64,
+        PrimitiveType::U8 => LandedIntegerType::U8,
+        PrimitiveType::U16 => LandedIntegerType::U16,
+        PrimitiveType::U32 => LandedIntegerType::U32,
+        PrimitiveType::U64 => LandedIntegerType::U64,
+        PrimitiveType::Addr => LandedIntegerType::Addr,
+        PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 => return None,
+    };
+    Some(CheckedScalarExpression::IntegerLiteral {
+        literal: literal.with_landing(IntegerLanding {
+            landed_type,
+            domain: ArithmeticDomain::Exact,
+        }),
+    })
 }
 
 fn lower_boolean_expression(
