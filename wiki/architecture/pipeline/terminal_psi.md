@@ -95,9 +95,10 @@ negation flips polarity. Boolean comparisons with a literal normalize
 fallthrough edges, to the operand polarity they establish; converse
 implications remain rejected. Comparison predicates also retain their
 operand-reversed equivalent, and negated equality/inequality retains the
-opposite relation. Negated ordered comparisons stay opaque without checked
-total-order evidence because unordered float values invalidate the usual
-complement law. Checked sites
+opposite relation. Negated ordered comparisons use the complement relation only
+when both operands have checked integer types. Unknown, user-defined, and float
+operands stay opaque because unordered values invalidate the usual complement
+law. Checked sites
 retain their exact incoming-predicate conjunction separately from these
 coverage consequences. Checked calls likewise retain invocation coordinates,
 the exact target contract fingerprint, the incoming path conjunction, a

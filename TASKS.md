@@ -273,8 +273,8 @@ Remaining:
   negation, Boolean-literal equality/inequality normalization, comparison
   operand reversal, and equality/inequality negation normalization feed that
   same set without replacing the exact conjunction. Ordered-comparison
-  negation remains opaque until the checker carries total-order/type evidence;
-  this is required for future unordered float values. Callable trait requirements
+  negation also normalizes when both operands have checked integer types;
+  unknown, user-defined, and unordered-float operands remain opaque. Callable trait requirements
   and unresolved compile-time machine parameters now retain source-independent
   crash-contract capsules: each capsule pins the normalized public crash
   buckets to the complete callable-contract fingerprint, and checked calls
