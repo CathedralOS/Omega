@@ -1004,8 +1004,9 @@ positive conjunctions and negated disjunctions, including nested logical
 negation, and normalizes Boolean equality/inequality against a literal to the
 operand polarity it proves, without accepting their converses. It also records
 operand-reversed comparison equivalents and flips equality/inequality under
-negation. Ordered-comparison negation requires future checked total-order/type
-evidence; it is not valid for unordered float values. Checked call
+negation. Ordered-comparison negation flips to the complement only for checked
+integer operands; unknown, user-defined, and float operands remain opaque so
+unordered values cannot make that rule unsound. Checked call
 rows retain the same source-independent consequence set for caller-ceiling
 coverage. The checked site and call rows separately retain the canonical
 conjunction of exact incoming predicates; consequences

@@ -298,7 +298,7 @@ fn collect_structural_guard_consequences(
                     output,
                 );
             }
-            let normalized = normalized_comparison(binary.operator, negated)
+            let normalized = normalized_comparison(binary.operator, negated, false)
                 .expect("equality operators are comparisons");
             output.push(crate::facts::canonical_crash_binary_path_predicate(
                 program,
@@ -317,27 +317,30 @@ fn collect_structural_guard_consequences(
                 content_conservation,
             ));
         }
-        ExpressionNode::Binary(binary)
-            if normalized_comparison(binary.operator, negated).is_some() =>
-        {
-            let normalized = normalized_comparison(binary.operator, negated)
-                .expect("comparison operator was matched above");
-            output.push(crate::facts::canonical_crash_binary_path_predicate(
-                program,
-                normalized,
-                binary.left,
-                binary.right,
-                parameter_names,
-                content_conservation,
-            ));
-            output.push(crate::facts::canonical_crash_binary_path_predicate(
-                program,
-                reversed_comparison(normalized),
-                binary.right,
-                binary.left,
-                parameter_names,
-                content_conservation,
-            ));
+        ExpressionNode::Binary(binary) => {
+            let normalized = normalized_comparison(
+                binary.operator,
+                negated,
+                comparison_operands_are_integers(program, binary.left, binary.right),
+            );
+            if let Some(normalized) = normalized {
+                output.push(crate::facts::canonical_crash_binary_path_predicate(
+                    program,
+                    normalized,
+                    binary.left,
+                    binary.right,
+                    parameter_names,
+                    content_conservation,
+                ));
+                output.push(crate::facts::canonical_crash_binary_path_predicate(
+                    program,
+                    reversed_comparison(normalized),
+                    binary.right,
+                    binary.left,
+                    parameter_names,
+                    content_conservation,
+                ));
+            }
         }
         _ => {}
     }
@@ -346,6 +349,7 @@ fn collect_structural_guard_consequences(
 fn normalized_comparison(
     operator: psi_typed_trees::expression::BinaryOperator,
     negated: bool,
+    operands_have_total_order: bool,
 ) -> Option<psi_typed_trees::expression::BinaryOperator> {
     use psi_typed_trees::expression::BinaryOperator;
 
@@ -355,17 +359,109 @@ fn normalized_comparison(
         (BinaryOperator::NotEqual, false) => BinaryOperator::NotEqual,
         (BinaryOperator::NotEqual, true) => BinaryOperator::Equal,
         (BinaryOperator::Less, false) => BinaryOperator::Less,
-        // Ordered negation is not portable to unordered float values:
-        // `!(x < y)` does not imply `x >= y` when either operand is NaN.
-        (BinaryOperator::Less, true) => return None,
+        // Ordered negation is not portable to unordered float values. The
+        // caller enables the complement only for checked integer operands.
+        (BinaryOperator::Less, true) if operands_have_total_order => BinaryOperator::GreaterOrEqual,
         (BinaryOperator::LessOrEqual, false) => BinaryOperator::LessOrEqual,
-        (BinaryOperator::LessOrEqual, true) => return None,
+        (BinaryOperator::LessOrEqual, true) if operands_have_total_order => BinaryOperator::Greater,
         (BinaryOperator::Greater, false) => BinaryOperator::Greater,
-        (BinaryOperator::Greater, true) => return None,
+        (BinaryOperator::Greater, true) if operands_have_total_order => BinaryOperator::LessOrEqual,
         (BinaryOperator::GreaterOrEqual, false) => BinaryOperator::GreaterOrEqual,
-        (BinaryOperator::GreaterOrEqual, true) => return None,
+        (BinaryOperator::GreaterOrEqual, true) if operands_have_total_order => BinaryOperator::Less,
         _ => return None,
     })
+}
+
+fn comparison_operands_are_integers(
+    program: &TypedTrees,
+    left: psi_typed_trees::expression::ExpressionHandle,
+    right: psi_typed_trees::expression::ExpressionHandle,
+) -> bool {
+    expression_is_integer_typed(program, left) && expression_is_integer_typed(program, right)
+}
+
+fn expression_is_integer_typed(
+    program: &TypedTrees,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+) -> bool {
+    use psi_typed_trees::expression::ExpressionNode;
+
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Integer(_) => true,
+        ExpressionNode::Atomic(atomic) => expression_is_integer_typed(program, atomic.value),
+        ExpressionNode::Mutable(inner) => expression_is_integer_typed(program, *inner),
+        ExpressionNode::Cast(cast) => type_reference_is_integer(program, cast.target_type),
+        ExpressionNode::Name(path) => {
+            crate::lookup::first_valid_name_path_symbol(path, &program.expression_table)
+                .is_some_and(|symbol| symbol_is_integer_typed(program, symbol))
+        }
+        ExpressionNode::Member(member) => {
+            let symbol = crate::flow::effective_member_symbol(program, member.receiver, member);
+            symbol_is_integer_typed(program, symbol)
+        }
+        _ => false,
+    }
+}
+
+fn type_reference_is_integer(
+    program: &TypedTrees,
+    type_reference: psi_typed_trees::types::TypeReferenceHandle,
+) -> bool {
+    program
+        .type_reference_table
+        .primitive_type(type_reference)
+        .is_some_and(psi_typed_trees::types::PrimitiveType::accepts_integer_literal)
+}
+
+fn symbol_is_integer_typed(program: &TypedTrees, symbol: psi_symbols::SymbolHandle) -> bool {
+    if !symbol.is_valid() {
+        return false;
+    }
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            if let Some(parameter) = program
+                .state_parameters(state)
+                .iter()
+                .find(|parameter| parameter.symbol == symbol)
+            {
+                return type_reference_is_integer(program, parameter.type_reference);
+            }
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                if let psi_typed_trees::statement::StatementNode::LocalData(local) = statement
+                    && local.symbol == symbol
+                {
+                    return type_reference_is_integer(program, local.type_reference);
+                }
+            }
+        }
+        if let Some(owned) = program
+            .machine_owned_data(machine)
+            .iter()
+            .find(|owned| owned.symbol == symbol)
+        {
+            return type_reference_is_integer(program, owned.type_reference);
+        }
+    }
+    for data in program.data_definitions() {
+        for member in program.data_members(data) {
+            match member {
+                psi_typed_trees::data::DataMember::Field(field) if field.symbol == symbol => {
+                    return type_reference_is_integer(program, field.type_reference);
+                }
+                psi_typed_trees::data::DataMember::Variant(variant) => {
+                    if let Some(field) = program
+                        .data_payload_fields(variant)
+                        .iter()
+                        .find(|field| field.symbol == symbol)
+                    {
+                        return type_reference_is_integer(program, field.type_reference);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    false
 }
 
 fn reversed_comparison(

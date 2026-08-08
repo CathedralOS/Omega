@@ -236,8 +236,8 @@ Current ownership is:
   disjunction, nested-negation, and Boolean-literal relation consequences add
   path-conditioned guarded coverage. Comparison operand reversal and negated
   equality/inequality are also retained as equivalent consequences. Negated
-  ordered comparisons remain opaque until total-order/type evidence is present,
-  since the complement law is unsound for unordered float values. The site
+  ordered comparisons use the complement only when both operands have checked
+  integer types; unknown, user-defined, and float operands remain opaque. The site
   separately retains its exact incoming-predicate conjunction for downstream
   refinement and reporting.
 - `psi-checked-trees/src/proof/` owns proof-facing checked facts:

@@ -2683,7 +2683,18 @@ fn crash_guard_entailment_normalizes_comparison_equivalences() {
         state fail() -> i32 { crash Trap; }
     }
 
-    machine ordered_fallthrough_stays_opaque(left: i32, right: i32) -> i32
+    machine integer_order_fallthrough(left: i32, right: i32) -> i32
+    crashes Trap Activation
+        left >= right
+    {
+        transition {
+            left < right -> 0i32
+            _ -> fail()
+        }
+        state fail() -> i32 { crash Trap; }
+    }
+
+    machine float_order_fallthrough_stays_opaque(left: f32, right: f32) -> i32
     crashes Trap Activation
         left >= right
     {
@@ -2744,7 +2755,12 @@ fn crash_guard_entailment_normalizes_comparison_equivalences() {
             .expect("contract plan")
     };
 
-    for name in ["reversed_order", "negated_equality", "reversed_equality"] {
+    for name in [
+        "reversed_order",
+        "integer_order_fallthrough",
+        "negated_equality",
+        "reversed_equality",
+    ] {
         let [site] = plan(name).crash.checked_sites() else {
             panic!("{name} should retain one crash site")
         };
@@ -2754,16 +2770,15 @@ fn crash_guard_entailment_normalizes_comparison_equivalences() {
             "{name} should cover its equivalent comparison route"
         );
     }
-
-    let [opaque_site] = plan("ordered_fallthrough_stays_opaque")
+    let [opaque_site] = plan("float_order_fallthrough_stays_opaque")
         .crash
         .checked_sites()
     else {
-        panic!("ordered fallthrough should retain one crash site")
+        panic!("float ordered fallthrough should retain one crash site")
     };
     assert!(
         opaque_site.guard_covering_buckets().is_empty(),
-        "ordered negation needs total-order evidence before it may normalize"
+        "unordered float comparison negation must remain opaque"
     );
 
     let [call] = plan("guarded_call").crash.checked_calls() else {
