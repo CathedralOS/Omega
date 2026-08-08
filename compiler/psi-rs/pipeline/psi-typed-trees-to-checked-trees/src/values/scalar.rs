@@ -180,6 +180,25 @@ fn lower_scalar_expression(
                 .map(|landing| landing.domain)
                 .unwrap_or(ArithmeticDomain::Exact),
         )),
+        ExpressionNode::Cast(cast) if !cast.form.is_recast() && cast.semantic_domain.is_empty() => {
+            let target_type = program.primitive_type_reference(cast.target_type)?;
+            if !is_integer(target_type) {
+                return None;
+            }
+            let (operand, _) = lower_scalar_expression(
+                program,
+                operators,
+                cast.value,
+                parameters,
+                parameter_types,
+            )?;
+            // Arithmetic-policy casts are semantic retags, not executable
+            // conversions, only when the primitive carrier is unchanged. The
+            // ordinary validator proves all broader cast laws; retaining a
+            // cross-carrier cast here would silently erase real conversion
+            // work from terminal Psi.
+            (scalar_expression_type(&operand)? == target_type).then_some((operand, cast.domain))
+        }
         ExpressionNode::Unary(unary)
             if unary.operator == UnaryOperator::BitwiseNot
                 && operator_is_builtin(operators, expression) =>

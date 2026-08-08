@@ -756,6 +756,27 @@ ensures 0u64 == 0u64
     ~value
 }
 
+machine terminal_explicit_wrapping_cast_add_runtime(left: u8, right: u8) -> u8 in Wrapping
+requires 0u8 == 0u8
+ensures 0u8 == 0u8
+{
+    (left as u8 in Wrapping) + (right as u8 in Wrapping)
+}
+
+machine terminal_explicit_policy_erasure_runtime(value: u64 in Wrapping, ignored: u64) -> u64
+requires 0u64 == 0u64
+ensures 0u64 == 0u64
+{
+    value as u64
+}
+
+machine terminal_cross_carrier_cast_not_erased(value: u8) -> u16
+requires 0u16 == 0u16
+ensures 0u16 == 0u16
+{
+    value as u16
+}
+
 machine terminal_unsigned_wrapping_shift_left_runtime(value: u64 in Wrapping, count: i64) -> u64 in Wrapping
 requires 0u64 == 0u64
 ensures 0u64 == 0u64

@@ -3146,6 +3146,148 @@ fn checked_source_runtime_integer_bitwise_not_crosses_canonical_artifacts_and_na
 }
 
 #[test]
+fn checked_source_same_carrier_policy_casts_retag_without_terminal_work() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("explicit arithmetic-policy cast source canary should compile");
+    let wrapping = lower_machine(&checked, "terminal_explicit_wrapping_cast_add_runtime")
+        .expect("same-carrier wrapping casts should select terminal wrapping addition");
+    let erasure = lower_machine(&checked, "terminal_explicit_policy_erasure_runtime")
+        .expect("same-carrier policy erasure should lower as an identity");
+    assert!(matches!(
+        lower_machine(&checked, "terminal_cross_carrier_cast_not_erased"),
+        Err(LoweringError::Unsupported(_))
+    ));
+    assert!(matches!(
+        &wrapping.semantic_module.machines[0].blocks[0].operations[..],
+        [psi_terminal::Operation {
+            kind: OperationKind::WrappingIntegerAdd { .. },
+            ..
+        }]
+    ));
+    assert!(
+        erasure.semantic_module.machines[0].blocks[0]
+            .operations
+            .is_empty(),
+        "a same-carrier policy erasure must not invent executable terminal work"
+    );
+    let wrapping_semantic =
+        encode_module(&wrapping.semantic_module).expect("wrapping-cast module encodes");
+    let wrapping_proof =
+        encode_proof_bundle(&wrapping.proof_bundle).expect("wrapping-cast proof encodes");
+    let erasure_semantic =
+        encode_module(&erasure.semantic_module).expect("policy-erasure module encodes");
+    let erasure_proof =
+        encode_proof_bundle(&erasure.proof_bundle).expect("policy-erasure proof encodes");
+    drop(checked);
+    drop(wrapping);
+    drop(erasure);
+
+    let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let u8_value = |value| TerminalScalarValue::Integer {
+        scalar_type: u8_type,
+        value: IntegerValue::Unsigned(value),
+    };
+    let measured = interpret_terminal_artifact_measured(
+        &wrapping_semantic,
+        &wrapping_proof,
+        &AdmissionProfile::default(),
+        &[u8_value(250), u8_value(10)],
+    )
+    .expect("canonical wrapping-cast artifact should interpret");
+    assert_eq!(measured.value(), u8_value(4));
+    assert_eq!(measured.usage().total_units(), 2);
+
+    let u64_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
+    let u64_value = |value| TerminalScalarValue::Integer {
+        scalar_type: u64_type,
+        value: IntegerValue::Unsigned(value),
+    };
+    let measured = interpret_terminal_artifact_measured(
+        &erasure_semantic,
+        &erasure_proof,
+        &AdmissionProfile::default(),
+        &[u64_value(73), u64_value(0)],
+    )
+    .expect("canonical policy-erasure artifact should interpret");
+    assert_eq!(measured.value(), u64_value(73));
+    assert_eq!(measured.usage().total_units(), 1);
+
+    let wrapping_abstract = lower_artifact_sections(
+        &wrapping_semantic,
+        &wrapping_proof,
+        &AdmissionProfile::default(),
+    )
+    .expect("wrapping-cast artifact should cross the Omega boundary");
+    let erasure_abstract = lower_artifact_sections(
+        &erasure_semantic,
+        &erasure_proof,
+        &AdmissionProfile::default(),
+    )
+    .expect("policy-erasure artifact should cross the Omega boundary");
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let wrapping_target = lower_to_target_operations(&wrapping_abstract, target)
+            .expect("wrapping-cast expression should select on both native targets");
+        assert!(matches!(
+            &wrapping_target.functions[0].operation,
+            TerminalTargetOperation::ReturnIntegerExpression {
+                expression: TerminalTargetIntegerExpression::WrappingAdd { .. },
+                ..
+            }
+        ));
+        let wrapping_assigned =
+            assign_registers(&wrapping_target).expect("wrapping-cast homes should assign");
+        emit_machine_code(&wrapping_assigned).expect("wrapping-cast expression should emit");
+
+        let erasure_target = lower_to_target_operations(&erasure_abstract, target)
+            .expect("policy erasure should select on both native targets");
+        assert!(matches!(
+            erasure_target.functions[0].operation,
+            TerminalTargetOperation::ReturnIntegerParameter { .. }
+        ));
+        let erasure_assigned =
+            assign_registers(&erasure_target).expect("policy-erasure homes should assign");
+        emit_machine_code(&erasure_assigned).expect("policy erasure should emit");
+    }
+
+    #[cfg(unix)]
+    {
+        let wrapping_target = lower_to_target_operations(&wrapping_abstract, NativeTarget::host())
+            .expect("host wrapping-cast selection");
+        let wrapping_assigned =
+            assign_registers(&wrapping_target).expect("host wrapping-cast homes should assign");
+        let wrapping_code =
+            emit_machine_code(&wrapping_assigned).expect("host wrapping-cast emission");
+        let wrapping_object =
+            build_terminal_object_artifact(&wrapping_code).expect("wrapping-cast object");
+        assert_eq!(
+            run_host_machine_code_with_two_u64(
+                wrapping_object.entry_function().bytes(&wrapping_object),
+                250,
+                10,
+            ),
+            4,
+        );
+
+        let erasure_target = lower_to_target_operations(&erasure_abstract, NativeTarget::host())
+            .expect("host policy-erasure selection");
+        let erasure_assigned =
+            assign_registers(&erasure_target).expect("host policy-erasure homes should assign");
+        let erasure_code =
+            emit_machine_code(&erasure_assigned).expect("host policy-erasure emission");
+        let erasure_object =
+            build_terminal_object_artifact(&erasure_code).expect("policy-erasure object");
+        assert_eq!(
+            run_host_machine_code_with_two_u64(
+                erasure_object.entry_function().bytes(&erasure_object),
+                73,
+                0,
+            ),
+            73,
+        );
+    }
+}
+
+#[test]
 fn checked_source_runtime_wrapping_shifts_cross_the_full_pipeline() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("runtime wrapping-shift source canary should compile");

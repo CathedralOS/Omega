@@ -254,7 +254,12 @@ Remaining:
   `~` now follows that same retained checked-expression lane through terminal
   Psi v25, canonical semantic/proof sections, exact verification, fuel,
   artifact-root interpretation, Omega lowering, and x86-64/AArch64 native
-  emission.
+  emission. Same-carrier integer arithmetic-policy casts now retain their
+  operands source-independently, select enclosing Wrapping/Saturating
+  operations, and erase before terminal execution and fuel; direct policy
+  erasure remains an ordinary parameter return. Cross-carrier and declared
+  semantic-domain casts still fail closed rather than disappearing as
+  identities.
 - Retire the legacy backend lane as terminal-Psi vocabulary and consumers grow;
   do not restore any `ExpressionHandle` or source-tree dependency in the live
   scalar terminal path.

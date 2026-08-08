@@ -322,7 +322,12 @@ plus builtin bitwise AND, OR, XOR, and unary complement without an
 arithmetic-policy choice and wrapping left/right shifts. A shift's value
 operand and result share one exact
 integer type; its count may have a different integer type and carries no
-arithmetic-domain weight.
+arithmetic-domain weight. An explicit value cast may retag an integer with or
+without one of the closed arithmetic policies when its primitive carrier is
+unchanged. Checked retention removes that static retag after using it to select
+any enclosing operation; it emits no terminal operation and consumes no
+operation fuel. Cross-carrier casts and declared semantic-domain casts remain
+outside this scalar slice rather than being mistaken for identities.
 The linear integer form may declare any sequence of ordinary primitive-integer
 machine parameters, including none, and any sequence of at least two states.
 It computes a recursively nested parameter/literal add/subtract/multiply
@@ -370,6 +375,7 @@ including selected domain-owned operator meanings. The source canary lowers
 all six versioned integer-policy operations in both constant-fed and
 runtime-parameter forms, Boolean literal, negation, Boolean
 equality/inequality, integer equality and ordering, and
+nested same-carrier arithmetic-policy casts plus a direct policy erasure, and
 ninth-parameter returns, a
 three-state Boolean chain carrying its ninth parameter, a closed three-state
 integer chain, a direct zero-parameter integer literal, plus a nine-parameter
@@ -468,6 +474,9 @@ exact integer type and lower to one native logical instruction after
 recursively evaluating their operands. Complement negates exactly the retained
 carrier width; native normalization preserves narrow signed and unsigned
 results.
+Same-carrier arithmetic-policy casts add no target expression node: an
+enclosing operation already carries the selected Wrapping or Saturating
+meaning, while a direct policy erasure remains the existing parameter return.
 Runtime wrapping shifts retain the count operand's independent integer type,
 reduce that value modulo the shifted width, and select logical or arithmetic
 right shift from the shifted value's signedness. Current native source widths
@@ -1041,6 +1050,10 @@ The v7 parameter-fed wrapping-multiply canary also costs two units and
 computes `u8` 20*13 as 4.
 The v8 parameter-fed saturating-multiply canary costs two units and
 reaches both signed `i64` bounds.
+The explicit same-carrier policy-cast canary likewise costs two units—one
+selected wrapping addition and one return edge—while a direct policy erasure
+costs only its return edge. Neither static retag changes semantic or proof
+format versions because neither introduces terminal vocabulary.
 
 `psi-terminal-fixed-fuel` provides the first restricted checker over this same
 schedule. It derives the maximum entry-to-terminal-exit cost over the verified
