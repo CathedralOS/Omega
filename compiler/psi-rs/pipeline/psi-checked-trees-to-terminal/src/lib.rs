@@ -1331,24 +1331,23 @@ fn lower_explicit_crash_machine(
     let TransitionExit::Crash(source_cause) = transition.exit else {
         unreachable!("crash-only source shape carries an explicit crash exit")
     };
-    let matching_contracts = checked
-        .machine_contracts(machine)
+    let Some(crash_plan) = checked
+        .facts
+        .contract_plans
+        .for_machine(machine.symbol)
+        .map(|contract| &contract.crash)
+    else {
+        return unsupported("explicit crash has no checked machine-contract plan");
+    };
+    let matching_contracts = crash_plan
+        .published()
         .iter()
-        .filter_map(|contract| match (&contract.kind, source_cause) {
-            (
-                SignatureContractKind::Crashes {
-                    cause: psi_typed_trees::signature::CrashCause::Trap,
-                    scope,
-                },
-                psi_typed_trees::signature::CrashCause::Trap,
-            )
+        .filter_map(|bucket| match (bucket.cause(), source_cause) {
+            (psi_checked_trees::CrashCause::Trap, psi_typed_trees::signature::CrashCause::Trap)
             | (
-                SignatureContractKind::Crashes {
-                    cause: psi_typed_trees::signature::CrashCause::Abort,
-                    scope,
-                },
+                psi_checked_trees::CrashCause::Abort,
                 psi_typed_trees::signature::CrashCause::Abort,
-            ) if contract.facts.is_empty() => Some(scope.as_str()),
+            ) if bucket.is_unconditional() => Some(bucket.containment_demand()),
             _ => None,
         })
         .collect::<Vec<_>>();

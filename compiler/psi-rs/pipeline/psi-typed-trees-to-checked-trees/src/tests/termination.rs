@@ -2197,6 +2197,10 @@ fn crash_bucket_identity_includes_cause_scope_and_unconditional_presence() {
     machine unconditional_abort()
     crashes Abort
     {}
+    machine explicit_true_abort()
+    crashes Abort ExecutionDomain
+        true
+    {}
     machine grouped(first: bool, second: bool)
     crashes Trap Activation
         first
@@ -2247,6 +2251,10 @@ fn crash_bucket_identity_includes_cause_scope_and_unconditional_presence() {
     };
 
     assert_ne!(fingerprint("baseline"), fingerprint("unconditional_abort"));
+    assert_eq!(
+        fingerprint("unconditional_abort"),
+        fingerprint("explicit_true_abort")
+    );
     assert_ne!(fingerprint("trap_activation"), fingerprint("trap_domain"));
     assert_ne!(
         fingerprint("trap_activation"),
@@ -2259,6 +2267,33 @@ fn crash_bucket_identity_includes_cause_scope_and_unconditional_presence() {
         fingerprint("unconditional_with_guard"),
         fingerprint("unconditional_only")
     );
+
+    let crash = |name: &str| {
+        checked
+            .facts
+            .contract_plans
+            .for_machine(symbol_of_checked(&checked, name))
+            .expect("contract plan")
+            .crash
+            .clone()
+    };
+    assert_eq!(crash("grouped"), crash("split"));
+    assert_eq!(crash("grouped"), crash("reordered"));
+    assert_eq!(crash("grouped"), crash("duplicated"));
+    assert_eq!(crash("unconditional_abort"), crash("explicit_true_abort"));
+    let grouped = crash("grouped");
+    assert_eq!(
+        grouped.interface(),
+        psi_checked_trees::CrashInterface::PublishedCeiling
+    );
+    assert_eq!(grouped.published().len(), 1);
+    assert_eq!(
+        grouped.published()[0].cause(),
+        psi_checked_trees::CrashCause::Trap
+    );
+    assert_eq!(grouped.published()[0].containment_demand(), "Activation");
+    assert_eq!(grouped.published()[0].alternative_guards().len(), 2);
+    assert!(!grouped.published()[0].is_unconditional());
 }
 
 fn symbol_of_checked(

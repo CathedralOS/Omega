@@ -169,6 +169,13 @@ Current ownership is:
   facts, and `domains.rs` owns domain dependency facts and dependency-path
   accessors. Both expose root constructors so invariant and domain production
   joins arena roots explicitly.
+- `psi-checked-trees/src/facts/contract_plans.rs` owns each machine's normalized
+  public contract. Its crash axis is a canonical set of `(cause, containment
+  demand)` buckets with source-handle-free predicate identities; route-less and
+  explicit-`true` clauses normalize to the same unconditional route. Public
+  fingerprints, reports, and terminal production consume this checked carrier
+  rather than re-reading typed crash clauses. Body-derived crash sites and
+  damage minima remain a separate checked-evidence layer.
 - `psi-checked-trees/src/proof/` owns proof-facing checked facts:
   `obligations.rs` owns explicit proof obligations, `contracts.rs` owns
   contract proof facts/call/exit indexes, and `roots.rs` owns the grouped

@@ -565,6 +565,13 @@ crashes Abort
     crash Abort;
 }
 
+machine terminal_explicit_true_abort() -> i32
+crashes Abort ExecutionDomain
+    true
+{
+    crash Abort;
+}
+
 machine terminal_unpublished_abort() -> i32 {
     crash Abort;
 }

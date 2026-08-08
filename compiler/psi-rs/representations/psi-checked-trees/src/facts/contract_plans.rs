@@ -1,11 +1,10 @@
 //! STR4 checked plans (machine_taxonomy.md): the normalized MACHINE
 //! SEMANTIC CONTRACT, independent of syntax and lowering -- component
 //! manifests, proof artifacts, provider admission, and hot-swap checks
-//! reference this identity, never re-derived booleans. Slice 1 carries the
-//! published halves that exist today (supply mode, canonical service reach,
-//! operational ceilings, and termination guarantee) plus a deterministic
-//! fingerprint over them;
-//! requires/ensures fact canonicalization is the recorded follow-up.
+//! reference this identity, never re-derived booleans. The checked public
+//! surface carries supply mode, canonical service reach, operational ceilings,
+//! normalized crash-route buckets, and the termination guarantee plus a
+//! deterministic fingerprint over them.
 //! Prover-independence (acceptance 8: a stronger prover cannot change an
 //! exported contract ID) holds BY CONSTRUCTION: only declared/published
 //! halves enter the fingerprint, never inferred rows or witnesses.
@@ -16,6 +15,120 @@ use psi_language_semantics::{
     TerminationGuarantee, TerminationInterface,
 };
 use psi_symbols::SymbolHandle;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CrashCause {
+    Trap,
+    Abort,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum CrashInterface {
+    #[default]
+    InternalInferred,
+    PublishedCeiling,
+}
+
+/// Source-independent identity of one guarded crash route. The bytes are the
+/// canonical, position-normalized proof-expression encoding; they are identity
+/// material rather than executable source-tree handles.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CrashPredicateIdentity(Vec<u8>);
+
+impl CrashPredicateIdentity {
+    pub fn from_canonical_bytes(bytes: Vec<u8>) -> Self {
+        Self(bytes)
+    }
+
+    pub fn canonical_bytes(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CrashRouteGuard {
+    /// The canonical route contributed by a route-less clause or an authored
+    /// `true` route. It subsumes every guarded alternative in its bucket.
+    Truth,
+    Predicate(CrashPredicateIdentity),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CrashRouteBucket {
+    cause: CrashCause,
+    containment_demand: String,
+    /// Canonical nonempty set. `Truth` is always the sole entry when present.
+    alternative_guards: Vec<CrashRouteGuard>,
+}
+
+impl CrashRouteBucket {
+    pub fn new(
+        cause: CrashCause,
+        containment_demand: impl Into<String>,
+        mut alternative_guards: Vec<CrashRouteGuard>,
+    ) -> Option<Self> {
+        if alternative_guards.contains(&CrashRouteGuard::Truth) {
+            alternative_guards = vec![CrashRouteGuard::Truth];
+        } else {
+            alternative_guards.sort();
+            alternative_guards.dedup();
+        }
+        (!alternative_guards.is_empty()).then(|| Self {
+            cause,
+            containment_demand: containment_demand.into(),
+            alternative_guards,
+        })
+    }
+
+    pub fn unconditional(cause: CrashCause, containment_demand: impl Into<String>) -> Self {
+        Self::new(cause, containment_demand, vec![CrashRouteGuard::Truth])
+            .expect("the unconditional crash bucket has one canonical guard")
+    }
+
+    pub fn cause(&self) -> CrashCause {
+        self.cause
+    }
+
+    pub fn containment_demand(&self) -> &str {
+        &self.containment_demand
+    }
+
+    pub fn alternative_guards(&self) -> &[CrashRouteGuard] {
+        &self.alternative_guards
+    }
+
+    pub fn is_unconditional(&self) -> bool {
+        self.alternative_guards == [CrashRouteGuard::Truth]
+    }
+}
+
+/// The published half of CRASH-CONTRACT. Body-derived crash sites and damage
+/// minima will populate the independent checked-inferred half; consumers must
+/// already use this carrier rather than re-reading source clauses.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CrashPlan {
+    interface: CrashInterface,
+    published: Vec<CrashRouteBucket>,
+}
+
+impl CrashPlan {
+    pub fn published_ceiling(mut published: Vec<CrashRouteBucket>) -> Self {
+        published.sort();
+        published.dedup();
+        Self {
+            interface: CrashInterface::PublishedCeiling,
+            published,
+        }
+    }
+
+    pub fn interface(&self) -> CrashInterface {
+        self.interface
+    }
+
+    pub fn published(&self) -> &[CrashRouteBucket] {
+        &self.published
+    }
+}
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MachineContractPlans {
@@ -41,6 +154,9 @@ pub struct MachineContractPlan {
     /// Independent authored/inferred operational axes.
     pub suspension: SuspensionPlan,
     pub blocking: BlockingPlan,
+    /// Canonical published crash ceiling. Clause grouping, ordering, duplicate
+    /// predicates, and `true` spelling do not survive into this carrier.
+    pub crash: CrashPlan,
     /// Public omission and private derivation stay distinct. The ranking
     /// witness remains outside this interface carrier.
     pub termination: TerminationInterface,
@@ -50,8 +166,7 @@ pub struct MachineContractPlan {
     pub inferred_write_frames: Vec<StateWriteFramePlan>,
     /// The deterministic identity over the published halves above. Stable
     /// across prover-strength changes and body edits that keep the declared
-    /// surface; NOT yet a full contract identity (facts canonicalization is
-    /// the follow-up slice).
+    /// surface.
     pub fingerprint: u64,
 }
 
@@ -72,6 +187,7 @@ pub fn contract_fingerprint(
     published_invocations: &[String],
     suspension_interface: SuspensionInterface,
     blocking_interface: BlockingInterface,
+    crash: &CrashPlan,
     termination: &TerminationInterface,
     canonical_facts: &[Vec<u8>],
 ) -> u64 {
@@ -131,6 +247,42 @@ pub fn contract_fingerprint(
         BlockingInterface::PublishedMayBlock(false) => 2,
         BlockingInterface::PublishedMayBlock(true) => 3,
     });
+    fold(0xf8);
+    fold(match crash.interface {
+        CrashInterface::InternalInferred => 1,
+        CrashInterface::PublishedCeiling => 2,
+    });
+    let mut crash_buckets = crash.published.clone();
+    crash_buckets.sort();
+    crash_buckets.dedup();
+    for bucket in crash_buckets {
+        fold(match bucket.cause {
+            CrashCause::Trap => 1,
+            CrashCause::Abort => 2,
+        });
+        for byte in u32::try_from(bucket.containment_demand.len())
+            .expect("crash containment-demand name exceeds the canonical encoding limit")
+            .to_le_bytes()
+        {
+            fold(byte);
+        }
+        for byte in bucket.containment_demand.as_bytes() {
+            fold(*byte);
+        }
+        for guard in bucket.alternative_guards {
+            match guard {
+                CrashRouteGuard::Truth => fold(0),
+                CrashRouteGuard::Predicate(predicate) => {
+                    fold(1);
+                    for byte in predicate.canonical_bytes() {
+                        fold(*byte);
+                    }
+                }
+            }
+            fold(0xf7);
+        }
+        fold(0xf6);
+    }
     fold(0xff);
     match termination {
         TerminationInterface::InternalDerived => fold(0),
@@ -161,6 +313,37 @@ mod tests {
     use super::*;
 
     #[test]
+    fn crash_route_carriers_enforce_canonical_nonempty_sets() {
+        assert!(CrashRouteBucket::new(CrashCause::Trap, "Activation", Vec::new()).is_none());
+
+        let predicate = CrashPredicateIdentity::from_canonical_bytes(vec![1, 2, 3]);
+        let guarded = CrashRouteBucket::new(
+            CrashCause::Trap,
+            "Activation",
+            vec![
+                CrashRouteGuard::Predicate(predicate.clone()),
+                CrashRouteGuard::Predicate(predicate),
+            ],
+        )
+        .expect("a guarded bucket is nonempty");
+        assert_eq!(guarded.alternative_guards().len(), 1);
+
+        let unconditional = CrashRouteBucket::new(
+            CrashCause::Trap,
+            "Activation",
+            vec![
+                CrashRouteGuard::Predicate(CrashPredicateIdentity::from_canonical_bytes(vec![4])),
+                CrashRouteGuard::Truth,
+            ],
+        )
+        .expect("truth contributes a route");
+        assert!(unconditional.is_unconditional());
+
+        let plan = CrashPlan::published_ceiling(vec![unconditional.clone(), unconditional]);
+        assert_eq!(plan.published().len(), 1);
+    }
+
+    #[test]
     fn operational_interfaces_participate_independently_in_contract_identity() {
         let fingerprint = |suspension, blocking| {
             contract_fingerprint(
@@ -170,6 +353,7 @@ mod tests {
                 &[],
                 suspension,
                 blocking,
+                &CrashPlan::default(),
                 &TerminationInterface::Published(TerminationGuarantee::NoGuarantee),
                 &[],
             )
@@ -201,6 +385,7 @@ mod tests {
                 &[],
                 SuspensionInterface::PublishedMaySuspend(false),
                 BlockingInterface::PublishedMayBlock(false),
+                &CrashPlan::default(),
                 &TerminationInterface::Published(TerminationGuarantee::NoGuarantee),
                 &[],
             )
@@ -225,6 +410,7 @@ mod tests {
                 invocations,
                 SuspensionInterface::PublishedMaySuspend(false),
                 BlockingInterface::PublishedMayBlock(false),
+                &CrashPlan::default(),
                 &TerminationInterface::Published(TerminationGuarantee::NoGuarantee),
                 &[],
             )
@@ -258,6 +444,7 @@ mod tests {
                 &[],
                 SuspensionInterface::InternalInferred,
                 BlockingInterface::InternalInferred,
+                &CrashPlan::default(),
                 termination,
                 &[],
             )

@@ -59,6 +59,12 @@ execution. Reaching a verified crash reports a distinct terminal outcome after
 charging the crash edge once; resumption cannot replay it. Canonical encoding,
 validation, and fuel cover the complete v22 row. Native lowering currently
 rejects crash rows explicitly until target crash plans are represented.
+The source producer selects its uniquely matching unconditional route from the
+checked machine-contract crash plan. That plan canonically merges authored
+clauses by cause and containment demand, removes duplicate guards, treats
+explicit `true` as unconditional, and is also the input to public contract
+fingerprinting and reporting; terminal production does not reinterpret the
+typed contract syntax.
 
 The first Psi-owned checked-tree producer, `psi-checked-trees-to-terminal`,
 lowers a closed set of scalar closed-contract source forms: a recursively nested Boolean

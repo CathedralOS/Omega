@@ -3492,7 +3492,18 @@ fn encode_contract_set(
             encode_contract_kind(&contract.kind, binders, &mut header);
             let bucket = crash_buckets.entry(header).or_default();
             let facts = program.proof_facts.span_or_empty(contract.facts);
-            if facts.is_empty() {
+            if facts.is_empty()
+                || facts.iter().any(|fact| {
+                    matches!(
+                        fact,
+                        psi_typed_trees::domain::ProofFact::Expression(expression)
+                            if matches!(
+                                program.expression_table.expression(*expression),
+                                psi_typed_trees::expression::ExpressionNode::Boolean(true)
+                            )
+                    )
+                })
+            {
                 bucket.unconditional = true;
             } else {
                 for fact in facts {
