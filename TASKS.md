@@ -222,11 +222,15 @@ Remaining:
   closed integer contract. Every scalar-result machine now enters one general
   typed DAG producer, including contract-free all-crash graphs, one-state
   returns, pure unconditional graphs, and three-state conditionals.
-  Boolean-result graphs may carry and compute mixed Boolean/integer bindings, preserve short-circuit
-  returns, and retain checked crash leaves. The duplicate direct-parameter,
-  comparison, Boolean-return, integer-chain, three-state conditional,
-  Boolean-chain, Boolean-DAG, and crash-only lowerers/builders are retired.
+  Boolean-result graphs may carry and compute mixed Boolean/integer bindings,
+  preserve short-circuit returns, and retain checked crash leaves. The
+  duplicate direct-parameter, comparison, Boolean-return, integer-chain,
+  three-state conditional, Boolean-chain, Boolean-DAG, and crash-only
+  lowerers/builders are retired.
   All-crash graphs intentionally carry no return obligation or proof evidence.
+  Checked contract plans now retain the accepted closed Boolean/integer
+  requires/ensures equality as a source-handle-free carrier; terminal
+  production consumes that carrier and never reopens the typed contract fact.
 - Replace all remaining terminal-path `ExpressionHandle` and source-tree
   dependencies with lowered values and predicates. Absorb useful StateGraph /
   ControlFlow topology, then retire the legacy backend lane as consumers move.

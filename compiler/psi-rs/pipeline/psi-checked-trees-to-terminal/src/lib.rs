@@ -11,8 +11,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use psi_checked_trees::{
-    CheckedOperatorResolutionStatus, CheckedTrees, ContentIdentityReshuffleFact,
-    ContentPartitionCompositionFact,
+    CheckedOperatorResolutionStatus, CheckedTrees, ClosedScalarContractValue,
+    ClosedScalarValueContractPlan, ContentIdentityReshuffleFact, ContentPartitionCompositionFact,
     expression::{BinaryOperator, ExpressionNode, UnaryOperator},
     signature::SignatureContractKind,
     statement::{StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode},
@@ -1690,26 +1690,18 @@ fn lower_scalar_graph_machine(
     });
     let expected_value = evaluate_known_scalar_graph(&lowered_states);
     let contract_value = if has_return {
-        Some(match result_type {
-            ScalarType::Boolean => KnownDirectScalar::Boolean(validate_boolean_contract(
-                checked,
-                machine,
-                expected_value.and_then(KnownDirectScalar::boolean),
-                has_crash,
-            )?),
-            ScalarType::Integer(_) => KnownDirectScalar::Integer(validate_contract(
-                checked,
-                machine,
-                result_type,
-                expected_value.and_then(KnownDirectScalar::integer),
-                has_crash,
-            )?),
-        })
+        Some(validate_closed_scalar_contract(
+            checked,
+            machine,
+            result_type,
+            expected_value,
+            has_crash,
+        )?)
     } else {
-        if checked
-            .machine_contracts(machine)
-            .iter()
-            .any(|contract| !matches!(contract.kind, SignatureContractKind::Crashes { .. }))
+        let contract = closed_scalar_contract_plan(checked, machine)?;
+        if contract.has_other_clauses()
+            || !contract.requires().is_empty()
+            || !contract.ensures().is_empty()
         {
             return unsupported("an all-crash scalar graph cannot declare a value contract");
         }
@@ -2231,22 +2223,6 @@ enum KnownDirectScalar {
     Integer(IntegerValue),
 }
 
-impl KnownDirectScalar {
-    const fn boolean(self) -> Option<bool> {
-        match self {
-            Self::Boolean(value) => Some(value),
-            Self::Integer(_) => None,
-        }
-    }
-
-    const fn integer(self) -> Option<IntegerValue> {
-        match self {
-            Self::Boolean(_) => None,
-            Self::Integer(value) => Some(value),
-        }
-    }
-}
-
 fn evaluate_direct_expression(
     expression: &LoweredDirectExpression,
     parameters: &[Option<KnownDirectScalar>],
@@ -2492,156 +2468,67 @@ fn lower_content_evidence(
     Ok((identity_reshuffles, partition_compositions))
 }
 
-fn validate_contract(
+fn closed_scalar_contract_plan<'checked>(
+    checked: &'checked CheckedTrees,
+    machine: &psi_checked_trees::machine::Machine,
+) -> Result<&'checked ClosedScalarValueContractPlan, LoweringError> {
+    checked
+        .facts
+        .contract_plans
+        .for_machine(machine.symbol)
+        .map(|plan| &plan.closed_scalar_values)
+        .ok_or(LoweringError::Unsupported(
+            "machine has no source-independent checked contract plan",
+        ))
+}
+
+fn validate_closed_scalar_contract(
     checked: &CheckedTrees,
     machine: &psi_checked_trees::machine::Machine,
     result_type: ScalarType,
-    expected_value: Option<IntegerValue>,
+    expected_value: Option<KnownDirectScalar>,
     allow_crash_contracts: bool,
-) -> Result<IntegerValue, LoweringError> {
-    let contracts = checked.machine_contracts(machine);
-    let value_contract_count = contracts
-        .iter()
-        .filter(|contract| {
-            matches!(
-                contract.kind,
-                SignatureContractKind::Requires | SignatureContractKind::Ensures
-            )
-        })
-        .count();
-    if value_contract_count != 2
-        || (!allow_crash_contracts && contracts.len() != value_contract_count)
-        || contracts.iter().any(|contract| {
-            !matches!(
-                contract.kind,
-                SignatureContractKind::Requires
-                    | SignatureContractKind::Ensures
-                    | SignatureContractKind::Crashes { .. }
-            )
-        })
-    {
+) -> Result<KnownDirectScalar, LoweringError> {
+    let contract = closed_scalar_contract_plan(checked, machine)?;
+    let ([Some(requires)], [Some(ensures)]) = (contract.requires(), contract.ensures()) else {
         return unsupported("machine must have exactly one requires and one ensures clause");
     };
-    let mut shared_value = None;
-    for kind in [
-        SignatureContractKind::Requires,
-        SignatureContractKind::Ensures,
-    ] {
-        let contract = contracts
-            .iter()
-            .find(|contract| contract.kind == kind)
-            .ok_or(LoweringError::Unsupported(
-                "machine must have exactly one requires and one ensures clause",
-            ))?;
-        let facts = checked.proof_facts.span_or_empty(contract.facts);
-        let [ProofFact::Expression(fact)] = facts else {
-            return unsupported("each contract clause must contain exactly one expression fact");
-        };
-        let ExpressionNode::Binary(binary) = checked.expression_table.expression(*fact) else {
-            return unsupported("contract facts must be equalities");
-        };
-        if binary.operator != BinaryOperator::Equal {
-            return unsupported("contract facts must be equalities");
-        }
-        let (left_literal, right_literal) = match (
-            checked.expression_table.expression(binary.left),
-            checked.expression_table.expression(binary.right),
-        ) {
-            (ExpressionNode::Integer(left), ExpressionNode::Integer(right)) => (left, right),
-            _ => {
-                return unsupported(
-                    "contract facts must have the form `integer-literal == integer-literal`",
-                );
-            }
-        };
-        let left = integer_value(left_literal, result_type)?;
-        let right = integer_value(right_literal, result_type)?;
-        if left != right {
-            return unsupported("contract equality must be reflexive");
-        }
-        if expected_value.is_some_and(|expected| left != expected) {
-            return unsupported("contract literals must equal the executed literal");
-        }
-        if shared_value.is_some_and(|previous| previous != left) {
-            return unsupported("requires and ensures must carry the same closed equality");
-        }
-        shared_value = Some(left);
-    }
-    shared_value.ok_or(LoweringError::Unsupported(
-        "machine must have exactly one requires and one ensures clause",
-    ))
-}
-
-fn validate_boolean_contract(
-    checked: &CheckedTrees,
-    machine: &psi_checked_trees::machine::Machine,
-    expected_value: Option<bool>,
-    allow_crash_contracts: bool,
-) -> Result<bool, LoweringError> {
-    let contracts = checked.machine_contracts(machine);
-    let value_contract_count = contracts
-        .iter()
-        .filter(|contract| {
-            matches!(
-                contract.kind,
-                SignatureContractKind::Requires | SignatureContractKind::Ensures
-            )
-        })
-        .count();
-    if value_contract_count != 2
-        || (!allow_crash_contracts && contracts.len() != value_contract_count)
-        || contracts.iter().any(|contract| {
-            !matches!(
-                contract.kind,
-                SignatureContractKind::Requires
-                    | SignatureContractKind::Ensures
-                    | SignatureContractKind::Crashes { .. }
-            )
-        })
-    {
+    if contract.has_other_clauses() || (!allow_crash_contracts && contract.has_crash_clauses()) {
         return unsupported("machine must have exactly one requires and one ensures clause");
     }
-    let mut shared_value = None;
-    for kind in [
-        SignatureContractKind::Requires,
-        SignatureContractKind::Ensures,
-    ] {
-        let contract = contracts
-            .iter()
-            .find(|contract| contract.kind == kind)
-            .ok_or(LoweringError::Unsupported(
-                "machine must have exactly one requires and one ensures clause",
-            ))?;
-        let facts = checked.proof_facts.span_or_empty(contract.facts);
-        let [ProofFact::Expression(fact)] = facts else {
-            return unsupported("each contract clause must contain exactly one expression fact");
-        };
-        let ExpressionNode::Binary(binary) = checked.expression_table.expression(*fact) else {
-            return unsupported("contract facts must be equalities");
-        };
-        if binary.operator != BinaryOperator::Equal {
-            return unsupported("contract facts must be equalities");
-        }
-        let (ExpressionNode::Boolean(left), ExpressionNode::Boolean(right)) = (
-            checked.expression_table.expression(binary.left),
-            checked.expression_table.expression(binary.right),
-        ) else {
-            return unsupported("Boolean contract facts must compare Boolean literals");
-        };
-        if left != right {
-            return unsupported("contract equality must be reflexive");
-        }
-        if expected_value.is_some_and(|expected| *left != expected) {
-            return unsupported("Boolean contract literal must match the compile-known result");
-        }
-        if shared_value.is_some_and(|previous| previous != *left) {
-            return unsupported("requires and ensures must carry the same closed equality");
-        }
-        shared_value = Some(*left);
+    let (requires, ensures) = match (result_type, requires, ensures) {
+        (
+            ScalarType::Boolean,
+            ClosedScalarContractValue::Boolean(requires),
+            ClosedScalarContractValue::Boolean(ensures),
+        ) => (
+            KnownDirectScalar::Boolean(*requires),
+            KnownDirectScalar::Boolean(*ensures),
+        ),
+        (
+            ScalarType::Integer(_),
+            ClosedScalarContractValue::Integer(requires),
+            ClosedScalarContractValue::Integer(ensures),
+        ) => (
+            KnownDirectScalar::Integer(integer_value(requires, result_type)?),
+            KnownDirectScalar::Integer(integer_value(ensures, result_type)?),
+        ),
+        _ => return unsupported("contract scalar type must match the machine result type"),
+    };
+    if requires != ensures {
+        return unsupported("requires and ensures must carry the same closed equality");
     }
-    shared_value.ok_or(LoweringError::Unsupported(
-        "machine must have exactly one requires and one ensures clause",
-    ))
+    if expected_value.is_some_and(|expected| expected != requires) {
+        return match result_type {
+            ScalarType::Boolean => {
+                unsupported("Boolean contract literal must match the compile-known result")
+            }
+            ScalarType::Integer(_) => {
+                unsupported("contract literals must equal the executed literal")
+            }
+        };
+    }
+    Ok(requires)
 }
 
 fn integer_scalar_type(primitive: PrimitiveType) -> Result<ScalarType, LoweringError> {

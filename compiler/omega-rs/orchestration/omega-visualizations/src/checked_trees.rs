@@ -3383,6 +3383,7 @@ mod tests {
                     interface: BlockingInterface::PublishedMayBlock(true),
                     checked_may_block: true,
                 },
+                closed_scalar_values: Default::default(),
                 crash,
                 termination: psi_language_semantics::TerminationInterface::Published(
                     TerminationGuarantee::NoGuarantee,

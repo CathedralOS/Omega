@@ -14,6 +14,7 @@ use psi_language_semantics::{
     SuspensionPlan, SynchronousInvocationInterface, SynchronousInvocationPlan,
     TerminationGuarantee, TerminationInterface,
 };
+use psi_numerics::literals::IntegerLiteral;
 use psi_symbols::SymbolHandle;
 
 pub use psi_language_semantics::crash::{
@@ -711,6 +712,11 @@ pub struct MachineContractPlan {
     /// Independent authored/inferred operational axes.
     pub suspension: SuspensionPlan,
     pub blocking: BlockingPlan,
+    /// Source-handle-free projection of authored value clauses into the
+    /// closed reflexive scalar equality subset. An unrecognized clause is
+    /// retained as `None`, so consumers fail closed without reopening typed
+    /// proof expressions.
+    pub closed_scalar_values: ClosedScalarValueContractPlan,
     /// Canonical published crash ceiling plus independent checked body sites.
     /// Clause grouping, ordering, duplicate predicates, and `true` spelling do
     /// not survive into the published carrier; sites do not enter identity.
@@ -726,6 +732,52 @@ pub struct MachineContractPlan {
     /// across prover-strength changes and body edits that keep the declared
     /// surface.
     pub fingerprint: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ClosedScalarContractValue {
+    Boolean(bool),
+    Integer(IntegerLiteral),
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ClosedScalarValueContractPlan {
+    requires: Vec<Option<ClosedScalarContractValue>>,
+    ensures: Vec<Option<ClosedScalarContractValue>>,
+    has_crash_clauses: bool,
+    has_other_clauses: bool,
+}
+
+impl ClosedScalarValueContractPlan {
+    pub fn new(
+        requires: Vec<Option<ClosedScalarContractValue>>,
+        ensures: Vec<Option<ClosedScalarContractValue>>,
+        has_crash_clauses: bool,
+        has_other_clauses: bool,
+    ) -> Self {
+        Self {
+            requires,
+            ensures,
+            has_crash_clauses,
+            has_other_clauses,
+        }
+    }
+
+    pub fn requires(&self) -> &[Option<ClosedScalarContractValue>] {
+        &self.requires
+    }
+
+    pub fn ensures(&self) -> &[Option<ClosedScalarContractValue>] {
+        &self.ensures
+    }
+
+    pub const fn has_crash_clauses(&self) -> bool {
+        self.has_crash_clauses
+    }
+
+    pub const fn has_other_clauses(&self) -> bool {
+        self.has_other_clauses
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

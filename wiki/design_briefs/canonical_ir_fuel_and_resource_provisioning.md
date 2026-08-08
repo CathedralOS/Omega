@@ -39,8 +39,9 @@ over two values of one exact integer type, v19 adds signedness-aware integer
 less-than and less-or-equal, v20 adds total integer bitwise AND, OR, and XOR,
 v21 adds wrapping left and signedness-aware right shifts, v22 adds an explicit
 no-successor crash terminator with a closed cause, nominal damage scope, and
-machine-local abandoned-frontier lower bound, and current v23 separates the
-body-derived damage minimum from the selected published containment demand. Shift
+machine-local abandoned-frontier lower bound, v23 separates the body-derived
+damage minimum from the selected published containment demand, and current v24
+adds canonical sparse per-cause context maxima to machine contracts. Shift
 counts retain their own integer type and reduce by Euclidean modulo of the
 shifted value's width. The verifier
 reconstructs operation, edge-binding, and return-binding axioms guaranteed on
@@ -146,8 +147,10 @@ Conditional successors use those same arm-local binding blocks, so recursive
 and short-circuit payloads execute only after their edge is selected.
 Compile-known Boolean facts propagate through the lowered DAG and meet at
 joins; a closed result rejects a reflexive contract naming the other literal.
-The one-value chain keeps its fused decision-root construction because the
-general entry trampoline would add a semantic fuel unit.
+Checked contract plans retain the accepted closed Boolean/integer
+requires/ensures equality as a source-handle-free carrier. Terminal production
+consumes that carrier and fails closed instead of reopening typed contract
+facts; contract-free all-crash graphs carry no value clause.
 It emits the semantic module and proof bundle separately and fails closed on
 all other shapes. Its canaries drop the frontend trees before terminal
 verification and interpretation; ninth-parameter `bool` and `u8` machines
