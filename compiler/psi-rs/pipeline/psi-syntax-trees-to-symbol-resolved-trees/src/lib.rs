@@ -21,8 +21,10 @@ mod service_reaches;
 mod state;
 mod statement;
 mod symbols;
+mod trait_defaults;
 mod trait_definition;
 mod type_reference;
 mod wire;
 
 pub use lowerer::{lower_syntax_trees, lower_syntax_trees_with_sources};
+pub use trait_defaults::synthesize_trait_defaults;

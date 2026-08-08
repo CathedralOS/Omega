@@ -199,6 +199,10 @@ pub enum ConformanceMemberSnapshot {
     Machine {
         declaration: Box<ItemSnapshot>,
     },
+    TraitDefault {
+        declaring_trait: IdentifierSnapshot,
+        declaration: Box<ItemSnapshot>,
+    },
     Reference {
         declaring_trait: IdentifierSnapshot,
         requirement: IdentifierSnapshot,
@@ -722,6 +726,16 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                                         )),
                                     }
                                 }
+                                crate::item::ConformanceMember::TraitDefault {
+                                    declaring_trait,
+                                    machine,
+                                } => ConformanceMemberSnapshot::TraitDefault {
+                                    declaring_trait: snapshot_identifier(declaring_trait),
+                                    declaration: Box::new(snapshot_item(
+                                        syntax_trees,
+                                        &Item::Machine(machine.clone()),
+                                    )),
+                                },
                                 crate::item::ConformanceMember::Reference {
                                     declaring_trait,
                                     requirement,

@@ -1007,7 +1007,7 @@ fn local_dynamic_coercion_retains_closed_conformance_rows() {
 }
 
 #[test]
-fn local_dynamic_coercion_rejects_an_uninstantiated_trait_default_row() {
+fn local_dynamic_coercion_retains_an_instantiated_trait_default_row() {
     let typed = typed_program_from_source(
         r#"
         trait Shape {
@@ -1022,14 +1022,53 @@ fn local_dynamic_coercion_rejects_an_uninstantiated_trait_default_row() {
         "#,
     );
 
-    validate_program(&typed).expect("the closed map retains the selected default template");
-    let diagnostics = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect_err("checked dyn facts must never retain an unrealized default row");
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("reached checked lowering before its trait default was instantiated")
-    }));
+    validate_program(&typed).expect("the instantiated default row should validate");
+    let checked = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+        .expect("checked dyn facts should retain the instantiated default row");
+    let [selection] = checked.facts.dynamic_conformances.selections.as_slice() else {
+        panic!("one dynamic conformance selection");
+    };
+    let [row] = selection.rows.as_slice() else {
+        panic!("one normalized dynamic row");
+    };
+    assert_eq!(format!("{:?}", row.source), "TraitDefault");
+    assert_eq!(
+        checked.symbols.name(row.realization_machine),
+        "Item::Primary::Shape::touch"
+    );
+    assert_eq!(checked.symbols.name(row.realization_state), "touch");
+}
+
+#[test]
+fn closed_conformance_instantiates_an_inherited_generic_trait_default() {
+    let typed = typed_program_from_source(
+        r#"
+        trait Parent<T> {
+            machine Self::touch(&self, value: T) {}
+        }
+        trait Child: Parent<i32> {}
+        data Item {}
+        Item satisfies Child as Primary {}
+        "#,
+    );
+
+    validate_program(&typed)
+        .expect("the inherited default should be instantiated with Parent<i32>");
+    let conformance = typed
+        .data_conformances()
+        .iter()
+        .next()
+        .expect("one conformance");
+    let [row] = typed
+        .closed_conformance_rows(conformance)
+        .expect("closed rows")
+    else {
+        panic!("one inherited default row");
+    };
+    assert_eq!(row.declaring_trait_name.as_str(), "Parent");
+    assert_eq!(row.requirement_name.as_str(), "touch");
+    assert!(row.realization_machine.is_valid());
+    assert!(row.realization_state.is_valid());
 }
 
 #[test]

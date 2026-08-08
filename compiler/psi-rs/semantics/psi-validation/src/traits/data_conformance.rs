@@ -144,7 +144,6 @@ fn validate_closed_rows(
                     root_trait.name, row.declaring_trait_name, row.requirement_name
                 )));
             }
-            continue;
         }
         let Some(machine) = program
             .machines()

@@ -586,6 +586,14 @@ pub enum ConformanceMember {
     /// the requirement slot it fills; later normalization retains an internal
     /// conformance-qualified realization identity.
     Machine(Machine),
+    /// A trait-authored default instantiated for this closed conformance.
+    /// This variant is synthesized before symbol resolution; it is never
+    /// accepted directly from source. Keeping the origin trait explicit makes
+    /// inherited same-name requirements and artifact provenance exact.
+    TraitDefault {
+        declaring_trait: Identifier,
+        machine: Machine,
+    },
     /// An explicit row reference such as
     /// `Ranked::rank_value = Card::stable_rank_value;`.
     Reference {

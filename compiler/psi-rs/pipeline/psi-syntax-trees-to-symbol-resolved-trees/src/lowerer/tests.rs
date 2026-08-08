@@ -99,6 +99,132 @@ fn closed_conformance_retains_trait_default_selection_rows() {
         rows[0].source,
         psi_symbol_resolved_trees::trait_definition::ConformanceRowSource::TraitDefault
     );
+    assert!(rows[0].realization_machine.is_valid());
+    assert!(rows[0].realization_state.is_valid());
+    assert_eq!(
+        rows[0].realization_name.as_str(),
+        "Card::Ranked::Ranked::fallback"
+    );
+}
+
+#[test]
+fn trait_default_calls_route_through_the_same_closed_map() {
+    let source = r#"
+        trait Pair {
+            machine Self::first(&self) { self.second(); }
+            machine Self::second(&self);
+        }
+        data Card { }
+        machine Card::second(&self) { }
+        Card satisfies Pair as Selected {
+            machine second(&self) { }
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("block syntax should parse");
+    let program = lower_syntax_trees(&syntax_trees).expect("closed rows should normalize");
+    let conformance = program.conformances.iter().next().expect("one conformance");
+    let psi_symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
+        &conformance.implementation
+    else {
+        panic!("closed implementation retained");
+    };
+    let first = rows
+        .iter()
+        .find(|row| row.requirement_name.as_str() == "first")
+        .expect("default first row");
+    let second = rows
+        .iter()
+        .find(|row| row.requirement_name.as_str() == "second")
+        .expect("inline second row");
+    assert_eq!(
+        first.source,
+        psi_symbol_resolved_trees::trait_definition::ConformanceRowSource::TraitDefault
+    );
+    let machine = program
+        .machines
+        .iter()
+        .find(|machine| machine.symbol == first.realization_machine)
+        .expect("instantiated default machine");
+    let state = program
+        .machine_state_handles(machine.states)
+        .first()
+        .map(|handle| program.machine_state(*handle))
+        .expect("instantiated default state");
+    let [psi_symbol_resolved_trees::statement::StatementNode::Call(call)] = program
+        .tables
+        .bodies
+        .statements
+        .statements(state.statement_nodes)
+    else {
+        panic!("one default-body call");
+    };
+    assert_eq!(call.target_symbol, second.realization_state);
+}
+
+#[test]
+fn trait_default_synthesis_is_idempotent_across_orchestration_and_lowering() {
+    let source = r#"
+        trait Ranked { machine Self::fallback(&self) { } }
+        data Card { }
+        Card satisfies Ranked as Selected { }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let mut syntax_trees = parse_syntax_trees(&tokens).expect("block syntax should parse");
+    crate::synthesize_trait_defaults(&mut syntax_trees)
+        .expect("orchestration may synthesize before resolution");
+    let program = lower_syntax_trees(&syntax_trees)
+        .expect("resolution's mandatory synthesis pass must not duplicate the row");
+    let conformance = program.conformances.iter().next().expect("one conformance");
+    let psi_symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
+        &conformance.implementation
+    else {
+        panic!("closed implementation retained");
+    };
+    assert_eq!(rows.len(), 1);
+    assert_eq!(
+        program
+            .machines
+            .iter()
+            .filter(|machine| machine.name.as_str() == "Card::Selected::Ranked::fallback")
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn inherited_same_name_defaults_keep_distinct_exact_rows() {
+    let source = r#"
+        trait Left { machine Self::fallback(&self) { } }
+        trait Right { machine Self::fallback(&self) { } }
+        trait Both: Left + Right { }
+        data Card { }
+        Card satisfies Both as Selected { }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("block syntax should parse");
+    let program = lower_syntax_trees(&syntax_trees).expect("exact defaults should normalize");
+    let conformance = program.conformances.iter().next().expect("one conformance");
+    let psi_symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
+        &conformance.implementation
+    else {
+        panic!("closed implementation retained");
+    };
+    assert_eq!(rows.len(), 2);
+    assert!(rows.iter().all(|row| {
+        row.source
+            == psi_symbol_resolved_trees::trait_definition::ConformanceRowSource::TraitDefault
+            && row.realization_machine.is_valid()
+            && row.realization_state.is_valid()
+    }));
+    assert_ne!(rows[0].declaring_trait, rows[1].declaring_trait);
+    assert_ne!(rows[0].realization_name, rows[1].realization_name);
 }
 
 #[test]

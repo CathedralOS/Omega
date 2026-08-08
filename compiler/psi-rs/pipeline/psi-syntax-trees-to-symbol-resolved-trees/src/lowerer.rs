@@ -20,10 +20,20 @@ fn lower_syntax_trees_with_optional_sources(
     syntax_trees: &SyntaxTrees,
     sources: Option<Arc<SourceMap>>,
 ) -> Result<SymbolResolvedTrees, Diagnostic> {
+    let mut syntax_trees = syntax_trees.clone();
+    crate::trait_defaults::synthesize_trait_defaults(&mut syntax_trees).map_err(|diagnostics| {
+        Diagnostic::error(
+            diagnostics
+                .into_iter()
+                .map(|diagnostic| diagnostic.message)
+                .collect::<Vec<_>>()
+                .join("\n"),
+        )
+    })?;
     let mut lowerer = Lowerer::new(sources);
 
     for item in syntax_trees.root_items() {
-        lower_item(&mut lowerer, syntax_trees, item)?;
+        lower_item(&mut lowerer, &syntax_trees, item)?;
     }
 
     lowerer.finish()
