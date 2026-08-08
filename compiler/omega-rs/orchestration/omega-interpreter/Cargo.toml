@@ -19,8 +19,10 @@ psi-typed-trees = { path = "../../../psi-rs/representations/psi-typed-trees" }
 psi-checked-trees = { path = "../../../psi-rs/representations/psi-checked-trees" }
 psi-core = { path = "../../../psi-rs/foundation/psi-core" }
 psi-terminal = { path = "../../../psi-rs/representations/psi-terminal" }
+psi-terminal-codec = { path = "../../../psi-rs/semantics/psi-terminal-codec" }
 psi-terminal-fuel = { path = "../../../psi-rs/semantics/psi-terminal-fuel" }
 psi-terminal-verifier = { path = "../../../psi-rs/semantics/psi-terminal-verifier" }
+psi-proof-kernel = { path = "../../../psi-rs/semantics/psi-proof-kernel" }
 
 [dev-dependencies]
 omega-executable-installation = { path = "../../foundation/omega-executable-installation" }
@@ -37,7 +39,5 @@ omega-terminal-target-operations-to-assigned-target-operations = { path = "../..
 omega-terminal-machine-emission = { path = "../../backend/omega-terminal-machine-emission" }
 omega-terminal-image-emission = { path = "../../backend/images/omega-terminal-image-emission" }
 omega-terminal-psi-to-abstract-operations = { path = "../../pipeline/omega-terminal-psi-to-abstract-operations" }
-psi-proof-kernel = { path = "../../../psi-rs/semantics/psi-proof-kernel" }
-psi-terminal-codec = { path = "../../../psi-rs/semantics/psi-terminal-codec" }
 psi-terminal-fixed-fuel = { path = "../../../psi-rs/semantics/psi-terminal-fixed-fuel" }
 psi-extents = { path = "../../../psi-rs/foundation/psi-extents" }

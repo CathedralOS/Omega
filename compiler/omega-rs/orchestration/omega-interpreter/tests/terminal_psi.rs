@@ -1,6 +1,7 @@
 use omega_interpreter::{
-    TerminalCrash, TerminalExecution, TerminalExecutionStatus, TerminalInterpretError,
-    TerminalScalarValue, interpret_terminal, interpret_terminal_measured,
+    TerminalArtifactInterpretError, TerminalCrash, TerminalExecution, TerminalExecutionStatus,
+    TerminalInterpretError, TerminalScalarValue, interpret_terminal, interpret_terminal_artifact,
+    interpret_terminal_artifact_measured, interpret_terminal_measured,
     interpret_terminal_with_meter,
 };
 use psi_core::{
@@ -14,6 +15,7 @@ use psi_terminal::{
     Block, ContractClause, CrashCause, MachineContract, Operation, OperationKind, SemanticVersion,
     TerminalMachine, TerminalModule, Terminator, ValueDeclaration,
 };
+use psi_terminal_codec::{encode_module, encode_proof_bundle};
 use psi_terminal_fuel::{
     FuelChargeSite, FuelExhaustion, FuelMeterError, TerminalFuelMeter, TerminalFuelSchedule,
 };
@@ -142,6 +144,73 @@ fn verified_v1_integer_control_contract_slice_executes_directly() {
         .expect("equal execution reproduces deterministic usage");
     assert_eq!(first, second);
     assert_eq!(first.value(), expected);
+    let semantic_bytes = encode_module(&module).expect("canonical semantic artifact");
+    let proof_bytes = encode_proof_bundle(&bundle).expect("canonical proof artifact");
+    let artifact = interpret_terminal_artifact_measured(
+        &semantic_bytes,
+        &proof_bytes,
+        &AdmissionProfile::default(),
+        &[],
+    )
+    .expect("artifact-root interpretation decodes and verifies before execution");
+    assert_eq!(artifact, first);
+    assert_eq!(
+        interpret_terminal_artifact(
+            &semantic_bytes,
+            &proof_bytes,
+            &AdmissionProfile::default(),
+            &[],
+        )
+        .expect("unmeasured artifact entry returns the same result"),
+        expected
+    );
+    let mut malformed_semantic = semantic_bytes.clone();
+    malformed_semantic.push(0);
+    assert!(matches!(
+        interpret_terminal_artifact(
+            &malformed_semantic,
+            &proof_bytes,
+            &AdmissionProfile::default(),
+            &[],
+        ),
+        Err(TerminalArtifactInterpretError::SemanticDecode(_))
+    ));
+    let mut malformed_proof = proof_bytes.clone();
+    malformed_proof.push(0);
+    assert!(matches!(
+        interpret_terminal_artifact(
+            &semantic_bytes,
+            &malformed_proof,
+            &AdmissionProfile::default(),
+            &[],
+        ),
+        Err(TerminalArtifactInterpretError::ProofDecode(_))
+    ));
+    let empty_proof_bytes =
+        encode_proof_bundle(&ProofBundle::default()).expect("canonical empty proof artifact");
+    assert!(matches!(
+        interpret_terminal_artifact(
+            &semantic_bytes,
+            &empty_proof_bytes,
+            &AdmissionProfile::default(),
+            &[],
+        ),
+        Err(TerminalArtifactInterpretError::Verification(_))
+    ));
+    assert!(matches!(
+        interpret_terminal_artifact(
+            &semantic_bytes,
+            &proof_bytes,
+            &AdmissionProfile::default(),
+            &[TerminalScalarValue::Boolean(true)],
+        ),
+        Err(TerminalArtifactInterpretError::Execution(
+            TerminalInterpretError::ArgumentCount {
+                expected: 0,
+                actual: 1,
+            }
+        ))
+    ));
     assert_eq!(first.usage().schedule().schedule_version(), 1);
     assert_eq!(first.usage().total_units(), 3);
     assert_eq!(

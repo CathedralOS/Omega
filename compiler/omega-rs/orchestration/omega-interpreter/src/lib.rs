@@ -1,10 +1,11 @@
 //! A reference INTERPRETER for the Omega checked/typed trees, used as a DIFFERENTIAL
 //! ORACLE for the native backend.
 //!
-//! The separate [`interpret_terminal`] entry now executes the first verified
-//! terminal-Psi scalar/control/contract slice directly. The legacy
-//! [`interpret`] entry remains rooted on checked trees while source lowering
-//! and the broader operation vocabulary migrate.
+//! The terminal-Psi path has two boundaries: [`interpret_terminal`] executes an
+//! already verified module, while [`interpret_terminal_artifact`] canonical-
+//! decodes semantic and proof artifact sections and verifies them before
+//! execution. The legacy [`interpret`] entry remains rooted on checked trees
+//! while source lowering and the broader operation vocabulary migrate.
 //!
 //! The interpreter evaluates the program at the level of the typed/checked trees
 //! (`psi_checked_trees::CheckedTrees`, which derefs to `psi_typed_trees::TypedTrees`)
@@ -89,8 +90,9 @@ mod value;
 
 pub use build_time::BuildTimeValue;
 pub use terminal_psi::{
-    MeasuredTerminalExecution, TerminalCrash, TerminalExecution, TerminalExecutionStatus,
-    TerminalInterpretError, TerminalScalarValue, interpret_terminal, interpret_terminal_measured,
+    MeasuredTerminalExecution, TerminalArtifactInterpretError, TerminalCrash, TerminalExecution,
+    TerminalExecutionStatus, TerminalInterpretError, TerminalScalarValue, interpret_terminal,
+    interpret_terminal_artifact, interpret_terminal_artifact_measured, interpret_terminal_measured,
     interpret_terminal_with_meter,
 };
 
