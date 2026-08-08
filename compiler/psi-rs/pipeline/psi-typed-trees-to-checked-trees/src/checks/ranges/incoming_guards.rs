@@ -26,12 +26,20 @@ pub(in crate::checks) struct IncomingGuard {
 }
 
 impl IncomingGuard {
+    pub(in crate::checks) fn applies_at(&self, state: SymbolHandle) -> bool {
+        self.state == state
+    }
+
     pub(in crate::checks) fn holds_at(&self, state: SymbolHandle) -> bool {
         self.state == state && !self.negated
     }
 
     pub(in crate::checks) fn guard(&self) -> ExpressionHandle {
         self.guard
+    }
+
+    pub(in crate::checks) fn is_negated(&self) -> bool {
+        self.negated
     }
 
     pub(in crate::checks) fn direct_arguments(
@@ -46,9 +54,9 @@ struct Edge {
     source: SymbolHandle,
     target: SymbolHandle,
     arguments: psi_arena::HandleSpan<ExpressionHandle>,
-    /// `None` for an unguarded (`Always`) edge; `Some((guard, negated))` for a
-    /// guarded arm.
-    guard: Option<(ExpressionHandle, bool)>,
+    /// Every predicate established by selecting this dispatch arm. Later arms
+    /// carry the negations of all earlier guards in their consecutive run.
+    guards: Vec<(ExpressionHandle, bool)>,
 }
 
 /// The caller-visible machine paths a state's statements may write.
@@ -83,28 +91,39 @@ pub(in crate::checks) fn collect_incoming_guard_facts(
 ) -> Vec<IncomingGuard> {
     let mut edges: Vec<Edge> = Vec::new();
     for state in program.machine_states(machine) {
+        let mut prior_misses = Vec::new();
         for statement in program.statement_table.statements(state.statement_nodes) {
             let StatementNode::Transition(transition) = statement else {
+                prior_misses.clear();
                 continue;
             };
             match transition.guard {
                 TransitionGuardNode::When(guard) if guard.is_valid() => {
+                    let mut selected = prior_misses.clone();
+                    selected.push((guard, false));
                     push_edge(
                         program,
                         machine,
                         &mut edges,
                         state.symbol,
                         transition.target,
-                        Some((guard, false)),
+                        &selected,
                     );
+                    let mut continuation = prior_misses.clone();
+                    continuation.push((guard, true));
                     push_edge(
                         program,
                         machine,
                         &mut edges,
                         state.symbol,
                         transition.continuation,
-                        Some((guard, true)),
+                        &continuation,
                     );
+                    if transition.continuation.is_valid() {
+                        prior_misses.clear();
+                    } else {
+                        prior_misses.push((guard, true));
+                    }
                 }
                 _ => {
                     push_edge(
@@ -113,7 +132,7 @@ pub(in crate::checks) fn collect_incoming_guard_facts(
                         &mut edges,
                         state.symbol,
                         transition.target,
-                        None,
+                        &prior_misses,
                     );
                     push_edge(
                         program,
@@ -121,8 +140,9 @@ pub(in crate::checks) fn collect_incoming_guard_facts(
                         &mut edges,
                         state.symbol,
                         transition.continuation,
-                        None,
+                        &prior_misses,
                     );
+                    prior_misses.clear();
                 }
             }
         }
@@ -150,7 +170,7 @@ pub(in crate::checks) fn collect_incoming_guard_facts(
         let mut current = state.symbol;
 
         while let Some(edge) = single_incoming_edge(&edges, current) {
-            if let Some((guard, negated)) = edge.guard {
+            for &(guard, negated) in &edge.guards {
                 if guard_survives(program, guard, &written, written_any) {
                     result.push(IncomingGuard {
                         state: state.symbol,
@@ -250,9 +270,7 @@ fn edge_carried_facts(
         .filter(|fact| guard_survives(program, fact.guard, &written, written_any))
         .map(|fact| (fact.guard, fact.negated))
         .collect();
-    if let Some((guard, negated)) = edge.guard {
-        carried.push((guard, negated));
-    }
+    carried.extend(edge.guards.iter().copied());
     carried
 }
 
@@ -278,7 +296,7 @@ fn single_incoming_edge(edges: &[Edge], target: SymbolHandle) -> Option<Edge> {
                 source,
                 target,
                 arguments: psi_arena::HandleSpan::default(),
-                guard: None,
+                guards: Vec::new(),
             })
         }
     }
@@ -415,7 +433,7 @@ fn push_edge(
     edges: &mut Vec<Edge>,
     source: SymbolHandle,
     target: TransitionTargetHandle,
-    guard: Option<(ExpressionHandle, bool)>,
+    guards: &[(ExpressionHandle, bool)],
 ) {
     if !target.is_valid() {
         return;
@@ -434,7 +452,7 @@ fn push_edge(
             source,
             target: path.symbol,
             arguments: *arguments,
-            guard,
+            guards: guards.to_vec(),
         });
     }
 }

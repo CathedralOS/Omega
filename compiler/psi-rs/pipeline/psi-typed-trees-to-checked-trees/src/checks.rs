@@ -2,6 +2,7 @@ mod borrows;
 mod carry;
 mod content;
 pub(crate) mod contracts;
+mod crashes;
 mod multiplicity;
 mod operators;
 mod ranges;
@@ -45,6 +46,8 @@ pub(crate) fn check_checked_facts_recording(
     {
         diagnostics.append(&mut multiplicity_diagnostics);
     }
+
+    crashes::infer_path_conditioned_guard_coverage(program, facts);
 
     content::infer_identity_preserving_reshuffles(program, facts);
     content::compose_partition_wrappers(program, facts);
