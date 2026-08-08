@@ -13,6 +13,7 @@ pub(super) fn attach_checked_crash_calls(
     program: &TypedTrees,
     flow: &psi_checked_trees::FlowFacts,
     content_conservation: &[psi_validation::ContentConservationSourcePlan],
+    crash_capsules: &[psi_checked_trees::CrashContractCapsule],
     plans: &mut [psi_checked_trees::MachineContractPlan],
 ) {
     let inferred_body_summaries = infer_acyclic_private_body_summaries(program, flow, plans);
@@ -39,24 +40,30 @@ pub(super) fn attach_checked_crash_calls(
             else {
                 continue;
             };
-            let Some(target_machine) = program
+            let local_target = program
                 .machines()
                 .iter()
-                .find(|machine| machine.symbol == target_machine_symbol)
-            else {
-                // Trait requirements and static machine parameters do not own
-                // a local machine plan. Their pinned capsule is a later slice.
-                continue;
-            };
-            let Some(target_plan) = plans
+                .find(|machine| machine.symbol == target_machine_symbol);
+            let local_plan = plans
                 .iter()
-                .find(|plan| plan.machine == target_machine_symbol)
-            else {
-                continue;
-            };
-            let (target_buckets, uses_published_routes) =
-                if !target_plan.crash.published().is_empty() {
-                    (target_plan.crash.published().to_vec(), true)
+                .find(|plan| plan.machine == target_machine_symbol);
+            let (
+                target_parameters,
+                target_parameter_names,
+                target_buckets,
+                route_contracts,
+                uses_published_routes,
+                target_contract_fingerprint,
+            ) = if let (Some(target_machine), Some(target_plan)) = (local_target, local_plan) {
+                let Some(target_state) = program
+                    .machine_states(target_machine)
+                    .iter()
+                    .find(|state| state.symbol == target_state_symbol)
+                else {
+                    continue;
+                };
+                let target_buckets = if !target_plan.crash.published().is_empty() {
+                    target_plan.crash.published().to_vec()
                 } else if target_machine.supply_mode
                     == psi_language_semantics::MachineSupplyMode::CheckedBody
                 {
@@ -68,19 +75,56 @@ pub(super) fn attach_checked_crash_calls(
                         // unexamined rather than erasing a nested crash.
                         continue;
                     };
-                    (summary.clone(), false)
+                    summary.clone()
                 } else {
                     // Omission on a requirement/boundary/exported interface is
                     // the published negative guarantee, so retain an empty row
                     // as positive crash-free evidence.
-                    (Vec::new(), false)
+                    Vec::new()
                 };
-            let Some(target_state) = program
-                .machine_states(target_machine)
-                .iter()
-                .find(|state| state.symbol == target_state_symbol)
-            else {
-                continue;
+                let uses_published_routes = !target_plan.crash.published().is_empty();
+                (
+                    program.state_parameters(target_state),
+                    program
+                        .machine_states(target_machine)
+                        .first()
+                        .map(|entry| {
+                            program
+                                .state_parameters(entry)
+                                .iter()
+                                .map(|parameter| parameter.name.as_str().to_owned())
+                                .collect::<Vec<_>>()
+                        })
+                        .unwrap_or_default(),
+                    target_buckets,
+                    uses_published_routes.then(|| program.machine_contracts(target_machine)),
+                    uses_published_routes,
+                    target_plan.fingerprint,
+                )
+            } else {
+                let Some(capsule) = crash_capsules.iter().find(|capsule| {
+                    capsule.target_machine() == target_machine_symbol
+                        && capsule.target_state() == target_state_symbol
+                }) else {
+                    continue;
+                };
+                let Some(signature) =
+                    requirement_signature(program, target_machine_symbol, target_state_symbol)
+                else {
+                    continue;
+                };
+                let parameters = program.state_signature_parameters(signature);
+                (
+                    parameters,
+                    parameters
+                        .iter()
+                        .map(|parameter| parameter.name.as_str().to_owned())
+                        .collect(),
+                    capsule.published_buckets().to_vec(),
+                    Some(program.state_signature_contracts(signature)),
+                    !capsule.published_buckets().is_empty(),
+                    capsule.target_contract_fingerprint(),
+                )
             };
             let Some(call_site) = crate::find_call_site(
                 program,
@@ -96,22 +140,10 @@ pub(super) fn attach_checked_crash_calls(
                 // is not an invocation of that machine's public crash ceiling.
                 continue;
             }
-            let target_parameters = program.state_parameters(target_state);
-            let target_parameter_names = program
-                .machine_states(target_machine)
-                .first()
-                .map(|entry| {
-                    program
-                        .state_parameters(entry)
-                        .iter()
-                        .map(|parameter| parameter.name.as_str().to_owned())
-                        .collect::<Vec<_>>()
-                })
-                .unwrap_or_default();
             let route_expressions = uses_published_routes.then(|| {
                 crash_route_expressions_by_identity(
                     program,
-                    target_machine,
+                    route_contracts.expect("published crash routes retain their contract set"),
                     &target_parameter_names,
                     content_conservation,
                 )
@@ -187,7 +219,7 @@ pub(super) fn attach_checked_crash_calls(
                     ),
                     target_machine_symbol,
                     target_state_symbol,
-                    target_plan.fingerprint,
+                    target_contract_fingerprint,
                     surviving_buckets,
                 ));
         }
@@ -324,9 +356,31 @@ fn inferred_direct_body_crash_buckets(
     buckets
 }
 
+fn requirement_signature<'program>(
+    program: &'program TypedTrees,
+    target_machine: SymbolHandle,
+    target_state: SymbolHandle,
+) -> Option<&'program psi_typed_trees::signature::StateSignature> {
+    if target_machine == target_state {
+        return program
+            .machine_parameter_signature(target_state)
+            .map(|(_, signature)| signature);
+    }
+    program
+        .traits()
+        .iter()
+        .find(|definition| definition.symbol == target_machine)
+        .and_then(|definition| {
+            program
+                .trait_machine_signatures(definition)
+                .iter()
+                .find(|signature| signature.symbol == target_state)
+        })
+}
+
 fn crash_route_expressions_by_identity(
     program: &TypedTrees,
-    machine: &psi_typed_trees::machine::Machine,
+    contracts: &[psi_typed_trees::signature::SignatureContract],
     parameter_names: &[String],
     content_conservation: &[psi_validation::ContentConservationSourcePlan],
 ) -> std::collections::BTreeMap<
@@ -334,7 +388,7 @@ fn crash_route_expressions_by_identity(
     psi_typed_trees::expression::ExpressionHandle,
 > {
     let mut expressions = std::collections::BTreeMap::new();
-    for contract in program.machine_contracts(machine) {
+    for contract in contracts {
         if !matches!(
             contract.kind,
             psi_typed_trees::signature::SignatureContractKind::Crashes { .. }

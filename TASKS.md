@@ -260,11 +260,16 @@ Remaining:
   route independently against a same-cause caller bucket whose containment
   demand covers the selected route and whose guard is unconditional, exactly
   matches the surviving predicate, or is one of the invocation's retained
-  incoming path conjuncts. Extend path-conditioned guard
+  incoming path conjuncts. Callable trait requirements and unresolved
+  compile-time machine parameters now retain source-independent crash-contract
+  capsules: each capsule pins the normalized public crash buckets to the
+  complete callable-contract fingerprint, and checked calls select and
+  substitute those buckets exactly like local published ceilings. Extend
+  path-conditioned guard
   entailment beyond the live structural propositional consequences and widen
   damage minima from open invariant/custody evidence; then retain guarded
-  nonleaf routes through recursive fixed points, add imported/requirement
-  capsules, and sparse per-cause context maxima.
+  nonleaf routes through recursive fixed points, add separately compiled
+  imported-artifact capsules, and sparse per-cause context maxima.
   Retaining declared intermediate nominal scope ordering is design blocked on
   `OWNER_QUESTIONS.md` Q2.
   Generalize guarded source production beyond the live structural implication

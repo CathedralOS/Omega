@@ -2784,6 +2784,60 @@ fn checked_crash_calls_select_acyclic_private_body_summaries() {
     assert_eq!(nonleaf_bucket.cause(), psi_checked_trees::CrashCause::Abort);
 }
 
+#[test]
+fn checked_crash_calls_select_machine_requirement_capsules() {
+    let source = r#"
+    machine apply<machine Selected>(flag: bool)
+    where machine Selected(value: bool)
+        crashes Abort Activation
+            value;
+    crashes Abort Activation
+        flag
+    {
+        Selected(flag);
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let checked = lower_typed_trees(typed).expect("requirement crash capsule should lower");
+    let apply = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "apply")
+        .expect("apply machine");
+    let plan = checked
+        .facts
+        .contract_plans
+        .for_machine(apply.symbol)
+        .expect("apply contract plan");
+    let [call] = plan.crash.checked_calls() else {
+        panic!("the requirement call should retain one checked crash row");
+    };
+    let capsule = checked
+        .facts
+        .contract_plans
+        .crash_capsule(call.target_machine(), call.target_state())
+        .expect("the abstract target should retain its normalized capsule");
+    assert_eq!(
+        call.target_contract_fingerprint(),
+        capsule.target_contract_fingerprint()
+    );
+    let [bucket] = call.surviving_buckets() else {
+        panic!("the unknown flag should retain the guarded Abort bucket");
+    };
+    assert_eq!(bucket.cause(), psi_checked_trees::CrashCause::Abort);
+    assert_eq!(bucket.containment_demand(), "Activation");
+    assert!(matches!(
+        bucket.alternative_guards(),
+        [psi_checked_trees::CrashRouteGuard::Predicate(_)]
+    ));
+}
+
 fn symbol_of_checked(
     checked: &psi_checked_trees::CheckedTrees,
     name: &str,
