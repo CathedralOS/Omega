@@ -1342,3 +1342,30 @@ fn encode_contract_expression_canonical(
     }
     encode_expression_canonical(program, expression, parameter_names, out);
 }
+
+/// Canonical identity of one body-derived path predicate in the namespace of
+/// a machine's published crash routes. This deliberately shares the exact
+/// encoder used by [`build_published_crash_plan`]: checked guard coverage may
+/// join a source expression to a published bucket only after both normalize to
+/// the same source-handle-free bytes.
+pub(crate) fn canonical_crash_path_predicate(
+    program: &TypedTrees,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+    negated: bool,
+    parameter_names: &[String],
+    content_conservation: &[psi_validation::ContentConservationSourcePlan],
+) -> psi_checked_trees::CrashPredicateIdentity {
+    let mut bytes = vec![1]; // ProofFact::Expression
+    if negated {
+        bytes.push(2); // ExpressionNode::Unary
+        bytes.push(psi_typed_trees::expression::UnaryOperator::LogicalNot as u8);
+    }
+    encode_contract_expression_canonical(
+        program,
+        expression,
+        parameter_names,
+        content_conservation,
+        &mut bytes,
+    );
+    psi_checked_trees::CrashPredicateIdentity::from_canonical_bytes(bytes)
+}

@@ -2315,6 +2315,34 @@ fn checked_crash_sites_are_body_evidence_not_contract_identity() {
     {
         crash Abort;
     }
+
+    machine path_guarded_body(flag: bool) -> i32
+    crashes Abort Activation
+        flag
+    {
+        transition {
+            flag -> fail()
+            _ -> 0i32
+        }
+
+        state fail() -> i32 {
+            crash Abort;
+        }
+    }
+
+    machine fallthrough_guarded_body(flag: bool) -> i32
+    crashes Abort Activation
+        !flag
+    {
+        transition {
+            flag -> 0i32
+            _ -> fail()
+        }
+
+        state fail() -> i32 {
+            crash Abort;
+        }
+    }
     "#;
 
     let tokens = Lexer::new(source)
@@ -2371,6 +2399,34 @@ fn checked_crash_sites_are_body_evidence_not_contract_identity() {
     assert!(
         guarded_site.guard_covering_buckets().is_empty(),
         "a route predicate is not unconditional guard-coverage evidence"
+    );
+
+    let [path_guarded_site] = plan("path_guarded_body").crash.checked_sites() else {
+        panic!("the guarded target state should retain its explicit crash site")
+    };
+    let [path_covering_bucket] = path_guarded_site.guard_covering_buckets() else {
+        panic!("the exact incoming path guard should cover its published route")
+    };
+    assert!(
+        plan("path_guarded_body")
+            .crash
+            .published_bucket(*path_covering_bucket)
+            .is_some_and(|bucket| !bucket.is_unconditional()
+                && bucket.cause() == psi_checked_trees::CrashCause::Abort)
+    );
+
+    let [fallthrough_guarded_site] = plan("fallthrough_guarded_body").crash.checked_sites() else {
+        panic!("the fallthrough target state should retain its explicit crash site")
+    };
+    let [fallthrough_covering_bucket] = fallthrough_guarded_site.guard_covering_buckets() else {
+        panic!("the negated incoming path guard should cover its published route")
+    };
+    assert!(
+        plan("fallthrough_guarded_body")
+            .crash
+            .published_bucket(*fallthrough_covering_bucket)
+            .is_some_and(|bucket| !bucket.is_unconditional()
+                && bucket.cause() == psi_checked_trees::CrashCause::Abort)
     );
 }
 
