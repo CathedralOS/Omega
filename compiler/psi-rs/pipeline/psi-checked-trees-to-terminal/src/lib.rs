@@ -228,6 +228,28 @@ struct LoweredBooleanBranchState {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+struct PendingBooleanReturnBlocks {
+    first_id: BlockId,
+    parameters: Vec<ValueDeclaration>,
+    decision: LoweredBooleanDecision,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum PendingBooleanBlockGroup {
+    Guard(PendingShortCircuitGuardBlocks),
+    Return(PendingBooleanReturnBlocks),
+}
+
+impl PendingBooleanBlockGroup {
+    fn first_id(&self) -> BlockId {
+        match self {
+            Self::Guard(blocks) => blocks.first_id,
+            Self::Return(blocks) => blocks.first_id,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct PendingConditionalBindingBlock {
     id: BlockId,
     parameters: Vec<ValueDeclaration>,
@@ -1910,11 +1932,6 @@ fn lower_nested_boolean_branch_machine(
             [StatementNode::Expression(return_expression)] => {
                 let expression = lower_boolean_expression(checked, *return_expression, parameters)?;
                 validate_short_circuit_expression(&expression)?;
-                if contains_short_circuit(&expression) {
-                    return unsupported(
-                        "nested Boolean return expressions cannot short-circuit yet",
-                    );
-                }
                 LoweredBooleanBranchTerminator::Return { expression }
             }
             [
@@ -4128,6 +4145,106 @@ fn emit_reserved_boolean_guard_decision_blocks(
 }
 
 #[allow(clippy::too_many_arguments)]
+fn emit_reserved_boolean_return_blocks(
+    decision: &LoweredBooleanDecision,
+    parameters: &[ValueDeclaration],
+    block_parameters: Vec<ValueDeclaration>,
+    first_block_identity: u64,
+    next_value_identity: &mut u64,
+    next_edge_identity: &mut u64,
+    all_operations: &mut Vec<Operation>,
+    blocks: &mut Vec<Option<Block>>,
+) -> BlockId {
+    let block_index = blocks.len();
+    let block = block_id(
+        first_block_identity
+            .checked_add(
+                u64::try_from(block_index)
+                    .expect("reserved Boolean return block count fits a semantic identity"),
+            )
+            .expect("reserved Boolean return block identity advances"),
+    );
+    blocks.push(None);
+    let operation_start = all_operations.len();
+    let (terminator, operation_end) = match decision {
+        LoweredBooleanDecision::Value(expression) => {
+            let value = emit_boolean_expression(
+                expression,
+                parameters,
+                next_value_identity,
+                all_operations,
+            );
+            let edge = edge_id(*next_edge_identity);
+            *next_edge_identity = next_edge_identity
+                .checked_add(1)
+                .expect("reserved Boolean return edge identity advances");
+            (Terminator::Return { edge, value }, all_operations.len())
+        }
+        LoweredBooleanDecision::Test {
+            condition,
+            when_true,
+            when_false,
+        } => {
+            let condition =
+                emit_boolean_expression(condition, parameters, next_value_identity, all_operations);
+            let operation_end = all_operations.len();
+            let true_edge = edge_id(*next_edge_identity);
+            let false_edge = edge_id(
+                next_edge_identity
+                    .checked_add(1)
+                    .expect("reserved Boolean return false edge identity advances"),
+            );
+            *next_edge_identity = next_edge_identity
+                .checked_add(2)
+                .expect("reserved Boolean return decision edges advance");
+            let when_true = emit_reserved_boolean_return_blocks(
+                when_true,
+                parameters,
+                Vec::new(),
+                first_block_identity,
+                next_value_identity,
+                next_edge_identity,
+                all_operations,
+                blocks,
+            );
+            let when_false = emit_reserved_boolean_return_blocks(
+                when_false,
+                parameters,
+                Vec::new(),
+                first_block_identity,
+                next_value_identity,
+                next_edge_identity,
+                all_operations,
+                blocks,
+            );
+            (
+                Terminator::Conditional {
+                    condition,
+                    when_true: SuccessorEdge {
+                        edge: true_edge,
+                        target: when_true,
+                        arguments: Vec::new(),
+                    },
+                    when_false: SuccessorEdge {
+                        edge: false_edge,
+                        target: when_false,
+                        arguments: Vec::new(),
+                    },
+                },
+                operation_end,
+            )
+        }
+    };
+    blocks[block_index] = Some(Block {
+        id: block,
+        parameters: block_parameters,
+        operations: all_operations[operation_start..operation_end].to_vec(),
+        terminator,
+    });
+    block
+}
+
+#[allow(clippy::too_many_arguments)]
 fn emit_boolean_decision_blocks(
     decision: &LoweredBooleanDecision,
     expression_parameters: &[ValueDeclaration],
@@ -4492,7 +4609,7 @@ fn build_nested_boolean_branch_module(
         .expect("Boolean state count fits a semantic identity")
         .checked_add(1)
         .expect("Boolean decision blocks follow source blocks");
-    let mut pending_guards = Vec::new();
+    let mut pending_blocks = Vec::new();
     let mut blocks = Vec::with_capacity(states.len());
     for (index, state) in states.iter().enumerate() {
         let operation_start = all_operations.len();
@@ -4576,13 +4693,15 @@ fn build_nested_boolean_branch_module(
                     };
                     let when_true = target(*when_true_target, when_true_arguments);
                     let when_false = target(*when_false_target, when_false_arguments);
-                    pending_guards.push(PendingShortCircuitGuardBlocks {
-                        first_id,
-                        parameters: decision_parameters,
-                        decision,
-                        when_true,
-                        when_false,
-                    });
+                    pending_blocks.push(PendingBooleanBlockGroup::Guard(
+                        PendingShortCircuitGuardBlocks {
+                            first_id,
+                            parameters: decision_parameters,
+                            decision,
+                            when_true,
+                            when_false,
+                        },
+                    ));
                     let edge = edge_id(next_edge_identity);
                     next_edge_identity = next_edge_identity
                         .checked_add(1)
@@ -4632,17 +4751,59 @@ fn build_nested_boolean_branch_module(
                 }
             }
             LoweredBooleanBranchTerminator::Return { expression } => {
-                let value = emit_boolean_expression(
-                    expression,
-                    current_parameters,
-                    &mut next_value_identity,
-                    &mut all_operations,
-                );
-                let edge = edge_id(next_edge_identity);
-                next_edge_identity = next_edge_identity
-                    .checked_add(1)
-                    .expect("nested Boolean return edge identity advances");
-                Terminator::Return { edge, value }
+                if contains_short_circuit(expression) {
+                    let decision = lower_boolean_value_decision(expression);
+                    let first_id = block_id(next_block_identity);
+                    next_block_identity = next_block_identity
+                        .checked_add(
+                            u64::try_from(boolean_decision_block_count(&decision))
+                                .expect("Boolean return block count fits a semantic identity"),
+                        )
+                        .expect("Boolean return block identities advance");
+                    let decision_parameters = (0..state.parameter_count)
+                        .map(|_| {
+                            let parameter = ValueDeclaration {
+                                id: value_id(next_value_identity),
+                                scalar_type: ScalarType::Boolean,
+                            };
+                            next_value_identity = next_value_identity
+                                .checked_add(1)
+                                .expect("Boolean return parameter identities advance");
+                            parameter
+                        })
+                        .collect::<Vec<_>>();
+                    pending_blocks.push(PendingBooleanBlockGroup::Return(
+                        PendingBooleanReturnBlocks {
+                            first_id,
+                            parameters: decision_parameters,
+                            decision,
+                        },
+                    ));
+                    let edge = edge_id(next_edge_identity);
+                    next_edge_identity = next_edge_identity
+                        .checked_add(1)
+                        .expect("Boolean return entry edge identity advances");
+                    Terminator::Jump {
+                        edge,
+                        target: first_id,
+                        arguments: current_parameters
+                            .iter()
+                            .map(|parameter| parameter.id)
+                            .collect(),
+                    }
+                } else {
+                    let value = emit_boolean_expression(
+                        expression,
+                        current_parameters,
+                        &mut next_value_identity,
+                        &mut all_operations,
+                    );
+                    let edge = edge_id(next_edge_identity);
+                    next_edge_identity = next_edge_identity
+                        .checked_add(1)
+                        .expect("nested Boolean return edge identity advances");
+                    Terminator::Return { edge, value }
+                }
             }
         };
         blocks.push(Block {
@@ -4661,26 +4822,43 @@ fn build_nested_boolean_branch_module(
             terminator,
         });
     }
-    pending_guards.sort_by_key(|guard| guard.first_id);
-    for pending in pending_guards {
+    pending_blocks.sort_by_key(PendingBooleanBlockGroup::first_id);
+    for pending in pending_blocks {
         let mut decision_blocks = Vec::new();
-        let entry = emit_reserved_boolean_guard_decision_blocks(
-            &pending.decision,
-            &pending.parameters,
-            pending.parameters.clone(),
-            &pending.when_true,
-            &pending.when_false,
-            pending.first_id.get(),
-            &mut next_value_identity,
-            &mut next_edge_identity,
-            &mut all_operations,
-            &mut decision_blocks,
-        );
-        assert_eq!(entry.block, pending.first_id);
+        match pending {
+            PendingBooleanBlockGroup::Guard(pending) => {
+                let entry = emit_reserved_boolean_guard_decision_blocks(
+                    &pending.decision,
+                    &pending.parameters,
+                    pending.parameters.clone(),
+                    &pending.when_true,
+                    &pending.when_false,
+                    pending.first_id.get(),
+                    &mut next_value_identity,
+                    &mut next_edge_identity,
+                    &mut all_operations,
+                    &mut decision_blocks,
+                );
+                assert_eq!(entry.block, pending.first_id);
+            }
+            PendingBooleanBlockGroup::Return(pending) => {
+                let entry = emit_reserved_boolean_return_blocks(
+                    &pending.decision,
+                    &pending.parameters,
+                    pending.parameters.clone(),
+                    pending.first_id.get(),
+                    &mut next_value_identity,
+                    &mut next_edge_identity,
+                    &mut all_operations,
+                    &mut decision_blocks,
+                );
+                assert_eq!(entry, pending.first_id);
+            }
+        }
         blocks.extend(
             decision_blocks
                 .into_iter()
-                .map(|block| block.expect("every nested Boolean guard block is finalized")),
+                .map(|block| block.expect("every reserved nested Boolean block is finalized")),
         );
     }
 

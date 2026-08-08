@@ -196,9 +196,10 @@ AArch64, duplicating a pure shared tail where the current native tree form
 requires it while preserving canonical Psi provenance. The Boolean-result
 companion now accepts the same rooted acyclic topology over ordinary Boolean
 parameters: nested selections, convergent tails, recursive non-short-circuit
-unconditional bindings and returns, and short-circuit guards all reach
-verification, exact fuel, interpretation, and both native targets. Loops and
-short-circuit Boolean value bindings/returns remain later slices.
+unconditional bindings, recursive short-circuit returns, and short-circuit
+guards all reach verification, exact fuel, interpretation, and both native
+targets. Short-circuit return leaves use reserved value-producing decision
+blocks. Loops and short-circuit Boolean jump bindings remain later slices.
 
 The checked-frontend migration also keeps the ownership firewall explicit:
 `psi-checked-trees` now owns the target-neutral checked representation and
