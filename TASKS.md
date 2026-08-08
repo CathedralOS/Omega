@@ -385,9 +385,6 @@ Owner: `wiki/design_briefs/law_bearing_relations_and_quotients.md`.
 
 Remaining N6/N8 work:
 
-- Implement the witness-bearing proposition brace form: exactly one
-  carrierless evidence-interface entry, no executable body, and a normalized
-  fingerprint distinct from transparent `=` expansion.
 - **SELECTED-WITNESS-EVIDENCE:** bind a selected named
   conformance block to one carrierless proof term that introduction and
   elimination can reopen. Consume its complete normalized requirement map;

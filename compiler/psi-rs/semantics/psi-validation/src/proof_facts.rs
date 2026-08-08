@@ -6,6 +6,8 @@ use psi_typed_trees::TypedTrees;
 use psi_typed_trees::domain::ProofFact;
 use psi_typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use psi_typed_trees::name::Identifier;
+use psi_typed_trees::trait_definition::TraitDefinition;
+use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use std::fmt;
 
 #[derive(Debug, Clone, Copy)]
@@ -40,13 +42,239 @@ pub(crate) fn validate_proposition_definitions(
         }
         if let psi_typed_trees::proposition::PropositionBody::Witness { evidence } =
             proposition.body
-            && !evidence.is_valid()
         {
+            validate_witness_evidence_interface(
+                program,
+                proposition.name.as_str(),
+                evidence,
+                diagnostics,
+            );
+        }
+    }
+}
+
+fn validate_witness_evidence_interface(
+    program: &TypedTrees,
+    proposition: &str,
+    evidence: TypeReferenceHandle,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if !evidence.is_valid() {
+        diagnostics.push(Diagnostic::error(format!(
+            "witness-bearing proposition `{proposition}` has no resolved evidence interface"
+        )));
+        return;
+    }
+
+    let (trait_symbol, trait_name, lifetime_argument_count, arguments) = match program
+        .type_reference_table
+        .type_reference(evidence)
+    {
+        TypeReferenceNode::Named { symbol, name } => (*symbol, name.as_str(), 0, &[][..]),
+        TypeReferenceNode::Generic {
+            base_symbol,
+            base_name,
+            lifetime_arguments,
+            arguments,
+        } => (
+            *base_symbol,
+            base_name.as_str(),
+            lifetime_arguments.len(),
+            program
+                .type_reference_table
+                .type_reference_handles(*arguments),
+        ),
+        TypeReferenceNode::DynamicTrait { name, .. } => {
             diagnostics.push(Diagnostic::error(format!(
-                "witness-bearing proposition `{}` has no resolved evidence interface",
-                proposition.name.as_str()
+                    "witness-bearing proposition `{proposition}` names selected dynamic evidence `dyn {name}`; name the carrierless trait interface directly"
+                )));
+            return;
+        }
+        _ => {
+            diagnostics.push(Diagnostic::error(format!(
+                    "witness-bearing proposition `{proposition}` evidence `{}` must name one carrierless trait interface",
+                    program.display_type_reference(evidence)
+                )));
+            return;
+        }
+    };
+
+    let Some(trait_definition) = program.traits().iter().find(|candidate| {
+        (trait_symbol.is_valid() && candidate.symbol == trait_symbol)
+            || candidate.name.as_str() == trait_name
+    }) else {
+        diagnostics.push(Diagnostic::error(format!(
+            "witness-bearing proposition `{proposition}` evidence `{}` is not a trait interface",
+            program.display_type_reference(evidence)
+        )));
+        return;
+    };
+
+    if lifetime_argument_count != trait_definition.lifetime_parameters.len() {
+        diagnostics.push(Diagnostic::error(format!(
+            "witness-bearing proposition `{proposition}` evidence trait `{trait_name}` expects {} lifetime argument(s), but the interface supplies {lifetime_argument_count}",
+            trait_definition.lifetime_parameters.len()
+        )));
+    }
+
+    let parameter_count = program.trait_type_parameters(trait_definition).len();
+    if arguments.len() != parameter_count {
+        diagnostics.push(Diagnostic::error(format!(
+            "witness-bearing proposition `{proposition}` evidence trait `{trait_name}` expects {parameter_count} generic argument(s), but the interface supplies {}",
+            arguments.len()
+        )));
+    }
+    for argument in arguments {
+        if !evidence_argument_is_resolved(program, *argument) {
+            diagnostics.push(Diagnostic::error(format!(
+                "witness-bearing proposition `{proposition}` evidence trait `{trait_name}` has unresolved generic argument `{}`",
+                program.display_type_reference(*argument)
             )));
         }
+    }
+
+    let mut visiting = Vec::new();
+    if let Some(reason) = carrierless_trait_violation(program, trait_definition, &mut visiting) {
+        diagnostics.push(Diagnostic::error(format!(
+            "witness-bearing proposition `{proposition}` evidence trait `{trait_name}` is not carrierless: {reason}"
+        )));
+    }
+}
+
+fn evidence_argument_is_resolved(program: &TypedTrees, argument: TypeReferenceHandle) -> bool {
+    if !argument.is_valid() {
+        return false;
+    }
+    match program.type_reference_table.type_reference(argument) {
+        TypeReferenceNode::Named { symbol, .. } => symbol.is_valid(),
+        TypeReferenceNode::Reference { referee, .. } => {
+            evidence_argument_is_resolved(program, *referee)
+        }
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            evidence_argument_is_resolved(program, *base_type)
+        }
+        TypeReferenceNode::FixedArray { element_type, .. }
+        | TypeReferenceNode::Slice { element_type } => {
+            evidence_argument_is_resolved(program, *element_type)
+        }
+        TypeReferenceNode::Generic {
+            base_symbol,
+            arguments,
+            ..
+        } => {
+            base_symbol.is_valid()
+                && program
+                    .type_reference_table
+                    .type_reference_handles(*arguments)
+                    .iter()
+                    .all(|argument| evidence_argument_is_resolved(program, *argument))
+        }
+        TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::Unit => true,
+        TypeReferenceNode::DynamicTrait { symbol, .. } => symbol.is_valid(),
+    }
+}
+
+fn carrierless_trait_violation(
+    program: &TypedTrees,
+    trait_definition: &TraitDefinition,
+    visiting: &mut Vec<SymbolHandle>,
+) -> Option<String> {
+    if trait_definition.is_boundary {
+        return Some("boundary traits describe externally executed services".to_owned());
+    }
+    if visiting.contains(&trait_definition.symbol) {
+        return None;
+    }
+    visiting.push(trait_definition.symbol);
+
+    if trait_definition
+        .conformance_bounds
+        .iter()
+        .any(|bound| bound.subject_name.as_str() == "Self")
+    {
+        visiting.pop();
+        return Some("a conformance bound selects `Self` as its subject".to_owned());
+    }
+
+    for requirement in program.trait_machine_signatures(trait_definition) {
+        for parameter in program.state_signature_parameters(requirement) {
+            if parameter.is_self || type_reference_contains_self(program, parameter.type_reference)
+            {
+                visiting.pop();
+                return Some(format!(
+                    "requirement `{}` has a carrier-dependent parameter",
+                    requirement.name
+                ));
+            }
+        }
+        if requirement.return_type.is_valid()
+            && type_reference_contains_self(program, requirement.return_type)
+        {
+            visiting.pop();
+            return Some(format!(
+                "requirement `{}` has a carrier-dependent result",
+                requirement.name
+            ));
+        }
+    }
+
+    for parent in program.trait_requirements(trait_definition) {
+        if program
+            .type_reference_table
+            .type_reference_handles(parent.arguments)
+            .iter()
+            .any(|argument| type_reference_contains_self(program, *argument))
+        {
+            visiting.pop();
+            return Some(format!(
+                "parent interface `{}` is applied to `Self`",
+                parent.name
+            ));
+        }
+        let Some(parent_definition) = program
+            .traits()
+            .iter()
+            .find(|candidate| candidate.symbol == parent.symbol)
+        else {
+            continue;
+        };
+        if let Some(reason) = carrierless_trait_violation(program, parent_definition, visiting) {
+            visiting.pop();
+            return Some(format!(
+                "parent interface `{}` is not carrierless: {reason}",
+                parent.name
+            ));
+        }
+    }
+
+    visiting.pop();
+    None
+}
+
+fn type_reference_contains_self(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
+    if !type_reference.is_valid() {
+        return false;
+    }
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Named { name, .. } => name.as_str() == "Self",
+        TypeReferenceNode::Reference { referee, .. } => {
+            type_reference_contains_self(program, *referee)
+        }
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            type_reference_contains_self(program, *base_type)
+        }
+        TypeReferenceNode::FixedArray { element_type, .. }
+        | TypeReferenceNode::Slice { element_type } => {
+            type_reference_contains_self(program, *element_type)
+        }
+        TypeReferenceNode::Generic { arguments, .. } => program
+            .type_reference_table
+            .type_reference_handles(*arguments)
+            .iter()
+            .any(|argument| type_reference_contains_self(program, *argument)),
+        TypeReferenceNode::ConstExpression(_)
+        | TypeReferenceNode::DynamicTrait { .. }
+        | TypeReferenceNode::Unit => false,
     }
 }
 

@@ -132,6 +132,13 @@ fn v16_proposition_vocabulary_round_trips_and_enters_identity() {
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
 
     let original = semantic_fingerprint(&module).expect("vocabulary has identity");
+    module.proposition_declarations[0].evidence = PropositionEvidence::Witness {
+        evidence_type: "AlternativeEvidence<Left>".to_owned(),
+    };
+    assert_ne!(
+        semantic_fingerprint(&module).expect("changed evidence interface has identity"),
+        original
+    );
     module.proposition_declarations[0].evidence = PropositionEvidence::FactOnly;
     assert_ne!(
         semantic_fingerprint(&module).expect("changed vocabulary has identity"),

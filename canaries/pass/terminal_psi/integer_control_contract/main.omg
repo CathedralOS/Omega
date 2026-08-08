@@ -11,7 +11,7 @@ proposition terminal_relation_alias<T, const Limit: u32, machine Generator>(valu
     terminal_relation<T, Limit, Generator>(value);
 
 proposition terminal_witness(value: i32) {
-    dyn TerminalEvidence;
+    TerminalEvidence;
 }
 
 machine terminal_proposition_forward()

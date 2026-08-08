@@ -17,6 +17,153 @@ fn typed_program_from_source(source: &str) -> psi_typed_trees::TypedTrees {
 }
 
 #[test]
+fn witness_proposition_requires_a_direct_carrierless_trait_interface() {
+    let typed = typed_program_from_source(
+        r#"
+        trait Evidence {
+            machine cite(value: i32) ensures value == value;
+        }
+
+        proposition witnessed(value: i32) {
+            Evidence;
+        }
+        "#,
+    );
+
+    validate_program(&typed).expect("a subjectless checked trait is a carrierless interface");
+}
+
+#[test]
+fn witness_proposition_rejects_data_as_its_evidence_interface() {
+    let typed = typed_program_from_source(
+        r#"
+        data Evidence {}
+        proposition witnessed(value: i32) {
+            Evidence;
+        }
+        "#,
+    );
+
+    let diagnostics = validate_program(&typed)
+        .expect_err("ordinary data must not stand in for an evidence interface");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("evidence `Evidence` is not a trait interface")
+    }));
+}
+
+#[test]
+fn witness_proposition_rejects_carrier_bearing_trait_interface() {
+    let typed = typed_program_from_source(
+        r#"
+        trait Evidence {
+            machine cite(&self);
+        }
+
+        proposition witnessed(value: i32) {
+            Evidence;
+        }
+        "#,
+    );
+
+    let diagnostics = validate_program(&typed)
+        .expect_err("an evidence interface must not depend on a carrier instance");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains("is not carrierless")
+            && diagnostic.message.contains("carrier-dependent parameter")
+    }));
+}
+
+#[test]
+fn witness_proposition_declaration_rejects_selected_dynamic_evidence() {
+    let typed = typed_program_from_source(
+        r#"
+        trait Evidence {
+            machine cite(value: i32) ensures value == value;
+        }
+
+        proposition witnessed(value: i32) {
+            dyn Evidence;
+        }
+        "#,
+    );
+
+    let diagnostics = validate_program(&typed)
+        .expect_err("the declaration names an interface, not one selected evidence value");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("names selected dynamic evidence `dyn Evidence`")
+    }));
+}
+
+#[test]
+fn witness_proposition_rejects_boundary_evidence_interface() {
+    let typed = typed_program_from_source(
+        r#"
+        boundary trait Evidence {
+            machine cite(value: i32) ensures value == value;
+        }
+
+        proposition witnessed(value: i32) {
+            Evidence;
+        }
+        "#,
+    );
+
+    let diagnostics = validate_program(&typed)
+        .expect_err("an externally executed service is not carrierless proof evidence");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains("is not carrierless")
+            && diagnostic
+                .message
+                .contains("boundary traits describe externally executed services")
+    }));
+}
+
+#[test]
+fn witness_proposition_checks_evidence_trait_generic_arity() {
+    let typed = typed_program_from_source(
+        r#"
+        trait Evidence<Carrier> {
+            machine cite(value: Carrier) ensures value == value;
+        }
+
+        proposition witnessed(value: i32) {
+            Evidence;
+        }
+        "#,
+    );
+
+    let diagnostics = validate_program(&typed)
+        .expect_err("the evidence interface must apply the complete trait telescope");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains(
+            "evidence trait `Evidence` expects 1 generic argument(s), but the interface supplies 0",
+        )
+    }));
+}
+
+#[test]
+fn witness_proposition_accepts_bound_generic_evidence_interface() {
+    let typed = typed_program_from_source(
+        r#"
+        trait Evidence<Carrier> {
+            machine cite(value: Carrier) ensures value == value;
+        }
+
+        proposition witnessed<Carrier>(value: Carrier) {
+            Evidence<Carrier>;
+        }
+        "#,
+    );
+
+    validate_program(&typed)
+        .expect("the proposition telescope may bind the evidence interface telescope");
+}
+
+#[test]
 fn proposition_contract_requires_exact_normalized_application() {
     let typed = typed_program_from_source(
         r#"
