@@ -2617,6 +2617,27 @@ fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
         let mut guarded_meter = TerminalFuelMeter::unbounded();
         assert_eq!(execution.resume(&mut guarded_meter).unwrap(), expected);
     }
+    let implied_trap = lower_machine(&checked, "terminal_implied_guarded_trap")
+        .expect("structurally implied guard coverage should reach terminal production");
+    let implied_verified = verify_module(
+        &implied_trap.semantic_module,
+        &implied_trap.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("the structurally implied crash branch should verify");
+    for (flag, crashes) in [(true, true), (false, false)] {
+        let mut execution =
+            TerminalExecution::start(&implied_verified, &[TerminalScalarValue::Boolean(flag)])
+                .expect("implied crash execution should start");
+        let mut implied_meter = TerminalFuelMeter::unbounded();
+        assert_eq!(
+            matches!(
+                execution.resume(&mut implied_meter).unwrap(),
+                TerminalExecutionStatus::Crashed(_)
+            ),
+            crashes
+        );
+    }
     let lowered = lower_machine(&checked, "terminal_abort")
         .expect("an unconditional published crash should lower");
     let explicit_true = lower_machine(&checked, "terminal_explicit_true_abort")

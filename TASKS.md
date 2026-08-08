@@ -190,7 +190,8 @@ Remaining:
   `crashes Cause` shorthand, and preserves explicit `crash Cause;` exits through
   checked trees. Source production lowers crash-only machines covered by one
   unconditional same-cause bucket and acyclic integer control whose crash
-  branch has one exactly matched incoming-path bucket; verification and direct
+  branch has one checker-proved incoming-path bucket, including the live
+  structural implication rules; verification and direct
   interpretation retain cause, derived damage minimum, selected nominal
   containment demand, and the non-replayable outcome. Contextual statement
   `trap` is retired, and the legacy native
@@ -234,8 +235,8 @@ Remaining:
   beyond the live structural propositional consequences, widen damage minima
   from open invariant/custody evidence, and retain declared nominal scope ordering; then
   finish call-site refinement/propagation and sparse per-cause context maxima.
-  Generalize guarded source production beyond exact incoming predicates and
-  the current acyclic integer-control shape.
+  Generalize guarded source production beyond the live structural implication
+  rules and current acyclic integer-control shape.
   Terminal Psi v23 already carries the explicit no-successor terminator, both
   crash scopes, and its canonical machine-local frontier lower bound; native
   lowering remains closed until target crash plans exist.
