@@ -80,9 +80,11 @@ incoming-path guarded crash branches now lower in the acyclic integer-control
 slice, including nested-negation implication, comparison operand reversal, and
 negated equality/inequality. Ordered-comparison negation is admitted only for
 checked integer operands; integer strict order also yields its non-strict bound
-and inequality, while integer equality yields both non-strict bounds. Unknown,
-user-defined, and float operands remain opaque so unordered values remain
-sound. Exact-type integer comparisons now also lower as executable control
+and inequality, while integer equality yields both non-strict bounds. Positive
+path conjunctions also close checked-integer order transitively; a derived chain
+is strict exactly when at least one link is strict. Unknown, user-defined, and
+float operands remain opaque so unordered values remain sound. Exact-type
+integer comparisons now also lower as executable control
 guards over the established recursive integer-expression vocabulary. Greater
 forms swap operands into canonical less operations and inequality composes
 terminal Boolean negation. Broader guard entailment and source shapes remain.

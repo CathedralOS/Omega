@@ -45,9 +45,12 @@ pub(crate) fn infer_path_conditioned_guard_coverage(program: &TypedTrees, facts:
             .iter()
             .map(|site| {
                 let mut covering = site.guard_covering_buckets().to_vec();
-                let path_guard_conjuncts = incoming
+                let applicable_guards = incoming
                     .iter()
                     .filter(|guard| guard.applies_at(site.location().state()))
+                    .collect::<Vec<_>>();
+                let path_guard_conjuncts = applicable_guards
+                    .iter()
                     .map(|guard| {
                         crate::facts::canonical_crash_path_predicate(
                             program,
@@ -59,10 +62,8 @@ pub(crate) fn infer_path_conditioned_guard_coverage(program: &TypedTrees, facts:
                     })
                     .collect::<Vec<_>>();
                 let mut path_predicates = Vec::new();
-                for guard in incoming
-                    .iter()
-                    .filter(|guard| guard.applies_at(site.location().state()))
-                {
+                let mut order_relations = Vec::new();
+                for guard in applicable_guards {
                     collect_structural_guard_consequences(
                         program,
                         guard.guard(),
@@ -71,7 +72,22 @@ pub(crate) fn infer_path_conditioned_guard_coverage(program: &TypedTrees, facts:
                         &content_conservation,
                         &mut path_predicates,
                     );
+                    collect_integer_order_relations(
+                        program,
+                        guard.guard(),
+                        guard.is_negated(),
+                        &parameter_names,
+                        &content_conservation,
+                        &mut order_relations,
+                    );
                 }
+                push_transitive_integer_order_consequences(
+                    program,
+                    &mut order_relations,
+                    &parameter_names,
+                    &content_conservation,
+                    &mut path_predicates,
+                );
                 path_predicates.sort();
                 path_predicates.dedup();
 
@@ -114,6 +130,7 @@ pub(crate) fn infer_path_conditioned_guard_coverage(program: &TypedTrees, facts:
                     })
                     .collect::<Vec<_>>();
                 let mut path_guard_consequences = Vec::new();
+                let mut order_relations = Vec::new();
                 for guard in applicable_guards {
                     collect_structural_guard_consequences(
                         program,
@@ -123,7 +140,22 @@ pub(crate) fn infer_path_conditioned_guard_coverage(program: &TypedTrees, facts:
                         &content_conservation,
                         &mut path_guard_consequences,
                     );
+                    collect_integer_order_relations(
+                        program,
+                        guard.guard(),
+                        guard.is_negated(),
+                        &parameter_names,
+                        &content_conservation,
+                        &mut order_relations,
+                    );
                 }
+                push_transitive_integer_order_consequences(
+                    program,
+                    &mut order_relations,
+                    &parameter_names,
+                    &content_conservation,
+                    &mut path_guard_consequences,
+                );
                 call.clone()
                     .with_path_guard_conjuncts(path_guard_conjuncts)
                     .with_path_guard_consequences(path_guard_consequences)
@@ -333,6 +365,217 @@ fn collect_structural_guard_consequences(
             }
         }
         _ => {}
+    }
+}
+
+#[derive(Clone, PartialEq, Eq)]
+struct IntegerOrderRelation {
+    left_identity: psi_checked_trees::CrashPredicateIdentity,
+    right_identity: psi_checked_trees::CrashPredicateIdentity,
+    left: psi_typed_trees::expression::ExpressionHandle,
+    right: psi_typed_trees::expression::ExpressionHandle,
+    strict: bool,
+}
+
+fn collect_integer_order_relations(
+    program: &TypedTrees,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+    negated: bool,
+    parameter_names: &[String],
+    content_conservation: &[psi_validation::ContentConservationSourcePlan],
+    output: &mut Vec<IntegerOrderRelation>,
+) {
+    use psi_typed_trees::expression::{BinaryOperator, ExpressionNode, UnaryOperator};
+
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
+            collect_integer_order_relations(
+                program,
+                unary.operand,
+                !negated,
+                parameter_names,
+                content_conservation,
+                output,
+            );
+        }
+        ExpressionNode::Binary(binary)
+            if (!negated && binary.operator == BinaryOperator::And)
+                || (negated && binary.operator == BinaryOperator::Or) =>
+        {
+            collect_integer_order_relations(
+                program,
+                binary.left,
+                negated,
+                parameter_names,
+                content_conservation,
+                output,
+            );
+            collect_integer_order_relations(
+                program,
+                binary.right,
+                negated,
+                parameter_names,
+                content_conservation,
+                output,
+            );
+        }
+        ExpressionNode::Binary(binary)
+            if matches!(
+                binary.operator,
+                BinaryOperator::Equal | BinaryOperator::NotEqual
+            ) =>
+        {
+            let operand_and_literal = match (
+                program.expression_table.expression(binary.left),
+                program.expression_table.expression(binary.right),
+            ) {
+                (ExpressionNode::Boolean(literal), _) => Some((binary.right, *literal)),
+                (_, ExpressionNode::Boolean(literal)) => Some((binary.left, *literal)),
+                _ => None,
+            };
+            if let Some((operand, literal)) = operand_and_literal {
+                let equality_is_negated = if binary.operator == BinaryOperator::Equal {
+                    negated
+                } else {
+                    !negated
+                };
+                collect_integer_order_relations(
+                    program,
+                    operand,
+                    equality_is_negated == literal,
+                    parameter_names,
+                    content_conservation,
+                    output,
+                );
+            }
+            collect_normalized_integer_order_relation(
+                program,
+                binary.operator,
+                binary.left,
+                binary.right,
+                negated,
+                parameter_names,
+                content_conservation,
+                output,
+            );
+        }
+        ExpressionNode::Binary(binary) => collect_normalized_integer_order_relation(
+            program,
+            binary.operator,
+            binary.left,
+            binary.right,
+            negated,
+            parameter_names,
+            content_conservation,
+            output,
+        ),
+        _ => {}
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn collect_normalized_integer_order_relation(
+    program: &TypedTrees,
+    operator: psi_typed_trees::expression::BinaryOperator,
+    left: psi_typed_trees::expression::ExpressionHandle,
+    right: psi_typed_trees::expression::ExpressionHandle,
+    negated: bool,
+    parameter_names: &[String],
+    content_conservation: &[psi_validation::ContentConservationSourcePlan],
+    output: &mut Vec<IntegerOrderRelation>,
+) {
+    use psi_typed_trees::expression::BinaryOperator;
+
+    if !comparison_operands_are_integers(program, left, right) {
+        return;
+    }
+    let Some(normalized) = normalized_comparison(operator, negated, true) else {
+        return;
+    };
+    let mut push = |left, right, strict| {
+        let relation = IntegerOrderRelation {
+            left_identity: crate::facts::canonical_crash_operand_identity(
+                program,
+                left,
+                parameter_names,
+                content_conservation,
+            ),
+            right_identity: crate::facts::canonical_crash_operand_identity(
+                program,
+                right,
+                parameter_names,
+                content_conservation,
+            ),
+            left,
+            right,
+            strict,
+        };
+        if !output.contains(&relation) {
+            output.push(relation);
+        }
+    };
+    match normalized {
+        BinaryOperator::Less => push(left, right, true),
+        BinaryOperator::LessOrEqual => push(left, right, false),
+        BinaryOperator::Greater => push(right, left, true),
+        BinaryOperator::GreaterOrEqual => push(right, left, false),
+        BinaryOperator::Equal => {
+            push(left, right, false);
+            push(right, left, false);
+        }
+        BinaryOperator::NotEqual => {}
+        _ => unreachable!("normalized comparisons use only comparison operators"),
+    }
+}
+
+fn push_transitive_integer_order_consequences(
+    program: &TypedTrees,
+    relations: &mut Vec<IntegerOrderRelation>,
+    parameter_names: &[String],
+    content_conservation: &[psi_validation::ContentConservationSourcePlan],
+    output: &mut Vec<psi_checked_trees::CrashPredicateIdentity>,
+) {
+    loop {
+        let existing = relations.clone();
+        let mut added = Vec::new();
+        for left in &existing {
+            for right in &existing {
+                if left.right_identity != right.left_identity {
+                    continue;
+                }
+                let relation = IntegerOrderRelation {
+                    left_identity: left.left_identity.clone(),
+                    right_identity: right.right_identity.clone(),
+                    left: left.left,
+                    right: right.right,
+                    strict: left.strict || right.strict,
+                };
+                if !relations.contains(&relation) && !added.contains(&relation) {
+                    added.push(relation);
+                }
+            }
+        }
+        if added.is_empty() {
+            break;
+        }
+        relations.extend(added);
+    }
+
+    for relation in relations {
+        push_comparison_consequences(
+            program,
+            if relation.strict {
+                psi_typed_trees::expression::BinaryOperator::Less
+            } else {
+                psi_typed_trees::expression::BinaryOperator::LessOrEqual
+            },
+            relation.left,
+            relation.right,
+            true,
+            parameter_names,
+            content_conservation,
+            output,
+        );
     }
 }
 

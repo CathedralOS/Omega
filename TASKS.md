@@ -226,9 +226,14 @@ Remaining:
   including nested logical negation, comparison operand reversal, and
   equality/inequality negation, while rejecting unsound converses and ordered
   complements without total-order evidence.
-  Each site separately retains the canonical conjunction of exact incoming
-  predicates so implication evidence does not replace its derived path guard;
-  reports expose that carrier. Richer guard entailment remains. Each site now retains the
+  Checked-integer order relations now compose transitively across positive path
+  conjunctions: a chain containing at least one strict edge proves a strict
+  endpoint bound, while an all-nonstrict chain proves only a nonstrict bound.
+  The same source-independent closure feeds explicit sites and checked calls;
+  unrelated endpoints and unordered floats do not compose. Each site separately
+  retains the canonical conjunction of exact incoming predicates so implication
+  evidence does not replace its derived path guard; reports expose that carrier.
+  Richer guard entailment remains. Each site now retains the
   intrinsic cause minimum (`Trap <= Activation`, `Abort <= ExecutionDomain`),
   and the checked plan distinguishes guard-covering buckets from buckets whose
   containment demand also covers that minimum. Reports expose both sets;

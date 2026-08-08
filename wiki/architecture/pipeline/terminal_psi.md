@@ -103,7 +103,11 @@ opposite relation. Negated ordered comparisons use the complement relation only
 when both operands have checked integer types. Unknown, user-defined, and float
 operands stay opaque because unordered values invalidate the usual complement
 law. For checked integers, strict order also entails its non-strict bound and
-inequality, while equality entails both non-strict bounds. Checked sites
+inequality, while equality entails both non-strict bounds. Integer order chains
+compose across positive path conjunctions: any strict link makes the derived
+endpoint relation strict, while an all-nonstrict chain remains nonstrict.
+Canonical operand identities join the links; unrelated endpoints and unordered
+float relations do not compose. Checked sites
 retain their exact incoming-predicate conjunction separately from these
 coverage consequences. Checked calls likewise retain invocation coordinates,
 the exact target contract fingerprint, the incoming path conjunction, a

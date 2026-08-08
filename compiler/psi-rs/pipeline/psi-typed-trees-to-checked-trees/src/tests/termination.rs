@@ -2760,6 +2760,54 @@ fn crash_guard_entailment_normalizes_comparison_equivalences() {
         state fail() -> i32 { crash Trap; }
     }
 
+    machine transitive_integer_order(left: i32, middle: i32, right: i32) -> i32
+    crashes Trap Activation
+        left < right
+    {
+        transition {
+            left < middle && middle <= right -> fail()
+            _ -> 0i32
+        }
+        state fail() -> i32 { crash Trap; }
+    }
+
+    machine nontransitive_integer_order(left: i32, middle: i32, right: i32) -> i32
+    crashes Trap Activation
+        left < right
+    {
+        transition {
+            left < middle && right < middle -> fail()
+            _ -> 0i32
+        }
+        state fail() -> i32 { crash Trap; }
+    }
+
+    machine transitive_nonstrict_order(left: i32, middle: i32, right: i32) -> i32
+    crashes Trap Activation
+        left <= right
+    {
+        transition {
+            left <= middle && middle <= right -> fail()
+            _ -> 0i32
+        }
+        state fail() -> i32 { crash Trap; }
+    }
+
+    machine nonstrict_chain_does_not_prove_strict(
+        left: i32,
+        middle: i32,
+        right: i32
+    ) -> i32
+    crashes Trap Activation
+        left < right
+    {
+        transition {
+            left <= middle && middle <= right -> fail()
+            _ -> 0i32
+        }
+        state fail() -> i32 { crash Trap; }
+    }
+
     machine guarded_call(left: i32, right: i32) -> i32
     crashes Trap Activation
         left != right
@@ -2767,6 +2815,17 @@ fn crash_guard_entailment_normalizes_comparison_equivalences() {
         transition {
             left == right -> 0i32
             _ -> invoke()
+        }
+        state invoke() -> i32 { risky() }
+    }
+
+    machine transitive_guarded_call(left: i32, middle: i32, right: i32) -> i32
+    crashes Trap Activation
+        left < right
+    {
+        transition {
+            left <= middle && middle < right -> invoke()
+            _ -> 0i32
         }
         state invoke() -> i32 { risky() }
     }
@@ -2796,6 +2855,8 @@ fn crash_guard_entailment_normalizes_comparison_equivalences() {
         "integer_order_fallthrough",
         "negated_equality",
         "reversed_equality",
+        "transitive_integer_order",
+        "transitive_nonstrict_order",
     ] {
         let [site] = plan(name).crash.checked_sites() else {
             panic!("{name} should retain one crash site")
@@ -2816,6 +2877,21 @@ fn crash_guard_entailment_normalizes_comparison_equivalences() {
         opaque_site.guard_covering_buckets().is_empty(),
         "unordered float comparison negation must remain opaque"
     );
+    for (name, reason) in [
+        (
+            "nontransitive_integer_order",
+            "relations without a shared ordered endpoint must not compose",
+        ),
+        (
+            "nonstrict_chain_does_not_prove_strict",
+            "an all-nonstrict chain must not imply a strict endpoint relation",
+        ),
+    ] {
+        let [site] = plan(name).crash.checked_sites() else {
+            panic!("{name} should retain one crash site")
+        };
+        assert!(site.guard_covering_buckets().is_empty(), "{reason}");
+    }
 
     let [call] = plan("guarded_call").crash.checked_calls() else {
         panic!("guarded_call should retain one checked call")
@@ -2823,6 +2899,13 @@ fn crash_guard_entailment_normalizes_comparison_equivalences() {
     assert!(
         call.path_guard_consequences().len() >= 3,
         "the exact fallthrough predicate and normalized comparison forms remain distinct"
+    );
+    let [transitive_call] = plan("transitive_guarded_call").crash.checked_calls() else {
+        panic!("transitive_guarded_call should retain one checked call")
+    };
+    assert!(
+        transitive_call.path_guard_consequences().len() > call.path_guard_consequences().len(),
+        "transitive integer order should add source-independent call-path consequences"
     );
 }
 
