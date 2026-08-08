@@ -77,11 +77,14 @@ DELTA_ARCH=aarch64 cargo run -- samples/shape.alp out  # macOS arm64; ./out ; ec
 
 - **Slice 7a — `data` structs + mutable `self` fields: DONE.** `data Name { f: T;
   ... }` lays out scalar fields (8 bytes each; boundary fields = 0; nested data =
-  its size). The entry machine's `self` is a zero-initialized (ZII) instance in
-  its own long-lived frame, reached through a self-pointer slot; methods get
-  `self` in rcx. `self.field` reads (`mov eax,[self+off]`) and `self.field = e`
-  writes are scalar-only for now. Verified: mutable fields, ZII reads 0, a counter
-  held in `self` across a loop, multi-field offsets. See `samples/data.alp`.
+  its size). This backend currently lowers an attached entry machine's `self` as
+  a zero-initialized (ZII) instance in its own long-lived frame, reached through
+  a self-pointer slot; methods get `self` in rcx. That frame is an implementation
+  strategy, not an ambient language `static`: the source model requests exactly
+  one target-provisioned receiver by binding the attached entry machine.
+  `self.field` reads (`mov eax,[self+off]`) and `self.field = e` writes are
+  scalar-only for now. Verified: mutable fields, ZII reads 0, a counter held in
+  `self` across a loop, multi-field offsets. See `samples/data.alp`.
 
 - **Slice 7b — array fields + trap-checked indexing: DONE.** `data` fields may be
   `[scalar; N]` (N×8 bytes). `self.arr[i]` reads and `self.arr[i] = e` writes
