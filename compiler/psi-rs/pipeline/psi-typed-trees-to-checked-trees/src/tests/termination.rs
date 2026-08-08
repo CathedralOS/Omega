@@ -2653,7 +2653,7 @@ fn checked_crash_calls_retain_invocation_specific_route_refinement() {
 }
 
 #[test]
-fn checked_crash_calls_select_private_leaf_body_summaries() {
+fn checked_crash_calls_select_acyclic_private_body_summaries() {
     let source = r#"
     machine inferred_abort() -> i32 {
         crash Abort;
@@ -2666,6 +2666,7 @@ fn checked_crash_calls_select_private_leaf_body_summaries() {
 
     machine nonleaf() -> i32 { inferred_abort() }
     machine call_nonleaf() -> i32 { nonleaf() }
+
     "#;
 
     let tokens = Lexer::new(source)
@@ -2706,10 +2707,14 @@ fn checked_crash_calls_select_private_leaf_body_summaries() {
     assert!(safe_call.surviving_buckets().is_empty());
 
     assert_eq!(plan("nonleaf").crash.checked_calls().len(), 1);
-    assert!(
-        plan("call_nonleaf").crash.checked_calls().is_empty(),
-        "a private body containing a call must remain unexamined until call-summary propagation runs"
-    );
+    let [nonleaf_call] = plan("call_nonleaf").crash.checked_calls() else {
+        panic!("the acyclic private wrapper should publish one selected body summary")
+    };
+    let [nonleaf_bucket] = nonleaf_call.surviving_buckets() else {
+        panic!("the nested abort should propagate through the private wrapper")
+    };
+    assert!(nonleaf_bucket.is_unconditional());
+    assert_eq!(nonleaf_bucket.cause(), psi_checked_trees::CrashCause::Abort);
 }
 
 fn symbol_of_checked(

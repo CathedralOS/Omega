@@ -5,16 +5,17 @@ use super::{encode_contract_fact_canonical, encode_expression_canonical, is_true
 
 /// Materialize direct invocation-specific crash refinement while the typed
 /// expressions are still available. Selection uses a published ceiling when
-/// one exists and a conservative checked-body summary for same-unit private
-/// leaves. The retained rows are entirely checked data: downstream propagation
-/// can distinguish a proved-crash-free call from an unexamined call without
-/// reopening source trees.
+/// one exists and a conservative acyclic checked-body summary for same-unit
+/// private machines. The retained rows are entirely checked data: downstream
+/// propagation can distinguish a proved-crash-free call from an unexamined call
+/// without reopening source trees.
 pub(super) fn attach_checked_crash_calls(
     program: &TypedTrees,
     flow: &psi_checked_trees::FlowFacts,
     content_conservation: &[psi_validation::ContentConservationSourcePlan],
     plans: &mut [psi_checked_trees::MachineContractPlan],
 ) {
+    let inferred_body_summaries = infer_acyclic_private_body_summaries(program, flow, plans);
     let mut calls_by_caller =
         Vec::<(SymbolHandle, Vec<psi_checked_trees::CheckedCrashCallSite>)>::new();
     for (_, state_flow) in flow.control.states.iter() {
@@ -59,15 +60,15 @@ pub(super) fn attach_checked_crash_calls(
                 } else if target_machine.supply_mode
                     == psi_language_semantics::MachineSupplyMode::CheckedBody
                 {
-                    // A private checked leaf may infer its crash ceiling from
-                    // body sites. A body containing invocations waits for the
-                    // call-summary fixed point: treating its currently direct
-                    // sites as complete could erase a nested crash.
-                    if machine_has_non_transition_invocations(program, flow, target_machine_symbol)
-                    {
+                    let Some((_, summary)) = inferred_body_summaries
+                        .iter()
+                        .find(|(machine, _)| *machine == target_machine_symbol)
+                    else {
+                        // Recursive/unresolved private bodies remain
+                        // unexamined rather than erasing a nested crash.
                         continue;
-                    }
-                    (inferred_leaf_body_crash_buckets(target_plan), false)
+                    };
+                    (summary.clone(), false)
                 } else {
                     // Omission on a requirement/boundary/exported interface is
                     // the published negative guarantee, so retain an empty row
@@ -206,34 +207,108 @@ pub(super) fn attach_checked_crash_calls(
     }
 }
 
-fn machine_has_non_transition_invocations(
+fn infer_acyclic_private_body_summaries(
+    program: &TypedTrees,
+    flow: &psi_checked_trees::FlowFacts,
+    plans: &[psi_checked_trees::MachineContractPlan],
+) -> Vec<(SymbolHandle, Vec<psi_checked_trees::CrashRouteBucket>)> {
+    let mut resolved: Vec<(SymbolHandle, Vec<psi_checked_trees::CrashRouteBucket>)> = Vec::new();
+    for _ in 0..=plans.len() {
+        let mut changed = false;
+        for target in plans {
+            if target.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody
+                || !target.crash.published().is_empty()
+                || resolved
+                    .iter()
+                    .any(|(machine, _)| *machine == target.machine)
+            {
+                continue;
+            }
+            let Some(invocations) =
+                machine_non_transition_invocation_targets(program, flow, target.machine)
+            else {
+                continue;
+            };
+            let mut buckets = inferred_direct_body_crash_buckets(target);
+            let mut ready = true;
+            for invoked in invocations {
+                let Some(invoked_plan) = plans.iter().find(|plan| plan.machine == invoked) else {
+                    ready = false;
+                    break;
+                };
+                let selected = if !invoked_plan.crash.published().is_empty()
+                    || invoked_plan.supply_mode
+                        != psi_language_semantics::MachineSupplyMode::CheckedBody
+                {
+                    Some(invoked_plan.crash.published())
+                } else {
+                    resolved.iter().find_map(|(machine, buckets)| {
+                        (*machine == invoked).then_some(buckets.as_slice())
+                    })
+                };
+                let Some(selected) = selected else {
+                    ready = false;
+                    break;
+                };
+                buckets.extend(selected.iter().map(|bucket| {
+                    // Predicate producers may belong to a deeper body. Until
+                    // recursive guarded substitution is retained, propagation
+                    // keeps cause/scope and fails safely to an unconditional
+                    // route.
+                    psi_checked_trees::CrashRouteBucket::unconditional(
+                        bucket.cause(),
+                        bucket.containment_demand(),
+                    )
+                }));
+            }
+            if ready {
+                buckets.sort();
+                buckets.dedup();
+                resolved.push((target.machine, buckets));
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    resolved
+}
+
+fn machine_non_transition_invocation_targets(
     program: &TypedTrees,
     flow: &psi_checked_trees::FlowFacts,
     machine: SymbolHandle,
-) -> bool {
-    flow.control
+) -> Option<Vec<SymbolHandle>> {
+    let mut targets = Vec::new();
+    for (_, state) in flow
+        .control
         .states
         .iter()
         .filter(|(_, state)| state.machine_symbol == machine)
-        .any(|(_, state)| {
-            flow.control
-                .calls
-                .span_or_empty(state.calls)
-                .iter()
-                .any(|call| {
-                    crate::find_call_site(
-                        program,
-                        state.machine_symbol,
-                        state.state_symbol,
-                        call.statement_index,
-                        call.call_ordinal,
-                    )
-                    .is_some_and(|site| !matches!(site, crate::CallSite::TransitionNamed(_)))
-                })
-        })
+    {
+        for call in flow.control.calls.span_or_empty(state.calls) {
+            let site = crate::find_call_site(
+                program,
+                state.machine_symbol,
+                state.state_symbol,
+                call.statement_index,
+                call.call_ordinal,
+            )?;
+            if matches!(site, crate::CallSite::TransitionNamed(_)) {
+                continue;
+            }
+            let (target_machine, _) =
+                crate::contract_target_from_state_symbol(program, call.target_symbol)?;
+            if !targets.contains(&target_machine) {
+                targets.push(target_machine);
+            }
+        }
+    }
+    Some(targets)
 }
 
-fn inferred_leaf_body_crash_buckets(
+fn inferred_direct_body_crash_buckets(
     target: &psi_checked_trees::MachineContractPlan,
 ) -> Vec<psi_checked_trees::CrashRouteBucket> {
     let mut buckets = target
