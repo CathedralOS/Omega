@@ -276,8 +276,11 @@ Remaining:
   the codec fingerprints them, archived modules migrate only their used causes
   to the legacy `ExecutionDomain` root, and the verifier requires every crash
   demand to fit the matching maximum. Artifact-root crash production publishes
-  the portable top for both closed causes. Plumb narrower activation/task/
-  supervisor context plans from their checked provider or Build source.
+  the portable top for both closed causes. Checked-to-terminal production also
+  exposes a selected-context seam for narrower activation/task/supervisor
+  plans and validates the completed module before producing an artifact. Wire
+  checked provider or Build selection to that seam when those context owners
+  land.
   Retaining declared intermediate nominal scope ordering is design blocked on
   `OWNER_QUESTIONS.md` Q2.
   Generalize guarded source production beyond the live structural implication

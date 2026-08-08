@@ -38,7 +38,9 @@ use omega_terminal_target_operations::{
     TerminalTargetOperation,
 };
 use omega_terminal_target_operations_to_assigned_target_operations::assign_registers;
-use psi_checked_trees_to_terminal::{LoweringError, lower_machine};
+use psi_checked_trees_to_terminal::{
+    LoweringError, lower_machine, lower_machine_with_crash_context,
+};
 use psi_core::{
     BlockId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
     ProfileDecisionId, ScalarType, ValueId,
@@ -51,7 +53,7 @@ use psi_layout_plans::{
     ArtifactInstallationScopeId, EntryStubId, PlacementConstraints, PlacementPhase, PlacementSite,
 };
 use psi_proof_kernel::AdmissionProfile;
-use psi_terminal::{CrashCause, OperationKind, SemanticVersion, Terminator};
+use psi_terminal::{CrashCause, CrashContextMaximum, OperationKind, SemanticVersion, Terminator};
 use psi_terminal_codec::{
     DebugSubject, build_artifact_manifest, decode_debug_map, decode_module, decode_proof_bundle,
     encode_debug_map, encode_module, encode_proof_bundle, terminal_psi_identity,
@@ -2552,6 +2554,32 @@ fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
         .expect("terminal-Psi source canary should compile");
     let wide_trap = lower_machine(&checked, "terminal_wide_trap")
         .expect("a wider published trap demand should lower");
+    assert_eq!(
+        wide_trap.semantic_module.machines[0].contract.crash_context,
+        CrashContextMaximum::portable_root()
+    );
+    assert!(matches!(
+        lower_machine_with_crash_context(
+            &checked,
+            "terminal_wide_trap",
+            vec![CrashContextMaximum {
+                cause: CrashCause::Trap,
+                maximum_scope: "Activation".to_owned(),
+            }],
+        ),
+        Err(LoweringError::InvalidTerminalModule(
+            psi_terminal_verifier::ModuleError::CrashContextMaximumTooNarrow { .. }
+        ))
+    ));
+    assert!(matches!(
+        lower_machine_with_crash_context(&checked, "terminal_wide_trap", Vec::new()),
+        Err(LoweringError::InvalidTerminalModule(
+            psi_terminal_verifier::ModuleError::MissingCrashContextMaximum {
+                cause: CrashCause::Trap,
+                ..
+            }
+        ))
+    ));
     assert!(matches!(
         &wide_trap.semantic_module.machines[0].blocks[0].terminator,
         Terminator::Crash {

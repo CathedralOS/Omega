@@ -110,8 +110,12 @@ realization remain the rest of CRASH-CONTRACT. Terminal Psi v24 stores each
 effective sparse per-cause context maximum in the fingerprinted machine
 contract and the verifier enforces `containment demand <= context
 maximum[cause]`. Artifact-root crash production supplies `ExecutionDomain` for
-both closed causes; archived modules migrate only causes used by their crash
-terminators to that legacy root maximum. Declared intermediate nominal scope
+both closed causes. A sibling checked-to-terminal entry point accepts an
+already selected canonical sparse context for narrower activation, task, or
+supervisor composition and validates the completed semantic module before
+artifact production. Build/provider selection still needs to supply that input.
+Archived modules migrate only causes used by their crash terminators to the
+legacy root maximum. Declared intermediate nominal scope
 ordering is separately blocked on `OWNER_QUESTIONS.md` Q2.
 `psi-terminal-verifier` rejects malformed identities, types, contract scopes,
 cycles, unreachable fact sources, and missing/extra evidence, reconstructs the
