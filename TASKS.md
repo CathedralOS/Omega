@@ -205,7 +205,9 @@ Remaining:
   short-circuit tuples, so the unselected payload is neither evaluated nor
   charged. Compile-known values now propagate over the lowered acyclic Boolean
   graph, meet conservatively at joins, and reject an unrelated reflexive
-  contract without re-reading source expressions.
+  contract without re-reading source expressions. The integer graph uses the
+  same lowered-DAG evaluation for recursive arithmetic and integer-comparison
+  selectors; any reachable crash exit conservatively suppresses a total result.
 - Replace all remaining terminal-path `ExpressionHandle` and source-tree
   dependencies with lowered values and predicates. Absorb useful StateGraph /
   ControlFlow topology, then retire the legacy backend lane as consumers move.

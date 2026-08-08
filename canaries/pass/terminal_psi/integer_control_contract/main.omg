@@ -59,6 +59,23 @@ ensures 41u8 == 41u8
     state finish(value: u8 in Wrapping) -> u8 in Wrapping { value + 12u8 }
 }
 
+machine terminal_known_integer_graph_wrong_contract() -> u8 in Wrapping
+requires 8u8 == 8u8
+ensures 8u8 == 8u8
+{
+    transition 1u8 < 2u8 {
+        true -> selected_known_integer(7u8)
+        _ -> ignored_known_integer(9u8)
+    }
+    state selected_known_integer(value: u8 in Wrapping) -> u8 in Wrapping {
+        transition { _ -> finish_known_integer(value) }
+    }
+    state ignored_known_integer(value: u8 in Wrapping) -> u8 in Wrapping {
+        transition { _ -> finish_known_integer(value) }
+    }
+    state finish_known_integer(value: u8 in Wrapping) -> u8 in Wrapping { value }
+}
+
 machine terminal_wrapping_add() -> u8 in Wrapping
 requires 44u8 == 44u8
 ensures 44u8 == 44u8

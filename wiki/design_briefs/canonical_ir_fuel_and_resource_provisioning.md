@@ -112,8 +112,11 @@ Unconditional jumps may compute recursive exact-typed integer bindings;
 computed conditional-edge bindings use synthesized arm-local blocks so only
 the selected expression executes and consumes fuel. Nested selections, linear
 prefixes, and convergent tails use the same terminal block and edge
-vocabulary. The ordered Boolean-result form supports ordinary Boolean
-entry/branch parameters with recursive short-circuit guards and branch returns.
+vocabulary. Compile-known integer evaluation follows lowered comparison
+selectors and recursive bindings, meets facts at joins, and reports no total
+result when a crash exit remains reachable. The ordered Boolean-result form
+supports ordinary Boolean entry/branch parameters with recursive short-circuit
+guards and branch returns.
 The general Boolean-result form supports rooted acyclic nested selections and
 convergent tails with recursive unconditional bindings and short-circuit
 returns. Short-circuit jumps converge at value-producing decision leaves;
