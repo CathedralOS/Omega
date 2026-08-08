@@ -108,7 +108,9 @@ compose across positive path conjunctions: any strict link makes the derived
 endpoint relation strict, while an all-nonstrict chain remains nonstrict.
 Opposed nonstrict integer relations apply antisymmetry and retain the resulting
 endpoint equality for both explicit-site and checked-call coverage. A one-sided
-bound does not imply equality.
+bound does not imply equality. A nonstrict integer relation paired with
+endpoint disequality sharpens to the corresponding strict relation; this rule
+also feeds explicit sites and checked calls.
 Canonical operand identities join the links; unrelated endpoints and unordered
 float relations do not compose. Checked sites
 retain their exact incoming-predicate conjunction separately from these

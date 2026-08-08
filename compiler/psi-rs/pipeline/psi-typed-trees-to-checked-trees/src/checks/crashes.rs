@@ -63,6 +63,7 @@ pub(crate) fn infer_path_conditioned_guard_coverage(program: &TypedTrees, facts:
                     .collect::<Vec<_>>();
                 let mut path_predicates = Vec::new();
                 let mut order_relations = Vec::new();
+                let mut integer_disequalities = Vec::new();
                 for guard in applicable_guards {
                     collect_structural_guard_consequences(
                         program,
@@ -79,11 +80,13 @@ pub(crate) fn infer_path_conditioned_guard_coverage(program: &TypedTrees, facts:
                         &parameter_names,
                         &content_conservation,
                         &mut order_relations,
+                        &mut integer_disequalities,
                     );
                 }
                 push_transitive_integer_order_consequences(
                     program,
                     &mut order_relations,
+                    &integer_disequalities,
                     &parameter_names,
                     &content_conservation,
                     &mut path_predicates,
@@ -131,6 +134,7 @@ pub(crate) fn infer_path_conditioned_guard_coverage(program: &TypedTrees, facts:
                     .collect::<Vec<_>>();
                 let mut path_guard_consequences = Vec::new();
                 let mut order_relations = Vec::new();
+                let mut integer_disequalities = Vec::new();
                 for guard in applicable_guards {
                     collect_structural_guard_consequences(
                         program,
@@ -147,11 +151,13 @@ pub(crate) fn infer_path_conditioned_guard_coverage(program: &TypedTrees, facts:
                         &parameter_names,
                         &content_conservation,
                         &mut order_relations,
+                        &mut integer_disequalities,
                     );
                 }
                 push_transitive_integer_order_consequences(
                     program,
                     &mut order_relations,
+                    &integer_disequalities,
                     &parameter_names,
                     &content_conservation,
                     &mut path_guard_consequences,
@@ -377,6 +383,12 @@ struct IntegerOrderRelation {
     strict: bool,
 }
 
+#[derive(Clone, PartialEq, Eq)]
+struct IntegerDisequality {
+    left_identity: psi_checked_trees::CrashPredicateIdentity,
+    right_identity: psi_checked_trees::CrashPredicateIdentity,
+}
+
 fn collect_integer_order_relations(
     program: &TypedTrees,
     expression: psi_typed_trees::expression::ExpressionHandle,
@@ -384,6 +396,7 @@ fn collect_integer_order_relations(
     parameter_names: &[String],
     content_conservation: &[psi_validation::ContentConservationSourcePlan],
     output: &mut Vec<IntegerOrderRelation>,
+    disequalities: &mut Vec<IntegerDisequality>,
 ) {
     use psi_typed_trees::expression::{BinaryOperator, ExpressionNode, UnaryOperator};
 
@@ -396,6 +409,7 @@ fn collect_integer_order_relations(
                 parameter_names,
                 content_conservation,
                 output,
+                disequalities,
             );
         }
         ExpressionNode::Binary(binary)
@@ -409,6 +423,7 @@ fn collect_integer_order_relations(
                 parameter_names,
                 content_conservation,
                 output,
+                disequalities,
             );
             collect_integer_order_relations(
                 program,
@@ -417,6 +432,7 @@ fn collect_integer_order_relations(
                 parameter_names,
                 content_conservation,
                 output,
+                disequalities,
             );
         }
         ExpressionNode::Binary(binary)
@@ -446,6 +462,7 @@ fn collect_integer_order_relations(
                     parameter_names,
                     content_conservation,
                     output,
+                    disequalities,
                 );
             }
             collect_normalized_integer_order_relation(
@@ -457,6 +474,7 @@ fn collect_integer_order_relations(
                 parameter_names,
                 content_conservation,
                 output,
+                disequalities,
             );
         }
         ExpressionNode::Binary(binary) => collect_normalized_integer_order_relation(
@@ -468,6 +486,7 @@ fn collect_integer_order_relations(
             parameter_names,
             content_conservation,
             output,
+            disequalities,
         ),
         _ => {}
     }
@@ -483,6 +502,7 @@ fn collect_normalized_integer_order_relation(
     parameter_names: &[String],
     content_conservation: &[psi_validation::ContentConservationSourcePlan],
     output: &mut Vec<IntegerOrderRelation>,
+    disequalities: &mut Vec<IntegerDisequality>,
 ) {
     use psi_typed_trees::expression::BinaryOperator;
 
@@ -523,7 +543,25 @@ fn collect_normalized_integer_order_relation(
             push(left, right, false);
             push(right, left, false);
         }
-        BinaryOperator::NotEqual => {}
+        BinaryOperator::NotEqual => {
+            let disequality = IntegerDisequality {
+                left_identity: crate::facts::canonical_crash_operand_identity(
+                    program,
+                    left,
+                    parameter_names,
+                    content_conservation,
+                ),
+                right_identity: crate::facts::canonical_crash_operand_identity(
+                    program,
+                    right,
+                    parameter_names,
+                    content_conservation,
+                ),
+            };
+            if !disequalities.contains(&disequality) {
+                disequalities.push(disequality);
+            }
+        }
         _ => unreachable!("normalized comparisons use only comparison operators"),
     }
 }
@@ -531,10 +569,33 @@ fn collect_normalized_integer_order_relation(
 fn push_transitive_integer_order_consequences(
     program: &TypedTrees,
     relations: &mut Vec<IntegerOrderRelation>,
+    disequalities: &[IntegerDisequality],
     parameter_names: &[String],
     content_conservation: &[psi_validation::ContentConservationSourcePlan],
     output: &mut Vec<psi_checked_trees::CrashPredicateIdentity>,
 ) {
+    let strict_refinements = relations
+        .iter()
+        .filter(|relation| {
+            !relation.strict
+                && disequalities.iter().any(|disequality| {
+                    (disequality.left_identity == relation.left_identity
+                        && disequality.right_identity == relation.right_identity)
+                        || (disequality.left_identity == relation.right_identity
+                            && disequality.right_identity == relation.left_identity)
+                })
+        })
+        .map(|relation| IntegerOrderRelation {
+            strict: true,
+            ..relation.clone()
+        })
+        .collect::<Vec<_>>();
+    for refinement in strict_refinements {
+        if !relations.contains(&refinement) {
+            relations.push(refinement);
+        }
+    }
+
     loop {
         let existing = relations.clone();
         let mut added = Vec::new();
