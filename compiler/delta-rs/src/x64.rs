@@ -19,7 +19,7 @@ pub enum ImportFunction {
 pub enum RelocationTarget {
     Rodata(u32),            // RIP-relative reference to a byte offset within .rdata strings
     Import(ImportFunction), // RIP-relative indirect call through the IAT slot
-    Data(u32),              // RIP-relative reference to a byte offset within .data (the static self)
+    Data(u32), // RIP-relative reference to the provisioned entry receiver in .data
 }
 
 pub struct Relocation {
@@ -32,7 +32,7 @@ pub struct LoweredProgram {
     pub relocations: Vec<Relocation>,
     pub rodata: Vec<u8>, // concatenated string payloads; RelocationTarget::Rodata indexes into this
     pub uses_imports: bool,
-    pub data_size: u32,  // bytes of the zero-init .data section (the entry's static self), 0 if none
+    pub data_size: u32,  // bytes of the zero-init .data entry receiver, 0 if none
 }
 
 fn local_displacement(local_index: usize) -> i32 {
@@ -535,7 +535,7 @@ fn lower_machine(
     // establish the self pointer
     if machine.has_self {
         if is_entry {
-            // the entry's self is the static, zero-init .data instance
+            // This target provisions the entry receiver as a zero-init .data instance.
             code.extend_from_slice(&[0x48, 0x8D, 0x05]); // lea rax, [rip+disp32]
             let patch_offset = code.len() as u32;
             code.extend_from_slice(&[0, 0, 0, 0]);
