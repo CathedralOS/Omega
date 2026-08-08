@@ -1054,8 +1054,8 @@ fn lower_content_place(
 ///
 /// The first explicit-crash slice also accepts a one-state scalar machine whose
 /// sole statement is `crash Cause;` and whose checked site cites exactly one
-/// prechecked guard-covering bucket. It emits a distinct terminal-Psi crash
-/// terminator; it never reuses ordinary return lowering.
+/// prechecked guard-and-damage-covering bucket. It emits a distinct terminal-
+/// Psi crash terminator; it never reuses ordinary return lowering.
 pub fn lower_machine(
     checked: &CheckedTrees,
     machine_name: &str,
@@ -1339,14 +1339,13 @@ fn lower_explicit_crash_machine(
     let Some(checked_site) = crash_plan.checked_site_at(entry_state.symbol, 0) else {
         return unsupported("explicit crash has no body-derived checked crash-site row");
     };
-    let matching_contracts = checked_site
-        .guard_covering_buckets()
-        .iter()
-        .filter_map(|bucket| crash_plan.published_bucket(*bucket))
+    let matching_contracts = crash_plan
+        .covering_buckets_for_site(checked_site)
+        .map(|(_, bucket)| bucket)
         .collect::<Vec<_>>();
     let [covering_bucket] = matching_contracts.as_slice() else {
         return unsupported(
-            "an explicit crash in the first terminal-Psi source slice requires exactly one prechecked guard-covering bucket",
+            "an explicit crash in the first terminal-Psi source slice requires exactly one prechecked covering bucket",
         );
     };
     let frontier_lower_bound =

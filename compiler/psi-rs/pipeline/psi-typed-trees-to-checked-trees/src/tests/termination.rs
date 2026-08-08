@@ -2310,14 +2310,14 @@ fn checked_crash_sites_are_body_evidence_not_contract_identity() {
     }
 
     machine guarded_body(flag: bool) -> i32
-    crashes Abort Activation
+    crashes Trap Activation
         flag
     {
-        crash Abort;
+        crash Trap;
     }
 
     machine path_guarded_body(flag: bool) -> i32
-    crashes Abort Activation
+    crashes Trap Activation
         flag
     {
         transition {
@@ -2326,12 +2326,12 @@ fn checked_crash_sites_are_body_evidence_not_contract_identity() {
         }
 
         state fail() -> i32 {
-            crash Abort;
+            crash Trap;
         }
     }
 
     machine fallthrough_guarded_body(flag: bool) -> i32
-    crashes Abort Activation
+    crashes Trap Activation
         !flag
     {
         transition {
@@ -2340,8 +2340,14 @@ fn checked_crash_sites_are_body_evidence_not_contract_identity() {
         }
 
         state fail() -> i32 {
-            crash Abort;
+            crash Trap;
         }
+    }
+
+    machine narrow_abort() -> i32
+    crashes Abort Activation
+    {
+        crash Abort;
     }
     "#;
 
@@ -2412,7 +2418,7 @@ fn checked_crash_sites_are_body_evidence_not_contract_identity() {
             .crash
             .published_bucket(*path_covering_bucket)
             .is_some_and(|bucket| !bucket.is_unconditional()
-                && bucket.cause() == psi_checked_trees::CrashCause::Abort)
+                && bucket.cause() == psi_checked_trees::CrashCause::Trap)
     );
 
     let [fallthrough_guarded_site] = plan("fallthrough_guarded_body").crash.checked_sites() else {
@@ -2426,7 +2432,24 @@ fn checked_crash_sites_are_body_evidence_not_contract_identity() {
             .crash
             .published_bucket(*fallthrough_covering_bucket)
             .is_some_and(|bucket| !bucket.is_unconditional()
-                && bucket.cause() == psi_checked_trees::CrashCause::Abort)
+                && bucket.cause() == psi_checked_trees::CrashCause::Trap)
+    );
+
+    let [narrow_abort_site] = plan("narrow_abort").crash.checked_sites() else {
+        panic!("the narrow abort should retain its explicit crash site")
+    };
+    assert_eq!(
+        narrow_abort_site.damage_minimum(),
+        psi_checked_trees::EXECUTION_DOMAIN_CRASH_SCOPE
+    );
+    assert_eq!(narrow_abort_site.guard_covering_buckets().len(), 1);
+    assert_eq!(
+        plan("narrow_abort")
+            .crash
+            .covering_buckets_for_site(narrow_abort_site)
+            .count(),
+        0,
+        "an Activation demand cannot cover Abort's ExecutionDomain minimum"
     );
 }
 

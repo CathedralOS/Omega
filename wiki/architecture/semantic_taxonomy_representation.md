@@ -893,9 +893,10 @@ CrashPlan {
 CheckedCrashSite {                              // checked-tree implementation evidence
   location: (StateId, state_local_statement_ordinal),
   cause: CrashCauseId,
+  damage_minimum: CrashScopeId,
   guard_covering_buckets: Set<CrashRouteBucketId>,
   known_local_frontier_lower_bound: Set<PermissionClaimIdentity>,
-  // guard implication only; damage coverage is not implied
+  // full coverage also requires damage_minimum <= bucket.containment_demand
 }
 
 CrashContextPlan {
@@ -958,12 +959,18 @@ activation are not claimed to be edge-enumerable. Exhaustive crash paths
 abandon the retained claims; lowering does not synthesize a cleanup or consume
 event for them.
 
-The row is still not a completed `CrashTerminatorPlan`: later checks add the
-path guard, damage minimum, and complete guarded coverage. Canonical route
-buckets receive dense plan-local identities, and an unconditional same-cause
-bucket enters `guard_covering_buckets` structurally because `true` covers every
-path guard. Guarded buckets enter only through later path-conditioned
-entailment. Checked sites are implementation evidence and never enter the
+The row is still not a completed `CrashTerminatorPlan`. It seeds the intrinsic
+cause minimum (`Trap <= Activation`, `Abort <= ExecutionDomain`); later
+invariant and custody analysis may widen that value but cannot narrow it.
+Canonical route buckets receive dense plan-local identities, and an
+unconditional same-cause bucket enters `guard_covering_buckets` structurally
+because `true` covers every path guard. Exact retained incoming guards and
+their accumulated fallthrough negations join to identical canonical published
+predicates. The fully covering subset independently requires the bucket's
+containment demand to cover `damage_minimum`; exact identity plus the permanent
+`ExecutionDomain` top is the first conservative nominal order. Broader logical
+entailment, explicit path-guard retention, and declared intermediate scope
+ordering remain. Checked sites are implementation evidence and never enter the
 published contract fingerprint.
 
 Psi owns these nominal demand checks. Omega installation supplies

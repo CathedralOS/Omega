@@ -2444,12 +2444,16 @@ fn psi_terminal_producer_rejects_source_outside_its_declared_slice() {
             .expect_err("closed Boolean chain with an unrelated contract must fail closed"),
         LoweringError::Unsupported("Boolean contract literal must match the compile-known result")
     );
-    for machine in ["terminal_unpublished_abort", "terminal_guarded_abort"] {
+    for machine in [
+        "terminal_unpublished_abort",
+        "terminal_narrow_abort",
+        "terminal_guarded_abort",
+    ] {
         assert_eq!(
             lower_machine(&checked, machine)
-                .expect_err("a crash without a uniquely covering unconditional bucket must fail"),
+                .expect_err("a crash without a uniquely covering bucket must fail"),
             LoweringError::Unsupported(
-                "an explicit crash in the first terminal-Psi source slice requires exactly one prechecked guard-covering bucket"
+                "an explicit crash in the first terminal-Psi source slice requires exactly one prechecked covering bucket"
             )
         );
     }
@@ -2502,7 +2506,7 @@ fn psi_terminal_producer_rejects_source_outside_its_declared_slice() {
         lower_machine(&missing_coverage, "terminal_abort")
             .expect_err("terminal production must consume checked guard coverage"),
         LoweringError::Unsupported(
-            "an explicit crash in the first terminal-Psi source slice requires exactly one prechecked guard-covering bucket"
+            "an explicit crash in the first terminal-Psi source slice requires exactly one prechecked covering bucket"
         )
     );
 

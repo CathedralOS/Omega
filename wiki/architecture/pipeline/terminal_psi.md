@@ -79,14 +79,25 @@ and are required by terminal production. Canonical published buckets receive
 dense plan-local identities. A site already records every unconditional
 same-cause bucket whose guard coverage follows structurally, and terminal
 lowering consumes that checked relation rather than searching routes itself.
+Exact retained incoming guards, including the negations accumulated by later
+dispatch arms, now join to identical canonical published predicates without
+entering public contract identity.
 Checked ownership also reconstructs a canonical lower bound of stable claim
 identities that are definitely live and non-conditional at the site. A crash
 abandons those claims without cleanup or consumption. Terminal production maps
 them through the dense source-claim table and rejects an unmapped identity
-rather than silently weakening the frontier. Conditional frontier membership,
-path-conditioned guarded coverage, damage minima, general guarded production,
-nominal scope ordering, and installation realization remain the rest of
-CRASH-CONTRACT.
+rather than silently weakening the frontier. Checked sites now also retain the
+intrinsic cause minimum: `Trap` requires at least `Activation`, while `Abort`
+requires `ExecutionDomain`. Exact nominal identity and the permanent
+`ExecutionDomain` top provide the first conservative scope order. Reports
+separate guard-covering buckets from the subset whose containment demand also
+covers the minimum; terminal production consumes that two-dimensional subset,
+rejects narrower authored demand, and keeps v22's `damage_scope` as the selected
+published demand. A later semantic version must carry that demand and the
+derived minimum separately. Conditional frontier membership,
+invariant/custody-based minimum widening, general guarded production, declared
+nominal scope ordering, context maxima, and installation realization remain
+the rest of CRASH-CONTRACT.
 `psi-terminal-verifier` rejects malformed identities, types, contract scopes,
 cycles, unreachable fact sources, and missing/extra evidence, reconstructs the
 exact operation/edge/return axioms, and checks every `ensures` from a separate
