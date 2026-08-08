@@ -81,6 +81,7 @@ fn remap_fact_roots(state_graph: &StateGraph) -> ControlFlowFactRoots {
     ControlFlowFactRoots::with_roots(
         remap_proof_obligations(state_graph),
         remap_invariants(state_graph),
+        state_graph.semantics.facts.dynamic_conformances.clone(),
     )
 }
 
@@ -88,6 +89,7 @@ fn remap_fact_roots_owned(facts: SourceFactRoots) -> ControlFlowFactRoots {
     ControlFlowFactRoots::with_roots(
         facts.proof_obligations.map(remap_proof_obligation_owned),
         facts.invariants.map(remap_invariant_owned),
+        facts.dynamic_conformances,
     )
 }
 

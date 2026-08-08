@@ -87,11 +87,11 @@ pub(crate) fn collect_machine_state_calls(
                     target,
                 );
 
-                // Monomorphize a statement-position call through a MULTI-IMPL
-                // `dyn Trait` param: one candidate record per impl (see
-                // `resolve_dyn_parameter_call_candidates`).
+                // A closed local `dyn` selection routes through its retained
+                // exact row. The legacy multi-implementation parameter form
+                // remains a compatibility fallback.
                 let dyn_candidates = if resolved_target.is_none() {
-                    resolve_dyn_parameter_call_candidates(
+                    resolve_dynamic_call_candidates(
                         &context.control_flow,
                         state.key,
                         *receiver_symbol,
@@ -509,7 +509,7 @@ fn collect_expression_state_calls_in_table(
             // receiver's static type at each call site selects among the
             // candidates' inline expansions during selection.
             if resolved_target.is_none() {
-                let candidates = resolve_dyn_parameter_call_candidates(
+                let candidates = resolve_dynamic_call_candidates(
                     &context.control_flow,
                     source_key,
                     receiver.symbol,
@@ -1045,13 +1045,11 @@ fn resolve_state_call_target(
     None
 }
 
-/// The monomorphization candidates of a method call through a MULTI-IMPL
-/// `dyn Trait` reference parameter: one resolved target per data type that
-/// satisfies the trait (the parameter carries the closed world as
-/// `dyn_impl_type_names`), each resolved to the machine attached to that data
-/// type by the target method's symbol or name. Empty when the receiver is not
-/// such a parameter (or no impl provides the method).
-fn resolve_dyn_parameter_call_candidates(
+/// Resolve a dynamic receiver without rediscovering a closed conformance from
+/// names. A local coercion consumes the exact checked row retained for its
+/// binding. Only the legacy dynamic-parameter form falls back to the historic
+/// closed-artifact candidate list.
+fn resolve_dynamic_call_candidates(
     control_flow: &ControlFlowPlan,
     source_key: StateKey,
     receiver_symbol: SymbolHandle,
@@ -1060,6 +1058,30 @@ fn resolve_dyn_parameter_call_candidates(
 ) -> Vec<ResolvedStateCall> {
     if !receiver_symbol.is_valid() {
         return Vec::new();
+    }
+    if let Some(selection) = control_flow
+        .semantics
+        .facts
+        .dynamic_conformances
+        .for_binding(source_key.machine, source_key.state, receiver_symbol)
+    {
+        return selection
+            .rows
+            .iter()
+            .filter(|row| row.requirement == target_symbol)
+            .filter_map(|row| {
+                control_flow
+                    .states
+                    .iter()
+                    .find(|(_, state)| {
+                        state.key.state == row.realization_state && state.key.segment_index == 0
+                    })
+                    .map(|(_, state)| ResolvedStateCall {
+                        key: state.key,
+                        resolution: StateCallResolution::ContainedMachine,
+                    })
+            })
+            .collect();
     }
     let Some(state) = control_flow
         .states
@@ -1075,6 +1097,25 @@ fn resolve_dyn_parameter_call_candidates(
     else {
         return Vec::new();
     };
+    if !parameter.dyn_conformance_rows.is_empty() {
+        return parameter
+            .dyn_conformance_rows
+            .iter()
+            .filter(|row| row.requirement == target_symbol)
+            .filter_map(|row| {
+                control_flow
+                    .states
+                    .iter()
+                    .find(|(_, state)| {
+                        state.key.state == row.realization_state && state.key.segment_index == 0
+                    })
+                    .map(|(_, state)| ResolvedStateCall {
+                        key: state.key,
+                        resolution: StateCallResolution::ContainedMachine,
+                    })
+            })
+            .collect();
+    }
     parameter
         .dyn_impl_type_names
         .iter()
@@ -1434,6 +1475,136 @@ mod tests {
                     && call.resolution == StateCallResolution::ContainedMachine
             }),
             "expected local-initializer assignment-value call, got {calls:?}"
+        );
+    }
+
+    #[test]
+    fn closed_dynamic_parameter_call_consumes_the_retained_exact_row() {
+        let source = r#"
+            trait Shape {
+                machine code(&self) -> i32;
+            }
+            data Item {}
+            machine Item::code(&self) -> i32 {
+                transition { _ -> 1 }
+            }
+            Item satisfies Shape as Primary {
+                machine code(&self) -> i32 {
+                    transition { _ -> 7 }
+                }
+            }
+
+            machine run(erased: &dyn Item::Primary) {
+                let result: i32 = erased.code();
+            }
+        "#;
+
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        psi_validation::validate_program(&typed).expect("validate");
+        let checked = lower_typed_trees(typed).expect("check");
+        let exact_target = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Item::Primary::code")
+            .and_then(|machine| checked.machine_states(machine).first())
+            .map(|state| state.symbol)
+            .expect("exact selected row state");
+        let ambient_target = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Item::code")
+            .and_then(|machine| checked.machine_states(machine).first())
+            .map(|state| state.symbol)
+            .expect("ambient look-alike state");
+        assert_ne!(exact_target, ambient_target);
+
+        let state_graph =
+            omega_checked_trees_to_state_graph::build_state_graph(&checked).expect("state graph");
+        let control_flow = build_control_flow_plan(&state_graph).expect("control flow");
+        let machine = control_flow
+            .machines
+            .iter()
+            .find(|(_, machine)| machine.name.as_str() == "run")
+            .map(|(_, machine)| machine)
+            .expect("run machine");
+        let entry_key = control_flow
+            .states
+            .span(machine.states)
+            .and_then(|states| states.first())
+            .map(|state| state.key)
+            .expect("run state");
+        let [parameter] = control_flow
+            .state_by_key(entry_key)
+            .map(|state| control_flow.state_parameters(state))
+            .expect("run parameters")
+        else {
+            panic!("one dynamic parameter");
+        };
+        let [parameter_row] = parameter.dyn_conformance_rows.as_slice() else {
+            panic!("one retained exact parameter row");
+        };
+        assert_eq!(parameter_row.realization_state, exact_target);
+        let runtime_flow = build_runtime_flow_plan(&control_flow, entry_key).expect("runtime flow");
+        let target = omega_target::NativeTarget::linux_arm64();
+        let host_abi = build_host_abi_plan(target);
+        let host_calls = build_host_call_plan(&checked, target, &host_abi).expect("host calls");
+        let context = StateCallPlanningContext {
+            control_flow: Arc::new(control_flow.clone()),
+            host_calls: Arc::new(host_calls),
+            runtime_flow: Arc::new(runtime_flow),
+        };
+
+        let calls = collect_machine_state_calls(&context, machine);
+        let dynamic_call = calls
+            .iter()
+            .find(|call| call.target_key.state == exact_target)
+            .expect("dynamic call should route to the exact retained row");
+        assert_eq!(
+            dynamic_call.resolution,
+            StateCallResolution::ContainedMachine
+        );
+        assert_ne!(dynamic_call.target_key.state, ambient_target);
+    }
+
+    #[test]
+    fn local_dynamic_selection_reaches_control_flow_with_stable_owner_coordinates() {
+        let source = r#"
+            trait Shape { machine code(&self) -> i32; }
+            data Item {}
+            Item satisfies Shape as Primary {
+                machine code(&self) -> i32 { transition { _ -> 7 } }
+            }
+            machine run(item: Item) {
+                let erased: &dyn Shape = &item as &dyn Item::Primary;
+            }
+        "#;
+
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        psi_validation::validate_program(&typed).expect("validate");
+        let checked = lower_typed_trees(typed).expect("check");
+        let [checked_selection] = checked.facts.dynamic_conformances.selections.as_slice() else {
+            panic!("one checked selection");
+        };
+        assert!(checked_selection.binding.is_valid());
+        assert!(checked_selection.machine.is_valid());
+        assert!(checked_selection.state.is_valid());
+
+        let state_graph =
+            omega_checked_trees_to_state_graph::build_state_graph(&checked).expect("state graph");
+        assert_eq!(
+            state_graph.semantics.facts.dynamic_conformances,
+            checked.facts.dynamic_conformances.binding_facts()
+        );
+        let control_flow = build_control_flow_plan(&state_graph).expect("control flow");
+        assert_eq!(
+            control_flow.semantics.facts.dynamic_conformances,
+            checked.facts.dynamic_conformances.binding_facts()
         );
     }
 }

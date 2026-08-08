@@ -52,6 +52,7 @@ impl StateGraph {
                 StateGraphFactRoots::with_roots(
                     Arena::with_capacity(proof_obligation_capacity),
                     Arena::with_capacity(invariant_capacity),
+                    Default::default(),
                 ),
                 StateGraphContractRoots::with_roots(
                     Arena::with_capacity(contract_fact_ref_capacity),

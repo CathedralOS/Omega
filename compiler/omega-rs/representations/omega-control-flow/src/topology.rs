@@ -115,4 +115,6 @@ pub struct StateParameterFlow {
     /// the receiver's static type at each call site selects among them. Empty
     /// for non-`dyn` parameters and single-impl `dyn` (devirtualized upstream).
     pub dyn_impl_type_names: Vec<Identifier>,
+    /// Exact checked rows selected by a named closed dynamic parameter.
+    pub dyn_conformance_rows: Vec<psi_checked_trees::DynamicConformanceRowFact>,
 }

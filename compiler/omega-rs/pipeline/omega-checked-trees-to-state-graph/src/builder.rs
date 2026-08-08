@@ -90,6 +90,8 @@ pub(crate) fn build_state_graph_with_workers(
             .iter()
             .map(|(_, fact)| fact),
     );
+    state_graph.semantics.facts.dynamic_conformances =
+        program.facts.dynamic_conformances.binding_facts();
 
     Ok(state_graph)
 }

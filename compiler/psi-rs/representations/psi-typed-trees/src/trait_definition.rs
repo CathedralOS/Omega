@@ -60,9 +60,9 @@ pub struct ConformanceRow {
     pub declaring_trait_name: Identifier,
     pub requirement: SymbolHandle,
     pub requirement_name: Identifier,
-    /// Exact authored realization. A selected trait-default template keeps
-    /// these invalid until per-conformance default instantiation creates its
-    /// checked machine; checked dynamic lowering rejects it meanwhile.
+    /// Exact authored or per-conformance default realization. Closed frontend
+    /// lowering instantiates trait defaults before this representation; an
+    /// invalid survivor is an incomplete internal row and fails closed.
     pub realization_machine: SymbolHandle,
     pub realization_state: SymbolHandle,
     pub realization_name: Identifier,

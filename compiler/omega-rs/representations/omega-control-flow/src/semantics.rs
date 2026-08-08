@@ -21,16 +21,19 @@ impl ControlFlowServiceReachRoots {
 pub struct ControlFlowFactRoots {
     pub proof_obligations: Arena<ProofObligationFact>,
     pub invariants: Arena<InvariantFact>,
+    pub dynamic_conformances: psi_checked_trees::DynamicConformanceBindingFacts,
 }
 
 impl ControlFlowFactRoots {
     pub fn with_roots(
         proof_obligations: Arena<ProofObligationFact>,
         invariants: Arena<InvariantFact>,
+        dynamic_conformances: psi_checked_trees::DynamicConformanceBindingFacts,
     ) -> Self {
         Self {
             proof_obligations,
             invariants,
+            dynamic_conformances,
         }
     }
 }
