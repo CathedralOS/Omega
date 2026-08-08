@@ -1620,7 +1620,7 @@ fn checked_source_runtime_integer_ordering_round_trips_and_preserves_signedness(
                 };
                 assert_eq!(
                     run_host_machine_code_with_two_u64(entry.bytes(&object), left, right),
-                    u64::from(*expected)
+                    i32::from(*expected)
                 );
             }
         }
@@ -1868,13 +1868,14 @@ fn checked_source_runtime_wrapping_shifts_cross_the_full_pipeline() {
                 },
                 TerminalScalarValue::Boolean(_) => unreachable!(),
             };
-            assert_eq!(
-                run_host_machine_code_with_two_u64(
+            assert!(
+                host_machine_code_with_two_u64_matches(
                     object.entry_function().bytes(&object),
                     input_bits,
                     count_bits,
-                ) as u64,
-                expected_bits
+                    expected_bits,
+                ),
+                "emitted wrapping shift should return the complete expected u64"
             );
         }
     }
@@ -3121,6 +3122,55 @@ int main(void) {{ return terminal_entry({left}ULL, {right}ULL); }}\n"
         .expect("execute terminal integer-equality canary")
         .code()
         .expect("terminal integer-equality canary exited normally")
+}
+
+#[cfg(unix)]
+fn host_machine_code_with_two_u64_matches(
+    bytes: &[u8],
+    left: u64,
+    right: u64,
+    expected: u64,
+) -> bool {
+    let directory = fresh_scratch_directory("omega-terminal-integer-result");
+    let _cleanup = ScratchDirectory(directory.clone());
+    let assembly_path = directory.join("entry.s");
+    let driver_path = directory.join("driver.c");
+    let executable_path = directory.join("entry");
+    let bytes = bytes
+        .iter()
+        .map(|byte| format!("0x{byte:02x}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let assembly = if cfg!(target_os = "macos") {
+        format!(".text\n.globl _terminal_entry\n.p2align 2\n_terminal_entry:\n.byte {bytes}\n")
+    } else {
+        format!(
+            ".text\n.globl terminal_entry\n.type terminal_entry,@function\nterminal_entry:\n.byte {bytes}\n.size terminal_entry, .-terminal_entry\n.section .note.GNU-stack,\"\",@progbits\n"
+        )
+    };
+    let driver = format!(
+        "#include <stdint.h>\n\
+extern uint64_t terminal_entry(uint64_t, uint64_t);\n\
+int main(void) {{ return terminal_entry({left}ULL, {right}ULL) == {expected}ULL ? 0 : 1; }}\n"
+    );
+    std::fs::write(&assembly_path, assembly).expect("write integer-result assembly harness");
+    std::fs::write(&driver_path, driver).expect("write integer-result C harness");
+    let link = Command::new("cc")
+        .arg(&assembly_path)
+        .arg(&driver_path)
+        .arg("-o")
+        .arg(&executable_path)
+        .output()
+        .expect("invoke host C linker driver");
+    assert!(
+        link.status.success(),
+        "host linker rejected integer-result terminal machine code:\n{}",
+        String::from_utf8_lossy(&link.stderr)
+    );
+    Command::new(&executable_path)
+        .status()
+        .expect("execute terminal integer-result canary")
+        .success()
 }
 
 #[cfg(unix)]
