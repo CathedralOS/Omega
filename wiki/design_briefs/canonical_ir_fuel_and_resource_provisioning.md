@@ -285,7 +285,7 @@ Semantic v1 integer, v2 Boolean, v3 wrapping-add, v4 saturating-add, v5
 wrapping-subtract, v6 saturating-subtract, v7 wrapping-multiply, v8
 saturating-multiply, v9 content, v10 reshuffle, v11 case-path, v12 partition,
 v13 conditional, and v14 entry-claim modules retain their frozen bytes and
-execution semantics; explicit migration produces a new current-v23 fingerprint
+execution semantics; explicit migration produces a new current-v24 fingerprint
 and derives dense entry bindings from any validated archived reshuffles. The
 v15 Boolean-negation slice round-trips, verifies, costs one operation plus one
 return edge, interprets, and returns the complemented canonical Boolean through
