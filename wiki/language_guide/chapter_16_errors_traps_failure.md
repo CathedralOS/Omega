@@ -207,7 +207,9 @@ they terminate. `ExecutionDomain` is the permanent portable top: the root of
 the execution owned by this artifact. Its physical realization is
 target-relative—a hosted process, a Cathedral Matrix, or a bare-metal image and
 its grants. New stable scopes may be inserted below that top without changing
-the meaning of existing artifacts.
+the meaning of existing artifacts. The declaration and cross-package ordering
+form for those intermediate scopes is not yet settled; see
+`OWNER_QUESTIONS.md` Q2.
 
 Each route publishes how much containment it may demand. Each enclosing
 execution context publishes, separately for each cause, the widest scope it

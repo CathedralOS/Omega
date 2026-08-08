@@ -232,9 +232,11 @@ Remaining:
   and terminal production rejects any checked identity it cannot map to a dense
   terminal claim. Extend that frontier with conditionally live claims when path
   evidence proves their membership. Extend path-conditioned guard entailment
-  beyond the live structural propositional consequences, widen damage minima
-  from open invariant/custody evidence, and retain declared nominal scope ordering; then
-  finish call-site refinement/propagation and sparse per-cause context maxima.
+  beyond the live structural propositional consequences and widen damage minima
+  from open invariant/custody evidence; then finish call-site
+  refinement/propagation and sparse per-cause context maxima. Retaining declared
+  intermediate nominal scope ordering is design blocked on `OWNER_QUESTIONS.md`
+  Q2.
   Generalize guarded source production beyond the live structural implication
   rules and current acyclic integer-control shape.
   Terminal Psi v23 already carries the explicit no-successor terminator, both

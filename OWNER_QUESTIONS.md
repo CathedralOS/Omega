@@ -42,3 +42,17 @@ closed normalized row map enter semantic identity; no binder is inferred as a
 carrier; proposition binders use their ordinary authored `where proposition`
 signatures; and concrete subjectless conformances remain expressible without a
 vacuous telescope.
+
+## Q2 — Declared crash-scope partial order
+
+`ExecutionDomain` is settled as the permanent portable top, and exact nominal
+identity is ordered reflexively. CRASH-CONTRACT also permits stable intermediate
+containment scopes, but no source declaration, ownership boundary, or identity
+rule currently defines them.
+
+Choose how a package declares a crash scope and its order edges. The decision
+must settle whether a scope may have multiple immediate parents, how imported
+scope identities and order evidence compose across package boundaries, what
+enters public semantic identity, and where cycle/conflicting-order diagnostics
+are owned. Physical target realization remains an Omega installation concern;
+the declaration must express only Psi's target-neutral nominal partial order.

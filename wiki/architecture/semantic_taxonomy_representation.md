@@ -972,8 +972,9 @@ negation, without accepting their converses. The fully covering subset
 independently requires the bucket's containment demand to cover
 `damage_minimum`; exact identity plus the permanent
 `ExecutionDomain` top is the first conservative nominal order. Richer logical
-entailment, explicit path-guard retention, and declared intermediate scope
-ordering remain. Checked sites are implementation evidence and never enter the
+entailment and explicit path-guard retention remain. Declared intermediate
+scope ordering is blocked on `OWNER_QUESTIONS.md` Q2. Checked sites are
+implementation evidence and never enter the
 published contract fingerprint.
 
 Psi owns these nominal demand checks. Omega installation supplies
