@@ -54,13 +54,14 @@ use std::sync::Arc;
 pub(super) fn build_backend_plan_from_control_flow_with_workers(
     program: Arc<CheckedTrees>,
     selected_provider_plans: Arc<omega_effects::SelectedProviderPlanFacts>,
+    entry_machine_name: Option<&str>,
     target: NativeTarget,
     freestanding: bool,
     external_binding_rows: &[omega_calling_conventions::ExternalBindingRow],
     control_flow: Arc<ControlFlowPlan>,
     workers: WorkerPoolHandle,
 ) -> Result<BackendPlan, Diagnostic> {
-    let entry_point = resolve_backend_entry_point(&program)?;
+    let entry_point = resolve_backend_entry_point(&program, entry_machine_name)?;
     let mut phase_timings = Arena::new();
     // A freestanding (no-host) target -- `subsystem efi_application` -- trusts no
     // host boundary packages: EMPTY ABI plan, so no bindings, no platform

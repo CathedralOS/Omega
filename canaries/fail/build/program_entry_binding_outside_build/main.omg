@@ -1,0 +1,10 @@
+data Main {
+}
+
+machine launch() {
+    let marker: u8 = 0;
+}
+
+machine Main::main(&mut self) {
+    self.roots.bind(windows_x64::ProgramEntry, launch);
+}

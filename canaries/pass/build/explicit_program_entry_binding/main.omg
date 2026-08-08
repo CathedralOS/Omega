@@ -1,0 +1,5 @@
+// ENTRY-CONTENT-ROOTS: the build root binding, not a conventional machine
+// name, selects this ordinary free machine as the program entry.
+machine launch() {
+    let marker: u8 = 0;
+}

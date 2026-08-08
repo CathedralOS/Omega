@@ -461,6 +461,7 @@ pub(super) fn state_graph_to_control_flow(
 
 pub(super) fn control_flow_to_backend_plan(
     checked: CheckedProgramSurface,
+    entry_machine_name: Option<&str>,
     target_name: Option<&str>,
     freestanding: bool,
     external_binding_rows: &[omega_calling_conventions::ExternalBindingRow],
@@ -474,6 +475,7 @@ pub(super) fn control_flow_to_backend_plan(
     let plan = omega_backend_pipeline::build_backend_plan_from_control_flow_with_workers(
         checked.program,
         checked.selected_provider_plans,
+        entry_machine_name,
         target,
         freestanding,
         external_binding_rows,

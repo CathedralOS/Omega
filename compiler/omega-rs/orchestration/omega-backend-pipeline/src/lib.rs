@@ -20,6 +20,7 @@ pub use omega_backend_plan::{BackendPlan, BackendPlanPhaseTiming};
 pub fn build_backend_plan_from_control_flow_with_workers(
     program: Arc<CheckedTrees>,
     selected_provider_plans: Arc<omega_effects::SelectedProviderPlanFacts>,
+    entry_machine_name: Option<&str>,
     target: NativeTarget,
     freestanding: bool,
     external_binding_rows: &[omega_calling_conventions::ExternalBindingRow],
@@ -29,6 +30,7 @@ pub fn build_backend_plan_from_control_flow_with_workers(
     builder::build_backend_plan_from_control_flow_with_workers(
         program,
         selected_provider_plans,
+        entry_machine_name,
         target,
         freestanding,
         external_binding_rows,

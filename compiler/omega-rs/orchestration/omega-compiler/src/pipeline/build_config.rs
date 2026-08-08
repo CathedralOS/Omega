@@ -24,6 +24,9 @@
 //!   stated as itself -- previously fused into the `efi_application` name.
 //! - Absent build.omg == an empty `build` machine == the zero `Build`: the
 //!   hosted console default.
+//! - `builder.roots.bind(target::ProgramEntry, Exact::machine);` is a static
+//!   declaration harvested from the same authoritative build machine. It
+//!   selects the exact source entry and performs no name-based discovery.
 
 use omega_interpreter::BuildTimeValue;
 use psi_diagnostics::Diagnostic;
@@ -52,6 +55,77 @@ pub struct BuildConfig {
     /// edge, format lineage, local and peer schemas, and the directional facts
     /// the final build requires.
     pub wire_compatibility_demands: Vec<WireCompatibilityDemand>,
+    /// Target-owned inbound root slots bound by the authoritative build
+    /// machine. The binding names an exact source machine; no entry discovery
+    /// or naming convention participates once a binding is present.
+    pub root_bindings: Vec<RootBinding>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RootBinding {
+    pub slot: String,
+    pub implementation: String,
+}
+
+/// Resolve the selected target's `ProgramEntry` binding. This is the first
+/// implemented target-root slot; other root-slot kinds reject rather than
+/// being accepted and then ignored. With no root declarations at all the
+/// caller may still enter the explicit migration fallback for the legacy
+/// corpus.
+pub(crate) fn selected_program_entry_machine<'config>(
+    config: &'config BuildConfig,
+    target_name: Option<&str>,
+) -> Result<Option<&'config str>, Vec<Diagnostic>> {
+    if config.root_bindings.is_empty() {
+        return Ok(None);
+    }
+
+    let mut diagnostics = Vec::new();
+    let mut program_entries = Vec::new();
+    for binding in &config.root_bindings {
+        let Some((profile, slot_name)) = binding.slot.rsplit_once("::") else {
+            diagnostics.push(Diagnostic::error(format!(
+                "root slot `{}` is not target-qualified; expected `target::ProgramEntry`",
+                binding.slot
+            )));
+            continue;
+        };
+        if slot_name != "ProgramEntry" {
+            diagnostics.push(Diagnostic::error(format!(
+                "root slot `{}` is not implemented yet; the current target-slot slice accepts `target::ProgramEntry`",
+                binding.slot
+            )));
+            continue;
+        }
+        program_entries.push((profile, binding));
+    }
+    if !diagnostics.is_empty() {
+        return Err(diagnostics);
+    }
+
+    let matches_target = |profile: &str| match target_name {
+        Some("windows_x64") => matches!(profile, "windows_x64" | "windows_x86_64"),
+        Some("linux_x64") => matches!(profile, "linux_x64" | "linux_x86_64"),
+        Some("uefi_x64") => matches!(profile, "uefi_x64" | "uefi_x86_64"),
+        Some(selected) => profile == selected,
+        None => true,
+    };
+    let selected = program_entries
+        .iter()
+        .filter(|(profile, _)| matches_target(profile))
+        .map(|(_, binding)| *binding)
+        .collect::<Vec<_>>();
+    match selected.as_slice() {
+        [binding] => Ok(Some(binding.implementation.as_str())),
+        [] => Err(vec![Diagnostic::error(format!(
+            "selected target `{}` has no bound `ProgramEntry` root slot",
+            target_name.unwrap_or("host")
+        ))]),
+        _ => Err(vec![Diagnostic::error(format!(
+            "selected target `{}` has more than one bound `ProgramEntry` root slot",
+            target_name.unwrap_or("host")
+        ))]),
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -81,6 +155,7 @@ impl Default for BuildConfig {
             grants: Vec::new(),
             provider_selections: Vec::new(),
             wire_compatibility_demands: Vec::new(),
+            root_bindings: Vec::new(),
         }
     }
 }
@@ -262,7 +337,66 @@ pub(crate) fn compute_build_config(
     config.grants = harvest_root_grants(typed, machine);
     config.provider_selections = harvest_provider_selections(typed, machine)?;
     config.wire_compatibility_demands = harvest_wire_compatibility_demands(typed, machine)?;
+    config.root_bindings = harvest_root_bindings(typed, machine)?;
     Ok(config)
+}
+
+/// Collect `builder.roots.bind(Target::Slot, Machine::entry);` declarations
+/// from the one authoritative build machine. Slot membership and schema
+/// checking belong to the selected target profile; this stage establishes the
+/// closed, duplicate-free binding map and preserves the exact machine name.
+fn harvest_root_bindings(
+    typed: &TypedTrees,
+    machine: &psi_typed_trees::machine::Machine,
+) -> Result<Vec<RootBinding>, Vec<Diagnostic>> {
+    let mut bindings: Vec<RootBinding> = Vec::new();
+    let mut diagnostics = Vec::new();
+    let mut record = |target: &str| {
+        let Some(encoded) = target.strip_prefix("bind_root#") else {
+            return;
+        };
+        let Some((slot, implementation)) = encoded.split_once('#') else {
+            diagnostics.push(Diagnostic::error(format!(
+                "malformed root-slot binding declaration `{target}`"
+            )));
+            return;
+        };
+        if let Some(existing) = bindings.iter().find(|binding| binding.slot == slot) {
+            diagnostics.push(Diagnostic::error(format!(
+                "root slot `{slot}` is already bound to `{}`; it cannot also bind `{implementation}`",
+                existing.implementation
+            )));
+            return;
+        }
+        bindings.push(RootBinding {
+            slot: slot.to_owned(),
+            implementation: implementation.to_owned(),
+        });
+    };
+
+    for state in typed.machine_states(machine) {
+        for statement in typed.statement_table.statements(state.statement_nodes) {
+            match statement {
+                psi_typed_trees::statement::StatementNode::Expression(expression) => {
+                    if let psi_typed_trees::expression::ExpressionNode::Call(call) =
+                        typed.expression_table.expression(*expression)
+                    {
+                        record(call.target.as_str());
+                    }
+                }
+                psi_typed_trees::statement::StatementNode::Call(call) => {
+                    record(call.target.as_str());
+                }
+                _ => {}
+            }
+        }
+    }
+
+    if diagnostics.is_empty() {
+        Ok(bindings)
+    } else {
+        Err(diagnostics)
+    }
 }
 
 /// Chapter 21: collect the edge-specific wire facts requested by the one
@@ -533,5 +667,6 @@ fn extract_build_config(build: &BuildTimeValue) -> Result<BuildConfig, String> {
         grants: Vec::new(),
         provider_selections: Vec::new(),
         wire_compatibility_demands: Vec::new(),
+        root_bindings: Vec::new(),
     })
 }

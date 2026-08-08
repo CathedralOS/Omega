@@ -97,6 +97,41 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
             let after_dot = input.take_punctuation(PunctuationKind::Dot, ".")?;
             let (member, rest) = after_dot.take_identifier()?;
 
+            // TARGET ROOT SLOT BINDING:
+            // `builder.roots.bind(target::Slot, Application::start);` is a
+            // build declaration over two symbol identities, not a runtime
+            // field access followed by a call with first-class machine
+            // values. Collapse the whole surface to one marker call on the
+            // Build receiver. This keeps `Build` free of a fake runtime
+            // `roots` field while preserving the ordinary, map-shaped source
+            // spelling chosen by the target-slot design.
+            if member.as_str() == "roots" && rest.at_punctuation(PunctuationKind::Dot) {
+                let after_roots_dot = rest.take_punctuation(PunctuationKind::Dot, ".")?;
+                let (operation, after_operation) = after_roots_dot.take_identifier()?;
+                if operation.as_str() == "bind"
+                    && after_operation.at_punctuation(PunctuationKind::LeftParen)
+                {
+                    let mut path_input =
+                        after_operation.take_punctuation(PunctuationKind::LeftParen, "(")?;
+                    let (slot, rest) = parse_symbol_path(path_input)?;
+                    path_input = rest.take_punctuation(PunctuationKind::Comma, ",")?;
+                    let (implementation, rest) = parse_symbol_path(path_input)?;
+                    input = rest.take_punctuation(PunctuationKind::RightParen, ")")?;
+                    expression = syntax_trees.expressions.insert(ExpressionNode::Call(
+                        TableCallExpression {
+                            receiver: expression,
+                            target: psi_syntax_trees::identifier::Identifier::generated(format!(
+                                "bind_root#{slot}#{implementation}"
+                            )),
+                            machine_arguments: Box::default(),
+                            arguments: HandleSpan::empty(),
+                            operational_acknowledgement: Default::default(),
+                        },
+                    ));
+                    continue;
+                }
+            }
+
             // CH10 ROOT GRANT (GR3): `b.accept_boundary<pkg::symbol>();` --
             // the final build's grant spelling. General angle-bracket call
             // arguments name static MACHINES; this declaration names a
@@ -457,6 +492,24 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
     }
 
     Ok((expression, input))
+}
+
+fn parse_symbol_path<'tokens, 'source>(
+    mut input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, String> {
+    let mut rendered = String::new();
+    loop {
+        let (segment, rest) = input.take_identifier()?;
+        if !rendered.is_empty() {
+            rendered.push_str("::");
+        }
+        rendered.push_str(segment.as_str());
+        if rest.at_punctuation(PunctuationKind::ColonColon) {
+            input = rest.take_punctuation(PunctuationKind::ColonColon, "::")?;
+            continue;
+        }
+        return Ok((rendered, rest));
+    }
 }
 
 fn parse_index_or_range_expression_handle<'tokens, 'source>(
