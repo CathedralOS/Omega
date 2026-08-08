@@ -211,7 +211,7 @@ fn verified_v1_integer_control_contract_slice_executes_directly() {
 }
 
 #[test]
-fn verified_v22_crash_is_a_stable_terminal_outcome() {
+fn verified_v22_and_v23_crashes_are_stable_terminal_outcomes() {
     let integer = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
     let machine = TerminalMachine {
         id: MachineId::new(90).expect("machine"),
@@ -232,7 +232,8 @@ fn verified_v22_crash_is_a_stable_terminal_outcome() {
             terminator: Terminator::Crash {
                 edge: EdgeId::new(90).expect("crash edge"),
                 cause: CrashCause::Trap,
-                damage_scope: "Activation".to_owned(),
+                damage_minimum: "Activation".to_owned(),
+                containment_demand: "Activation".to_owned(),
                 frontier_lower_bound: Vec::new(),
             },
         }],
@@ -257,7 +258,8 @@ fn verified_v22_crash_is_a_stable_terminal_outcome() {
     .expect("the explicit crash exit verifies");
     let expected = TerminalCrash {
         cause: CrashCause::Trap,
-        damage_scope: "Activation".to_owned(),
+        damage_minimum: "Activation".to_owned(),
+        containment_demand: "Activation".to_owned(),
         frontier_lower_bound: Vec::new(),
     };
 
@@ -280,6 +282,31 @@ fn verified_v22_crash_is_a_stable_terminal_outcome() {
         TerminalExecutionStatus::Crashed(expected)
     );
     assert_eq!(meter.usage().total_units(), 1, "crash must not replay");
+
+    let mut current = module.clone();
+    current.semantic_version = SemanticVersion::V23;
+    let Terminator::Crash {
+        containment_demand, ..
+    } = &mut current.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    *containment_demand = "ExecutionDomain".to_owned();
+    let verified = verify_module(
+        &current,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("the separated v23 crash scopes verify");
+    assert_eq!(
+        interpret_terminal(&verified, &[]),
+        Err(TerminalInterpretError::Crash(TerminalCrash {
+            cause: CrashCause::Trap,
+            damage_minimum: "Activation".to_owned(),
+            containment_demand: "ExecutionDomain".to_owned(),
+            frontier_lower_bound: Vec::new(),
+        }))
+    );
 }
 
 #[test]

@@ -44,6 +44,9 @@ use psi_core::{
 /// crash cause, nominal damage-scope demand, and the machine-local claim
 /// frontier known to be abandoned; a crash is never encoded as an ordinary
 /// terminal transition or as an absent cleanup list.
+/// Version 23 separates the body-derived damage minimum from the selected
+/// published containment demand. Version 22 decodes conservatively with both
+/// fields equal to its single encoded scope.
 /// Older bytes retain their original meaning and identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SemanticVersion(NonZeroU16);
@@ -71,7 +74,8 @@ impl SemanticVersion {
     pub const V20: Self = Self(NonZeroU16::new(20).expect("twenty is nonzero"));
     pub const V21: Self = Self(NonZeroU16::new(21).expect("twenty-one is nonzero"));
     pub const V22: Self = Self(NonZeroU16::new(22).expect("twenty-two is nonzero"));
-    pub const CURRENT: Self = Self::V22;
+    pub const V23: Self = Self(NonZeroU16::new(23).expect("twenty-three is nonzero"));
+    pub const CURRENT: Self = Self::V23;
 
     pub fn new(raw: u16) -> Option<Self> {
         NonZeroU16::new(raw).map(Self)
@@ -359,14 +363,15 @@ pub enum Terminator {
     Return { edge: EdgeId, value: ValueId },
     /// Leave checked execution without cleanup or a successor.
     ///
-    /// `damage_scope` is a portable nominal demand; installation gives it
-    /// physical meaning. `frontier_lower_bound` is deliberately not described
-    /// as the complete process-wide abandonment set: it is the machine-local
-    /// claim frontier the verifier can reconstruct at this site.
+    /// Both scopes are portable nominal identities; installation gives the
+    /// selected demand physical meaning. `frontier_lower_bound` is deliberately
+    /// not described as the complete process-wide abandonment set: it is the
+    /// machine-local claim frontier the verifier can reconstruct at this site.
     Crash {
         edge: EdgeId,
         cause: CrashCause,
-        damage_scope: String,
+        damage_minimum: String,
+        containment_demand: String,
         frontier_lower_bound: Vec<ClaimId>,
     },
 }

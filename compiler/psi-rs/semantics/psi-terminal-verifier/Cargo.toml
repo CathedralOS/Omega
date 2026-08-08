@@ -10,5 +10,6 @@ path = "src/lib.rs"
 
 [dependencies]
 psi-core = { path = "../../foundation/psi-core" }
+psi-language-semantics = { path = "../../foundation/psi-language-semantics" }
 psi-proof-kernel = { path = "../psi-proof-kernel" }
 psi-terminal = { path = "../../representations/psi-terminal" }

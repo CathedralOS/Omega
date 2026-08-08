@@ -190,8 +190,9 @@ Remaining:
   `crashes Cause` shorthand, and preserves explicit `crash Cause;` exits through
   checked trees. The first source-production slice lowers a crash covered by one
   unconditional same-cause bucket to terminal Psi; verification and direct
-  interpretation retain its cause, nominal scope demand, and non-replayable
-  crash outcome. Contextual statement `trap` is retired, and the legacy native
+  interpretation retain its cause, derived damage minimum, selected nominal
+  containment demand, and non-replayable crash outcome. Contextual statement
+  `trap` is retired, and the legacy native
   state-graph path rejects explicit crash exits rather than treating them as
   ordinary termination. Route facts are checked as Boolean expressions and do
   not enter requires/ensures proof entailment. Public machine-contract and
@@ -214,9 +215,10 @@ Remaining:
   intrinsic cause minimum (`Trap <= Activation`, `Abort <= ExecutionDomain`),
   and the checked plan distinguishes guard-covering buckets from buckets whose
   containment demand also covers that minimum. Reports expose both sets;
-  terminal production rejects a narrow demand while v22 continues to carry
-  the selected published demand. A later semantic version must carry the
-  derived minimum and published demand separately.
+  terminal production rejects a narrow demand. Terminal Psi v23 now carries
+  the derived minimum and selected published containment demand separately;
+  archived v22 bytes decode conservatively with both fields equal to their
+  single encoded scope.
   Checked ownership also records a canonical stable-claim lower bound
   containing every definitely-live,
   unconditional linear obligation at each site. Exhaustive crash paths abandon
@@ -229,9 +231,9 @@ Remaining:
   invariant/custody evidence, and retain declared nominal scope ordering; then
   finish call-site refinement/propagation and sparse per-cause context maxima.
   Generalize source production beyond the initial unconditional bucket.
-  Terminal Psi v22 already carries the explicit no-successor terminator and its
-  canonical machine-local frontier lower bound; native lowering remains closed
-  until target crash plans exist.
+  Terminal Psi v23 already carries the explicit no-successor terminator, both
+  crash scopes, and its canonical machine-local frontier lower bound; native
+  lowering remains closed until target crash plans exist.
   Omega installation must bind nominal scopes to a selected fault plan and
   prove the realized scope lies between each surviving route demand and its
   context maximum.

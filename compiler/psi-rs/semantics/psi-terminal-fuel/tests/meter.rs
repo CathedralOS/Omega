@@ -89,7 +89,8 @@ fn current_vocabulary_has_explicit_v1_costs_and_attribution() {
     let crash_edge = Terminator::Crash {
         edge: edge_id(3),
         cause: CrashCause::Abort,
-        damage_scope: "ExecutionDomain".to_owned(),
+        damage_minimum: "ExecutionDomain".to_owned(),
+        containment_demand: "ExecutionDomain".to_owned(),
         frontier_lower_bound: Vec::new(),
     };
     assert_eq!(

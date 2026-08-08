@@ -1212,7 +1212,8 @@ fn v22_crash_is_an_explicit_versioned_no_successor_exit() {
     module.machines[0].blocks[1].terminator = Terminator::Crash {
         edge: EdgeId::new(10).expect("crash edge"),
         cause: CrashCause::Abort,
-        damage_scope: "ExecutionDomain".to_owned(),
+        damage_minimum: "ExecutionDomain".to_owned(),
+        containment_demand: "ExecutionDomain".to_owned(),
         frontier_lower_bound: Vec::new(),
     };
     assert!(matches!(
@@ -1227,15 +1228,67 @@ fn v22_crash_is_an_explicit_versioned_no_successor_exit() {
     module.semantic_version = SemanticVersion::V22;
     validate_module(&module).expect("v22 explicitly represents a no-cleanup crash");
 
-    let Terminator::Crash { damage_scope, .. } = &mut module.machines[0].blocks[1].terminator
+    let Terminator::Crash { damage_minimum, .. } = &mut module.machines[0].blocks[1].terminator
     else {
         unreachable!()
     };
-    damage_scope.clear();
+    damage_minimum.clear();
     assert!(matches!(
         validate_module(&module),
-        Err(ModuleError::EmptyCrashDamageScope(block))
+        Err(ModuleError::EmptyCrashDamageMinimum(block))
             if block == BlockId::new(2).expect("block")
+    ));
+}
+
+#[test]
+fn v23_crash_requires_a_demand_covering_its_separate_damage_minimum() {
+    let mut module = Fixture::new().module;
+    module.semantic_version = SemanticVersion::V22;
+    module.machines[0].contract.ensures.clear();
+    module.machines[0].blocks[1].terminator = Terminator::Crash {
+        edge: EdgeId::new(10).expect("crash edge"),
+        cause: CrashCause::Trap,
+        damage_minimum: "Activation".to_owned(),
+        containment_demand: "ExecutionDomain".to_owned(),
+        frontier_lower_bound: Vec::new(),
+    };
+    assert!(matches!(
+        validate_module(&module),
+        Err(ModuleError::SeparatedCrashScopesRequireSemanticVersion {
+            required: SemanticVersion::V23,
+            actual: SemanticVersion::V22,
+            ..
+        })
+    ));
+
+    module.semantic_version = SemanticVersion::V23;
+    validate_module(&module).expect("execution-domain demand covers an activation minimum");
+
+    let Terminator::Crash {
+        damage_minimum,
+        containment_demand,
+        ..
+    } = &mut module.machines[0].blocks[1].terminator
+    else {
+        unreachable!()
+    };
+    *damage_minimum = "ExecutionDomain".to_owned();
+    *containment_demand = "Activation".to_owned();
+    assert!(matches!(
+        validate_module(&module),
+        Err(ModuleError::CrashContainmentDemandTooNarrow { .. })
+    ));
+
+    let Terminator::Crash {
+        containment_demand, ..
+    } = &mut module.machines[0].blocks[1].terminator
+    else {
+        unreachable!()
+    };
+    containment_demand.clear();
+    assert!(matches!(
+        validate_module(&module),
+        Err(ModuleError::EmptyCrashContainmentDemand(_))
     ));
 }
 
@@ -1254,7 +1307,8 @@ fn crash_frontier_must_name_every_still_live_entry_claim() {
     module.machines[0].blocks[0].terminator = Terminator::Crash {
         edge: EdgeId::new(90).expect("crash edge"),
         cause: CrashCause::Trap,
-        damage_scope: "Activation".to_owned(),
+        damage_minimum: "Activation".to_owned(),
+        containment_demand: "Activation".to_owned(),
         frontier_lower_bound: Vec::new(),
     };
     let crash_block = module.machines[0].blocks[0].id;
