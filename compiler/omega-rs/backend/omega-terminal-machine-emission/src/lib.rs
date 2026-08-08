@@ -144,6 +144,29 @@ fn emit_function(
                 when_false,
             )?,
         },
+        TerminalAssignedOperation::ReturnIntegerExpressionConditionalControl {
+            condition_frame,
+            condition,
+            scalar_type,
+            when_true,
+            when_false,
+            ..
+        } => match architecture {
+            Architecture::Aarch64 => emit_aarch64_conditional_integer_expression_control(
+                condition_frame,
+                condition,
+                *scalar_type,
+                when_true,
+                when_false,
+            )?,
+            Architecture::X86_64 => emit_x86_64_conditional_integer_expression_control(
+                condition_frame,
+                condition,
+                *scalar_type,
+                when_true,
+                when_false,
+            )?,
+        },
         TerminalAssignedOperation::ReturnBooleanConditionalControl {
             condition_source,
             condition_location,
@@ -242,7 +265,40 @@ fn emit_x86_64_integer_control(
             when_true,
             when_false,
         ),
+        TerminalAssignedIntegerControl::ConditionalExpression {
+            condition_frame,
+            condition,
+            when_true,
+            when_false,
+            ..
+        } => emit_x86_64_conditional_integer_expression_control(
+            condition_frame,
+            condition,
+            scalar_type,
+            when_true,
+            when_false,
+        ),
     }
+}
+
+fn emit_x86_64_conditional_integer_expression_control(
+    condition_frame: &TerminalExpressionFrame,
+    condition: &TerminalAssignedBooleanExpression,
+    scalar_type: IntegerType,
+    when_true: &TerminalAssignedConditionalIntegerArm,
+    when_false: &TerminalAssignedConditionalIntegerArm,
+) -> Result<Vec<u8>, EmissionError> {
+    let mut bytes = emit_x86_64_boolean_expression_value(condition_frame, condition)?;
+    bytes.extend_from_slice(&[0x85, 0xc0]); // test eax, eax
+    let true_bytes = emit_x86_64_integer_control(scalar_type, &when_true.control)?;
+    let false_bytes = emit_x86_64_integer_control(scalar_type, &when_false.control)?;
+    let displacement = i32::try_from(true_bytes.len())
+        .map_err(|_| EmissionError::ConditionalBranchDistanceNotEncodable)?;
+    bytes.extend_from_slice(&[0x0f, 0x84]); // jz false arm
+    bytes.extend_from_slice(&displacement.to_le_bytes());
+    bytes.extend_from_slice(&true_bytes);
+    bytes.extend_from_slice(&false_bytes);
+    Ok(bytes)
 }
 
 fn emit_x86_64_conditional_boolean_control(
@@ -386,7 +442,45 @@ fn emit_aarch64_integer_control(
             when_true,
             when_false,
         ),
+        TerminalAssignedIntegerControl::ConditionalExpression {
+            condition_frame,
+            condition,
+            when_true,
+            when_false,
+            ..
+        } => emit_aarch64_conditional_integer_expression_control(
+            condition_frame,
+            condition,
+            scalar_type,
+            when_true,
+            when_false,
+        ),
     }
+}
+
+fn emit_aarch64_conditional_integer_expression_control(
+    condition_frame: &TerminalExpressionFrame,
+    condition: &TerminalAssignedBooleanExpression,
+    scalar_type: IntegerType,
+    when_true: &TerminalAssignedConditionalIntegerArm,
+    when_false: &TerminalAssignedConditionalIntegerArm,
+) -> Result<Vec<u8>, EmissionError> {
+    let mut bytes = emit_aarch64_boolean_expression_value(condition_frame, condition)?;
+    let true_bytes = emit_aarch64_integer_control(scalar_type, &when_true.control)?;
+    let false_bytes = emit_aarch64_integer_control(scalar_type, &when_false.control)?;
+    let branch_words = true_bytes
+        .len()
+        .checked_div(4)
+        .and_then(|words| words.checked_add(1))
+        .ok_or(EmissionError::ConditionalBranchDistanceNotEncodable)?;
+    if branch_words > 0x3ffff {
+        return Err(EmissionError::ConditionalBranchDistanceNotEncodable);
+    }
+    let cbz = 0x3400_0000_u32 | ((branch_words as u32) << 5); // cbz w0, false
+    bytes.extend_from_slice(&cbz.to_le_bytes());
+    bytes.extend_from_slice(&true_bytes);
+    bytes.extend_from_slice(&false_bytes);
+    Ok(bytes)
 }
 
 fn emit_aarch64_conditional_boolean_control(
@@ -1812,7 +1906,7 @@ fn aarch64_stack_access(
     source_value: ValueId,
     byte_offset: u32,
 ) -> Result<u32, EmissionError> {
-    if byte_offset % 8 != 0 || byte_offset / 8 > 0xfff {
+    if !byte_offset.is_multiple_of(8) || byte_offset / 8 > 0xfff {
         return Err(EmissionError::IncomingStackOffsetNotEncodable {
             value: source_value,
             byte_offset,

@@ -177,7 +177,11 @@ abstract plan retains canonical block entries and both successor records.
 The checked-source producer lowers scalar integer-result acyclic control graphs
 whose blocks return, jump unconditionally, or select one ordered
 positive-Boolean/fallback successor pair. Unconditional jumps may compute
-recursive exact-typed integer expressions for their bindings. A computed
+recursive exact-typed integer expressions for integer bindings and recursive
+non-short-circuit Boolean expressions for Boolean bindings. The latter include
+literal, negation, Boolean equality/inequality, and exact-type integer
+comparison forms, and may feed a later integer-result selector through an
+ordinary terminal block parameter. A computed
 conditional successor binding lowers through a synthesized arm-local block:
 the conditional passes its current parameters into only the selected block,
 that block computes the recursive exact-typed arguments, and an ordinary jump
@@ -281,7 +285,9 @@ each linear block owns one unconditional successor, and leaves return a
 recursively nested integer expression. Successors bind ordered already-defined
 Boolean or integer parameters with exact target types; an unconditional jump
 may instead compute recursively nested parameter/literal integer expressions
-before binding its target. Joins are explicit block-parameter merges.
+or non-short-circuit Boolean expressions before binding its target. Joins are
+explicit block-parameter merges. Mixed-scalar short-circuit bindings remain a
+later slice.
 Short-circuit guards use explicit decision blocks, and computed conditional
 edge bindings use selected-arm blocks because terminal edges do not own
 operations. This preserves source ordering and keeps each branch's computation
@@ -300,8 +306,10 @@ ninth-parameter returns, a
 three-state Boolean chain carrying its ninth parameter, a closed three-state
 integer chain, a direct zero-parameter integer literal, plus a nine-parameter
 integer direct return, and a six-block integer graph with nested runtime
-selection and a three-way convergent tail, discards
-`CheckedTrees`, then verifies and executes the produced semantic modules.
+selection and a three-way convergent tail. An integer-result companion computes
+Boolean inequality on an unconditional edge, carries it through a Boolean block
+parameter, and selects the returned integer with that value. These canaries
+discard `CheckedTrees`, then verify and execute the produced semantic modules.
 Direct-return `&&`/`||` expressions lower to acyclic terminal conditional
 trees. Each evaluated operand owns its selected conditional edge; the deciding
 left operand bypasses the right subtree, and Boolean leaf constants plus return
@@ -389,7 +397,8 @@ right shift from the shifted value's signedness. Current native source widths
 are powers of two, so x86-64 and AArch64 realize the modulo with `width - 1`
 before the variable shift.
 Recursive Boolean expressions may also serve as
-target control conditions and return leaves; assignment gives each expression
+target control conditions for either Boolean- or integer-result control and as
+Boolean return leaves; assignment gives each expression
 its own frame, and emission tears that frame down before entering either arm.
 This lets short-circuit terminal trees branch on nested equality expressions
 without introducing eager Boolean opcodes. For the exact conditional form, a

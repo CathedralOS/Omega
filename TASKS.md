@@ -208,6 +208,12 @@ Remaining:
   contract without re-reading source expressions. The integer graph uses the
   same lowered-DAG evaluation for recursive arithmetic and integer-comparison
   selectors; any reachable crash exit conservatively suppresses a total result.
+  Integer-result graphs now also compute non-short-circuit Boolean
+  unconditional bindings (literal, negation, Boolean equality/inequality, and
+  exact-type integer comparison), preserve them across terminal block
+  parameters, and use the resulting recursive Boolean target expression as
+  native control on both architectures. Mixed-scalar short-circuit bindings
+  remain a later vertical slice.
 - Replace all remaining terminal-path `ExpressionHandle` and source-tree
   dependencies with lowered values and predicates. Absorb useful StateGraph /
   ControlFlow topology, then retire the legacy backend lane as consumers move.

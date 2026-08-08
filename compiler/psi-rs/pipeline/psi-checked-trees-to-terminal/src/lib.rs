@@ -80,6 +80,9 @@ enum LoweredDirectExpression {
         left: Box<LoweredDirectExpression>,
         right: Box<LoweredDirectExpression>,
     },
+    Boolean {
+        expression: Box<LoweredBooleanReturnExpression>,
+    },
 }
 
 impl LoweredDirectExpression {
@@ -88,6 +91,7 @@ impl LoweredDirectExpression {
             Self::Parameter { scalar_type, .. }
             | Self::IntegerLiteral { scalar_type, .. }
             | Self::IntegerBinary { scalar_type, .. } => *scalar_type,
+            Self::Boolean { .. } => ScalarType::Boolean,
         }
     }
 }
@@ -2663,6 +2667,9 @@ fn validate_direct_parameter_types(
             validate_direct_parameter_types(left, parameter_types)?;
             validate_direct_parameter_types(right, parameter_types)
         }
+        LoweredDirectExpression::Boolean { expression } => {
+            validate_boolean_parameter_types(expression, parameter_types)
+        }
     }
 }
 
@@ -3374,6 +3381,22 @@ fn lower_direct_return_expression(
     parameter_types: &[ScalarType],
     result_type: ScalarType,
 ) -> Result<(LoweredDirectExpression, ArithmeticDomain), LoweringError> {
+    if result_type == ScalarType::Boolean {
+        let expression = lower_boolean_expression(checked, expression, parameters)?;
+        validate_short_circuit_expression(&expression)?;
+        validate_boolean_parameter_types(&expression, parameter_types)?;
+        if contains_short_circuit(&expression) {
+            return unsupported(
+                "mixed scalar graph bindings do not support short-circuit Boolean expressions yet",
+            );
+        }
+        return Ok((
+            LoweredDirectExpression::Boolean {
+                expression: Box::new(expression),
+            },
+            ArithmeticDomain::Exact,
+        ));
+    }
     let (expression, domain) =
         lower_direct_expression(checked, expression, parameters, parameter_types)?;
     if expression.scalar_type() != result_type {
@@ -3479,6 +3502,7 @@ fn evaluate_direct_expression(
             let right = evaluate_direct_expression(right, parameters)?;
             evaluate_lowered_integer_binary(*kind, *scalar_type, count_type, left, right)
         }
+        LoweredDirectExpression::Boolean { .. } => None,
     }
 }
 
@@ -4916,6 +4940,12 @@ fn build_nested_conditional_target(
             LoweredDirectExpression::Parameter { position, .. } => {
                 Some(current_parameters[*position].id)
             }
+            LoweredDirectExpression::Boolean { expression } => match expression.as_ref() {
+                LoweredBooleanReturnExpression::Parameter { position } => {
+                    Some(current_parameters[*position].id)
+                }
+                _ => None,
+            },
             LoweredDirectExpression::IntegerLiteral { .. }
             | LoweredDirectExpression::IntegerBinary { .. } => None,
         })
@@ -6900,6 +6930,9 @@ fn emit_direct_expression(
                 kind: kind.operation(left, right),
             });
             id
+        }
+        LoweredDirectExpression::Boolean { expression } => {
+            emit_boolean_expression(expression, parameters, next_value_identity, operations)
         }
     }
 }

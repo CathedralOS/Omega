@@ -98,6 +98,15 @@ pub enum TerminalTargetOperation {
         when_true: TerminalTargetConditionalIntegerArm,
         when_false: TerminalTargetConditionalIntegerArm,
     },
+    /// Execute integer-returning control whose root condition is a recursive
+    /// runtime Boolean expression rather than one direct ABI parameter.
+    ReturnIntegerExpressionConditionalControl {
+        condition_source: ValueId,
+        condition: TerminalTargetBooleanExpression,
+        scalar_type: IntegerType,
+        when_true: TerminalTargetConditionalIntegerArm,
+        when_false: TerminalTargetConditionalIntegerArm,
+    },
     /// Execute an acyclic conditional-control tree whose leaves return
     /// canonical Boolean values.
     ReturnBooleanConditionalControl {
@@ -219,6 +228,12 @@ pub enum TerminalTargetIntegerControl {
         condition_source: ValueId,
         condition_parameter_index: usize,
         condition_location: TerminalScalarParameterLocation,
+        when_true: TerminalTargetConditionalIntegerArm,
+        when_false: TerminalTargetConditionalIntegerArm,
+    },
+    ConditionalExpression {
+        condition_source: ValueId,
+        condition: TerminalTargetBooleanExpression,
         when_true: TerminalTargetConditionalIntegerArm,
         when_false: TerminalTargetConditionalIntegerArm,
     },

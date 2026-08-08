@@ -1283,8 +1283,8 @@ fn lower_conditional_block(
                 })
             }
             KnownScalar::BooleanRuntime(expression) => {
-                let (parameter_index, location, invert) =
-                    direct_boolean_condition(expression, *condition)?;
+                let direct = direct_boolean_condition(expression.clone(), *condition);
+                let invert = matches!(direct, Ok((_, _, true)));
                 let (selected_true, selected_false) = if invert {
                     (when_false, when_true)
                 } else {
@@ -1303,14 +1303,28 @@ fn lower_conditional_block(
                 operations.extend(lowered_false.operations);
                 let mut edges = lowered_true.edges;
                 edges.extend(lowered_false.edges);
+                let control = match direct {
+                    Ok((parameter_index, location, _)) => {
+                        TerminalTargetIntegerControl::Conditional {
+                            condition_source: *condition,
+                            condition_parameter_index: parameter_index,
+                            condition_location: location,
+                            when_true: lowered_true.arm,
+                            when_false: lowered_false.arm,
+                        }
+                    }
+                    Err(LoweringError::UnsupportedRuntimeBooleanCondition(_)) => {
+                        TerminalTargetIntegerControl::ConditionalExpression {
+                            condition_source: *condition,
+                            condition: expression,
+                            when_true: lowered_true.arm,
+                            when_false: lowered_false.arm,
+                        }
+                    }
+                    Err(error) => return Err(error),
+                };
                 Ok(LoweredIntegerControl {
-                    control: TerminalTargetIntegerControl::Conditional {
-                        condition_source: *condition,
-                        condition_parameter_index: parameter_index,
-                        condition_location: location,
-                        when_true: lowered_true.arm,
-                        when_false: lowered_false.arm,
-                    },
+                    control,
                     operations,
                     edges,
                 })
@@ -1432,6 +1446,18 @@ fn target_operation_from_integer_control(
             condition_source,
             condition_parameter_index,
             condition_location,
+            scalar_type,
+            when_true,
+            when_false,
+        },
+        TerminalTargetIntegerControl::ConditionalExpression {
+            condition_source,
+            condition,
+            when_true,
+            when_false,
+        } => TerminalTargetOperation::ReturnIntegerExpressionConditionalControl {
+            condition_source,
+            condition,
             scalar_type,
             when_true,
             when_false,
@@ -1818,6 +1844,7 @@ enum WrappingShiftKind {
     Right,
 }
 
+#[allow(clippy::too_many_arguments)]
 fn lower_wrapping_shift(
     values: &BTreeMap<ValueId, KnownScalar>,
     result: ValueId,

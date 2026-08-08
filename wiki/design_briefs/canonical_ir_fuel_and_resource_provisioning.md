@@ -109,7 +109,12 @@ comparisons over recursive integer expressions, composed with recursive
 short-circuit `&&`/`||`. Short-circuit tests lower into reserved decision blocks
 and charge only the executed path.
 Unconditional jumps may compute recursive exact-typed integer bindings;
-computed conditional-edge bindings use synthesized arm-local blocks so only
+Boolean targets additionally accept recursive non-short-circuit literal,
+negation, equality/inequality, and exact-type integer-comparison bindings. An
+integer-result graph may carry such a value through an ordinary Boolean block
+parameter and use its recursive expression as native control on both targets.
+Mixed-scalar short-circuit bindings remain a later slice.
+Computed conditional-edge bindings use synthesized arm-local blocks so only
 the selected expression executes and consumes fuel. Nested selections, linear
 prefixes, and convergent tails use the same terminal block and edge
 vocabulary. Compile-known integer evaluation follows lowered comparison
@@ -140,7 +145,9 @@ companion also carries two independently computed bindings across each
 unconditional edge. A selected-edge companion computes distinct add/multiply
 bindings in synthesized true/false blocks and reaches both native targets. A
 Boolean companion selects either a staged short-circuit tuple or an ordinary
-computed tuple without executing the other arm. The
+computed tuple without executing the other arm. An integer-result companion
+computes Boolean inequality on an unconditional binding, carries it across the
+terminal edge, and uses it as emitted AArch64/x86-64 control. The
 source control canary executes each nested path after
 frontend disposal, meters only selected edges, and retains every successor and
 shared-tail edge at the Omega abstract boundary. Parsing
