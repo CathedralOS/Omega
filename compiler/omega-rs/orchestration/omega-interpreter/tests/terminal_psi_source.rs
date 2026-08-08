@@ -51,7 +51,7 @@ use psi_layout_plans::{
     ArtifactInstallationScopeId, EntryStubId, PlacementConstraints, PlacementPhase, PlacementSite,
 };
 use psi_proof_kernel::AdmissionProfile;
-use psi_terminal::{OperationKind, SemanticVersion, Terminator};
+use psi_terminal::{CrashCause, OperationKind, SemanticVersion, Terminator};
 use psi_terminal_codec::{
     DebugSubject, build_artifact_manifest, decode_debug_map, decode_module, decode_proof_bundle,
     encode_debug_map, encode_module, encode_proof_bundle, terminal_psi_identity,
@@ -1658,7 +1658,7 @@ fn checked_source_runtime_integer_bitwise_operations_cross_the_full_pipeline() {
         let lowered = lower_machine(&checked, machine).expect("integer bitwise should lower");
         assert_eq!(
             lowered.semantic_module.semantic_version,
-            SemanticVersion::V21
+            SemanticVersion::CURRENT
         );
         let operation = lowered.semantic_module.machines[0].blocks[0].operations[0].kind;
         assert!(matches!(
@@ -1785,7 +1785,7 @@ fn checked_source_runtime_wrapping_shifts_cross_the_full_pipeline() {
         let lowered = lower_machine(&checked, machine).expect("wrapping shift should lower");
         assert_eq!(
             lowered.semantic_module.semantic_version,
-            SemanticVersion::V21
+            SemanticVersion::CURRENT
         );
         assert!(matches!(
             (
@@ -2442,6 +2442,65 @@ fn psi_terminal_producer_rejects_source_outside_its_declared_slice() {
         lower_machine(&checked, "terminal_boolean_chain_wrong_contract")
             .expect_err("closed Boolean chain with an unrelated contract must fail closed"),
         LoweringError::Unsupported("Boolean contract literal must match the compile-known result")
+    );
+    for machine in ["terminal_unpublished_abort", "terminal_guarded_abort"] {
+        assert_eq!(
+            lower_machine(&checked, machine)
+                .expect_err("a crash without a uniquely covering unconditional bucket must fail"),
+            LoweringError::Unsupported(
+                "an explicit crash in the first terminal-Psi source slice requires exactly one unconditional published bucket for the same cause"
+            )
+        );
+    }
+}
+
+#[test]
+fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("terminal-Psi source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_abort")
+        .expect("an unconditional published crash should lower");
+    let [machine] = lowered.semantic_module.machines.as_slice() else {
+        panic!("source slice should emit one machine");
+    };
+    let [block] = machine.blocks.as_slice() else {
+        panic!("crash-only source should emit one block");
+    };
+    assert_eq!(
+        block.terminator,
+        Terminator::Crash {
+            edge: EdgeId::new(1).unwrap(),
+            cause: CrashCause::Abort,
+            damage_scope: "ExecutionDomain".to_owned(),
+            frontier_lower_bound: Vec::new(),
+        }
+    );
+
+    let verified = verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("source-produced crash terminal should verify");
+    let mut execution =
+        TerminalExecution::start(&verified, &[]).expect("verified crash terminal should start");
+    let mut meter = TerminalFuelMeter::with_allowance(1);
+    let expected = TerminalExecutionStatus::Crashed(omega_interpreter::TerminalCrash {
+        cause: CrashCause::Abort,
+        damage_scope: "ExecutionDomain".to_owned(),
+        frontier_lower_bound: Vec::new(),
+    });
+    assert_eq!(execution.resume(&mut meter).unwrap(), expected);
+    let charged = meter.usage().total_units();
+    assert_eq!(
+        execution.resume(&mut meter).unwrap(),
+        expected,
+        "resuming a crashed execution reports the same terminal outcome"
+    );
+    assert_eq!(
+        meter.usage().total_units(),
+        charged,
+        "resuming a crash must not replay its edge"
     );
 }
 

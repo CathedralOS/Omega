@@ -101,18 +101,19 @@ fn fact_handles(
 }
 
 fn contract_fact_kind(
-    kind: psi_typed_trees::signature::SignatureContractKind,
-) -> ContractProofFactKind {
+    kind: &psi_typed_trees::signature::SignatureContractKind,
+) -> Option<ContractProofFactKind> {
     match kind {
         psi_typed_trees::signature::SignatureContractKind::Requires => {
-            ContractProofFactKind::Requires
+            Some(ContractProofFactKind::Requires)
         }
         psi_typed_trees::signature::SignatureContractKind::Ensures => {
-            ContractProofFactKind::Ensures
+            Some(ContractProofFactKind::Ensures)
         }
         psi_typed_trees::signature::SignatureContractKind::Boundary => {
-            ContractProofFactKind::Boundary
+            Some(ContractProofFactKind::Boundary)
         }
+        psi_typed_trees::signature::SignatureContractKind::Crashes { .. } => None,
     }
 }
 

@@ -17,9 +17,12 @@ pub(crate) fn append_machine_contract_facts(
     contract_facts: &mut psi_arena::Arena<ContractProofFact>,
 ) {
     for contract in program.machine_contracts(machine) {
+        let Some(kind) = super::contract_fact_kind(&contract.kind) else {
+            continue;
+        };
         for fact in super::fact_handles(contract.facts) {
             contract_facts.append(ContractProofFact {
-                kind: super::contract_fact_kind(contract.kind),
+                kind,
                 owner: ContractProofFactOwner::Machine {
                     machine_symbol: machine.symbol,
                 },
@@ -37,9 +40,12 @@ pub(crate) fn append_state_contract_facts(
     contract_facts: &mut psi_arena::Arena<ContractProofFact>,
 ) {
     for contract in program.state_contracts(state) {
+        let Some(kind) = super::contract_fact_kind(&contract.kind) else {
+            continue;
+        };
         for fact in super::fact_handles(contract.facts) {
             contract_facts.append(ContractProofFact {
-                kind: super::contract_fact_kind(contract.kind),
+                kind,
                 owner: ContractProofFactOwner::MachineState {
                     machine_symbol: machine.symbol,
                     state_symbol: state.symbol,
@@ -59,17 +65,20 @@ pub(crate) fn append_state_signature_contract_facts(
 ) {
     for signature in signatures {
         for contract in program.state_signature_contracts(signature) {
+            let Some(kind) = super::contract_fact_kind(&contract.kind) else {
+                continue;
+            };
             for fact in super::fact_handles(contract.facts) {
                 let qualification_authorization =
                     crate::qualification_evidence::boundary_qualification_authorization(
                         program,
                         owner_symbol,
                         signature,
-                        contract.kind,
+                        contract.kind.clone(),
                         fact,
                     );
                 contract_facts.append(ContractProofFact {
-                    kind: super::contract_fact_kind(contract.kind),
+                    kind,
                     owner: ContractProofFactOwner::StateSignature {
                         owner_symbol,
                         state_symbol: signature.symbol,

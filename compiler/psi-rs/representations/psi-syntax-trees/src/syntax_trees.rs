@@ -624,6 +624,12 @@ impl SyntaxTrees {
                     CapabilityContractKind::Boundary(BoundaryLevel::Named(name)) => {
                         CapabilityContractKind::Boundary(BoundaryLevel::Named(name.clone()))
                     }
+                    CapabilityContractKind::Crashes { cause, scope } => {
+                        CapabilityContractKind::Crashes {
+                            cause: *cause,
+                            scope: scope.clone(),
+                        }
+                    }
                 },
                 facts: self.copy_domain_fact_span(other, contract.facts),
                 token_count: contract.token_count,
@@ -954,6 +960,7 @@ impl SyntaxTrees {
                         TransitionGuardNode::When(self.copy_expression_handle(other, expression))
                     }
                 },
+                exit: transition.exit,
                 source_span: transition.source_span,
             }),
         }

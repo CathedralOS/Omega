@@ -2178,6 +2178,52 @@ fn contract_plans_fingerprint_published_halves() {
     assert_eq!(plan(ab).fingerprint, plan(renamed).fingerprint);
 }
 
+#[test]
+fn crash_bucket_identity_includes_cause_scope_and_unconditional_presence() {
+    let source = r#"
+    machine baseline() {}
+    machine trap_activation(flag: bool)
+    crashes Trap Activation
+        flag
+    {}
+    machine trap_domain(flag: bool)
+    crashes Trap ExecutionDomain
+        flag
+    {}
+    machine abort_activation(flag: bool)
+    crashes Abort Activation
+        flag
+    {}
+    machine unconditional_abort()
+    crashes Abort
+    {}
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
+    let fingerprint = |name: &str| {
+        let symbol = symbol_of_checked(&checked, name);
+        checked
+            .facts
+            .contract_plans
+            .for_machine(symbol)
+            .expect("contract plan")
+            .fingerprint
+    };
+
+    assert_ne!(fingerprint("baseline"), fingerprint("unconditional_abort"));
+    assert_ne!(fingerprint("trap_activation"), fingerprint("trap_domain"));
+    assert_ne!(
+        fingerprint("trap_activation"),
+        fingerprint("abort_activation")
+    );
+}
+
 fn symbol_of_checked(
     checked: &psi_checked_trees::CheckedTrees,
     name: &str,

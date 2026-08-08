@@ -69,6 +69,7 @@ pub enum ContractKindSurface {
     Requires,
     Ensures,
     Boundary,
+    Crashes,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -379,10 +380,11 @@ fn collect_contracts(
     for contract in syntax_trees.items.capability_contracts(contracts) {
         report.contracts.insert(ContractSurface {
             owner: owner.to_owned(),
-            kind: match contract.kind {
+            kind: match &contract.kind {
                 CapabilityContractKind::Requires => ContractKindSurface::Requires,
                 CapabilityContractKind::Ensures => ContractKindSurface::Ensures,
                 CapabilityContractKind::Boundary(_) => ContractKindSurface::Boundary,
+                CapabilityContractKind::Crashes { .. } => ContractKindSurface::Crashes,
             },
             fact_count: syntax_trees.items.proof_facts(contract.facts).len(),
             membership_fact_count: syntax_trees

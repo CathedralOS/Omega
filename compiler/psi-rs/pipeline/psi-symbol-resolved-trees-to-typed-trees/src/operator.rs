@@ -66,7 +66,7 @@ pub(crate) fn lower_operator_definition(
         lowerer.typed_trees.push_operator_contract(
             &mut typed_operator,
             psi_typed_trees::signature::SignatureContract {
-                kind: match contract.kind {
+                kind: match &contract.kind {
                     psi_symbol_resolved_trees::signature::SignatureContractKind::Requires => {
                         psi_typed_trees::signature::SignatureContractKind::Requires
                     }
@@ -76,6 +76,20 @@ pub(crate) fn lower_operator_definition(
                     psi_symbol_resolved_trees::signature::SignatureContractKind::Boundary => {
                         psi_typed_trees::signature::SignatureContractKind::Boundary
                     }
+                    psi_symbol_resolved_trees::signature::SignatureContractKind::Crashes {
+                        cause,
+                        scope,
+                    } => psi_typed_trees::signature::SignatureContractKind::Crashes {
+                        cause: match cause {
+                            psi_symbol_resolved_trees::signature::CrashCause::Trap => {
+                                psi_typed_trees::signature::CrashCause::Trap
+                            }
+                            psi_symbol_resolved_trees::signature::CrashCause::Abort => {
+                                psi_typed_trees::signature::CrashCause::Abort
+                            }
+                        },
+                        scope: crate::name::lower_name(scope),
+                    },
                 },
                 facts,
                 token_count: contract.token_count,

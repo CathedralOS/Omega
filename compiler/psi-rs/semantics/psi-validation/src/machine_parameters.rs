@@ -965,9 +965,9 @@ fn validate_contract_facts(
         SignatureContractKind::Ensures,
         SignatureContractKind::Boundary,
     ] {
-        let required = normalized_facts(program, required_contracts, kind, required_parameters);
-        let actual = normalized_facts(program, actual_contracts, kind, actual_parameters);
-        let valid = match kind {
+        let required = normalized_facts(program, required_contracts, &kind, required_parameters);
+        let actual = normalized_facts(program, actual_contracts, &kind, actual_parameters);
+        let valid = match &kind {
             // Required preconditions may be stronger: callers of the generic
             // already prove them, so the selected implementation may demand a
             // subset. Selected postconditions must cover the requirement.
@@ -975,25 +975,123 @@ fn validate_contract_facts(
             SignatureContractKind::Ensures | SignatureContractKind::Boundary => {
                 required.iter().all(|fact| actual.contains(fact))
             }
+            SignatureContractKind::Crashes { .. } => {
+                unreachable!("crash routes compare separately")
+            }
         };
         if !valid {
             diagnostics.push(Diagnostic::error(format!(
                 "{label} does not refine `{}`: its {} facts are not a conservative refinement",
                 parameter.name,
-                contract_kind_name(kind)
+                contract_kind_name(&kind)
+            )));
+        }
+    }
+    validate_crash_contract_refinement(
+        program,
+        label,
+        parameter,
+        required_contracts,
+        actual_contracts,
+        required_parameters,
+        actual_parameters,
+        diagnostics,
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_crash_contract_refinement(
+    program: &TypedTrees,
+    label: &str,
+    parameter: &TypeParameter,
+    required_contracts: &[SignatureContract],
+    actual_contracts: &[SignatureContract],
+    required_parameters: &[StateParameter],
+    actual_parameters: &[StateParameter],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut checked = Vec::<SignatureContractKind>::new();
+    for actual_contract in actual_contracts {
+        let SignatureContractKind::Crashes { .. } = &actual_contract.kind else {
+            continue;
+        };
+        if checked.contains(&actual_contract.kind) {
+            continue;
+        }
+        checked.push(actual_contract.kind.clone());
+
+        let actual_bucket = normalized_crash_bucket(
+            program,
+            actual_contracts,
+            &actual_contract.kind,
+            actual_parameters,
+        )
+        .expect("an actual crash contract contributes its own bucket");
+        let required_bucket = normalized_crash_bucket(
+            program,
+            required_contracts,
+            &actual_contract.kind,
+            required_parameters,
+        );
+        let valid = required_bucket.is_some_and(|required| {
+            required.unconditional
+                || (!actual_bucket.unconditional
+                    && actual_bucket
+                        .routes
+                        .iter()
+                        .all(|route| required.routes.contains(route)))
+        });
+        if !valid {
+            let SignatureContractKind::Crashes { cause, scope } = &actual_contract.kind else {
+                unreachable!("checked crash bucket kind")
+            };
+            diagnostics.push(Diagnostic::error(format!(
+                "{label} does not refine `{}`: its `crashes {cause:?} {}` routes are not contained by the required crash ceiling",
+                parameter.name,
+                scope.as_str(),
             )));
         }
     }
 }
 
+struct NormalizedCrashBucket {
+    unconditional: bool,
+    routes: Vec<String>,
+}
+
+fn normalized_crash_bucket(
+    program: &TypedTrees,
+    contracts: &[SignatureContract],
+    kind: &SignatureContractKind,
+    parameters: &[StateParameter],
+) -> Option<NormalizedCrashBucket> {
+    let matching = contracts
+        .iter()
+        .filter(|contract| &contract.kind == kind)
+        .collect::<Vec<_>>();
+    if matching.is_empty() {
+        return None;
+    }
+    let unconditional = matching.iter().any(|contract| {
+        normalized_facts(program, std::slice::from_ref(*contract), kind, parameters).is_empty()
+    });
+    let mut routes = normalized_facts(program, contracts, kind, parameters);
+    routes.sort();
+    routes.dedup();
+    Some(NormalizedCrashBucket {
+        unconditional,
+        routes,
+    })
+}
+
 fn normalized_facts(
     program: &TypedTrees,
     contracts: &[SignatureContract],
-    kind: SignatureContractKind,
+    kind: &SignatureContractKind,
     parameters: &[StateParameter],
 ) -> Vec<String> {
     let mut facts = Vec::new();
-    for contract in contracts.iter().filter(|contract| contract.kind == kind) {
+    for contract in contracts.iter().filter(|contract| &contract.kind == kind) {
         for fact in program.tables.proof_facts.span_or_empty(contract.facts) {
             if matches!(
                 fact,
@@ -1106,11 +1204,12 @@ fn alpha_normalize(text: &str, parameters: &[StateParameter]) -> String {
     output
 }
 
-fn contract_kind_name(kind: SignatureContractKind) -> &'static str {
+fn contract_kind_name(kind: &SignatureContractKind) -> &'static str {
     match kind {
         SignatureContractKind::Requires => "requires",
         SignatureContractKind::Ensures => "ensures",
         SignatureContractKind::Boundary => "boundary",
+        SignatureContractKind::Crashes { .. } => "crashes",
     }
 }
 

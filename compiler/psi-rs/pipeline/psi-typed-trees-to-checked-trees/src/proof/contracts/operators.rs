@@ -37,7 +37,10 @@ fn append_contract_operator_use(
         .signature_contracts
         .span_or_empty(operator_use.contracts())
     {
-        let target = match super::contract_fact_kind(contract.kind) {
+        let Some(kind) = super::contract_fact_kind(&contract.kind) else {
+            continue;
+        };
+        let target = match kind {
             ContractProofFactKind::Requires => &mut requires,
             ContractProofFactKind::Ensures => &mut ensures,
             ContractProofFactKind::Boundary => &mut boundary,
@@ -45,7 +48,7 @@ fn append_contract_operator_use(
 
         for fact in super::fact_handles(contract.facts) {
             let contract_fact = contract_facts.append(ContractProofFact {
-                kind: super::contract_fact_kind(contract.kind),
+                kind,
                 owner: ContractProofFactOwner::OperatorUse {
                     expression: operator_use.operator_use.expression,
                     origin: operator_use.operator_use.origin,

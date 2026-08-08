@@ -1796,7 +1796,7 @@ fn clone_specialized_machine(
         program.push_machine_trait_conformance(&mut cloned, conformance.clone());
     }
     for contract in source.machine_contracts(source_machine) {
-        let contract = copy_signature_contract(source, program, *contract, &symbol_map);
+        let contract = copy_signature_contract(source, program, contract.clone(), &symbol_map);
         program.push_machine_contract(&mut cloned, contract);
     }
 
@@ -1839,7 +1839,7 @@ fn clone_specialized_machine(
             program.push_state_parameter(&mut state, parameter);
         }
         for contract in source.state_contracts(source_state) {
-            let contract = copy_signature_contract(source, program, *contract, &symbol_map);
+            let contract = copy_signature_contract(source, program, contract.clone(), &symbol_map);
             program.push_state_contract(&mut state, contract);
         }
         program.push_machine_state(&mut cloned, state);
@@ -2004,9 +2004,10 @@ fn copy_signature_contract(
     contract: psi_typed_trees::signature::SignatureContract,
     symbols: &[(SymbolHandle, SymbolHandle)],
 ) -> psi_typed_trees::signature::SignatureContract {
+    let original_facts = contract.facts;
     let mut copied = contract;
     copied.facts = HandleSpan::empty();
-    for fact in source.proof_facts.span_or_empty(contract.facts) {
+    for fact in source.proof_facts.span_or_empty(original_facts) {
         let fact = match fact {
             psi_typed_trees::domain::ProofFact::Expression(expression) => {
                 psi_typed_trees::domain::ProofFact::Expression(copy_expression(
@@ -3412,11 +3413,21 @@ fn encode_contract(
     binders: &[(String, String)],
     output: &mut Vec<u8>,
 ) {
-    output.push(match contract.kind {
+    output.push(match &contract.kind {
         psi_typed_trees::signature::SignatureContractKind::Requires => 1,
         psi_typed_trees::signature::SignatureContractKind::Ensures => 2,
         psi_typed_trees::signature::SignatureContractKind::Boundary => 3,
+        psi_typed_trees::signature::SignatureContractKind::Crashes { .. } => 4,
     });
+    if let psi_typed_trees::signature::SignatureContractKind::Crashes { cause, scope } =
+        &contract.kind
+    {
+        output.push(match cause {
+            psi_typed_trees::signature::CrashCause::Trap => 1,
+            psi_typed_trees::signature::CrashCause::Abort => 2,
+        });
+        encode_normalized_text(scope.as_str(), binders, output);
+    }
     let mut facts: Vec<String> = program
         .proof_facts
         .span_or_empty(contract.facts)

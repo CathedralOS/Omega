@@ -57,7 +57,7 @@ pub(crate) fn lower_state(
         lowerer.typed_trees.push_state_contract(
             &mut typed_state,
             typed::signature::SignatureContract {
-                kind: match contract.kind {
+                kind: match &contract.kind {
                     resolved::signature::SignatureContractKind::Requires => {
                         typed::signature::SignatureContractKind::Requires
                     }
@@ -66,6 +66,19 @@ pub(crate) fn lower_state(
                     }
                     resolved::signature::SignatureContractKind::Boundary => {
                         typed::signature::SignatureContractKind::Boundary
+                    }
+                    resolved::signature::SignatureContractKind::Crashes { cause, scope } => {
+                        typed::signature::SignatureContractKind::Crashes {
+                            cause: match cause {
+                                resolved::signature::CrashCause::Trap => {
+                                    typed::signature::CrashCause::Trap
+                                }
+                                resolved::signature::CrashCause::Abort => {
+                                    typed::signature::CrashCause::Abort
+                                }
+                            },
+                            scope: crate::name::lower_name(scope),
+                        }
                     }
                 },
                 facts,
@@ -198,7 +211,7 @@ pub(crate) fn lower_state_signature(
         lowerer.typed_trees.push_state_signature_contract(
             &mut typed_signature,
             typed::signature::SignatureContract {
-                kind: match contract.kind {
+                kind: match &contract.kind {
                     resolved::signature::SignatureContractKind::Requires => {
                         typed::signature::SignatureContractKind::Requires
                     }
@@ -207,6 +220,19 @@ pub(crate) fn lower_state_signature(
                     }
                     resolved::signature::SignatureContractKind::Boundary => {
                         typed::signature::SignatureContractKind::Boundary
+                    }
+                    resolved::signature::SignatureContractKind::Crashes { cause, scope } => {
+                        typed::signature::SignatureContractKind::Crashes {
+                            cause: match cause {
+                                resolved::signature::CrashCause::Trap => {
+                                    typed::signature::CrashCause::Trap
+                                }
+                                resolved::signature::CrashCause::Abort => {
+                                    typed::signature::CrashCause::Abort
+                                }
+                            },
+                            scope: crate::name::lower_name(scope),
+                        }
                     }
                 },
                 facts,

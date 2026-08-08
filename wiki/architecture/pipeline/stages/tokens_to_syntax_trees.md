@@ -72,6 +72,10 @@ source shape without turning nested syntax into scattered heap objects.
 - `parser/transition/targets/copy.rs` owns expression-to-statement-table copying
   for transition target paths and arguments.
 - `parser/statement.rs`, `state.rs`, `type_reference.rs`, and `proof_fact.rs` own source-shaped subgrammars reused across items.
+  Statement parsing retains `crash Trap;` and `crash Abort;` as explicit
+  non-return exits, distinct from an ordinary terminal transition. The retired
+  `trap;` spelling diagnoses the replacement rather than silently producing a
+  successful terminal edge.
 - `parser/capability.rs` owns unresolved capability/authority contract syntax.
 - `parser/diagnostics.rs` owns parse-time grammar diagnostics.
 - `parser/tests.rs` owns broad parser coverage; tests should not live in the entrypoint file.

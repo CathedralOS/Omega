@@ -424,6 +424,7 @@ mod tests {
                     target: TransitionTarget::Terminal,
                     continuation: None,
                     guard: TransitionGuard::When(guard),
+                    exit: Default::default(),
                     source_span: Default::default(),
                 })]);
         let state = program.tables.declarations.machine_states.append(State {

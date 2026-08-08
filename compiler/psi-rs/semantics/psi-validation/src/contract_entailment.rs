@@ -101,10 +101,10 @@ pub(crate) fn validate_machine_contract_entailment(
     // goal.
     let mut all_facts_are_expressions = true;
     for contract in program.machine_contracts(machine) {
-        let bucket = match contract.kind {
+        let bucket = match &contract.kind {
             SignatureContractKind::Requires => &mut requires,
             SignatureContractKind::Ensures => &mut ensures,
-            SignatureContractKind::Boundary => continue,
+            SignatureContractKind::Boundary | SignatureContractKind::Crashes { .. } => continue,
         };
         for fact in program.proof_facts.span_or_empty(contract.facts) {
             match fact {
@@ -2473,7 +2473,7 @@ fn suggest_missing_citation(
         let mut has_requires = false;
         let mut ensures_facts: Vec<ExpressionHandle> = Vec::new();
         for contract in program.machine_contracts(lemma) {
-            match contract.kind {
+            match &contract.kind {
                 SignatureContractKind::Requires => {
                     has_requires |= !program.proof_facts.span_or_empty(contract.facts).is_empty();
                 }
@@ -2484,7 +2484,7 @@ fn suggest_missing_citation(
                         }
                     }
                 }
-                SignatureContractKind::Boundary => {}
+                SignatureContractKind::Boundary | SignatureContractKind::Crashes { .. } => {}
             }
         }
         // A requires-bearing lemma cannot be cited yet; suggesting it would
@@ -2623,25 +2623,27 @@ pub(crate) fn check_operator_contract_conformance(
                    unsupported_requires: &mut bool,
                    unsupported_ensures: &mut bool| {
         for contract in contracts {
-            let destination = match contract.kind {
+            let destination = match &contract.kind {
                 SignatureContractKind::Requires => &mut *requires,
                 SignatureContractKind::Ensures => &mut *ensures,
-                SignatureContractKind::Boundary => continue,
+                SignatureContractKind::Boundary | SignatureContractKind::Crashes { .. } => continue,
             };
             for fact in program.proof_facts.span_or_empty(contract.facts) {
                 let ProofFact::Expression(expression) = fact else {
-                    match contract.kind {
+                    match &contract.kind {
                         SignatureContractKind::Requires => *unsupported_requires = true,
                         SignatureContractKind::Ensures => *unsupported_ensures = true,
-                        SignatureContractKind::Boundary => {}
+                        SignatureContractKind::Boundary | SignatureContractKind::Crashes { .. } => {
+                        }
                     }
                     continue;
                 };
                 if !is_equality_conjunction(program, *expression) {
-                    match contract.kind {
+                    match &contract.kind {
                         SignatureContractKind::Requires => *unsupported_requires = true,
                         SignatureContractKind::Ensures => *unsupported_ensures = true,
-                        SignatureContractKind::Boundary => {}
+                        SignatureContractKind::Boundary | SignatureContractKind::Crashes { .. } => {
+                        }
                     }
                 }
                 collect_equality_conjuncts(program, *expression, destination);
@@ -4198,7 +4200,7 @@ fn instantiate_citation(
     let mut requires_out_of_language = false;
     let mut ensures_facts: Vec<ExpressionHandle> = Vec::new();
     for contract in program.machine_contracts(callee) {
-        match contract.kind {
+        match &contract.kind {
             SignatureContractKind::Requires => {
                 for fact in program.proof_facts.span_or_empty(contract.facts) {
                     match fact {
@@ -4218,7 +4220,7 @@ fn instantiate_citation(
                     }
                 }
             }
-            SignatureContractKind::Boundary => {}
+            SignatureContractKind::Boundary | SignatureContractKind::Crashes { .. } => {}
         }
     }
     // The ENTRY state carries the signature; further states are the
@@ -5044,7 +5046,7 @@ fn intake_available_self_induction_hypotheses(
     let mut ensures = Vec::new();
     for contract in program.machine_contracts(machine) {
         for fact in program.proof_facts.span_or_empty(contract.facts) {
-            match (contract.kind, fact) {
+            match (&contract.kind, fact) {
                 (SignatureContractKind::Requires, ProofFact::Expression(expression)) => {
                     requires.push(*expression);
                 }

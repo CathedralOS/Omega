@@ -427,6 +427,16 @@ pub enum CapabilityContractKind {
     Ensures,
     Requires,
     Boundary(BoundaryLevel),
+    Crashes {
+        cause: CrashCause,
+        scope: Identifier,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CrashCause {
+    Trap,
+    Abort,
 }
 
 impl Default for CapabilityContractKind {

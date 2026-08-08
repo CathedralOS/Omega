@@ -179,6 +179,7 @@ pub struct TableTransition {
     pub target: TransitionTargetHandle,
     pub continuation: TransitionTargetHandle,
     pub guard: TransitionGuardNode,
+    pub exit: TransitionExit,
     pub source_span: SourceSpan,
 }
 
@@ -188,9 +189,17 @@ impl Default for TableTransition {
             target: TransitionTargetHandle::invalid(),
             continuation: TransitionTargetHandle::invalid(),
             guard: TransitionGuardNode::Always,
+            exit: Default::default(),
             source_span: SourceSpan::default(),
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum TransitionExit {
+    #[default]
+    Ordinary,
+    Crash(crate::item::CrashCause),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -251,6 +260,7 @@ mod tests {
             target,
             continuation: super::TransitionTargetHandle::invalid(),
             guard: TransitionGuardNode::When(guard),
+            exit: Default::default(),
             source_span: Default::default(),
         }));
 

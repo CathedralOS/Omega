@@ -966,6 +966,167 @@ fn parses_independent_operational_clauses_on_machines_and_requirements() {
 }
 
 #[test]
+fn parses_guarded_crash_buckets_on_machines_and_requirements() {
+    let source = r#"
+        machine divide(numerator: i32, denominator: i32)
+        crashes Trap Activation
+            denominator == 0
+            numerator == 0
+        crashes Abort
+        {
+        }
+
+        trait Fallible {
+            machine run(flag: bool)
+            crashes Abort ExecutionDomain
+                flag;
+        }
+        "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("crash buckets should parse");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            psi_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("machine item");
+    let contracts = parsed.items.capability_contracts(machine.contracts);
+    assert_eq!(contracts.len(), 2);
+    let psi_syntax_trees::item::CapabilityContractKind::Crashes { cause, scope } =
+        &contracts[0].kind
+    else {
+        panic!("first contract should be a crash bucket");
+    };
+    assert_eq!(*cause, psi_syntax_trees::item::CrashCause::Trap);
+    assert_eq!(scope.as_str(), "Activation");
+    assert_eq!(parsed.items.proof_facts(contracts[0].facts).len(), 2);
+
+    let psi_syntax_trees::item::CapabilityContractKind::Crashes { cause, scope } =
+        &contracts[1].kind
+    else {
+        panic!("second contract should be a crash bucket");
+    };
+    assert_eq!(*cause, psi_syntax_trees::item::CrashCause::Abort);
+    assert_eq!(scope.as_str(), "ExecutionDomain");
+    assert!(parsed.items.proof_facts(contracts[1].facts).is_empty());
+
+    let trait_definition = parsed
+        .root_items()
+        .find_map(|item| match item {
+            psi_syntax_trees::item::Item::Trait(definition) => Some(definition),
+            _ => None,
+        })
+        .expect("trait item");
+    let signature = parsed
+        .items
+        .state_signature(parsed.items.state_signatures(trait_definition.machines)[0]);
+    let [contract] = parsed.items.capability_contracts(signature.contracts) else {
+        panic!("requirement should carry one crash bucket");
+    };
+    let psi_syntax_trees::item::CapabilityContractKind::Crashes { cause, scope } = &contract.kind
+    else {
+        panic!("requirement contract should be a crash bucket");
+    };
+    assert_eq!(*cause, psi_syntax_trees::item::CrashCause::Abort);
+    assert_eq!(scope.as_str(), "ExecutionDomain");
+    assert_eq!(parsed.items.proof_facts(contract.facts).len(), 1);
+}
+
+#[test]
+fn parses_guarded_crash_bucket_on_operator_contract() {
+    let source = r#"
+        operator divide(numerator: i32, denominator: i32) -> i32
+        spelling /
+        crashes Trap Activation
+            denominator == 0;
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("operator crash bucket should parse");
+    let operator = parsed
+        .root_items()
+        .find_map(|item| match item {
+            psi_syntax_trees::item::Item::Operator(operator) => Some(operator),
+            _ => None,
+        })
+        .expect("operator item");
+    let [contract] = parsed.items.capability_contracts(operator.contracts) else {
+        panic!("operator should carry one crash bucket");
+    };
+    let psi_syntax_trees::item::CapabilityContractKind::Crashes { cause, scope } = &contract.kind
+    else {
+        panic!("operator contract should be a crash bucket");
+    };
+    assert_eq!(*cause, psi_syntax_trees::item::CrashCause::Trap);
+    assert_eq!(scope.as_str(), "Activation");
+    assert_eq!(parsed.items.proof_facts(contract.facts).len(), 1);
+}
+
+#[test]
+fn rejects_unknown_crash_causes() {
+    let source = "machine fail() crashes Panic ExecutionDomain {}";
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let error = parse_syntax_trees(&tokens).expect_err("unknown crash cause must fail");
+    assert!(
+        error
+            .message
+            .contains("unknown crash cause `Panic`; expected `Trap` or `Abort`"),
+        "got: {}",
+        error.message
+    );
+}
+
+#[test]
+fn parses_explicit_crash_terminal_and_retires_trap_statement() {
+    let source = r#"
+        machine fail()
+        crashes Abort
+        {
+            crash Abort;
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("explicit crash should parse");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            psi_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("machine item");
+    let state = parsed
+        .items
+        .state(parsed.items.state_handles(machine.states)[0]);
+    let [statement] = parsed.items.statements(state.statements) else {
+        panic!("crash-only body should contain one statement");
+    };
+    let StatementNode::Transition(transition) = parsed.statements.statement(*statement) else {
+        panic!("crash should lower to an explicit transition exit");
+    };
+    assert_eq!(
+        transition.exit,
+        psi_syntax_trees::statement::TransitionExit::Crash(
+            psi_syntax_trees::item::CrashCause::Abort
+        )
+    );
+
+    let tokens = Lexer::new("machine fail() { trap; }")
+        .tokenize()
+        .expect("tokenize should succeed");
+    let error = parse_syntax_trees(&tokens).expect_err("retired trap statement must fail");
+    assert!(error.message.contains("write `crash Trap;`"));
+}
+
+#[test]
 fn rejects_duplicate_operational_clauses() {
     let source = "machine run() suspends; suspends; {}";
     let tokens = Lexer::new(source)

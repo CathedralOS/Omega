@@ -15,7 +15,7 @@ use psi_checked_trees::{
     ContentPartitionCompositionFact,
     expression::{BinaryOperator, ExpressionNode, UnaryOperator},
     signature::SignatureContractKind,
-    statement::{StatementNode, TransitionGuardNode, TransitionTargetNode},
+    statement::{StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode},
     types::PrimitiveType,
 };
 use psi_core::{
@@ -38,8 +38,9 @@ use psi_numerics::arithmetic::ArithmeticDomain;
 use psi_proof_kernel::{EvidenceRoute, PrimitiveJudgment};
 use psi_terminal::{
     Block, ClaimContentProjection, ContentEntryClaim, ContentIdentityReshuffle,
-    ContentPartitionComposition, ContentPlaceSubstitution, ContractClause, MachineContract,
-    Operation, OperationKind, PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
+    ContentPartitionComposition, ContentPlaceSubstitution, ContractClause,
+    CrashCause as TerminalCrashCause, MachineContract, Operation, OperationKind,
+    PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
     PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
     PropositionDeclaration, PropositionEvidence, SemanticVersion, StructuralPlaceDeclaration,
     SuccessorEdge, TerminalMachine, TerminalModule, Terminator, ValueDeclaration,
@@ -1050,6 +1051,11 @@ fn lower_content_place(
 ///     state done(v0: integer, v1: integer, ...) -> integer { E }
 /// }
 /// ```
+///
+/// The first explicit-crash slice also accepts a one-state scalar machine whose
+/// sole statement is `crash Cause;` and whose machine signature publishes
+/// exactly one unconditional `crashes Cause Scope` bucket. It emits a distinct
+/// terminal-Psi crash terminator; it never reuses ordinary return lowering.
 pub fn lower_machine(
     checked: &CheckedTrees,
     machine_name: &str,
@@ -1223,6 +1229,11 @@ fn lower_selected_machine(
     }
 
     let states = checked.machine_states(machine);
+    if let [entry_state] = states
+        && is_explicit_crash_state(checked, entry_state)
+    {
+        return lower_explicit_crash_machine(checked, machine, entry_state);
+    }
     if let [entry_state] = states {
         return match checked.primitive_type_reference(entry_state.return_type) {
             Some(PrimitiveType::Bool) => lower_boolean_machine(checked, machine, entry_state),
@@ -1258,6 +1269,162 @@ fn lower_selected_machine(
         return lower_integer_state_chain(checked, machine, states);
     }
     unsupported("machine must contain at least one state")
+}
+
+fn is_explicit_crash_state(
+    checked: &CheckedTrees,
+    state: &psi_checked_trees::state::State,
+) -> bool {
+    matches!(
+        checked.statement_table.statements(state.statement_nodes),
+        [StatementNode::Transition(transition)]
+            if matches!(transition.exit, TransitionExit::Crash(_))
+                && transition.guard == TransitionGuardNode::Always
+                && !transition.continuation.is_valid()
+                && matches!(
+                    checked.statement_table.transition_target(transition.target),
+                    TransitionTargetNode::Terminal
+                )
+    )
+}
+
+fn lower_explicit_crash_machine(
+    checked: &CheckedTrees,
+    machine: &psi_checked_trees::machine::Machine,
+    entry_state: &psi_checked_trees::state::State,
+) -> Result<LoweredTerminalPsi, LoweringError> {
+    if !checked.state_contracts(entry_state).is_empty() {
+        return unsupported("crash-only state contracts are not supported");
+    }
+    let parameters = checked.state_parameters(entry_state);
+    if parameters
+        .iter()
+        .any(|parameter| parameter.is_self || parameter.is_const || parameter.is_mutable)
+    {
+        return unsupported("crash-only parameters must be ordinary scalar values");
+    }
+    let parameter_types = parameters
+        .iter()
+        .map(|parameter| {
+            terminal_scalar_type(
+                checked
+                    .primitive_type_reference(parameter.type_reference)
+                    .ok_or(LoweringError::Unsupported(
+                        "crash-only parameters must be primitive Boolean or integer values",
+                    ))?,
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let result_type = terminal_scalar_type(
+        checked
+            .primitive_type_reference(entry_state.return_type)
+            .ok_or(LoweringError::Unsupported(
+                "crash-only machine result must be a primitive Boolean or integer",
+            ))?,
+    )?;
+    let [StatementNode::Transition(transition)] = checked
+        .statement_table
+        .statements(entry_state.statement_nodes)
+    else {
+        unreachable!("crash-only source shape was selected above")
+    };
+    let TransitionExit::Crash(source_cause) = transition.exit else {
+        unreachable!("crash-only source shape carries an explicit crash exit")
+    };
+    let matching_contracts = checked
+        .machine_contracts(machine)
+        .iter()
+        .filter_map(|contract| match (&contract.kind, source_cause) {
+            (
+                SignatureContractKind::Crashes {
+                    cause: psi_typed_trees::signature::CrashCause::Trap,
+                    scope,
+                },
+                psi_typed_trees::signature::CrashCause::Trap,
+            )
+            | (
+                SignatureContractKind::Crashes {
+                    cause: psi_typed_trees::signature::CrashCause::Abort,
+                    scope,
+                },
+                psi_typed_trees::signature::CrashCause::Abort,
+            ) if contract.facts.is_empty() => Some(scope.as_str()),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [damage_scope] = matching_contracts.as_slice() else {
+        return unsupported(
+            "an explicit crash in the first terminal-Psi source slice requires exactly one unconditional published bucket for the same cause",
+        );
+    };
+
+    let terminal_parameters = parameter_types
+        .iter()
+        .enumerate()
+        .map(|(index, scalar_type)| ValueDeclaration {
+            id: value_id(
+                u64::try_from(index)
+                    .expect("parameter index fits a semantic identity")
+                    .checked_add(1)
+                    .expect("parameter identity is nonzero"),
+            ),
+            scalar_type: *scalar_type,
+        })
+        .collect::<Vec<_>>();
+    let result = ValueDeclaration {
+        id: value_id(
+            u64::try_from(parameter_types.len())
+                .expect("parameter count fits a semantic identity")
+                .checked_add(1)
+                .expect("result identity follows parameter identities"),
+        ),
+        scalar_type: result_type,
+    };
+    Ok(LoweredTerminalPsi {
+        semantic_module: TerminalModule {
+            semantic_version: SemanticVersion::CURRENT,
+            entry: machine_id(1),
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
+            machines: vec![TerminalMachine {
+                id: machine_id(1),
+                parameters: terminal_parameters,
+                result,
+                structural_places: Vec::new(),
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry: block_id(1),
+                blocks: vec![Block {
+                    id: block_id(1),
+                    parameters: Vec::new(),
+                    operations: Vec::new(),
+                    terminator: Terminator::Crash {
+                        edge: edge_id(1),
+                        cause: match source_cause {
+                            psi_typed_trees::signature::CrashCause::Trap => {
+                                TerminalCrashCause::Trap
+                            }
+                            psi_typed_trees::signature::CrashCause::Abort => {
+                                TerminalCrashCause::Abort
+                            }
+                        },
+                        damage_scope: (*damage_scope).to_owned(),
+                        frontier_lower_bound: Vec::new(),
+                    },
+                }],
+                contract: MachineContract {
+                    id: contract_id(1),
+                    requires: Vec::new(),
+                    ensures: Vec::new(),
+                },
+            }],
+        },
+        proof_bundle: ProofBundle {
+            evidence: Vec::new(),
+        },
+        debug_map: None,
+    })
 }
 
 fn lower_boolean_conditional_machine(

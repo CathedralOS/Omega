@@ -69,17 +69,27 @@ impl Default for StateParameter {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SignatureContract {
     pub kind: SignatureContractKind,
     pub facts: psi_arena::HandleSpan<crate::domain::ProofFact>,
     pub token_count: usize,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub enum SignatureContractKind {
     #[default]
     Requires,
     Ensures,
     Boundary,
+    Crashes {
+        cause: CrashCause,
+        scope: DiagnosticName,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CrashCause {
+    Trap,
+    Abort,
 }

@@ -20,6 +20,17 @@ pub(super) fn lower_transition_statement(
             .transpose()?
             .unwrap_or_else(typed::statement::TransitionTargetHandle::invalid),
         guard: lower_transition_guard(lowerer, &transition.guard)?,
+        exit: match transition.exit {
+            resolved::statement::TransitionExit::Ordinary => {
+                typed::statement::TransitionExit::Ordinary
+            }
+            resolved::statement::TransitionExit::Crash(cause) => {
+                typed::statement::TransitionExit::Crash(match cause {
+                    resolved::signature::CrashCause::Trap => typed::signature::CrashCause::Trap,
+                    resolved::signature::CrashCause::Abort => typed::signature::CrashCause::Abort,
+                })
+            }
+        },
         source_span: transition.source_span,
     })
 }

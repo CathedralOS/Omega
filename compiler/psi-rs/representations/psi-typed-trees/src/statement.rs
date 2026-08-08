@@ -210,6 +210,7 @@ impl StatementTable {
                         target,
                         continuation,
                         guard,
+                        exit: transition.exit,
                         source_span: transition.source_span,
                     })
                 }
@@ -502,6 +503,7 @@ pub struct TableTransition {
     pub target: TransitionTargetHandle,
     pub continuation: TransitionTargetHandle,
     pub guard: TransitionGuardNode,
+    pub exit: TransitionExit,
     pub source_span: SourceSpan,
 }
 
@@ -511,9 +513,17 @@ impl Default for TableTransition {
             target: TransitionTargetHandle::invalid(),
             continuation: TransitionTargetHandle::invalid(),
             guard: TransitionGuardNode::Always,
+            exit: TransitionExit::Ordinary,
             source_span: SourceSpan::default(),
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum TransitionExit {
+    #[default]
+    Ordinary,
+    Crash(crate::signature::CrashCause),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -585,6 +595,7 @@ mod tests {
                 target,
                 continuation: super::TransitionTargetHandle::invalid(),
                 guard: super::TransitionGuardNode::Always,
+                exit: Default::default(),
                 source_span: Default::default(),
             }),
         );
@@ -653,6 +664,7 @@ mod tests {
                 target,
                 continuation: super::TransitionTargetHandle::invalid(),
                 guard: super::TransitionGuardNode::When(guard),
+                exit: Default::default(),
                 source_span: Default::default(),
             }),
         );
