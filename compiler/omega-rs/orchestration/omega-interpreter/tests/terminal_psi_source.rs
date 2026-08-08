@@ -118,7 +118,7 @@ fn checked_source_survives_frontend_drop_as_verified_terminal_psi() {
     assert!(matches!(
         &witness.evidence,
         psi_terminal::PropositionEvidence::Witness { evidence_type }
-            if evidence_type == "dyn TerminalEvidence"
+            if evidence_type == "TerminalEvidence"
     ));
     let application = &lowered.semantic_module.proposition_applications[0];
     assert_eq!(application.declaration, relation.id);
