@@ -472,6 +472,7 @@ fn build_checked_crash_sites(
                 ),
                 cause,
                 guard_covering_buckets,
+                Vec::new(),
             ));
         }
     }

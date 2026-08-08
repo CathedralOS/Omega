@@ -892,6 +892,7 @@ CheckedCrashSite {                              // checked-tree implementation e
   location: (StateId, state_local_statement_ordinal),
   cause: CrashCauseId,
   guard_covering_buckets: Set<CrashRouteBucketId>,
+  known_local_frontier_lower_bound: Set<PermissionClaimIdentity>,
   // guard implication only; damage coverage is not implied
 }
 
@@ -947,13 +948,21 @@ Imported evidence cites the published contract and certificate.
 
 Checked lowering first records each explicit body crash as a
 `CheckedCrashSite`. That row identifies the statement-handle-free state-local
-site and its cause, but is not a completed `CrashTerminatorPlan`: later checks
-add the path guard, damage minimum, complete covering buckets, and frontier
-lower bound. Canonical route buckets receive dense plan-local identities, and
-an unconditional same-cause bucket enters `guard_covering_buckets`
-structurally because `true` covers every path guard. Guarded buckets enter only
-through later path-conditioned entailment. Checked sites are implementation
-evidence and never enter the published contract fingerprint.
+site and its cause. Checked ownership then retains the stable identities of
+every definitely-live, non-conditional linear claim at that exact site. The
+set is deliberately a lower bound: a conditionally live sum payload enters
+only after path evidence proves its active case, and obligations outside the
+activation are not claimed to be edge-enumerable. Exhaustive crash paths
+abandon the retained claims; lowering does not synthesize a cleanup or consume
+event for them.
+
+The row is still not a completed `CrashTerminatorPlan`: later checks add the
+path guard, damage minimum, and complete guarded coverage. Canonical route
+buckets receive dense plan-local identities, and an unconditional same-cause
+bucket enters `guard_covering_buckets` structurally because `true` covers every
+path guard. Guarded buckets enter only through later path-conditioned
+entailment. Checked sites are implementation evidence and never enter the
+published contract fingerprint.
 
 Psi owns these nominal demand checks. Omega installation supplies
 `InstalledCrashContainment` and verifies, for every surviving route:
@@ -975,6 +984,9 @@ frontier field is explicitly a lower bound: an activation crash includes caller
 frames, and an execution-domain abort can abandon unrelated live or suspended
 activations that the edge cannot enumerate. An explicit abandonment plan, not
 an absent cleanup list, distinguishes this outcome from incomplete lowering.
+Terminal production maps retained stable claim identities to dense `ClaimId`s
+and rejects a checked identity without a terminal mapping; it never silently
+drops a known abandoned claim.
 
 `CallOperationalAcknowledgement` belongs to syntax/checked-call and diagnostic
 artifacts, not `MachineContractPlan` identity. Validation requires its two bits

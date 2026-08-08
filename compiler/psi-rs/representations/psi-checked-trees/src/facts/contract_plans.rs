@@ -119,6 +119,11 @@ pub struct CheckedCrashSite {
     /// this site. This is not yet complete crash coverage: damage-minimum and
     /// containment-demand comparison remains an independent check.
     guard_covering_buckets: Vec<CrashRouteBucketId>,
+    /// Stable identities of claims proved live at this exact machine-local
+    /// crash site. This is deliberately a lower bound: conditionally live sum
+    /// payloads and obligations outside this activation are absent until a
+    /// later analysis can prove their membership.
+    frontier_lower_bound: Vec<psi_language_semantics::PermissionClaimIdentity>,
 }
 
 impl CheckedCrashSite {
@@ -126,13 +131,17 @@ impl CheckedCrashSite {
         location: CrashSiteLocation,
         cause: CrashCause,
         mut guard_covering_buckets: Vec<CrashRouteBucketId>,
+        mut frontier_lower_bound: Vec<psi_language_semantics::PermissionClaimIdentity>,
     ) -> Self {
         guard_covering_buckets.sort_unstable();
         guard_covering_buckets.dedup();
+        frontier_lower_bound.sort_by_key(|identity| crash_frontier_claim_sort_key(*identity));
+        frontier_lower_bound.dedup();
         Self {
             location,
             cause,
             guard_covering_buckets,
+            frontier_lower_bound,
         }
     }
 
@@ -147,6 +156,53 @@ impl CheckedCrashSite {
     pub fn guard_covering_buckets(&self) -> &[CrashRouteBucketId] {
         &self.guard_covering_buckets
     }
+
+    pub fn frontier_lower_bound(&self) -> &[psi_language_semantics::PermissionClaimIdentity] {
+        &self.frontier_lower_bound
+    }
+}
+
+fn crash_frontier_claim_sort_key(
+    identity: psi_language_semantics::PermissionClaimIdentity,
+) -> [u64; 11] {
+    use psi_language_semantics::{PermissionClaimIdentity, PermissionEventSource};
+
+    let PermissionClaimIdentity::Established {
+        machine_symbol,
+        state_symbol,
+        source,
+        ordinal,
+    } = identity
+    else {
+        return [0; 11];
+    };
+    let mut key = [0; 11];
+    key[0] = 1;
+    key[1] = u64::from(machine_symbol.arena_index());
+    key[2] = u64::from(machine_symbol.generation());
+    key[3] = u64::from(state_symbol.arena_index());
+    key[4] = u64::from(state_symbol.generation());
+    match source {
+        PermissionEventSource::StateEntry => key[5] = 0,
+        PermissionEventSource::Statement { statement_index } => {
+            key[5] = 1;
+            key[6] = u64::try_from(statement_index).unwrap_or(u64::MAX);
+        }
+        PermissionEventSource::Call {
+            statement_index,
+            call_ordinal,
+            target_symbol,
+        } => {
+            key[5] = 2;
+            key[6] = u64::try_from(statement_index).unwrap_or(u64::MAX);
+            key[7] = u64::try_from(call_ordinal).unwrap_or(u64::MAX);
+            key[8] = u64::from(target_symbol.arena_index());
+            key[9] = u64::from(target_symbol.generation());
+        }
+        PermissionEventSource::StateExit => key[5] = 3,
+    }
+    key[10] = u64::from(ordinal);
+    key
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -241,6 +297,8 @@ impl CrashPlan {
             site.guard_covering_buckets.iter().any(|bucket| {
                 self.published_bucket(*bucket)
                     .is_none_or(|published| published.cause != site.cause)
+            }) || site.frontier_lower_bound.iter().any(|identity| {
+                *identity == psi_language_semantics::PermissionClaimIdentity::Unknown
             })
         }) {
             return None;
@@ -503,14 +561,28 @@ mod tests {
     fn crash_sites_are_canonical_implementation_evidence() {
         let first_state = SymbolHandle::from_arena_index(4);
         let second_state = SymbolHandle::from_arena_index(9);
+        let first_claim = psi_language_semantics::PermissionClaimIdentity::Established {
+            machine_symbol: SymbolHandle::from_arena_index(2),
+            state_symbol: first_state,
+            source: psi_language_semantics::PermissionEventSource::StateEntry,
+            ordinal: 0,
+        };
+        let second_claim = psi_language_semantics::PermissionClaimIdentity::Established {
+            machine_symbol: SymbolHandle::from_arena_index(2),
+            state_symbol: first_state,
+            source: psi_language_semantics::PermissionEventSource::Statement { statement_index: 1 },
+            ordinal: 1,
+        };
         let first = CheckedCrashSite::new(
             CrashSiteLocation::new(first_state, 2),
             CrashCause::Abort,
             Vec::new(),
+            vec![second_claim, first_claim, second_claim],
         );
         let second = CheckedCrashSite::new(
             CrashSiteLocation::new(second_state, 0),
             CrashCause::Trap,
+            Vec::new(),
             Vec::new(),
         );
         let plan = CrashPlan::default()
@@ -518,6 +590,11 @@ mod tests {
             .expect("one crash cause occupies each source site");
 
         assert_eq!(plan.checked_sites(), &[first.clone(), second]);
+        assert_eq!(
+            plan.checked_sites()[0].frontier_lower_bound(),
+            &[first_claim, second_claim],
+            "frontier identity is canonical and duplicate-free"
+        );
         assert_eq!(
             plan.checked_site_at(first_state, 2)
                 .map(|site| site.cause()),
@@ -529,9 +606,25 @@ mod tests {
             CrashPlan::default()
                 .with_checked_sites(vec![
                     first.clone(),
-                    CheckedCrashSite::new(first.location(), CrashCause::Trap, Vec::new()),
+                    CheckedCrashSite::new(
+                        first.location(),
+                        CrashCause::Trap,
+                        Vec::new(),
+                        Vec::new(),
+                    ),
                 ])
                 .is_none()
+        );
+        assert!(
+            CrashPlan::default()
+                .with_checked_sites(vec![CheckedCrashSite::new(
+                    CrashSiteLocation::new(first_state, 3),
+                    CrashCause::Abort,
+                    Vec::new(),
+                    vec![psi_language_semantics::PermissionClaimIdentity::Unknown],
+                )])
+                .is_none(),
+            "an unknown claim identity cannot enter checked crash evidence"
         );
     }
 
@@ -558,6 +651,7 @@ mod tests {
             CrashSiteLocation::new(SymbolHandle::from_arena_index(4), 0),
             CrashCause::Abort,
             vec![abort_id, abort_id],
+            Vec::new(),
         );
         let plan = plan
             .with_checked_sites(vec![site])

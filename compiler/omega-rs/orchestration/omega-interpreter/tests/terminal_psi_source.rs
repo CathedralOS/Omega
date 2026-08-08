@@ -2488,8 +2488,12 @@ fn psi_terminal_producer_rejects_source_outside_its_declared_slice() {
         .checked_sites()
         .first()
         .expect("terminal abort checked site");
-    let uncovered_site =
-        psi_checked_trees::CheckedCrashSite::new(site.location(), site.cause(), Vec::new());
+    let uncovered_site = psi_checked_trees::CheckedCrashSite::new(
+        site.location(),
+        site.cause(),
+        Vec::new(),
+        site.frontier_lower_bound().to_vec(),
+    );
     *crash = psi_checked_trees::CrashPlan::published_ceiling(crash.published().to_vec())
         .with_checked_sites(vec![uncovered_site])
         .expect("uncovered site still has a valid checked location");
@@ -2499,6 +2503,41 @@ fn psi_terminal_producer_rejects_source_outside_its_declared_slice() {
         LoweringError::Unsupported(
             "an explicit crash in the first terminal-Psi source slice requires exactly one prechecked guard-covering bucket"
         )
+    );
+
+    let mut unmapped_frontier = checked.clone();
+    let crash = &mut unmapped_frontier
+        .facts
+        .contract_plans
+        .machines
+        .iter_mut()
+        .find(|plan| plan.machine == terminal_abort)
+        .expect("terminal abort contract plan")
+        .crash;
+    let site = crash
+        .checked_sites()
+        .first()
+        .expect("terminal abort checked site");
+    let claim = psi_language_semantics::PermissionClaimIdentity::Established {
+        machine_symbol: terminal_abort,
+        state_symbol: site.location().state(),
+        source: psi_language_semantics::PermissionEventSource::StateEntry,
+        ordinal: 0,
+    };
+    let site_with_frontier = psi_checked_trees::CheckedCrashSite::new(
+        site.location(),
+        site.cause(),
+        site.guard_covering_buckets().to_vec(),
+        vec![claim],
+    );
+    *crash = crash
+        .clone()
+        .with_checked_sites(vec![site_with_frontier])
+        .expect("known claim identity is valid checked crash evidence");
+    assert_eq!(
+        lower_machine(&unmapped_frontier, "terminal_abort")
+            .expect_err("terminal production must map every checked crash-frontier claim"),
+        LoweringError::CrashFrontierClaimNotLowered(claim)
     );
 }
 

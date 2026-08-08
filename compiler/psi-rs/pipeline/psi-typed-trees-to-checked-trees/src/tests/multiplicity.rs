@@ -98,6 +98,90 @@ fn retains_semantic_permission_events_beside_legacy_moves_and_drops() {
 }
 
 #[test]
+fn explicit_crash_retains_definitely_live_linear_frontier_without_cleanup() {
+    let checked = checked(
+        r#"
+        data Receipt [linear] { code: i32; }
+        data MaybeReceipt {
+            case Empty;
+            case Live(receipt: Receipt);
+        }
+
+        machine abandon(receipt: Receipt) -> i32
+        crashes Abort
+        {
+            crash Abort;
+        }
+
+        machine abandon_maybe(receipt: MaybeReceipt) -> i32
+        crashes Abort
+        {
+            crash Abort;
+        }
+        "#,
+    );
+
+    let crash_site = |machine_name: &str| {
+        let machine = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == machine_name)
+            .expect("crashing machine");
+        let [site] = checked
+            .facts
+            .contract_plans
+            .for_machine(machine.symbol)
+            .expect("machine contract plan")
+            .crash
+            .checked_sites()
+        else {
+            panic!("crashing machine should have one checked crash site")
+        };
+        site
+    };
+
+    let [claim] = crash_site("abandon").frontier_lower_bound() else {
+        panic!("the definitely-live receipt must enter the crash frontier")
+    };
+    assert_ne!(
+        *claim,
+        psi_language_semantics::PermissionClaimIdentity::Unknown
+    );
+    assert!(
+        checked
+            .facts
+            .flow
+            .ownership
+            .permissions
+            .iter()
+            .any(|(_, event)| event.claim_identity == *claim
+                && event.kind == psi_language_semantics::PermissionEventKind::Establish
+                && event.source == psi_language_semantics::PermissionEventSource::StateEntry)
+    );
+    assert!(
+        !checked
+            .facts
+            .flow
+            .ownership
+            .permissions
+            .iter()
+            .any(|(_, event)| event.claim_identity == *claim
+                && matches!(
+                    event.kind,
+                    psi_language_semantics::PermissionEventKind::Consume
+                        | psi_language_semantics::PermissionEventKind::Transfer
+                )),
+        "crash records abandonment; it must not invent cleanup or consumption"
+    );
+    assert!(
+        crash_site("abandon_maybe")
+            .frontier_lower_bound()
+            .is_empty(),
+        "an unknown active sum case is not a definitely-live lower-bound claim"
+    );
+}
+
+#[test]
 fn empty_conditional_sum_records_establishment_without_payload_debt() {
     let checked = checked(
         r#"
