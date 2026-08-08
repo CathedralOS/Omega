@@ -195,12 +195,14 @@ Current ownership is:
   retains the callee target and contract fingerprint, and stores the surviving
   selected summary after invocation argument substitution. Published buckets
   are selected for authored interfaces. Same-unit private bodies instead use a
-  conservative summary fixed point over the acyclic invocation graph: every
-  explicit site becomes an unconditional `(cause, damage minimum)` bucket, a
-  site-free leaf produces positive empty evidence, and a resolved nested
-  summary propagates cause/scope while collapsing predicates to unconditional
-  routes. An unresolved cycle remains unexamined, so partial direct-site
-  evidence cannot erase a nested crash. A published caller must cover every
+  conservative monotone summary fixed point over the viable invocation graph:
+  every explicit site becomes an unconditional `(cause, damage minimum)`
+  bucket, a site-free leaf produces positive empty evidence, and a resolved
+  nested summary propagates cause/scope while collapsing predicates to
+  unconditional routes. Recursive components close over the finite bucket set.
+  An unknown dependency prunes its caller closure from the fixed point, so
+  partial direct-site evidence cannot erase a nested crash. A published caller
+  must cover every
   surviving call route independently with a same-cause bucket whose
   containment demand covers the selected demand. Guard coverage accepts an
   unconditional caller route, the exact surviving predicate, or an exact

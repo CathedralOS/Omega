@@ -5,8 +5,10 @@ use super::{encode_contract_fact_canonical, encode_expression_canonical, is_true
 
 /// Materialize direct invocation-specific crash refinement while the typed
 /// expressions are still available. Selection uses a published ceiling when
-/// one exists and a conservative acyclic checked-body summary for same-unit
-/// private machines. The retained rows are entirely checked data: downstream
+/// one exists and a conservative monotone checked-body summary for same-unit
+/// private machines. Recursive components close over their finite cause/scope
+/// buckets; a dependency outside the recognized local/capsule graph keeps its
+/// caller unexamined. The retained rows are entirely checked data: downstream
 /// propagation can distinguish a proved-crash-free call from an unexamined call
 /// without reopening source trees.
 pub(super) fn attach_checked_crash_calls(
@@ -16,7 +18,8 @@ pub(super) fn attach_checked_crash_calls(
     crash_capsules: &[psi_checked_trees::CrashContractCapsule],
     plans: &mut [psi_checked_trees::MachineContractPlan],
 ) {
-    let inferred_body_summaries = infer_acyclic_private_body_summaries(program, flow, plans);
+    let inferred_body_summaries =
+        infer_private_body_summaries(program, flow, crash_capsules, plans);
     let mut calls_by_caller =
         Vec::<(SymbolHandle, Vec<psi_checked_trees::CheckedCrashCallSite>)>::new();
     for (_, state_flow) in flow.control.states.iter() {
@@ -71,7 +74,7 @@ pub(super) fn attach_checked_crash_calls(
                         .iter()
                         .find(|(machine, _)| *machine == target_machine_symbol)
                     else {
-                        // Recursive/unresolved private bodies remain
+                        // Dependency-unresolved private bodies remain
                         // unexamined rather than erasing a nested crash.
                         continue;
                     };
@@ -239,64 +242,143 @@ pub(super) fn attach_checked_crash_calls(
     }
 }
 
-fn infer_acyclic_private_body_summaries(
+fn infer_private_body_summaries(
     program: &TypedTrees,
     flow: &psi_checked_trees::FlowFacts,
+    crash_capsules: &[psi_checked_trees::CrashContractCapsule],
     plans: &[psi_checked_trees::MachineContractPlan],
 ) -> Vec<(SymbolHandle, Vec<psi_checked_trees::CrashRouteBucket>)> {
-    let mut resolved: Vec<(SymbolHandle, Vec<psi_checked_trees::CrashRouteBucket>)> = Vec::new();
-    for _ in 0..=plans.len() {
-        let mut changed = false;
-        for target in plans {
-            if target.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody
-                || !target.crash.published().is_empty()
-                || resolved
-                    .iter()
-                    .any(|(machine, _)| *machine == target.machine)
-            {
-                continue;
-            }
-            let Some(invocations) =
-                machine_non_transition_invocation_targets(program, flow, target.machine)
-            else {
-                continue;
-            };
-            let mut buckets = inferred_direct_body_crash_buckets(target);
-            let mut ready = true;
-            for invoked in invocations {
-                let Some(invoked_plan) = plans.iter().find(|plan| plan.machine == invoked) else {
-                    ready = false;
-                    break;
-                };
-                let selected = if !invoked_plan.crash.published().is_empty()
-                    || invoked_plan.supply_mode
-                        != psi_language_semantics::MachineSupplyMode::CheckedBody
-                {
-                    Some(invoked_plan.crash.published())
+    struct SummaryNode {
+        machine: SymbolHandle,
+        direct: Vec<psi_checked_trees::CrashRouteBucket>,
+        invocations: Vec<(SymbolHandle, SymbolHandle)>,
+    }
+
+    let mut nodes = plans
+        .iter()
+        .filter(|target| {
+            target.supply_mode == psi_language_semantics::MachineSupplyMode::CheckedBody
+                && target.crash.published().is_empty()
+        })
+        .filter_map(|target| {
+            Some(SummaryNode {
+                machine: target.machine,
+                direct: inferred_direct_body_crash_buckets(target),
+                invocations: machine_non_transition_invocation_targets(
+                    program,
+                    flow,
+                    target.machine,
+                )?,
+            })
+        })
+        .collect::<Vec<_>>();
+
+    // Compute the greatest viable local subgraph. A recursive SCC is viable
+    // when all of its outgoing targets are known local plans or pinned
+    // requirement capsules. Any unresolved dependency removes its caller and
+    // then every private caller that depended on it.
+    loop {
+        let viable_machines = nodes.iter().map(|node| node.machine).collect::<Vec<_>>();
+        let before = nodes.len();
+        nodes.retain(|node| {
+            node.invocations.iter().all(|(machine, state)| {
+                if let Some(plan) = plans.iter().find(|plan| plan.machine == *machine) {
+                    plan.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody
+                        || !plan.crash.published().is_empty()
+                        || viable_machines.contains(machine)
                 } else {
-                    resolved.iter().find_map(|(machine, buckets)| {
-                        (*machine == invoked).then_some(buckets.as_slice())
+                    crash_capsules.iter().any(|capsule| {
+                        capsule.target_machine() == *machine && capsule.target_state() == *state
                     })
-                };
-                let Some(selected) = selected else {
-                    ready = false;
-                    break;
-                };
-                buckets.extend(selected.iter().map(|bucket| {
-                    // Predicate producers may belong to a deeper body. Until
-                    // recursive guarded substitution is retained, propagation
-                    // keeps cause/scope and fails safely to an unconditional
-                    // route.
-                    psi_checked_trees::CrashRouteBucket::unconditional(
-                        bucket.cause(),
-                        bucket.containment_demand(),
-                    )
-                }));
+                }
+            })
+        });
+        if nodes.len() == before {
+            break;
+        }
+    }
+
+    let equations = nodes
+        .iter()
+        .map(|node| {
+            let mut private_dependencies = Vec::new();
+            let mut published_dependencies = Vec::new();
+            for (invoked_machine, invoked_state) in &node.invocations {
+                if let Some(plan) = plans.iter().find(|plan| plan.machine == *invoked_machine) {
+                    if plan.supply_mode == psi_language_semantics::MachineSupplyMode::CheckedBody
+                        && plan.crash.published().is_empty()
+                    {
+                        private_dependencies.push(*invoked_machine);
+                    } else {
+                        published_dependencies.extend_from_slice(plan.crash.published());
+                    }
+                } else {
+                    let capsule = crash_capsules
+                        .iter()
+                        .find(|capsule| {
+                            capsule.target_machine() == *invoked_machine
+                                && capsule.target_state() == *invoked_state
+                        })
+                        .expect("the viability pass retained only pinned requirement targets");
+                    published_dependencies.extend_from_slice(capsule.published_buckets());
+                }
             }
-            if ready {
-                buckets.sort();
-                buckets.dedup();
-                resolved.push((target.machine, buckets));
+            PrivateSummaryEquation {
+                machine: node.machine,
+                direct: node.direct.clone(),
+                private_dependencies,
+                published_dependencies,
+            }
+        })
+        .collect::<Vec<_>>();
+    solve_private_summary_fixed_point(&equations)
+}
+
+struct PrivateSummaryEquation {
+    machine: SymbolHandle,
+    direct: Vec<psi_checked_trees::CrashRouteBucket>,
+    private_dependencies: Vec<SymbolHandle>,
+    published_dependencies: Vec<psi_checked_trees::CrashRouteBucket>,
+}
+
+fn solve_private_summary_fixed_point(
+    equations: &[PrivateSummaryEquation],
+) -> Vec<(SymbolHandle, Vec<psi_checked_trees::CrashRouteBucket>)> {
+    let mut resolved = equations
+        .iter()
+        .map(|equation| (equation.machine, equation.direct.clone()))
+        .collect::<Vec<_>>();
+    for _ in 0..=equations.len() {
+        let mut changed = false;
+        for equation in equations {
+            let mut buckets = equation.direct.clone();
+            let selected = equation.published_dependencies.iter().chain(
+                equation.private_dependencies.iter().flat_map(|dependency| {
+                    resolved
+                        .iter()
+                        .find(|(machine, _)| machine == dependency)
+                        .expect("every private dependency belongs to the viable fixed point")
+                        .1
+                        .iter()
+                }),
+            );
+            buckets.extend(selected.map(|bucket| {
+                // Predicate producers may belong to a deeper body. Until
+                // guarded substitution is retained, propagation keeps
+                // cause/scope and fails safely to an unconditional route.
+                psi_checked_trees::CrashRouteBucket::unconditional(
+                    bucket.cause(),
+                    bucket.containment_demand(),
+                )
+            }));
+            buckets.sort();
+            buckets.dedup();
+            let (_, current) = resolved
+                .iter_mut()
+                .find(|(machine, _)| *machine == equation.machine)
+                .expect("every viable node starts with a direct summary");
+            if *current != buckets {
+                *current = buckets;
                 changed = true;
             }
         }
@@ -311,7 +393,7 @@ fn machine_non_transition_invocation_targets(
     program: &TypedTrees,
     flow: &psi_checked_trees::FlowFacts,
     machine: SymbolHandle,
-) -> Option<Vec<SymbolHandle>> {
+) -> Option<Vec<(SymbolHandle, SymbolHandle)>> {
     let mut targets = Vec::new();
     for (_, state) in flow
         .control
@@ -330,10 +412,10 @@ fn machine_non_transition_invocation_targets(
             if matches!(site, crate::CallSite::TransitionNamed(_)) {
                 continue;
             }
-            let (target_machine, _) =
+            let (target_machine, target_state) =
                 crate::contract_target_from_state_symbol(program, call.target_symbol)?;
-            if !targets.contains(&target_machine) {
-                targets.push(target_machine);
+            if !targets.contains(&(target_machine, target_state)) {
+                targets.push((target_machine, target_state));
             }
         }
     }
@@ -598,6 +680,49 @@ fn encode_instantiated_crash_expression(
             out.push(8);
             out.extend(program.expression_table.display_name(expression).as_bytes());
             out.push(0);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn private_summary_fixed_point_closes_recursive_components() {
+        let first = SymbolHandle::from_arena_index(1);
+        let second = SymbolHandle::from_arena_index(2);
+        let abort = psi_checked_trees::CrashRouteBucket::unconditional(
+            psi_checked_trees::CrashCause::Abort,
+            psi_checked_trees::EXECUTION_DOMAIN_CRASH_SCOPE,
+        );
+        let trap = psi_checked_trees::CrashRouteBucket::unconditional(
+            psi_checked_trees::CrashCause::Trap,
+            psi_checked_trees::ACTIVATION_CRASH_SCOPE,
+        );
+        let equations = vec![
+            PrivateSummaryEquation {
+                machine: first,
+                direct: Vec::new(),
+                private_dependencies: vec![second],
+                published_dependencies: vec![abort.clone()],
+            },
+            PrivateSummaryEquation {
+                machine: second,
+                direct: vec![trap.clone()],
+                private_dependencies: vec![first],
+                published_dependencies: Vec::new(),
+            },
+        ];
+
+        let summaries = solve_private_summary_fixed_point(&equations);
+        for machine in [first, second] {
+            let buckets = summaries
+                .iter()
+                .find_map(|(candidate, buckets)| (*candidate == machine).then_some(buckets))
+                .expect("each recursive member has a summary");
+            assert!(buckets.contains(&abort));
+            assert!(buckets.contains(&trap));
         }
     }
 }
