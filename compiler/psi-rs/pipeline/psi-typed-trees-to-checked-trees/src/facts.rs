@@ -29,7 +29,7 @@ pub(crate) fn build_check_facts(
     let domains = build_domain_facts(program, &semantic);
     let dynamic_conformances = build_dynamic_conformance_facts(program)?;
     let service_reach_inference = psi_effects::infer_service_reaches(program, &operational);
-    let flow = build_flow_facts_with_service_reaches(
+    let mut flow = build_flow_facts_with_service_reaches(
         program,
         &borrow,
         &proof,
@@ -46,6 +46,7 @@ pub(crate) fn build_check_facts(
     select_pending_domain_operator_meanings(program, &mut operators);
     values.scalar_expressions =
         crate::values::build_checked_scalar_expression_plans(program, &operators);
+    flow.terminal_scalar_graphs = crate::flow::build_checked_scalar_graph_plans(program);
     let capabilities = build_capability_facts(program, &service_reach_inference, &flow);
     // TPR3 slice 4: the checker-established termination summaries (built
     // from the same pure functions the termination CHECK uses -- facts and

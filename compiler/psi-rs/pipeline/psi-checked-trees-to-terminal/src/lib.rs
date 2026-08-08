@@ -13,11 +13,12 @@ use std::collections::{BTreeMap, BTreeSet};
 use psi_checked_trees::{
     CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
     CheckedPropositionBinderArgumentKind, CheckedPropositionBinderKind, CheckedPropositionEvidence,
-    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedTrees, ClosedScalarContractValue,
+    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedScalarMachineGraph,
+    CheckedScalarStateTerminator, CheckedScalarSuccessor, CheckedTrees, ClosedScalarContractValue,
     ClosedScalarValueContractPlan, ContentIdentityReshuffleFact, ContentPartitionCompositionFact,
     expression::ExpressionNode,
     signature::SignatureContractKind,
-    statement::{StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode},
+    statement::{StatementNode, TransitionGuardNode, TransitionTargetNode},
     types::PrimitiveType,
 };
 use psi_core::{
@@ -1307,11 +1308,15 @@ fn lower_selected_machine(
         return unsupported("machine signature is outside the first terminal-Psi source slice");
     }
 
-    let states = checked.machine_states(machine);
-    if !states.is_empty() {
-        return lower_scalar_graph_machine(checked, machine, states);
-    }
-    unsupported("machine must contain at least one state")
+    let graph = checked
+        .facts
+        .flow
+        .terminal_scalar_graphs
+        .for_machine(machine.symbol)
+        .ok_or(LoweringError::Unsupported(
+            "machine has no source-independent checked scalar control plan",
+        ))?;
+    lower_scalar_graph_machine(checked, machine, graph)
 }
 
 fn lower_checked_crash_frontier(
@@ -1335,7 +1340,7 @@ fn lower_checked_crash_frontier(
 fn lower_checked_crash_exit(
     checked: &CheckedTrees,
     machine: &psi_checked_trees::machine::Machine,
-    state: &psi_checked_trees::state::State,
+    state: psi_symbols::SymbolHandle,
     statement_ordinal: u32,
     source_claims: &[(PermissionClaimIdentity, ClaimId)],
 ) -> Result<LoweredCrashExit, LoweringError> {
@@ -1347,7 +1352,7 @@ fn lower_checked_crash_exit(
     else {
         return unsupported("explicit crash has no checked machine-contract plan");
     };
-    let Some(checked_site) = crash_plan.checked_site_at(state.symbol, statement_ordinal) else {
+    let Some(checked_site) = crash_plan.checked_site_at(state, statement_ordinal) else {
         return unsupported("explicit crash has no body-derived checked crash-site row");
     };
     let matching_contracts = crash_plan
@@ -1502,101 +1507,62 @@ fn evaluate_known_scalar_graph(states: &[LoweredScalarBranchState]) -> Option<Kn
 fn lower_scalar_graph_machine(
     checked: &CheckedTrees,
     machine: &psi_checked_trees::machine::Machine,
-    states: &[psi_checked_trees::state::State],
+    graph: &CheckedScalarMachineGraph,
 ) -> Result<LoweredTerminalPsi, LoweringError> {
-    if states
-        .iter()
-        .any(|state| !checked.state_contracts(state).is_empty())
-    {
-        return unsupported("scalar graph state contracts are not supported");
-    }
-    let result_type = terminal_scalar_type(
-        checked
-            .primitive_type_reference(states[0].return_type)
-            .ok_or(LoweringError::Unsupported(
-                "scalar graph result must be a primitive Boolean or integer",
-            ))?,
-    )?;
+    let states = &graph.states;
+    let entry_state = states.first().ok_or(LoweringError::Unsupported(
+        "checked scalar control plan must contain an entry state",
+    ))?;
+    let result_type = terminal_scalar_type(entry_state.result_type)?;
     let (identity_reshuffles, partition_compositions) =
-        lower_content_evidence(checked, machine, &states[0])?;
+        lower_content_evidence(checked, machine, entry_state.state)?;
     let mut lowered_states = Vec::with_capacity(states.len());
     let mut successors = vec![Vec::new(); states.len()];
     let mut indegree = vec![0usize; states.len()];
 
     for (state_index, state) in states.iter().enumerate() {
-        if terminal_scalar_type(checked.primitive_type_reference(state.return_type).ok_or(
-            LoweringError::Unsupported(
-                "scalar graph states must return a primitive Boolean or integer",
-            ),
-        )?)? != result_type
-        {
+        if terminal_scalar_type(state.result_type)? != result_type {
             return unsupported("scalar graph state result types must match exactly");
         }
-        let parameters = checked.state_parameters(state);
-        if parameters
+        let parameter_types = state
+            .parameter_types
             .iter()
-            .any(|parameter| parameter.is_self || parameter.is_const || parameter.is_mutable)
-        {
-            return unsupported("qualified scalar graph parameters are not supported");
-        }
-        let parameter_types = parameters
-            .iter()
-            .map(|parameter| {
-                terminal_scalar_type(
-                    checked
-                        .primitive_type_reference(parameter.type_reference)
-                        .ok_or(LoweringError::Unsupported(
-                            "scalar graph parameters must be primitive Boolean or integer values",
-                        ))?,
-                )
-            })
+            .copied()
+            .map(terminal_scalar_type)
             .collect::<Result<Vec<_>, _>>()?;
-        let statements = checked.statement_table.statements(state.statement_nodes);
-        let terminator = match statements {
-            [StatementNode::Expression(_)] => {
+        let terminator = match &state.terminator {
+            CheckedScalarStateTerminator::Return { statement_ordinal } => {
                 let expression = lower_checked_scalar_expression_at(
                     checked,
-                    state.symbol,
-                    0,
+                    state.state,
+                    *statement_ordinal,
                     CheckedScalarExpressionRole::Return,
                 )?;
+                if expression.scalar_type() != result_type {
+                    return unsupported("checked scalar return type must match the machine result");
+                }
                 LoweredScalarBranchTerminator::Return { expression }
             }
-            [StatementNode::Transition(transition)]
-                if matches!(transition.exit, TransitionExit::Crash(_))
-                    && transition.guard == TransitionGuardNode::Always
-                    && !transition.continuation.is_valid()
-                    && matches!(
-                        checked.statement_table.transition_target(transition.target),
-                        TransitionTargetNode::Terminal
-                    ) =>
-            {
+            CheckedScalarStateTerminator::Crash { statement_ordinal } => {
                 LoweredScalarBranchTerminator::Crash(lower_checked_crash_exit(
                     checked,
                     machine,
-                    state,
-                    0,
+                    state.state,
+                    *statement_ordinal,
                     &identity_reshuffles.source_claims,
                 )?)
             }
-            [
-                StatementNode::Transition(when_true),
-                StatementNode::Transition(when_false),
-            ] if matches!(when_true.guard, TransitionGuardNode::When(_))
-                && when_false.guard == TransitionGuardNode::Always =>
-            {
-                if when_true.continuation.is_valid() || when_false.continuation.is_valid() {
-                    return unsupported("scalar graph transitions cannot carry continuations");
-                }
-                let TransitionGuardNode::When(_) = when_true.guard else {
-                    unreachable!("match guard establishes a conditional transition")
-                };
+            CheckedScalarStateTerminator::Conditional {
+                guard_statement_ordinal,
+                when_true,
+                when_false,
+            } => {
                 let LoweredDirectExpression::Boolean {
                     expression: condition,
                 } = lower_checked_scalar_expression_at(
                     checked,
-                    state.symbol,
-                    0,
+                    state.state,
+                    *guard_statement_ordinal,
                     CheckedScalarExpressionRole::Guard,
                 )?
                 else {
@@ -1607,9 +1573,9 @@ fn lower_scalar_graph_machine(
                 validate_boolean_parameter_types(&condition, &parameter_types)?;
 
                 let (when_true_target, when_true_arguments) =
-                    lower_scalar_graph_successor(checked, states, state.symbol, 0, when_true)?;
+                    lower_scalar_graph_successor(checked, states, state.state, when_true)?;
                 let (when_false_target, when_false_arguments) =
-                    lower_scalar_graph_successor(checked, states, state.symbol, 1, when_false)?;
+                    lower_scalar_graph_successor(checked, states, state.state, when_false)?;
                 successors[state_index] = vec![when_true_target, when_false_target];
                 indegree[when_true_target] = indegree[when_true_target]
                     .checked_add(1)
@@ -1625,24 +1591,14 @@ fn lower_scalar_graph_machine(
                     when_false_arguments,
                 }
             }
-            [StatementNode::Transition(transition)]
-                if transition.guard == TransitionGuardNode::Always =>
-            {
-                if transition.continuation.is_valid() {
-                    return unsupported("scalar graph transitions cannot carry continuations");
-                }
+            CheckedScalarStateTerminator::Jump(successor) => {
                 let (target, arguments) =
-                    lower_scalar_graph_successor(checked, states, state.symbol, 0, transition)?;
+                    lower_scalar_graph_successor(checked, states, state.state, successor)?;
                 successors[state_index] = vec![target];
                 indegree[target] = indegree[target]
                     .checked_add(1)
                     .expect("source state count fits usize");
                 LoweredScalarBranchTerminator::Jump { target, arguments }
-            }
-            _ => {
-                return unsupported(
-                    "scalar graph states must return one scalar expression, jump unconditionally, crash explicitly, or contain one ordered Boolean transition",
-                );
             }
         };
         lowered_states.push(LoweredScalarBranchState {
@@ -1702,49 +1658,31 @@ fn lower_scalar_graph_machine(
 
 fn lower_scalar_graph_successor(
     checked: &CheckedTrees,
-    states: &[psi_checked_trees::state::State],
+    states: &[psi_checked_trees::CheckedScalarStateGraph],
     source_state: psi_symbols::SymbolHandle,
-    statement_ordinal: u32,
-    transition: &psi_checked_trees::statement::TableTransition,
+    successor: &CheckedScalarSuccessor,
 ) -> Result<(usize, Vec<LoweredDirectExpression>), LoweringError> {
-    let TransitionTargetNode::Named { path, arguments } =
-        checked.statement_table.transition_target(transition.target)
-    else {
-        return unsupported("scalar graph successors must target named states");
-    };
     let target = states
         .iter()
-        .position(|candidate| candidate.symbol == path.symbol)
+        .position(|candidate| candidate.state == successor.target)
         .ok_or(LoweringError::Unsupported(
             "scalar graph successor must belong to the selected machine",
         ))?;
-    let target_parameters = checked.state_parameters(&states[target]);
-    let arguments = checked.statement_table.expression_handles(*arguments);
-    if arguments.len() != target_parameters.len() {
+    let target_parameter_types = &states[target].parameter_types;
+    if usize::try_from(successor.argument_count).ok() != Some(target_parameter_types.len()) {
         return unsupported(
             "scalar graph successor bindings must match the target parameter count",
         );
     }
-    let arguments = arguments
-        .iter()
-        .zip(target_parameters)
-        .enumerate()
-        .map(|(argument_index, (_argument, target_parameter))| {
-            let target_type = terminal_scalar_type(
-                checked
-                    .primitive_type_reference(target_parameter.type_reference)
-                    .ok_or(LoweringError::Unsupported(
-                        "scalar graph target parameters must be primitive Boolean or integer values",
-                    ))?,
-            )?;
+    let arguments = (0..successor.argument_count)
+        .zip(target_parameter_types)
+        .map(|(argument_ordinal, target_type)| {
+            let target_type = terminal_scalar_type(*target_type)?;
             let expression = lower_checked_scalar_expression_at(
                 checked,
                 source_state,
-                statement_ordinal,
-                CheckedScalarExpressionRole::TransitionArgument {
-                    argument_ordinal: u32::try_from(argument_index)
-                        .map_err(|_| LoweringError::ScalarExpressionOrdinalOverflow)?,
-                },
+                successor.statement_ordinal,
+                CheckedScalarExpressionRole::TransitionArgument { argument_ordinal },
             )?;
             (expression.scalar_type() == target_type)
                 .then_some(expression)
@@ -2144,7 +2082,7 @@ fn evaluate_compile_known_boolean_expression(
 fn lower_content_evidence(
     checked: &CheckedTrees,
     machine: &psi_checked_trees::machine::Machine,
-    state: &psi_checked_trees::state::State,
+    state: psi_symbols::SymbolHandle,
 ) -> Result<
     (
         LoweredContentIdentityReshuffles,
@@ -2158,7 +2096,7 @@ fn lower_content_evidence(
         .content
         .identity_reshuffles
         .iter()
-        .filter(|fact| fact.machine_symbol == machine.symbol && fact.state_symbol == state.symbol)
+        .filter(|fact| fact.machine_symbol == machine.symbol && fact.state_symbol == state)
         .cloned()
         .collect::<Vec<_>>();
     let mut identity_reshuffles = lower_content_identity_reshuffles(&identity_facts)?;
@@ -2168,7 +2106,7 @@ fn lower_content_evidence(
         .content
         .partition_compositions
         .iter()
-        .filter(|fact| fact.machine_symbol == machine.symbol && fact.state_symbol == state.symbol)
+        .filter(|fact| fact.machine_symbol == machine.symbol && fact.state_symbol == state)
         .cloned()
         .collect::<Vec<_>>();
     let partition_compositions =
@@ -4032,7 +3970,6 @@ pub enum LoweringError {
     AmbiguousMachineName(String),
     DebugSourceFileCountOverflow,
     DebugSourceLengthOverflow,
-    ScalarExpressionOrdinalOverflow,
     MissingDebugSourceFile(usize),
     DebugSemanticCodec(psi_terminal_codec::CodecError),
     InvalidDebugMap(psi_terminal_codec::DebugMapError),

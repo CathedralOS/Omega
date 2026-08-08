@@ -131,6 +131,9 @@ pub struct FlowFacts {
     pub ownership: FlowOwnershipFacts,
     pub boundaries: FlowBoundaryFacts,
     pub control: FlowControlFacts,
+    /// Source-handle-free control topology for the live terminal-Psi scalar
+    /// producer. General terminal control will replace this bootstrap carrier.
+    pub terminal_scalar_graphs: super::CheckedScalarGraphPlans,
 }
 
 impl FlowFacts {
@@ -149,6 +152,7 @@ impl FlowFacts {
             ownership,
             boundaries,
             control,
+            terminal_scalar_graphs: super::CheckedScalarGraphPlans::default(),
         }
     }
 }

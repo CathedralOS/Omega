@@ -174,10 +174,13 @@ expression vocabulary after operator selection and type checking. Recursive
 return values, positive guards, and transition arguments are keyed by stable
 state identity, state-local statement ordinal, and semantic role rather than
 `ExpressionHandle`. Terminal production fails closed when that carrier is
-absent and does not reopen typed expression nodes. It still reads typed
-statement and transition records for control topology and typed source spans
-for the replaceable debug map; migrating that topology is the next
-source-independence boundary.
+absent and does not reopen typed expression nodes. Checked flow facts retain
+the companion control plan: ordered stable state identities, primitive
+parameter/result types, return/crash/jump/conditional terminators, stable
+successors, and argument arity. Terminal semantic and proof production no
+longer reads typed statement or transition records. Typed source records remain
+only for machine selection/signature eligibility and the replaceable debug map;
+those are the next source-independence boundaries.
 
 The first control-flow slice is live in v13. One conditional terminator reads
 an already-defined Boolean value and owns ordered true and false successor edge
@@ -276,7 +279,9 @@ as a source-handle-free value carrier, and terminal production fails closed on
 an absent or unrecognized carrier instead of reopening typed contract facts.
 Checked value facts separately retain every executable return, guard, and
 successor argument in this scalar vocabulary, so terminal production no longer
-uses a typed expression handle to recover executable meaning. A
+uses a typed expression handle to recover executable meaning. Checked flow
+facts retain the matching scalar control topology, so the producer also does
+not recover executable structure from typed statements or transitions. A
 single-state Boolean-result machine over ordinary primitive-integer parameters
 may compare two recursively nested integer
 expressions of one exact type with builtin `==`, `!=`, `<`, `<=`, `>`, or `>=`.
