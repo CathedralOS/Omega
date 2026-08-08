@@ -1,0 +1,126 @@
+use psi_checked_trees::{
+    CheckedScalarGraphPlans, CheckedScalarMachineGraph, CheckedScalarStateGraph,
+    CheckedScalarStateTerminator, CheckedScalarSuccessor,
+};
+use psi_typed_trees::{
+    TypedTrees,
+    statement::{StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode},
+};
+
+pub(crate) fn build_checked_scalar_graph_plans(program: &TypedTrees) -> CheckedScalarGraphPlans {
+    CheckedScalarGraphPlans {
+        machines: program
+            .machines()
+            .iter()
+            .filter_map(|machine| build_machine_graph(program, machine))
+            .collect(),
+    }
+}
+
+fn build_machine_graph(
+    program: &TypedTrees,
+    machine: &psi_typed_trees::machine::Machine,
+) -> Option<CheckedScalarMachineGraph> {
+    let source_states = program.machine_states(machine);
+    if source_states.is_empty() {
+        return None;
+    }
+    let states = source_states
+        .iter()
+        .map(|state| {
+            if !program.state_contracts(state).is_empty() {
+                return None;
+            }
+            let parameters = program.state_parameters(state);
+            if parameters
+                .iter()
+                .any(|parameter| parameter.is_self || parameter.is_const || parameter.is_mutable)
+            {
+                return None;
+            }
+            let parameter_types = parameters
+                .iter()
+                .map(|parameter| program.primitive_type_reference(parameter.type_reference))
+                .collect::<Option<Vec<_>>>()?;
+            let result_type = program.primitive_type_reference(state.return_type)?;
+            let statements = program.statement_table.statements(state.statement_nodes);
+            let terminator = match statements {
+                [StatementNode::Expression(_)] => CheckedScalarStateTerminator::Return {
+                    statement_ordinal: 0,
+                },
+                [StatementNode::Transition(transition)]
+                    if matches!(transition.exit, TransitionExit::Crash(_))
+                        && transition.guard == TransitionGuardNode::Always
+                        && !transition.continuation.is_valid()
+                        && matches!(
+                            program.statement_table.transition_target(transition.target),
+                            TransitionTargetNode::Terminal
+                        ) =>
+                {
+                    CheckedScalarStateTerminator::Crash {
+                        statement_ordinal: 0,
+                    }
+                }
+                [
+                    StatementNode::Transition(when_true),
+                    StatementNode::Transition(when_false),
+                ] if matches!(when_true.guard, TransitionGuardNode::When(_))
+                    && when_false.guard == TransitionGuardNode::Always
+                    && !when_true.continuation.is_valid()
+                    && !when_false.continuation.is_valid() =>
+                {
+                    CheckedScalarStateTerminator::Conditional {
+                        guard_statement_ordinal: 0,
+                        when_true: checked_successor(program, source_states, 0, when_true)?,
+                        when_false: checked_successor(program, source_states, 1, when_false)?,
+                    }
+                }
+                [StatementNode::Transition(transition)]
+                    if transition.guard == TransitionGuardNode::Always
+                        && !transition.continuation.is_valid() =>
+                {
+                    CheckedScalarStateTerminator::Jump(checked_successor(
+                        program,
+                        source_states,
+                        0,
+                        transition,
+                    )?)
+                }
+                _ => return None,
+            };
+            Some(CheckedScalarStateGraph {
+                state: state.symbol,
+                parameter_types,
+                result_type,
+                terminator,
+            })
+        })
+        .collect::<Option<Vec<_>>>()?;
+    Some(CheckedScalarMachineGraph {
+        machine: machine.symbol,
+        states,
+    })
+}
+
+fn checked_successor(
+    program: &TypedTrees,
+    states: &[psi_typed_trees::state::State],
+    statement_ordinal: u32,
+    transition: &psi_typed_trees::statement::TableTransition,
+) -> Option<CheckedScalarSuccessor> {
+    let TransitionTargetNode::Named { path, arguments } =
+        program.statement_table.transition_target(transition.target)
+    else {
+        return None;
+    };
+    states
+        .iter()
+        .any(|candidate| candidate.symbol == path.symbol)
+        .then_some(())?;
+    Some(CheckedScalarSuccessor {
+        statement_ordinal,
+        target: path.symbol,
+        argument_count: u32::try_from(program.statement_table.expression_handles(*arguments).len())
+            .ok()?,
+    })
+}

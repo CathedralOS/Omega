@@ -433,6 +433,81 @@ fn terminal_scalar_body_consumes_the_source_independent_checked_plan() {
 }
 
 #[test]
+fn terminal_scalar_control_consumes_the_source_independent_checked_plan() {
+    let checked = compile_to_checked(&source_canary(), None).unwrap_or_else(|diagnostics| {
+        panic!(
+            "terminal-Psi source canary should compile:\n{}",
+            diagnostics
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    });
+    let expected = lower_machine(&checked, "terminal_constant")
+        .expect("the checked scalar control plan should lower");
+
+    let replacement_transition = {
+        let machine = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "terminal_path_guarded_trap")
+            .expect("guarded trap machine");
+        checked
+            .machine_states(machine)
+            .iter()
+            .flat_map(|state| {
+                checked
+                    .statement_table
+                    .statements(state.statement_nodes)
+                    .iter()
+            })
+            .find(|statement| {
+                matches!(
+                    statement,
+                    psi_checked_trees::statement::StatementNode::Transition(_)
+                )
+            })
+            .expect("a valid replacement transition")
+            .clone()
+    };
+    let constant_statements = {
+        let machine = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "terminal_constant")
+            .expect("terminal constant machine");
+        checked
+            .machine_states(machine)
+            .first()
+            .expect("terminal constant entry state")
+            .statement_nodes
+    };
+    let mut without_typed_control = checked.clone();
+    let [statement] = without_typed_control
+        .typed
+        .statement_table
+        .statements_mut(constant_statements)
+    else {
+        panic!("terminal constant must have one statement");
+    };
+    *statement = replacement_transition;
+
+    let actual = lower_machine(&without_typed_control, "terminal_constant")
+        .expect("terminal production must not reopen checked statement topology");
+    assert_eq!(actual.semantic_module, expected.semantic_module);
+    assert_eq!(actual.proof_bundle, expected.proof_bundle);
+
+    let mut without_checked_control = checked;
+    without_checked_control.facts.flow.terminal_scalar_graphs = Default::default();
+    assert_eq!(
+        lower_machine(&without_checked_control, "terminal_constant")
+            .expect_err("terminal production must fail without checked scalar control"),
+        LoweringError::Unsupported("machine has no source-independent checked scalar control plan")
+    );
+}
+
+#[test]
 fn terminal_proposition_vocabulary_consumes_checked_proof_facts() {
     let checked = compile_to_checked(&source_canary(), None).unwrap_or_else(|diagnostics| {
         panic!(

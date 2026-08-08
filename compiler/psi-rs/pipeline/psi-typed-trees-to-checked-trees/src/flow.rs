@@ -21,6 +21,7 @@ mod place;
 mod reach;
 mod state;
 mod statements;
+mod terminal_scalar;
 mod transfers;
 
 use borrow_lifetimes::{filter_expired_borrow_loans, filter_reassigned_borrow_loans};
@@ -74,4 +75,5 @@ pub(crate) use place::{
 use reach::attach_reach_summaries;
 use state::build_state_flow_fact;
 use statements::append_state_statement_flow_facts;
+pub(crate) use terminal_scalar::build_checked_scalar_graph_plans;
 use transfers::propagate_statement_transfers;

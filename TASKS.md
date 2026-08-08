@@ -238,13 +238,17 @@ Remaining:
   executable scalar return, guard, and transition argument as a recursive
   source-handle-free expression keyed by stable state identity and statement
   role. Terminal production consumes those checked expressions and no longer
-  reinterprets typed expression nodes; typed statements remain temporarily for
-  control topology and debug-source attachment.
+  reinterprets typed expression nodes. Checked flow facts now retain scalar
+  state order, primitive signatures, terminator kind, stable successors, and
+  argument arity as a source-handle-free control plan; terminal semantic and
+  proof production no longer reads typed statements or transitions. Those
+  source tables remain only behind replaceable debug-map construction.
 - Replace all remaining terminal-path `ExpressionHandle` and source-tree
   dependencies with lowered values and predicates. The executable scalar
-  vocabulary is migrated; next absorb useful StateGraph / ControlFlow topology
-  so statement/transition handles cease to be semantic inputs, then retire the
-  legacy backend lane as consumers move.
+  vocabulary and topology are migrated; next retain machine selection and
+  signature eligibility independently of typed trees, isolate debug-source
+  attachment behind its own optional carrier, then retire the legacy backend
+  lane as consumers move.
 - **CRASH-CONTRACT.** Source now parses fingerprinted `crashes Cause Scope`
   buckets, including multiple alternative route facts and the unconditional
   `crashes Cause` shorthand, and preserves explicit `crash Cause;` exits through
