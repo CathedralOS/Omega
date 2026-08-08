@@ -89,7 +89,10 @@ use psi_diagnostics::Diagnostic;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::statement::{StatementNode, TransitionTargetNode};
 pub use result_overloads::resolve_named_result_overloads;
-pub use traits::{DynamicConformanceSelection, collect_dynamic_conformance_selections};
+pub use traits::{
+    DynamicConformanceSelection, collect_dynamic_conformance_selections,
+    resolve_dynamic_call_targets,
+};
 pub use type_references::normalize_open_index_expressions;
 
 pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {

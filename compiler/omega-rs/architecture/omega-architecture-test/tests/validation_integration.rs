@@ -1156,6 +1156,118 @@ fn named_local_dynamic_coercion_selects_one_exact_conformance() {
 }
 
 #[test]
+fn dynamic_statement_call_retains_exact_inherited_requirement_symbol() {
+    let typed = typed_program_from_source(
+        r#"
+        trait Parent {
+            machine ping(&self) {}
+        }
+        trait Child: Parent {}
+        data Item {}
+        Item satisfies Child as Primary {}
+
+        machine run(item: Item) {
+            let erased: &dyn Child = &item as &dyn Item::Primary;
+            erased.ping();
+        }
+        "#,
+    );
+
+    let checked = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+        .expect("an inherited dynamic requirement should resolve exactly");
+    let [selection] = checked.facts.dynamic_conformances.selections.as_slice() else {
+        panic!("one selected conformance");
+    };
+    let row = selection
+        .rows
+        .iter()
+        .find(|row| checked.symbols.name(row.requirement) == "ping")
+        .expect("inherited ping row");
+    let run = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "run")
+        .expect("run machine");
+    let call = checked
+        .machine_states(run)
+        .iter()
+        .flat_map(|state| checked.statement_table.statements(state.statement_nodes))
+        .find_map(|statement| {
+            let psi_typed_trees::statement::StatementNode::Call(call) = statement else {
+                return None;
+            };
+            (call.target.as_str() == "ping").then_some(call)
+        })
+        .expect("dynamic statement call");
+    assert_eq!(call.target_symbol, row.requirement);
+    assert_eq!(checked.symbols.name(row.declaring_trait), "Parent");
+}
+
+#[test]
+fn dynamic_call_rejects_ambiguous_inherited_requirement_spelling() {
+    let mut typed = typed_program_from_source(
+        r#"
+        trait Left {
+            machine ping(&self);
+        }
+        trait Right {
+            machine ping(&self);
+        }
+        trait Both: Left + Right {}
+        data Item {}
+
+        machine Item::left_ping(&self) {}
+        machine Item::right_ping(&self) {}
+
+        Item satisfies Both as Primary {
+            Left::ping = Item::left_ping;
+            Right::ping = Item::right_ping;
+        }
+
+        machine run(item: Item) {
+            let erased: &dyn Both = &item as &dyn Item::Primary;
+            erased.ping();
+        }
+        "#,
+    );
+
+    let left_ping = typed
+        .traits()
+        .iter()
+        .find(|trait_definition| trait_definition.name.as_str() == "Left")
+        .and_then(|trait_definition| typed.trait_machine_signatures(trait_definition).first())
+        .map(|requirement| requirement.symbol)
+        .expect("Left::ping requirement");
+    let run_statements = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "run")
+        .and_then(|machine| typed.machine_states(machine).first())
+        .map(|state| state.statement_nodes)
+        .expect("run statements");
+    let call = typed
+        .statement_table
+        .statements_mut(run_statements)
+        .iter_mut()
+        .find_map(|statement| {
+            let psi_typed_trees::statement::StatementNode::Call(call) = statement else {
+                return None;
+            };
+            (call.target.as_str() == "ping").then_some(call)
+        })
+        .expect("dynamic statement call");
+    call.target_symbol = left_ping;
+
+    let diagnostics = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+        .expect_err("a provisional inherited symbol cannot resolve an ambiguous leaf spelling");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains(
+            "dynamic call `Both::ping` is ambiguous across inherited requirements: Left::ping, Right::ping",
+        )
+    }));
+}
+
+#[test]
 fn named_local_dynamic_coercion_rejects_unknown_selection() {
     let source = r#"
         trait Marker {}

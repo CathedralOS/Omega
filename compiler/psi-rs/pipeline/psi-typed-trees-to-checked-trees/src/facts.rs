@@ -104,7 +104,6 @@ fn build_dynamic_conformance_facts(
             rows.push(psi_checked_trees::DynamicConformanceRowFact {
                 declaring_trait: row.declaring_trait,
                 requirement: row.requirement,
-                requirement_name: row.requirement_name.clone(),
                 realization_machine: row.realization_machine,
                 realization_state: row.realization_state,
                 source: match row.source {

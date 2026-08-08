@@ -484,9 +484,11 @@ A borrowed dynamic value is two runtime words:
 └──────────────────┴──────────────────────────────┘
 ```
 
-The requirement name selects a table slot. The table entry calls the matching
-machine from one selected conformance. When a type has several conformances to
-the trait, a coercion names the conformance:
+The exact requirement identity `(declaring trait, requirement)` selects a table
+slot. Call typing retains that symbol even when the slot is inherited; lowering
+never chooses a row from the leaf spelling alone. The table entry calls the
+matching machine from one selected conformance. When a type has several
+conformances to the trait, a coercion names the conformance:
 
 ```omega
 let ranked: &dyn Ranked =
@@ -516,15 +518,18 @@ stable child symbol during checked selection. Unknown paths and paths belonging
 to a different source carrier reject. Omega now owns a distinct target ABI view
 for the two-word `{ instance, selected-conformance table }` carrier and retains
 the trait plus authored named selection in physical layout descriptors; it no
-longer models the second word as a slice length. Direct nonescaping local
-calls now consume the retained row and original source place for whole-artifact
-devirtualization. Physical descriptor materialization, private table emission,
-and the remaining pass-through/rebinding/escaping adapters remain subsequent
-implementation rungs. Those consumers use the complete normalized map authored
-by the selected conformance block. Each row retains the declaring trait,
-requirement, exact satisfier machine, default instantiation when applicable,
-normalized contracts, and selected conformance identity; neither Psi nor Omega
-infers adapter rows from matching state names.
+longer models the second word as a slice length. Direct nonescaping local calls
+now consume the retained row and original source place for whole-artifact
+devirtualization. Every dynamic call occurrence in a machine body retains the
+exact declaring-trait requirement symbol, including calls to inherited slots;
+same-spelled inherited requirements reject as ambiguous. Checked rows and
+backend dispatch match that symbol only. Physical descriptor materialization,
+private table emission, and the remaining pass-through/rebinding/escaping
+adapters remain subsequent implementation rungs. Those consumers use the
+complete normalized map authored by the selected conformance block. Each row
+retains the declaring trait, requirement, exact satisfier machine, default
+instantiation when applicable, normalized contracts, and selected conformance
+identity; neither Psi nor Omega infers adapter rows from matching state names.
 
 The table is a private realization. Logical identity records the trait,
 selected conformance, and normalized contracts rather than a table address.

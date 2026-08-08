@@ -217,7 +217,7 @@ pub fn frame_paths_overlap(left: &str, right: &str) -> bool {
             .is_some_and(|suffix| suffix.starts_with('.') || suffix.starts_with('['))
 }
 
-fn statement_value_expression_roots(
+pub(crate) fn statement_value_expression_roots(
     program: &TypedTrees,
     statement: &StatementNode,
 ) -> Vec<ExpressionHandle> {
@@ -688,7 +688,12 @@ pub(crate) fn validate_call_node(
     });
 
     if let Some(error) = receiver_type_reference.and_then(|type_reference| {
-        crate::traits::dynamic_requirement_call_error(program, type_reference, call.target.as_str())
+        crate::traits::dynamic_requirement_call_error(
+            program,
+            type_reference,
+            call.target.as_str(),
+            call.target_symbol,
+        )
     }) {
         diagnostics.push(Diagnostic::error(error));
         return;
@@ -4717,7 +4722,12 @@ fn validate_expression_call_bounds(
         });
 
     if let Some(error) = receiver_type_reference.and_then(|type_reference| {
-        crate::traits::dynamic_requirement_call_error(program, type_reference, call.target.as_str())
+        crate::traits::dynamic_requirement_call_error(
+            program,
+            type_reference,
+            call.target.as_str(),
+            call.target_symbol,
+        )
     }) {
         diagnostics.push(Diagnostic::error(error));
         return;
@@ -5284,7 +5294,7 @@ fn receiver_declared_type_name<'program>(
     named_type_reference_name(program, handle)
 }
 
-fn declared_receiver_type_reference(
+pub(crate) fn declared_receiver_type_reference(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,

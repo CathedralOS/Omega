@@ -1,9 +1,12 @@
 use psi_diagnostics::Diagnostic;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use psi_typed_trees::machine::Machine;
 use psi_typed_trees::name::Identifier;
+use psi_typed_trees::signature::StateSignature;
+use psi_typed_trees::state::State;
 use psi_typed_trees::statement::StatementNode;
-use psi_typed_trees::trait_definition::DynamicSignatureIneligibility;
+use psi_typed_trees::trait_definition::{DynamicSignatureIneligibility, TraitDefinition};
 use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 /// One local dynamic coercion whose complete nominal conformance is fixed in
@@ -205,6 +208,250 @@ pub fn collect_dynamic_conformance_selections(
     }
 }
 
+/// Bind every call through a typed dynamic receiver to the exact requirement
+/// symbol that declares its table slot. Early symbol resolution cannot do this
+/// for locals because their declared types are not available until typed trees.
+/// This pass runs before validation and checked-fact construction, so no later
+/// consumer has to recover a slot from its spelling.
+pub fn resolve_dynamic_call_targets(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
+    let mut expression_updates = Vec::new();
+    let mut statement_updates = Vec::new();
+    let mut diagnostics = Vec::new();
+
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            for (statement_index, statement) in program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .enumerate()
+            {
+                if let StatementNode::Call(call) = statement
+                    && let Some(receiver) = program
+                        .statement_table
+                        .name_path_members(call.receiver)
+                        .last()
+                    && let Some(receiver_type) = crate::calls::declared_receiver_type_reference(
+                        program,
+                        machine,
+                        state,
+                        receiver.as_str(),
+                    )
+                    && let Some(requirement) = resolved_dynamic_requirement_symbol(
+                        program,
+                        receiver_type,
+                        call.target.as_str(),
+                        &mut diagnostics,
+                    )
+                {
+                    statement_updates.push((state.statement_nodes, statement_index, requirement));
+                }
+
+                for root in crate::calls::statement_value_expression_roots(program, statement) {
+                    collect_dynamic_expression_call_updates(
+                        program,
+                        machine,
+                        state,
+                        root,
+                        &mut expression_updates,
+                        &mut diagnostics,
+                    );
+                }
+            }
+        }
+    }
+
+    if !diagnostics.is_empty() {
+        return Err(diagnostics);
+    }
+
+    for (expression, requirement) in expression_updates {
+        let ExpressionNode::Call(call) = program.expression_table.expression_mut(expression) else {
+            unreachable!("collected dynamic expression call changed shape")
+        };
+        call.target_symbol = requirement;
+    }
+    for (statements, statement_index, requirement) in statement_updates {
+        let StatementNode::Call(call) =
+            &mut program.statement_table.statements_mut(statements)[statement_index]
+        else {
+            unreachable!("collected dynamic statement call changed shape")
+        };
+        call.target_symbol = requirement;
+    }
+
+    Ok(())
+}
+
+fn collect_dynamic_expression_call_updates(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    updates: &mut Vec<(ExpressionHandle, psi_symbols::SymbolHandle)>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if !expression.is_valid() {
+        return;
+    }
+
+    macro_rules! visit {
+        ($child:expr) => {
+            collect_dynamic_expression_call_updates(
+                program,
+                machine,
+                state,
+                $child,
+                updates,
+                diagnostics,
+            )
+        };
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::ArrayLiteral(elements) => {
+            for element in program.expression_table.expression_handles(*elements) {
+                visit!(*element);
+            }
+        }
+        ExpressionNode::Atomic(atomic) => {
+            visit!(atomic.value);
+            visit!(atomic.result);
+        }
+        ExpressionNode::Binary(binary) => {
+            visit!(binary.left);
+            visit!(binary.right);
+        }
+        ExpressionNode::Cast(cast) => visit!(cast.value),
+        ExpressionNode::Call(call) => {
+            if let Some(receiver_type) =
+                crate::places::declared_place_type_raw(program, machine, Some(state), call.receiver)
+                && let Some(requirement) = resolved_dynamic_requirement_symbol(
+                    program,
+                    receiver_type,
+                    call.target.as_str(),
+                    diagnostics,
+                )
+                && !updates
+                    .iter()
+                    .any(|(candidate, _)| *candidate == expression)
+            {
+                updates.push((expression, requirement));
+            }
+            visit!(call.receiver);
+            for argument in program.expression_table.expression_handles(call.arguments) {
+                visit!(*argument);
+            }
+        }
+        ExpressionNode::Indexed(indexed) => {
+            visit!(indexed.collection);
+            visit!(indexed.index);
+        }
+        ExpressionNode::Member(member) => visit!(member.receiver),
+        ExpressionNode::Mutable(inner) => visit!(*inner),
+        ExpressionNode::Range(range) => {
+            visit!(range.start);
+            visit!(range.end);
+        }
+        ExpressionNode::StructLiteral(literal) => {
+            for field in program.expression_table.struct_fields(literal.fields) {
+                visit!(field.value);
+            }
+        }
+        ExpressionNode::Unary(unary) => visit!(unary.operand),
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Name(_)
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => {}
+    }
+}
+
+fn resolved_dynamic_requirement_symbol(
+    program: &TypedTrees,
+    receiver_type: TypeReferenceHandle,
+    target: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Option<psi_symbols::SymbolHandle> {
+    let trait_symbol = dynamic_trait_symbol(program, receiver_type)?;
+    let trait_definition = program
+        .traits()
+        .iter()
+        .find(|definition| definition.symbol == trait_symbol)?;
+    let mut matches = Vec::new();
+    collect_dynamic_requirements_named(
+        program,
+        trait_definition,
+        target,
+        &mut Vec::new(),
+        &mut matches,
+    );
+    match matches.as_slice() {
+        [(_, requirement)] => Some(requirement.symbol),
+        [] => None,
+        many => {
+            let declaring_trait = many[0].0.symbol;
+            if many
+                .iter()
+                .all(|(candidate, _)| candidate.symbol == declaring_trait)
+            {
+                // Same-trait result overloads use the first declaration only
+                // as a provisional family key. The ordinary overload pass runs
+                // immediately afterward and selects the exact result identity.
+                return Some(many[0].1.symbol);
+            }
+            let declarations = many
+                .iter()
+                .map(|(declaring_trait, requirement)| {
+                    format!("{}::{}", declaring_trait.name, requirement.name)
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
+            diagnostics.push(Diagnostic::error(format!(
+                "dynamic call `{}::{target}` is ambiguous across inherited requirements: {declarations}",
+                trait_definition.name
+            )));
+            None
+        }
+    }
+}
+
+fn collect_dynamic_requirements_named<'program>(
+    program: &'program TypedTrees,
+    trait_definition: &'program TraitDefinition,
+    target: &str,
+    visited: &mut Vec<psi_symbols::SymbolHandle>,
+    matches: &mut Vec<(&'program TraitDefinition, &'program StateSignature)>,
+) {
+    if visited.contains(&trait_definition.symbol) {
+        return;
+    }
+    visited.push(trait_definition.symbol);
+
+    for requirement in program
+        .trait_machine_signatures(trait_definition)
+        .iter()
+        .filter(|requirement| requirement.name.as_str() == target)
+    {
+        if !matches
+            .iter()
+            .any(|(_, candidate)| candidate.symbol == requirement.symbol)
+        {
+            matches.push((trait_definition, requirement));
+        }
+    }
+    for parent in program.trait_requirements(trait_definition) {
+        let Some(parent_trait) = program
+            .traits()
+            .iter()
+            .find(|candidate| candidate.symbol == parent.symbol)
+        else {
+            continue;
+        };
+        collect_dynamic_requirements_named(program, parent_trait, target, visited, matches);
+    }
+}
+
 #[derive(Debug, Clone)]
 struct DynamicSourcePlace {
     symbol: psi_symbols::SymbolHandle,
@@ -277,19 +524,35 @@ pub(crate) fn dynamic_requirement_call_error(
     program: &TypedTrees,
     receiver_type: TypeReferenceHandle,
     target: &str,
+    target_symbol: psi_symbols::SymbolHandle,
 ) -> Option<String> {
     let trait_symbol = dynamic_trait_symbol(program, receiver_type)?;
-    let trait_definition = program
+    let dynamic_trait = program
         .traits()
         .iter()
         .find(|definition| definition.symbol == trait_symbol)?;
-    let requirement = program
-        .trait_machine_signatures(trait_definition)
+    let mut matches = Vec::new();
+    collect_dynamic_requirements_named(
+        program,
+        dynamic_trait,
+        target,
+        &mut Vec::new(),
+        &mut matches,
+    );
+    let selected = matches
         .iter()
-        .find(|signature| signature.name.as_str() == target)?;
+        .find(|(_, requirement)| requirement.symbol == target_symbol)
+        .copied()
+        .or_else(|| {
+            let [selected] = matches.as_slice() else {
+                return None;
+            };
+            Some(*selected)
+        });
+    let (declaring_trait, requirement) = selected?;
 
     let reason = match program
-        .dynamic_signature_eligibility(trait_definition, requirement)
+        .dynamic_signature_eligibility(declaring_trait, requirement)
         .err()?
     {
         DynamicSignatureIneligibility::BoundaryRequirement => {
@@ -315,7 +578,7 @@ pub(crate) fn dynamic_requirement_call_error(
 
     Some(format!(
         "requirement `{}::{}` is absent from `dyn {}`: {reason}",
-        trait_definition.name, requirement.name, trait_definition.name
+        declaring_trait.name, requirement.name, dynamic_trait.name
     ))
 }
 

@@ -27,6 +27,12 @@ pub(crate) fn lower_typed_trees(
     // and before both engines fork off it -- every downstream read (native
     // and interpreter) then rounds once from the spelling.
     psi_validation::land_float_literal_destinations(&mut program);
+    // Calls through a typed `dyn Trait` receiver cannot be resolved during the
+    // earlier symbol pass because local declared types are not available there.
+    // Bind their declaring-trait requirement now so the ordinary result-
+    // overload pass below starts in the correct trait family rather than from
+    // an ambient same-named machine.
+    psi_validation::resolve_dynamic_call_targets(&mut program)?;
     // Named-machine result overloads are provisionally bound to the first
     // same-named symbol during early resolution. Rebind them now, after domain
     // normalization and destination typing, before validation/backend facts
