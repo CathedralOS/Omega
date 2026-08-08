@@ -152,6 +152,193 @@ fn inherited_requirement_collisions_require_trait_qualified_rows() {
 }
 
 #[test]
+fn inline_conformance_member_calls_route_through_the_same_closed_map() {
+    let source = r#"
+        trait Pair {
+            machine Self::first(&self, other: &Self);
+            machine Self::second(&self);
+        }
+        data Card { }
+        machine Card::second(&self) { }
+        Card satisfies Pair as Selected {
+            machine first(&self, other: &Card) { other.second(); }
+            machine second(&self) { }
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("block syntax should parse");
+    let program = lower_syntax_trees(&syntax_trees).expect("closed rows should normalize");
+    let conformance = program.conformances.iter().next().expect("one conformance");
+    let psi_symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
+        &conformance.implementation
+    else {
+        panic!("closed implementation retained");
+    };
+    let first = rows
+        .iter()
+        .find(|row| row.requirement_name.as_str() == "first")
+        .expect("first row");
+    let second = rows
+        .iter()
+        .find(|row| row.requirement_name.as_str() == "second")
+        .expect("second row");
+    let machine = program
+        .machines
+        .iter()
+        .find(|machine| machine.symbol == first.realization_machine)
+        .expect("inline first machine");
+    let state_handles = program.machine_state_handles(machine.states);
+    let state = state_handles
+        .first()
+        .map(|handle| program.machine_state(*handle))
+        .expect("inline first state");
+    let [psi_symbol_resolved_trees::statement::StatementNode::Call(call)] = program
+        .tables
+        .bodies
+        .statements
+        .statements(state.statement_nodes)
+    else {
+        panic!("one call statement");
+    };
+    assert_eq!(
+        call.target_symbol,
+        second.realization_state,
+        "the ambient Card::second look-alike must not supply the closed row; receiver={:?}, starts_at_self={}, target={}",
+        program
+            .tables
+            .bodies
+            .statements
+            .name_path_members(call.receiver),
+        call.receiver_starts_at_self,
+        call.target
+    );
+}
+
+#[test]
+fn inline_conformance_value_calls_route_through_the_same_closed_map() {
+    let source = r#"
+        trait Pair {
+            machine Self::first(&self) -> i32;
+            machine Self::second(&self) -> i32;
+        }
+        data Card { }
+        machine Card::second(&self) -> i32 { transition { _ -> (1) } }
+        Card satisfies Pair as Selected {
+            machine first(&self) -> i32 {
+                transition { _ -> (self.second()) }
+            }
+            machine second(&self) -> i32 { transition { _ -> (2) } }
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("block syntax should parse");
+    let program = lower_syntax_trees(&syntax_trees).expect("closed rows should normalize");
+    let conformance = program.conformances.iter().next().expect("one conformance");
+    let psi_symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
+        &conformance.implementation
+    else {
+        panic!("closed implementation retained");
+    };
+    let first = rows
+        .iter()
+        .find(|row| row.requirement_name.as_str() == "first")
+        .expect("first row");
+    let second = rows
+        .iter()
+        .find(|row| row.requirement_name.as_str() == "second")
+        .expect("second row");
+    let machine = program
+        .machines
+        .iter()
+        .find(|machine| machine.symbol == first.realization_machine)
+        .expect("inline first machine");
+    let state = program
+        .machine_state_handles(machine.states)
+        .first()
+        .map(|handle| program.machine_state(*handle))
+        .expect("inline first state");
+    let Some(psi_symbol_resolved_trees::statement::StatementNode::LocalData(local)) = program
+        .tables
+        .bodies
+        .statements
+        .statements(state.statement_nodes)
+        .first()
+    else {
+        panic!("value-call normalization should retain its hoisted initializer");
+    };
+    let psi_symbol_resolved_trees::expression::ExpressionNode::Call(call) = program
+        .tables
+        .bodies
+        .expressions
+        .expression(local.initial_value)
+    else {
+        panic!("hoisted value call");
+    };
+    assert_eq!(call.target_symbol, second.realization_state);
+}
+
+#[test]
+fn inline_conformance_calls_preserve_a_foreign_receiver_method() {
+    let source = r#"
+        data Other { }
+        machine Other::second(&self) { }
+        trait Pair {
+            machine Self::first(&self, other: &Other);
+            machine Self::second(&self);
+        }
+        data Card { }
+        Card satisfies Pair as Selected {
+            machine first(&self, other: &Other) { other.second(); }
+            machine second(&self) { }
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("block syntax should parse");
+    let program = lower_syntax_trees(&syntax_trees).expect("closed rows should normalize");
+    let conformance = program.conformances.iter().next().expect("one conformance");
+    let psi_symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
+        &conformance.implementation
+    else {
+        panic!("closed implementation retained");
+    };
+    let first = rows
+        .iter()
+        .find(|row| row.requirement_name.as_str() == "first")
+        .expect("first row");
+    let second = rows
+        .iter()
+        .find(|row| row.requirement_name.as_str() == "second")
+        .expect("second row");
+    let machine = program
+        .machines
+        .iter()
+        .find(|machine| machine.symbol == first.realization_machine)
+        .expect("inline first machine");
+    let state = program
+        .machine_state_handles(machine.states)
+        .first()
+        .map(|handle| program.machine_state(*handle))
+        .expect("inline first state");
+    let [psi_symbol_resolved_trees::statement::StatementNode::Call(call)] = program
+        .tables
+        .bodies
+        .statements
+        .statements(state.statement_nodes)
+    else {
+        panic!("one call statement");
+    };
+    assert!(call.target_symbol.is_valid());
+    assert_ne!(call.target_symbol, second.realization_state);
+    assert_eq!(program.symbols.name(call.target_symbol), "second");
+}
+
+#[test]
 fn proposition_parameter_signatures_receive_distinct_symbols() {
     let source = r#"
         trait Reflexive<C, proposition Relation>

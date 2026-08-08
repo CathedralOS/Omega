@@ -179,6 +179,7 @@ impl Lowerer {
         )?;
         crate::service_reaches::normalize_service_reaches(&mut self.symbol_resolved_trees);
         self.symbol_resolved_trees.rebuild_tables();
+        crate::conformance_blocks::route_inline_member_calls(&mut self.symbol_resolved_trees);
         let SymbolResolvedTrees {
             roots,
             tables,
