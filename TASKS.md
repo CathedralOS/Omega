@@ -193,6 +193,10 @@ Remaining:
   guards now retain recursive short-circuit `&&`/`||` control in reserved
   decision blocks; computed successor bindings remain arm-local, only executed
   tests and edges consume fuel, and non-crashing forms reach both native targets.
+  Rooted acyclic Boolean-result graphs now likewise support nested selections,
+  convergent tails, recursive non-short-circuit unconditional bindings and
+  returns, verification, exact fuel, and both native targets. Short-circuit
+  Boolean value bindings/returns remain for a later producer slice.
 - Replace all remaining terminal-path `ExpressionHandle` and source-tree
   dependencies with lowered values and predicates. Absorb useful StateGraph /
   ControlFlow topology, then retire the legacy backend lane as consumers move.

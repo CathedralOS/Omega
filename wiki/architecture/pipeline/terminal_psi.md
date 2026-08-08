@@ -193,8 +193,12 @@ their authored blocks and edges in terminal Psi; proof reconstruction
 intersects facts at joins, and the fixed-work checker derives the maximum
 entry-to-return cost. Omega recursively realizes the graph on x86-64 and
 AArch64, duplicating a pure shared tail where the current native tree form
-requires it while preserving canonical Psi provenance. Loops, short-circuit
-state guards, and computed bindings in branching graphs remain later slices.
+requires it while preserving canonical Psi provenance. The Boolean-result
+companion now accepts the same rooted acyclic topology over ordinary Boolean
+parameters: nested selections, convergent tails, recursive non-short-circuit
+unconditional bindings and returns, and short-circuit guards all reach
+verification, exact fuel, interpretation, and both native targets. Loops and
+short-circuit Boolean value bindings/returns remain later slices.
 
 The checked-frontend migration also keeps the ownership firewall explicit:
 `psi-checked-trees` now owns the target-neutral checked representation and

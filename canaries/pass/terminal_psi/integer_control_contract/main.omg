@@ -385,6 +385,33 @@ ensures true == true
     state selected_false(value: bool) -> bool { value }
 }
 
+machine terminal_nested_boolean_control(
+    first: bool,
+    second: bool,
+    gate: bool,
+    high: bool,
+    middle: bool,
+    low: bool
+) -> bool
+requires true == true
+ensures true == true
+{
+    transition first && gate {
+        true -> inspect_second(second, high, middle)
+        _ -> low_selected(low)
+    }
+    state inspect_second(second: bool, high: bool, middle: bool) -> bool {
+        transition second {
+            true -> finish_boolean(high)
+            _ -> finish_boolean(middle)
+        }
+    }
+    state low_selected(value: bool) -> bool {
+        transition { _ -> finish_boolean(!value) }
+    }
+    state finish_boolean(value: bool) -> bool { !value }
+}
+
 machine terminal_runtime_saturating_add(value: u8 in Saturating) -> u8 in Saturating
 requires 255u8 == 255u8
 ensures 255u8 == 255u8
