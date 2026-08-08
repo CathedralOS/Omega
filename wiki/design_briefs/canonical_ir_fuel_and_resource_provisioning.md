@@ -69,9 +69,12 @@ The checked crash plan also retains a separate implementation-evidence row for
 each explicit body site, keyed by state plus state-local statement ordinal and
 carrying its derived cause. Terminal production joins the crash statement to
 that checked row; the site rows never enter the published contract fingerprint.
-Path guard, damage minimum, covering buckets, and reconstructed frontier remain
-independent fields that later checks must establish before general crash
-production opens.
+Canonical published buckets have dense plan-local identities. The checked row
+cites unconditional same-cause buckets as structurally proved guard coverage,
+and terminal production consumes this relation rather than searching the
+contract. Path-conditioned guarded coverage, damage minimum, complete covering
+buckets, and reconstructed frontier remain independent fields that later
+checks must establish before general crash production opens.
 
 The first Psi-owned checked-tree producer, `psi-checked-trees-to-terminal`,
 lowers a closed set of scalar closed-contract source forms: a recursively nested Boolean

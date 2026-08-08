@@ -1691,6 +1691,14 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
                         psi_checked_trees::CrashCause::Abort => "Abort",
                     },
                 );
+                json.push_str(", \"guard_covering_buckets\": [");
+                for (coverage_index, bucket) in site.guard_covering_buckets().iter().enumerate() {
+                    if coverage_index > 0 {
+                        json.push_str(", ");
+                    }
+                    json.push_str(&bucket.get().to_string());
+                }
+                json.push(']');
                 json.push('}');
             }
             if !contract.crash.checked_sites().is_empty() {
@@ -3131,6 +3139,24 @@ mod tests {
             .services
             .intern(service_symbol, "Readable");
         let service_row = program.facts.service_reaches.rows.intern(vec![service]);
+        let crash = psi_checked_trees::CrashPlan::published_ceiling(vec![
+            psi_checked_trees::CrashRouteBucket::unconditional(
+                psi_checked_trees::CrashCause::Abort,
+                "ExecutionDomain",
+            ),
+        ]);
+        let abort_bucket = crash
+            .published_with_ids()
+            .next()
+            .map(|(id, _)| id)
+            .expect("published abort bucket");
+        let crash = crash
+            .with_checked_sites(vec![psi_checked_trees::CheckedCrashSite::new(
+                psi_checked_trees::CrashSiteLocation::new(state_symbol, 4),
+                psi_checked_trees::CrashCause::Abort,
+                vec![abort_bucket],
+            )])
+            .expect("one crash site per source location");
         let mut machine = Machine {
             symbol,
             name: Identifier::generated("Worker::run"),
@@ -3182,17 +3208,7 @@ mod tests {
                     interface: BlockingInterface::PublishedMayBlock(true),
                     checked_may_block: true,
                 },
-                crash: psi_checked_trees::CrashPlan::published_ceiling(vec![
-                    psi_checked_trees::CrashRouteBucket::unconditional(
-                        psi_checked_trees::CrashCause::Abort,
-                        "ExecutionDomain",
-                    ),
-                ])
-                .with_checked_sites(vec![psi_checked_trees::CheckedCrashSite::new(
-                    psi_checked_trees::CrashSiteLocation::new(state_symbol, 4),
-                    psi_checked_trees::CrashCause::Abort,
-                )])
-                .expect("one crash site per source location"),
+                crash,
                 termination: psi_language_semantics::TerminationInterface::Published(
                     TerminationGuarantee::NoGuarantee,
                 ),
@@ -3243,7 +3259,7 @@ mod tests {
         assert!(!contract.contains("remaining"));
         assert!(json[implementation_start..].contains("\"inferred_write_frames\": []"));
         assert!(json[implementation_start..].contains(
-            "\"checked_crash_sites\": [\n          {\"state\": \"entry\", \"statement_ordinal\": 4, \"cause\": \"Abort\"}"
+            "\"checked_crash_sites\": [\n          {\"state\": \"entry\", \"statement_ordinal\": 4, \"cause\": \"Abort\", \"guard_covering_buckets\": [1]}"
         ));
         assert!(json[implementation_start..].contains("\"checked_may_suspend\": false"));
         assert!(json[implementation_start..].contains("\"checked_may_block\": true"));

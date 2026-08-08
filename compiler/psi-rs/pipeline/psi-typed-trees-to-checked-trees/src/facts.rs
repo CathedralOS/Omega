@@ -424,13 +424,15 @@ fn build_published_crash_plan(
     } else {
         psi_checked_trees::CrashPlan::default()
     };
-    plan.with_checked_sites(build_checked_crash_sites(program, machine))
+    let checked_sites = build_checked_crash_sites(program, machine, &plan);
+    plan.with_checked_sites(checked_sites)
         .expect("one checked crash cause occupies each transition site")
 }
 
 fn build_checked_crash_sites(
     program: &TypedTrees,
     machine: &psi_typed_trees::machine::Machine,
+    crash_plan: &psi_checked_trees::CrashPlan,
 ) -> Vec<psi_checked_trees::CheckedCrashSite> {
     let mut sites = Vec::new();
     for state in program.machine_states(machine) {
@@ -453,6 +455,15 @@ fn build_checked_crash_sites(
                     psi_checked_trees::CrashCause::Abort
                 }
             };
+            // An unconditional same-cause route covers every possible path
+            // guard. Guarded buckets join only after path-conditioned
+            // entailment exists; damage-scope comparison remains independent.
+            let guard_covering_buckets = crash_plan
+                .published_with_ids()
+                .filter_map(|(id, bucket)| {
+                    (bucket.cause() == cause && bucket.is_unconditional()).then_some(id)
+                })
+                .collect();
             sites.push(psi_checked_trees::CheckedCrashSite::new(
                 psi_checked_trees::CrashSiteLocation::new(
                     state.symbol,
@@ -460,6 +471,7 @@ fn build_checked_crash_sites(
                         .expect("state-local statement ordinal exceeds checked identity range"),
                 ),
                 cause,
+                guard_covering_buckets,
             ));
         }
     }

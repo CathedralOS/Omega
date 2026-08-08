@@ -177,8 +177,10 @@ Current ownership is:
   rather than re-reading typed crash clauses. The same plan keeps an
   independent, non-fingerprinted checked-site layer keyed by state and
   state-local statement ordinal; it records the body-derived cause without
-  claiming that path-conditioned coverage, damage-minimum, or frontier
-  reconstruction has run.
+  claiming that damage-minimum or frontier reconstruction has run. Canonical
+  published buckets have dense plan-local identities. Each site cites every
+  unconditional same-cause bucket as structurally proved guard coverage;
+  guarded-route entailment remains path-conditioned work.
 - `psi-checked-trees/src/proof/` owns proof-facing checked facts:
   `obligations.rs` owns explicit proof obligations, `contracts.rs` owns
   contract proof facts/call/exit indexes, and `roots.rs` owns the grouped

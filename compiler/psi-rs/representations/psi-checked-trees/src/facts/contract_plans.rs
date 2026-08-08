@@ -53,6 +53,32 @@ pub enum CrashRouteGuard {
     Predicate(CrashPredicateIdentity),
 }
 
+/// Dense, one-based identity of a canonical published route bucket within one
+/// machine's crash plan. Bucket normalization happens before these identities
+/// are assigned, so clause regrouping and duplicate routes cannot renumber
+/// them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CrashRouteBucketId(u32);
+
+impl CrashRouteBucketId {
+    fn from_index(index: usize) -> Self {
+        Self(
+            u32::try_from(index)
+                .expect("published crash bucket count exceeds checked identity range")
+                .checked_add(1)
+                .expect("published crash bucket identity is one-based"),
+        )
+    }
+
+    pub const fn get(self) -> u32 {
+        self.0
+    }
+
+    fn index(self) -> Option<usize> {
+        usize::try_from(self.0.checked_sub(1)?).ok()
+    }
+}
+
 /// Source-handle-free location of one crash transition within a checked
 /// machine body. State identity plus the statement's state-local ordinal is
 /// stable against unrelated statement-arena insertions and is sufficient for
@@ -80,27 +106,46 @@ impl CrashSiteLocation {
     }
 }
 
-/// Body-derived seed for a crash-terminator plan. This row deliberately does
-/// not pretend that path-conditioned guard, damage minimum, coverage, or
-/// frontier reconstruction has happened; those independent checked fields are
-/// added by later CRASH-CONTRACT passes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Body-derived seed for a crash-terminator plan. Structurally unconditional
+/// guard coverage may already be attached, but this row deliberately does not
+/// pretend that path-conditioned entailment, damage comparison, or frontier
+/// reconstruction has happened; those independent checked fields are added by
+/// later CRASH-CONTRACT passes.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedCrashSite {
     location: CrashSiteLocation,
     cause: CrashCause,
+    /// Published buckets whose guard implication is already established for
+    /// this site. This is not yet complete crash coverage: damage-minimum and
+    /// containment-demand comparison remains an independent check.
+    guard_covering_buckets: Vec<CrashRouteBucketId>,
 }
 
 impl CheckedCrashSite {
-    pub const fn new(location: CrashSiteLocation, cause: CrashCause) -> Self {
-        Self { location, cause }
+    pub fn new(
+        location: CrashSiteLocation,
+        cause: CrashCause,
+        mut guard_covering_buckets: Vec<CrashRouteBucketId>,
+    ) -> Self {
+        guard_covering_buckets.sort_unstable();
+        guard_covering_buckets.dedup();
+        Self {
+            location,
+            cause,
+            guard_covering_buckets,
+        }
     }
 
-    pub const fn location(self) -> CrashSiteLocation {
+    pub const fn location(&self) -> CrashSiteLocation {
         self.location
     }
 
-    pub const fn cause(self) -> CrashCause {
+    pub const fn cause(&self) -> CrashCause {
         self.cause
+    }
+
+    pub fn guard_covering_buckets(&self) -> &[CrashRouteBucketId] {
+        &self.guard_covering_buckets
     }
 }
 
@@ -156,8 +201,8 @@ impl CrashRouteBucket {
 /// The published and body-derived halves of CRASH-CONTRACT remain independent:
 /// published route buckets are contract identity, while checked sites are
 /// implementation evidence and never enter that fingerprint. Damage minima,
-/// path guards, covering buckets, and frontier lower bounds enrich the site
-/// layer without changing the published interface.
+/// path guards, complete covering buckets, and frontier lower bounds enrich
+/// the site layer without changing the published interface.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CrashPlan {
     interface: CrashInterface,
@@ -192,6 +237,14 @@ impl CrashPlan {
         }) {
             return None;
         }
+        if checked_sites.iter().any(|site| {
+            site.guard_covering_buckets.iter().any(|bucket| {
+                self.published_bucket(*bucket)
+                    .is_none_or(|published| published.cause != site.cause)
+            })
+        }) {
+            return None;
+        }
         self.checked_sites = checked_sites;
         Some(self)
     }
@@ -202,6 +255,19 @@ impl CrashPlan {
 
     pub fn published(&self) -> &[CrashRouteBucket] {
         &self.published
+    }
+
+    pub fn published_with_ids(
+        &self,
+    ) -> impl Iterator<Item = (CrashRouteBucketId, &CrashRouteBucket)> {
+        self.published
+            .iter()
+            .enumerate()
+            .map(|(index, bucket)| (CrashRouteBucketId::from_index(index), bucket))
+    }
+
+    pub fn published_bucket(&self, id: CrashRouteBucketId) -> Option<&CrashRouteBucket> {
+        self.published.get(id.index()?)
     }
 
     pub fn checked_sites(&self) -> &[CheckedCrashSite] {
@@ -437,15 +503,21 @@ mod tests {
     fn crash_sites_are_canonical_implementation_evidence() {
         let first_state = SymbolHandle::from_arena_index(4);
         let second_state = SymbolHandle::from_arena_index(9);
-        let first =
-            CheckedCrashSite::new(CrashSiteLocation::new(first_state, 2), CrashCause::Abort);
-        let second =
-            CheckedCrashSite::new(CrashSiteLocation::new(second_state, 0), CrashCause::Trap);
+        let first = CheckedCrashSite::new(
+            CrashSiteLocation::new(first_state, 2),
+            CrashCause::Abort,
+            Vec::new(),
+        );
+        let second = CheckedCrashSite::new(
+            CrashSiteLocation::new(second_state, 0),
+            CrashCause::Trap,
+            Vec::new(),
+        );
         let plan = CrashPlan::default()
-            .with_checked_sites(vec![second, first, first])
+            .with_checked_sites(vec![second.clone(), first.clone(), first.clone()])
             .expect("one crash cause occupies each source site");
 
-        assert_eq!(plan.checked_sites(), &[first, second]);
+        assert_eq!(plan.checked_sites(), &[first.clone(), second]);
         assert_eq!(
             plan.checked_site_at(first_state, 2)
                 .map(|site| site.cause()),
@@ -456,10 +528,43 @@ mod tests {
         assert!(
             CrashPlan::default()
                 .with_checked_sites(vec![
-                    first,
-                    CheckedCrashSite::new(first.location(), CrashCause::Trap),
+                    first.clone(),
+                    CheckedCrashSite::new(first.location(), CrashCause::Trap, Vec::new()),
                 ])
                 .is_none()
+        );
+    }
+
+    #[test]
+    fn crash_bucket_ids_join_checked_sites_to_their_published_contract() {
+        let plan = CrashPlan::published_ceiling(vec![
+            CrashRouteBucket::unconditional(CrashCause::Abort, "ExecutionDomain"),
+            CrashRouteBucket::unconditional(CrashCause::Trap, "Activation"),
+        ]);
+        let ids = plan
+            .published_with_ids()
+            .map(|(id, _)| id)
+            .collect::<Vec<_>>();
+        assert_eq!(ids.iter().map(|id| id.get()).collect::<Vec<_>>(), [1, 2]);
+        for (id, bucket) in plan.published_with_ids() {
+            assert_eq!(plan.published_bucket(id), Some(bucket));
+        }
+
+        let abort_id = plan
+            .published_with_ids()
+            .find_map(|(id, bucket)| (bucket.cause() == CrashCause::Abort).then_some(id))
+            .expect("published abort bucket");
+        let site = CheckedCrashSite::new(
+            CrashSiteLocation::new(SymbolHandle::from_arena_index(4), 0),
+            CrashCause::Abort,
+            vec![abort_id, abort_id],
+        );
+        let plan = plan
+            .with_checked_sites(vec![site])
+            .expect("site coverage cites a same-cause bucket");
+        assert_eq!(
+            plan.checked_sites()[0].guard_covering_buckets(),
+            &[abort_id]
         );
     }
 

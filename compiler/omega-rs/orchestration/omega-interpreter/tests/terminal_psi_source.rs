@@ -2448,7 +2448,7 @@ fn psi_terminal_producer_rejects_source_outside_its_declared_slice() {
             lower_machine(&checked, machine)
                 .expect_err("a crash without a uniquely covering unconditional bucket must fail"),
             LoweringError::Unsupported(
-                "an explicit crash in the first terminal-Psi source slice requires exactly one unconditional published bucket for the same cause"
+                "an explicit crash in the first terminal-Psi source slice requires exactly one prechecked guard-covering bucket"
             )
         );
     }
@@ -2473,6 +2473,32 @@ fn psi_terminal_producer_rejects_source_outside_its_declared_slice() {
         lower_machine(&missing_site, "terminal_abort")
             .expect_err("terminal production must consume checked crash-site evidence"),
         LoweringError::Unsupported("explicit crash has no body-derived checked crash-site row")
+    );
+
+    let mut missing_coverage = checked.clone();
+    let crash = &mut missing_coverage
+        .facts
+        .contract_plans
+        .machines
+        .iter_mut()
+        .find(|plan| plan.machine == terminal_abort)
+        .expect("terminal abort contract plan")
+        .crash;
+    let site = crash
+        .checked_sites()
+        .first()
+        .expect("terminal abort checked site");
+    let uncovered_site =
+        psi_checked_trees::CheckedCrashSite::new(site.location(), site.cause(), Vec::new());
+    *crash = psi_checked_trees::CrashPlan::published_ceiling(crash.published().to_vec())
+        .with_checked_sites(vec![uncovered_site])
+        .expect("uncovered site still has a valid checked location");
+    assert_eq!(
+        lower_machine(&missing_coverage, "terminal_abort")
+            .expect_err("terminal production must consume checked guard coverage"),
+        LoweringError::Unsupported(
+            "an explicit crash in the first terminal-Psi source slice requires exactly one prechecked guard-covering bucket"
+        )
     );
 }
 
