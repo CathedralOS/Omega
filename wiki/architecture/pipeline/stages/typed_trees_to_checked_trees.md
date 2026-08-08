@@ -200,7 +200,13 @@ Current ownership is:
   site-free leaf produces positive empty evidence, and a resolved nested
   summary propagates cause/scope while collapsing predicates to unconditional
   routes. An unresolved cycle remains unexamined, so partial direct-site
-  evidence cannot erase a nested crash. Published routes are removed
+  evidence cannot erase a nested crash. A published caller must cover every
+  surviving call route independently with a same-cause bucket whose
+  containment demand covers the selected demand. Guard coverage accepts an
+  unconditional caller route, the exact surviving predicate, or an exact
+  incoming path conjunct retained on that invocation. Private inferred callers
+  remain body-summary inputs rather than authored-ceiling obligations.
+  Published routes are removed
   only when the call evaluator proves them false; proved-true routes become
   unconditional, unknown routes are re-encoded in the caller's positional
   namespace, and an empty surviving set is retained as positive crash-free

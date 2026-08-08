@@ -8,6 +8,7 @@
 //! evidence and never enters the public contract fingerprint.
 
 use psi_checked_trees::{CheckFacts, CrashRouteGuard};
+use psi_diagnostics::Diagnostic;
 use psi_typed_trees::TypedTrees;
 
 pub(crate) fn infer_path_conditioned_guard_coverage(program: &TypedTrees, facts: &mut CheckFacts) {
@@ -118,6 +119,74 @@ pub(crate) fn infer_path_conditioned_guard_coverage(program: &TypedTrees, facts:
             .expect("path-conditioned coverage retains valid checked-site identity")
             .with_checked_calls(checked_calls)
             .expect("path-conditioned coverage retains valid checked-call identity");
+    }
+}
+
+pub(crate) fn check_call_ceiling_coverage(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+) -> Result<(), Vec<Diagnostic>> {
+    let mut diagnostics = Vec::new();
+    for caller in facts.contract_plans.machines.iter().filter(|plan| {
+        plan.crash.interface() == psi_checked_trees::CrashInterface::PublishedCeiling
+    }) {
+        for call in caller.crash.checked_calls() {
+            for surviving in call.surviving_buckets() {
+                let covered = surviving.alternative_guards().iter().all(|route| {
+                    caller.crash.published().iter().any(|published| {
+                        published.cause() == surviving.cause()
+                            && psi_checked_trees::crash_scope_covers_minimum(
+                                surviving.containment_demand(),
+                                published.containment_demand(),
+                            )
+                            && published.alternative_guards().iter().any(|cover| {
+                                call_route_guard_covers(cover, route, call.path_guard_conjuncts())
+                            })
+                    })
+                });
+                if covered {
+                    continue;
+                }
+                let caller_name = program
+                    .machines()
+                    .iter()
+                    .find(|machine| machine.symbol == caller.machine)
+                    .map(|machine| machine.name.as_str())
+                    .unwrap_or("<unknown>");
+                let target_name = program
+                    .machines()
+                    .iter()
+                    .find(|machine| machine.symbol == call.target_machine())
+                    .map(|machine| machine.name.as_str())
+                    .unwrap_or("<unknown>");
+                diagnostics.push(Diagnostic::error(format!(
+                    "call from `{caller_name}` to `{target_name}` at statement {} call {} has an uncovered {:?} crash route requiring `{}` containment; publish a same-cause route whose guard and containment demand cover this invocation",
+                    call.location().statement_ordinal(),
+                    call.location().call_ordinal(),
+                    surviving.cause(),
+                    surviving.containment_demand(),
+                )));
+            }
+        }
+    }
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
+
+fn call_route_guard_covers(
+    published: &CrashRouteGuard,
+    surviving: &CrashRouteGuard,
+    path_guard_conjuncts: &[psi_checked_trees::CrashPredicateIdentity],
+) -> bool {
+    match published {
+        CrashRouteGuard::Truth => true,
+        CrashRouteGuard::Predicate(published) => {
+            matches!(surviving, CrashRouteGuard::Predicate(surviving) if surviving == published)
+                || path_guard_conjuncts.contains(published)
+        }
     }
 }
 

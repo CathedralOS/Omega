@@ -2568,6 +2568,7 @@ fn checked_crash_calls_retain_invocation_specific_route_refinement() {
 
     machine conditioned(flag: bool) -> i32
     crashes Trap Activation
+        flag
     {
         transition {
             flag -> invoke()
@@ -2650,6 +2651,72 @@ fn checked_crash_calls_retain_invocation_specific_route_refinement() {
         1,
         "the checked call retains the exact incoming path conjunction"
     );
+}
+
+#[test]
+fn published_caller_must_cover_every_surviving_call_crash_route() {
+    let source = r#"
+    machine risky() -> i32
+    crashes Abort
+    {
+        crash Abort;
+    }
+
+    machine wrong_cause() -> i32
+    crashes Trap Activation
+    {
+        risky()
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let diagnostics = lower_typed_trees(typed)
+        .expect_err("the caller's Trap ceiling cannot cover a surviving Abort route");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("call from `wrong_cause` to `risky`")
+            && diagnostic.message.contains("uncovered Abort crash route")
+    }));
+}
+
+#[test]
+fn published_caller_crash_route_must_cover_the_selected_containment_demand() {
+    let source = r#"
+    machine risky() -> i32
+    crashes Trap ExecutionDomain
+    {
+        crash Trap;
+    }
+
+    machine too_narrow() -> i32
+    crashes Trap Activation
+    {
+        risky()
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let diagnostics = lower_typed_trees(typed)
+        .expect_err("an Activation ceiling cannot cover an ExecutionDomain demand");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("call from `too_narrow` to `risky`")
+            && diagnostic
+                .message
+                .contains("requiring `ExecutionDomain` containment")
+    }));
 }
 
 #[test]
