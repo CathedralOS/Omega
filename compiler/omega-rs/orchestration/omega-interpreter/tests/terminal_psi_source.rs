@@ -1315,7 +1315,7 @@ fn checked_source_nested_boolean_control_reaches_both_native_targets() {
         .expect("rooted acyclic Boolean control should lower");
     drop(checked);
 
-    assert_eq!(lowered.semantic_module.machines[0].blocks.len(), 6);
+    assert_eq!(lowered.semantic_module.machines[0].blocks.len(), 11);
     let semantic_bytes =
         encode_module(&lowered.semantic_module).expect("nested Boolean control should encode");
     let proof_bytes =
@@ -1334,14 +1334,14 @@ fn checked_source_nested_boolean_control_reaches_both_native_targets() {
         derive_fixed_entry_fuel(&verified, semantic_module.entry)
             .expect("nested Boolean control should have fixed fuel")
             .ceiling_units(),
-        7
+        11
     );
 
     for (arguments, expected, units) in [
-        ([true, true, true, true, false, false], false, 6),
-        ([true, false, true, true, false, false], true, 6),
-        ([false, false, true, true, false, true], true, 6),
-        ([true, true, false, true, false, false], false, 7),
+        ([true, true, true, true, false, false], true, 8),
+        ([true, false, true, true, false, false], true, 10),
+        ([false, false, true, true, false, true], true, 10),
+        ([true, true, false, true, false, false], true, 9),
     ] {
         let arguments = arguments.map(TerminalScalarValue::Boolean);
         let measured = interpret_terminal_measured(&verified, &arguments)

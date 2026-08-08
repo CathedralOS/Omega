@@ -409,7 +409,7 @@ ensures true == true
     state low_selected(value: bool) -> bool {
         transition { _ -> finish_boolean(!value) }
     }
-    state finish_boolean(value: bool) -> bool { !value }
+    state finish_boolean(value: bool) -> bool { value || !value }
 }
 
 machine terminal_runtime_saturating_add(value: u8 in Saturating) -> u8 in Saturating
