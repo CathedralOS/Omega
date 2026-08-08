@@ -2785,6 +2785,81 @@ fn checked_crash_calls_select_acyclic_private_body_summaries() {
 }
 
 #[test]
+fn private_crash_summaries_compose_guarded_routes_across_nonleaf_calls() {
+    let source = r#"
+    machine risky(flag: bool) -> i32
+    crashes Trap Activation
+        flag
+    { 1 }
+
+    machine inner(flag: bool) -> i32 { risky(flag) }
+    machine outer(flag: bool) -> i32 { inner(flag) }
+
+    machine covered(flag: bool) -> i32
+    crashes Trap Activation
+        flag
+    { outer(flag) }
+
+    machine disproved() -> i32 { outer(false) }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let checked = lower_typed_trees(typed)
+        .expect("a published caller should cover a guard retained through private wrappers");
+    let plan = |name: &str| {
+        checked
+            .facts
+            .contract_plans
+            .for_machine(symbol_of_checked(&checked, name))
+            .expect("contract plan")
+    };
+
+    let [outer_to_inner] = plan("outer").crash.checked_calls() else {
+        panic!("outer should retain its private call")
+    };
+    let [outer_bucket] = outer_to_inner.surviving_buckets() else {
+        panic!("the inner summary should retain its guarded route")
+    };
+    let [psi_checked_trees::CrashRouteGuard::Predicate(outer_route)] =
+        outer_bucket.alternative_guards()
+    else {
+        panic!("the private nonleaf route should remain guarded")
+    };
+
+    let [covered_call] = plan("covered").crash.checked_calls() else {
+        panic!("covered should retain its outer call")
+    };
+    let [covered_bucket] = covered_call.surviving_buckets() else {
+        panic!("covered should retain the composed route")
+    };
+    let [psi_checked_trees::CrashRouteGuard::Predicate(covered_route)] =
+        covered_bucket.alternative_guards()
+    else {
+        panic!("the composed route should remain guarded")
+    };
+    let [psi_checked_trees::CrashRouteGuard::Predicate(published_route)] =
+        plan("covered").crash.published()[0].alternative_guards()
+    else {
+        panic!("covered should publish one guarded route")
+    };
+    assert_eq!(outer_route, covered_route);
+    assert_eq!(covered_route, published_route);
+
+    let [disproved_call] = plan("disproved").crash.checked_calls() else {
+        panic!("disproved should retain positive evidence for its outer call")
+    };
+    assert!(
+        disproved_call.surviving_buckets().is_empty(),
+        "substitution through both private wrappers should prove false"
+    );
+}
+
+#[test]
 fn checked_crash_calls_select_machine_requirement_capsules() {
     let source = r#"
     machine apply<machine Selected>(flag: bool)
