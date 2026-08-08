@@ -19,13 +19,14 @@ pub(in crate::checks) struct IncomingGuard {
     /// True when the edge is the negated (continuation / `_`) arm.
     negated: bool,
     /// Raw arguments on the immediate named edge whose guard this is. Kept for
-    /// direct consumers; transitive consumers use the composed label map.
+    /// direct consumers; transitive consumers use the composed canonical-place
+    /// map.
     direct_arguments: Option<psi_arena::HandleSpan<ExpressionHandle>>,
-    /// Final-state parameter symbols rebound to their expression spelling at
-    /// the state where `guard` was evaluated. A single-predecessor walk
-    /// composes this map through every named edge. Ambiguous convergent edges
-    /// and joins discard it rather than guessing an argument correspondence.
-    parameter_argument_labels: Option<Vec<(SymbolHandle, String)>>,
+    /// Final-state parameter symbols rebound to source-independent canonical
+    /// places at the state where `guard` was evaluated. A non-place argument
+    /// makes only its own binding unknown. A single-predecessor walk composes
+    /// this map through every named edge; ambiguous joins discard it.
+    parameter_argument_places: Option<Vec<(SymbolHandle, Option<crate::flow::CanonicalPlace>)>>,
 }
 
 impl IncomingGuard {
@@ -51,14 +52,14 @@ impl IncomingGuard {
         self.direct_arguments
     }
 
-    pub(in crate::checks) fn argument_label_for_parameter(
+    pub(in crate::checks) fn argument_place_for_parameter(
         &self,
         parameter: SymbolHandle,
-    ) -> Option<&str> {
-        self.parameter_argument_labels
+    ) -> Option<&crate::flow::CanonicalPlace> {
+        self.parameter_argument_places
             .as_ref()?
             .iter()
-            .find_map(|(candidate, label)| (*candidate == parameter).then_some(label.as_str()))
+            .find_map(|(candidate, place)| (*candidate == parameter).then_some(place.as_ref()))?
     }
 }
 
@@ -76,7 +77,7 @@ struct Edge {
 struct CarriedGuard {
     guard: ExpressionHandle,
     negated: bool,
-    parameter_argument_labels: Option<Vec<(SymbolHandle, String)>>,
+    parameter_argument_places: Option<Vec<(SymbolHandle, Option<crate::flow::CanonicalPlace>)>>,
 }
 
 /// The caller-visible machine paths a state's statements may write.
@@ -190,18 +191,23 @@ pub(in crate::checks) fn collect_incoming_guard_facts(
         let mut written_any = false;
         let mut visited: Vec<SymbolHandle> = vec![state.symbol];
         let mut current = state.symbol;
-        let mut parameter_argument_labels = Some(
+        let mut parameter_argument_places = Some(
             program
                 .state_parameters(state)
                 .iter()
                 .filter(|parameter| !parameter.is_self)
-                .map(|parameter| (parameter.symbol, parameter.name.to_string()))
+                .map(|parameter| {
+                    (
+                        parameter.symbol,
+                        crate::flow::canonical_place_from_symbol(parameter.symbol),
+                    )
+                })
                 .collect::<Vec<_>>(),
         );
 
         while let Some(edge) = single_incoming_edge(&edges, current) {
-            parameter_argument_labels = parameter_argument_labels.and_then(|bindings| {
-                compose_parameter_argument_labels(program, edge.target, edge.arguments, &bindings)
+            parameter_argument_places = parameter_argument_places.and_then(|bindings| {
+                compose_parameter_argument_places(program, edge.target, edge.arguments, &bindings)
             });
             for &(guard, negated) in &edge.guards {
                 if guard_survives(program, guard, &written, written_any) {
@@ -210,7 +216,7 @@ pub(in crate::checks) fn collect_incoming_guard_facts(
                         guard,
                         negated,
                         direct_arguments: (edge.target == state.symbol).then_some(edge.arguments),
-                        parameter_argument_labels: parameter_argument_labels.clone(),
+                        parameter_argument_places: parameter_argument_places.clone(),
                     });
                 }
             }
@@ -271,12 +277,12 @@ pub(in crate::checks) fn collect_incoming_guard_facts(
                 })
                 .collect::<Option<Vec<_>>>();
             if let Some(matching) = matching {
-                let common_parameter_argument_labels = matching
+                let common_parameter_argument_places = matching
                     .iter()
                     .all(|fact| {
-                        fact.parameter_argument_labels == candidate.parameter_argument_labels
+                        fact.parameter_argument_places == candidate.parameter_argument_places
                     })
-                    .then(|| candidate.parameter_argument_labels.clone())
+                    .then(|| candidate.parameter_argument_places.clone())
                     .flatten();
                 result.push(IncomingGuard {
                     state: state.symbol,
@@ -285,7 +291,7 @@ pub(in crate::checks) fn collect_incoming_guard_facts(
                     direct_arguments: None,
                     // A parameter binding survives the meet only when every
                     // incoming edge composes to the exact same final map.
-                    parameter_argument_labels: common_parameter_argument_labels,
+                    parameter_argument_places: common_parameter_argument_places,
                 });
             }
         }
@@ -317,16 +323,16 @@ fn edge_carried_facts(
         .map(|fact| CarriedGuard {
             guard: fact.guard,
             negated: fact.negated,
-            parameter_argument_labels: compose_carried_parameter_argument_labels(
+            parameter_argument_places: compose_carried_parameter_argument_places(
                 program, edge, fact,
             ),
         })
         .collect();
-    let direct_parameter_argument_labels = direct_edge_parameter_argument_labels(program, edge);
+    let direct_parameter_argument_places = direct_edge_parameter_argument_places(program, edge);
     carried.extend(edge.guards.iter().map(|(guard, negated)| CarriedGuard {
         guard: *guard,
         negated: *negated,
-        parameter_argument_labels: direct_parameter_argument_labels.clone(),
+        parameter_argument_places: direct_parameter_argument_places.clone(),
     }));
     carried
 }
@@ -359,12 +365,12 @@ fn single_incoming_edge(edges: &[Edge], target: SymbolHandle) -> Option<Edge> {
     }
 }
 
-fn compose_parameter_argument_labels(
+fn compose_parameter_argument_places(
     program: &psi_typed_trees::TypedTrees,
     target: SymbolHandle,
     arguments: psi_arena::HandleSpan<ExpressionHandle>,
-    bindings: &[(SymbolHandle, String)],
-) -> Option<Vec<(SymbolHandle, String)>> {
+    bindings: &[(SymbolHandle, Option<crate::flow::CanonicalPlace>)],
+) -> Option<Vec<(SymbolHandle, Option<crate::flow::CanonicalPlace>)>> {
     let target_state = crate::find_state(program, target)?;
     let arguments = program.statement_table.expression_handles(arguments);
     let mut replacements = Vec::new();
@@ -375,8 +381,8 @@ fn compose_parameter_argument_labels(
         }
         let argument = arguments.get(argument_index)?;
         replacements.push((
-            parameter.name.as_str(),
-            program.expression_table.display_name(*argument),
+            parameter.symbol,
+            source_independent_argument_place(program, *argument),
         ));
         argument_index = argument_index.saturating_add(1);
     }
@@ -386,99 +392,100 @@ fn compose_parameter_argument_labels(
     Some(
         bindings
             .iter()
-            .map(|(parameter, label)| {
-                (
-                    *parameter,
-                    replace_unqualified_identifiers(label, &replacements),
-                )
+            .map(|(parameter, place)| {
+                let place = place
+                    .as_ref()
+                    .and_then(|place| substitute_parameter_place(place, &replacements));
+                (*parameter, place)
             })
             .collect(),
     )
 }
 
-fn direct_edge_parameter_argument_labels(
+fn direct_edge_parameter_argument_places(
     program: &psi_typed_trees::TypedTrees,
     edge: &Edge,
-) -> Option<Vec<(SymbolHandle, String)>> {
+) -> Option<Vec<(SymbolHandle, Option<crate::flow::CanonicalPlace>)>> {
     let target_state = crate::find_state(program, edge.target)?;
     let identity = program
         .state_parameters(target_state)
         .iter()
         .filter(|parameter| !parameter.is_self)
-        .map(|parameter| (parameter.symbol, parameter.name.to_string()))
+        .map(|parameter| {
+            (
+                parameter.symbol,
+                crate::flow::canonical_place_from_symbol(parameter.symbol),
+            )
+        })
         .collect::<Vec<_>>();
-    compose_parameter_argument_labels(program, edge.target, edge.arguments, &identity)
+    compose_parameter_argument_places(program, edge.target, edge.arguments, &identity)
 }
 
-fn compose_carried_parameter_argument_labels(
+fn compose_carried_parameter_argument_places(
     program: &psi_typed_trees::TypedTrees,
     edge: &Edge,
     fact: &IncomingGuard,
-) -> Option<Vec<(SymbolHandle, String)>> {
-    let direct = direct_edge_parameter_argument_labels(program, edge)?;
+) -> Option<Vec<(SymbolHandle, Option<crate::flow::CanonicalPlace>)>> {
+    let direct = direct_edge_parameter_argument_places(program, edge)?;
     let source_state = crate::find_state(program, edge.source)?;
     let replacements = program
         .state_parameters(source_state)
         .iter()
         .filter(|parameter| !parameter.is_self)
         .map(|parameter| {
-            Some((
-                parameter.name.as_str(),
-                fact.argument_label_for_parameter(parameter.symbol)?
-                    .to_owned(),
-            ))
+            (
+                parameter.symbol,
+                fact.argument_place_for_parameter(parameter.symbol).cloned(),
+            )
         })
-        .collect::<Option<Vec<_>>>()?;
+        .collect::<Vec<_>>();
     Some(
         direct
             .into_iter()
-            .map(|(parameter, label)| {
-                (
-                    parameter,
-                    replace_unqualified_identifiers(&label, &replacements),
-                )
+            .map(|(parameter, place)| {
+                let place = place
+                    .as_ref()
+                    .and_then(|place| substitute_parameter_place(place, &replacements));
+                (parameter, place)
             })
             .collect(),
     )
 }
 
-fn replace_unqualified_identifiers(label: &str, replacements: &[(&str, String)]) -> String {
-    let mut result = String::with_capacity(label.len());
-    let mut cursor = 0usize;
-    while cursor < label.len() {
-        let Some(ch) = label[cursor..].chars().next() else {
-            break;
-        };
-        if ch == '_' || ch.is_alphabetic() {
-            let start = cursor;
-            cursor += ch.len_utf8();
-            while cursor < label.len() {
-                let Some(next) = label[cursor..].chars().next() else {
-                    break;
-                };
-                if next == '_' || next.is_alphanumeric() {
-                    cursor += next.len_utf8();
-                } else {
-                    break;
-                }
-            }
-            let identifier = &label[start..cursor];
-            let qualified = start > 0 && label.as_bytes().get(start - 1) == Some(&b'.');
-            if !qualified
-                && let Some((_, replacement)) = replacements
-                    .iter()
-                    .find(|(candidate, _)| *candidate == identifier)
-            {
-                result.push_str(replacement);
-            } else {
-                result.push_str(identifier);
-            }
-        } else {
-            result.push(ch);
-            cursor += ch.len_utf8();
-        }
+fn source_independent_argument_place(
+    program: &psi_typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<crate::flow::CanonicalPlace> {
+    let place = crate::flow::canonical_place_from_expression(program, expression)?;
+    if !matches!(place.root, psi_facts::PlaceRoot::Symbol(symbol) if symbol.is_valid())
+        || !place.segments.iter().all(|segment| match segment {
+            psi_facts::PlaceSegment::Field { symbol } => symbol.is_valid(),
+            psi_facts::PlaceSegment::Case { variant } => variant.is_valid(),
+            psi_facts::PlaceSegment::FixedIndex { .. } => true,
+            psi_facts::PlaceSegment::Index { .. } => false,
+        })
+    {
+        return None;
     }
-    result
+    Some(place)
+}
+
+fn substitute_parameter_place(
+    place: &crate::flow::CanonicalPlace,
+    replacements: &[(SymbolHandle, Option<crate::flow::CanonicalPlace>)],
+) -> Option<crate::flow::CanonicalPlace> {
+    let psi_facts::PlaceRoot::Symbol(root) = place.root else {
+        return None;
+    };
+    let Some((_, replacement)) = replacements
+        .iter()
+        .find(|(parameter, _)| *parameter == root)
+    else {
+        return Some(place.clone());
+    };
+    let mut replacement = replacement.clone()?;
+    replacement.segments.extend(place.segments.iter().copied());
+    Some(replacement)
 }
 
 fn state_field_writes(

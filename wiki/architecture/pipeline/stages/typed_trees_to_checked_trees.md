@@ -193,8 +193,11 @@ Current ownership is:
   it. The claim identity preserves that proof across whole-value transfers
   without transferring it to a replacement value. Unknown cases, joins without
   a common argument map, and nested cases lacking proof at every case level
-  remain conservatively absent. These composed labels are checker-local
-  derivation aids, not checked-artifact identity. A sibling
+  remain conservatively absent. The argument map and membership facts are
+  canonical symbol-rooted places rather than rendered labels; dynamic indexes
+  and other source-dependent roots fail closed. A nested conditional claim is
+  promoted only when every case segment on its claim path has matching
+  membership evidence. A sibling
   checked-call layer uses the flow graph's state/statement/call coordinate,
   retains the callee target and contract fingerprint, and stores the surviving
   selected summary after invocation argument substitution. Published buckets

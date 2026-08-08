@@ -983,7 +983,9 @@ Checked lowering first records each explicit body crash as a
 site and its cause. Checked ownership then retains the stable identities of
 every definitely-live, non-conditional linear claim at that exact site. The
 set is deliberately a lower bound: a conditionally live sum payload enters
-only after path evidence proves its active case, and obligations outside the
+only after canonical symbol-rooted path evidence proves every active case on
+its nested claim path. Non-place or dynamic-index argument rebinding and a
+partial outer-case proof remain conservatively absent. Obligations outside the
 activation are not claimed to be edge-enumerable. Exhaustive crash paths
 abandon the retained claims; lowering does not synthesize a cleanup or consume
 event for them.

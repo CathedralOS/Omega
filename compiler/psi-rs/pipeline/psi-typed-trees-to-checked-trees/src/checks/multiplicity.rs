@@ -377,17 +377,26 @@ fn record_crash_frontier_lower_bounds(
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ProvenCaseMembership {
+    parameter: SymbolHandle,
+    /// Source-independent path below the final-state parameter at which this
+    /// case tag was tested. The selected variant is stored separately.
+    subject_path: Vec<psi_facts::PlaceSegment>,
+    variant: SymbolHandle,
+}
+
 /// Conditional sum payloads are only a crash-frontier lower bound when the
-/// path into this state proves which case is active. Case-pattern dispatch is
-/// retained in typed trees as a symbol-stamped `value == Type::Case` guard.
-/// For a direct named edge, match that value against the edge argument and
-/// retain the corresponding target-parameter entry claim.
+/// path into this state proves every case on the payload path active.
+/// Case-pattern dispatch is retained in typed trees as a symbol-stamped
+/// `value == Type::Case` guard. Incoming-edge argument composition rebinds the
+/// tested subject to a final-state parameter plus a canonical symbol path.
 ///
 /// The proof is attached to the claim identity rather than the parameter
 /// spelling. A whole-value transfer in the target state therefore preserves
 /// the proof, while overwriting the parameter mints a different identity and
-/// cannot accidentally inherit it. Nested sums remain conservative: proving
-/// an outer case does not prove an inner case.
+/// cannot accidentally inherit it. A nested claim enters the lower bound only
+/// when membership evidence covers every case segment.
 fn proven_conditional_entry_claims(
     program: &psi_typed_trees::TypedTrees,
     state: &psi_typed_trees::state::State,
@@ -399,49 +408,78 @@ fn proven_conditional_entry_claims(
         .iter()
         .filter(|parameter| !parameter.is_self)
         .collect::<Vec<_>>();
-    let mut proven = Vec::new();
+    let mut memberships = Vec::new();
 
     for entry in incoming.iter().filter(|entry| entry.holds_at(state.symbol)) {
         let mut case_tests = Vec::new();
         collect_positive_case_tests(program, entry.guard(), &mut case_tests);
         for (subject, variant) in case_tests {
-            let subject_label = program.expression_table.display_name(subject);
+            let Some(subject) = source_independent_case_subject(program, subject) else {
+                continue;
+            };
             for parameter in &parameters {
-                if entry.argument_label_for_parameter(parameter.symbol)
-                    != Some(subject_label.as_str())
+                let Some(argument) = entry.argument_place_for_parameter(parameter.symbol) else {
+                    continue;
+                };
+                if subject.root != argument.root
+                    || !subject.segments.starts_with(&argument.segments)
                 {
                     continue;
                 }
-                for place in places.iter().filter(|place| {
-                    place.symbol == parameter.symbol
-                        && place.conditional
-                        && place
-                            .path
-                            .iter()
-                            .filter(|segment| {
-                                matches!(segment, psi_facts::PlaceSegment::Case { .. })
-                            })
-                            .count()
-                            == 1
-                        && place.path.iter().any(|segment| {
-                            matches!(
-                                segment,
-                                psi_facts::PlaceSegment::Case { variant: candidate }
-                                    if *candidate == variant
-                            )
-                        })
-                }) {
-                    if let Some(identity) = place.claim_identity
-                        && identity != PermissionClaimIdentity::Unknown
-                        && !proven.contains(&identity)
-                    {
-                        proven.push(identity);
-                    }
+                let membership = ProvenCaseMembership {
+                    parameter: parameter.symbol,
+                    subject_path: subject.segments[argument.segments.len()..].to_vec(),
+                    variant,
+                };
+                if !memberships.contains(&membership) {
+                    memberships.push(membership);
                 }
             }
         }
     }
+
+    let mut proven = Vec::new();
+    for place in places.iter().filter(|place| place.conditional) {
+        let mut subject_path = Vec::new();
+        let all_cases_proven = place.path.iter().all(|segment| {
+            let proven = match segment {
+                psi_facts::PlaceSegment::Case { variant } => memberships.iter().any(|evidence| {
+                    evidence.parameter == place.symbol
+                        && evidence.subject_path == subject_path
+                        && evidence.variant == *variant
+                }),
+                _ => true,
+            };
+            subject_path.push(*segment);
+            proven
+        });
+        if all_cases_proven
+            && let Some(identity) = place.claim_identity
+            && identity != PermissionClaimIdentity::Unknown
+            && !proven.contains(&identity)
+        {
+            proven.push(identity);
+        }
+    }
     proven
+}
+
+fn source_independent_case_subject(
+    program: &psi_typed_trees::TypedTrees,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+) -> Option<crate::flow::CanonicalPlace> {
+    let place = crate::flow::canonical_place_from_expression(program, expression)?;
+    if !matches!(place.root, psi_facts::PlaceRoot::Symbol(symbol) if symbol.is_valid())
+        || !place.segments.iter().all(|segment| match segment {
+            psi_facts::PlaceSegment::Field { symbol } => symbol.is_valid(),
+            psi_facts::PlaceSegment::Case { variant } => variant.is_valid(),
+            psi_facts::PlaceSegment::FixedIndex { .. } => true,
+            psi_facts::PlaceSegment::Index { .. } => false,
+        })
+    {
+        return None;
+    }
+    Some(place)
 }
 
 /// Extract positive case-membership conjuncts. Boolean-arm lowering may wrap
