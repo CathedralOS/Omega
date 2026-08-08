@@ -121,6 +121,10 @@ fn build_dynamic_conformance_facts(
         }
         selections.push(psi_checked_trees::DynamicConformanceSelectionFact {
             occurrence: selection.occurrence,
+            binding: selection.binding,
+            machine: selection.machine,
+            state: selection.state,
+            statement_index: selection.statement_index,
             source_data: selection.source_data,
             target_trait: selection.target_trait,
             conformance: selection.conformance,

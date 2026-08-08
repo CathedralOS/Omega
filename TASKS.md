@@ -454,10 +454,14 @@ checked-result arithmetic decision listed below.
   contract calls to sibling requirements route through that same map. Trait
   defaults are now instantiated before resolution as exact per-conformance
   realizations, retain default provenance through checked `dyn` facts, and use
-  identical sibling routing, including inherited generic defaults. Make
-  descriptor adapters/tables consume only the retained rows, migrate legacy attached-machine
-  conformances, and retire their lookup path. Bare exact-requirement satisfiers
-  never license `dyn`.
+  identical sibling routing, including inherited generic defaults. Exact named
+  closed-conformance rows now survive state-graph/control-flow lowering and
+  drive dynamic-parameter state calls without attached-machine/name lookup;
+  local coercion selections also survive with stable owner coordinates. Finish
+  physical local descriptor/table materialization and call-through, make every
+  remaining descriptor adapter consume only retained rows, migrate legacy
+  attached-machine conformances, and retire their closed-artifact candidate
+  lookup. Bare exact-requirement satisfiers never license `dyn`.
 - Complete hermetic semantic evaluation: invocation-specific crash-route
   refinement, target-semantic capsule, separate semantic result and usage
   identities, deterministic progress, and constant/runtime equivalence.

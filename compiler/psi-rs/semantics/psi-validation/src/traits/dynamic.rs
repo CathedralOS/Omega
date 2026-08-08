@@ -11,6 +11,10 @@ use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DynamicConformanceSelection {
     pub occurrence: ExpressionHandle,
+    pub binding: psi_symbols::SymbolHandle,
+    pub machine: psi_symbols::SymbolHandle,
+    pub state: psi_symbols::SymbolHandle,
+    pub statement_index: usize,
     pub source_data: psi_symbols::SymbolHandle,
     pub target_trait: psi_symbols::SymbolHandle,
     /// Stable child symbol for a named conformance. `None` denotes the unique
@@ -30,7 +34,12 @@ pub fn collect_dynamic_conformance_selections(
 
     for machine in program.machines() {
         for state in program.machine_states(machine) {
-            for statement in program.statement_table.statements(state.statement_nodes) {
+            for (statement_index, statement) in program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .enumerate()
+            {
                 let StatementNode::LocalData(local) = statement else {
                     continue;
                 };
@@ -114,6 +123,10 @@ pub fn collect_dynamic_conformance_selections(
                     };
                     let selection = DynamicConformanceSelection {
                         occurrence,
+                        binding: local.symbol,
+                        machine: machine.symbol,
+                        state: state.symbol,
+                        statement_index,
                         source_data,
                         target_trait,
                         conformance: Some(selected.symbol),
@@ -127,6 +140,10 @@ pub fn collect_dynamic_conformance_selections(
                     [conformance] => {
                         let selection = DynamicConformanceSelection {
                             occurrence,
+                            binding: local.symbol,
+                            machine: machine.symbol,
+                            state: state.symbol,
+                            statement_index,
                             source_data,
                             target_trait,
                             conformance: conformance.symbol.is_valid().then_some(conformance.symbol),

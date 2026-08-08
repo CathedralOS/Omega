@@ -116,4 +116,8 @@ pub struct StateParameterNode {
     /// Empty for non-`dyn` parameters and for a single-impl `dyn` (which
     /// devirtualizes directly to the unique impl instead).
     pub dyn_impl_type_names: Vec<Identifier>,
+    /// Exact checked rows for a named closed dynamic conformance carried by
+    /// this parameter. Non-empty rows suppress all attached-machine/name
+    /// discovery in backend call planning.
+    pub dyn_conformance_rows: Vec<psi_checked_trees::DynamicConformanceRowFact>,
 }

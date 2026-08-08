@@ -20,6 +20,8 @@ pub(super) fn state_parameters_for_segment(
         .iter()
         .filter(|parameter| !parameter.is_self)
     {
+        let dyn_conformance_rows =
+            selected_dynamic_conformance_rows(program, parameter.type_reference);
         // DEVIRTUALIZE a `dyn Trait` param to its single concrete implementation:
         // resolve both the type symbol AND the type name to the impl's data type so
         // downstream resolution (which keys on type_symbol and matches attached
@@ -29,7 +31,11 @@ pub(super) fn state_parameters_for_segment(
         // method call through it can be monomorphized per call site (the
         // receiver's static type at each site picks the impl).
         let base_symbol = program.type_reference_symbol(parameter.type_reference);
-        let impl_symbols = program.trait_impl_data_symbols(base_symbol);
+        let impl_symbols = if dyn_conformance_rows.is_empty() {
+            program.trait_impl_data_symbols(base_symbol)
+        } else {
+            Vec::new()
+        };
         let impl_symbol = match impl_symbols.as_slice() {
             [single] => Some(*single),
             _ => None,
@@ -63,6 +69,7 @@ pub(super) fn state_parameters_for_segment(
                 type_symbol,
                 type_name,
                 dyn_impl_type_names,
+                dyn_conformance_rows,
                 is_mutable_reference: matches!(
                     program
                         .type_reference_table
@@ -77,4 +84,61 @@ pub(super) fn state_parameters_for_segment(
     }
 
     parameters
+}
+
+fn selected_dynamic_conformance_rows(
+    program: &CheckedTrees,
+    type_reference: psi_checked_trees::types::TypeReferenceHandle,
+) -> Vec<psi_checked_trees::DynamicConformanceRowFact> {
+    let Some(conformance_symbol) = dynamic_conformance_symbol(program, type_reference) else {
+        return Vec::new();
+    };
+    let Some(conformance) = program
+        .data_conformances()
+        .iter()
+        .find(|conformance| conformance.symbol == conformance_symbol)
+    else {
+        return Vec::new();
+    };
+    program
+        .closed_conformance_rows(conformance)
+        .unwrap_or_default()
+        .iter()
+        .filter(|row| row.realization_machine.is_valid() && row.realization_state.is_valid())
+        .map(|row| psi_checked_trees::DynamicConformanceRowFact {
+            declaring_trait: row.declaring_trait,
+            requirement: row.requirement,
+            realization_machine: row.realization_machine,
+            realization_state: row.realization_state,
+            source: match row.source {
+                psi_checked_trees::trait_definition::ConformanceRowSource::Inline => {
+                    psi_checked_trees::DynamicConformanceRowSource::Inline
+                }
+                psi_checked_trees::trait_definition::ConformanceRowSource::Reference => {
+                    psi_checked_trees::DynamicConformanceRowSource::Reference
+                }
+                psi_checked_trees::trait_definition::ConformanceRowSource::TraitDefault => {
+                    psi_checked_trees::DynamicConformanceRowSource::TraitDefault
+                }
+            },
+        })
+        .collect()
+}
+
+fn dynamic_conformance_symbol(
+    program: &CheckedTrees,
+    type_reference: psi_checked_trees::types::TypeReferenceHandle,
+) -> Option<psi_symbols::SymbolHandle> {
+    match program.type_reference_table.type_reference(type_reference) {
+        psi_checked_trees::types::TypeReferenceNode::Reference { referee, .. } => {
+            dynamic_conformance_symbol(program, *referee)
+        }
+        psi_checked_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+            dynamic_conformance_symbol(program, *base_type)
+        }
+        psi_checked_trees::types::TypeReferenceNode::DynamicTrait { conformance, .. } => {
+            *conformance
+        }
+        _ => None,
+    }
 }
