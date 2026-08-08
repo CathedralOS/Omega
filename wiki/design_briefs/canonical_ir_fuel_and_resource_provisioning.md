@@ -116,7 +116,9 @@ vocabulary. The ordered Boolean-result form supports ordinary Boolean
 entry/branch parameters with recursive short-circuit guards and branch returns.
 The general Boolean-result form supports rooted acyclic nested selections and
 convergent tails with recursive non-short-circuit unconditional bindings and
-recursive short-circuit returns; short-circuit jump bindings remain closed.
+recursive short-circuit returns. Single-value short-circuit jumps converge at
+value-producing decision leaves; ordered multi-value short-circuit tuples
+remain closed.
 It emits the semantic module and proof bundle separately and fails closed on
 all other shapes. Its canaries drop the frontend trees before terminal
 verification and interpretation; ninth-parameter `bool` and `u8` machines

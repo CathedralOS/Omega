@@ -407,7 +407,7 @@ ensures true == true
         }
     }
     state low_selected(value: bool) -> bool {
-        transition { _ -> finish_boolean(!value) }
+        transition { _ -> finish_boolean(value || !value) }
     }
     state finish_boolean(value: bool) -> bool { value || !value }
 }
