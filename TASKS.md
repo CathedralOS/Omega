@@ -219,9 +219,10 @@ Remaining:
   reach both native targets. Compile-known propagation now carries typed
   Boolean and integer scalar facts through those bindings, follows the
   resulting selector, meets conservatively at joins, and rejects an unrelated
-  closed integer contract. A pure unconditional mixed-scalar graph now enters
-  the general typed DAG lowerer directly; it no longer needs an authored
-  conditional merely to avoid the integer-only fused-chain path.
+  closed integer contract. Every multi-state integer-result machine now enters
+  the general typed DAG producer, including pure unconditional mixed-scalar
+  graphs; the duplicate integer-only chain lowerer and terminal builder are
+  retired.
 - Replace all remaining terminal-path `ExpressionHandle` and source-tree
   dependencies with lowered values and predicates. Absorb useful StateGraph /
   ControlFlow topology, then retire the legacy backend lane as consumers move.

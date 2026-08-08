@@ -280,11 +280,12 @@ It computes a recursively nested parameter/literal add/subtract/multiply
 expression for each unconditional jump argument and binds the complete ordered
 sequence of ordinary integer parameters in every non-entry state. Each argument
 must exactly match its target parameter type; later expressions may use any
-same-typed bound parameter and landed literals. When the whole chain is compile-known,
-the producer independently recomputes its result and rejects an unrelated
-reflexive contract. Both integer paths use the settled Wrapping or Saturating
-domains. The conditional integer form admits a rooted acyclic graph of source
-states. Each control block owns one ordered positive-Boolean/fallback pair,
+same-typed bound parameter and landed literals. When the whole chain is
+compile-known, the producer independently recomputes its result and rejects an
+unrelated reflexive contract. Integer operations use the settled Wrapping or
+Saturating domains. The general multi-state integer form admits a rooted
+acyclic graph of source states. Each control block owns one ordered
+positive-Boolean/fallback pair,
 each linear block owns one unconditional successor, and leaves return a
 recursively nested integer expression. Successors bind ordered already-defined
 Boolean or integer parameters with exact target types; an unconditional jump
@@ -295,9 +296,10 @@ left-to-right in typed stages, carrying original parameters and earlier results
 until one convergence jump binds the authored target. The same staging is
 arm-local for conditional-edge payloads, so an unselected tuple has no executed
 operations, edges, or fuel charge. Joins are explicit block-parameter merges.
-Pure unconditional mixed-scalar graphs select this general typed lowering from
-their parameter types; they do not need a synthetic or otherwise unused source
-conditional to escape the integer-only fused-chain path.
+Every multi-state integer-result machine uses this general typed DAG producer,
+including pure unconditional integer-only and mixed-scalar graphs. The former
+specialized integer-chain lowerer and terminal builder are retired; no source
+conditional is required to select the general path.
 Short-circuit guards use explicit decision blocks, and computed conditional
 edge bindings use selected-arm blocks because terminal edges do not own
 operations. This preserves source ordering and keeps each branch's computation
