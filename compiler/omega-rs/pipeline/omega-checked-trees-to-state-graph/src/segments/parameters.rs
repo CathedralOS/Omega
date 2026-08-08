@@ -22,43 +22,14 @@ pub(super) fn state_parameters_for_segment(
     {
         let dyn_conformance_rows =
             selected_dynamic_conformance_rows(program, parameter.type_reference);
-        // DEVIRTUALIZE a `dyn Trait` param to its single concrete implementation:
-        // resolve both the type symbol AND the type name to the impl's data type so
-        // downstream resolution (which keys on type_symbol and matches attached
-        // machines by type_name) dispatches `s.method()` like a normal call.
-        // With MULTIPLE impls the param keeps the trait symbol/name and instead
-        // records every impl's data type name -- the trait's closed world -- so a
-        // method call through it can be monomorphized per call site (the
-        // receiver's static type at each site picks the impl).
-        let base_symbol = program.type_reference_symbol(parameter.type_reference);
-        let impl_symbols = if dyn_conformance_rows.is_empty() {
-            program.trait_impl_data_symbols(base_symbol)
+        let dyn_conformance_candidates = if dyn_conformance_rows.is_empty() {
+            eligible_dynamic_conformance_candidates(program, parameter.type_reference)
         } else {
             Vec::new()
         };
-        let impl_symbol = match impl_symbols.as_slice() {
-            [single] => Some(*single),
-            _ => None,
-        };
-        let type_symbol = impl_symbol.unwrap_or(base_symbol);
-        let data_name_for = |symbol: psi_symbols::SymbolHandle| {
-            program
-                .data_definitions()
-                .iter()
-                .find(|data| data.symbol == symbol)
-                .map(|data| data.name.clone())
-        };
-        let type_name = impl_symbol.and_then(data_name_for).unwrap_or_else(|| {
-            Identifier::generated(program.display_type_reference(parameter.type_reference))
-        });
-        let dyn_impl_type_names = if impl_symbols.len() > 1 {
-            impl_symbols
-                .iter()
-                .filter_map(|symbol| data_name_for(*symbol))
-                .collect()
-        } else {
-            Vec::new()
-        };
+        let type_symbol = program.type_reference_symbol(parameter.type_reference);
+        let type_name =
+            Identifier::generated(program.display_type_reference(parameter.type_reference));
 
         state_graph.state_parameters.append_to_span(
             &mut parameters,
@@ -68,7 +39,7 @@ pub(super) fn state_parameters_for_segment(
                 type_reference: parameter.type_reference,
                 type_symbol,
                 type_name,
-                dyn_impl_type_names,
+                dyn_conformance_candidates,
                 dyn_conformance_rows,
                 is_mutable_reference: matches!(
                     program
@@ -100,6 +71,53 @@ fn selected_dynamic_conformance_rows(
     else {
         return Vec::new();
     };
+    checked_rows_for_conformance(program, conformance)
+}
+
+fn eligible_dynamic_conformance_candidates(
+    program: &CheckedTrees,
+    type_reference: psi_checked_trees::types::TypeReferenceHandle,
+) -> Vec<psi_checked_trees::DynamicConformanceCandidateFact> {
+    let Some(target_trait) = dynamic_trait_symbol(program, type_reference) else {
+        return Vec::new();
+    };
+    let Some(trait_definition) = program
+        .traits()
+        .iter()
+        .find(|definition| definition.symbol == target_trait)
+    else {
+        return Vec::new();
+    };
+    if trait_definition.is_boundary || !program.trait_type_parameters(trait_definition).is_empty() {
+        return Vec::new();
+    }
+
+    let mut candidates = Vec::new();
+    for data in program.data_definitions() {
+        for conformance in program.data_conformances().iter().filter(|conformance| {
+            conformance.type_name == data.name
+                && conformance.trait_name == trait_definition.name
+                && conformance.arguments.is_empty()
+                && matches!(
+                    conformance.implementation,
+                    psi_checked_trees::trait_definition::ConformanceImplementation::Closed { .. }
+                )
+        }) {
+            candidates.push(psi_checked_trees::DynamicConformanceCandidateFact {
+                source_data: data.symbol,
+                source_name: data.name.clone(),
+                conformance: conformance.symbol.is_valid().then_some(conformance.symbol),
+                rows: checked_rows_for_conformance(program, conformance),
+            });
+        }
+    }
+    candidates
+}
+
+fn checked_rows_for_conformance(
+    program: &CheckedTrees,
+    conformance: &psi_checked_trees::trait_definition::DataConformance,
+) -> Vec<psi_checked_trees::DynamicConformanceRowFact> {
     program
         .closed_conformance_rows(conformance)
         .unwrap_or_default()
@@ -139,6 +157,22 @@ fn dynamic_conformance_symbol(
         psi_checked_trees::types::TypeReferenceNode::DynamicTrait { conformance, .. } => {
             *conformance
         }
+        _ => None,
+    }
+}
+
+fn dynamic_trait_symbol(
+    program: &CheckedTrees,
+    type_reference: psi_checked_trees::types::TypeReferenceHandle,
+) -> Option<psi_symbols::SymbolHandle> {
+    match program.type_reference_table.type_reference(type_reference) {
+        psi_checked_trees::types::TypeReferenceNode::Reference { referee, .. } => {
+            dynamic_trait_symbol(program, *referee)
+        }
+        psi_checked_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+            dynamic_trait_symbol(program, *base_type)
+        }
+        psi_checked_trees::types::TypeReferenceNode::DynamicTrait { symbol, .. } => Some(*symbol),
         _ => None,
     }
 }

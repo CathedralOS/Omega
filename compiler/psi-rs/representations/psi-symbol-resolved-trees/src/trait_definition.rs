@@ -23,8 +23,9 @@ pub struct TraitStorage {
 }
 
 /// One whole nominal conformance. A closed implementation retains its exact
-/// inherited requirement rows; the legacy bodyless form temporarily retains
-/// attached-machine lookup until corpus migration removes that path.
+/// inherited requirement rows and is the only form eligible for local dynamic
+/// dispatch. The bodyless form remains a static conformance declaration whose
+/// satisfiers are validated separately.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DataConformance {
     pub symbol: SymbolHandle,

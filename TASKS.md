@@ -470,10 +470,14 @@ checked-result arithmetic decision listed below.
   rows by the complete instantiated parameter/result-domain identity, and
   checked `dyn` selections retain every exact overload row. Finish physical
   descriptor/table materialization for pass-through, rebound, and escaping
-  values, make every remaining descriptor adapter consume only retained rows,
-  migrate legacy attached-machine conformances, and retire their closed-
-  artifact candidate lookup. Bare exact-requirement satisfiers never license
-  `dyn`.
+  values and make every remaining descriptor adapter consume only retained
+  rows. Bare dynamic parameters now retain each eligible closed conformance's
+  exact row map through state graph and control flow; bodyless static
+  conformances and bare exact-requirement satisfiers never license `dyn`, and
+  backend candidate discovery no longer searches attached machines by name.
+  Bare dynamic call boundaries require one complete conformance per concrete
+  carrier; same-carrier ambiguity rejects unless the parameter names the exact
+  conformance.
 - Complete hermetic semantic evaluation: invocation-specific crash-route
   refinement, target-semantic capsule, separate semantic result and usage
   identities, deterministic progress, and constant/runtime equivalence.

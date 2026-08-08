@@ -109,13 +109,11 @@ pub struct StateParameterNode {
     pub type_symbol: SymbolHandle,
     pub type_name: Identifier,
     pub is_mutable_reference: bool,
-    /// For a `dyn Trait` parameter with MULTIPLE satisfying impls: the data
-    /// type names of every impl, in data-definition order (the trait's closed
-    /// world). A method call through this parameter is monomorphized over these
-    /// candidates; the receiver's static type at each call site selects one.
-    /// Empty for non-`dyn` parameters and for a single-impl `dyn` (which
-    /// devirtualizes directly to the unique impl instead).
-    pub dyn_impl_type_names: Vec<Identifier>,
+    /// Complete checked conformances eligible for a bare `dyn Trait`
+    /// parameter. Each candidate carries exact requirement-to-realization
+    /// rows; downstream planning never rediscovers an attached machine from a
+    /// carrier or method name.
+    pub dyn_conformance_candidates: Vec<psi_checked_trees::DynamicConformanceCandidateFact>,
     /// Exact checked rows for a named closed dynamic conformance carried by
     /// this parameter. Non-empty rows suppress all attached-machine/name
     /// discovery in backend call planning.

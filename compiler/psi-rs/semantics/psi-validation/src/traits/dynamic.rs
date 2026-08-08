@@ -51,6 +51,13 @@ pub fn collect_dynamic_conformance_selections(
                 .iter()
                 .enumerate()
             {
+                validate_dynamic_call_arguments_in_statement(
+                    program,
+                    machine,
+                    state,
+                    statement,
+                    &mut diagnostics,
+                );
                 let StatementNode::LocalData(local) = statement else {
                     continue;
                 };
@@ -117,13 +124,23 @@ pub fn collect_dynamic_conformance_selections(
                 else {
                     continue;
                 };
-                let matches = program
+                let nominal_matches = program
                     .data_conformances()
                     .iter()
                     .filter(|conformance| {
                         conformance.type_name.as_str() == source_name
                             && conformance.trait_name == trait_definition.name
                             && conformance.arguments.is_empty()
+                    })
+                    .collect::<Vec<_>>();
+                let matches = nominal_matches
+                    .iter()
+                    .copied()
+                    .filter(|conformance| {
+                        matches!(
+                            &conformance.implementation,
+                            psi_typed_trees::trait_definition::ConformanceImplementation::Closed { .. }
+                        )
                     })
                     .collect::<Vec<_>>();
                 if conformance_name.is_some() {
@@ -138,6 +155,18 @@ pub fn collect_dynamic_conformance_selections(
                         )));
                         continue;
                     };
+                    if nominal_matches.iter().any(|candidate| {
+                        candidate.symbol == *exact_symbol
+                            && matches!(
+                                &candidate.implementation,
+                                psi_typed_trees::trait_definition::ConformanceImplementation::LegacyAttachedMachines
+                            )
+                    }) {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "named conformance `{selection_name}` is bodyless and cannot license local dynamic dispatch; declare its complete row map with a conformance block"
+                        )));
+                        continue;
+                    }
                     let Some(selected) = matches
                         .iter()
                         .find(|candidate| candidate.symbol == *exact_symbol)
@@ -206,6 +235,227 @@ pub fn collect_dynamic_conformance_selections(
     } else {
         Err(diagnostics)
     }
+}
+
+fn validate_dynamic_call_arguments_in_statement(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    statement: &StatementNode,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if let StatementNode::Call(call) = statement {
+        validate_dynamic_call_arguments(
+            program,
+            machine,
+            state,
+            call.target_symbol,
+            &call.target,
+            call.arguments,
+            diagnostics,
+        );
+    }
+    for root in crate::calls::statement_value_expression_roots(program, statement) {
+        validate_dynamic_call_arguments_in_expression(program, machine, state, root, diagnostics);
+    }
+}
+
+fn validate_dynamic_call_arguments_in_expression(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if !expression.is_valid() {
+        return;
+    }
+    macro_rules! visit {
+        ($child:expr) => {
+            validate_dynamic_call_arguments_in_expression(
+                program,
+                machine,
+                state,
+                $child,
+                diagnostics,
+            )
+        };
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::ArrayLiteral(elements) => {
+            for element in program.expression_table.expression_handles(*elements) {
+                visit!(*element);
+            }
+        }
+        ExpressionNode::Atomic(atomic) => {
+            visit!(atomic.value);
+            visit!(atomic.result);
+        }
+        ExpressionNode::Binary(binary) => {
+            visit!(binary.left);
+            visit!(binary.right);
+        }
+        ExpressionNode::Cast(cast) => visit!(cast.value),
+        ExpressionNode::Call(call) => {
+            validate_dynamic_call_arguments(
+                program,
+                machine,
+                state,
+                call.target_symbol,
+                &call.target,
+                call.arguments,
+                diagnostics,
+            );
+            visit!(call.receiver);
+            for argument in program.expression_table.expression_handles(call.arguments) {
+                visit!(*argument);
+            }
+        }
+        ExpressionNode::Indexed(indexed) => {
+            visit!(indexed.collection);
+            visit!(indexed.index);
+        }
+        ExpressionNode::Member(member) => visit!(member.receiver),
+        ExpressionNode::Mutable(inner) => visit!(*inner),
+        ExpressionNode::Range(range) => {
+            visit!(range.start);
+            visit!(range.end);
+        }
+        ExpressionNode::StructLiteral(literal) => {
+            for field in program.expression_table.struct_fields(literal.fields) {
+                visit!(field.value);
+            }
+        }
+        ExpressionNode::Unary(unary) => visit!(unary.operand),
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Name(_)
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => {}
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_dynamic_call_arguments(
+    program: &TypedTrees,
+    caller: &Machine,
+    caller_state: &State,
+    target_symbol: psi_symbols::SymbolHandle,
+    target_name: &Identifier,
+    arguments: psi_arena::HandleSpan<ExpressionHandle>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(target_state) = called_state(program, target_symbol, target_name) else {
+        return;
+    };
+    let parameters = program
+        .state_parameters(target_state)
+        .iter()
+        .filter(|parameter| !parameter.is_self);
+    for (parameter, argument) in parameters.zip(
+        program
+            .expression_table
+            .expression_handles(arguments)
+            .iter()
+            .copied(),
+    ) {
+        let Some(TypeReferenceNode::DynamicTrait {
+            symbol: target_trait,
+            conformance: expected_conformance,
+            ..
+        }) = dynamic_trait_reference(program, parameter.type_reference)
+        else {
+            continue;
+        };
+        if expected_conformance.is_some() {
+            continue;
+        }
+
+        let source_type =
+            crate::places::declared_place_type_raw(program, caller, Some(caller_state), argument)
+                .or_else(|| {
+                    crate::places::declared_place_type_raw(
+                        program,
+                        caller,
+                        Some(caller_state),
+                        strip_mutable(program, argument),
+                    )
+                });
+        let Some(source_type) = source_type else {
+            continue;
+        };
+        if dynamic_trait_reference(program, source_type).is_some() {
+            diagnostics.push(Diagnostic::error(format!(
+                "call to `{target_name}` passes an already-erased value to bare dynamic parameter `{}`; physical descriptor lowering is required before dynamic values can pass onward",
+                parameter.name
+            )));
+            continue;
+        }
+        let Some((_, source_name)) = nominal_data_type(program, source_type) else {
+            continue;
+        };
+        let Some(trait_definition) = program
+            .traits()
+            .iter()
+            .find(|definition| definition.symbol == *target_trait)
+        else {
+            continue;
+        };
+        let complete_count = program
+            .data_conformances()
+            .iter()
+            .filter(|conformance| {
+                conformance.type_name.as_str() == source_name
+                    && conformance.trait_name == trait_definition.name
+                    && conformance.arguments.is_empty()
+                    && matches!(
+                        &conformance.implementation,
+                        psi_typed_trees::trait_definition::ConformanceImplementation::Closed { .. }
+                    )
+            })
+            .count();
+        match complete_count {
+            1 => {}
+            0 => diagnostics.push(Diagnostic::error(format!(
+                "call to `{target_name}` cannot pass `{source_name}` to bare dynamic parameter `{}`: no complete closed conformance to `{}` is available",
+                parameter.name, trait_definition.name
+            ))),
+            count => diagnostics.push(Diagnostic::error(format!(
+                "call to `{target_name}` cannot pass `{source_name}` to bare dynamic parameter `{}`: {count} complete closed conformances to `{}` are available; declare the parameter with one exact named dynamic conformance",
+                parameter.name, trait_definition.name
+            ))),
+        }
+    }
+}
+
+fn called_state<'program>(
+    program: &'program TypedTrees,
+    target_symbol: psi_symbols::SymbolHandle,
+    target_name: &Identifier,
+) -> Option<&'program State> {
+    if target_symbol.is_valid() {
+        if let Some(state) = program
+            .machines()
+            .iter()
+            .flat_map(|machine| program.machine_states(machine))
+            .find(|state| state.symbol == target_symbol)
+        {
+            return Some(state);
+        }
+        if let Some(machine) = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == target_symbol)
+        {
+            return program.machine_states(machine).first();
+        }
+    }
+    program
+        .machines()
+        .iter()
+        .find(|machine| machine.attached_data.is_none() && machine.name == *target_name)
+        .and_then(|machine| program.machine_states(machine).first())
 }
 
 /// Bind every call through a typed dynamic receiver to the exact requirement

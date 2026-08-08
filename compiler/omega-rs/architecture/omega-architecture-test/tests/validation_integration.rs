@@ -969,7 +969,7 @@ fn local_dynamic_coercion_retains_one_complete_nominal_conformance() {
         r#"
         trait Marker {}
         data Item {}
-        Item satisfies Marker as Primary;
+        Item satisfies Marker as Primary {}
 
         machine erase(item: Item) {
             let erased: &dyn Marker = &item as &dyn Marker;
@@ -1160,13 +1160,63 @@ fn bare_local_dynamic_coercion_rejects_ambiguous_conformances() {
 }
 
 #[test]
+fn bare_dynamic_parameter_argument_rejects_ambiguous_conformances() {
+    let typed = typed_program_from_source(
+        r#"
+        trait Shape { machine code(&self) -> i32; }
+        data Item {}
+        Item satisfies Shape as First {
+            machine code(&self) -> i32 { 1 }
+        }
+        Item satisfies Shape as Second {
+            machine code(&self) -> i32 { 2 }
+        }
+
+        machine dispatch(erased: &dyn Shape) -> i32 { erased.code() }
+        machine run(item: Item) -> i32 { dispatch(&item) }
+        "#,
+    );
+
+    let diagnostics = validate_program(&typed)
+        .expect_err("a bare dynamic argument must not silently select one conformance");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic.message.contains(
+            "call to `dispatch` cannot pass `Item` to bare dynamic parameter `erased`: 2 complete closed conformances to `Shape` are available; declare the parameter with one exact named dynamic conformance"
+        )),
+        "expected an explicit conformance-selection diagnostic, got {diagnostics:?}"
+    );
+}
+
+#[test]
+fn exact_named_dynamic_parameter_resolves_argument_conformance() {
+    let typed = typed_program_from_source(
+        r#"
+        trait Shape { machine code(&self) -> i32; }
+        data Item {}
+        Item satisfies Shape as First {
+            machine code(&self) -> i32 { 1 }
+        }
+        Item satisfies Shape as Second {
+            machine code(&self) -> i32 { 2 }
+        }
+
+        machine dispatch(erased: &dyn Item::First) -> i32 { erased.code() }
+        machine run(item: Item) -> i32 { dispatch(&item) }
+        "#,
+    );
+
+    validate_program(&typed)
+        .expect("an exact named dynamic parameter selects one conformance at the call boundary");
+}
+
+#[test]
 fn named_local_dynamic_coercion_selects_one_exact_conformance() {
     let typed = typed_program_from_source(
         r#"
         trait Marker {}
         data Item {}
-        Item satisfies Marker as First;
-        Item satisfies Marker as Second;
+        Item satisfies Marker as First {}
+        Item satisfies Marker as Second {}
 
         machine erase(item: Item) {
             let erased: &dyn Marker = &item as &dyn Item::First;
@@ -1329,7 +1379,7 @@ fn named_local_dynamic_coercion_rejects_unknown_selection() {
     let source = r#"
         trait Marker {}
         data Item {}
-        Item satisfies Marker as Primary;
+        Item satisfies Marker as Primary {}
 
         machine erase(item: Item) {
             let erased: &dyn Marker = &item as &dyn Item::Missing;
@@ -1355,7 +1405,7 @@ fn named_local_dynamic_coercion_rejects_wrong_source_carrier() {
         trait Marker {}
         data Item {}
         data Other {}
-        Item satisfies Marker as Primary;
+        Item satisfies Marker as Primary {}
 
         machine erase(other: Other) {
             let erased: &dyn Item::Primary = &other as &dyn Item::Primary;
@@ -1393,6 +1443,33 @@ fn local_dynamic_coercion_rejects_missing_conformance() {
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic.message.contains(
             "local dynamic coercion from `Item` to `dyn Marker` has no complete nominal conformance",
+        )
+    }));
+}
+
+#[test]
+fn local_dynamic_coercion_rejects_bodyless_static_conformance() {
+    let typed = typed_program_from_source(
+        r#"
+        trait Marker {
+            machine code(&self) -> i32;
+        }
+        data Item {}
+        machine Item::code(&self) -> i32 { 1 }
+        Item satisfies Marker as Primary;
+
+        machine erase(item: Item) -> i32 {
+            let erased: &dyn Marker = &item as &dyn Item::Primary;
+            erased.code()
+        }
+        "#,
+    );
+
+    let diagnostics = validate_program(&typed)
+        .expect_err("a bodyless static conformance has no authoritative dynamic row map");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains(
+            "named conformance `Item::Primary` is bodyless and cannot license local dynamic dispatch; declare its complete row map with a conformance block",
         )
     }));
 }
