@@ -812,6 +812,100 @@ fn checked_source_nested_jump_expressions_reach_terminal_and_native_lowering() {
     }
 }
 
+#[test]
+fn checked_source_conditional_edge_expressions_execute_only_on_the_selected_arm() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("computed conditional-edge source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_conditional_edge_expression")
+        .expect("conditional edges may compute bindings in selected-arm blocks");
+    drop(checked);
+
+    let machine = &lowered.semantic_module.machines[0];
+    assert_eq!(machine.blocks.len(), 4);
+    assert!(matches!(
+        machine.blocks[0].terminator,
+        Terminator::Conditional {
+            ref when_true,
+            ref when_false,
+            ..
+        } if when_true.target.get() == 3 && when_false.target.get() == 4
+    ));
+    assert!(matches!(
+        &machine.blocks[2].operations[..],
+        [
+            psi_terminal::Operation {
+                kind: OperationKind::IntegerConstant { .. },
+                ..
+            },
+            psi_terminal::Operation {
+                kind: OperationKind::WrappingIntegerAdd { .. },
+                ..
+            },
+        ]
+    ));
+    assert!(matches!(
+        &machine.blocks[3].operations[..],
+        [
+            psi_terminal::Operation {
+                kind: OperationKind::IntegerConstant { .. },
+                ..
+            },
+            psi_terminal::Operation {
+                kind: OperationKind::WrappingIntegerMultiply { .. },
+                ..
+            },
+        ]
+    ));
+
+    let semantic_bytes = encode_module(&lowered.semantic_module)
+        .expect("computed conditional edge should encode canonically");
+    let proof_bytes = encode_proof_bundle(&lowered.proof_bundle)
+        .expect("computed conditional-edge proof should encode canonically");
+    let semantic_module =
+        decode_module(&semantic_bytes).expect("decode computed conditional-edge module");
+    let proof_bundle =
+        decode_proof_bundle(&proof_bytes).expect("decode computed conditional-edge proof");
+    let verified = verify_module(
+        &semantic_module,
+        &proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("computed conditional edge should verify after frontend drop");
+    assert_eq!(
+        derive_fixed_entry_fuel(&verified, semantic_module.entry)
+            .expect("computed conditional edge should have an exact fuel bound")
+            .ceiling_units(),
+        5
+    );
+
+    let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let integer = |value| TerminalScalarValue::Integer {
+        scalar_type: u8_type,
+        value: IntegerValue::Unsigned(value),
+    };
+    for (choose_add, expected) in [(true, 8_u128), (false, 14)] {
+        let measured = interpret_terminal_measured(
+            &verified,
+            &[TerminalScalarValue::Boolean(choose_add), integer(7)],
+        )
+        .expect("computed conditional edge should interpret");
+        assert_eq!(measured.value(), integer(expected));
+        assert_eq!(measured.usage().total_units(), 5);
+    }
+
+    let abstract_operations = lower_verified_module(&verified)
+        .expect("computed conditional edge should cross the Omega abstract boundary");
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_operations = lower_to_target_operations(&abstract_operations, target)
+            .expect("computed conditional edge should select for both native targets");
+        let assigned = assign_registers(&target_operations)
+            .expect("computed conditional-edge parameter homes should assign");
+        let machine_code = emit_machine_code(&assigned)
+            .expect("computed conditional-edge machine code should emit");
+        assert!(!machine_code.functions[0].bytes.is_empty());
+    }
+}
+
 #[cfg(unix)]
 #[test]
 fn checked_source_literal_conditional_emits_only_its_selected_arm() {

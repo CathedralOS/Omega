@@ -179,9 +179,9 @@ enum LoweredIntegerBranchTerminator {
     Conditional {
         condition: LoweredBooleanReturnExpression,
         when_true_target: usize,
-        when_true_arguments: Vec<usize>,
+        when_true_arguments: Vec<LoweredDirectExpression>,
         when_false_target: usize,
-        when_false_arguments: Vec<usize>,
+        when_false_arguments: Vec<LoweredDirectExpression>,
     },
     Return {
         expression: LoweredDirectExpression,
@@ -201,6 +201,14 @@ struct LoweredCrashExit {
 struct LoweredIntegerBranchState {
     parameter_types: Vec<ScalarType>,
     terminator: LoweredIntegerBranchTerminator,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct PendingConditionalBindingBlock {
+    id: BlockId,
+    parameters: Vec<ValueDeclaration>,
+    target: usize,
+    arguments: Vec<LoweredDirectExpression>,
 }
 
 impl LoweredIntegerBinaryKind {
@@ -1921,7 +1929,7 @@ fn lower_nested_integer_branch_machine(
                 validate_boolean_parameter_types(&condition, &parameter_types)?;
 
                 let (when_true_target, when_true_arguments) =
-                    lower_nested_branch_parameter_successor(
+                    lower_nested_branch_conditional_successor(
                         checked,
                         states,
                         parameters,
@@ -1929,7 +1937,7 @@ fn lower_nested_integer_branch_machine(
                         when_true,
                     )?;
                 let (when_false_target, when_false_arguments) =
-                    lower_nested_branch_parameter_successor(
+                    lower_nested_branch_conditional_successor(
                         checked,
                         states,
                         parameters,
@@ -2007,13 +2015,13 @@ fn lower_nested_integer_branch_machine(
     ))
 }
 
-fn lower_nested_branch_parameter_successor(
+fn lower_nested_branch_conditional_successor(
     checked: &CheckedTrees,
     states: &[psi_checked_trees::state::State],
     parameters: &[psi_checked_trees::signature::StateParameter],
     parameter_types: &[ScalarType],
     transition: &psi_checked_trees::statement::TableTransition,
-) -> Result<(usize, Vec<usize>), LoweringError> {
+) -> Result<(usize, Vec<LoweredDirectExpression>), LoweringError> {
     let TransitionTargetNode::Named { path, arguments } =
         checked.statement_table.transition_target(transition.target)
     else {
@@ -2032,16 +2040,10 @@ fn lower_nested_branch_parameter_successor(
             "nested branch successor bindings must match the target parameter count",
         );
     }
-    let positions = arguments
+    let arguments = arguments
         .iter()
         .zip(target_parameters)
         .map(|(argument, target_parameter)| {
-            let ExpressionNode::Name(path) = checked.expression_table.expression(*argument) else {
-                return unsupported(
-                    "nested branch bindings currently require already-defined parameters",
-                );
-            };
-            let position = direct_parameter_position(checked, path, parameters)?;
             let target_type = terminal_scalar_type(
                 checked
                     .primitive_type_reference(target_parameter.type_reference)
@@ -2049,15 +2051,17 @@ fn lower_nested_branch_parameter_successor(
                         "nested branch target parameters must be primitive Boolean or integer values",
                     ))?,
             )?;
-            if parameter_types[position] != target_type {
-                return unsupported(
-                    "nested branch successor argument must match its target parameter type",
-                );
-            }
-            Ok(position)
+            lower_direct_return_expression(
+                checked,
+                *argument,
+                parameters,
+                parameter_types,
+                target_type,
+            )
+            .map(|(expression, _)| expression)
         })
         .collect::<Result<Vec<_>, _>>()?;
-    Ok((target, positions))
+    Ok((target, arguments))
 }
 
 fn lower_nested_branch_jump_successor(
@@ -4053,6 +4057,73 @@ fn build_boolean_short_circuit_module(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+fn build_nested_conditional_successor(
+    edge: EdgeId,
+    target: usize,
+    arguments: &[LoweredDirectExpression],
+    current_parameters: &[ValueDeclaration],
+    current_parameter_types: &[ScalarType],
+    next_block_identity: &mut u64,
+    next_value_identity: &mut u64,
+    pending_blocks: &mut Vec<PendingConditionalBindingBlock>,
+) -> SuccessorEdge {
+    let direct_arguments = arguments
+        .iter()
+        .map(|argument| match argument {
+            LoweredDirectExpression::Parameter { position, .. } => {
+                Some(current_parameters[*position].id)
+            }
+            LoweredDirectExpression::IntegerLiteral { .. }
+            | LoweredDirectExpression::IntegerBinary { .. } => None,
+        })
+        .collect::<Option<Vec<_>>>();
+    if let Some(arguments) = direct_arguments {
+        return SuccessorEdge {
+            edge,
+            target: block_id(
+                u64::try_from(target)
+                    .expect("state index fits a semantic identity")
+                    .checked_add(1)
+                    .expect("block identity is nonzero"),
+            ),
+            arguments,
+        };
+    }
+
+    let id = block_id(*next_block_identity);
+    *next_block_identity = next_block_identity
+        .checked_add(1)
+        .expect("conditional binding block identities advance");
+    let parameters = current_parameter_types
+        .iter()
+        .map(|scalar_type| {
+            let parameter = ValueDeclaration {
+                id: value_id(*next_value_identity),
+                scalar_type: *scalar_type,
+            };
+            *next_value_identity = next_value_identity
+                .checked_add(1)
+                .expect("conditional binding parameter identities advance");
+            parameter
+        })
+        .collect::<Vec<_>>();
+    pending_blocks.push(PendingConditionalBindingBlock {
+        id,
+        parameters,
+        target,
+        arguments: arguments.to_vec(),
+    });
+    SuccessorEdge {
+        edge,
+        target: id,
+        arguments: current_parameters
+            .iter()
+            .map(|parameter| parameter.id)
+            .collect(),
+    }
+}
+
 fn build_nested_integer_branch_module(
     states: &[LoweredIntegerBranchState],
     result_type: ScalarType,
@@ -4101,6 +4172,11 @@ fn build_nested_integer_branch_module(
 
     let mut all_operations = Vec::new();
     let mut next_edge_identity = 1_u64;
+    let mut next_block_identity = u64::try_from(states.len())
+        .expect("state count fits a semantic identity")
+        .checked_add(1)
+        .expect("conditional binding blocks follow source blocks");
+    let mut pending_blocks = Vec::new();
     let mut blocks = Vec::with_capacity(states.len());
     for (index, state) in states.iter().enumerate() {
         let operation_start = all_operations.len();
@@ -4156,32 +4232,26 @@ fn build_nested_integer_branch_module(
                     .expect("nested branch edge identities advance");
                 Terminator::Conditional {
                     condition,
-                    when_true: SuccessorEdge {
-                        edge: when_true_edge,
-                        target: block_id(
-                            u64::try_from(*when_true_target)
-                                .expect("state index fits a semantic identity")
-                                .checked_add(1)
-                                .expect("block identity is nonzero"),
-                        ),
-                        arguments: when_true_arguments
-                            .iter()
-                            .map(|position| current_parameters[*position].id)
-                            .collect(),
-                    },
-                    when_false: SuccessorEdge {
-                        edge: when_false_edge,
-                        target: block_id(
-                            u64::try_from(*when_false_target)
-                                .expect("state index fits a semantic identity")
-                                .checked_add(1)
-                                .expect("block identity is nonzero"),
-                        ),
-                        arguments: when_false_arguments
-                            .iter()
-                            .map(|position| current_parameters[*position].id)
-                            .collect(),
-                    },
+                    when_true: build_nested_conditional_successor(
+                        when_true_edge,
+                        *when_true_target,
+                        when_true_arguments,
+                        current_parameters,
+                        &state.parameter_types,
+                        &mut next_block_identity,
+                        &mut next_value_identity,
+                        &mut pending_blocks,
+                    ),
+                    when_false: build_nested_conditional_successor(
+                        when_false_edge,
+                        *when_false_target,
+                        when_false_arguments,
+                        current_parameters,
+                        &state.parameter_types,
+                        &mut next_block_identity,
+                        &mut next_value_identity,
+                        &mut pending_blocks,
+                    ),
                 }
             }
             LoweredIntegerBranchTerminator::Return { expression } => {
@@ -4225,6 +4295,40 @@ fn build_nested_integer_branch_module(
             },
             operations: all_operations[operation_start..].to_vec(),
             terminator,
+        });
+    }
+    for pending in pending_blocks {
+        let operation_start = all_operations.len();
+        let arguments = pending
+            .arguments
+            .iter()
+            .map(|argument| {
+                emit_direct_expression(
+                    argument,
+                    &pending.parameters,
+                    &mut next_value_identity,
+                    &mut all_operations,
+                )
+            })
+            .collect();
+        let edge = edge_id(next_edge_identity);
+        next_edge_identity = next_edge_identity
+            .checked_add(1)
+            .expect("conditional binding jump edge identities advance");
+        blocks.push(Block {
+            id: pending.id,
+            parameters: pending.parameters,
+            operations: all_operations[operation_start..].to_vec(),
+            terminator: Terminator::Jump {
+                edge,
+                target: block_id(
+                    u64::try_from(pending.target)
+                        .expect("state index fits a semantic identity")
+                        .checked_add(1)
+                        .expect("block identity is nonzero"),
+                ),
+                arguments,
+            },
         });
     }
     let result = ValueDeclaration {
