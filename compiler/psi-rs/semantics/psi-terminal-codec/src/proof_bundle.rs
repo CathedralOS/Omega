@@ -1,8 +1,8 @@
 use psi_core::{
     ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentDomainId, ContentPlaceSegment,
     ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace, ContentTerm,
-    IntegerSign, IntegerType, IntegerValue, Proposition, PropositionError, PropositionId,
-    PsiSemanticId, ScalarTerm, ScalarType,
+    IntegerCarrier, IntegerSign, IntegerType, IntegerValue, Proposition, PropositionError,
+    PropositionId, PsiSemanticId, ScalarTerm, ScalarType,
 };
 use psi_proof_kernel::{
     AdmissionEvidence, AdmissionKind, CertificateEnvelope, EvidenceRoute, PrimitiveJudgment,
@@ -29,6 +29,7 @@ const FORMAT_VERSION_V14: u16 = 14;
 const FORMAT_VERSION_V15: u16 = 15;
 const FORMAT_VERSION_V16: u16 = 16;
 const FORMAT_VERSION_V17: u16 = 17;
+const FORMAT_VERSION_V18: u16 = 18;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-proof-bundle-fingerprint-v1\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -90,6 +91,7 @@ pub fn decode_proof_bundle(bytes: &[u8]) -> Result<ProofBundle, ProofCodecError>
             | FORMAT_VERSION_V15
             | FORMAT_VERSION_V16
             | FORMAT_VERSION_V17
+            | FORMAT_VERSION_V18
     ) {
         return Err(ProofCodecError::UnsupportedFormatVersion(format_version));
     }
@@ -260,6 +262,14 @@ fn required_format_version(bundle: &ProofBundle) -> u16 {
         matches!(
             &evidence.route,
             EvidenceRoute::CertificateDerived(certificate)
+                if proof_uses_v18_address(&certificate.proof)
+        )
+    }) {
+        FORMAT_VERSION_V18
+    } else if bundle.evidence.iter().any(|evidence| {
+        matches!(
+            &evidence.route,
+            EvidenceRoute::CertificateDerived(certificate)
                 if proof_uses_v17_term(&certificate.proof)
         )
     }) {
@@ -386,6 +396,163 @@ fn required_format_version(bundle: &ProofBundle) -> u16 {
         FORMAT_VERSION_V2
     } else {
         FORMAT_VERSION_V1
+    }
+}
+
+fn proof_uses_v18_address(node: &ProofNode) -> bool {
+    proposition_uses_address(&node.conclusion)
+        || match &node.rule {
+            ProofRule::Primitive(_)
+            | ProofRule::SemanticAxiom { .. }
+            | ProofRule::Assumption { .. } => false,
+            ProofRule::ConjunctionIntroduction(nodes) => nodes.iter().any(proof_uses_v18_address),
+            ProofRule::ConjunctionElimination { conjunction, .. }
+            | ProofRule::ImplicationIntroduction { body: conjunction } => {
+                proof_uses_v18_address(conjunction)
+            }
+            ProofRule::ImplicationElimination {
+                implication,
+                premise,
+            } => proof_uses_v18_address(implication) || proof_uses_v18_address(premise),
+            ProofRule::EqualityTransitivity {
+                left_equals_middle,
+                middle_equals_right,
+            } => {
+                proof_uses_v18_address(left_equals_middle)
+                    || proof_uses_v18_address(middle_equals_right)
+            }
+        }
+}
+
+fn proposition_uses_address(proposition: &Proposition) -> bool {
+    match proposition {
+        Proposition::Truth
+        | Proposition::Falsehood
+        | Proposition::Atom(_)
+        | Proposition::ContentConservation(_) => false,
+        Proposition::Equal(left, right)
+        | Proposition::LessThan(left, right)
+        | Proposition::LessOrEqual(left, right) => {
+            scalar_term_uses_address(left) || scalar_term_uses_address(right)
+        }
+        Proposition::Conjunction(conjuncts) => conjuncts.iter().any(proposition_uses_address),
+        Proposition::Implication {
+            premise,
+            conclusion,
+        } => proposition_uses_address(premise) || proposition_uses_address(conclusion),
+    }
+}
+
+fn integer_type_is_address(integer_type: IntegerType) -> bool {
+    integer_type.carrier() == IntegerCarrier::Address
+}
+
+fn scalar_type_uses_address(scalar_type: ScalarType) -> bool {
+    matches!(scalar_type, ScalarType::Integer(integer_type) if integer_type_is_address(integer_type))
+}
+
+fn scalar_term_uses_address(term: &ScalarTerm) -> bool {
+    match term {
+        ScalarTerm::Value { scalar_type, .. } => scalar_type_uses_address(*scalar_type),
+        ScalarTerm::Boolean(_) => false,
+        ScalarTerm::BooleanNot { operand } => scalar_term_uses_address(operand),
+        ScalarTerm::BooleanEqual { left, right } => {
+            scalar_term_uses_address(left) || scalar_term_uses_address(right)
+        }
+        ScalarTerm::IntegerWiden {
+            source_type,
+            target_type,
+            operand,
+        } => {
+            integer_type_is_address(*source_type)
+                || integer_type_is_address(*target_type)
+                || scalar_term_uses_address(operand)
+        }
+        ScalarTerm::WrappingIntegerShiftLeft {
+            value_type,
+            count_type,
+            value,
+            count,
+        }
+        | ScalarTerm::WrappingIntegerShiftRight {
+            value_type,
+            count_type,
+            value,
+            count,
+        } => {
+            integer_type_is_address(*value_type)
+                || integer_type_is_address(*count_type)
+                || scalar_term_uses_address(value)
+                || scalar_term_uses_address(count)
+        }
+        ScalarTerm::Integer { scalar_type, .. }
+        | ScalarTerm::IntegerBitwiseNot { scalar_type, .. } => {
+            integer_type_is_address(*scalar_type)
+        }
+        ScalarTerm::IntegerEqual {
+            scalar_type,
+            left,
+            right,
+        }
+        | ScalarTerm::IntegerLessThan {
+            scalar_type,
+            left,
+            right,
+        }
+        | ScalarTerm::IntegerLessOrEqual {
+            scalar_type,
+            left,
+            right,
+        }
+        | ScalarTerm::IntegerBitwiseAnd {
+            scalar_type,
+            left,
+            right,
+        }
+        | ScalarTerm::IntegerBitwiseOr {
+            scalar_type,
+            left,
+            right,
+        }
+        | ScalarTerm::IntegerBitwiseXor {
+            scalar_type,
+            left,
+            right,
+        }
+        | ScalarTerm::WrappingIntegerAdd {
+            scalar_type,
+            left,
+            right,
+        }
+        | ScalarTerm::SaturatingIntegerAdd {
+            scalar_type,
+            left,
+            right,
+        }
+        | ScalarTerm::WrappingIntegerSubtract {
+            scalar_type,
+            left,
+            right,
+        }
+        | ScalarTerm::SaturatingIntegerSubtract {
+            scalar_type,
+            left,
+            right,
+        }
+        | ScalarTerm::WrappingIntegerMultiply {
+            scalar_type,
+            left,
+            right,
+        }
+        | ScalarTerm::SaturatingIntegerMultiply {
+            scalar_type,
+            left,
+            right,
+        } => {
+            integer_type_is_address(*scalar_type)
+                || scalar_term_uses_address(left)
+                || scalar_term_uses_address(right)
+        }
     }
 }
 
@@ -1986,9 +2153,13 @@ fn encode_scalar_type(writer: &mut Writer, scalar_type: ScalarType) {
 }
 
 fn encode_integer_type(writer: &mut Writer, integer_type: IntegerType) {
-    writer.u8(match integer_type.sign() {
-        IntegerSign::Signed => 1,
-        IntegerSign::Unsigned => 2,
+    writer.u8(match (integer_type.carrier(), integer_type.sign()) {
+        (IntegerCarrier::Fixed, IntegerSign::Signed) => 1,
+        (IntegerCarrier::Fixed, IntegerSign::Unsigned) => 2,
+        (IntegerCarrier::Address, IntegerSign::Unsigned) => 3,
+        (IntegerCarrier::Address, IntegerSign::Signed) => {
+            unreachable!("address carriers are unsigned")
+        }
     });
     writer.u16(integer_type.bits());
 }
@@ -2355,12 +2526,15 @@ fn decode_scalar_type(reader: &mut Reader<'_>) -> Result<ScalarType, ProofCodecE
 }
 
 fn decode_integer_type(reader: &mut Reader<'_>) -> Result<IntegerType, ProofCodecError> {
-    let sign = match reader.u8()? {
-        1 => IntegerSign::Signed,
-        2 => IntegerSign::Unsigned,
+    let tag = reader.u8()?;
+    let bits = reader.u16()?;
+    match tag {
+        1 => IntegerType::new(IntegerSign::Signed, bits),
+        2 => IntegerType::new(IntegerSign::Unsigned, bits),
+        3 => IntegerType::address(bits),
         tag => return Err(ProofCodecError::InvalidTag("IntegerSign", tag)),
-    };
-    IntegerType::new(sign, reader.u16()?).map_err(ProofCodecError::MalformedProposition)
+    }
+    .map_err(ProofCodecError::MalformedProposition)
 }
 
 fn decode_integer_value(reader: &mut Reader<'_>) -> Result<IntegerValue, ProofCodecError> {

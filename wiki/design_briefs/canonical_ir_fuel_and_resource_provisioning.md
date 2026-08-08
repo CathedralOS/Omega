@@ -42,8 +42,10 @@ no-successor crash terminator with a closed cause, nominal damage scope, and
 machine-local abandoned-frontier lower bound, v23 separates the body-derived
 damage minimum from the selected published containment demand, v24 adds
 canonical sparse per-cause context maxima to machine contracts, v25 adds total
-fixed-width integer bitwise complement, and current v26 adds universally total
-fixed-width `i*`/`u*` widening whose target contains the complete source range.
+fixed-width integer bitwise complement, v26 adds universally total fixed-width
+`i*`/`u*` widening whose target contains the complete source range, and current
+v27 distinguishes the address carrier from an ordinary same-width unsigned
+integer while retaining its current 64-bit representation.
 Shift counts retain their own integer type and reduce by Euclidean modulo of
 the shifted value's width. The verifier
 reconstructs operation, edge-binding, and return-binding axioms guaranteed on
@@ -61,7 +63,7 @@ and create no overflow obligation. Omega's interpreter executes the same
 verified module object and rejects out-of-range integer arguments before
 execution. Reaching a verified crash reports a distinct terminal outcome after
 charging the crash edge once; resumption cannot replay it. Canonical encoding,
-validation, and fuel cover the complete v26 row. Native lowering currently
+validation, and fuel cover the complete v27 row. Native lowering currently
 rejects crash rows explicitly until target crash plans are represented.
 The source producer selects its uniquely matching unconditional route from the
 checked machine-contract crash plan. That plan canonically merges authored
@@ -125,8 +127,10 @@ preserve the mathematical value at the wider carrier, and cost one operation
 unit. This includes unsigned-to-signed widening when the target is wider.
 Narrowing, same-width signedness changes, signed-to-unsigned casts, and
 conversions whose validity depends on occurrence range evidence remain rejected
-until the terminal vocabulary carries the facts needed to prove them. `addr`
-remains outside until terminal Psi retains that carrier distinctly from `u64`.
+until the terminal vocabulary carries the facts needed to prove them. Terminal
+Psi v27 retains `addr` distinctly from `u64` through declarations, scalar terms,
+comparisons, artifacts, and realization; cross-carrier conversions to or from
+`addr` remain rejected.
 Declared semantic-domain casts remain rejected until their own executable
 vocabulary exists.
 Unary integer negation follows the parser's settled `0 - value` lowering. The
@@ -260,8 +264,10 @@ semantic v19 plus proof format v13 add recursive integer-ordering vocabulary;
 semantic v20 plus proof format v14 add recursive integer-bitwise vocabulary;
 semantic v21 plus proof format v15 add recursive wrapping-shift vocabulary;
 semantic v25 plus proof format v16 add recursive integer-bitwise-complement
-vocabulary; and semantic v26 plus proof format v17 add recursive exact-typed
-integer-widening vocabulary, without changing fuel schedule v1. Parameter-fed
+vocabulary; semantic v26 plus proof format v17 add recursive exact-typed
+integer-widening vocabulary; and semantic v27 plus proof format v18 distinguish
+address-typed values and proof terms from ordinary unsigned integers, without
+changing fuel schedule v1. Parameter-fed
 canaries round-trip, verify, cost two units, and agree with native execution: wrapping
 `u8` computes 5-10 = 251, while signed `i64` saturating subtraction reaches
 both bounds and wrapping `u8` multiplication computes 20*13 = 4.
@@ -358,7 +364,12 @@ operation plus its return edge; a direct policy erasure remains an ordinary
 parameter return and costs only the edge. Wrapping/Saturating unary negation
 costs one zero constant, one subtraction, and one return edge. These source
 forms reuse existing terminal terms, so none changes semantic or proof format
-versions. The v3
+after its owning vocabulary lands. The v27 address canary retains an `addr`
+parameter through canonical decode and exact-type equality, returns Boolean
+true under artifact-root interpretation and both native targets for a
+full-width input, and costs one comparison plus the return edge. Address
+identity changes no fuel rule; proof format v18 is selected only when a carried
+certificate contains an address-typed term. The v3
 wrapping slice
 round-trips, verifies,
 meters, lowers, emits,

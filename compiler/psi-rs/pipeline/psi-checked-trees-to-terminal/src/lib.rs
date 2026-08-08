@@ -2241,6 +2241,11 @@ fn validate_closed_scalar_contract(
 }
 
 fn integer_scalar_type(primitive: PrimitiveType) -> Result<ScalarType, LoweringError> {
+    if primitive == PrimitiveType::Addr {
+        return IntegerType::address(64)
+            .map(ScalarType::Integer)
+            .map_err(|_| LoweringError::InvalidPsiIntegerType);
+    }
     let (sign, bits) = match primitive {
         PrimitiveType::I8 => (IntegerSign::Signed, 8),
         PrimitiveType::I16 => (IntegerSign::Signed, 16),
@@ -2249,7 +2254,8 @@ fn integer_scalar_type(primitive: PrimitiveType) -> Result<ScalarType, LoweringE
         PrimitiveType::U8 => (IntegerSign::Unsigned, 8),
         PrimitiveType::U16 => (IntegerSign::Unsigned, 16),
         PrimitiveType::U32 => (IntegerSign::Unsigned, 32),
-        PrimitiveType::U64 | PrimitiveType::Addr => (IntegerSign::Unsigned, 64),
+        PrimitiveType::U64 => (IntegerSign::Unsigned, 64),
+        PrimitiveType::Addr => unreachable!("address carrier handled above"),
         PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 => {
             return unsupported("only primitive integers are supported");
         }

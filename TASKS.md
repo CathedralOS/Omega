@@ -272,9 +272,13 @@ Remaining:
   retags. Narrowing, same-width signedness changes, signed-to-unsigned casts,
   and conversions that depend on occurrence range evidence continue to fail
   closed until terminal Psi retains the proof-bearing range facts needed to
-  justify them; `addr` also remains outside this slice because terminal Psi does
-  not yet retain its distinct carrier identity. These are implementation
-  frontiers, not unresolved language rulings.
+  justify them. Terminal Psi v27 now retains `addr` as a distinct unsigned
+  address carrier with its current 64-bit representation rather than collapsing
+  it into `u64`; canonical semantic bytes, proof format v18 terms, verification,
+  artifact-root interpretation, Omega lowering, and full-width native integer
+  comparison preserve that identity. Cross-carrier casts between `addr` and
+  fixed integers remain fail-closed. These are implementation frontiers, not
+  unresolved language rulings.
 - Retire the legacy backend lane as terminal-Psi vocabulary and consumers grow;
   do not restore any `ExpressionHandle` or source-tree dependency in the live
   scalar terminal path.

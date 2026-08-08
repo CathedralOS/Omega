@@ -53,6 +53,8 @@ use psi_core::{
 /// Version 25 adds fixed-width integer bitwise complement.
 /// Version 26 adds universally total integer widening whose target contains the
 /// complete source range.
+/// Version 27 distinguishes the target-selected address carrier from ordinary
+/// fixed-width unsigned integers while retaining its current bit width.
 /// Older bytes retain their original meaning and identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SemanticVersion(NonZeroU16);
@@ -84,7 +86,8 @@ impl SemanticVersion {
     pub const V24: Self = Self(NonZeroU16::new(24).expect("twenty-four is nonzero"));
     pub const V25: Self = Self(NonZeroU16::new(25).expect("twenty-five is nonzero"));
     pub const V26: Self = Self(NonZeroU16::new(26).expect("twenty-six is nonzero"));
-    pub const CURRENT: Self = Self::V26;
+    pub const V27: Self = Self(NonZeroU16::new(27).expect("twenty-seven is nonzero"));
+    pub const CURRENT: Self = Self::V27;
 
     pub fn new(raw: u16) -> Option<Self> {
         NonZeroU16::new(raw).map(Self)

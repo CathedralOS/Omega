@@ -73,6 +73,7 @@ pub fn validate_module(
             | SemanticVersion::V24
             | SemanticVersion::V25
             | SemanticVersion::V26
+            | SemanticVersion::V27
     ) {
         return Err(ModuleError::UnsupportedSemanticVersion(
             module.semantic_version,
@@ -80,6 +81,12 @@ pub fn validate_module(
     }
     if module.machines.is_empty() {
         return Err(ModuleError::EmptyModule);
+    }
+    if module.semantic_version < SemanticVersion::V27 && module_uses_address_carrier(module) {
+        return Err(ModuleError::AddressCarrierRequiresSemanticVersion {
+            required: SemanticVersion::V27,
+            actual: module.semantic_version,
+        });
     }
 
     validate_proposition_vocabulary(module)?;
@@ -103,6 +110,88 @@ pub fn validate_module(
     }
 
     Ok(ValidatedTerminalModule { module })
+}
+
+fn module_uses_address_carrier(module: &TerminalModule) -> bool {
+    module.machines.iter().any(|machine| {
+        machine
+            .parameters
+            .iter()
+            .chain(std::iter::once(&machine.result))
+            .any(|declaration| scalar_type_uses_address(declaration.scalar_type))
+            || machine.blocks.iter().any(|block| {
+                block
+                    .parameters
+                    .iter()
+                    .any(|declaration| scalar_type_uses_address(declaration.scalar_type))
+                    || block
+                        .operations
+                        .iter()
+                        .any(|operation| scalar_type_uses_address(operation.result.scalar_type))
+            })
+            || machine
+                .contract
+                .requires
+                .iter()
+                .any(proposition_uses_address)
+            || machine
+                .contract
+                .ensures
+                .iter()
+                .any(|clause| proposition_uses_address(&clause.proposition))
+    })
+}
+
+fn scalar_type_uses_address(scalar_type: ScalarType) -> bool {
+    matches!(scalar_type, ScalarType::Integer(integer_type) if integer_type.is_address())
+}
+
+fn proposition_uses_address(proposition: &Proposition) -> bool {
+    match proposition {
+        Proposition::Truth
+        | Proposition::Falsehood
+        | Proposition::Atom(_)
+        | Proposition::ContentConservation(_) => false,
+        Proposition::Equal(left, right)
+        | Proposition::LessThan(left, right)
+        | Proposition::LessOrEqual(left, right) => {
+            scalar_term_uses_address(left) || scalar_term_uses_address(right)
+        }
+        Proposition::Conjunction(conjuncts) => conjuncts.iter().any(proposition_uses_address),
+        Proposition::Implication {
+            premise,
+            conclusion,
+        } => proposition_uses_address(premise) || proposition_uses_address(conclusion),
+    }
+}
+
+fn scalar_term_uses_address(term: &ScalarTerm) -> bool {
+    scalar_type_uses_address(term.scalar_type())
+        || match term {
+            ScalarTerm::BooleanNot { operand }
+            | ScalarTerm::IntegerBitwiseNot { operand, .. }
+            | ScalarTerm::IntegerWiden { operand, .. } => scalar_term_uses_address(operand),
+            ScalarTerm::BooleanEqual { left, right }
+            | ScalarTerm::IntegerEqual { left, right, .. }
+            | ScalarTerm::IntegerLessThan { left, right, .. }
+            | ScalarTerm::IntegerLessOrEqual { left, right, .. }
+            | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
+            | ScalarTerm::IntegerBitwiseOr { left, right, .. }
+            | ScalarTerm::IntegerBitwiseXor { left, right, .. }
+            | ScalarTerm::WrappingIntegerAdd { left, right, .. }
+            | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
+            | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
+            | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
+            | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
+            | ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
+                scalar_term_uses_address(left) || scalar_term_uses_address(right)
+            }
+            ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
+            | ScalarTerm::WrappingIntegerShiftRight { value, count, .. } => {
+                scalar_term_uses_address(value) || scalar_term_uses_address(count)
+            }
+            ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => false,
+        }
 }
 
 fn validate_proposition_vocabulary(module: &TerminalModule) -> Result<(), ModuleError> {
@@ -2190,6 +2279,10 @@ pub enum ContractClauseKind {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ModuleError {
     UnsupportedSemanticVersion(SemanticVersion),
+    AddressCarrierRequiresSemanticVersion {
+        required: SemanticVersion,
+        actual: SemanticVersion,
+    },
     EmptyModule,
     PropositionVocabularyRequiresSemanticVersion {
         required: SemanticVersion,

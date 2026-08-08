@@ -1104,6 +1104,60 @@ fn v26_integer_widen_reconstructs_its_exact_result_axiom_and_rejects_partial_cas
 }
 
 #[test]
+fn v27_preserves_address_carrier_identity_and_v26_rejects_it() {
+    let address = ScalarType::Integer(IntegerType::address(64).expect("addr"));
+    let parameter = ValueId::new(168).expect("parameter");
+    let result = ValueId::new(169).expect("result");
+    let mut module = TerminalModule {
+        semantic_version: SemanticVersion::V27,
+        entry: MachineId::new(168).expect("machine"),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        machines: vec![TerminalMachine {
+            id: MachineId::new(168).expect("machine"),
+            parameters: vec![ValueDeclaration {
+                id: parameter,
+                scalar_type: address,
+            }],
+            result: ValueDeclaration {
+                id: result,
+                scalar_type: address,
+            },
+            structural_places: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: BlockId::new(168).expect("block"),
+            blocks: vec![Block {
+                id: BlockId::new(168).expect("block"),
+                parameters: Vec::new(),
+                operations: Vec::new(),
+                terminator: Terminator::Return {
+                    edge: EdgeId::new(168).expect("edge"),
+                    value: parameter,
+                },
+            }],
+            contract: MachineContract {
+                id: ContractId::new(168).expect("contract"),
+                crash_context: Vec::new(),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+            },
+        }],
+    };
+
+    validate_module(&module).expect("v27 admits the distinct address carrier");
+    module.semantic_version = SemanticVersion::V26;
+    assert_eq!(
+        validate_module(&module).expect_err("v26 cannot encode address identity"),
+        ModuleError::AddressCarrierRequiresSemanticVersion {
+            required: SemanticVersion::V27,
+            actual: SemanticVersion::V26,
+        }
+    );
+}
+
+#[test]
 fn v21_wrapping_shift_axioms_preserve_the_count_type() {
     let value_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 value type");
     let count_type = IntegerType::new(IntegerSign::Signed, 16).expect("i16 count type");

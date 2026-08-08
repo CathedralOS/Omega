@@ -30,8 +30,8 @@ pub use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity};
 use psi_core::{
     ClaimId, ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentDomainId,
     ContentPlaceSegment, ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace,
-    ContentTerm, IntegerSign, IntegerType, IntegerValue, Proposition, PropositionError,
-    PropositionId, PsiSemanticId, ScalarTerm, ScalarType, StructuralPlaceKind,
+    ContentTerm, IntegerCarrier, IntegerSign, IntegerType, IntegerValue, Proposition,
+    PropositionError, PropositionId, PsiSemanticId, ScalarTerm, ScalarType, StructuralPlaceKind,
 };
 use psi_terminal::{
     Block, ClaimContentProjection, ContentEntryClaim, ContentIdentityReshuffle,
@@ -1236,9 +1236,13 @@ fn encode_scalar_type(writer: &mut Writer, scalar_type: ScalarType) {
 }
 
 fn encode_integer_type(writer: &mut Writer, integer_type: IntegerType) {
-    writer.u8(match integer_type.sign() {
-        IntegerSign::Signed => 1,
-        IntegerSign::Unsigned => 2,
+    writer.u8(match (integer_type.carrier(), integer_type.sign()) {
+        (IntegerCarrier::Fixed, IntegerSign::Signed) => 1,
+        (IntegerCarrier::Fixed, IntegerSign::Unsigned) => 2,
+        (IntegerCarrier::Address, IntegerSign::Unsigned) => 3,
+        (IntegerCarrier::Address, IntegerSign::Signed) => {
+            unreachable!("address carriers are unsigned")
+        }
     });
     writer.u16(integer_type.bits());
 }
@@ -2024,12 +2028,15 @@ fn decode_scalar_type(reader: &mut Reader<'_>) -> Result<ScalarType, CodecError>
 }
 
 fn decode_integer_type(reader: &mut Reader<'_>) -> Result<IntegerType, CodecError> {
-    let sign = match reader.u8()? {
-        1 => IntegerSign::Signed,
-        2 => IntegerSign::Unsigned,
+    let tag = reader.u8()?;
+    let bits = reader.u16()?;
+    match tag {
+        1 => IntegerType::new(IntegerSign::Signed, bits),
+        2 => IntegerType::new(IntegerSign::Unsigned, bits),
+        3 => IntegerType::address(bits),
         tag => return Err(CodecError::InvalidTag("IntegerSign", tag)),
-    };
-    IntegerType::new(sign, reader.u16()?).map_err(CodecError::MalformedProposition)
+    }
+    .map_err(CodecError::MalformedProposition)
 }
 
 fn decode_integer_value(reader: &mut Reader<'_>) -> Result<IntegerValue, CodecError> {
