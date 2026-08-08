@@ -65,6 +65,13 @@ clauses by cause and containment demand, removes duplicate guards, treats
 explicit `true` as unconditional, and is also the input to public contract
 fingerprinting and reporting; terminal production does not reinterpret the
 typed contract syntax.
+The checked crash plan also retains a separate implementation-evidence row for
+each explicit body site, keyed by state plus state-local statement ordinal and
+carrying its derived cause. Terminal production joins the crash statement to
+that checked row; the site rows never enter the published contract fingerprint.
+Path guard, damage minimum, covering buckets, and reconstructed frontier remain
+independent fields that later checks must establish before general crash
+production opens.
 
 The first Psi-owned checked-tree producer, `psi-checked-trees-to-terminal`,
 lowers a closed set of scalar closed-contract source forms: a recursively nested Boolean

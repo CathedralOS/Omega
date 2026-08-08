@@ -72,10 +72,13 @@ routes, and let a route-less or explicit-`true` route subsume guarded
 alternatives. Checked machine-contract plans retain that published set as
 source-handle-free buckets; the public fingerprint and contract manifest
 consume the same carrier, and terminal lowering selects unconditional coverage
-from it rather than re-reading typed clauses. Independent body-derived site
-rows, general guarded production, path-conditioned coverage/refinement,
-nominal scope ordering, and installation realization remain the rest of
-CRASH-CONTRACT.
+from it rather than re-reading typed clauses. An independent checked body layer
+retains every explicit crash site's state-local location and cause; these rows
+are reported as implementation evidence, do not enter the public fingerprint,
+and are required by terminal production. Path-conditioned site guards,
+coverage, damage minima, reconstructed frontier lower bounds, general guarded
+production, nominal scope ordering, and installation realization remain the
+rest of CRASH-CONTRACT.
 `psi-terminal-verifier` rejects malformed identities, types, contract scopes,
 cycles, unreachable fact sources, and missing/extra evidence, reconstructs the
 exact operation/edge/return axioms, and checks every `ensures` from a separate

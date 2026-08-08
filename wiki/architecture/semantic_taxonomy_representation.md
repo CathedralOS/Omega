@@ -885,6 +885,11 @@ CrashPlan {
   checked_inferred: CrashRouteSetId,
 }
 
+CheckedCrashSite {                              // checked-tree implementation evidence
+  location: (StateId, state_local_statement_ordinal),
+  cause: CrashCauseId,
+}
+
 CrashContextPlan {
   maximum_by_cause: SparseMap<CrashCauseId, CrashScopeId>,
   // absent cause = forbidden
@@ -934,6 +939,13 @@ facts. It compares each surviving bucket with the enclosing per-cause context
 maximum independently; no scope join is required. Proofs may use a checked body
 only when that body belongs to the same fingerprinted verification unit.
 Imported evidence cites the published contract and certificate.
+
+Checked lowering first records each explicit body crash as a
+`CheckedCrashSite`. That row identifies the statement-handle-free state-local
+site and its cause, but is not a completed `CrashTerminatorPlan`: later checks
+add the path guard, damage minimum, covering route buckets, and frontier lower
+bound. Checked sites are implementation evidence and never enter the
+published contract fingerprint.
 
 Psi owns these nominal demand checks. Omega installation supplies
 `InstalledCrashContainment` and verifies, for every surviving route:

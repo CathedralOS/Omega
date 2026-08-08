@@ -174,8 +174,11 @@ Current ownership is:
   demand)` buckets with source-handle-free predicate identities; route-less and
   explicit-`true` clauses normalize to the same unconditional route. Public
   fingerprints, reports, and terminal production consume this checked carrier
-  rather than re-reading typed crash clauses. Body-derived crash sites and
-  damage minima remain a separate checked-evidence layer.
+  rather than re-reading typed crash clauses. The same plan keeps an
+  independent, non-fingerprinted checked-site layer keyed by state and
+  state-local statement ordinal; it records the body-derived cause without
+  claiming that path-conditioned coverage, damage-minimum, or frontier
+  reconstruction has run.
 - `psi-checked-trees/src/proof/` owns proof-facing checked facts:
   `obligations.rs` owns explicit proof obligations, `contracts.rs` owns
   contract proof facts/call/exit indexes, and `roots.rs` owns the grouped

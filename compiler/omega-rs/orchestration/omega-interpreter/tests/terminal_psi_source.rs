@@ -2452,6 +2452,28 @@ fn psi_terminal_producer_rejects_source_outside_its_declared_slice() {
             )
         );
     }
+
+    let mut missing_site = checked.clone();
+    let terminal_abort = missing_site
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "terminal_abort")
+        .expect("terminal abort machine")
+        .symbol;
+    let crash = &mut missing_site
+        .facts
+        .contract_plans
+        .machines
+        .iter_mut()
+        .find(|plan| plan.machine == terminal_abort)
+        .expect("terminal abort contract plan")
+        .crash;
+    *crash = psi_checked_trees::CrashPlan::published_ceiling(crash.published().to_vec());
+    assert_eq!(
+        lower_machine(&missing_site, "terminal_abort")
+            .expect_err("terminal production must consume checked crash-site evidence"),
+        LoweringError::Unsupported("explicit crash has no body-derived checked crash-site row")
+    );
 }
 
 #[test]
