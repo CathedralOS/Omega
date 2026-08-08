@@ -235,11 +235,14 @@ Remaining:
   terminal claim. Direct positive case-pattern edges now rebind the guarded
   subject through named-state arguments and add exactly the selected
   conditional entry claim. Single-predecessor guard walks compose that argument
-  map through intermediate named states. The ownership join also treats
+  map through intermediate named states; multi-predecessor meets retain it only
+  when every incoming edge carries the same guard polarity and exact composed
+  final-parameter map. The ownership join also treats
   exhaustive case runs as exhaustive and removes impossible earlier
   alternatives before comparing arm outcomes. Unknown active cases and nested
-  cases without proof at every level remain outside the lower bound. Extend
-  this evidence through source-independent multi-predecessor joins. Direct
+  cases without proof at every level remain outside the lower bound. Replace
+  the checker-local label map with source-independent membership evidence and
+  extend it through nested-case proof. Direct
   calls to local machines with
   published crash ceilings now retain source-independent checked invocation
   rows keyed by state/statement/call ordinal and target contract fingerprint.

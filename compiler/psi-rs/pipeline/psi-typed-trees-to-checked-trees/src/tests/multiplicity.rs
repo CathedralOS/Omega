@@ -284,6 +284,73 @@ fn multi_hop_case_guard_promotes_only_the_proven_conditional_crash_claim() {
 }
 
 #[test]
+fn common_case_guard_parameter_map_survives_a_diamond_join() {
+    let checked = checked(
+        r#"
+        data Receipt [linear] { code: i32; }
+        data MaybeReceipt {
+            case Empty;
+            case Live(receipt: Receipt);
+        }
+
+        machine route(choice: MaybeReceipt, branch: bool) -> i32
+        crashes Abort
+        {
+            transition choice {
+                MaybeReceipt::Live -> split(choice, branch)
+                MaybeReceipt::Empty -> 0
+            }
+
+            state split(pending: MaybeReceipt, branch: bool) -> i32 {
+                transition branch {
+                    true -> left(pending)
+                    _ -> right(pending)
+                }
+            }
+
+            state left(pending: MaybeReceipt) -> i32 {
+                transition { _ -> crash_live(pending) }
+            }
+
+            state right(pending: MaybeReceipt) -> i32 {
+                transition { _ -> crash_live(pending) }
+            }
+
+            state crash_live(choice: MaybeReceipt) -> i32 {
+                crash Abort;
+            }
+        }
+        "#,
+    );
+
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "route")
+        .expect("routing machine");
+    let crash_state = checked
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.name.as_str() == "crash_live")
+        .expect("joined crash state");
+    let site = checked
+        .facts
+        .contract_plans
+        .for_machine(machine.symbol)
+        .expect("machine contract plan")
+        .crash
+        .checked_sites()
+        .iter()
+        .find(|site| site.location().state() == crash_state.symbol)
+        .expect("checked crash site");
+    assert_eq!(
+        site.frontier_lower_bound().len(),
+        1,
+        "the identical composed case proof on both diamond edges must survive the meet"
+    );
+}
+
+#[test]
 fn empty_conditional_sum_records_establishment_without_payload_debt() {
     let checked = checked(
         r#"
