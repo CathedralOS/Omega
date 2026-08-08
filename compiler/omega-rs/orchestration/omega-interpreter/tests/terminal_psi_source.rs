@@ -3288,6 +3288,145 @@ fn checked_source_same_carrier_policy_casts_retag_without_terminal_work() {
 }
 
 #[test]
+fn checked_source_policy_retags_and_unary_negation_reuse_terminal_arithmetic() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("policy-retag and unary-negation source canaries should compile");
+    let cases = [
+        (
+            "terminal_explicit_saturating_cast_add_runtime",
+            0_u8,
+            IntegerType::new(IntegerSign::Unsigned, 8).expect("u8"),
+            IntegerValue::Unsigned(250),
+            IntegerValue::Unsigned(10),
+            IntegerValue::Unsigned(255),
+            2,
+        ),
+        (
+            "terminal_wrapping_negate_runtime",
+            1,
+            IntegerType::new(IntegerSign::Signed, 8).expect("i8"),
+            IntegerValue::Signed(-128),
+            IntegerValue::Signed(0),
+            IntegerValue::Signed(-128),
+            3,
+        ),
+        (
+            "terminal_saturating_negate_runtime",
+            2,
+            IntegerType::new(IntegerSign::Signed, 8).expect("i8"),
+            IntegerValue::Signed(-128),
+            IntegerValue::Signed(0),
+            IntegerValue::Signed(127),
+            3,
+        ),
+    ];
+
+    for (machine, expected_kind, scalar_type, left, right, expected, expected_fuel) in cases {
+        let lowered = lower_machine(&checked, machine)
+            .unwrap_or_else(|error| panic!("{machine} should lower: {error:?}"));
+        let operation = lowered.semantic_module.machines[0].blocks[0]
+            .operations
+            .last()
+            .expect("policy arithmetic should retain one terminal operation");
+        assert!(
+            matches!(
+                (expected_kind, operation.kind),
+                (0, OperationKind::SaturatingIntegerAdd { .. })
+                    | (1, OperationKind::WrappingIntegerSubtract { .. })
+                    | (2, OperationKind::SaturatingIntegerSubtract { .. })
+            ),
+            "{machine} terminal operation kind"
+        );
+        let semantic = encode_module(&lowered.semantic_module)
+            .unwrap_or_else(|error| panic!("{machine} semantic module should encode: {error:?}"));
+        let proof = encode_proof_bundle(&lowered.proof_bundle)
+            .unwrap_or_else(|error| panic!("{machine} proof should encode: {error:?}"));
+        drop(lowered);
+
+        let argument = |value| TerminalScalarValue::Integer { scalar_type, value };
+        let measured = interpret_terminal_artifact_measured(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            &[argument(left), argument(right)],
+        )
+        .unwrap_or_else(|error| panic!("{machine} artifact should interpret: {error:?}"));
+        assert_eq!(measured.value(), argument(expected), "{machine} result");
+        assert_eq!(
+            measured.usage().total_units(),
+            expected_fuel,
+            "{machine} fuel"
+        );
+
+        let abstract_operations =
+            lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
+                .unwrap_or_else(|error| panic!("{machine} should cross Omega: {error:?}"));
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let target_operations = lower_to_target_operations(&abstract_operations, target)
+                .unwrap_or_else(|error| panic!("{machine} should select: {error:?}"));
+            let TerminalTargetOperation::ReturnIntegerExpression { expression, .. } =
+                &target_operations.functions[0].operation
+            else {
+                panic!("{machine} should remain an integer expression return");
+            };
+            assert!(
+                matches!(
+                    (machine, expression),
+                    (
+                        "terminal_explicit_saturating_cast_add_runtime",
+                        TerminalTargetIntegerExpression::SaturatingAdd { .. }
+                    ) | (
+                        "terminal_wrapping_negate_runtime",
+                        TerminalTargetIntegerExpression::WrappingSubtract { .. }
+                    ) | (
+                        "terminal_saturating_negate_runtime",
+                        TerminalTargetIntegerExpression::SaturatingSubtract { .. }
+                    )
+                ),
+                "{machine} target expression kind"
+            );
+            let assigned = assign_registers(&target_operations)
+                .unwrap_or_else(|error| panic!("{machine} homes should assign: {error:?}"));
+            emit_machine_code(&assigned)
+                .unwrap_or_else(|error| panic!("{machine} should emit: {error:?}"));
+        }
+
+        #[cfg(unix)]
+        {
+            let target_operations =
+                lower_to_target_operations(&abstract_operations, NativeTarget::host())
+                    .unwrap_or_else(|error| panic!("{machine} host selection: {error:?}"));
+            let assigned = assign_registers(&target_operations)
+                .unwrap_or_else(|error| panic!("{machine} host homes: {error:?}"));
+            let machine_code = emit_machine_code(&assigned)
+                .unwrap_or_else(|error| panic!("{machine} host emission: {error:?}"));
+            let object = build_terminal_object_artifact(&machine_code)
+                .unwrap_or_else(|error| panic!("{machine} host object: {error:?}"));
+            let argument_bits = |value: IntegerValue| match value {
+                IntegerValue::Unsigned(value) => value as u64,
+                IntegerValue::Signed(value) => value as i64 as u64,
+            };
+            let expected_bits = argument_bits(expected);
+            let actual = run_host_machine_code_with_two_u64(
+                object.entry_function().bytes(&object),
+                argument_bits(left),
+                argument_bits(right),
+            ) as u32 as u64;
+            let mask = if scalar_type.bits() == 64 {
+                u64::MAX
+            } else {
+                (1_u64 << scalar_type.bits()) - 1
+            };
+            assert_eq!(
+                actual & mask,
+                expected_bits & mask,
+                "{machine} native result"
+            );
+        }
+    }
+}
+
+#[test]
 fn checked_source_runtime_wrapping_shifts_cross_the_full_pipeline() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("runtime wrapping-shift source canary should compile");

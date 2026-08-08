@@ -328,6 +328,11 @@ unchanged. Checked retention removes that static retag after using it to select
 any enclosing operation; it emits no terminal operation and consumes no
 operation fuel. Cross-carrier casts and declared semantic-domain casts remain
 outside this scalar slice rather than being mistaken for identities.
+Source unary integer negation retains its parser-defined `0 - value` meaning.
+Because the generated zero has no authored suffix, checked retention lands that
+anonymous zero at the already-validated operand carrier before producing the
+existing Wrapping or Saturating subtraction; terminal Psi gains no separate
+negation operation.
 The linear integer form may declare any sequence of ordinary primitive-integer
 machine parameters, including none, and any sequence of at least two states.
 It computes a recursively nested parameter/literal add/subtract/multiply
@@ -375,7 +380,8 @@ including selected domain-owned operator meanings. The source canary lowers
 all six versioned integer-policy operations in both constant-fed and
 runtime-parameter forms, Boolean literal, negation, Boolean
 equality/inequality, integer equality and ordering, and
-nested same-carrier arithmetic-policy casts plus a direct policy erasure, and
+nested same-carrier arithmetic-policy casts plus a direct policy erasure,
+narrow signed Wrapping/Saturating unary negation,
 ninth-parameter returns, a
 three-state Boolean chain carrying its ninth parameter, a closed three-state
 integer chain, a direct zero-parameter integer literal, plus a nine-parameter
@@ -477,6 +483,9 @@ results.
 Same-carrier arithmetic-policy casts add no target expression node: an
 enclosing operation already carries the selected Wrapping or Saturating
 meaning, while a direct policy erasure remains the existing parameter return.
+Unary integer negation likewise selects the existing target subtraction after
+materializing its exact-width zero; it does not create a target-only negation
+meaning.
 Runtime wrapping shifts retain the count operand's independent integer type,
 reduce that value modulo the shifted width, and select logical or arithmetic
 right shift from the shifted value's signedness. Current native source widths
@@ -1054,6 +1063,9 @@ The explicit same-carrier policy-cast canary likewise costs two units—one
 selected wrapping addition and one return edge—while a direct policy erasure
 costs only its return edge. Neither static retag changes semantic or proof
 format versions because neither introduces terminal vocabulary.
+The unary-negation canaries cost three units: one exact-width zero constant, one
+Wrapping or Saturating subtraction, and one return edge. They reuse existing
+semantic/proof vocabulary and therefore require no format-version change.
 
 `psi-terminal-fixed-fuel` provides the first restricted checker over this same
 schedule. It derives the maximum entry-to-terminal-exit cost over the verified

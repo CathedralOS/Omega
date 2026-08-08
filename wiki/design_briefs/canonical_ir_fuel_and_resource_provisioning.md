@@ -121,6 +121,11 @@ otherwise erases the cast. Because the primitive carrier is unchanged, there
 is no terminal operation, proof term, or fuel charge. Cross-carrier and
 declared semantic-domain casts remain rejected by this producer until their
 own executable vocabulary exists.
+Unary integer negation follows the parser's settled `0 - value` lowering. The
+checked scalar plan contextually lands the compiler-generated anonymous zero at
+the validated operand carrier, so terminal production emits an ordinary
+constant plus Wrapping or Saturating subtraction rather than a parallel
+negation operation.
 Unconditional jumps may compute recursive exact-typed integer bindings;
 Boolean targets additionally accept recursive non-short-circuit literal,
 negation, equality/inequality, and exact-type integer-comparison bindings. An
@@ -334,7 +339,10 @@ architectures. Proof format v16 carries the exact recursive complement term in
 replaceable certificates. The same-carrier policy-cast canary selects wrapping
 addition through explicit source casts and costs only that operation plus its
 return edge; a direct policy erasure remains an ordinary parameter return and
-costs only the edge. Neither changes semantic or proof format versions. The v3 wrapping slice
+costs only the edge. Wrapping/Saturating unary negation costs one zero constant,
+one subtraction, and one return edge. These source forms reuse existing
+terminal terms, so none changes semantic or proof format versions. The v3
+wrapping slice
 round-trips, verifies,
 meters, lowers, emits,
 and executes `u8` 200+100 as 44. The v4 saturating slice traverses the
