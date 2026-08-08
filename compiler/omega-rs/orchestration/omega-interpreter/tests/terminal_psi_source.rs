@@ -1794,6 +1794,108 @@ fn checked_source_runtime_integer_ordering_round_trips_and_preserves_signedness(
 }
 
 #[test]
+fn checked_source_computed_integer_comparison_reaches_native_code() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("computed integer-comparison source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_computed_greater_runtime")
+        .expect("computed integer comparison should lower");
+    drop(checked);
+
+    assert!(matches!(
+        &lowered.semantic_module.machines[0].blocks[0].operations[..],
+        [
+            psi_terminal::Operation {
+                kind: OperationKind::IntegerConstant { .. },
+                ..
+            },
+            psi_terminal::Operation {
+                kind: OperationKind::WrappingIntegerMultiply { .. },
+                ..
+            },
+            psi_terminal::Operation {
+                kind: OperationKind::IntegerConstant { .. },
+                ..
+            },
+            psi_terminal::Operation {
+                kind: OperationKind::WrappingIntegerAdd { .. },
+                ..
+            },
+            psi_terminal::Operation {
+                kind: OperationKind::IntegerLessThan { .. },
+                ..
+            },
+        ]
+    ));
+    let semantic_bytes = encode_module(&lowered.semantic_module)
+        .expect("computed comparison should encode canonically");
+    let proof_bytes = encode_proof_bundle(&lowered.proof_bundle)
+        .expect("computed-comparison proof should encode canonically");
+    let semantic_module =
+        decode_module(&semantic_bytes).expect("computed comparison should decode");
+    let proof_bundle =
+        decode_proof_bundle(&proof_bytes).expect("computed-comparison proof should decode");
+    let verified = verify_module(
+        &semantic_module,
+        &proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("computed comparison should verify after frontend drop");
+    assert_eq!(
+        derive_fixed_entry_fuel(&verified, semantic_module.entry)
+            .expect("computed comparison should have fixed fuel")
+            .ceiling_units(),
+        6
+    );
+
+    let u64_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
+    let integer = |value| TerminalScalarValue::Integer {
+        scalar_type: u64_type,
+        value: IntegerValue::Unsigned(u128::from(value)),
+    };
+    for (left, right, expected) in [(10_u64, 3_u64, true), (5, 3, false), (u64::MAX, 0, false)] {
+        let measured = interpret_terminal_measured(&verified, &[integer(left), integer(right)])
+            .expect("computed comparison should interpret");
+        assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+        assert_eq!(measured.usage().total_units(), 6);
+    }
+
+    let abstract_operations = lower_verified_module(&verified)
+        .expect("computed comparison should cross the Omega boundary");
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_operations = lower_to_target_operations(&abstract_operations, target)
+            .expect("computed comparison should select for both native targets");
+        assert!(matches!(
+            &target_operations.functions[0].operation,
+            TerminalTargetOperation::ReturnBooleanExpression {
+                expression: TerminalTargetBooleanExpression::IntegerLessThan { .. },
+                ..
+            }
+        ));
+        let assigned =
+            assign_registers(&target_operations).expect("computed comparison homes should assign");
+        emit_machine_code(&assigned).expect("computed comparison should emit");
+    }
+
+    #[cfg(unix)]
+    {
+        let target_operations =
+            lower_to_target_operations(&abstract_operations, NativeTarget::host())
+                .expect("computed comparison should select for the host");
+        let assigned =
+            assign_registers(&target_operations).expect("host comparison homes should assign");
+        let machine_code = emit_machine_code(&assigned).expect("host comparison should emit");
+        let object = build_terminal_object_artifact(&machine_code).expect("comparison object");
+        let entry = object.entry_function();
+        for (left, right, expected) in [(10_u64, 3_u64, 1), (5, 3, 0), (u64::MAX, 0, 0)] {
+            assert_eq!(
+                run_host_machine_code_with_two_u64(entry.bytes(&object), left, right),
+                expected
+            );
+        }
+    }
+}
+
+#[test]
 fn checked_source_runtime_integer_bitwise_operations_cross_the_full_pipeline() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("runtime integer-bitwise source canary should compile");

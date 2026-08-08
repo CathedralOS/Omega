@@ -219,8 +219,10 @@ short-circuit operand, value-producing decision leaves retain the explicit
 than replacing their proof and fuel sites with a truth-table branch.
 Compile-known Boolean bindings likewise must match the closed reflexive
 contract. A single-state Boolean-result machine over ordinary
-primitive-integer parameters may compare two directly named parameters of one
-exact type with builtin `==`, `!=`, `<`, `<=`, `>`, or `>=`. Equality retains
+primitive-integer parameters may compare two recursively nested integer
+expressions of one exact type with builtin `==`, `!=`, `<`, `<=`, `>`, or `>=`.
+The operands use the same parameter/literal arithmetic, bitwise, and wrapping
+shift vocabulary as integer-result machines. Equality retains
 an `IntegerEqual` operation and inequality composes its canonical
 `BooleanNot`. Ordered comparisons normalize to `IntegerLessThan` or
 `IntegerLessOrEqual`; greater forms swap operands. Signedness remains in the

@@ -454,6 +454,16 @@ ensures true == true
     left <= right
 }
 
+machine terminal_computed_greater_runtime(
+    left: u64 in Wrapping,
+    right: u64 in Wrapping
+) -> bool
+requires true == true
+ensures true == true
+{
+    left + 1u64 > right * 2u64
+}
+
 machine terminal_unsigned_bitwise_and_runtime(left: u64, right: u64) -> u64
 requires 0u64 == 0u64
 ensures 0u64 == 0u64

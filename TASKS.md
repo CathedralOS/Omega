@@ -187,7 +187,9 @@ Remaining:
   through verification, interpretation, and fuel. Non-crashing shapes also
   reach both native targets. Computed conditional-edge bindings now lower into
   synthesized arm-local blocks, so only the selected expression is evaluated
-  and charged, and reach the same native lanes.
+  and charged, and reach the same native lanes. Boolean-result integer
+  comparisons now accept that recursive scalar vocabulary as both operands and
+  likewise cross interpretation and native execution.
 - Replace all remaining terminal-path `ExpressionHandle` and source-tree
   dependencies with lowered values and predicates. Absorb useful StateGraph /
   ControlFlow topology, then retire the legacy backend lane as consumers move.

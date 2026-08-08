@@ -91,8 +91,8 @@ The first Psi-owned checked-tree producer, `psi-checked-trees-to-terminal`,
 lowers a closed set of scalar closed-contract source forms: a recursively nested Boolean
 expression over literals, exact named parameters, builtin negation, builtin
 equality/inequality, and short-circuit `&&`/`||` from ordinary Boolean
-parameters; direct builtin equality/inequality or ordering between two named
-primitive-integer parameters of one exact type; a recursively nested
+parameters; direct builtin equality/inequality or ordering between two
+recursive primitive-integer expressions of one exact type; a recursively nested
 expression over exact parameter/literal operands using builtin
 wrapping/saturating add, subtract, or multiply, plus bitwise AND, OR, or XOR
 and wrapping left/right shifts,
