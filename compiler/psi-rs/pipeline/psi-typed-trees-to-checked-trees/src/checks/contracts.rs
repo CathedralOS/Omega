@@ -13,6 +13,7 @@ mod places;
 mod prover;
 
 use calls::check_call_requires;
+pub(crate) use evaluator::call_site_boolean_contract_expression_value;
 use exits::check_exit_ensures;
 use psi_checked_trees::CheckFacts;
 use psi_diagnostics::Diagnostic;

@@ -1,4 +1,6 @@
-use psi_typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use psi_typed_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator,
+};
 
 use super::ContractExpressionEvaluator;
 
@@ -97,7 +99,16 @@ impl ContractExpressionEvaluator<'_, '_> {
                 | BinaryOperator::ShiftRight
                 | BinaryOperator::Subtract => None,
             },
+            ExpressionNode::Name(_) => {
+                let resolved = self.resolved_expression(expression)?;
+                (resolved != expression)
+                    .then(|| self.boolean_value(resolved))
+                    .flatten()
+            }
             ExpressionNode::Mutable(inner) => self.boolean_value(*inner),
+            ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
+                Some(!self.boolean_value(unary.operand)?)
+            }
             _ => None,
         }
     }

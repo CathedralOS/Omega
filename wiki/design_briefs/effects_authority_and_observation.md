@@ -176,6 +176,17 @@ requirements, boundaries, and separately verified artifacts use the published
 ceiling and its certificate. No discharged obligation may depend on a body that
 is absent from the verified artifact.
 
+The checked representation materializes invocation refinement before typed
+source is discarded. Each direct published-callee row records the stable
+state/statement/call coordinate, the target contract fingerprint, the caller's
+exact incoming path conjunction, and the independently surviving
+cause/containment buckets. Concrete false routes disappear, concrete true
+routes normalize to unconditional alternatives, unknown routes are retained in
+the caller's positional parameter namespace, and a call with no survivors
+remains explicit crash-free evidence. Same-unit body-summary selection,
+recursive guarded-crash fixed points, and modular requirement/import capsules
+remain subsequent composition steps over that carrier.
+
 An enclosing execution context publishes a maximum tolerated scope per cause.
 The map belongs to the activation, task, supervisor, or root that expects state
 to survive; leaf machines do not repeat it. Provider or Build APIs may construct
