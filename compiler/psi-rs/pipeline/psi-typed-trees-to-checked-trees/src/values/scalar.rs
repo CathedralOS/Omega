@@ -199,6 +199,19 @@ fn lower_scalar_expression(
             if source_type == target_type {
                 return Some((operand, cast.domain));
             }
+            // A compile-known exact conversion does not need a runtime cast
+            // operation or a carried flow assumption: validation has already
+            // proved the spelling denotes a target value, and the checked
+            // carrier can retain that value directly at its new landing. Keep
+            // address conversions out of this fixed-integer slice; addr is a
+            // distinct carrier even when its current representation is u64.
+            if cast.domain == ArithmeticDomain::Exact
+                && source_type != PrimitiveType::Addr
+                && target_type != PrimitiveType::Addr
+                && let Some(literal) = retag_exact_integer_literal(&operand, target_type)
+            {
+                return Some((literal, cast.domain));
+            }
             // Only a full-carrier inclusion can cross the terminal boundary
             // without retaining frontend range evidence. The first widening
             // slice also admits unsigned-to-larger-signed casts because the
@@ -316,6 +329,55 @@ fn land_anonymous_zero(
             landed_type,
             domain: ArithmeticDomain::Exact,
         }),
+    })
+}
+
+fn retag_exact_integer_literal(
+    expression: &CheckedScalarExpression,
+    primitive_type: PrimitiveType,
+) -> Option<CheckedScalarExpression> {
+    let CheckedScalarExpression::IntegerLiteral { literal } = expression else {
+        return None;
+    };
+    let landed_type = landed_for_primitive(primitive_type)?;
+    let fits = if landed_type.is_signed() {
+        let value = literal.value_i64()?;
+        let bits = landed_type.bit_width();
+        let minimum = -(1_i128 << (bits - 1));
+        let maximum = (1_i128 << (bits - 1)) - 1;
+        let value = i128::from(value);
+        minimum <= value && value <= maximum
+    } else {
+        let value = literal.value_u64()?;
+        let bits = landed_type.bit_width();
+        let maximum = if bits == 64 {
+            u64::MAX
+        } else {
+            (1_u64 << bits) - 1
+        };
+        value <= maximum
+    };
+    fits.then(|| CheckedScalarExpression::IntegerLiteral {
+        literal: literal.with_landing(IntegerLanding {
+            landed_type,
+            domain: ArithmeticDomain::Exact,
+        }),
+    })
+}
+
+fn landed_for_primitive(primitive_type: PrimitiveType) -> Option<LandedIntegerType> {
+    Some(match primitive_type {
+        PrimitiveType::I8 => LandedIntegerType::I8,
+        PrimitiveType::I16 => LandedIntegerType::I16,
+        PrimitiveType::I32 => LandedIntegerType::I32,
+        PrimitiveType::I64 => LandedIntegerType::I64,
+        PrimitiveType::U8 => LandedIntegerType::U8,
+        PrimitiveType::U16 => LandedIntegerType::U16,
+        PrimitiveType::U32 => LandedIntegerType::U32,
+        PrimitiveType::U64 => LandedIntegerType::U64,
+        PrimitiveType::Addr | PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 => {
+            return None;
+        }
     })
 }
 
@@ -699,5 +761,31 @@ mod tests {
             PrimitiveType::U32,
             PrimitiveType::Addr
         ));
+    }
+
+    #[test]
+    fn compile_known_exact_integer_conversion_relands_only_representable_fixed_values() {
+        let source = CheckedScalarExpression::IntegerLiteral {
+            literal: psi_numerics::literals::IntegerLiteral::from_value(127).with_landing(
+                IntegerLanding {
+                    landed_type: LandedIntegerType::I64,
+                    domain: ArithmeticDomain::Exact,
+                },
+            ),
+        };
+        let narrowed = retag_exact_integer_literal(&source, PrimitiveType::I8)
+            .expect("127 is exactly representable as i8");
+        assert_eq!(scalar_expression_type(&narrowed), Some(PrimitiveType::I8));
+        assert!(retag_exact_integer_literal(&source, PrimitiveType::Addr).is_none());
+
+        let outside = CheckedScalarExpression::IntegerLiteral {
+            literal: psi_numerics::literals::IntegerLiteral::from_value(128).with_landing(
+                IntegerLanding {
+                    landed_type: LandedIntegerType::I64,
+                    domain: ArithmeticDomain::Exact,
+                },
+            ),
+        };
+        assert!(retag_exact_integer_literal(&outside, PrimitiveType::I8).is_none());
     }
 }

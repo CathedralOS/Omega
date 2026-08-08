@@ -772,6 +772,7 @@ fn checked_source_runtime_integer_policy_operations_survive_frontend_drop() {
         .expect("terminal-Psi runtime arithmetic source canary should compile");
     let cases = [
         ("terminal_direct_integer_constant", vec![], 42_u128, 2_u64),
+        ("terminal_exact_literal_narrowing", vec![], 127_u128, 2_u64),
         ("terminal_closed_integer_chain", vec![], 42_u128, 8_u64),
         (
             "terminal_runtime_wrapping_add",
@@ -852,6 +853,67 @@ fn checked_source_runtime_integer_policy_operations_survive_frontend_drop() {
                 value: IntegerValue::Unsigned(expected),
             },
             "{machine} result"
+        );
+    }
+}
+
+#[test]
+fn checked_source_exact_literal_narrowing_relands_before_terminal_psi() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("exact literal narrowing source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_exact_literal_narrowing")
+        .expect("exact literal narrowing should lower to terminal Psi");
+    let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+
+    let operations = &lowered.semantic_module.machines[0].blocks[0].operations;
+    assert_eq!(operations.len(), 1);
+    assert!(matches!(
+        operations[0].kind,
+        OperationKind::IntegerConstant {
+            value: IntegerValue::Unsigned(127)
+        }
+    ));
+    assert_eq!(
+        operations[0].result.scalar_type,
+        ScalarType::Integer(u8_type)
+    );
+
+    let semantic = encode_module(&lowered.semantic_module).expect("narrowing semantic bytes");
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("narrowing proof bytes");
+    drop(lowered);
+    let measured =
+        interpret_terminal_artifact_measured(&semantic, &proof, &AdmissionProfile::default(), &[])
+            .expect("decoded narrowing artifact should interpret");
+    assert_eq!(
+        measured.value(),
+        TerminalScalarValue::Integer {
+            scalar_type: u8_type,
+            value: IntegerValue::Unsigned(127),
+        }
+    );
+    assert_eq!(measured.usage().total_units(), 2);
+
+    let abstract_operations =
+        lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
+            .expect("narrowing artifact should cross Omega");
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_operations = lower_to_target_operations(&abstract_operations, target)
+            .expect("narrowing constant should select");
+        let assigned = assign_registers(&target_operations).expect("narrowing homes should assign");
+        emit_machine_code(&assigned).expect("narrowing constant should emit");
+    }
+
+    #[cfg(unix)]
+    {
+        let target_operations =
+            lower_to_target_operations(&abstract_operations, NativeTarget::host())
+                .expect("narrowing host selection");
+        let assigned = assign_registers(&target_operations).expect("narrowing host homes");
+        let machine_code = emit_machine_code(&assigned).expect("narrowing host emission");
+        let object = build_terminal_object_artifact(&machine_code).expect("narrowing host object");
+        assert_eq!(
+            run_host_machine_code(object.entry_function().bytes(&object)),
+            127
         );
     }
 }

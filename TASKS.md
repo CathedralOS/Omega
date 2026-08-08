@@ -269,10 +269,13 @@ Remaining:
   canonical semantic/proof sections, exact verification, one-unit operation
   fuel, artifact-root interpretation, Omega lowering, and sign- or
   zero-extending x86-64/AArch64 emission. Same-carrier casts remain static
-  retags. Narrowing, same-width signedness changes, signed-to-unsigned casts,
-  and conversions that depend on occurrence range evidence continue to fail
-  closed until terminal Psi retains the proof-bearing range facts needed to
-  justify them. Terminal Psi v27 now retains `addr` as a distinct unsigned
+  retags. A compile-known exact fixed-integer cast whose literal is
+  representable in the target now re-lands as an ordinary target-typed terminal
+  constant, with no cast operation or extra fuel. Runtime narrowing,
+  same-width signedness changes, signed-to-unsigned casts, and conversions that
+  depend on nonliteral occurrence range evidence continue to fail closed until
+  terminal Psi retains the proof-bearing range facts needed to justify them.
+  Terminal Psi v27 now retains `addr` as a distinct unsigned
   address carrier with its current 64-bit representation rather than collapsing
   it into `u64`; canonical semantic bytes, proof format v18 terms, verification,
   artifact-root interpretation, Omega lowering, and full-width native integer
