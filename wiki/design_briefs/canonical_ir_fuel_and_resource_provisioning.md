@@ -37,9 +37,10 @@ proposition declarations and normalized application identity without adding an
 executable operation. V17 adds total Boolean equality, v18 adds total equality
 over two values of one exact integer type, v19 adds signedness-aware integer
 less-than and less-or-equal, v20 adds total integer bitwise AND, OR, and XOR,
-v21 adds wrapping left and signedness-aware right shifts, and current v22 adds
-an explicit no-successor crash terminator with a closed cause, nominal
-damage-scope demand, and machine-local abandoned-frontier lower bound. Shift
+v21 adds wrapping left and signedness-aware right shifts, v22 adds an explicit
+no-successor crash terminator with a closed cause, nominal damage scope, and
+machine-local abandoned-frontier lower bound, and current v23 separates the
+body-derived damage minimum from the selected published containment demand. Shift
 counts retain their own integer type and reduce by Euclidean modulo of the
 shifted value's width. The verifier
 reconstructs operation, edge-binding, and return-binding axioms guaranteed on
@@ -57,7 +58,7 @@ and create no overflow obligation. Omega's interpreter executes the same
 verified module object and rejects out-of-range integer arguments before
 execution. Reaching a verified crash reports a distinct terminal outcome after
 charging the crash edge once; resumption cannot replay it. Canonical encoding,
-validation, and fuel cover the complete v22 row. Native lowering currently
+validation, and fuel cover the complete v23 row. Native lowering currently
 rejects crash rows explicitly until target crash plans are represented.
 The source producer selects its uniquely matching unconditional route from the
 checked machine-contract crash plan. That plan canonically merges authored
@@ -72,9 +73,10 @@ that checked row; the site rows never enter the published contract fingerprint.
 Canonical published buckets have dense plan-local identities. The checked row
 cites unconditional same-cause buckets as structurally proved guard coverage,
 and terminal production consumes this relation rather than searching the
-contract. Path-conditioned guarded coverage, damage minimum, complete covering
-buckets, and reconstructed frontier remain independent fields that later
-checks must establish before general crash production opens.
+contract. The row's derived damage minimum, complete covering-bucket subset,
+and reconstructed frontier are independent checked fields; terminal v23
+retains both that minimum and the selected published demand. Broader guarded
+coverage remains before general crash production opens.
 
 The first Psi-owned checked-tree producer, `psi-checked-trees-to-terminal`,
 lowers a closed set of scalar closed-contract source forms: a recursively nested Boolean
@@ -196,7 +198,7 @@ Semantic v1 integer, v2 Boolean, v3 wrapping-add, v4 saturating-add, v5
 wrapping-subtract, v6 saturating-subtract, v7 wrapping-multiply, v8
 saturating-multiply, v9 content, v10 reshuffle, v11 case-path, v12 partition,
 v13 conditional, and v14 entry-claim modules retain their frozen bytes and
-execution semantics; explicit migration produces a new current-v22 fingerprint
+execution semantics; explicit migration produces a new current-v23 fingerprint
 and derives dense entry bindings from any validated archived reshuffles. The
 v15 Boolean-negation slice round-trips, verifies, costs one operation plus one
 return edge, interprets, and returns the complemented canonical Boolean through

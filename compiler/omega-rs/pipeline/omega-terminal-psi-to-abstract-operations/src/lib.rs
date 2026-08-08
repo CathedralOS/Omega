@@ -362,14 +362,16 @@ fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, 
             Terminator::Crash {
                 edge,
                 cause,
-                damage_scope,
+                damage_minimum,
+                containment_demand,
                 ..
             } => {
                 return Err(LoweringError::CrashLoweringUnsupported {
                     machine: machine.id,
                     edge: *edge,
                     cause: *cause,
-                    damage_scope: damage_scope.clone(),
+                    damage_minimum: damage_minimum.clone(),
+                    containment_demand: containment_demand.clone(),
                 });
             }
         }
@@ -422,7 +424,8 @@ pub enum LoweringError {
         machine: MachineId,
         edge: psi_core::EdgeId,
         cause: psi_terminal::CrashCause,
-        damage_scope: String,
+        damage_minimum: String,
+        containment_demand: String,
     },
 }
 

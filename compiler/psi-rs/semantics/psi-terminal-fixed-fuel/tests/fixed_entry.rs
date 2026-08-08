@@ -125,7 +125,8 @@ fn crash_is_an_explicit_fixed_fuel_terminal_edge() {
     module.machines[0].blocks[1].terminator = Terminator::Crash {
         edge: edge_id(2),
         cause: CrashCause::Abort,
-        damage_scope: "ExecutionDomain".to_owned(),
+        damage_minimum: "ExecutionDomain".to_owned(),
+        containment_demand: "ExecutionDomain".to_owned(),
         frontier_lower_bound: Vec::new(),
     };
     let verified = verify_module(

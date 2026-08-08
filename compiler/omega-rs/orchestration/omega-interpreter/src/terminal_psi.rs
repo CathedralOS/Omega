@@ -694,7 +694,8 @@ impl<'module> TerminalExecution<'module> {
                 }
                 Terminator::Crash {
                     cause,
-                    damage_scope,
+                    damage_minimum,
+                    containment_demand,
                     frontier_lower_bound,
                     ..
                 } => {
@@ -703,7 +704,8 @@ impl<'module> TerminalExecution<'module> {
                     }
                     let crash = TerminalCrash {
                         cause: *cause,
-                        damage_scope: damage_scope.clone(),
+                        damage_minimum: damage_minimum.clone(),
+                        containment_demand: containment_demand.clone(),
                         frontier_lower_bound: frontier_lower_bound.clone(),
                     };
                     self.crash = Some(crash.clone());
@@ -737,7 +739,8 @@ pub enum TerminalExecutionStatus {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalCrash {
     pub cause: CrashCause,
-    pub damage_scope: String,
+    pub damage_minimum: String,
+    pub containment_demand: String,
     pub frontier_lower_bound: Vec<ClaimId>,
 }
 

@@ -47,9 +47,11 @@ normalized application identities; v17 adds total Boolean equality; v18 adds
 total equality over two values of one exact integer type; v19 adds
 signedness-aware integer less-than and less-or-equal; v20 adds total bitwise
 AND, OR, and XOR over one exact integer type; v21 adds wrapping left and
-signedness-aware right shifts; and current v22 adds an explicit no-successor
-crash terminator carrying a closed cause, a nominal damage-scope demand, and
-the machine-local claim frontier known to be abandoned. A wrapping shift
+signedness-aware right shifts; v22 adds an explicit no-successor crash
+terminator carrying a closed cause, one nominal damage scope, and the
+machine-local claim frontier known to be abandoned; and current v23 separates
+that scope into a body-derived damage minimum and selected published
+containment demand. A wrapping shift
 retains the shifted value's exact result type and the count operand's
 independent integer type;
 the count reduces by Euclidean modulo of the shifted value's width.
@@ -64,8 +66,9 @@ Omega native lowering rejects the row until target crash plans are represented;
 it never silently treats a crash as a return or ordinary terminal transition.
 The source frontend now retains fingerprinted `crashes Cause Scope` buckets and
 explicit `crash Cause;` exits. The first producer slice accepts exactly one
-unconditional same-cause bucket, emits its scope on the crash terminator, and
-fails closed for absent, guarded, or ambiguous coverage. Route facts are already
+unconditional same-cause bucket, emits its selected containment demand and the
+site's derived damage minimum on the crash terminator, and fails closed for
+absent, guarded, or ambiguous coverage. Route facts are already
 restricted to Boolean expressions. Public contract and generic-template
 identities already merge exact `(cause, scope)` buckets, discard duplicate
 routes, and let a route-less or explicit-`true` route subsume guarded
@@ -92,9 +95,9 @@ requires `ExecutionDomain`. Exact nominal identity and the permanent
 `ExecutionDomain` top provide the first conservative scope order. Reports
 separate guard-covering buckets from the subset whose containment demand also
 covers the minimum; terminal production consumes that two-dimensional subset,
-rejects narrower authored demand, and keeps v22's `damage_scope` as the selected
-published demand. A later semantic version must carry that demand and the
-derived minimum separately. Conditional frontier membership,
+rejects narrower authored demand, and emits both the derived minimum and
+selected published demand into v23. Archived v22 bytes decode conservatively
+with both in-memory fields equal to their single encoded scope. Conditional frontier membership,
 invariant/custody-based minimum widening, general guarded production, declared
 nominal scope ordering, context maxima, and installation realization remain
 the rest of CRASH-CONTRACT.
@@ -733,9 +736,10 @@ operations and recursive scalar terms; version 19 adds distinct
 terms; version 20 adds distinct `IntegerBitwiseAnd`,
 `IntegerBitwiseOr`, and `IntegerBitwiseXor` operations and recursive scalar
 terms; version 21 adds total wrapping left and right shifts with an independent
-integer count type; and current version 22 adds the explicit `Crash`
-terminator, closed `Trap`/`Abort` cause, nominal damage-scope demand, and
-canonical machine-local frontier lower bound.
+integer count type; version 22 adds the explicit `Crash` terminator, closed
+`Trap`/`Abort` cause, nominal damage scope, and canonical machine-local
+frontier lower bound; and current version 23 separates the body-derived damage
+minimum from the selected published containment demand.
 The arithmetic operations require two already defined operands of the exact
 result integer type and have distinct canonical recursive proposition terms for
 their exact logical results. Boolean equality requires two already defined
@@ -748,14 +752,14 @@ and reconstruct the exact representation-level result. Validation and
 execution continue to accept valid v1 through v21 modules under their original
 meaning, while an older module
 cannot claim a later operation, control form, or evidence row.
-`migrate_module_to_current` is an explicit validated older-to-v22 translation.
+`migrate_module_to_current` is an explicit validated older-to-v23 translation.
 For v10-v13 content rows it derives the new entry bindings from the already
 validated reshuffles and remaps claim references into dense machine-local IDs;
 it otherwise preserves the graph and obligations. Migration creates new
 canonical bytes and a new semantic fingerprint. An unchanged proof bundle
 retains its separate bytes and identity but is verified again against the
 migrated module. Golden tests retain archived v1 through v21 identities and
-independently freeze the current v22 fingerprint, v10 identity-reshuffle
+independently freeze the current v23 fingerprint, v10 identity-reshuffle
 fixture, v11 sum-case fixture, v12 partition-composition fixture, v14
 entry-claim fixture, v15 Boolean-negation fixture, v16 proposition-vocabulary
 fixture, v17 Boolean-equality fixture, v18 integer-equality fixture, the
@@ -952,7 +956,7 @@ generic installation ladder. Migrating the Cathedral hard-root graph remains.
    proof bytes and role-separated semantic/proof/install/debug manifest hashes
    are also live. Semantic migration is exercised: archived v1 and v2 bytes
    retain their identities and migrate explicitly into separately fingerprinted
-   current-v22 modules; archived v3 wrapping-add, v4 saturating-add, v5
+   current-v23 modules; archived v3 wrapping-add, v4 saturating-add, v5
    wrapping-subtract, v6 saturating-subtract, and v7 wrapping-multiply
    identities plus the v8 saturating-multiply identity are frozen as well. Typed
    installation records, the canonical typed debug/source-map schema, and

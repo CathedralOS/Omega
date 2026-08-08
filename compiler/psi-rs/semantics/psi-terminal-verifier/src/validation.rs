@@ -6,6 +6,7 @@ use psi_core::{
     ObligationId, OperationId, PlaceId, Proposition, PropositionContext, PropositionError,
     PropositionId, ScalarTerm, ScalarType, StructuralPlaceKind, ValueId,
 };
+use psi_language_semantics::crash::scope_covers_minimum;
 use psi_terminal::{
     ContentPartitionComposition, OperationKind, PropositionBinderArgumentKind,
     PropositionBinderKind, PropositionEvidence, SemanticVersion, TerminalMachine, TerminalModule,
@@ -68,6 +69,7 @@ pub fn validate_module(
             | SemanticVersion::V20
             | SemanticVersion::V21
             | SemanticVersion::V22
+            | SemanticVersion::V23
     ) {
         return Err(ModuleError::UnsupportedSemanticVersion(
             module.semantic_version,
@@ -593,7 +595,7 @@ fn validate_machine(
         &structural_place_kinds,
         &context,
     )?;
-    validate_crash_frontiers(machine)?;
+    validate_crash_frontiers(machine, semantic_version)?;
     let requires_values = machine
         .parameters
         .iter()
@@ -644,7 +646,10 @@ fn validate_machine(
     validate_control_flow(machine, &blocks, &value_types)
 }
 
-fn validate_crash_frontiers(machine: &TerminalMachine) -> Result<(), ModuleError> {
+fn validate_crash_frontiers(
+    machine: &TerminalMachine,
+    semantic_version: SemanticVersion,
+) -> Result<(), ModuleError> {
     let expected = machine
         .content_entry_claims
         .iter()
@@ -652,15 +657,29 @@ fn validate_crash_frontiers(machine: &TerminalMachine) -> Result<(), ModuleError
         .collect::<Vec<_>>();
     for block in &machine.blocks {
         let Terminator::Crash {
-            damage_scope,
+            damage_minimum,
+            containment_demand,
             frontier_lower_bound,
             ..
         } = &block.terminator
         else {
             continue;
         };
-        if damage_scope.is_empty() {
-            return Err(ModuleError::EmptyCrashDamageScope(block.id));
+        if damage_minimum.is_empty() {
+            return Err(ModuleError::EmptyCrashDamageMinimum(block.id));
+        }
+        if containment_demand.is_empty() {
+            return Err(ModuleError::EmptyCrashContainmentDemand(block.id));
+        }
+        if semantic_version < SemanticVersion::V23 && damage_minimum != containment_demand {
+            return Err(ModuleError::SeparatedCrashScopesRequireSemanticVersion {
+                block: block.id,
+                required: SemanticVersion::V23,
+                actual: semantic_version,
+            });
+        }
+        if !scope_covers_minimum(damage_minimum, containment_demand) {
+            return Err(ModuleError::CrashContainmentDemandTooNarrow { block: block.id });
         }
         if frontier_lower_bound
             .windows(2)
@@ -2118,7 +2137,16 @@ pub enum ModuleError {
         required: SemanticVersion,
         actual: SemanticVersion,
     },
-    EmptyCrashDamageScope(BlockId),
+    SeparatedCrashScopesRequireSemanticVersion {
+        block: BlockId,
+        required: SemanticVersion,
+        actual: SemanticVersion,
+    },
+    EmptyCrashDamageMinimum(BlockId),
+    EmptyCrashContainmentDemand(BlockId),
+    CrashContainmentDemandTooNarrow {
+        block: BlockId,
+    },
     NonCanonicalCrashFrontier(BlockId),
     CrashFrontierMismatch {
         block: BlockId,

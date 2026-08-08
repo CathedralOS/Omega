@@ -566,7 +566,7 @@ fn encode_machine(
     writer.id(machine.entry);
     writer.len("blocks", machine.blocks.len())?;
     for block in &machine.blocks {
-        encode_block(writer, block)?;
+        encode_block(writer, semantic_version, block)?;
     }
     encode_contract(writer, &machine.contract)
 }
@@ -658,7 +658,11 @@ fn encode_declaration(writer: &mut Writer, declaration: ValueDeclaration) {
     encode_scalar_type(writer, declaration.scalar_type);
 }
 
-fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), CodecError> {
+fn encode_block(
+    writer: &mut Writer,
+    semantic_version: SemanticVersion,
+    block: &Block,
+) -> Result<(), CodecError> {
     writer.id(block.id);
     encode_declarations(writer, "block parameters", &block.parameters)?;
     writer.len("operations", block.operations.len())?;
@@ -787,7 +791,8 @@ fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), CodecError> {
         Terminator::Crash {
             edge,
             cause,
-            damage_scope,
+            damage_minimum,
+            containment_demand,
             frontier_lower_bound,
         } => {
             writer.u8(4);
@@ -796,7 +801,10 @@ fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), CodecError> {
                 CrashCause::Trap => 1,
                 CrashCause::Abort => 2,
             });
-            writer.string("crash damage scope", damage_scope)?;
+            if semantic_version >= SemanticVersion::V23 {
+                writer.string("crash damage minimum", damage_minimum)?;
+            }
+            writer.string("crash containment demand", containment_demand)?;
             writer.len("crash frontier lower bound", frontier_lower_bound.len())?;
             for claim in frontier_lower_bound {
                 writer.id(*claim);
@@ -1340,7 +1348,7 @@ fn decode_machine(
     let block_count = reader.count()?;
     let mut blocks = Vec::new();
     for _ in 0..block_count {
-        blocks.push(decode_block(reader)?);
+        blocks.push(decode_block(reader, semantic_version)?);
     }
     let contract = decode_contract(reader)?;
     Ok(TerminalMachine {
@@ -1458,7 +1466,10 @@ fn decode_declaration(reader: &mut Reader<'_>) -> Result<ValueDeclaration, Codec
     })
 }
 
-fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError> {
+fn decode_block(
+    reader: &mut Reader<'_>,
+    semantic_version: SemanticVersion,
+) -> Result<Block, CodecError> {
     let id = reader.id("BlockId")?;
     let parameters = decode_declarations(reader)?;
     let operation_count = reader.count()?;
@@ -1575,7 +1586,16 @@ fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError> {
                 2 => CrashCause::Abort,
                 tag => return Err(CodecError::InvalidTag("CrashCause", tag)),
             };
-            let damage_scope = reader.string("crash damage scope")?;
+            let damage_minimum = if semantic_version >= SemanticVersion::V23 {
+                reader.string("crash damage minimum")?
+            } else {
+                reader.string("crash damage scope")?
+            };
+            let containment_demand = if semantic_version >= SemanticVersion::V23 {
+                reader.string("crash containment demand")?
+            } else {
+                damage_minimum.clone()
+            };
             let claim_count = reader.count()?;
             let mut frontier_lower_bound = Vec::with_capacity(claim_count as usize);
             for _ in 0..claim_count {
@@ -1584,7 +1604,8 @@ fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError> {
             Terminator::Crash {
                 edge,
                 cause,
-                damage_scope,
+                damage_minimum,
+                containment_demand,
                 frontier_lower_bound,
             }
         }

@@ -572,6 +572,12 @@ crashes Abort ExecutionDomain
     crash Abort;
 }
 
+machine terminal_wide_trap() -> i32
+crashes Trap ExecutionDomain
+{
+    crash Trap;
+}
+
 machine terminal_unpublished_abort() -> i32 {
     crash Abort;
 }

@@ -32,7 +32,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.semantic_version, SemanticVersion::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "3f8536f19fe5f4458bd5574b85d0c4351cd039a928cea4c02eef0cf7e7470f90"
+        "4befdf5eaf17353409908bd2aac945f7d2d141dc40f1620f5a70c21975bb1c84"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -41,15 +41,16 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
 }
 
 #[test]
-fn v22_crash_round_trips_and_every_semantic_field_enters_identity() {
+fn v23_crash_round_trips_and_every_semantic_field_enters_identity() {
     let mut module = fixture();
     module.machines[0].blocks[1].terminator = Terminator::Crash {
         edge: edge_id(2),
         cause: CrashCause::Trap,
-        damage_scope: "Activation".to_owned(),
+        damage_minimum: "Activation".to_owned(),
+        containment_demand: "ExecutionDomain".to_owned(),
         frontier_lower_bound: Vec::new(),
     };
-    let bytes = encode_module(&module).expect("v22 crash encodes");
+    let bytes = encode_module(&module).expect("v23 crash encodes");
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
 
     let baseline = semantic_fingerprint(&module).expect("crash identity");
@@ -64,19 +65,60 @@ fn v22_crash_round_trips_and_every_semantic_field_enters_identity() {
     );
     if let Terminator::Crash {
         cause,
-        damage_scope,
+        damage_minimum,
         ..
     } = &mut module.machines[0].blocks[1].terminator
     {
         *cause = CrashCause::Trap;
-        *damage_scope = "ExecutionDomain".to_owned();
+        *damage_minimum = "ExecutionDomain".to_owned();
     } else {
         unreachable!()
     }
     assert_ne!(
-        semantic_fingerprint(&module).expect("changed scope identity"),
+        semantic_fingerprint(&module).expect("changed minimum identity"),
         baseline
     );
+    if let Terminator::Crash {
+        damage_minimum,
+        containment_demand,
+        ..
+    } = &mut module.machines[0].blocks[1].terminator
+    {
+        *damage_minimum = "Activation".to_owned();
+        *containment_demand = "Activation".to_owned();
+    } else {
+        unreachable!()
+    }
+    assert_ne!(
+        semantic_fingerprint(&module).expect("changed demand identity"),
+        baseline
+    );
+}
+
+#[test]
+fn v22_crash_decodes_its_single_scope_as_equal_minimum_and_demand() {
+    let mut module = fixture();
+    module.semantic_version = SemanticVersion::V22;
+    module.machines[0].blocks[1].terminator = Terminator::Crash {
+        edge: edge_id(2),
+        cause: CrashCause::Trap,
+        damage_minimum: "Activation".to_owned(),
+        containment_demand: "Activation".to_owned(),
+        frontier_lower_bound: Vec::new(),
+    };
+    let bytes = encode_module(&module).expect("v22 crash encodes");
+    let decoded = decode_module(&bytes).expect("v22 crash decodes");
+    assert_eq!(decoded, module);
+    let migrated = migrate_module_to_current(&decoded).expect("v22 crash migrates");
+    assert_eq!(migrated.semantic_version, SemanticVersion::V23);
+    assert!(matches!(
+        &migrated.machines[0].blocks[1].terminator,
+        Terminator::Crash {
+            damage_minimum,
+            containment_demand,
+            ..
+        } if damage_minimum == "Activation" && containment_demand == "Activation"
+    ));
 }
 
 #[test]

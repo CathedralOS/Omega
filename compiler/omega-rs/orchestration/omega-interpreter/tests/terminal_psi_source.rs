@@ -2550,6 +2550,17 @@ fn psi_terminal_producer_rejects_source_outside_its_declared_slice() {
 fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("terminal-Psi source canary should compile");
+    let wide_trap = lower_machine(&checked, "terminal_wide_trap")
+        .expect("a wider published trap demand should lower");
+    assert!(matches!(
+        &wide_trap.semantic_module.machines[0].blocks[0].terminator,
+        Terminator::Crash {
+            cause: CrashCause::Trap,
+            damage_minimum,
+            containment_demand,
+            ..
+        } if damage_minimum == "Activation" && containment_demand == "ExecutionDomain"
+    ));
     let lowered = lower_machine(&checked, "terminal_abort")
         .expect("an unconditional published crash should lower");
     let explicit_true = lower_machine(&checked, "terminal_explicit_true_abort")
@@ -2569,7 +2580,8 @@ fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
         Terminator::Crash {
             edge: EdgeId::new(1).unwrap(),
             cause: CrashCause::Abort,
-            damage_scope: "ExecutionDomain".to_owned(),
+            damage_minimum: "ExecutionDomain".to_owned(),
+            containment_demand: "ExecutionDomain".to_owned(),
             frontier_lower_bound: Vec::new(),
         }
     );
@@ -2585,7 +2597,8 @@ fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
     let mut meter = TerminalFuelMeter::with_allowance(1);
     let expected = TerminalExecutionStatus::Crashed(omega_interpreter::TerminalCrash {
         cause: CrashCause::Abort,
-        damage_scope: "ExecutionDomain".to_owned(),
+        damage_minimum: "ExecutionDomain".to_owned(),
+        containment_demand: "ExecutionDomain".to_owned(),
         frontier_lower_bound: Vec::new(),
     });
     assert_eq!(execution.resume(&mut meter).unwrap(), expected);

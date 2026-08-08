@@ -1489,6 +1489,7 @@ name = "psi-terminal-verifier"
 version = "0.1.0"
 dependencies = [
  "psi-core",
+ "psi-language-semantics",
  "psi-proof-kernel",
  "psi-terminal",
 ]
