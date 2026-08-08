@@ -194,9 +194,12 @@ chosen leaf targets either the authored successor or its arm-local binding
 block. This also makes checker-proved transitive integer-conjunction crash
 routes executable through terminal verification and direct interpretation.
 Compile-known integer values propagate through the lowered DAG, including
-recursive arithmetic bindings and exact-type comparison selectors. Facts meet
-conservatively at joins; a reachable crash exit prevents claiming a total
-result, while a known selector may exclude an untaken crash arm.
+recursive arithmetic bindings, exact-type comparison selectors, and recursive
+Boolean values carried through Boolean block parameters. The known-value
+lattice retains scalar type, follows a Boolean binding into its selected
+integer-result arm, and meets conservatively at joins; a reachable crash exit
+prevents claiming a total result, while a known selector may exclude an untaken
+crash arm.
 Nested selections and convergent tails retain
 their authored blocks and edges in terminal Psi; proof reconstruction
 intersects facts at joins, and the fixed-work checker derives the maximum
@@ -316,7 +319,9 @@ parameter, and selects the returned integer with that value. These canaries
 also stage an `&&` binding beside integer payloads on unconditional and
 conditional edges; the latter bypasses the entire tuple on its unselected arm.
 They discard `CheckedTrees`, then verify and execute the produced semantic
-modules.
+modules. A wrong-contract companion stages compile-known `true && false`,
+follows the resulting Boolean parameter to the integer `9`, and rejects a
+closed contract naming `8`.
 Direct-return `&&`/`||` expressions lower to acyclic terminal conditional
 trees. Each evaluated operand owns its selected conditional edge; the deciding
 left operand bypasses the right subtree, and Boolean leaf constants plus return

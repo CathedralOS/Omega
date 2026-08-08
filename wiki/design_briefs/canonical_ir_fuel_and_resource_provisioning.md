@@ -121,10 +121,12 @@ Computed conditional-edge bindings use synthesized arm-local blocks so only
 the selected expression executes and consumes fuel. Nested selections, linear
 prefixes, and convergent tails use the same terminal block and edge
 vocabulary. Compile-known integer evaluation follows lowered comparison
-selectors and recursive bindings, meets facts at joins, and reports no total
-result when a crash exit remains reachable. The ordered Boolean-result form
-supports ordinary Boolean entry/branch parameters with recursive short-circuit
-guards and branch returns.
+selectors and recursive bindings, including typed Boolean values carried into
+later integer-result control. It meets scalar facts conservatively at joins,
+rejects an unrelated closed integer contract after a known Boolean selection,
+and reports no total result when a crash exit remains reachable. The ordered
+Boolean-result form supports ordinary Boolean entry/branch parameters with
+recursive short-circuit guards and branch returns.
 The general Boolean-result form supports rooted acyclic nested selections and
 convergent tails with recursive unconditional bindings and short-circuit
 returns. Short-circuit jumps converge at value-producing decision leaves;
@@ -153,7 +155,9 @@ computes Boolean inequality on an unconditional binding, carries it across the
 terminal edge, and uses it as emitted AArch64/x86-64 control. Two mixed-scalar
 companions stage `&&` with integer payloads on unconditional and selected
 conditional edges, preserving bypass fuel and reaching the same native lanes.
-The source control canary executes each nested path after
+Their compile-known wrong-contract companion follows `true && false` through a
+Boolean block parameter, selects integer `9`, and rejects a contract naming
+`8`. The source control canary executes each nested path after
 frontend disposal, meters only selected edges, and retains every successor and
 shared-tail edge at the Omega abstract boundary. Parsing
 through checked semantics and this first terminal producer are now Psi-owned;
