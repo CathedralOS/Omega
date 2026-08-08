@@ -113,6 +113,14 @@ Selection guards may be Boolean parameters or exact-type builtin integer
 comparisons over recursive integer expressions, composed with recursive
 short-circuit `&&`/`||`. Short-circuit tests lower into reserved decision blocks
 and charge only the executed path.
+Same-carrier integer value casts may explicitly select or erase a closed
+arithmetic policy inside those expressions. The checked scalar plan retains
+the operand and selected policy without retaining a typed-expression handle;
+terminal production uses that policy to choose an enclosing operation and
+otherwise erases the cast. Because the primitive carrier is unchanged, there
+is no terminal operation, proof term, or fuel charge. Cross-carrier and
+declared semantic-domain casts remain rejected by this producer until their
+own executable vocabulary exists.
 Unconditional jumps may compute recursive exact-typed integer bindings;
 Boolean targets additionally accept recursive non-short-circuit literal,
 negation, equality/inequality, and exact-type integer-comparison bindings. An
@@ -323,7 +331,10 @@ certificates. The v25 bitwise-complement slice retains an exact integer carrier
 through source checking, canonical artifact decode, proof reconstruction,
 interpretation, fuel, target assignment, and native emission on both target
 architectures. Proof format v16 carries the exact recursive complement term in
-replaceable certificates. The v3 wrapping slice
+replaceable certificates. The same-carrier policy-cast canary selects wrapping
+addition through explicit source casts and costs only that operation plus its
+return edge; a direct policy erasure remains an ordinary parameter return and
+costs only the edge. Neither changes semantic or proof format versions. The v3 wrapping slice
 round-trips, verifies,
 meters, lowers, emits,
 and executes `u8` 200+100 as 44. The v4 saturating slice traverses the
