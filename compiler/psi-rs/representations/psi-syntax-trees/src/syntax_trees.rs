@@ -191,13 +191,62 @@ impl SyntaxTrees {
             Item::Capability(capability) => {
                 Item::Capability(self.copy_capability_definition(other, capability))
             }
-            Item::Conformance(conformance) => Item::Conformance(crate::item::ConformanceItem {
-                type_name: conformance.type_name.clone(),
-                trait_name: conformance.trait_name.clone(),
-                trait_arguments: self
-                    .copy_type_reference_handle_span(other, conformance.trait_arguments),
-                alias: conformance.alias.clone(),
-            }),
+            Item::Conformance(conformance) => {
+                let body = match &conformance.body {
+                    crate::item::ConformanceBody::LegacyAttachedMachines => {
+                        crate::item::ConformanceBody::LegacyAttachedMachines
+                    }
+                    crate::item::ConformanceBody::Closed { members } => {
+                        let copied = other
+                            .items
+                            .conformance_members(*members)
+                            .iter()
+                            .map(|member| match member {
+                                crate::item::ConformanceMember::Machine(machine) => {
+                                    crate::item::ConformanceMember::Machine(
+                                        self.copy_machine(other, machine),
+                                    )
+                                }
+                                crate::item::ConformanceMember::Reference {
+                                    declaring_trait,
+                                    requirement,
+                                    target,
+                                } => crate::item::ConformanceMember::Reference {
+                                    declaring_trait: declaring_trait.clone(),
+                                    requirement: requirement.clone(),
+                                    target: self.copy_item_identifier_span(other, *target),
+                                },
+                            })
+                            .collect::<Vec<_>>();
+                        let mut copied_start = psi_arena::Handle::invalid();
+                        let mut copied_count = 0u32;
+                        for member in copied {
+                            let handle = self.items.append_conformance_member(member);
+                            if copied_count == 0 {
+                                copied_start = handle;
+                            }
+                            copied_count = copied_count
+                                .checked_add(1)
+                                .expect("conformance member span count overflow");
+                        }
+                        crate::item::ConformanceBody::Closed {
+                            members: if copied_count == 0 {
+                                psi_arena::HandleSpan::empty()
+                            } else {
+                                psi_arena::HandleSpan::from_parts(copied_start, copied_count)
+                            },
+                        }
+                    }
+                };
+                Item::Conformance(crate::item::ConformanceItem {
+                    type_name: conformance.type_name.clone(),
+                    trait_name: conformance.trait_name.clone(),
+                    trait_arguments: self
+                        .copy_type_reference_handle_span(other, conformance.trait_arguments),
+                    alias: conformance.alias.clone(),
+                    body,
+                })
+            }
             Item::Const(constant) => Item::Const(crate::item::ConstDefinition {
                 scope: constant.scope.clone(),
                 name: constant.name.clone(),

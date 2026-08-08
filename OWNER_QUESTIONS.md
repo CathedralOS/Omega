@@ -8,10 +8,37 @@ reference in the same change.
 
 Last pruned: 2026-08-07.
 
-There are currently no unresolved owner-level questions. Root origin is an
-occurrence property rather than a nominal declaration property: data and
-proof-level content denominators remain pure, while each fresh root records its
-exact compiler-provisioned capacity or admitted issuance, lineage,
-qualification, and provenance. A checked runtime event never originates a new
-root. The remaining representation and enforcement work is tracked in
-`TASKS.md`.
+## Q1 — Generic telescope on a subjectless conformance
+
+A carrier-owned conformance inherits its static telescope from the subject
+type. A carrierless evidence conformance has no such subject, but evidence
+interfaces such as `ConvergenceEvidence<Left, Right>` need generic machine or
+type binders whose names are in scope in the trait application and block
+members. The settled subjectless block model does not yet give those binders a
+source position.
+
+Choose the declaration shape for that telescope. Plausible forms include:
+
+```omega
+satisfies<machine Left, machine Right>
+    ConvergenceEvidence<Left, Right> as TogetherEvidence
+{
+    ...
+}
+
+satisfies ConvergenceEvidence<Left, Right>
+    as TogetherEvidence<machine Left, machine Right>
+{
+    ...
+}
+```
+
+A dedicated `conformance` declaration could also carry the name and telescope,
+but would spend a keyword that the settled carrier-owned form does not need.
+
+The choice must preserve the already-settled semantics: the name is
+package-scoped; the binder telescope, instantiated trait application, and
+closed normalized row map enter semantic identity; no binder is inferred as a
+carrier; proposition binders use their ordinary authored `where proposition`
+signatures; and concrete subjectless conformances remain expressible without a
+vacuous telescope.

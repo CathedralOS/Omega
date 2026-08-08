@@ -514,6 +514,93 @@ fn parses_generic_standalone_conformance_arguments() {
 }
 
 #[test]
+fn parses_closed_conformance_block_members() {
+    let source = r#"
+        trait Ranked {
+            machine Self::before(&self, other: &Self) -> bool;
+            machine Self::rank_value(&self) -> u32;
+        }
+
+        data Card { power: u32; }
+
+        machine Card::stable_rank_value(&self) -> u32 { }
+
+        Card satisfies Ranked as PowerOrder {
+            machine before(&self, other: &Card) -> bool { }
+
+            Ranked::rank_value = Card::stable_rank_value;
+        }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("closed conformance block should parse");
+    let conformance = parsed
+        .root_items()
+        .find_map(|item| match item {
+            psi_syntax_trees::item::Item::Conformance(conformance) => Some(conformance),
+            _ => None,
+        })
+        .expect("conformance root item");
+    let psi_syntax_trees::item::ConformanceBody::Closed { members } = conformance.body else {
+        panic!("block must remain structurally distinct from legacy attached-machine lookup");
+    };
+    let [inline, reference] = parsed.items.conformance_members(members) else {
+        panic!("two retained conformance members");
+    };
+    assert!(matches!(
+        inline,
+        psi_syntax_trees::item::ConformanceMember::Machine(machine)
+            if machine.name.as_str() == "before"
+    ));
+    let psi_syntax_trees::item::ConformanceMember::Reference {
+        declaring_trait,
+        requirement,
+        target,
+    } = reference
+    else {
+        panic!("second row is an explicit machine reference");
+    };
+    assert_eq!(declaring_trait.as_str(), "Ranked");
+    assert_eq!(requirement.as_str(), "rank_value");
+    assert_eq!(
+        parsed
+            .items
+            .identifier_path_members(*target)
+            .iter()
+            .map(|member| member.as_str())
+            .collect::<Vec<_>>(),
+        ["Card", "stable_rank_value"]
+    );
+}
+
+#[test]
+fn closed_conformance_member_cannot_repeat_satisfaction() {
+    let source = r#"
+        trait Ranked { machine Self::before(&self, other: &Self) -> bool; }
+        data Card { }
+        Card satisfies Ranked {
+            machine before(&self, other: &Card) -> bool
+                satisfies Ranked::before
+            { }
+        }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let diagnostic = parse_syntax_trees(&tokens).expect_err("nested satisfaction must reject");
+    assert!(
+        diagnostic
+            .message
+            .contains("already belongs to its enclosing conformance"),
+        "unexpected diagnostic: {}",
+        diagnostic.message
+    );
+}
+
+#[test]
 fn retains_generic_and_named_conformance_bounds() {
     let source = r#"
         trait Converter<Message> { }

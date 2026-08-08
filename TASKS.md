@@ -392,7 +392,8 @@ Remaining N6/N8 work:
 - Add the subjectless conformance-block form used by carrierless evidence
   interfaces. It has a package-scoped name and the same closed normalized row
   map as a carrier-owned conformance; no arbitrary parameter is inferred as
-  its subject.
+  its subject. Generic source spelling is blocked on owner Q1; concrete
+  subjectless blocks and the shared row representation are not.
 - Add proof-only selected-conformance projection and by-value carrierless `dyn`
   from the complete conformance-block map.
 - Add `Respects` over compiler-derived parallel callable argument telescopes.

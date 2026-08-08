@@ -555,17 +555,54 @@ pub struct QuotientDefinition {
     pub relation: HandleSpan<Identifier>,
 }
 
-/// A standalone conformance item (frozen decision 8): `Point satisfies
-/// Equatable;` or `Buffer satisfies Storage<u8> as ByteStorage;` claims a whole
-/// trait for a data type. Validation checks the type's written/default attached
-/// machines against the trait's requirements; nothing trait-shaped appears on
-/// the data declaration itself.
+/// A whole-trait conformance. The legacy `Point satisfies Equatable;` form
+/// checks separately attached machines. A block owns a closed member map:
+/// `Point satisfies Equatable { machine equals(...) { ... } }`.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ConformanceItem {
     pub type_name: Identifier,
     pub trait_name: Identifier,
     pub trait_arguments: HandleSpan<crate::types::TypeReferenceHandle>,
     pub alias: Option<Identifier>,
+    pub body: ConformanceBody,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum ConformanceBody {
+    /// Compatibility form whose rows are discovered from separately attached
+    /// machines. It remains distinct so a parsed empty closed block can never
+    /// silently fall back to ambient lookup.
+    #[default]
+    LegacyAttachedMachines,
+    /// The authored, closed implementation surface.
+    Closed {
+        members: HandleSpan<ConformanceMember>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ConformanceMember {
+    /// A machine declared lexically inside the block. Its declaration name is
+    /// the requirement slot it fills; later normalization retains an internal
+    /// conformance-qualified realization identity.
+    Machine(Machine),
+    /// An explicit row reference such as
+    /// `Ranked::rank_value = Card::stable_rank_value;`.
+    Reference {
+        declaring_trait: Identifier,
+        requirement: Identifier,
+        target: HandleSpan<Identifier>,
+    },
+}
+
+impl Default for ConformanceMember {
+    fn default() -> Self {
+        Self::Reference {
+            declaring_trait: Identifier::generated(""),
+            requirement: Identifier::generated(""),
+            target: HandleSpan::empty(),
+        }
+    }
 }
 
 /// Declared type properties: lowercase facts in brackets on the data
@@ -896,6 +933,7 @@ struct StateStorage {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct DeclarationStorage {
     identifier_path_members: Arena<Identifier>,
+    conformance_members: Arena<ConformanceMember>,
     satisfies_clauses: Arena<SatisfiesClause>,
     type_parameters: Arena<TypeParameter>,
     boundary_levels: Arena<BoundaryLevel>,
@@ -965,6 +1003,12 @@ impl ItemTable {
     pub fn identifier_path_members(&self, span: HandleSpan<Identifier>) -> &[Identifier] {
         self.declaration_storage
             .identifier_path_members
+            .span_or_empty(span)
+    }
+
+    pub fn conformance_members(&self, span: HandleSpan<ConformanceMember>) -> &[ConformanceMember] {
+        self.declaration_storage
+            .conformance_members
             .span_or_empty(span)
     }
 
@@ -1116,6 +1160,13 @@ impl ItemTable {
         self.declaration_storage
             .identifier_path_members
             .append(member)
+    }
+
+    pub fn append_conformance_member(
+        &mut self,
+        member: ConformanceMember,
+    ) -> Handle<ConformanceMember> {
+        self.declaration_storage.conformance_members.append(member)
     }
 
     pub fn append_satisfies_clause(&mut self, clause: SatisfiesClause) -> Handle<SatisfiesClause> {
@@ -1286,6 +1337,7 @@ impl DeclarationStorage {
     fn new() -> Self {
         Self {
             identifier_path_members: Arena::new(),
+            conformance_members: Arena::new(),
             satisfies_clauses: Arena::new(),
             type_parameters: Arena::new(),
             boundary_levels: Arena::new(),
