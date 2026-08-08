@@ -72,6 +72,7 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
                         }
                         crate::item::ConformanceMember::TraitDefault {
                             declaring_trait,
+                            requirement_ordinal: _,
                             machine,
                         } => {
                             count_identifier(declaring_trait, counts);

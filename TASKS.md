@@ -465,13 +465,15 @@ checked-result arithmetic decision listed below.
   unmaterialized descriptor. Dynamic calls now retain exact declaring-trait
   requirement symbols, including inherited statement slots; same-spelled
   inherited requirements reject, checked rows carry no compatibility spelling,
-  and backend row matching is symbol-only. Finish physical descriptor/table
-  materialization for pass-through, rebound, and escaping values, make every
-  remaining descriptor adapter consume only retained rows, key closed-
-  conformance default synthesis and normalization by complete overloaded
-  requirement identity rather than `(declaring trait, leaf name)`, migrate
-  legacy attached-machine conformances, and retire their closed-artifact
-  candidate lookup. Bare exact-requirement satisfiers never license `dyn`.
+  and backend row matching is symbol-only. Closed-conformance synthesis now
+  retains every same-named default overload separately; authored members select
+  rows by the complete instantiated parameter/result-domain identity, and
+  checked `dyn` selections retain every exact overload row. Finish physical
+  descriptor/table materialization for pass-through, rebound, and escaping
+  values, make every remaining descriptor adapter consume only retained rows,
+  migrate legacy attached-machine conformances, and retire their closed-
+  artifact candidate lookup. Bare exact-requirement satisfiers never license
+  `dyn`.
 - Complete hermetic semantic evaluation: invocation-specific crash-route
   refinement, target-semantic capsule, separate semantic result and usage
   identities, deterministic progress, and constant/runtime equivalence.

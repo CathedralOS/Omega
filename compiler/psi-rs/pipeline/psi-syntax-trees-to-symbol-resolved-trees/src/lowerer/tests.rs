@@ -108,6 +108,98 @@ fn closed_conformance_retains_trait_default_selection_rows() {
 }
 
 #[test]
+fn closed_conformance_retains_every_same_named_default_overload() {
+    let source = r#"
+        trait Converter {
+            machine Self::convert(&self, value: i32) -> i32 { value }
+            machine Self::convert(&self, value: i32) -> i32 in Saturating { value }
+        }
+        data Item { }
+        Item satisfies Converter as Primary { }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("block syntax should parse");
+    let program = lower_syntax_trees(&syntax_trees)
+        .expect("same-named default overloads retain exact declaration identities");
+    let conformance = program.conformances.iter().next().expect("one conformance");
+    let psi_symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
+        &conformance.implementation
+    else {
+        panic!("closed implementation retained");
+    };
+    assert_eq!(rows.len(), 2);
+    assert!(rows.iter().all(|row| {
+        row.source
+            == psi_symbol_resolved_trees::trait_definition::ConformanceRowSource::TraitDefault
+            && row.requirement.is_valid()
+            && row.realization_state.is_valid()
+    }));
+    assert_ne!(rows[0].requirement, rows[1].requirement);
+    assert_ne!(rows[0].realization_state, rows[1].realization_state);
+}
+
+#[test]
+fn closed_conformance_matches_inline_members_to_result_overloads() {
+    let source = r#"
+        trait Converter {
+            machine Self::convert(&self, value: i32) -> i32 { value }
+            machine Self::convert(&self, value: i32) -> i32 in Saturating { value }
+        }
+        data Item { }
+        Item satisfies Converter as Primary {
+            machine convert(&self, value: i32) -> i32 in Saturating { value }
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("block syntax should parse");
+    let program = lower_syntax_trees(&syntax_trees)
+        .expect("the inline member's complete signature should select one overload");
+    let conformance = program.conformances.iter().next().expect("one conformance");
+    let psi_symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
+        &conformance.implementation
+    else {
+        panic!("closed implementation retained");
+    };
+    assert_eq!(rows.len(), 2);
+    assert_eq!(
+        rows.iter()
+            .filter(|row| {
+                row.source
+                    == psi_symbol_resolved_trees::trait_definition::ConformanceRowSource::Inline
+            })
+            .count(),
+        1
+    );
+    assert_eq!(
+        rows.iter()
+            .filter(|row| {
+                row.source
+                    == psi_symbol_resolved_trees::trait_definition::ConformanceRowSource::TraitDefault
+            })
+            .count(),
+        1
+    );
+    assert_eq!(
+        program
+            .machines
+            .iter()
+            .filter(|machine| {
+                machine
+                    .name
+                    .as_str()
+                    .contains("Primary::Converter::convert")
+            })
+            .count(),
+        1,
+        "the overridden Saturating default candidate must not remain executable"
+    );
+}
+
+#[test]
 fn trait_default_calls_route_through_the_same_closed_map() {
     let source = r#"
         trait Pair {

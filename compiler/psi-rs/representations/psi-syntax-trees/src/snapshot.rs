@@ -201,6 +201,7 @@ pub enum ConformanceMemberSnapshot {
     },
     TraitDefault {
         declaring_trait: IdentifierSnapshot,
+        requirement_ordinal: usize,
         declaration: Box<ItemSnapshot>,
     },
     Reference {
@@ -728,9 +729,11 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                                 }
                                 crate::item::ConformanceMember::TraitDefault {
                                     declaring_trait,
+                                    requirement_ordinal,
                                     machine,
                                 } => ConformanceMemberSnapshot::TraitDefault {
                                     declaring_trait: snapshot_identifier(declaring_trait),
+                                    requirement_ordinal: *requirement_ordinal,
                                     declaration: Box::new(snapshot_item(
                                         syntax_trees,
                                         &Item::Machine(machine.clone()),

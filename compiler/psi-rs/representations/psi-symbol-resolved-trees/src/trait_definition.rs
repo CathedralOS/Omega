@@ -53,12 +53,18 @@ pub struct ConformanceRow {
     pub declaring_trait_name: DiagnosticName,
     pub requirement: SymbolHandle,
     pub requirement_name: DiagnosticName,
+    /// Pre-normalization declaration ordinal used only by synthesized trait
+    /// defaults. Exact requirement symbols replace it before typed lowering.
+    pub provisional_requirement_ordinal: Option<usize>,
     /// Exact authored realization. A selected trait-default template keeps
     /// these invalid until per-conformance default instantiation creates its
     /// checked machine; checked dynamic lowering rejects it meanwhile.
     pub realization_machine: SymbolHandle,
     pub realization_state: SymbolHandle,
     pub realization_name: DiagnosticName,
+    /// Pre-normalization root-machine ordinal for inline/default members.
+    /// This prevents same-named overloads from being re-selected by text.
+    pub provisional_realization_ordinal: Option<usize>,
     pub source: ConformanceRowSource,
 }
 

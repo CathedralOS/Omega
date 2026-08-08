@@ -592,6 +592,10 @@ pub enum ConformanceMember {
     /// inherited same-name requirements and artifact provenance exact.
     TraitDefault {
         declaring_trait: Identifier,
+        /// Source-order identity of the exact requirement declaration within
+        /// its declaring trait. This survives only until symbol assignment;
+        /// the normalized row retains the requirement symbol instead.
+        requirement_ordinal: usize,
         machine: Machine,
     },
     /// An explicit row reference such as
