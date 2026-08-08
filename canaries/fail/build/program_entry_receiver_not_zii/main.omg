@@ -1,0 +1,7 @@
+data Application {
+    launch_count: u8 [1..=255];
+}
+
+machine Application::launch(&mut self) {
+    self.launch_count += 1;
+}

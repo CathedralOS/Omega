@@ -128,6 +128,95 @@ pub(crate) fn selected_program_entry_machine<'config>(
     }
 }
 
+/// Validate the source half of the currently implemented `ProgramEntry`
+/// schema. Hosted targets expose no arrival parameters: the selected machine
+/// is either free or has exactly one mutable `self` receiver for later bridge
+/// provisioning. Freestanding arrival parameters remain target-schema work,
+/// but the common result/generic/receiver rules already apply.
+pub(crate) fn validate_selected_program_entry_shape(
+    typed: &TypedTrees,
+    machine_name: &str,
+    freestanding: bool,
+) -> Result<(), Vec<Diagnostic>> {
+    let Some(machine) = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == machine_name)
+    else {
+        return Err(vec![Diagnostic::error(format!(
+            "build root slot names unknown entry machine `{machine_name}`"
+        ))]);
+    };
+    let Some(entry) = typed.machine_states(machine).first() else {
+        return Err(vec![Diagnostic::error(format!(
+            "entry machine `{machine_name}` has no executable entry state"
+        ))]);
+    };
+
+    let mut diagnostics = Vec::new();
+    if !typed.machine_type_parameters(machine).is_empty() {
+        diagnostics.push(Diagnostic::error(format!(
+            "entry machine `{machine_name}` is generic; a root slot must bind one exact machine"
+        )));
+    }
+    if entry.return_type.is_valid() {
+        diagnostics.push(Diagnostic::error(format!(
+            "entry machine `{machine_name}` returns a value, but `ProgramEntry` has no result"
+        )));
+    }
+
+    let parameters = typed.state_parameters(entry);
+    let self_parameters = parameters
+        .iter()
+        .filter(|parameter| parameter.is_self)
+        .collect::<Vec<_>>();
+    if self_parameters.len() > 1 {
+        diagnostics.push(Diagnostic::error(format!(
+            "entry machine `{machine_name}` has more than one `self` receiver"
+        )));
+    }
+    if let Some(receiver) = self_parameters.first()
+        && !receiver.is_mutable
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "entry machine `{machine_name}` has a receiver, but `ProgramEntry` provisions it as an exclusive `&mut self` loan"
+        )));
+    }
+    if !self_parameters.is_empty()
+        && let Some(attached_data) = machine.attached_data.as_ref()
+        && let Some(definition) = typed
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.name.as_str() == attached_data.as_str())
+        && psi_typed_trees_to_checked_trees::data_requires_establishment(typed, definition)
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "entry machine `{machine_name}` requests a provisioned `{}` receiver, but its all-zero image is not a valid value; use a free entry and construct the state explicitly",
+            attached_data.as_str()
+        )));
+    }
+
+    if !freestanding {
+        let visible = parameters
+            .iter()
+            .filter(|parameter| !parameter.is_self)
+            .map(|parameter| parameter.name.as_str())
+            .collect::<Vec<_>>();
+        if !visible.is_empty() {
+            diagnostics.push(Diagnostic::error(format!(
+                "hosted `ProgramEntry` exposes no arrival parameters, but `{machine_name}` declares `{}`",
+                visible.join("`, `")
+            )));
+        }
+    }
+
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderSelection {
     pub boundary_trait: String,

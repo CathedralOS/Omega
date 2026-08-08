@@ -72,7 +72,7 @@ pub use monomorphization::{
 /// root) -- re-exported for the ORCHESTRATION layer, which owns the
 /// BuildConfig fact the gate consumes; the other validations run inside
 /// `lower_typed_trees` and never see build.omg.
-pub use psi_validation::validate_asm_discharge;
+pub use psi_validation::{data_requires_establishment, validate_asm_discharge};
 
 mod semantic;
 mod semantic_calls;

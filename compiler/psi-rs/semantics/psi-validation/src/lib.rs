@@ -48,6 +48,7 @@ pub use crate::content_conservation::{
 };
 pub use crate::content_projections::build_content_projection_plans;
 use crate::contract_entailment::validate_machine_contract_entailment;
+pub use crate::data::data_requires_establishment;
 use crate::data::validate_data_field_types;
 use crate::domains::validate_domain_definitions;
 use crate::entry_point::validate_entry_point;
