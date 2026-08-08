@@ -2548,6 +2548,124 @@ fn checked_crash_sites_are_body_evidence_not_contract_identity() {
 }
 
 #[test]
+fn crash_guard_entailment_normalizes_boolean_literal_relations() {
+    let source = r#"
+    machine risky() -> i32
+    crashes Trap Activation
+    { 1 }
+
+    machine equal_true(flag: bool) -> i32
+    crashes Trap Activation
+        flag
+    {
+        transition {
+            flag == true -> fail()
+            _ -> 0i32
+        }
+        state fail() -> i32 { crash Trap; }
+    }
+
+    machine equal_false(flag: bool) -> i32
+    crashes Trap Activation
+        !flag
+    {
+        transition {
+            flag == false -> fail()
+            _ -> 0i32
+        }
+        state fail() -> i32 { crash Trap; }
+    }
+
+    machine not_equal_true(flag: bool) -> i32
+    crashes Trap Activation
+        !flag
+    {
+        transition {
+            flag != true -> fail()
+            _ -> 0i32
+        }
+        state fail() -> i32 { crash Trap; }
+    }
+
+    machine not_equal_false(flag: bool) -> i32
+    crashes Trap Activation
+        flag
+    {
+        transition {
+            flag != false -> fail()
+            _ -> 0i32
+        }
+        state fail() -> i32 { crash Trap; }
+    }
+
+    machine fallthrough_equal_true(flag: bool) -> i32
+    crashes Trap Activation
+        !flag
+    {
+        transition {
+            flag == true -> 0i32
+            _ -> fail()
+        }
+        state fail() -> i32 { crash Trap; }
+    }
+
+    machine guarded_call(flag: bool) -> i32
+    crashes Trap Activation
+        flag
+    {
+        transition {
+            flag == true -> invoke()
+            _ -> 0i32
+        }
+        state invoke() -> i32 { risky() }
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let checked = lower_typed_trees(typed)
+        .expect("Boolean literal relations should imply their normalized operand polarity");
+    let plan = |name: &str| {
+        checked
+            .facts
+            .contract_plans
+            .for_machine(symbol_of_checked(&checked, name))
+            .expect("contract plan")
+    };
+
+    for name in [
+        "equal_true",
+        "equal_false",
+        "not_equal_true",
+        "not_equal_false",
+        "fallthrough_equal_true",
+    ] {
+        let [site] = plan(name).crash.checked_sites() else {
+            panic!("{name} should retain one crash site")
+        };
+        assert_eq!(
+            site.guard_covering_buckets().len(),
+            1,
+            "{name} should cover its route through the normalized relation"
+        );
+    }
+
+    let [call] = plan("guarded_call").crash.checked_calls() else {
+        panic!("guarded_call should retain one checked call")
+    };
+    assert_eq!(call.path_guard_conjuncts().len(), 1);
+    assert_eq!(
+        call.path_guard_consequences().len(),
+        2,
+        "the exact equality and its implied operand should remain separate"
+    );
+}
+
+#[test]
 fn checked_crash_calls_retain_invocation_specific_route_refinement() {
     let source = r#"
     machine risky(flag: bool) -> i32

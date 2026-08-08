@@ -270,9 +270,11 @@ impl CheckedCrashSite {
 /// Invocation-specific refinement of a selected callee crash summary. The
 /// summary may be a published ceiling or conservative same-unit checked-body
 /// evidence. `surviving_buckets` are already expressed in the caller's
-/// canonical parameter namespace. An empty set is meaningful evidence that
-/// the selected summary is crash-free at this invocation, so such records are
-/// retained rather than elided.
+/// canonical parameter namespace. Exact incoming conjuncts remain distinct
+/// from the sound structural consequences used by ceiling coverage. An empty
+/// surviving set is meaningful evidence that the selected summary is
+/// crash-free at this invocation, so such records are retained rather than
+/// elided.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedCrashCallSite {
     location: CrashCallSiteLocation,
@@ -280,6 +282,7 @@ pub struct CheckedCrashCallSite {
     target_state: SymbolHandle,
     target_contract_fingerprint: u64,
     path_guard_conjuncts: Vec<CrashPredicateIdentity>,
+    path_guard_consequences: Vec<CrashPredicateIdentity>,
     surviving_buckets: Vec<CrashRouteBucket>,
 }
 
@@ -345,6 +348,7 @@ impl CheckedCrashCallSite {
             target_state,
             target_contract_fingerprint,
             path_guard_conjuncts: Vec::new(),
+            path_guard_consequences: Vec::new(),
             surviving_buckets,
         }
     }
@@ -369,6 +373,10 @@ impl CheckedCrashCallSite {
         &self.path_guard_conjuncts
     }
 
+    pub fn path_guard_consequences(&self) -> &[CrashPredicateIdentity] {
+        &self.path_guard_consequences
+    }
+
     pub fn surviving_buckets(&self) -> &[CrashRouteBucket] {
         &self.surviving_buckets
     }
@@ -380,6 +388,16 @@ impl CheckedCrashCallSite {
         path_guard_conjuncts.sort();
         path_guard_conjuncts.dedup();
         self.path_guard_conjuncts = path_guard_conjuncts;
+        self
+    }
+
+    pub fn with_path_guard_consequences(
+        mut self,
+        mut path_guard_consequences: Vec<CrashPredicateIdentity>,
+    ) -> Self {
+        path_guard_consequences.sort();
+        path_guard_consequences.dedup();
+        self.path_guard_consequences = path_guard_consequences;
         self
     }
 }

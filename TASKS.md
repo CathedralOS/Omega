@@ -249,8 +249,9 @@ Remaining:
   The producer substitutes arguments into canonical route predicates, drops
   only routes the existing evaluator proves false, collapses proved-true routes
   to unconditional alternatives, preserves fully disproved calls as empty
-  evidence, and records the caller's exact incoming path conjunction; semantic
-  reports expose the surviving buckets. Same-unit private calls now select a
+  evidence, and records the caller's exact incoming path conjunction plus a
+  separate source-independent structural consequence set; semantic reports
+  expose both and the surviving buckets. Same-unit private calls now select a
   conservative monotone checked-body summary over the viable invocation graph:
   each
   explicit site contributes an unconditional `(cause, damage minimum)` bucket,
@@ -266,15 +267,19 @@ Remaining:
   route independently against a same-cause caller bucket whose containment
   demand covers the selected route and whose guard is unconditional, exactly
   matches the surviving predicate, or is one of the invocation's retained
-  incoming path conjuncts. Callable trait requirements and unresolved
-  compile-time machine parameters now retain source-independent crash-contract
-  capsules: each capsule pins the normalized public crash buckets to the
-  complete callable-contract fingerprint, and checked calls select and
-  substitute those buckets exactly like local published ceilings. Extend
-  path-conditioned guard
-  entailment beyond the live structural propositional consequences and widen
-  damage minima from open invariant/custody evidence; then add separately
-  compiled imported-artifact capsules. Terminal Psi v24 now
+  path consequences. Positive conjunction, negated disjunction, nested
+  negation, and Boolean-literal equality/inequality normalization feed that
+  same set without replacing the exact conjunction. Callable trait requirements
+  and unresolved compile-time machine parameters now retain source-independent
+  crash-contract capsules: each capsule pins the normalized public crash
+  buckets to the complete callable-contract fingerprint, and checked calls
+  select and substitute those buckets exactly like local published ceilings. Extend
+  path-conditioned guard entailment beyond the live structural rules above and
+  widen damage minima from open invariant/custody evidence. Separately compiled
+  imported-artifact capsules are design blocked on the semantic import/export
+  carrier, symbol identity, and certificate binding requested by
+  `wiki/language_guide/appendix_open_questions.md`; diagnostic JSON is not an
+  admissible substitute. Terminal Psi v24 now
   carries canonical sparse per-cause context maxima in each machine contract;
   the codec fingerprints them, archived modules migrate only their used causes
   to the legacy `ExecutionDomain` root, and the verifier requires every crash
@@ -624,6 +629,9 @@ These entries are pointers, not duplicate specifications.
 - **CHECKED-RESULT-ARITHMETIC:** blocked on whether failure-returning checked
   arithmetic earns a distinct public carrier beyond exact-by-default
   obligations and existing policy families.
+- **IMPORTED-CRASH-CAPSULES:** blocked on the separately compiled realization
+  artifact, import/export identity, and certificate-binding model in
+  `wiki/language_guide/appendix_open_questions.md`.
 
 ## Platform-gated verification
 

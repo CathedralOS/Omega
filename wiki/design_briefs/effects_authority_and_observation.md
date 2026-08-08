@@ -179,16 +179,19 @@ is absent from the verified artifact.
 The checked representation materializes invocation refinement before typed
 source is discarded. Each direct published-callee row records the stable
 state/statement/call coordinate, the target contract fingerprint, the caller's
-exact incoming path conjunction, and the independently surviving
-cause/containment buckets. Concrete false routes disappear, concrete true
+exact incoming path conjunction, a separate source-independent structural
+consequence set, and the independently surviving cause/containment buckets.
+Concrete false routes disappear, concrete true
 routes normalize to unconditional alternatives, unknown routes are retained in
 the caller's positional parameter namespace, and a call with no survivors
 remains explicit crash-free evidence. Same-unit body-summary selection is
 live. Callable trait requirements and unresolved compile-time machine
 parameters now use source-independent crash-contract capsules that pin their
 published buckets to the complete normalized callable-contract fingerprint.
-Recursive guarded-crash fixed points and separately compiled import capsules
-remain subsequent composition steps over that carrier.
+Same-unit private fixed points now retain a temporary canonical predicate tree
+through nonrecursive edges and widen recursive SCC edges to unconditional
+cause/scope buckets. Separately compiled import capsules remain blocked until
+the semantic import/export carrier and its certificate binding are specified.
 
 An enclosing execution context publishes a maximum tolerated scope per cause.
 The map belongs to the activation, task, supervisor, or root that expects state

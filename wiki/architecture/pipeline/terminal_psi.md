@@ -89,12 +89,18 @@ Exact retained incoming guards, including the negations accumulated by later
 dispatch arms, now join to identical canonical published predicates without
 entering public contract identity. Positive conjunctions also imply each
 conjunct, negated disjunctions imply each negated disjunct, and nested logical
-negation flips polarity; converse implications remain rejected. Checked sites
+negation flips polarity. Boolean comparisons with a literal normalize
+`x == true`, `x == false`, `x != true`, and `x != false`, including negated
+fallthrough edges, to the operand polarity they establish; converse
+implications remain rejected. Checked sites
 retain their exact incoming-predicate conjunction separately from these
 coverage consequences. Checked calls likewise retain invocation coordinates,
-the exact target contract fingerprint, the incoming path conjunction, and
-every surviving substituted route. Same-unit private bodies are summarized
-over the viable call graph while typed expressions are still present. A
+the exact target contract fingerprint, the incoming path conjunction, a
+separate source-independent structural consequence set, and every surviving
+substituted route. Caller-ceiling coverage consumes the consequence set while
+preserving the exact conjunction as distinct evidence. Same-unit private bodies
+are summarized over the viable call graph while typed expressions are still
+present. A
 temporary canonical predicate tree carries positional parameters through every
 nonrecursive private edge, so guarded routes survive arbitrarily deep acyclic
 wrappers and concrete outer arguments can still disprove them. Recursive SCC

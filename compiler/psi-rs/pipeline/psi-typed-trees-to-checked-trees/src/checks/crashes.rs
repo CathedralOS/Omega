@@ -97,9 +97,12 @@ pub(crate) fn infer_path_conditioned_guard_coverage(program: &TypedTrees, facts:
             .checked_calls()
             .iter()
             .map(|call| {
-                let path_guard_conjuncts = incoming
+                let applicable_guards = incoming
                     .iter()
                     .filter(|guard| guard.applies_at(call.location().state()))
+                    .collect::<Vec<_>>();
+                let path_guard_conjuncts = applicable_guards
+                    .iter()
                     .map(|guard| {
                         crate::facts::canonical_crash_path_predicate(
                             program,
@@ -110,7 +113,20 @@ pub(crate) fn infer_path_conditioned_guard_coverage(program: &TypedTrees, facts:
                         )
                     })
                     .collect::<Vec<_>>();
-                call.clone().with_path_guard_conjuncts(path_guard_conjuncts)
+                let mut path_guard_consequences = Vec::new();
+                for guard in applicable_guards {
+                    collect_structural_guard_consequences(
+                        program,
+                        guard.guard(),
+                        guard.is_negated(),
+                        &parameter_names,
+                        &content_conservation,
+                        &mut path_guard_consequences,
+                    );
+                }
+                call.clone()
+                    .with_path_guard_conjuncts(path_guard_conjuncts)
+                    .with_path_guard_consequences(path_guard_consequences)
             })
             .collect();
         facts.contract_plans.machines[contract_index].crash = crash_plan
@@ -140,7 +156,11 @@ pub(crate) fn check_call_ceiling_coverage(
                                 published.containment_demand(),
                             )
                             && published.alternative_guards().iter().any(|cover| {
-                                call_route_guard_covers(cover, route, call.path_guard_conjuncts())
+                                call_route_guard_covers(
+                                    cover,
+                                    route,
+                                    call.path_guard_consequences(),
+                                )
                             })
                     })
                 });
@@ -179,13 +199,13 @@ pub(crate) fn check_call_ceiling_coverage(
 fn call_route_guard_covers(
     published: &CrashRouteGuard,
     surviving: &CrashRouteGuard,
-    path_guard_conjuncts: &[psi_checked_trees::CrashPredicateIdentity],
+    path_guard_consequences: &[psi_checked_trees::CrashPredicateIdentity],
 ) -> bool {
     match published {
         CrashRouteGuard::Truth => true,
         CrashRouteGuard::Predicate(published) => {
             matches!(surviving, CrashRouteGuard::Predicate(surviving) if surviving == published)
-                || path_guard_conjuncts.contains(published)
+                || path_guard_consequences.contains(published)
         }
     }
 }
@@ -243,6 +263,39 @@ fn collect_structural_guard_consequences(
                 content_conservation,
                 output,
             );
+        }
+        ExpressionNode::Binary(binary)
+            if matches!(
+                binary.operator,
+                BinaryOperator::Equal | BinaryOperator::NotEqual
+            ) =>
+        {
+            let operand_and_literal = match (
+                program.expression_table.expression(binary.left),
+                program.expression_table.expression(binary.right),
+            ) {
+                (ExpressionNode::Boolean(literal), _) => Some((binary.right, *literal)),
+                (_, ExpressionNode::Boolean(literal)) => Some((binary.left, *literal)),
+                _ => None,
+            };
+            if let Some((operand, literal)) = operand_and_literal {
+                // Normalize `x == true`, `x == false`, `x != true`, and
+                // `x != false`, including a negated/fallthrough relation, to
+                // the exact polarity of x that the edge establishes.
+                let equality_is_negated = if binary.operator == BinaryOperator::Equal {
+                    negated
+                } else {
+                    !negated
+                };
+                collect_structural_guard_consequences(
+                    program,
+                    operand,
+                    equality_is_negated == literal,
+                    parameter_names,
+                    content_conservation,
+                    output,
+                );
+            }
         }
         _ => {}
     }

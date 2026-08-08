@@ -1785,6 +1785,13 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
                     }
                     push_crash_predicate_identity_json(&mut json, predicate);
                 }
+                json.push_str("], \"path_guard_consequences\": [");
+                for (guard_index, predicate) in call.path_guard_consequences().iter().enumerate() {
+                    if guard_index > 0 {
+                        json.push_str(", ");
+                    }
+                    push_crash_predicate_identity_json(&mut json, predicate);
+                }
                 json.push_str("], \"surviving_buckets\": [");
                 push_crash_buckets_json(&mut json, call.surviving_buckets());
                 json.push_str("]}");
@@ -3416,7 +3423,7 @@ mod tests {
             "\"checked_crash_sites\": [\n          {\"state\": \"entry\", \"statement_ordinal\": 4, \"cause\": \"Abort\", \"damage_minimum\": \"ExecutionDomain\", \"path_guard_conjuncts\": [\"0x010900000000\"], \"guard_covering_buckets\": [1], \"covering_buckets\": [1], \"frontier_lower_bound\": [{\"kind\": \"established\""
         ));
         assert!(json[implementation_start..].contains(
-            "\"checked_crash_calls\": [\n          {\"state\": \"entry\", \"statement_ordinal\": 7, \"call_ordinal\": 2, \"target_machine\": \"Worker::run\", \"target_state\": \"entry\", \"target_contract_fingerprint\": \"0x0000000000001234\", \"path_guard_conjuncts\": [\"0x010401\"], \"surviving_buckets\": [{\"cause\": \"Trap\", \"containment_demand\": \"Activation\", \"alternative_guards\": [\"true\"]}]"
+            "\"checked_crash_calls\": [\n          {\"state\": \"entry\", \"statement_ordinal\": 7, \"call_ordinal\": 2, \"target_machine\": \"Worker::run\", \"target_state\": \"entry\", \"target_contract_fingerprint\": \"0x0000000000001234\", \"path_guard_conjuncts\": [\"0x010401\"], \"path_guard_consequences\": [], \"surviving_buckets\": [{\"cause\": \"Trap\", \"containment_demand\": \"Activation\", \"alternative_guards\": [\"true\"]}]"
         ));
         assert!(
             json[implementation_start..]
