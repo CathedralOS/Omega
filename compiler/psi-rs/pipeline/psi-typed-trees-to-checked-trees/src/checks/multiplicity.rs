@@ -237,6 +237,134 @@ pub(crate) fn record_permission_events(
         .permissions
         .insert_many(permission_events);
     publish_claim_outcome_maps(facts, claim_outcome_maps);
+    record_crash_frontier_lower_bounds(program, facts);
+}
+
+#[derive(Debug)]
+struct DerivedCrashFrontier {
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_ordinal: u32,
+    claims: Vec<PermissionClaimIdentity>,
+}
+
+/// Retain the machine-local claims that are definitely live at each explicit
+/// crash. The result is an underapproximation by design: a conditional sum
+/// payload is omitted until active-case proof can make its liveness definite.
+/// Crash abandons these claims; it does not synthesize cleanup or consumption.
+fn record_crash_frontier_lower_bounds(
+    program: &psi_typed_trees::TypedTrees,
+    facts: &mut CheckFacts,
+) {
+    let mut derived = Vec::new();
+    for (_, state_flow) in facts.flow.control.states.iter() {
+        let Some(state) = crate::find_state(program, state_flow.state_symbol) else {
+            continue;
+        };
+        let statements = program.statement_table.statements(state.statement_nodes);
+        let events = facts
+            .flow
+            .ownership
+            .permissions
+            .iter()
+            .filter_map(|(_, event)| {
+                (event.machine_symbol == state_flow.machine_symbol
+                    && event.state_symbol == state.symbol
+                    && event.access == PermissionAccess::Owned)
+                    .then_some(event)
+            })
+            .collect::<Vec<_>>();
+        let mut places =
+            initial_linear_places(program, state, state_flow.machine_symbol, state.symbol);
+        apply_recorded_state_entry_events(&events, &facts.flow.ownership.segments, &mut places);
+
+        let first_transition = statements
+            .iter()
+            .position(|statement| matches!(statement, StatementNode::Transition(_)));
+        let prefix_end = first_transition.unwrap_or(statements.len());
+        let mut ignored_diagnostics = Vec::new();
+        for statement_index in 0..prefix_end {
+            apply_recorded_statement_events(
+                statement_index,
+                &events,
+                &facts.flow.ownership.segments,
+                &mut places,
+                &mut ignored_diagnostics,
+            );
+        }
+
+        let Some(first_transition) = first_transition else {
+            continue;
+        };
+        let entry = places;
+        for statement_index in (first_transition..statements.len())
+            .filter(|index| matches!(statements[*index], StatementNode::Transition(_)))
+        {
+            let StatementNode::Transition(transition) = &statements[statement_index] else {
+                unreachable!("transition indices contain only transitions")
+            };
+            if !matches!(
+                transition.exit,
+                psi_typed_trees::statement::TransitionExit::Crash(_)
+            ) {
+                continue;
+            }
+            let mut outcome = entry.clone();
+            apply_recorded_statement_events(
+                statement_index,
+                &events,
+                &facts.flow.ownership.segments,
+                &mut outcome,
+                &mut ignored_diagnostics,
+            );
+            let claims = outcome
+                .iter()
+                .filter_map(|place| {
+                    (place.live && !place.conditional)
+                        .then_some(place.claim_identity?)
+                        .filter(|identity| *identity != PermissionClaimIdentity::Unknown)
+                })
+                .collect();
+            derived.push(DerivedCrashFrontier {
+                machine_symbol: state_flow.machine_symbol,
+                state_symbol: state.symbol,
+                statement_ordinal: u32::try_from(statement_index)
+                    .expect("state-local statement ordinal exceeds checked identity range"),
+                claims,
+            });
+        }
+    }
+
+    for contract in &mut facts.contract_plans.machines {
+        let checked_sites = contract
+            .crash
+            .checked_sites()
+            .iter()
+            .map(|site| {
+                let location = site.location();
+                let frontier = derived
+                    .iter()
+                    .find(|frontier| {
+                        frontier.machine_symbol == contract.machine
+                            && frontier.state_symbol == location.state()
+                            && frontier.statement_ordinal == location.statement_ordinal()
+                    })
+                    .map(|frontier| frontier.claims.clone())
+                    .unwrap_or_else(|| site.frontier_lower_bound().to_vec());
+                psi_checked_trees::CheckedCrashSite::new(
+                    location,
+                    site.cause(),
+                    site.guard_covering_buckets().to_vec(),
+                    frontier,
+                )
+            })
+            .collect();
+        contract.crash = contract
+            .crash
+            .clone()
+            .with_checked_sites(checked_sites)
+            .expect("derived crash frontiers retain valid checked-site identity");
+    }
 }
 
 /// Join a state call's receiving establishment to the unique claim and
@@ -1316,6 +1444,7 @@ pub(crate) fn validate_linear_permission_events(
         }
 
         let mut mixed_places = Vec::new();
+        let mut has_ordinary_exit = first_transition.is_none();
         if let Some(first_transition) = first_transition {
             let entry = places.clone();
             let arm_indices = (first_transition..statements.len())
@@ -1331,7 +1460,12 @@ pub(crate) fn validate_linear_permission_events(
                     &mut outcome,
                     &mut diagnostics,
                 );
-                outcomes.push(outcome);
+                let StatementNode::Transition(transition) = &statements[statement_index] else {
+                    unreachable!("transition indices contain only transitions")
+                };
+                if transition.exit == psi_typed_trees::statement::TransitionExit::Ordinary {
+                    outcomes.push(outcome);
+                }
             }
             let exhaustive = arm_indices.last().is_some_and(|index| {
                 matches!(
@@ -1345,6 +1479,7 @@ pub(crate) fn validate_linear_permission_events(
             if !exhaustive {
                 outcomes.push(entry);
             }
+            has_ordinary_exit = !outcomes.is_empty();
 
             if let Some(first) = outcomes.first() {
                 for place_index in 0..places.len() {
@@ -1370,16 +1505,18 @@ pub(crate) fn validate_linear_permission_events(
             }
         }
 
-        for place in places.iter().filter(|place| {
-            place.live
-                && !mixed_places
-                    .iter()
-                    .any(|(symbol, path)| *symbol == place.symbol && *path == place.path)
-        }) {
-            diagnostics.push(Diagnostic::error(format!(
-                "linear value `{}` reaches scope exit without being consumed or transferred",
-                place.name
-            )));
+        if has_ordinary_exit {
+            for place in places.iter().filter(|place| {
+                place.live
+                    && !mixed_places
+                        .iter()
+                        .any(|(symbol, path)| *symbol == place.symbol && *path == place.path)
+            }) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "linear value `{}` reaches scope exit without being consumed or transferred",
+                    place.name
+                )));
+            }
         }
     }
 
@@ -1783,6 +1920,32 @@ fn claim_place_name(
         }
     }
     name
+}
+
+fn apply_recorded_state_entry_events(
+    events: &[&FlowPermissionEventFact],
+    segments: &psi_arena::Arena<psi_facts::PlaceSegment>,
+    places: &mut [LinearPlace],
+) {
+    for event in events.iter().copied().filter(|event| {
+        event.source == PermissionEventSource::StateEntry
+            && event.kind == PermissionEventKind::Establish
+    }) {
+        let psi_facts::PlaceRoot::Symbol(symbol) = event.root else {
+            continue;
+        };
+        let event_path = segments.span_or_empty(event.segments);
+        let Some(place) = places
+            .iter_mut()
+            .find(|place| place.symbol == symbol && place.path.as_slice() == event_path)
+        else {
+            continue;
+        };
+        place.live = event.obligation_live;
+        place.ever_established = true;
+        place.claim_identity = Some(event.claim_identity);
+        place.provenance = Some(event.provenance);
+    }
 }
 
 fn apply_recorded_statement_events(

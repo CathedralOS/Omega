@@ -79,9 +79,14 @@ and are required by terminal production. Canonical published buckets receive
 dense plan-local identities. A site already records every unconditional
 same-cause bucket whose guard coverage follows structurally, and terminal
 lowering consumes that checked relation rather than searching routes itself.
-Path-conditioned guarded coverage, damage minima, reconstructed frontier lower
-bounds, general guarded production, nominal scope ordering, and installation
-realization remain the rest of CRASH-CONTRACT.
+Checked ownership also reconstructs a canonical lower bound of stable claim
+identities that are definitely live and non-conditional at the site. A crash
+abandons those claims without cleanup or consumption. Terminal production maps
+them through the dense source-claim table and rejects an unmapped identity
+rather than silently weakening the frontier. Conditional frontier membership,
+path-conditioned guarded coverage, damage minima, general guarded production,
+nominal scope ordering, and installation realization remain the rest of
+CRASH-CONTRACT.
 `psi-terminal-verifier` rejects malformed identities, types, contract scopes,
 cycles, unreachable fact sources, and missing/extra evidence, reconstructs the
 exact operation/edge/return axioms, and checks every `ensures` from a separate

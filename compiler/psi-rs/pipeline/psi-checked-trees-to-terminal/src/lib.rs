@@ -1349,6 +1349,8 @@ fn lower_explicit_crash_machine(
             "an explicit crash in the first terminal-Psi source slice requires exactly one prechecked guard-covering bucket",
         );
     };
+    let frontier_lower_bound =
+        lower_checked_crash_frontier(checked_site.frontier_lower_bound(), &[])?;
 
     let terminal_parameters = parameter_types
         .iter()
@@ -1398,7 +1400,7 @@ fn lower_explicit_crash_machine(
                             psi_checked_trees::CrashCause::Abort => TerminalCrashCause::Abort,
                         },
                         damage_scope: covering_bucket.containment_demand().to_owned(),
-                        frontier_lower_bound: Vec::new(),
+                        frontier_lower_bound,
                     },
                 }],
                 contract: MachineContract {
@@ -1413,6 +1415,24 @@ fn lower_explicit_crash_machine(
         },
         debug_map: None,
     })
+}
+
+fn lower_checked_crash_frontier(
+    frontier: &[PermissionClaimIdentity],
+    source_claims: &[(PermissionClaimIdentity, ClaimId)],
+) -> Result<Vec<ClaimId>, LoweringError> {
+    let mut lowered = frontier
+        .iter()
+        .map(|identity| {
+            source_claims
+                .iter()
+                .find_map(|(source, claim)| (source == identity).then_some(*claim))
+                .ok_or(LoweringError::CrashFrontierClaimNotLowered(*identity))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    lowered.sort();
+    lowered.dedup();
+    Ok(lowered)
 }
 
 fn lower_boolean_conditional_machine(
@@ -5335,6 +5355,7 @@ pub enum LoweringError {
     OverlappingContentIdentityInput,
     OverlappingContentIdentityOutput,
     ContentProjectionAlgebraMismatch(ContentProjectionIdentity),
+    CrashFrontierClaimNotLowered(PermissionClaimIdentity),
     InvalidContentDomainIdentity,
     ZeroContentProjectionFingerprint,
     ContentTermNestingTooDeep,
@@ -5671,6 +5692,43 @@ mod tests {
             ContentTerm::Projection { subject, .. }
                 if subject.segments == [ContentPlaceSegment::Field("right".to_owned())]
         ));
+    }
+
+    #[test]
+    fn checked_crash_frontier_maps_only_through_dense_terminal_claims() {
+        let first = PermissionClaimIdentity::Established {
+            machine_symbol: SymbolHandle::from_arena_index(1),
+            state_symbol: SymbolHandle::from_arena_index(2),
+            source: PermissionEventSource::StateEntry,
+            ordinal: 0,
+        };
+        let second = PermissionClaimIdentity::Established {
+            machine_symbol: SymbolHandle::from_arena_index(1),
+            state_symbol: SymbolHandle::from_arena_index(2),
+            source: PermissionEventSource::Statement { statement_index: 1 },
+            ordinal: 1,
+        };
+        let first_id = ClaimId::new(1).expect("claim");
+        let second_id = ClaimId::new(2).expect("claim");
+        assert_eq!(
+            lower_checked_crash_frontier(
+                &[first, second],
+                &[(second, second_id), (first, first_id)],
+            ),
+            Ok(vec![first_id, second_id])
+        );
+
+        let missing = PermissionClaimIdentity::Established {
+            machine_symbol: SymbolHandle::from_arena_index(1),
+            state_symbol: SymbolHandle::from_arena_index(2),
+            source: PermissionEventSource::Statement { statement_index: 2 },
+            ordinal: 2,
+        };
+        assert_eq!(
+            lower_checked_crash_frontier(&[missing], &[(first, first_id)]),
+            Err(LoweringError::CrashFrontierClaimNotLowered(missing)),
+            "terminal production must not silently omit a checked abandoned claim"
+        );
     }
 
     #[test]

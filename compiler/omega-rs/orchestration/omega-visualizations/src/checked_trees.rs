@@ -1699,6 +1699,14 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
                     json.push_str(&bucket.get().to_string());
                 }
                 json.push(']');
+                json.push_str(", \"frontier_lower_bound\": [");
+                for (claim_index, claim) in site.frontier_lower_bound().iter().enumerate() {
+                    if claim_index > 0 {
+                        json.push_str(", ");
+                    }
+                    push_claim_identity_json(&mut json, program, *claim);
+                }
+                json.push(']');
                 json.push('}');
             }
             if !contract.crash.checked_sites().is_empty() {
@@ -3150,11 +3158,18 @@ mod tests {
             .next()
             .map(|(id, _)| id)
             .expect("published abort bucket");
+        let abandoned_claim = psi_language_semantics::PermissionClaimIdentity::Established {
+            machine_symbol: symbol,
+            state_symbol,
+            source: psi_language_semantics::PermissionEventSource::StateEntry,
+            ordinal: 0,
+        };
         let crash = crash
             .with_checked_sites(vec![psi_checked_trees::CheckedCrashSite::new(
                 psi_checked_trees::CrashSiteLocation::new(state_symbol, 4),
                 psi_checked_trees::CrashCause::Abort,
                 vec![abort_bucket],
+                vec![abandoned_claim],
             )])
             .expect("one crash site per source location");
         let mut machine = Machine {
@@ -3259,8 +3274,12 @@ mod tests {
         assert!(!contract.contains("remaining"));
         assert!(json[implementation_start..].contains("\"inferred_write_frames\": []"));
         assert!(json[implementation_start..].contains(
-            "\"checked_crash_sites\": [\n          {\"state\": \"entry\", \"statement_ordinal\": 4, \"cause\": \"Abort\", \"guard_covering_buckets\": [1]}"
+            "\"checked_crash_sites\": [\n          {\"state\": \"entry\", \"statement_ordinal\": 4, \"cause\": \"Abort\", \"guard_covering_buckets\": [1], \"frontier_lower_bound\": [{\"kind\": \"established\""
         ));
+        assert!(
+            json[implementation_start..]
+                .contains("\"source\": {\"kind\": \"state_entry\"}, \"ordinal\": 0}]")
+        );
         assert!(json[implementation_start..].contains("\"checked_may_suspend\": false"));
         assert!(json[implementation_start..].contains("\"checked_may_block\": true"));
         assert!(json[implementation_start..].contains("\"checked_service_reach\": [\"Readable\"]"));
