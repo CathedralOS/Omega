@@ -2453,7 +2453,7 @@ fn psi_terminal_producer_rejects_source_outside_its_declared_slice() {
             lower_machine(&checked, machine)
                 .expect_err("a crash without a uniquely covering bucket must fail"),
             LoweringError::Unsupported(
-                "an explicit crash in the first terminal-Psi source slice requires exactly one prechecked covering bucket"
+                "an explicit crash in the terminal-Psi source slice requires exactly one prechecked covering bucket"
             )
         );
     }
@@ -2506,7 +2506,7 @@ fn psi_terminal_producer_rejects_source_outside_its_declared_slice() {
         lower_machine(&missing_coverage, "terminal_abort")
             .expect_err("terminal production must consume checked guard coverage"),
         LoweringError::Unsupported(
-            "an explicit crash in the first terminal-Psi source slice requires exactly one prechecked covering bucket"
+            "an explicit crash in the terminal-Psi source slice requires exactly one prechecked covering bucket"
         )
     );
 
@@ -2561,6 +2561,62 @@ fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
             ..
         } if damage_minimum == "Activation" && containment_demand == "ExecutionDomain"
     ));
+    let guarded_trap = lower_machine(&checked, "terminal_path_guarded_trap")
+        .expect("checked incoming guard coverage should open a guarded crash branch");
+    assert!(matches!(
+        &guarded_trap.semantic_module.machines[0].blocks[1].terminator,
+        Terminator::Crash {
+            cause: CrashCause::Trap,
+            damage_minimum,
+            containment_demand,
+            ..
+        } if damage_minimum == "Activation" && containment_demand == "ExecutionDomain"
+    ));
+    let guarded_semantic_bytes =
+        encode_module(&guarded_trap.semantic_module).expect("guarded crash should encode");
+    let guarded_proof_bytes =
+        encode_proof_bundle(&guarded_trap.proof_bundle).expect("guarded crash proof should encode");
+    let guarded_semantic_module =
+        decode_module(&guarded_semantic_bytes).expect("guarded crash should decode");
+    let guarded_proof_bundle =
+        decode_proof_bundle(&guarded_proof_bytes).expect("guarded crash proof should decode");
+    let guarded_verified = verify_module(
+        &guarded_semantic_module,
+        &guarded_proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("the guarded crash branch should verify");
+    assert_eq!(
+        derive_fixed_entry_fuel(&guarded_verified, guarded_semantic_module.entry)
+            .expect("guarded crash control should have a fixed entry ceiling")
+            .ceiling_units(),
+        3
+    );
+    let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
+    for (flag, expected) in [
+        (
+            true,
+            TerminalExecutionStatus::Crashed(omega_interpreter::TerminalCrash {
+                cause: CrashCause::Trap,
+                damage_minimum: "Activation".to_owned(),
+                containment_demand: "ExecutionDomain".to_owned(),
+                frontier_lower_bound: Vec::new(),
+            }),
+        ),
+        (
+            false,
+            TerminalExecutionStatus::Complete(TerminalScalarValue::Integer {
+                scalar_type: i32_type,
+                value: IntegerValue::Signed(0),
+            }),
+        ),
+    ] {
+        let mut execution =
+            TerminalExecution::start(&guarded_verified, &[TerminalScalarValue::Boolean(flag)])
+                .expect("guarded crash execution should start");
+        let mut guarded_meter = TerminalFuelMeter::unbounded();
+        assert_eq!(execution.resume(&mut guarded_meter).unwrap(), expected);
+    }
     let lowered = lower_machine(&checked, "terminal_abort")
         .expect("an unconditional published crash should lower");
     let explicit_true = lower_machine(&checked, "terminal_explicit_true_abort")
