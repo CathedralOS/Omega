@@ -262,7 +262,7 @@ fn checked_source_survives_frontend_drop_as_verified_terminal_psi() {
                 operations: vec![
                     TerminalAbstractOperation::IntegerConstant {
                         psi_operation: OperationId::new(1).expect("operation"),
-                        result: ValueId::new(1).expect("jump constant"),
+                        result: ValueId::new(2).expect("jump constant"),
                         scalar_type: ScalarType::Integer(i32_type),
                         value: IntegerValue::Signed(7),
                     },
@@ -270,8 +270,8 @@ fn checked_source_survives_frontend_drop_as_verified_terminal_psi() {
                         psi_edge: EdgeId::new(1).expect("jump edge"),
                         target: BlockId::new(2).expect("return block"),
                         bindings: vec![TerminalValueBinding {
-                            parameter: ValueId::new(2).expect("block parameter"),
-                            argument: ValueId::new(1).expect("jump constant"),
+                            parameter: ValueId::new(1).expect("block parameter"),
+                            argument: ValueId::new(2).expect("jump constant"),
                             scalar_type: ScalarType::Integer(i32_type),
                         }],
                     },

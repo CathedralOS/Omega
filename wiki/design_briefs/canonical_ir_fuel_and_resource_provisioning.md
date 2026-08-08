@@ -118,7 +118,8 @@ parameters and prior results to each later stage, and converge once at the
 authored target. Conditional-edge stages remain arm-local, so the unselected
 tuple is neither executed nor charged. A pure unconditional mixed-scalar graph
 enters this typed path directly rather than requiring an artificial source
-selector.
+selector. All multi-state integer-result shapes now share the same general DAG
+producer; the duplicate integer-only chain producer is retired.
 Computed conditional-edge bindings use synthesized arm-local blocks so only
 the selected expression executes and consumes fuel. Nested selections, linear
 prefixes, and convergent tails use the same terminal block and edge
