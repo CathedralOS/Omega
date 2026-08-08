@@ -616,6 +616,27 @@ crashes Trap ExecutionDomain
     state succeed() -> i32 { 0i32 }
 }
 
+machine terminal_integer_guarded_trap(
+    value: i32 in Wrapping,
+    limit: i32 in Wrapping
+) -> i32
+requires 0i32 == 0i32
+ensures 0i32 == 0i32
+crashes Trap ExecutionDomain
+    value + 1i32 >= limit
+{
+    transition {
+        value + 1i32 >= limit -> fail()
+        _ -> succeed()
+    }
+
+    state fail() -> i32 {
+        crash Trap;
+    }
+
+    state succeed() -> i32 { 0i32 }
+}
+
 machine terminal_implied_guarded_trap(flag: bool) -> i32
 requires 0i32 == 0i32
 ensures 0i32 == 0i32

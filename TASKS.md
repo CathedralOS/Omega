@@ -182,9 +182,11 @@ Remaining:
   together. Add general blocks, calls, aggregate values, structural places,
   cleanup/transfer actions, and boundary operations without restoring an
   Omega-to-Psi bridge. Rooted acyclic integer graphs now lower computed
-  expressions on unconditional jump bindings through verification,
-  interpretation, fuel, and both native targets. Conditional-edge computation
-  remains until operations can stay local to the selected edge.
+  expressions on unconditional jump bindings and exact-type integer comparison
+  guards (including normalized greater forms and recursive integer operands)
+  through verification, interpretation, and fuel. Non-crashing shapes also
+  reach both native targets. Conditional-edge binding computation remains until
+  operations can stay local to the selected edge.
 - Replace all remaining terminal-path `ExpressionHandle` and source-tree
   dependencies with lowered values and predicates. Absorb useful StateGraph /
   ControlFlow topology, then retire the legacy backend lane as consumers move.
@@ -249,8 +251,11 @@ Remaining:
   along their canonical claim path. The ownership join also treats
   exhaustive case runs as exhaustive and removes impossible earlier
   alternatives before comparing arm outcomes. Unknown active cases and nested
-  cases without proof at every level remain outside the lower bound. Direct
-  calls to local machines with
+  cases without proof at every level remain outside the lower bound. Exact-type
+  integer comparison guards now reach terminal control, so the
+  already-proved ordered-comparison crash coverage is executable rather than
+  stopping at checked evidence. Native crash lowering remains closed pending
+  represented target crash plans. Direct calls to local machines with
   published crash ceilings now retain source-independent checked invocation
   rows keyed by state/statement/call ordinal and target contract fingerprint.
   The producer substitutes arguments into canonical route predicates, drops
