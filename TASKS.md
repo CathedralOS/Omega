@@ -255,8 +255,12 @@ Remaining:
   each
   explicit site contributes an unconditional `(cause, damage minimum)` bucket,
   a site-free leaf contributes positive empty evidence, and resolved nested
-  summaries propagate cause/scope while deliberately collapsing predicates to
-  unconditional routes. Recursive components reach a finite fixed point;
+  summaries retain a temporary source-independent predicate tree, substitute
+  positional arguments at every nonrecursive call edge, and collapse to stable
+  predicate identities only when checked call rows are emitted. Recursive SCC
+  edges widen to unconditional cause/scope buckets so transformed recursive
+  arguments cannot generate an infinite predicate family; components still
+  reach a finite conservative fixed point.
   unknown dependencies prune their caller closure rather than erasing a nested
   crash. Published callers now check every surviving call
   route independently against a same-cause caller bucket whose containment
@@ -269,9 +273,8 @@ Remaining:
   substitute those buckets exactly like local published ceilings. Extend
   path-conditioned guard
   entailment beyond the live structural propositional consequences and widen
-  damage minima from open invariant/custody evidence; then retain guarded
-  predicates while composing nonleaf routes through the recursive fixed point,
-  and add separately compiled imported-artifact capsules. Terminal Psi v24 now
+  damage minima from open invariant/custody evidence; then add separately
+  compiled imported-artifact capsules. Terminal Psi v24 now
   carries canonical sparse per-cause context maxima in each machine contract;
   the codec fingerprints them, archived modules migrate only their used causes
   to the legacy `ExecutionDomain` root, and the verifier requires every crash

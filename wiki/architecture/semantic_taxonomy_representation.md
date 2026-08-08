@@ -965,6 +965,18 @@ maximum independently; no scope join is required. Proofs may use a checked body
 only when that body belongs to the same fingerprinted verification unit.
 Imported evidence cites the published contract and certificate.
 
+Same-unit private bodies use a conservative monotone summary over the viable
+invocation graph. While typed expressions remain available, a temporary
+canonical predicate tree retains positional parameter references and composes
+the exact argument substitution through every nonrecursive private edge. The
+tree is not durable checked data: final `CheckedCrashCallSite` rows contain only
+the resulting source-independent predicate identities. An edge inside a
+recursive strongly connected component widens each propagated route to its
+unconditional `(cause, containment_demand)` bucket. That widening prevents
+argument-changing recursion from generating an infinite predicate family and
+is conservative for callers; acyclic wrappers retain their guards and concrete
+outer arguments may still disprove them.
+
 Checked lowering first records each explicit body crash as a
 `CheckedCrashSite`. That row identifies the statement-handle-free state-local
 site and its cause. Checked ownership then retains the stable identities of

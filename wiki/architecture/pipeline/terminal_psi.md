@@ -49,9 +49,10 @@ signedness-aware integer less-than and less-or-equal; v20 adds total bitwise
 AND, OR, and XOR over one exact integer type; v21 adds wrapping left and
 signedness-aware right shifts; v22 adds an explicit no-successor crash
 terminator carrying a closed cause, one nominal damage scope, and the
-machine-local claim frontier known to be abandoned; and current v23 separates
-that scope into a body-derived damage minimum and selected published
-containment demand. A wrapping shift
+machine-local claim frontier known to be abandoned; v23 separates that scope
+into a body-derived damage minimum and selected published containment demand;
+and current v24 adds a canonical sparse per-cause context maximum to each
+machine contract. A wrapping shift
 retains the shifted value's exact result type and the count operand's
 independent integer type;
 the count reduces by Euclidean modulo of the shifted value's width.
@@ -90,7 +91,17 @@ entering public contract identity. Positive conjunctions also imply each
 conjunct, negated disjunctions imply each negated disjunct, and nested logical
 negation flips polarity; converse implications remain rejected. Checked sites
 retain their exact incoming-predicate conjunction separately from these
-coverage consequences.
+coverage consequences. Checked calls likewise retain invocation coordinates,
+the exact target contract fingerprint, the incoming path conjunction, and
+every surviving substituted route. Same-unit private bodies are summarized
+over the viable call graph while typed expressions are still present. A
+temporary canonical predicate tree carries positional parameters through every
+nonrecursive private edge, so guarded routes survive arbitrarily deep acyclic
+wrappers and concrete outer arguments can still disprove them. Recursive SCC
+edges widen to unconditional cause/scope buckets: this is the finite
+conservative top for cycles whose argument transformations could otherwise
+create an unbounded predicate family. Only final source-handle-free predicate
+identities enter the checked plans.
 Checked ownership also reconstructs a canonical lower bound of stable claim
 identities that are definitely live and non-conditional at the site. A crash
 abandons those claims without cleanup or consumption. Terminal production maps
