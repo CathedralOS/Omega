@@ -85,6 +85,7 @@ and inequality, while integer equality yields both non-strict bounds. Positive
 path conjunctions also close checked-integer order transitively; a derived chain
 is strict exactly when at least one link is strict. Two opposed nonstrict
 integer relations derive equality by antisymmetry; one-sided bounds do not.
+A nonstrict integer relation plus endpoint disequality derives its strict form.
 Unknown, user-defined, and float operands remain opaque so unordered values
 remain sound. Exact-type
 integer comparisons now also lower as executable control
