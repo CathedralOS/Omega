@@ -180,7 +180,8 @@ Current ownership is:
   claiming that damage-minimum or frontier reconstruction has run. Canonical
   published buckets have dense plan-local identities. Each site cites every
   unconditional same-cause bucket as structurally proved guard coverage;
-  guarded-route entailment remains path-conditioned work.
+  exact incoming/fallthrough predicates and their sound conjunction/negated-
+  disjunction consequences add path-conditioned guarded coverage.
 - `psi-checked-trees/src/proof/` owns proof-facing checked facts:
   `obligations.rs` owns explicit proof obligations, `contracts.rs` owns
   contract proof facts/call/exit indexes, and `roots.rs` owns the grouped

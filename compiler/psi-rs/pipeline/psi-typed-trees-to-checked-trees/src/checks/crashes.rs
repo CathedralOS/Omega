@@ -44,19 +44,22 @@ pub(crate) fn infer_path_conditioned_guard_coverage(program: &TypedTrees, facts:
             .iter()
             .map(|site| {
                 let mut covering = site.guard_covering_buckets().to_vec();
-                let path_predicates = incoming
+                let mut path_predicates = Vec::new();
+                for guard in incoming
                     .iter()
                     .filter(|guard| guard.applies_at(site.location().state()))
-                    .map(|guard| {
-                        crate::facts::canonical_crash_path_predicate(
-                            program,
-                            guard.guard(),
-                            guard.is_negated(),
-                            &parameter_names,
-                            &content_conservation,
-                        )
-                    })
-                    .collect::<Vec<_>>();
+                {
+                    collect_structural_guard_consequences(
+                        program,
+                        guard.guard(),
+                        guard.is_negated(),
+                        &parameter_names,
+                        &content_conservation,
+                        &mut path_predicates,
+                    );
+                }
+                path_predicates.sort();
+                path_predicates.dedup();
 
                 for (bucket_id, bucket) in crash_plan.published_with_ids() {
                     if bucket.cause() != site.cause()
@@ -78,5 +81,63 @@ pub(crate) fn infer_path_conditioned_guard_coverage(program: &TypedTrees, facts:
             .clone()
             .with_checked_sites(checked_sites)
             .expect("path-conditioned coverage retains valid checked-site identity");
+    }
+}
+
+/// Retain only propositional consequences that follow structurally from one
+/// incoming predicate. A positive conjunction entails each conjunct; a
+/// negated disjunction entails each negated disjunct; and logical negation
+/// flips polarity. Everything else remains an opaque canonical atom. This is
+/// deliberately incomplete but sound, and does not rewrite public routes.
+fn collect_structural_guard_consequences(
+    program: &TypedTrees,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+    negated: bool,
+    parameter_names: &[String],
+    content_conservation: &[psi_validation::ContentConservationSourcePlan],
+    output: &mut Vec<psi_checked_trees::CrashPredicateIdentity>,
+) {
+    use psi_typed_trees::expression::{BinaryOperator, ExpressionNode, UnaryOperator};
+
+    output.push(crate::facts::canonical_crash_path_predicate(
+        program,
+        expression,
+        negated,
+        parameter_names,
+        content_conservation,
+    ));
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
+            collect_structural_guard_consequences(
+                program,
+                unary.operand,
+                !negated,
+                parameter_names,
+                content_conservation,
+                output,
+            );
+        }
+        ExpressionNode::Binary(binary)
+            if (!negated && binary.operator == BinaryOperator::And)
+                || (negated && binary.operator == BinaryOperator::Or) =>
+        {
+            collect_structural_guard_consequences(
+                program,
+                binary.left,
+                negated,
+                parameter_names,
+                content_conservation,
+                output,
+            );
+            collect_structural_guard_consequences(
+                program,
+                binary.right,
+                negated,
+                parameter_names,
+                content_conservation,
+                output,
+            );
+        }
+        _ => {}
     }
 }

@@ -966,9 +966,12 @@ Canonical route buckets receive dense plan-local identities, and an
 unconditional same-cause bucket enters `guard_covering_buckets` structurally
 because `true` covers every path guard. Exact retained incoming guards and
 their accumulated fallthrough negations join to identical canonical published
-predicates. The fully covering subset independently requires the bucket's
-containment demand to cover `damage_minimum`; exact identity plus the permanent
-`ExecutionDomain` top is the first conservative nominal order. Broader logical
+predicates. The conservative structural entailment layer also decomposes
+positive conjunctions and negated disjunctions, including nested logical
+negation, without accepting their converses. The fully covering subset
+independently requires the bucket's containment demand to cover
+`damage_minimum`; exact identity plus the permanent
+`ExecutionDomain` top is the first conservative nominal order. Richer logical
 entailment, explicit path-guard retention, and declared intermediate scope
 ordering remain. Checked sites are implementation evidence and never enter the
 published contract fingerprint.
