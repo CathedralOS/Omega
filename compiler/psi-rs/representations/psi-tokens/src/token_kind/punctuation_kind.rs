@@ -41,6 +41,7 @@ pub enum PunctuationKind {
     RightParen,
     Semicolon,
     Slash,
+    Tilde,
     #[default]
     Unknown,
 }
@@ -89,6 +90,7 @@ impl PunctuationKind {
             (")", Self::RightParen),
             (";", Self::Semicolon),
             ("/", Self::Slash),
+            ("~", Self::Tilde),
         ]
     }
 
@@ -135,6 +137,7 @@ impl PunctuationKind {
             ")" => Self::RightParen,
             ";" => Self::Semicolon,
             "/" => Self::Slash,
+            "~" => Self::Tilde,
             _ => return None,
         })
     }

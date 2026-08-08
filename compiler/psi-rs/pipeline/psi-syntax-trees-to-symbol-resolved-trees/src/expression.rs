@@ -492,6 +492,7 @@ fn lower_struct_literal_shape_names(
 
 fn lower_unary_operator(operator: syntax::expression::UnaryOperator) -> UnaryOperator {
     match operator {
+        syntax::expression::UnaryOperator::BitwiseNot => UnaryOperator::BitwiseNot,
         syntax::expression::UnaryOperator::LogicalNot => UnaryOperator::LogicalNot,
     }
 }

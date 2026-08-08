@@ -250,7 +250,11 @@ Remaining:
   from semantic/proof data. The live scalar producer imports no typed-tree
   vocabulary and produces the same semantic module, proof bundle, and debug map
   after the complete typed frontend root is discarded; omitting the debug plan
-  yields the same artifact semantics with no debug map.
+  yields the same artifact semantics with no debug map. Fixed-width integer
+  `~` now follows that same retained checked-expression lane through terminal
+  Psi v25, canonical semantic/proof sections, exact verification, fuel,
+  artifact-root interpretation, Omega lowering, and x86-64/AArch64 native
+  emission.
 - Retire the legacy backend lane as terminal-Psi vocabulary and consumers grow;
   do not restore any `ExpressionHandle` or source-tree dependency in the live
   scalar terminal path.

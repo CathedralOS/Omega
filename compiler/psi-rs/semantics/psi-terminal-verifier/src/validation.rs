@@ -71,6 +71,7 @@ pub fn validate_module(
             | SemanticVersion::V22
             | SemanticVersion::V23
             | SemanticVersion::V24
+            | SemanticVersion::V25
     ) {
         return Err(ModuleError::UnsupportedSemanticVersion(
             module.semantic_version,
@@ -424,6 +425,20 @@ fn validate_machine(
                         return Err(ModuleError::OperationRequiresSemanticVersion {
                             operation: operation.id,
                             required: SemanticVersion::V20,
+                            actual: semantic_version,
+                        });
+                    }
+                    if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
+                        return Err(ModuleError::IntegerBitwiseRequiresIntegerResult(
+                            operation.id,
+                        ));
+                    }
+                }
+                OperationKind::IntegerBitwiseNot { .. } => {
+                    if semantic_version < SemanticVersion::V25 {
+                        return Err(ModuleError::OperationRequiresSemanticVersion {
+                            operation: operation.id,
+                            required: SemanticVersion::V25,
                             actual: semantic_version,
                         });
                     }
@@ -1363,6 +1378,17 @@ fn validate_term_semantic_version(
     clause: ContractClauseKind,
 ) -> Result<(), ModuleError> {
     match term {
+        ScalarTerm::IntegerBitwiseNot { operand, .. } => {
+            if semantic_version < SemanticVersion::V25 {
+                return Err(ModuleError::PropositionRequiresSemanticVersion {
+                    contract,
+                    clause,
+                    required: SemanticVersion::V25,
+                    actual: semantic_version,
+                });
+            }
+            validate_term_semantic_version(operand, semantic_version, contract, clause)
+        }
         ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
         | ScalarTerm::WrappingIntegerShiftRight { value, count, .. } => {
             if semantic_version < SemanticVersion::V21 {
@@ -1582,7 +1608,7 @@ fn validate_term_scope(
             validate_term_scope(value, allowed, contract, clause)?;
             validate_term_scope(count, allowed, contract, clause)?;
         }
-        ScalarTerm::BooleanNot { operand } => {
+        ScalarTerm::BooleanNot { operand } | ScalarTerm::IntegerBitwiseNot { operand, .. } => {
             validate_term_scope(operand, allowed, contract, clause)?;
         }
         ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => {}
@@ -1797,6 +1823,19 @@ fn validate_operation_operands(
     value_types: &BTreeMap<ValueId, ScalarType>,
     defined: &BTreeSet<ValueId>,
 ) -> Result<(), ModuleError> {
+    if let OperationKind::IntegerBitwiseNot { operand } = operation.kind {
+        require_defined(operand, value_types, defined)?;
+        let expected = operation.result.scalar_type;
+        let actual = value_types[&operand];
+        if !matches!(expected, ScalarType::Integer(_)) || actual != expected {
+            return Err(ModuleError::IntegerBitwiseNotOperandTypeMismatch {
+                operation: operation.id,
+                expected,
+                actual,
+            });
+        }
+        return Ok(());
+    }
     if let OperationKind::BooleanNot { operand } = operation.kind {
         require_defined(operand, value_types, defined)?;
         let actual = value_types[&operand];
@@ -1922,6 +1961,7 @@ fn validate_operation_operands(
         | OperationKind::IntegerEqual { .. }
         | OperationKind::IntegerLessThan { .. }
         | OperationKind::IntegerLessOrEqual { .. }
+        | OperationKind::IntegerBitwiseNot { .. }
         | OperationKind::IntegerBitwiseAnd { .. }
         | OperationKind::IntegerBitwiseOr { .. }
         | OperationKind::IntegerBitwiseXor { .. }
@@ -2297,6 +2337,11 @@ pub enum ModuleError {
         right: ScalarType,
     },
     IntegerBitwiseRequiresIntegerResult(OperationId),
+    IntegerBitwiseNotOperandTypeMismatch {
+        operation: OperationId,
+        expected: ScalarType,
+        actual: ScalarType,
+    },
     IntegerBitwiseOperandTypeMismatch {
         operation: OperationId,
         expected: ScalarType,

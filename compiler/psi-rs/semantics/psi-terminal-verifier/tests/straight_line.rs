@@ -872,6 +872,109 @@ fn v20_integer_bitwise_axioms_prove_exact_result_contracts() {
 }
 
 #[test]
+fn v25_integer_bitwise_not_reconstructs_its_exact_result_axiom() {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 type");
+    let scalar_type = ScalarType::Integer(integer);
+    let operand = ValueId::new(65).expect("operand");
+    let computed = ValueId::new(66).expect("computed");
+    let result = ValueId::new(67).expect("result");
+    let value = |id| ScalarTerm::value(id, scalar_type);
+    let term = ScalarTerm::integer_bitwise_not(integer, value(operand)).unwrap();
+    let goal = Proposition::Equal(value(result), term.clone());
+    let obligation = ObligationId::new(65).expect("obligation");
+    let module = TerminalModule {
+        semantic_version: SemanticVersion::V25,
+        entry: MachineId::new(65).expect("machine"),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        machines: vec![TerminalMachine {
+            id: MachineId::new(65).expect("machine"),
+            parameters: vec![ValueDeclaration {
+                id: operand,
+                scalar_type,
+            }],
+            result: ValueDeclaration {
+                id: result,
+                scalar_type,
+            },
+            structural_places: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: BlockId::new(65).expect("block"),
+            blocks: vec![Block {
+                id: BlockId::new(65).expect("block"),
+                parameters: Vec::new(),
+                operations: vec![Operation {
+                    id: OperationId::new(65).expect("operation"),
+                    result: ValueDeclaration {
+                        id: computed,
+                        scalar_type,
+                    },
+                    kind: OperationKind::IntegerBitwiseNot { operand },
+                }],
+                terminator: Terminator::Return {
+                    edge: EdgeId::new(65).expect("edge"),
+                    value: computed,
+                },
+            }],
+            contract: MachineContract {
+                id: ContractId::new(65).expect("contract"),
+                crash_context: Vec::new(),
+                requires: Vec::new(),
+                ensures: vec![ContractClause {
+                    obligation,
+                    proposition: goal.clone(),
+                }],
+            },
+        }],
+    };
+    let bundle = ProofBundle {
+        evidence: vec![ObligationEvidence {
+            obligation,
+            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                identity: EvidenceIdentity::new(65).expect("certificate"),
+                proof_system_version: ProofSystemVersion::CURRENT,
+                proof: ProofNode {
+                    conclusion: goal,
+                    rule: ProofRule::EqualityTransitivity {
+                        left_equals_middle: Box::new(ProofNode {
+                            conclusion: Proposition::Equal(value(result), value(computed)),
+                            rule: ProofRule::SemanticAxiom { index: 1 },
+                        }),
+                        middle_equals_right: Box::new(ProofNode {
+                            conclusion: Proposition::Equal(value(computed), term),
+                            rule: ProofRule::SemanticAxiom { index: 0 },
+                        }),
+                    },
+                },
+            }),
+        }],
+    };
+    verify_module(&module, &bundle, &AdmissionProfile::default())
+        .expect("v25 reconstructs the exact bitwise-not result axiom");
+
+    let mut old = module.clone();
+    old.semantic_version = SemanticVersion::V24;
+    assert_eq!(
+        validate_module(&old).expect_err("v24 cannot contain bitwise-not"),
+        ModuleError::OperationRequiresSemanticVersion {
+            operation: OperationId::new(65).expect("operation"),
+            required: SemanticVersion::V25,
+            actual: SemanticVersion::V24,
+        }
+    );
+
+    let mut wrong_operand = module;
+    wrong_operand.machines[0].contract.ensures.clear();
+    wrong_operand.machines[0].parameters[0].scalar_type = ScalarType::Boolean;
+    assert!(matches!(
+        validate_module(&wrong_operand),
+        Err(ModuleError::IntegerBitwiseNotOperandTypeMismatch { .. })
+    ));
+}
+
+#[test]
 fn v21_wrapping_shift_axioms_preserve_the_count_type() {
     let value_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 value type");
     let count_type = IntegerType::new(IntegerSign::Signed, 16).expect("i16 count type");

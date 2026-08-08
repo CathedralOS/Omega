@@ -79,6 +79,10 @@ enum LoweredDirectExpression {
         left: Box<LoweredDirectExpression>,
         right: Box<LoweredDirectExpression>,
     },
+    IntegerBitwiseNot {
+        scalar_type: ScalarType,
+        operand: Box<LoweredDirectExpression>,
+    },
     Boolean {
         expression: Box<LoweredBooleanReturnExpression>,
     },
@@ -89,7 +93,8 @@ impl LoweredDirectExpression {
         match self {
             Self::Parameter { scalar_type, .. }
             | Self::IntegerLiteral { scalar_type, .. }
-            | Self::IntegerBinary { scalar_type, .. } => *scalar_type,
+            | Self::IntegerBinary { scalar_type, .. }
+            | Self::IntegerBitwiseNot { scalar_type, .. } => *scalar_type,
             Self::Boolean { .. } => ScalarType::Boolean,
         }
     }
@@ -1762,6 +1767,13 @@ fn lower_checked_scalar_expression(
             left: Box::new(lower_checked_scalar_expression(left)?),
             right: Box::new(lower_checked_scalar_expression(right)?),
         }),
+        CheckedScalarExpression::IntegerBitwiseNot {
+            primitive_type,
+            operand,
+        } => Ok(LoweredDirectExpression::IntegerBitwiseNot {
+            scalar_type: terminal_scalar_type(*primitive_type)?,
+            operand: Box::new(lower_checked_scalar_expression(operand)?),
+        }),
         CheckedScalarExpression::Boolean(expression) => Ok(LoweredDirectExpression::Boolean {
             expression: Box::new(lower_checked_boolean_expression(expression)?),
         }),
@@ -1861,6 +1873,9 @@ fn validate_direct_parameter_types(
         LoweredDirectExpression::IntegerBinary { left, right, .. } => {
             validate_direct_parameter_types(left, parameter_types)?;
             validate_direct_parameter_types(right, parameter_types)
+        }
+        LoweredDirectExpression::IntegerBitwiseNot { operand, .. } => {
+            validate_direct_parameter_types(operand, parameter_types)
         }
         LoweredDirectExpression::Boolean { expression } => {
             validate_boolean_parameter_types(expression, parameter_types)
@@ -1967,6 +1982,22 @@ fn evaluate_direct_expression(
                 return None;
             };
             evaluate_lowered_integer_binary(*kind, *scalar_type, count_type, left, right)
+                .map(KnownDirectScalar::Integer)
+        }
+        LoweredDirectExpression::IntegerBitwiseNot {
+            scalar_type,
+            operand,
+        } => {
+            let ScalarType::Integer(integer_type) = scalar_type else {
+                return None;
+            };
+            let KnownDirectScalar::Integer(operand) =
+                evaluate_direct_expression(operand, parameters)?
+            else {
+                return None;
+            };
+            integer_type
+                .bitwise_not(operand)
                 .map(KnownDirectScalar::Integer)
         }
         LoweredDirectExpression::Boolean { expression } => {
@@ -2851,7 +2882,8 @@ fn build_scalar_conditional_target(
                 _ => None,
             },
             LoweredDirectExpression::IntegerLiteral { .. }
-            | LoweredDirectExpression::IntegerBinary { .. } => None,
+            | LoweredDirectExpression::IntegerBinary { .. }
+            | LoweredDirectExpression::IntegerBitwiseNot { .. } => None,
         })
         .collect::<Option<Vec<_>>>();
     if let Some(arguments) = direct_arguments {
@@ -3665,6 +3697,31 @@ fn emit_direct_expression(
                     scalar_type: *scalar_type,
                 },
                 kind: kind.operation(left, right),
+            });
+            id
+        }
+        LoweredDirectExpression::IntegerBitwiseNot {
+            scalar_type,
+            operand,
+        } => {
+            let operand =
+                emit_direct_expression(operand, parameters, next_value_identity, operations);
+            let id = value_id(*next_value_identity);
+            *next_value_identity = next_value_identity
+                .checked_add(1)
+                .expect("generated value identity advances after bitwise complement");
+            operations.push(Operation {
+                id: operation_id(
+                    u64::try_from(operations.len())
+                        .expect("operation count fits a semantic identity")
+                        .checked_add(1)
+                        .expect("operation identity is nonzero"),
+                ),
+                result: ValueDeclaration {
+                    id,
+                    scalar_type: *scalar_type,
+                },
+                kind: OperationKind::IntegerBitwiseNot { operand },
             });
             id
         }

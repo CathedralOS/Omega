@@ -245,6 +245,10 @@ pub enum TerminalAssignedIntegerExpression {
         parameter_index: usize,
         location: TerminalAssignedScalarLocation,
     },
+    BitwiseNot {
+        psi_operation: OperationId,
+        operand: Box<TerminalAssignedIntegerExpression>,
+    },
     BitwiseAnd {
         psi_operation: OperationId,
         left: Box<TerminalAssignedIntegerExpression>,

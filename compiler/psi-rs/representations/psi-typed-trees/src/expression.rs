@@ -2216,6 +2216,7 @@ pub enum BinaryOperator {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UnaryOperator {
+    BitwiseNot,
     LogicalNot,
 }
 

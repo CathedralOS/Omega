@@ -749,6 +749,13 @@ ensures 0i64 == 0i64
     left ^ right
 }
 
+machine terminal_unsigned_bitwise_not_runtime(value: u64, ignored: u64) -> u64
+requires 0u64 == 0u64
+ensures 0u64 == 0u64
+{
+    ~value
+}
+
 machine terminal_unsigned_wrapping_shift_left_runtime(value: u64 in Wrapping, count: i64) -> u64 in Wrapping
 requires 0u64 == 0u64
 ensures 0u64 == 0u64

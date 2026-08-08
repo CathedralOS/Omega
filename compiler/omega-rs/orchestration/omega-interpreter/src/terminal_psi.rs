@@ -320,6 +320,32 @@ impl<'module> TerminalExecution<'module> {
                         self.values
                             .insert(operation.result.id, TerminalScalarValue::Boolean(result));
                     }
+                    OperationKind::IntegerBitwiseNot { operand } => {
+                        let ScalarType::Integer(scalar_type) = operation.result.scalar_type else {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        };
+                        let TerminalScalarValue::Integer {
+                            scalar_type: operand_type,
+                            value: operand,
+                        } = self
+                            .values
+                            .get(&operand)
+                            .copied()
+                            .ok_or(TerminalInterpretError::VerifiedValueMissing(operand))?
+                        else {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        };
+                        if operand_type != scalar_type {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        let value = scalar_type
+                            .bitwise_not(operand)
+                            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                        self.values.insert(
+                            operation.result.id,
+                            TerminalScalarValue::Integer { scalar_type, value },
+                        );
+                    }
                     OperationKind::IntegerBitwiseAnd { left, right }
                     | OperationKind::IntegerBitwiseOr { left, right }
                     | OperationKind::IntegerBitwiseXor { left, right } => {

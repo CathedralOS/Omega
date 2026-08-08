@@ -257,6 +257,14 @@ fn reconstruct_semantic_axioms(machine: &TerminalMachine) -> Vec<Proposition> {
                     .expect("validator requires exact integer ordering operand types");
                     axioms.push(Proposition::Equal(value_term(operation.result.id), ordered));
                 }
+                OperationKind::IntegerBitwiseNot { operand } => {
+                    let ScalarType::Integer(integer_type) = operation.result.scalar_type else {
+                        unreachable!("validator requires bitwise-not integer result type")
+                    };
+                    let result = ScalarTerm::integer_bitwise_not(integer_type, value_term(operand))
+                        .expect("validator requires exact bitwise-not operand type");
+                    axioms.push(Proposition::Equal(value_term(operation.result.id), result));
+                }
                 OperationKind::IntegerBitwiseAnd { left, right }
                 | OperationKind::IntegerBitwiseOr { left, right }
                 | OperationKind::IntegerBitwiseXor { left, right } => {

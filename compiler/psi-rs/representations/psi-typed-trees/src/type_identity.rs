@@ -632,7 +632,10 @@ fn normalize_index_expression(
         }
         ExpressionNode::Integer(value) => atom("integer", &value.to_string()),
         ExpressionNode::Unary(unary) => compound(
-            "logical-not",
+            match unary.operator {
+                crate::expression::UnaryOperator::BitwiseNot => "bitwise-not",
+                crate::expression::UnaryOperator::LogicalNot => "logical-not",
+            },
             [normalize_index_expression(program, unary.operand, context)],
         ),
         // These shapes are rejected by PDI3 index validation. Keep their

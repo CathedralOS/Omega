@@ -16,7 +16,7 @@ use psi_arena::Arena;
 use psi_checked_trees::CheckedTrees;
 use psi_checked_trees::expression::{
     BinaryExpression, CallExpression, Expression, IndexedExpression, MemberExpression,
-    StructLiteral, StructLiteralField, UnaryOperator,
+    StructLiteral, StructLiteralField, UnaryExpression, UnaryOperator,
 };
 use psi_checked_trees::machine::Machine;
 use psi_checked_trees::state::State;
@@ -333,6 +333,10 @@ fn simplify_expression_with_bindings(
                 None,
             );
             match unary.operator {
+                UnaryOperator::BitwiseNot => Expression::Unary(Box::new(UnaryExpression {
+                    operator: UnaryOperator::BitwiseNot,
+                    operand,
+                })),
                 UnaryOperator::LogicalNot => boolean_not_typed(program, machine, operand),
             }
         }

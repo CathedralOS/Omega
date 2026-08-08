@@ -415,7 +415,9 @@ fn validate_scalar_term_depth(term: &ScalarTerm) -> Result<(), CodecError> {
             return Err(CodecError::ScalarTermNestingTooDeep);
         }
         match term {
-            ScalarTerm::BooleanNot { operand } => pending.push((operand, depth + 1)),
+            ScalarTerm::BooleanNot { operand } | ScalarTerm::IntegerBitwiseNot { operand, .. } => {
+                pending.push((operand, depth + 1));
+            }
             ScalarTerm::BooleanEqual { left, right }
             | ScalarTerm::IntegerEqual { left, right, .. }
             | ScalarTerm::IntegerLessThan { left, right, .. }
@@ -732,6 +734,10 @@ fn encode_block(
                 writer.u8(13);
                 writer.id(left);
                 writer.id(right);
+            }
+            OperationKind::IntegerBitwiseNot { operand } => {
+                writer.u8(19);
+                writer.id(operand);
             }
             OperationKind::IntegerBitwiseAnd { left, right } => {
                 writer.u8(14);
@@ -1071,6 +1077,14 @@ fn encode_scalar_term(
             encode_integer_type(writer, *scalar_type);
             encode_scalar_term(writer, left, depth + 1)?;
             encode_scalar_term(writer, right, depth + 1)?;
+        }
+        ScalarTerm::IntegerBitwiseNot {
+            scalar_type,
+            operand,
+        } => {
+            writer.u8(20);
+            encode_integer_type(writer, *scalar_type);
+            encode_scalar_term(writer, operand, depth + 1)?;
         }
         ScalarTerm::IntegerBitwiseAnd {
             scalar_type,
@@ -1592,6 +1606,9 @@ fn decode_block(
                 value: reader.id("ValueId")?,
                 count: reader.id("ValueId")?,
             },
+            19 => OperationKind::IntegerBitwiseNot {
+                operand: reader.id("ValueId")?,
+            },
             tag => return Err(CodecError::InvalidTag("OperationKind", tag)),
         };
         operations.push(Operation {
@@ -1960,6 +1977,12 @@ fn decode_scalar_term(reader: &mut Reader<'_>, depth: usize) -> Result<ScalarTer
             let value = decode_scalar_term(reader, depth + 1)?;
             let count = decode_scalar_term(reader, depth + 1)?;
             ScalarTerm::wrapping_integer_shift_right(value_type, count_type, value, count)
+                .map_err(CodecError::MalformedProposition)?
+        }
+        20 => {
+            let scalar_type = decode_integer_type(reader)?;
+            let operand = decode_scalar_term(reader, depth + 1)?;
+            ScalarTerm::integer_bitwise_not(scalar_type, operand)
                 .map_err(CodecError::MalformedProposition)?
         }
         tag => return Err(CodecError::InvalidTag("ScalarTerm", tag)),

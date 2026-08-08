@@ -96,6 +96,27 @@ impl IntegerType {
         )
     }
 
+    /// Complement an admitted value within this exact integer width.
+    pub fn bitwise_not(self, operand: IntegerValue) -> Option<IntegerValue> {
+        if !self.admits(operand) {
+            return None;
+        }
+        match (self.sign, operand) {
+            (IntegerSign::Signed, IntegerValue::Signed(operand)) => {
+                Some(IntegerValue::Signed(!operand))
+            }
+            (IntegerSign::Unsigned, IntegerValue::Unsigned(operand)) => {
+                let mask = if self.bits == 128 {
+                    u128::MAX
+                } else {
+                    (1_u128 << self.bits) - 1
+                };
+                Some(IntegerValue::Unsigned(!operand & mask))
+            }
+            _ => None,
+        }
+    }
+
     fn bitwise(
         self,
         left: IntegerValue,
@@ -449,6 +470,10 @@ pub enum ScalarTerm {
         left: Box<ScalarTerm>,
         right: Box<ScalarTerm>,
     },
+    IntegerBitwiseNot {
+        scalar_type: IntegerType,
+        operand: Box<ScalarTerm>,
+    },
     IntegerBitwiseOr {
         scalar_type: IntegerType,
         left: Box<ScalarTerm>,
@@ -596,6 +621,23 @@ impl ScalarTerm {
             scalar_type,
             left: Box::new(left),
             right: Box::new(right),
+        })
+    }
+
+    pub fn integer_bitwise_not(
+        scalar_type: IntegerType,
+        operand: ScalarTerm,
+    ) -> Result<Self, PropositionError> {
+        let expected = ScalarType::Integer(scalar_type);
+        if operand.scalar_type() != expected {
+            return Err(PropositionError::IntegerBitwiseNotTypeMismatch {
+                expected,
+                operand: operand.scalar_type(),
+            });
+        }
+        Ok(Self::IntegerBitwiseNot {
+            scalar_type,
+            operand: Box::new(operand),
         })
     }
 
@@ -795,6 +837,7 @@ impl ScalarTerm {
             | Self::IntegerLessThan { .. }
             | Self::IntegerLessOrEqual { .. } => ScalarType::Boolean,
             Self::Integer { scalar_type, .. }
+            | Self::IntegerBitwiseNot { scalar_type, .. }
             | Self::IntegerBitwiseAnd { scalar_type, .. }
             | Self::IntegerBitwiseOr { scalar_type, .. }
             | Self::IntegerBitwiseXor { scalar_type, .. }
@@ -816,6 +859,16 @@ impl ScalarTerm {
     pub fn integer_value(&self) -> Option<(IntegerType, IntegerValue)> {
         match self {
             Self::Integer { scalar_type, value } => Some((*scalar_type, *value)),
+            Self::IntegerBitwiseNot {
+                scalar_type,
+                operand,
+            } => {
+                let (operand_type, operand) = operand.integer_value()?;
+                if operand_type != *scalar_type {
+                    return None;
+                }
+                Some((*scalar_type, scalar_type.bitwise_not(operand)?))
+            }
             Self::WrappingIntegerAdd {
                 scalar_type,
                 left,
@@ -1047,6 +1100,20 @@ impl ScalarTerm {
                 left.validate()?;
                 right.validate()?;
                 validate_integer_operands(*scalar_type, left, right)
+            }
+            Self::IntegerBitwiseNot {
+                scalar_type,
+                operand,
+            } => {
+                operand.validate()?;
+                let expected = ScalarType::Integer(*scalar_type);
+                if operand.scalar_type() != expected {
+                    return Err(PropositionError::IntegerBitwiseNotTypeMismatch {
+                        expected,
+                        operand: operand.scalar_type(),
+                    });
+                }
+                Ok(())
             }
             Self::IntegerBitwiseAnd {
                 scalar_type,
@@ -1396,7 +1463,9 @@ impl PropositionContext {
                 self.validate_term(value)?;
                 self.validate_term(count)?;
             }
-            ScalarTerm::BooleanNot { operand } => self.validate_term(operand)?,
+            ScalarTerm::BooleanNot { operand } | ScalarTerm::IntegerBitwiseNot { operand, .. } => {
+                self.validate_term(operand)?
+            }
             ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => {}
         }
         Ok(())
@@ -1483,6 +1552,10 @@ pub enum PropositionError {
         expected: ScalarType,
         left: ScalarType,
         right: ScalarType,
+    },
+    IntegerBitwiseNotTypeMismatch {
+        expected: ScalarType,
+        operand: ScalarType,
     },
     IntegerOperandTypeMismatch {
         expected: ScalarType,
@@ -1693,6 +1766,8 @@ mod tests {
             .expect("matching integer operands");
         let xor = ScalarTerm::integer_bitwise_xor(u8_type, unsigned(0b1100), unsigned(0b1010))
             .expect("matching integer operands");
+        let not = ScalarTerm::integer_bitwise_not(u8_type, unsigned(0b0000_1111))
+            .expect("matching integer operand");
         assert_eq!(and.scalar_type(), ScalarType::Integer(u8_type));
         assert_eq!(
             and.integer_value(),
@@ -1706,6 +1781,10 @@ mod tests {
             xor.integer_value(),
             Some((u8_type, IntegerValue::Unsigned(0b0110)))
         );
+        assert_eq!(
+            not.integer_value(),
+            Some((u8_type, IntegerValue::Unsigned(0b1111_0000)))
+        );
 
         let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
         let signed =
@@ -1716,6 +1795,16 @@ mod tests {
                 .integer_value(),
             Some((i8_type, IntegerValue::Signed(127)))
         );
+        assert_eq!(
+            ScalarTerm::integer_bitwise_not(i8_type, signed(-128))
+                .unwrap()
+                .integer_value(),
+            Some((i8_type, IntegerValue::Signed(127)))
+        );
+        assert!(matches!(
+            ScalarTerm::integer_bitwise_not(u8_type, signed(1)),
+            Err(PropositionError::IntegerBitwiseNotTypeMismatch { .. })
+        ));
         assert!(matches!(
             ScalarTerm::integer_bitwise_and(u8_type, unsigned(1), signed(1)),
             Err(PropositionError::IntegerOperandTypeMismatch { .. })

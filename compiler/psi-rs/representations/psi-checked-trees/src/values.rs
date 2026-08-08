@@ -147,6 +147,10 @@ pub enum CheckedScalarExpression {
         left: Box<CheckedScalarExpression>,
         right: Box<CheckedScalarExpression>,
     },
+    IntegerBitwiseNot {
+        primitive_type: psi_typed_trees::types::PrimitiveType,
+        operand: Box<CheckedScalarExpression>,
+    },
     Boolean(Box<CheckedBooleanExpression>),
 }
 

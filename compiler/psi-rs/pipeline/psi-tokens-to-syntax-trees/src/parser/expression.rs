@@ -407,6 +407,20 @@ fn parse_unary_expression_handle<'tokens, 'source>(
         ));
     }
 
+    if input.at_punctuation(PunctuationKind::Tilde) {
+        let input = input.take_punctuation(PunctuationKind::Tilde, "~")?;
+        let (operand, rest) = parse_unary_expression_handle(syntax_trees, input, context)?;
+        return Ok((
+            syntax_trees
+                .expressions
+                .insert(ExpressionNode::Unary(TableUnaryExpression {
+                    operator: UnaryOperator::BitwiseNot,
+                    operand,
+                })),
+            rest,
+        ));
+    }
+
     if input.at_punctuation(PunctuationKind::Minus) {
         let operator_span = input
             .tokens

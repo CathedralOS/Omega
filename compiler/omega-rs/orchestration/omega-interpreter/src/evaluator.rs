@@ -8300,6 +8300,10 @@ impl<'program> Evaluator<'program> {
 
     fn eval_unary(&self, operator: UnaryOperator, operand: Value) -> EvalResult<Value> {
         match operator {
+            UnaryOperator::BitwiseNot => match operand {
+                Value::Int(value) => Ok(Value::Int(!value)),
+                _ => Err(Halt::Trap("bitwise-not of non-integer".to_owned())),
+            },
             UnaryOperator::LogicalNot => operand
                 .as_bool()
                 .map(|value| Value::Bool(!value))

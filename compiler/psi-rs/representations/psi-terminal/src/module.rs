@@ -50,6 +50,7 @@ use psi_core::{
 /// Version 24 adds each machine's effective sparse per-cause crash-context
 /// maxima. Absence forbids that cause; older modules migrate with the legacy
 /// portable-root maximum for every cause used by one of their crash exits.
+/// Version 25 adds fixed-width integer bitwise complement.
 /// Older bytes retain their original meaning and identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SemanticVersion(NonZeroU16);
@@ -79,7 +80,8 @@ impl SemanticVersion {
     pub const V22: Self = Self(NonZeroU16::new(22).expect("twenty-two is nonzero"));
     pub const V23: Self = Self(NonZeroU16::new(23).expect("twenty-three is nonzero"));
     pub const V24: Self = Self(NonZeroU16::new(24).expect("twenty-four is nonzero"));
-    pub const CURRENT: Self = Self::V24;
+    pub const V25: Self = Self(NonZeroU16::new(25).expect("twenty-five is nonzero"));
+    pub const CURRENT: Self = Self::V25;
 
     pub fn new(raw: u16) -> Option<Self> {
         NonZeroU16::new(raw).map(Self)
@@ -359,6 +361,7 @@ pub enum OperationKind {
     IntegerEqual { left: ValueId, right: ValueId },
     IntegerLessThan { left: ValueId, right: ValueId },
     IntegerLessOrEqual { left: ValueId, right: ValueId },
+    IntegerBitwiseNot { operand: ValueId },
     IntegerBitwiseAnd { left: ValueId, right: ValueId },
     IntegerBitwiseOr { left: ValueId, right: ValueId },
     IntegerBitwiseXor { left: ValueId, right: ValueId },
