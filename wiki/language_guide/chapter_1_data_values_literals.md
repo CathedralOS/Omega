@@ -35,12 +35,13 @@ machine build(builder: &mut Build) {
 }
 ```
 
-`build.omg` selects `start`; the language does not discover `main` by name. A
+`build.omg` selects `start`; it does not call the machine, supply arguments, or
+bless storage, and the language does not discover `main` by name. At launch, the
 hosted target's generated bridge performs platform storage and provider setup
 before calling this source-level entry, so ordinary applications do not receive
 raw image or stack extents. The target-selected Console provider services the
-call. Programs that need one persistent root object attach the selected entry
-machine to that object's data type; Chapter 3 shows that form.
+call. Programs that need one program-lifetime receiver attach the selected entry
+machine to that receiver's data type; Chapter 3 shows that form.
 
 ## Data
 
@@ -332,7 +333,7 @@ pub const EFI_SUCCESS: EfiStatus = EfiStatus { code: 0 };
 - **Not authority.** A constant grants nothing, so free-floating constants are
   consistent with the capability model — unlike ambient *mutable* state, which
   does not exist. There is no `static` keyword. A receiver-bound program entry
-  gets one target-provisioned root object, reachable only through its explicit
+  gets one target-provisioned receiver, reachable only through its explicit
   `&mut self` parameter; see
   [Constants And Provisioned Root State](../design_briefs/static_root_and_constants.md).
 
@@ -342,7 +343,7 @@ A quoted literal is **raw bytes**, nothing more. The compiler's only string job
 is turning quoted text into bytes; it knows nothing about encodings (that is
 library code — see [Chapter 8](chapter_8_domains.md)). So a string literal has
 type `&[u8]` and carries **no** encoding domain until one is explicitly
-established. Its bytes live in immutable program-static storage: the resulting
+established. Its bytes live in immutable image storage: the resulting
 shared view can therefore be copied into persistent machine fields without
 borrowing a state-local owner.
 

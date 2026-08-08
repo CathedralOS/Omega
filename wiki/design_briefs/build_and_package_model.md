@@ -84,7 +84,8 @@ The platform's launch calling plan is checked against the generated arrival
 bridge, while the explicitly bound source machine is checked against the
 target's entry shape. `build.omg` names the target-owned slot and exact source
 implementation; it does not repeat the target's register/stack arrival contract
-or discover an export by spelling.
+or discover an export by spelling. Binding is selection, not invocation:
+`build.omg` supplies neither the machine's receiver nor its entry arguments.
 
 ## Target-declared slots
 
@@ -162,13 +163,16 @@ binding shape:        EntryMachine
 The compiler generates the installed physical bridge for the arrival
 requirement, derives the bridge's complete crash, reach, write, work,
 stack/state, introduction, provisioning, and provenance contract, and composes
-that contract with the bound application closure. A free source entry receives
-no implicit state. For an attached entry with one `&mut self`, the bridge derives
-storage beneath an admitted entry root, constructs exactly one ZII-valid
-receiver, and lends it for the activation. The receiver is never globally
-nameable. A root used for receiver storage cannot also be forwarded whole to the
-source entry; the schema must use separate hidden supply or an exact conserved
-residual. Generated entry code is never outside portable demand checking.
+that contract with the bound application closure. At launch, the environment
+supplies physical arrival values to the bridge; the bridge validates them and
+supplies only the source arguments declared by the schema. A free source entry
+receives no implicit state. For an attached entry with one `&mut self`, the
+bridge derives storage beneath an admitted entry root, constructs exactly one
+ZII-valid receiver, and lends it for the activation. The receiver is never
+globally nameable. A root used for receiver storage cannot also be forwarded
+whole to the source entry; the schema must use separate hidden supply or an
+exact conserved residual. Generated entry code is never outside portable demand
+checking.
 
 A freestanding schema may instead publish image and initial-storage roots in its
 visible parameter list. Those are ordinary arguments to the selected source

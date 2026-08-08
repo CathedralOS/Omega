@@ -30,6 +30,9 @@ The target profile owns the physical arrival requirement and contributes its
 complete evaluated calling and machine-state policy. The bound source entry is
 the continuation the generated bridge calls after translating platform arrival
 into the typed parameters that the freestanding schema deliberately exposes.
+`build.omg` names that continuation; it does not manufacture or pass the entry
+arguments. Firmware, a loader, or an OS supplies the physical arrival values at
+launch, and the installed bridge validates and translates them.
 
 ```omega
 machine Application::start(
@@ -65,8 +68,8 @@ The loader, firmware, or OS admits the image mapping and initial stack/storage
 roots as part of the typed entry handoff. The compiler derives image sections
 as subextents of the image root; later frames and task stacks are checked
 allocations from an existing root. A receiver-bound entry may request one
-ZII-valid root object; the bridge provisions it as an accounted subextent and
-lends only `&mut self`. If the underlying root is also source-visible, the
+ZII-valid receiver instance; the bridge provisions it as an accounted subextent
+and lends only `&mut self`. If the underlying root is also source-visible, the
 bridge forwards a conserved nonoverlapping residual rather than the original
 whole. It does not admit every object individually, and a
 compiler-known array cannot originate physical-memory content merely because

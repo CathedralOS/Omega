@@ -14,8 +14,8 @@ Omega separates three things:
 1. `const` declares an immutable compile-time value with no storage identity.
 2. A free program-entry machine requests no implicit state.
 3. A program-entry machine with one `&mut self` receiver requests exactly one
-   target-provisioned receiver instance. That instance is reachable only through
-   the entry borrow; it is not an ambient `static`.
+   target-provisioned, program-lifetime receiver instance. That instance is
+   reachable only through the entry borrow; it is not an ambient `static`.
 
 There is no `static` keyword, no globally nameable mutable object, and no
 special `main` spelling. `build.omg` binds a target-owned entry slot to an exact
@@ -83,10 +83,11 @@ machine build(builder: &mut Build) {
 }
 ```
 
-The binding and receiver jointly state that one `Application` must exist before
-the call. The generated bridge:
+The binding selects the machine; it does not construct or pass a value itself.
+The selected machine's receiver states that one `Application` must exist before
+the launch call. The generated bridge:
 
-1. derives storage from an admitted entry root;
+1. derives storage from an admitted entry root selected by the target;
 2. establishes one ZII-valid `Application` in that storage;
 3. lends the only reference as `&mut self`;
 4. runs ordinary cleanup if the entry returns normally; and
@@ -102,12 +103,12 @@ exposed by its target schema.
 
 ## Placement is target lowering
 
-The source declares the instance by selecting a receiver-bound entry; it does
+The source requests the instance by selecting a receiver-bound entry; it does
 not declare a storage class. A hosted target may reserve the receiver in a
 writable image section. A freestanding target may partition it from supplied
 initial storage. Both lowerings preserve the same portable facts:
 
-- exactly one instance belongs to the entry activation;
+- exactly one instance belongs to the selected program-entry activation;
 - its storage is a subextent of an admitted entry root;
 - its initialization is checked;
 - its only initial access is the explicit `&mut self`; and
@@ -132,6 +133,9 @@ hidden supply or forwards only the conserved residual partition.
 The physical arrival contract remains target-owned. The generated bridge is the
 installed external root, derives its complete contract, and calls the selected
 source entry. The source machine does not become magical because it is bound.
+`build.omg` names that source machine only; the launch environment supplies the
+physical arrival values to the bridge, and the bridge supplies the schema's
+visible arguments to the machine.
 
 ## Capability consequence
 
