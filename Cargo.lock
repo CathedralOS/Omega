@@ -1171,6 +1171,7 @@ version = "0.1.0"
 dependencies = [
  "omega-terminal-abstract-operations",
  "psi-core",
+ "psi-proof-kernel",
  "psi-terminal",
  "psi-terminal-codec",
  "psi-terminal-verifier",

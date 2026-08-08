@@ -4,6 +4,9 @@ use omega_interpreter::{
     interpret_terminal_artifact_measured, interpret_terminal_measured,
     interpret_terminal_with_meter,
 };
+use omega_terminal_psi_to_abstract_operations::{
+    ArtifactLoweringError, lower_artifact_sections, lower_verified_module,
+};
 use psi_core::{
     BlockId, ContractId, EdgeId, EvidenceIdentity, IntegerSign, IntegerType, IntegerValue,
     MachineId, ObligationId, OperationId, Proposition, ScalarTerm, ScalarType, ValueId,
@@ -146,6 +149,11 @@ fn verified_v1_integer_control_contract_slice_executes_directly() {
     assert_eq!(first.value(), expected);
     let semantic_bytes = encode_module(&module).expect("canonical semantic artifact");
     let proof_bytes = encode_proof_bundle(&bundle).expect("canonical proof artifact");
+    let direct_abstract = lower_verified_module(&verified).expect("lower verified terminal Psi");
+    let artifact_abstract =
+        lower_artifact_sections(&semantic_bytes, &proof_bytes, &AdmissionProfile::default())
+            .expect("artifact-root abstract lowering decodes and verifies first");
+    assert_eq!(artifact_abstract, direct_abstract);
     let artifact = interpret_terminal_artifact_measured(
         &semantic_bytes,
         &proof_bytes,
@@ -175,6 +183,14 @@ fn verified_v1_integer_control_contract_slice_executes_directly() {
         ),
         Err(TerminalArtifactInterpretError::SemanticDecode(_))
     ));
+    assert!(matches!(
+        lower_artifact_sections(
+            &malformed_semantic,
+            &proof_bytes,
+            &AdmissionProfile::default(),
+        ),
+        Err(ArtifactLoweringError::SemanticDecode(_))
+    ));
     let mut malformed_proof = proof_bytes.clone();
     malformed_proof.push(0);
     assert!(matches!(
@@ -186,6 +202,14 @@ fn verified_v1_integer_control_contract_slice_executes_directly() {
         ),
         Err(TerminalArtifactInterpretError::ProofDecode(_))
     ));
+    assert!(matches!(
+        lower_artifact_sections(
+            &semantic_bytes,
+            &malformed_proof,
+            &AdmissionProfile::default(),
+        ),
+        Err(ArtifactLoweringError::ProofDecode(_))
+    ));
     let empty_proof_bytes =
         encode_proof_bundle(&ProofBundle::default()).expect("canonical empty proof artifact");
     assert!(matches!(
@@ -196,6 +220,14 @@ fn verified_v1_integer_control_contract_slice_executes_directly() {
             &[],
         ),
         Err(TerminalArtifactInterpretError::Verification(_))
+    ));
+    assert!(matches!(
+        lower_artifact_sections(
+            &semantic_bytes,
+            &empty_proof_bytes,
+            &AdmissionProfile::default(),
+        ),
+        Err(ArtifactLoweringError::Verification(_))
     ));
     assert!(matches!(
         interpret_terminal_artifact(
