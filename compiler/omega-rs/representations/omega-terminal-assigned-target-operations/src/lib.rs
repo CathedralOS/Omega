@@ -76,6 +76,14 @@ pub enum TerminalAssignedOperation {
         when_true: TerminalAssignedConditionalIntegerArm,
         when_false: TerminalAssignedConditionalIntegerArm,
     },
+    ReturnIntegerExpressionConditionalControl {
+        condition_source: ValueId,
+        condition_frame: TerminalExpressionFrame,
+        condition: TerminalAssignedBooleanExpression,
+        scalar_type: IntegerType,
+        when_true: TerminalAssignedConditionalIntegerArm,
+        when_false: TerminalAssignedConditionalIntegerArm,
+    },
     ReturnBooleanConditionalControl {
         condition_source: ValueId,
         condition_parameter_index: usize,
@@ -197,6 +205,13 @@ pub enum TerminalAssignedIntegerControl {
         condition_source: ValueId,
         condition_parameter_index: usize,
         condition_location: TerminalAssignedScalarLocation,
+        when_true: TerminalAssignedConditionalIntegerArm,
+        when_false: TerminalAssignedConditionalIntegerArm,
+    },
+    ConditionalExpression {
+        condition_source: ValueId,
+        condition_frame: TerminalExpressionFrame,
+        condition: TerminalAssignedBooleanExpression,
         when_true: TerminalAssignedConditionalIntegerArm,
         when_false: TerminalAssignedConditionalIntegerArm,
     },

@@ -153,6 +153,25 @@ fn assign_function(
             when_true: assign_control_arm(when_true, architecture)?,
             when_false: assign_control_arm(when_false, architecture)?,
         },
+        TerminalTargetOperation::ReturnIntegerExpressionConditionalControl {
+            condition_source,
+            condition,
+            scalar_type,
+            when_true,
+            when_false,
+        } => {
+            let locations = boolean_expression_parameter_locations(condition)?;
+            let (condition_frame, assigned_locations) =
+                assign_expression_locations(architecture, &locations)?;
+            TerminalAssignedOperation::ReturnIntegerExpressionConditionalControl {
+                condition_source: *condition_source,
+                condition_frame,
+                condition: assign_boolean_expression(condition, &assigned_locations)?,
+                scalar_type: *scalar_type,
+                when_true: assign_control_arm(when_true, architecture)?,
+                when_false: assign_control_arm(when_false, architecture)?,
+            }
+        }
         TerminalTargetOperation::ReturnBooleanConditionalControl {
             condition_source,
             condition_parameter_index,
@@ -340,6 +359,23 @@ fn assign_integer_control(
             when_true: assign_control_arm(when_true, architecture)?,
             when_false: assign_control_arm(when_false, architecture)?,
         },
+        TerminalTargetIntegerControl::ConditionalExpression {
+            condition_source,
+            condition,
+            when_true,
+            when_false,
+        } => {
+            let locations = boolean_expression_parameter_locations(condition)?;
+            let (condition_frame, assigned_locations) =
+                assign_expression_locations(architecture, &locations)?;
+            TerminalAssignedIntegerControl::ConditionalExpression {
+                condition_source: *condition_source,
+                condition_frame,
+                condition: assign_boolean_expression(condition, &assigned_locations)?,
+                when_true: assign_control_arm(when_true, architecture)?,
+                when_false: assign_control_arm(when_false, architecture)?,
+            }
+        }
     })
 }
 
