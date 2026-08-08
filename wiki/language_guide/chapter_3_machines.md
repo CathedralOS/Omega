@@ -78,8 +78,10 @@ that are not naturally owned by one data type.
 
 ## Program Entry
 
-`build.omg` binds a target-owned program-entry slot to one exact machine. A
-free entry machine has no implicit state:
+`build.omg` binds a target-owned program-entry slot to one exact machine. The
+binding selects what the target bridge will call; it is not itself a call and
+does not pass arguments or allocate values. A free entry machine has no
+implicit state:
 
 ```omega
 machine start() {
@@ -88,26 +90,34 @@ machine start() {
 ```
 
 When the selected entry is attached and has one `&mut self` receiver, the
-receiver declaration requests exactly one program-root instance:
+receiver declaration requests exactly one program-lifetime receiver instance:
 
 ```omega
 data Application {
     total: i32;
 }
 
-machine Application::start(&mut self) -> i32 {
+machine Application::start(&mut self) {
     self.total = add_i32(3, 4);
-    self.total
+}
+
+machine build(builder: &mut Build) {
+    builder.target = windows_x86_64;
+    builder.roots.bind(
+        windows_x86_64::ProgramEntry,
+        Application::start
+    );
 }
 ```
 
-The generated target bridge provisions one ZII-valid `Application` beneath an
-entry-supplied storage root and lends the only reference as `&mut self`. The
-value is not globally nameable and no `static` declaration exists. Its physical
-placement is target lowering: a hosted image may reserve it in writable image
-storage, while a freestanding target may partition initial storage. Either way,
-the artifact records the derived subextent and root lineage rather than minting
-a new storage root.
+The selected machine's receiver is the entire request: the generated target
+bridge provisions one ZII-valid `Application` beneath an entry-supplied storage
+root and lends the only reference as `&mut self`. No separate declaration says
+that the value is static. The value is not globally nameable and no `static`
+declaration exists. Its physical placement is target lowering: a hosted image
+may reserve it in writable image storage, while a freestanding target may
+partition initial storage. Either way, the artifact records the derived
+subextent and root lineage rather than minting a new storage root.
 
 If the receiver cannot be validly constructed through ZII, the binding rejects.
 Use a free entry machine and explicitly construct the required state from the
@@ -115,13 +125,16 @@ resources that target schema exposes. The target schema also controls ordinary
 entry parameters: hosted entry normally exposes none, while freestanding entry
 may intentionally expose raw image or initial-storage extents.
 
-The machine name is not special. The build binding, source signature, and
-target schema jointly determine entry.
+The machine name is not special. The build binding chooses the machine, its
+source signature states whether it needs a receiver or visible arguments, and
+the target schema states how the launch environment supplies those needs.
 
-> **Implementation gate:** the current runner and canary corpus still use the
-> transitional `Main::main(&mut self)` convention. Target-declared entry-machine
-> slots, free hosted entry, and explicit receiver provisioning remain work under
-> `ENTRY-CONTENT-ROOTS` in `TASKS.md`.
+> **Implementation gate:** explicit `Build` root binding, exact source-entry
+> selection, hosted free/receiver source-shape checks, and receiver ZII checks
+> are live. Target-owned slot metadata, generated bridge integration, actual
+> receiver provisioning, corpus migration, and removal of the transitional
+> `Main::main(&mut self)` fallback remain under `ENTRY-CONTENT-ROOTS` in
+> `TASKS.md`.
 
 ## Parameters And Returns
 

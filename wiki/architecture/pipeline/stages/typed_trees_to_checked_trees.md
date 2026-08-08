@@ -121,7 +121,7 @@ Current ownership is:
   handles normalized fixed-index/range pairs as well as range/range pairs;
   `checks/borrows/details.rs` owns diagnostic lifetime explanations.
   `checks/borrows/persistent.rs` admits borrow-carrying writes backed only by
-  immutable program-static storage (direct/nested literals, folded literal
+  immutable artifact-lifetime storage (direct/nested literals, folded literal
   joins, and machine results whose every value exit resolves to such a source),
   and retains that provenance through exact persistent-place copies within the
   same state. Whole persistent fields and stable nested field, sum-case, and
