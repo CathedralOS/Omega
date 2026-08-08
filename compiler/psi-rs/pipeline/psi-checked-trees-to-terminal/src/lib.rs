@@ -2407,81 +2407,42 @@ fn lower_integer_comparison_machine(
     let [StatementNode::Expression(expression)] = statements else {
         return unsupported("integer-comparison source machines require one value expression");
     };
-    let ExpressionNode::Binary(binary) = checked.expression_table.expression(*expression) else {
+    let parameter_types = parameters
+        .iter()
+        .map(|parameter| {
+            integer_scalar_type(
+                checked
+                    .primitive_type_reference(parameter.type_reference)
+                    .ok_or(LoweringError::Unsupported(
+                        "integer-comparison parameters must have primitive integer type",
+                    ))?,
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let return_expression = lower_boolean_expression(checked, *expression, parameters)?;
+    if !is_integer_comparison_expression(&return_expression) {
         return unsupported("integer-comparison source machines require a builtin comparison");
-    };
-    if !matches!(
-        binary.operator,
-        BinaryOperator::Equal
-            | BinaryOperator::NotEqual
-            | BinaryOperator::Less
-            | BinaryOperator::LessOrEqual
-            | BinaryOperator::Greater
-            | BinaryOperator::GreaterOrEqual
-    ) {
-        return unsupported("integer-comparison source machines require a builtin comparison");
-    }
-    if let Some(operator_use) = checked.facts.operators.expression_use(*expression)
-        && operator_use.status != CheckedOperatorResolutionStatus::BuiltinFallback
-    {
-        return unsupported("terminal integer comparison must use the builtin operator");
-    }
-    let left = match checked.expression_table.expression(binary.left) {
-        ExpressionNode::Name(path) => direct_parameter_position(checked, path, parameters)?,
-        _ => return unsupported("terminal integer comparison operands must name parameters"),
-    };
-    let right = match checked.expression_table.expression(binary.right) {
-        ExpressionNode::Name(path) => direct_parameter_position(checked, path, parameters)?,
-        _ => return unsupported("terminal integer comparison operands must name parameters"),
-    };
-    let scalar_type = integer_scalar_type(
-        checked
-            .primitive_type_reference(parameters[left].type_reference)
-            .ok_or(LoweringError::Unsupported(
-                "integer-comparison operands must have primitive integer type",
-            ))?,
-    )?;
-    if integer_scalar_type(
-        checked
-            .primitive_type_reference(parameters[right].type_reference)
-            .ok_or(LoweringError::Unsupported(
-                "integer-comparison operands must have primitive integer type",
-            ))?,
-    )? != scalar_type
-    {
-        return unsupported("terminal integer comparison operands must have one exact type");
     }
 
     let contract_value = validate_boolean_contract(checked, machine, None)?;
     let (identity_reshuffles, partition_compositions) =
         lower_content_evidence(checked, machine, entry_state)?;
-    let terminal_parameters = parameters
+    let terminal_parameters = parameter_types
         .iter()
         .enumerate()
-        .map(|(index, parameter)| {
-            Ok(ValueDeclaration {
-                id: value_id(
-                    u64::try_from(index)
-                        .expect("parameter index fits a semantic identity")
-                        .checked_add(1)
-                        .expect("parameter identity is nonzero"),
-                ),
-                scalar_type: terminal_scalar_type(
-                    checked
-                        .primitive_type_reference(parameter.type_reference)
-                        .ok_or(LoweringError::Unsupported(
-                            "integer-comparison parameters must have primitive scalar type",
-                        ))?,
-                )?,
-            })
+        .map(|(index, scalar_type)| ValueDeclaration {
+            id: value_id(
+                u64::try_from(index)
+                    .expect("parameter index fits a semantic identity")
+                    .checked_add(1)
+                    .expect("parameter identity is nonzero"),
+            ),
+            scalar_type: *scalar_type,
         })
-        .collect::<Result<Vec<_>, LoweringError>>()?;
+        .collect::<Vec<_>>();
     Ok(build_integer_comparison_module(
         terminal_parameters,
-        scalar_type,
-        left,
-        right,
-        binary.operator,
+        return_expression,
         contract_value,
         identity_reshuffles,
         partition_compositions,
@@ -2789,18 +2750,21 @@ fn lower_positive_boolean_guard(
         }
     }
     let guard = lower_boolean_expression(checked, expression, parameters)?;
-    let is_integer_comparison = match &guard {
+    if is_integer_comparison_expression(&guard) {
+        Ok(guard)
+    } else {
+        unsupported("conditional guards require a positive Boolean pattern")
+    }
+}
+
+fn is_integer_comparison_expression(expression: &LoweredBooleanReturnExpression) -> bool {
+    match expression {
         LoweredBooleanReturnExpression::IntegerComparison { .. } => true,
         LoweredBooleanReturnExpression::Not { operand } => matches!(
             operand.as_ref(),
             LoweredBooleanReturnExpression::IntegerComparison { .. }
         ),
         _ => false,
-    };
-    if is_integer_comparison {
-        Ok(guard)
-    } else {
-        unsupported("conditional guards require a positive Boolean pattern")
     }
 }
 
@@ -4493,83 +4457,25 @@ fn build_boolean_module(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 fn build_integer_comparison_module(
     parameters: Vec<ValueDeclaration>,
-    scalar_type: ScalarType,
-    left_position: usize,
-    right_position: usize,
-    operator: BinaryOperator,
+    return_expression: LoweredBooleanReturnExpression,
     contract_value: bool,
     identity_reshuffles: LoweredContentIdentityReshuffles,
     partition_compositions: LoweredContentPartitionCompositions,
 ) -> LoweredTerminalPsi {
-    let comparison_value = value_id(
-        u64::try_from(parameters.len())
-            .expect("parameter count fits a semantic identity")
-            .checked_add(1)
-            .expect("comparison value identity is nonzero"),
+    let mut next_value_identity = u64::try_from(parameters.len())
+        .expect("parameter count fits a semantic identity")
+        .checked_add(1)
+        .expect("comparison value identity is nonzero");
+    let mut operations = Vec::new();
+    let returned = emit_boolean_expression(
+        &return_expression,
+        &parameters,
+        &mut next_value_identity,
+        &mut operations,
     );
-    let left = parameters[left_position].id;
-    let right = parameters[right_position].id;
-    let (kind, negated) = match operator {
-        BinaryOperator::Equal => (OperationKind::IntegerEqual { left, right }, false),
-        BinaryOperator::NotEqual => (OperationKind::IntegerEqual { left, right }, true),
-        BinaryOperator::Less => (OperationKind::IntegerLessThan { left, right }, false),
-        BinaryOperator::LessOrEqual => (OperationKind::IntegerLessOrEqual { left, right }, false),
-        BinaryOperator::Greater => (
-            OperationKind::IntegerLessThan {
-                left: right,
-                right: left,
-            },
-            false,
-        ),
-        BinaryOperator::GreaterOrEqual => (
-            OperationKind::IntegerLessOrEqual {
-                left: right,
-                right: left,
-            },
-            false,
-        ),
-        _ => unreachable!("integer-comparison lowering filters operators"),
-    };
-    let mut operations = vec![Operation {
-        id: operation_id(1),
-        result: ValueDeclaration {
-            id: comparison_value,
-            scalar_type: ScalarType::Boolean,
-        },
-        kind,
-    }];
-    debug_assert_eq!(parameters[left_position].scalar_type, scalar_type);
-    debug_assert_eq!(parameters[right_position].scalar_type, scalar_type);
-    let returned = if negated {
-        let negated_value = value_id(
-            comparison_value
-                .get()
-                .checked_add(1)
-                .expect("negated comparison value identity advances"),
-        );
-        operations.push(Operation {
-            id: operation_id(2),
-            result: ValueDeclaration {
-                id: negated_value,
-                scalar_type: ScalarType::Boolean,
-            },
-            kind: OperationKind::BooleanNot {
-                operand: comparison_value,
-            },
-        });
-        negated_value
-    } else {
-        comparison_value
-    };
-    let result_id = value_id(
-        returned
-            .get()
-            .checked_add(1)
-            .expect("result identity follows comparison operations"),
-    );
+    let result_id = value_id(next_value_identity);
     let literal = ScalarTerm::boolean(contract_value);
     let goal = Proposition::Equal(literal.clone(), literal);
     let obligation = obligation_id(1);
