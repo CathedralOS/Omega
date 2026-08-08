@@ -256,11 +256,15 @@ Remaining:
   a site-free leaf contributes positive empty evidence, and resolved nested
   summaries propagate cause/scope while deliberately collapsing predicates to
   unconditional routes. Unresolved cycles remain unexamined rather than
-  erasing a nested crash. Extend path-conditioned guard
+  erasing a nested crash. Published callers now check every surviving call
+  route independently against a same-cause caller bucket whose containment
+  demand covers the selected route and whose guard is unconditional, exactly
+  matches the surviving predicate, or is one of the invocation's retained
+  incoming path conjuncts. Extend path-conditioned guard
   entailment beyond the live structural propositional consequences and widen
   damage minima from open invariant/custody evidence; then retain guarded
-  nonleaf routes through recursive fixed points, add caller-ceiling
-  coverage, imported/requirement capsules, and sparse per-cause context maxima.
+  nonleaf routes through recursive fixed points, add imported/requirement
+  capsules, and sparse per-cause context maxima.
   Retaining declared intermediate nominal scope ordering is design blocked on
   `OWNER_QUESTIONS.md` Q2.
   Generalize guarded source production beyond the live structural implication
