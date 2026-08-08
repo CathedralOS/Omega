@@ -53,6 +53,16 @@ pub(crate) fn lower_item(
             lowerer.symbol_resolved_trees.traits.push(trait_definition);
         }
         syntax::item::Item::Conformance(conformance) => {
+            if matches!(
+                conformance.body,
+                syntax::item::ConformanceBody::Closed { .. }
+            ) {
+                return Err(Diagnostic::error(format!(
+                    "closed conformance block `{} satisfies {}` is retained by parsing but its normalized requirement-row lowering is not implemented yet",
+                    conformance.type_name.as_str(),
+                    conformance.trait_name.as_str(),
+                )));
+            }
             let arguments =
                 lower_child_type_references(lowerer, syntax_trees, conformance.trait_arguments)?;
             lowerer.symbol_resolved_trees.conformances.push(

@@ -16,10 +16,12 @@ use crate::parser::type_reference::{
     parse_type_reference_handle, parse_type_reference_handle_allowing_borrow,
 };
 use crate::parser::use_item::parse_use_item;
+use psi_arena::{Handle, HandleSpan};
 use psi_syntax_trees::SyntaxTrees;
 use psi_syntax_trees::item::{
-    ExternalBinding, Item, ModuleDeclaration, PackageDeclaration, ProviderDeclaration,
-    WireDataDefinition, WireDataField, WireDataMember, WireDataReserved, WireDataVersion,
+    ConformanceBody, ConformanceMember, ExternalBinding, Item, ModuleDeclaration,
+    PackageDeclaration, ProviderDeclaration, WireDataDefinition, WireDataField, WireDataMember,
+    WireDataReserved, WireDataVersion,
 };
 use psi_syntax_trees::operator_spelling::ProviderCategory;
 use psi_tokens::{KeywordKind, PunctuationKind};
@@ -318,13 +320,21 @@ pub(super) fn parse_item<'tokens, 'source>(
         } else {
             None
         };
-        let rest = take_optional_semicolon(rest)?;
+        let (body, rest) = if rest.at_punctuation(PunctuationKind::LeftBrace) {
+            parse_conformance_body(syntax_trees, rest)?
+        } else {
+            (
+                ConformanceBody::LegacyAttachedMachines,
+                take_optional_semicolon(rest)?,
+            )
+        };
         return Ok((
             Item::Conformance(psi_syntax_trees::item::ConformanceItem {
                 type_name,
                 trait_name,
                 trait_arguments,
                 alias,
+                body,
             }),
             rest,
         ));
@@ -354,6 +364,72 @@ pub(super) fn parse_item<'tokens, 'source>(
         "`boundary data`",
         "`boundary trait`",
     ]))
+}
+
+fn parse_conformance_body<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, ConformanceBody> {
+    let mut input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
+    let mut member_start = Handle::invalid();
+    let mut member_count = 0u32;
+
+    while !input.at_punctuation(PunctuationKind::RightBrace) {
+        let (member, rest) = if input.at_keyword(KeywordKind::Machine) {
+            let after_machine = input.take_keyword(KeywordKind::Machine, "machine")?;
+            let (machine, rest) = parse_machine(syntax_trees, after_machine)?;
+            if machine.attached_data.is_some() {
+                return Err(input.error_here(
+                    "a conformance-block machine names only its requirement slot; the enclosing conformance supplies the carrier",
+                ));
+            }
+            if machine.bodyless {
+                return Err(input.error_here(
+                    "a conformance-block machine requires a checked body; use an explicit reference row to share an existing realization",
+                ));
+            }
+            if !machine.satisfies.is_empty() {
+                return Err(input.error_here(
+                    "a conformance-block machine already belongs to its enclosing conformance; remove its nested `satisfies` clause",
+                ));
+            }
+            (ConformanceMember::Machine(machine), rest)
+        } else {
+            let (declaring_trait, rest) = input.take_identifier()?;
+            let rest = rest.take_punctuation(PunctuationKind::ColonColon, "::")?;
+            let (requirement, rest) = rest.take_identifier()?;
+            let rest = rest.take_punctuation(PunctuationKind::Equal, "=")?;
+            let (target, rest) = parse_path_handle_span(rest, |member| {
+                syntax_trees.items.append_identifier_path_member(member)
+            })?;
+            let rest = rest.take_punctuation(PunctuationKind::Semicolon, ";")?;
+            (
+                ConformanceMember::Reference {
+                    declaring_trait,
+                    requirement,
+                    target,
+                },
+                rest,
+            )
+        };
+
+        let handle = syntax_trees.items.append_conformance_member(member);
+        if member_count == 0 {
+            member_start = handle;
+        }
+        member_count = member_count
+            .checked_add(1)
+            .expect("conformance member span count overflow");
+        input = rest;
+    }
+
+    let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
+    let members = if member_count == 0 {
+        HandleSpan::empty()
+    } else {
+        HandleSpan::from_parts(member_start, member_count)
+    };
+    Ok((ConformanceBody::Closed { members }, input))
 }
 
 /// Parse the body of an IDENTITY-NUMBERED data declaration (ch20): the caller

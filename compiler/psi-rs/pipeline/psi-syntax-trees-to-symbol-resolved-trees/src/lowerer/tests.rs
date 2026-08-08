@@ -7,6 +7,32 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 #[test]
+fn closed_conformance_blocks_never_fall_back_to_ambient_attached_machines() {
+    let source = r#"
+        trait Ranked { machine Self::before(&self, other: &Self) -> bool; }
+        data Card { }
+        machine Card::before(&self, other: &Card) -> bool { }
+
+        Card satisfies Ranked {
+            machine before(&self, other: &Card) -> bool { }
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("block syntax should parse");
+    let diagnostic = lower_syntax_trees(&syntax_trees)
+        .expect_err("unlowered closed rows must reject rather than use the attached look-alike");
+    assert!(
+        diagnostic
+            .message
+            .contains("normalized requirement-row lowering is not implemented yet"),
+        "unexpected diagnostic: {}",
+        diagnostic.message
+    );
+}
+
+#[test]
 fn proposition_parameter_signatures_receive_distinct_symbols() {
     let source = r#"
         trait Reflexive<C, proposition Relation>
