@@ -110,6 +110,20 @@ pub(crate) fn selected_program_entry_machine<'config>(
         Some(selected) => profile == selected,
         None => true,
     };
+    if let Some(target_name) = target_name {
+        for (profile, binding) in &program_entries {
+            if !matches_target(profile) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "root slot `{}` belongs to target profile `{profile}`, not selected target `{target_name}`",
+                    binding.slot
+                )));
+            }
+        }
+        if !diagnostics.is_empty() {
+            return Err(diagnostics);
+        }
+    }
+
     let selected = program_entries
         .iter()
         .filter(|(profile, _)| matches_target(profile))
@@ -758,4 +772,54 @@ fn extract_build_config(build: &BuildTimeValue) -> Result<BuildConfig, String> {
         wire_compatibility_demands: Vec::new(),
         root_bindings: Vec::new(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{BuildConfig, RootBinding, selected_program_entry_machine};
+
+    fn config_with_root_bindings(bindings: &[(&str, &str)]) -> BuildConfig {
+        BuildConfig {
+            root_bindings: bindings
+                .iter()
+                .map(|(slot, implementation)| RootBinding {
+                    slot: (*slot).to_owned(),
+                    implementation: (*implementation).to_owned(),
+                })
+                .collect(),
+            ..BuildConfig::default()
+        }
+    }
+
+    #[test]
+    fn selected_target_rejects_foreign_program_entry_slot_after_its_own() {
+        let config = config_with_root_bindings(&[
+            ("windows_x64::ProgramEntry", "Application::start"),
+            ("linux_x64::ProgramEntry", "Diagnostics::start"),
+        ]);
+
+        let diagnostics = selected_program_entry_machine(&config, Some("windows_x64"))
+            .expect_err("a foreign target root slot must reject");
+
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].to_string().contains(
+            "root slot `linux_x64::ProgramEntry` belongs to target profile `linux_x64`, not selected target `windows_x64`"
+        ));
+    }
+
+    #[test]
+    fn selected_target_rejects_foreign_program_entry_slot_before_its_own() {
+        let config = config_with_root_bindings(&[
+            ("linux_x64::ProgramEntry", "Diagnostics::start"),
+            ("windows_x64::ProgramEntry", "Application::start"),
+        ]);
+
+        let diagnostics = selected_program_entry_machine(&config, Some("windows_x64"))
+            .expect_err("binding order must not hide a foreign target root slot");
+
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].to_string().contains(
+            "root slot `linux_x64::ProgramEntry` belongs to target profile `linux_x64`, not selected target `windows_x64`"
+        ));
+    }
 }

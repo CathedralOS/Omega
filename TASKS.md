@@ -54,12 +54,14 @@ Remaining:
 - **ENTRY-CONTENT-ROOTS.** Finish target-declared typed slots around the live
   ordinary `builder.roots.bind(target::ProgramEntry, Exact::machine)` binding
   and exact backend entry selection. Hosted free/receiver-bound source-shape
-  checks and receiver ZII validation are live. A target profile owns each slot identity, schema, direction,
-  lifecycle, cardinality, and exact-requirement, complete-conformance, or
-  entry-machine binding shape; `build.omg` names the exact entry machine and
-  performs no discovery. Let a target entry schema expose only the parameters
-  its program author must handle. A hosted schema normally exposes none; a
-  freestanding schema may expose admitted image and initial-storage roots.
+  checks, receiver ZII validation, and fail-closed rejection of bindings owned
+  by a non-selected target profile are live. A target profile owns each slot
+  identity, schema, direction, lifecycle, cardinality, and exact-requirement,
+  complete-conformance, or entry-machine binding shape; `build.omg` names the
+  exact entry machine and performs no discovery. Let a target entry schema
+  expose only the parameters its program author must handle. A hosted schema
+  normally exposes none; a freestanding schema may expose admitted image and
+  initial-storage roots.
   Generate the physical bridge from the target's arrival requirement and
   selected calling policy, derive and compose the bridge's complete contract, and call the bound
   entry through its declared source shape. A free entry gets no implicit state.
