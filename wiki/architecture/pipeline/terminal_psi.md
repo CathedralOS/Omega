@@ -188,6 +188,10 @@ parameters into the decision entry, only the selected tests execute, and the
 chosen leaf targets either the authored successor or its arm-local binding
 block. This also makes checker-proved transitive integer-conjunction crash
 routes executable through terminal verification and direct interpretation.
+Compile-known integer values propagate through the lowered DAG, including
+recursive arithmetic bindings and exact-type comparison selectors. Facts meet
+conservatively at joins; a reachable crash exit prevents claiming a total
+result, while a known selector may exclude an untaken crash arm.
 Nested selections and convergent tails retain
 their authored blocks and edges in terminal Psi; proof reconstruction
 intersects facts at joins, and the fixed-work checker derives the maximum

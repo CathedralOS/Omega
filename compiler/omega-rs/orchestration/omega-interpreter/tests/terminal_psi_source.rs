@@ -2986,6 +2986,11 @@ fn psi_terminal_producer_rejects_source_outside_its_declared_slice() {
         LoweringError::Unsupported("contract literals must equal the executed literal")
     );
     assert_eq!(
+        lower_machine(&checked, "terminal_known_integer_graph_wrong_contract")
+            .expect_err("compile-known integer graph with an unrelated contract must fail closed"),
+        LoweringError::Unsupported("contract literals must equal the executed literal")
+    );
+    assert_eq!(
         lower_machine(&checked, "terminal_boolean_chain_wrong_contract")
             .expect_err("closed Boolean chain with an unrelated contract must fail closed"),
         LoweringError::Unsupported("Boolean contract literal must match the compile-known result")

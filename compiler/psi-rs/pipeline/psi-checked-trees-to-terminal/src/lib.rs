@@ -2050,9 +2050,9 @@ fn lower_nested_boolean_branch_machine(
     ))
 }
 
-fn merge_known_boolean_parameters(
-    current: &mut Option<Vec<Option<bool>>>,
-    incoming: Vec<Option<bool>>,
+fn merge_known_parameters<T: Copy + Eq>(
+    current: &mut Option<Vec<Option<T>>>,
+    incoming: Vec<Option<T>>,
 ) {
     if let Some(current) = current {
         assert_eq!(current.len(), incoming.len());
@@ -2064,6 +2064,37 @@ fn merge_known_boolean_parameters(
     } else {
         *current = Some(incoming);
     }
+}
+
+fn acyclic_topological_order(successors: &[Vec<usize>]) -> Vec<usize> {
+    let mut indegree = vec![0_usize; successors.len()];
+    for targets in successors {
+        for target in targets {
+            indegree[*target] = indegree[*target]
+                .checked_add(1)
+                .expect("source state count fits usize");
+        }
+    }
+    let mut ready = indegree
+        .iter()
+        .enumerate()
+        .filter_map(|(index, indegree)| (*indegree == 0).then_some(index))
+        .collect::<BTreeSet<_>>();
+    let mut order = Vec::with_capacity(successors.len());
+    while let Some(state) = ready.iter().next().copied() {
+        ready.remove(&state);
+        order.push(state);
+        for target in &successors[state] {
+            indegree[*target] = indegree[*target]
+                .checked_sub(1)
+                .expect("graph indegree is positive before traversal");
+            if indegree[*target] == 0 {
+                ready.insert(*target);
+            }
+        }
+    }
+    assert_eq!(order.len(), successors.len());
+    order
 }
 
 fn evaluate_known_boolean_graph(states: &[LoweredBooleanBranchState]) -> Option<bool> {
@@ -2079,33 +2110,7 @@ fn evaluate_known_boolean_graph(states: &[LoweredBooleanBranchState]) -> Option<
             LoweredBooleanBranchTerminator::Return { .. } => Vec::new(),
         })
         .collect::<Vec<_>>();
-    let mut indegree = vec![0_usize; states.len()];
-    for targets in &successors {
-        for target in targets {
-            indegree[*target] = indegree[*target]
-                .checked_add(1)
-                .expect("Boolean source state count fits usize");
-        }
-    }
-    let mut ready = indegree
-        .iter()
-        .enumerate()
-        .filter_map(|(index, indegree)| (*indegree == 0).then_some(index))
-        .collect::<BTreeSet<_>>();
-    let mut topological_order = Vec::with_capacity(states.len());
-    while let Some(state) = ready.iter().next().copied() {
-        ready.remove(&state);
-        topological_order.push(state);
-        for target in &successors[state] {
-            indegree[*target] = indegree[*target]
-                .checked_sub(1)
-                .expect("Boolean graph indegree is positive before traversal");
-            if indegree[*target] == 0 {
-                ready.insert(*target);
-            }
-        }
-    }
-    assert_eq!(topological_order.len(), states.len());
+    let topological_order = acyclic_topological_order(&successors);
 
     let mut known_parameters = vec![None; states.len()];
     known_parameters[0] = Some(vec![None; states[0].parameter_count]);
@@ -2122,7 +2127,7 @@ fn evaluate_known_boolean_graph(states: &[LoweredBooleanBranchState]) -> Option<
         };
         match &states[state_index].terminator {
             LoweredBooleanBranchTerminator::Jump { target, arguments } => {
-                merge_known_boolean_parameters(
+                merge_known_parameters(
                     &mut known_parameters[*target],
                     evaluate_arguments(arguments),
                 );
@@ -2134,20 +2139,20 @@ fn evaluate_known_boolean_graph(states: &[LoweredBooleanBranchState]) -> Option<
                 when_false_target,
                 when_false_arguments,
             } => match evaluate_boolean_expression(condition, &parameters) {
-                Some(true) => merge_known_boolean_parameters(
+                Some(true) => merge_known_parameters(
                     &mut known_parameters[*when_true_target],
                     evaluate_arguments(when_true_arguments),
                 ),
-                Some(false) => merge_known_boolean_parameters(
+                Some(false) => merge_known_parameters(
                     &mut known_parameters[*when_false_target],
                     evaluate_arguments(when_false_arguments),
                 ),
                 None => {
-                    merge_known_boolean_parameters(
+                    merge_known_parameters(
                         &mut known_parameters[*when_true_target],
                         evaluate_arguments(when_true_arguments),
                     );
-                    merge_known_boolean_parameters(
+                    merge_known_parameters(
                         &mut known_parameters[*when_false_target],
                         evaluate_arguments(when_false_arguments),
                     );
@@ -2159,6 +2164,85 @@ fn evaluate_known_boolean_graph(states: &[LoweredBooleanBranchState]) -> Option<
         }
     }
 
+    let expected = return_values.first().copied().flatten()?;
+    return_values
+        .into_iter()
+        .all(|value| value == Some(expected))
+        .then_some(expected)
+}
+
+fn evaluate_known_integer_graph(states: &[LoweredIntegerBranchState]) -> Option<IntegerValue> {
+    let successors = states
+        .iter()
+        .map(|state| match &state.terminator {
+            LoweredIntegerBranchTerminator::Jump { target, .. } => vec![*target],
+            LoweredIntegerBranchTerminator::Conditional {
+                when_true_target,
+                when_false_target,
+                ..
+            } => vec![*when_true_target, *when_false_target],
+            LoweredIntegerBranchTerminator::Return { .. }
+            | LoweredIntegerBranchTerminator::Crash(_) => Vec::new(),
+        })
+        .collect::<Vec<_>>();
+    let topological_order = acyclic_topological_order(&successors);
+    let mut known_parameters = vec![None; states.len()];
+    known_parameters[0] = Some(vec![None; states[0].parameter_types.len()]);
+    let mut return_values = Vec::new();
+    let mut reachable_crash = false;
+    for state_index in topological_order {
+        let Some(parameters) = known_parameters[state_index].clone() else {
+            continue;
+        };
+        let evaluate_arguments = |arguments: &[LoweredDirectExpression]| {
+            arguments
+                .iter()
+                .map(|argument| evaluate_direct_expression(argument, &parameters))
+                .collect::<Vec<_>>()
+        };
+        match &states[state_index].terminator {
+            LoweredIntegerBranchTerminator::Jump { target, arguments } => {
+                merge_known_parameters(
+                    &mut known_parameters[*target],
+                    evaluate_arguments(arguments),
+                );
+            }
+            LoweredIntegerBranchTerminator::Conditional {
+                condition,
+                when_true_target,
+                when_true_arguments,
+                when_false_target,
+                when_false_arguments,
+            } => match evaluate_compile_known_boolean_expression(condition, &parameters) {
+                Some(true) => merge_known_parameters(
+                    &mut known_parameters[*when_true_target],
+                    evaluate_arguments(when_true_arguments),
+                ),
+                Some(false) => merge_known_parameters(
+                    &mut known_parameters[*when_false_target],
+                    evaluate_arguments(when_false_arguments),
+                ),
+                None => {
+                    merge_known_parameters(
+                        &mut known_parameters[*when_true_target],
+                        evaluate_arguments(when_true_arguments),
+                    );
+                    merge_known_parameters(
+                        &mut known_parameters[*when_false_target],
+                        evaluate_arguments(when_false_arguments),
+                    );
+                }
+            },
+            LoweredIntegerBranchTerminator::Return { expression } => {
+                return_values.push(evaluate_direct_expression(expression, &parameters));
+            }
+            LoweredIntegerBranchTerminator::Crash(_) => reachable_crash = true,
+        }
+    }
+
+    if reachable_crash {
+        return None;
+    }
     let expected = return_values.first().copied().flatten()?;
     return_values
         .into_iter()
@@ -2420,7 +2504,9 @@ fn lower_nested_integer_branch_machine(
     let has_crash = lowered_states
         .iter()
         .any(|state| matches!(&state.terminator, LoweredIntegerBranchTerminator::Crash(_)));
-    let contract_value = validate_contract(checked, machine, result_type, None, has_crash)?;
+    let expected_value = evaluate_known_integer_graph(&lowered_states);
+    let contract_value =
+        validate_contract(checked, machine, result_type, expected_value, has_crash)?;
     Ok(build_nested_integer_branch_module(
         &lowered_states,
         result_type,
@@ -3388,42 +3474,93 @@ fn evaluate_direct_expression(
             left,
             right,
         } => {
-            let ScalarType::Integer(integer_type) = scalar_type else {
-                return None;
-            };
             let count_type = right.scalar_type();
             let left = evaluate_direct_expression(left, parameters)?;
             let right = evaluate_direct_expression(right, parameters)?;
+            evaluate_lowered_integer_binary(*kind, *scalar_type, count_type, left, right)
+        }
+    }
+}
+
+fn evaluate_lowered_integer_binary(
+    kind: LoweredIntegerBinaryKind,
+    scalar_type: ScalarType,
+    count_type: ScalarType,
+    left: IntegerValue,
+    right: IntegerValue,
+) -> Option<IntegerValue> {
+    let ScalarType::Integer(integer_type) = scalar_type else {
+        return None;
+    };
+    match kind {
+        LoweredIntegerBinaryKind::BitwiseAnd => integer_type.bitwise_and(left, right),
+        LoweredIntegerBinaryKind::BitwiseOr => integer_type.bitwise_or(left, right),
+        LoweredIntegerBinaryKind::BitwiseXor => integer_type.bitwise_xor(left, right),
+        LoweredIntegerBinaryKind::WrappingShiftLeft => {
+            let ScalarType::Integer(count_type) = count_type else {
+                return None;
+            };
+            integer_type.wrapping_shift_left(left, count_type, right)
+        }
+        LoweredIntegerBinaryKind::WrappingShiftRight => {
+            let ScalarType::Integer(count_type) = count_type else {
+                return None;
+            };
+            integer_type.wrapping_shift_right(left, count_type, right)
+        }
+        LoweredIntegerBinaryKind::WrappingAdd => integer_type.wrapping_add(left, right),
+        LoweredIntegerBinaryKind::SaturatingAdd => integer_type.saturating_add(left, right),
+        LoweredIntegerBinaryKind::WrappingSubtract => integer_type.wrapping_sub(left, right),
+        LoweredIntegerBinaryKind::SaturatingSubtract => integer_type.saturating_sub(left, right),
+        LoweredIntegerBinaryKind::WrappingMultiply => integer_type.wrapping_mul(left, right),
+        LoweredIntegerBinaryKind::SaturatingMultiply => integer_type.saturating_mul(left, right),
+    }
+}
+
+fn evaluate_compile_known_boolean_expression(
+    expression: &LoweredBooleanReturnExpression,
+    parameters: &[Option<IntegerValue>],
+) -> Option<bool> {
+    match expression {
+        LoweredBooleanReturnExpression::Constant { value } => Some(*value),
+        LoweredBooleanReturnExpression::Parameter { .. } => None,
+        LoweredBooleanReturnExpression::Not { operand } => Some(
+            !evaluate_compile_known_boolean_expression(operand, parameters)?,
+        ),
+        LoweredBooleanReturnExpression::Equal { left, right } => Some(
+            evaluate_compile_known_boolean_expression(left, parameters)?
+                == evaluate_compile_known_boolean_expression(right, parameters)?,
+        ),
+        LoweredBooleanReturnExpression::IntegerComparison { kind, left, right } => {
+            let ScalarType::Integer(integer_type) = left.scalar_type() else {
+                return None;
+            };
+            let left = evaluate_direct_expression(left, parameters)?;
+            let right = evaluate_direct_expression(right, parameters)?;
             match kind {
-                LoweredIntegerBinaryKind::BitwiseAnd => integer_type.bitwise_and(left, right),
-                LoweredIntegerBinaryKind::BitwiseOr => integer_type.bitwise_or(left, right),
-                LoweredIntegerBinaryKind::BitwiseXor => integer_type.bitwise_xor(left, right),
-                LoweredIntegerBinaryKind::WrappingShiftLeft => {
-                    let ScalarType::Integer(count_type) = count_type else {
-                        return None;
-                    };
-                    integer_type.wrapping_shift_left(left, count_type, right)
+                LoweredIntegerComparisonKind::Equal => Some(left == right),
+                LoweredIntegerComparisonKind::LessThan => {
+                    Some(integer_type.compare(left, right)?.is_lt())
                 }
-                LoweredIntegerBinaryKind::WrappingShiftRight => {
-                    let ScalarType::Integer(count_type) = count_type else {
-                        return None;
-                    };
-                    integer_type.wrapping_shift_right(left, count_type, right)
+                LoweredIntegerComparisonKind::LessOrEqual => {
+                    Some(!integer_type.compare(left, right)?.is_gt())
                 }
-                LoweredIntegerBinaryKind::WrappingAdd => integer_type.wrapping_add(left, right),
-                LoweredIntegerBinaryKind::SaturatingAdd => integer_type.saturating_add(left, right),
-                LoweredIntegerBinaryKind::WrappingSubtract => {
-                    integer_type.wrapping_sub(left, right)
-                }
-                LoweredIntegerBinaryKind::SaturatingSubtract => {
-                    integer_type.saturating_sub(left, right)
-                }
-                LoweredIntegerBinaryKind::WrappingMultiply => {
-                    integer_type.wrapping_mul(left, right)
-                }
-                LoweredIntegerBinaryKind::SaturatingMultiply => {
-                    integer_type.saturating_mul(left, right)
-                }
+            }
+        }
+        LoweredBooleanReturnExpression::And { left, right } => {
+            let left = evaluate_compile_known_boolean_expression(left, parameters)?;
+            if left {
+                evaluate_compile_known_boolean_expression(right, parameters)
+            } else {
+                Some(false)
+            }
+        }
+        LoweredBooleanReturnExpression::Or { left, right } => {
+            let left = evaluate_compile_known_boolean_expression(left, parameters)?;
+            if left {
+                Some(true)
+            } else {
+                evaluate_compile_known_boolean_expression(right, parameters)
             }
         }
     }
