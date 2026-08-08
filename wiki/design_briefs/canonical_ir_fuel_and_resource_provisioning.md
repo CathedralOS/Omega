@@ -102,7 +102,7 @@ from a nonempty sequence of
 ordinary primitive-integer parameters; or an
 integer-constant/unconditional-jump whose return is the matching literal or a
 builtin parameter-plus-literal wrapping/saturating add, subtract, or multiply;
-or a rooted acyclic integer-result graph whose blocks return, jump
+or a rooted acyclic scalar-result graph whose blocks return, jump
 unconditionally, or select ordered positive-Boolean/fallback successors.
 Selection guards may be Boolean parameters or exact-type builtin integer
 comparisons over recursive integer expressions, composed with recursive
@@ -118,8 +118,10 @@ parameters and prior results to each later stage, and converge once at the
 authored target. Conditional-edge stages remain arm-local, so the unselected
 tuple is neither executed nor charged. A pure unconditional mixed-scalar graph
 enters this typed path directly rather than requiring an artificial source
-selector. All multi-state integer-result shapes now share the same general DAG
-producer; the duplicate integer-only chain producer is retired.
+selector. All multi-state Boolean- and integer-result shapes now share the same
+general typed DAG producer. Boolean results may retain mixed-scalar bindings,
+short-circuit returns, and checked crash leaves. The duplicate integer-chain,
+three-state conditional, Boolean-chain, and Boolean-DAG producers are retired.
 Computed conditional-edge bindings use synthesized arm-local blocks so only
 the selected expression executes and consumes fuel. Nested selections, linear
 prefixes, and convergent tails use the same terminal block and edge

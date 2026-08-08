@@ -175,7 +175,7 @@ enum LoweredIntegerBinaryKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-enum LoweredIntegerBranchTerminator {
+enum LoweredScalarBranchTerminator {
     Jump {
         target: usize,
         arguments: Vec<LoweredDirectExpression>,
@@ -202,77 +202,9 @@ struct LoweredCrashExit {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct LoweredIntegerBranchState {
+struct LoweredScalarBranchState {
     parameter_types: Vec<ScalarType>,
-    terminator: LoweredIntegerBranchTerminator,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum LoweredBooleanBranchTerminator {
-    Jump {
-        target: usize,
-        arguments: Vec<LoweredBooleanReturnExpression>,
-    },
-    Conditional {
-        condition: LoweredBooleanReturnExpression,
-        when_true_target: usize,
-        when_true_arguments: Vec<LoweredBooleanReturnExpression>,
-        when_false_target: usize,
-        when_false_arguments: Vec<LoweredBooleanReturnExpression>,
-    },
-    Return {
-        expression: LoweredBooleanReturnExpression,
-    },
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct LoweredBooleanBranchState {
-    parameter_count: usize,
-    terminator: LoweredBooleanBranchTerminator,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct PendingBooleanValueBlocks {
-    first_id: BlockId,
-    parameters: Vec<ValueDeclaration>,
-    decision: LoweredBooleanDecision,
-    exit: LoweredBooleanDecisionExit,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct PendingBooleanTupleBindingBlocks {
-    first_id: BlockId,
-    original_parameter_count: usize,
-    arguments: Vec<LoweredBooleanReturnExpression>,
-    stage_parameters: Vec<Vec<ValueDeclaration>>,
-    target: BlockId,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct PendingBooleanDirectBindingBlock {
-    id: BlockId,
-    parameters: Vec<ValueDeclaration>,
-    target: BlockId,
-    arguments: Vec<LoweredBooleanReturnExpression>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum PendingBooleanBlockGroup {
-    Guard(PendingShortCircuitGuardBlocks),
-    Value(PendingBooleanValueBlocks),
-    TupleBinding(PendingBooleanTupleBindingBlocks),
-    DirectBinding(PendingBooleanDirectBindingBlock),
-}
-
-impl PendingBooleanBlockGroup {
-    fn first_id(&self) -> BlockId {
-        match self {
-            Self::Guard(blocks) => blocks.first_id,
-            Self::Value(blocks) => blocks.first_id,
-            Self::TupleBinding(blocks) => blocks.first_id,
-            Self::DirectBinding(block) => block.id,
-        }
-    }
+    terminator: LoweredScalarBranchTerminator,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -293,19 +225,9 @@ struct PendingMixedTupleBindingBlocks {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct PendingShortCircuitGuardBlocks {
-    first_id: BlockId,
-    parameters: Vec<ValueDeclaration>,
-    decision: LoweredBooleanDecision,
-    when_true: LoweredBooleanDecisionTarget,
-    when_false: LoweredBooleanDecisionTarget,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
 enum PendingNestedBlockGroup {
     ConditionalBinding(PendingConditionalBindingBlock),
     TupleBinding(PendingMixedTupleBindingBlocks),
-    ShortCircuitGuard(PendingShortCircuitGuardBlocks),
 }
 
 impl PendingNestedBlockGroup {
@@ -313,7 +235,6 @@ impl PendingNestedBlockGroup {
         match self {
             Self::ConditionalBinding(block) => block.id,
             Self::TupleBinding(blocks) => blocks.first_id,
-            Self::ShortCircuitGuard(blocks) => blocks.first_id,
         }
     }
 }
@@ -1407,45 +1328,8 @@ fn lower_selected_machine(
             _ => lower_direct_parameter_machine(checked, machine, entry_state),
         };
     }
-    if states.len() == 3
-        && entry_has_ordered_boolean_conditional(checked, &states[0])
-        && !states[1..]
-            .iter()
-            .any(|state| is_explicit_crash_state(checked, state))
-    {
-        return match checked.primitive_type_reference(states[0].return_type) {
-            Some(PrimitiveType::Bool) => {
-                lower_boolean_conditional_machine(checked, machine, states)
-            }
-            _ => lower_integer_conditional_machine(checked, machine, states),
-        };
-    }
-    if states.len() >= 2
-        && states
-            .iter()
-            .any(|state| entry_has_ordered_boolean_conditional(checked, state))
-    {
-        return match checked.primitive_type_reference(states[0].return_type) {
-            Some(PrimitiveType::Bool) => {
-                lower_nested_boolean_branch_machine(checked, machine, states)
-            }
-            _ => lower_nested_integer_branch_machine(checked, machine, states),
-        };
-    }
-    if states.len() >= 2
-        && checked.primitive_type_reference(states[0].return_type) == Some(PrimitiveType::Bool)
-    {
-        return if states[1..]
-            .iter()
-            .all(|state| checked.state_parameters(state).len() == 1)
-        {
-            lower_boolean_state_chain(checked, machine, states)
-        } else {
-            lower_nested_boolean_branch_machine(checked, machine, states)
-        };
-    }
     if states.len() >= 2 {
-        return lower_nested_integer_branch_machine(checked, machine, states);
+        return lower_nested_scalar_branch_machine(checked, machine, states);
     }
     unsupported("machine must contain at least one state")
 }
@@ -1632,439 +1516,6 @@ fn lower_checked_crash_exit(
     })
 }
 
-fn lower_boolean_conditional_machine(
-    checked: &CheckedTrees,
-    machine: &psi_checked_trees::machine::Machine,
-    states: &[psi_checked_trees::state::State],
-) -> Result<LoweredTerminalPsi, LoweringError> {
-    let [entry, when_true_state, when_false_state] = states else {
-        unreachable!("conditional source shape requires exactly three states")
-    };
-    if states
-        .iter()
-        .any(|state| !checked.state_contracts(state).is_empty())
-    {
-        return unsupported("conditional state contracts are not supported");
-    }
-    let entry_parameters = checked.state_parameters(entry);
-    if entry_parameters.iter().any(|parameter| {
-        parameter.is_self
-            || parameter.is_const
-            || parameter.is_mutable
-            || checked.primitive_type_reference(parameter.type_reference)
-                != Some(PrimitiveType::Bool)
-    }) {
-        return unsupported("Boolean conditional parameters must be ordinary Boolean values");
-    }
-    let statements = checked.statement_table.statements(entry.statement_nodes);
-    let [
-        StatementNode::Transition(when_true),
-        StatementNode::Transition(when_false),
-    ] = statements
-    else {
-        unreachable!("conditional source shape was selected above")
-    };
-    let TransitionGuardNode::When(condition) = when_true.guard else {
-        unreachable!("conditional source shape requires a guarded first arm")
-    };
-    if when_true.continuation.is_valid() || when_false.continuation.is_valid() {
-        return unsupported("conditional transitions cannot carry continuations");
-    }
-    let condition = lower_positive_boolean_guard(checked, condition, entry_parameters)?;
-    validate_short_circuit_expression(&condition)?;
-
-    let mut branch_parameter_counts = Vec::with_capacity(2);
-    let mut branch_expressions = Vec::with_capacity(2);
-    for state in [when_true_state, when_false_state] {
-        if checked.primitive_type_reference(state.return_type) != Some(PrimitiveType::Bool) {
-            return unsupported("Boolean conditional branch results must remain Boolean");
-        }
-        let parameters = checked.state_parameters(state);
-        if parameters.iter().any(|parameter| {
-            parameter.is_self
-                || parameter.is_const
-                || parameter.is_mutable
-                || checked.primitive_type_reference(parameter.type_reference)
-                    != Some(PrimitiveType::Bool)
-        }) {
-            return unsupported(
-                "Boolean conditional branch parameters must be ordinary Boolean values",
-            );
-        }
-        let [StatementNode::Expression(return_expression)] =
-            checked.statement_table.statements(state.statement_nodes)
-        else {
-            return unsupported("Boolean conditional branch must contain one value expression");
-        };
-        let branch_expression = lower_boolean_expression(checked, *return_expression, parameters)?;
-        validate_short_circuit_expression(&branch_expression)?;
-        branch_parameter_counts.push(parameters.len());
-        branch_expressions.push(branch_expression);
-    }
-
-    let branch_arguments = |transition: &psi_checked_trees::statement::TableTransition,
-                            expected_state: &psi_checked_trees::state::State,
-                            expected_count: usize|
-     -> Result<Vec<usize>, LoweringError> {
-        let TransitionTargetNode::Named { path, arguments } =
-            checked.statement_table.transition_target(transition.target)
-        else {
-            return unsupported("conditional successors must target named states");
-        };
-        if path.symbol != expected_state.symbol {
-            return unsupported("conditional successors must follow declared true/false order");
-        }
-        let arguments = checked.statement_table.expression_handles(*arguments);
-        if arguments.len() != expected_count {
-            return unsupported(
-                "conditional successor bindings must match the target parameter count",
-            );
-        }
-        arguments
-            .iter()
-            .map(|argument| {
-                let ExpressionNode::Name(path) = checked.expression_table.expression(*argument)
-                else {
-                    return unsupported(
-                        "Boolean conditional bindings require already-defined parameters",
-                    );
-                };
-                direct_parameter_position(checked, path, entry_parameters)
-            })
-            .collect()
-    };
-    let when_true_arguments =
-        branch_arguments(when_true, when_true_state, branch_parameter_counts[0])?;
-    let when_false_arguments =
-        branch_arguments(when_false, when_false_state, branch_parameter_counts[1])?;
-    let [when_true_expression, when_false_expression]: [LoweredBooleanReturnExpression; 2] =
-        branch_expressions
-            .try_into()
-            .expect("two Boolean branches each lower one expression");
-    let contract_value = validate_boolean_contract(checked, machine, None)?;
-    let (identity_reshuffles, partition_compositions) =
-        lower_content_evidence(checked, machine, entry)?;
-    Ok(build_boolean_conditional_module(
-        entry_parameters.len(),
-        condition,
-        when_true_arguments,
-        when_false_arguments,
-        branch_parameter_counts[0],
-        branch_parameter_counts[1],
-        when_true_expression,
-        when_false_expression,
-        contract_value,
-        identity_reshuffles,
-        partition_compositions,
-    ))
-}
-
-fn entry_has_ordered_boolean_conditional(
-    checked: &CheckedTrees,
-    entry: &psi_checked_trees::state::State,
-) -> bool {
-    matches!(
-        checked.statement_table.statements(entry.statement_nodes),
-        [
-            StatementNode::Transition(first),
-            StatementNode::Transition(second)
-        ] if matches!(first.guard, TransitionGuardNode::When(_))
-            && second.guard == TransitionGuardNode::Always
-    )
-}
-
-fn lower_integer_conditional_machine(
-    checked: &CheckedTrees,
-    machine: &psi_checked_trees::machine::Machine,
-    states: &[psi_checked_trees::state::State],
-) -> Result<LoweredTerminalPsi, LoweringError> {
-    let [entry, when_true_state, when_false_state] = states else {
-        unreachable!("conditional source shape requires exactly three states")
-    };
-    if states
-        .iter()
-        .any(|state| !checked.state_contracts(state).is_empty())
-    {
-        return unsupported("conditional state contracts are not supported");
-    }
-    let entry_parameters = checked.state_parameters(entry);
-    if entry_parameters
-        .iter()
-        .any(|parameter| parameter.is_self || parameter.is_const || parameter.is_mutable)
-    {
-        return unsupported("qualified conditional machine parameters are not supported");
-    }
-    let parameter_types = entry_parameters
-        .iter()
-        .map(|parameter| {
-            terminal_scalar_type(
-                checked
-                    .primitive_type_reference(parameter.type_reference)
-                    .ok_or(LoweringError::Unsupported(
-                        "conditional parameters must be primitive Boolean or integer values",
-                    ))?,
-            )
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let result_type =
-        integer_scalar_type(checked.primitive_type_reference(entry.return_type).ok_or(
-            LoweringError::Unsupported("conditional result must be a primitive integer"),
-        )?)?;
-
-    let statements = checked.statement_table.statements(entry.statement_nodes);
-    let [
-        StatementNode::Transition(when_true),
-        StatementNode::Transition(when_false),
-    ] = statements
-    else {
-        unreachable!("conditional source shape was selected above")
-    };
-    let TransitionGuardNode::When(condition) = when_true.guard else {
-        unreachable!("conditional source shape requires a guarded first arm")
-    };
-    if when_true.continuation.is_valid() || when_false.continuation.is_valid() {
-        return unsupported("conditional transitions cannot carry continuations");
-    }
-    let condition = lower_positive_boolean_guard(checked, condition, entry_parameters)?;
-    if let LoweredBooleanReturnExpression::Parameter { position } = condition
-        && parameter_types[position] != ScalarType::Boolean
-    {
-        return unsupported("conditional guard parameter must be Boolean");
-    }
-
-    let mut branch_expressions = Vec::with_capacity(2);
-    let mut branch_parameter_types = Vec::with_capacity(2);
-    for state in [when_true_state, when_false_state] {
-        if integer_scalar_type(checked.primitive_type_reference(state.return_type).ok_or(
-            LoweringError::Unsupported("conditional branch result must be a primitive integer"),
-        )?)? != result_type
-        {
-            return unsupported("conditional branch result types must match exactly");
-        }
-        let parameters = checked.state_parameters(state);
-        if parameters
-            .iter()
-            .any(|parameter| parameter.is_self || parameter.is_const || parameter.is_mutable)
-        {
-            return unsupported("qualified conditional branch parameters are not supported");
-        }
-        let state_parameter_types = parameters
-            .iter()
-            .map(|parameter| {
-                integer_scalar_type(
-                    checked
-                        .primitive_type_reference(parameter.type_reference)
-                        .ok_or(LoweringError::Unsupported(
-                            "conditional branch parameters must be primitive integers",
-                        ))?,
-                )
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        let [StatementNode::Expression(return_expression)] =
-            checked.statement_table.statements(state.statement_nodes)
-        else {
-            return unsupported("conditional branch state must contain one integer expression");
-        };
-        let (expression, _) = lower_direct_return_expression(
-            checked,
-            *return_expression,
-            parameters,
-            &state_parameter_types,
-            result_type,
-        )?;
-        branch_parameter_types.push(state_parameter_types);
-        branch_expressions.push(expression);
-    }
-    let branch_arguments = |transition: &psi_checked_trees::statement::TableTransition,
-                            expected_state: &psi_checked_trees::state::State,
-                            expected_types: &[ScalarType]|
-     -> Result<Vec<usize>, LoweringError> {
-        let TransitionTargetNode::Named { path, arguments } =
-            checked.statement_table.transition_target(transition.target)
-        else {
-            return unsupported("conditional successors must target named states");
-        };
-        if path.symbol != expected_state.symbol {
-            return unsupported("conditional successors must follow declared true/false order");
-        }
-        let arguments = checked.statement_table.expression_handles(*arguments);
-        if arguments.len() != expected_types.len() {
-            return unsupported(
-                "conditional successor bindings must match the target parameter count",
-            );
-        }
-        arguments
-                .iter()
-                .zip(expected_types)
-                .map(|(argument, expected_type)| {
-                    let ExpressionNode::Name(path) =
-                        checked.expression_table.expression(*argument)
-                    else {
-                        return unsupported(
-                            "conditional successor bindings currently require already-defined parameters",
-                        );
-                    };
-                    let position = direct_parameter_position(checked, path, entry_parameters)?;
-                    if parameter_types[position] != *expected_type {
-                        return unsupported(
-                            "conditional successor argument must match its target parameter type",
-                        );
-                    }
-                    Ok(position)
-                })
-                .collect()
-    };
-    let when_true_arguments =
-        branch_arguments(when_true, when_true_state, &branch_parameter_types[0])?;
-    let when_false_arguments =
-        branch_arguments(when_false, when_false_state, &branch_parameter_types[1])?;
-    let [when_true_expression, when_false_expression]: [LoweredDirectExpression; 2] =
-        branch_expressions
-            .try_into()
-            .expect("the two conditional branch states each lower one expression");
-
-    let contract_value = validate_contract(checked, machine, result_type, None, false)?;
-    let (identity_reshuffles, partition_compositions) =
-        lower_content_evidence(checked, machine, entry)?;
-    Ok(build_integer_conditional_module(
-        &parameter_types,
-        condition,
-        when_true_arguments,
-        when_false_arguments,
-        branch_parameter_types[0].clone(),
-        branch_parameter_types[1].clone(),
-        when_true_expression,
-        when_false_expression,
-        result_type,
-        contract_value,
-        identity_reshuffles,
-        partition_compositions,
-    ))
-}
-
-fn lower_nested_boolean_branch_machine(
-    checked: &CheckedTrees,
-    machine: &psi_checked_trees::machine::Machine,
-    states: &[psi_checked_trees::state::State],
-) -> Result<LoweredTerminalPsi, LoweringError> {
-    if states
-        .iter()
-        .any(|state| !checked.state_contracts(state).is_empty())
-    {
-        return unsupported("nested Boolean state contracts are not supported");
-    }
-    let mut lowered_states = Vec::with_capacity(states.len());
-    let mut successors = vec![Vec::new(); states.len()];
-    let mut indegree = vec![0usize; states.len()];
-
-    for (state_index, state) in states.iter().enumerate() {
-        if checked.primitive_type_reference(state.return_type) != Some(PrimitiveType::Bool) {
-            return unsupported("nested Boolean state results must remain Boolean");
-        }
-        let parameters = checked.state_parameters(state);
-        if parameters.iter().any(|parameter| {
-            parameter.is_self
-                || parameter.is_const
-                || parameter.is_mutable
-                || checked.primitive_type_reference(parameter.type_reference)
-                    != Some(PrimitiveType::Bool)
-        }) {
-            return unsupported("nested Boolean parameters must be ordinary Boolean values");
-        }
-        let statements = checked.statement_table.statements(state.statement_nodes);
-        let terminator = match statements {
-            [StatementNode::Expression(return_expression)] => {
-                let expression = lower_boolean_expression(checked, *return_expression, parameters)?;
-                validate_short_circuit_expression(&expression)?;
-                LoweredBooleanBranchTerminator::Return { expression }
-            }
-            [
-                StatementNode::Transition(when_true),
-                StatementNode::Transition(when_false),
-            ] if matches!(when_true.guard, TransitionGuardNode::When(_))
-                && when_false.guard == TransitionGuardNode::Always =>
-            {
-                if when_true.continuation.is_valid() || when_false.continuation.is_valid() {
-                    return unsupported("nested Boolean transitions cannot carry continuations");
-                }
-                let TransitionGuardNode::When(condition) = when_true.guard else {
-                    unreachable!("match guard establishes a conditional transition")
-                };
-                let condition = lower_positive_boolean_guard(checked, condition, parameters)?;
-                validate_short_circuit_expression(&condition)?;
-                let (when_true_target, when_true_arguments) =
-                    lower_nested_boolean_conditional_successor(
-                        checked, states, parameters, when_true,
-                    )?;
-                let (when_false_target, when_false_arguments) =
-                    lower_nested_boolean_conditional_successor(
-                        checked, states, parameters, when_false,
-                    )?;
-                successors[state_index] = vec![when_true_target, when_false_target];
-                indegree[when_true_target] = indegree[when_true_target]
-                    .checked_add(1)
-                    .expect("Boolean source state count fits usize");
-                indegree[when_false_target] = indegree[when_false_target]
-                    .checked_add(1)
-                    .expect("Boolean source state count fits usize");
-                LoweredBooleanBranchTerminator::Conditional {
-                    condition,
-                    when_true_target,
-                    when_true_arguments,
-                    when_false_target,
-                    when_false_arguments,
-                }
-            }
-            [StatementNode::Transition(transition)]
-                if transition.guard == TransitionGuardNode::Always =>
-            {
-                if transition.continuation.is_valid() {
-                    return unsupported("nested Boolean transitions cannot carry continuations");
-                }
-                let (target, arguments) =
-                    lower_nested_boolean_jump_successor(checked, states, parameters, transition)?;
-                successors[state_index] = vec![target];
-                indegree[target] = indegree[target]
-                    .checked_add(1)
-                    .expect("Boolean source state count fits usize");
-                LoweredBooleanBranchTerminator::Jump { target, arguments }
-            }
-            _ => {
-                return unsupported(
-                    "nested Boolean states must return one expression, jump unconditionally, or contain one ordered transition",
-                );
-            }
-        };
-        lowered_states.push(LoweredBooleanBranchState {
-            parameter_count: parameters.len(),
-            terminator,
-        });
-    }
-
-    if indegree[0] != 0 || indegree[1..].contains(&0) {
-        return unsupported(
-            "nested Boolean control must be rooted at the machine entry and reach every state",
-        );
-    }
-    let mut visited = vec![false; states.len()];
-    let mut active = vec![false; states.len()];
-    validate_nested_branch_graph(0, &successors, &mut visited, &mut active)?;
-    if visited.iter().any(|visited| !*visited) {
-        return unsupported("nested Boolean control contains an unreachable state");
-    }
-
-    let expected_value = evaluate_known_boolean_graph(&lowered_states);
-    let contract_value = validate_boolean_contract(checked, machine, expected_value)?;
-    let (identity_reshuffles, partition_compositions) =
-        lower_content_evidence(checked, machine, &states[0])?;
-    Ok(build_nested_boolean_branch_module(
-        &lowered_states,
-        contract_value,
-        identity_reshuffles,
-        partition_compositions,
-    ))
-}
-
 fn merge_known_parameters<T: Copy + Eq>(
     current: &mut Option<Vec<Option<T>>>,
     incoming: Vec<Option<T>>,
@@ -2112,92 +1563,18 @@ fn acyclic_topological_order(successors: &[Vec<usize>]) -> Vec<usize> {
     order
 }
 
-fn evaluate_known_boolean_graph(states: &[LoweredBooleanBranchState]) -> Option<bool> {
+fn evaluate_known_scalar_graph(states: &[LoweredScalarBranchState]) -> Option<KnownDirectScalar> {
     let successors = states
         .iter()
         .map(|state| match &state.terminator {
-            LoweredBooleanBranchTerminator::Jump { target, .. } => vec![*target],
-            LoweredBooleanBranchTerminator::Conditional {
+            LoweredScalarBranchTerminator::Jump { target, .. } => vec![*target],
+            LoweredScalarBranchTerminator::Conditional {
                 when_true_target,
                 when_false_target,
                 ..
             } => vec![*when_true_target, *when_false_target],
-            LoweredBooleanBranchTerminator::Return { .. } => Vec::new(),
-        })
-        .collect::<Vec<_>>();
-    let topological_order = acyclic_topological_order(&successors);
-
-    let mut known_parameters = vec![None; states.len()];
-    known_parameters[0] = Some(vec![None; states[0].parameter_count]);
-    let mut return_values = Vec::new();
-    for state_index in topological_order {
-        let Some(parameters) = known_parameters[state_index].clone() else {
-            continue;
-        };
-        let evaluate_arguments = |arguments: &[LoweredBooleanReturnExpression]| {
-            arguments
-                .iter()
-                .map(|argument| evaluate_boolean_expression(argument, &parameters))
-                .collect::<Vec<_>>()
-        };
-        match &states[state_index].terminator {
-            LoweredBooleanBranchTerminator::Jump { target, arguments } => {
-                merge_known_parameters(
-                    &mut known_parameters[*target],
-                    evaluate_arguments(arguments),
-                );
-            }
-            LoweredBooleanBranchTerminator::Conditional {
-                condition,
-                when_true_target,
-                when_true_arguments,
-                when_false_target,
-                when_false_arguments,
-            } => match evaluate_boolean_expression(condition, &parameters) {
-                Some(true) => merge_known_parameters(
-                    &mut known_parameters[*when_true_target],
-                    evaluate_arguments(when_true_arguments),
-                ),
-                Some(false) => merge_known_parameters(
-                    &mut known_parameters[*when_false_target],
-                    evaluate_arguments(when_false_arguments),
-                ),
-                None => {
-                    merge_known_parameters(
-                        &mut known_parameters[*when_true_target],
-                        evaluate_arguments(when_true_arguments),
-                    );
-                    merge_known_parameters(
-                        &mut known_parameters[*when_false_target],
-                        evaluate_arguments(when_false_arguments),
-                    );
-                }
-            },
-            LoweredBooleanBranchTerminator::Return { expression } => {
-                return_values.push(evaluate_boolean_expression(expression, &parameters));
-            }
-        }
-    }
-
-    let expected = return_values.first().copied().flatten()?;
-    return_values
-        .into_iter()
-        .all(|value| value == Some(expected))
-        .then_some(expected)
-}
-
-fn evaluate_known_integer_graph(states: &[LoweredIntegerBranchState]) -> Option<IntegerValue> {
-    let successors = states
-        .iter()
-        .map(|state| match &state.terminator {
-            LoweredIntegerBranchTerminator::Jump { target, .. } => vec![*target],
-            LoweredIntegerBranchTerminator::Conditional {
-                when_true_target,
-                when_false_target,
-                ..
-            } => vec![*when_true_target, *when_false_target],
-            LoweredIntegerBranchTerminator::Return { .. }
-            | LoweredIntegerBranchTerminator::Crash(_) => Vec::new(),
+            LoweredScalarBranchTerminator::Return { .. }
+            | LoweredScalarBranchTerminator::Crash(_) => Vec::new(),
         })
         .collect::<Vec<_>>();
     let topological_order = acyclic_topological_order(&successors);
@@ -2216,13 +1593,13 @@ fn evaluate_known_integer_graph(states: &[LoweredIntegerBranchState]) -> Option<
                 .collect::<Vec<_>>()
         };
         match &states[state_index].terminator {
-            LoweredIntegerBranchTerminator::Jump { target, arguments } => {
+            LoweredScalarBranchTerminator::Jump { target, arguments } => {
                 merge_known_parameters(
                     &mut known_parameters[*target],
                     evaluate_arguments(arguments),
                 );
             }
-            LoweredIntegerBranchTerminator::Conditional {
+            LoweredScalarBranchTerminator::Conditional {
                 condition,
                 when_true_target,
                 when_true_arguments,
@@ -2248,10 +1625,10 @@ fn evaluate_known_integer_graph(states: &[LoweredIntegerBranchState]) -> Option<
                     );
                 }
             },
-            LoweredIntegerBranchTerminator::Return { expression } => {
-                return_values.push(evaluate_integer_direct_expression(expression, &parameters));
+            LoweredScalarBranchTerminator::Return { expression } => {
+                return_values.push(evaluate_direct_expression(expression, &parameters));
             }
-            LoweredIntegerBranchTerminator::Crash(_) => reachable_crash = true,
+            LoweredScalarBranchTerminator::Crash(_) => reachable_crash = true,
         }
     }
 
@@ -2265,89 +1642,7 @@ fn evaluate_known_integer_graph(states: &[LoweredIntegerBranchState]) -> Option<
         .then_some(expected)
 }
 
-fn lower_nested_boolean_conditional_successor(
-    checked: &CheckedTrees,
-    states: &[psi_checked_trees::state::State],
-    parameters: &[psi_checked_trees::signature::StateParameter],
-    transition: &psi_checked_trees::statement::TableTransition,
-) -> Result<(usize, Vec<LoweredBooleanReturnExpression>), LoweringError> {
-    let TransitionTargetNode::Named { path, arguments } =
-        checked.statement_table.transition_target(transition.target)
-    else {
-        return unsupported("nested Boolean successors must target named states");
-    };
-    let target = states
-        .iter()
-        .position(|candidate| candidate.symbol == path.symbol)
-        .ok_or(LoweringError::Unsupported(
-            "nested Boolean successor must belong to the selected machine",
-        ))?;
-    let target_parameters = checked.state_parameters(&states[target]);
-    let arguments = checked.statement_table.expression_handles(*arguments);
-    if arguments.len() != target_parameters.len() {
-        return unsupported(
-            "nested Boolean successor bindings must match the target parameter count",
-        );
-    }
-    let arguments = arguments
-        .iter()
-        .zip(target_parameters)
-        .map(|(argument, target_parameter)| {
-            if checked.primitive_type_reference(target_parameter.type_reference)
-                != Some(PrimitiveType::Bool)
-            {
-                return unsupported("nested Boolean targets require Boolean parameters");
-            }
-            let expression = lower_boolean_expression(checked, *argument, parameters)?;
-            validate_short_circuit_expression(&expression)?;
-            Ok(expression)
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok((target, arguments))
-}
-
-fn lower_nested_boolean_jump_successor(
-    checked: &CheckedTrees,
-    states: &[psi_checked_trees::state::State],
-    parameters: &[psi_checked_trees::signature::StateParameter],
-    transition: &psi_checked_trees::statement::TableTransition,
-) -> Result<(usize, Vec<LoweredBooleanReturnExpression>), LoweringError> {
-    let TransitionTargetNode::Named { path, arguments } =
-        checked.statement_table.transition_target(transition.target)
-    else {
-        return unsupported("nested Boolean successors must target named states");
-    };
-    let target = states
-        .iter()
-        .position(|candidate| candidate.symbol == path.symbol)
-        .ok_or(LoweringError::Unsupported(
-            "nested Boolean successor must belong to the selected machine",
-        ))?;
-    let target_parameters = checked.state_parameters(&states[target]);
-    let arguments = checked.statement_table.expression_handles(*arguments);
-    if arguments.len() != target_parameters.len() {
-        return unsupported(
-            "nested Boolean successor bindings must match the target parameter count",
-        );
-    }
-    let arguments = arguments
-        .iter()
-        .zip(target_parameters)
-        .map(|(argument, target_parameter)| {
-            if checked.primitive_type_reference(target_parameter.type_reference)
-                != Some(PrimitiveType::Bool)
-            {
-                return unsupported("nested Boolean targets require Boolean parameters");
-            }
-            let expression = lower_boolean_expression(checked, *argument, parameters)?;
-            validate_short_circuit_expression(&expression)?;
-            Ok(expression)
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok((target, arguments))
-}
-
-fn lower_nested_integer_branch_machine(
+fn lower_nested_scalar_branch_machine(
     checked: &CheckedTrees,
     machine: &psi_checked_trees::machine::Machine,
     states: &[psi_checked_trees::state::State],
@@ -2358,11 +1653,11 @@ fn lower_nested_integer_branch_machine(
     {
         return unsupported("nested branch state contracts are not supported");
     }
-    let result_type = integer_scalar_type(
+    let result_type = terminal_scalar_type(
         checked
             .primitive_type_reference(states[0].return_type)
             .ok_or(LoweringError::Unsupported(
-                "nested branch result must be a primitive integer",
+                "nested branch result must be a primitive Boolean or integer",
             ))?,
     )?;
     let (identity_reshuffles, partition_compositions) =
@@ -2372,8 +1667,10 @@ fn lower_nested_integer_branch_machine(
     let mut indegree = vec![0usize; states.len()];
 
     for (state_index, state) in states.iter().enumerate() {
-        if integer_scalar_type(checked.primitive_type_reference(state.return_type).ok_or(
-            LoweringError::Unsupported("nested branch states must return a primitive integer"),
+        if terminal_scalar_type(checked.primitive_type_reference(state.return_type).ok_or(
+            LoweringError::Unsupported(
+                "nested branch states must return a primitive Boolean or integer",
+            ),
         )?)? != result_type
         {
             return unsupported("nested branch state result types must match exactly");
@@ -2407,7 +1704,7 @@ fn lower_nested_integer_branch_machine(
                     &parameter_types,
                     result_type,
                 )?;
-                LoweredIntegerBranchTerminator::Return { expression }
+                LoweredScalarBranchTerminator::Return { expression }
             }
             [StatementNode::Transition(transition)]
                 if matches!(transition.exit, TransitionExit::Crash(_))
@@ -2418,7 +1715,7 @@ fn lower_nested_integer_branch_machine(
                         TransitionTargetNode::Terminal
                     ) =>
             {
-                LoweredIntegerBranchTerminator::Crash(lower_checked_crash_exit(
+                LoweredScalarBranchTerminator::Crash(lower_checked_crash_exit(
                     checked,
                     machine,
                     state,
@@ -2465,7 +1762,7 @@ fn lower_nested_integer_branch_machine(
                 indegree[when_false_target] = indegree[when_false_target]
                     .checked_add(1)
                     .expect("source state count fits usize");
-                LoweredIntegerBranchTerminator::Conditional {
+                LoweredScalarBranchTerminator::Conditional {
                     condition,
                     when_true_target,
                     when_true_arguments,
@@ -2490,15 +1787,15 @@ fn lower_nested_integer_branch_machine(
                 indegree[target] = indegree[target]
                     .checked_add(1)
                     .expect("source state count fits usize");
-                LoweredIntegerBranchTerminator::Jump { target, arguments }
+                LoweredScalarBranchTerminator::Jump { target, arguments }
             }
             _ => {
                 return unsupported(
-                    "nested branch states must return one integer expression, jump unconditionally, or contain one ordered Boolean transition",
+                    "nested branch states must return one scalar expression, jump unconditionally, crash explicitly, or contain one ordered Boolean transition",
                 );
             }
         };
-        lowered_states.push(LoweredIntegerBranchState {
+        lowered_states.push(LoweredScalarBranchState {
             parameter_types,
             terminator,
         });
@@ -2518,11 +1815,24 @@ fn lower_nested_integer_branch_machine(
 
     let has_crash = lowered_states
         .iter()
-        .any(|state| matches!(&state.terminator, LoweredIntegerBranchTerminator::Crash(_)));
-    let expected_value = evaluate_known_integer_graph(&lowered_states);
-    let contract_value =
-        validate_contract(checked, machine, result_type, expected_value, has_crash)?;
-    Ok(build_nested_integer_branch_module(
+        .any(|state| matches!(&state.terminator, LoweredScalarBranchTerminator::Crash(_)));
+    let expected_value = evaluate_known_scalar_graph(&lowered_states);
+    let contract_value = match result_type {
+        ScalarType::Boolean => KnownDirectScalar::Boolean(validate_boolean_contract(
+            checked,
+            machine,
+            expected_value.and_then(KnownDirectScalar::boolean),
+            has_crash,
+        )?),
+        ScalarType::Integer(_) => KnownDirectScalar::Integer(validate_contract(
+            checked,
+            machine,
+            result_type,
+            expected_value.and_then(KnownDirectScalar::integer),
+            has_crash,
+        )?),
+    };
+    Ok(build_nested_scalar_branch_module(
         &lowered_states,
         result_type,
         contract_value,
@@ -2749,7 +2059,7 @@ fn lower_boolean_machine(
     validate_short_circuit_expression(&return_expression)?;
     let known_parameters = vec![None; parameters.len()];
     let expected_value = evaluate_boolean_expression(&return_expression, &known_parameters);
-    let contract_value = validate_boolean_contract(checked, machine, expected_value)?;
+    let contract_value = validate_boolean_contract(checked, machine, expected_value, false)?;
     let (identity_reshuffles, partition_compositions) =
         lower_content_evidence(checked, machine, entry_state)?;
     Ok(build_boolean_module(
@@ -2796,7 +2106,7 @@ fn lower_integer_comparison_machine(
         return unsupported("integer-comparison source machines require a builtin comparison");
     }
 
-    let contract_value = validate_boolean_contract(checked, machine, None)?;
+    let contract_value = validate_boolean_contract(checked, machine, None, false)?;
     let (identity_reshuffles, partition_compositions) =
         lower_content_evidence(checked, machine, entry_state)?;
     let terminal_parameters = parameter_types
@@ -2814,109 +2124,6 @@ fn lower_integer_comparison_machine(
         .collect::<Vec<_>>();
     Ok(build_integer_comparison_module(
         terminal_parameters,
-        return_expression,
-        contract_value,
-        identity_reshuffles,
-        partition_compositions,
-    ))
-}
-
-fn lower_boolean_state_chain(
-    checked: &CheckedTrees,
-    machine: &psi_checked_trees::machine::Machine,
-    states: &[psi_checked_trees::state::State],
-) -> Result<LoweredTerminalPsi, LoweringError> {
-    let entry_state = &states[0];
-    let entry_parameters = checked.state_parameters(entry_state);
-    if entry_parameters
-        .iter()
-        .any(|parameter| parameter.is_self || parameter.is_const || parameter.is_mutable)
-    {
-        return unsupported("qualified Boolean state-chain parameters are not supported");
-    }
-    if entry_parameters.iter().any(|parameter| {
-        checked.primitive_type_reference(parameter.type_reference) != Some(PrimitiveType::Bool)
-    }) {
-        return unsupported("Boolean state-chain machine parameters must be Boolean");
-    }
-    for state in &states[1..] {
-        let [parameter] = checked.state_parameters(state) else {
-            return unsupported("every non-entry Boolean state must have exactly one parameter");
-        };
-        if parameter.is_self || parameter.is_const || parameter.is_mutable {
-            return unsupported("qualified Boolean state-chain parameters are not supported");
-        }
-        if checked.primitive_type_reference(state.return_type) != Some(PrimitiveType::Bool)
-            || checked.primitive_type_reference(parameter.type_reference)
-                != Some(PrimitiveType::Bool)
-        {
-            return unsupported("Boolean state and carried parameter types must remain Boolean");
-        }
-    }
-    if states
-        .iter()
-        .any(|state| !checked.state_contracts(state).is_empty())
-    {
-        return unsupported("state contracts are not supported");
-    }
-
-    let mut jump_expressions = Vec::with_capacity(states.len() - 1);
-    let mut known_parameters = vec![None; entry_parameters.len()];
-    for (index, state) in states[..states.len() - 1].iter().enumerate() {
-        let statements = checked.statement_table.statements(state.statement_nodes);
-        let [StatementNode::Transition(transition)] = statements else {
-            return unsupported("each nonterminal Boolean state must contain one transition");
-        };
-        if transition.guard != TransitionGuardNode::Always || transition.continuation.is_valid() {
-            return unsupported(
-                "Boolean state-chain transitions must be unconditional and have no continuation",
-            );
-        }
-        let TransitionTargetNode::Named { path, arguments } =
-            checked.statement_table.transition_target(transition.target)
-        else {
-            return unsupported("a Boolean state-chain transition must target its next state");
-        };
-        if path.symbol != states[index + 1].symbol {
-            return unsupported(
-                "a Boolean state-chain transition must target the next declared state",
-            );
-        }
-        let [argument] = checked.statement_table.expression_handles(*arguments) else {
-            return unsupported("a Boolean state-chain transition must carry exactly one argument");
-        };
-        let expression =
-            lower_boolean_expression(checked, *argument, checked.state_parameters(state))?;
-        validate_short_circuit_expression(&expression)?;
-        let known_value = evaluate_boolean_expression(&expression, &known_parameters);
-        jump_expressions.push(expression);
-        known_parameters = vec![known_value];
-    }
-
-    let return_state = states.last().expect("Boolean state chain is nonempty");
-    let [return_parameter] = checked.state_parameters(return_state) else {
-        unreachable!("non-entry Boolean state shape was validated above");
-    };
-    let return_statements = checked
-        .statement_table
-        .statements(return_state.statement_nodes);
-    let [StatementNode::Expression(return_expression)] = return_statements else {
-        return unsupported("return Boolean state must contain exactly one value expression");
-    };
-    let return_expression = lower_boolean_expression(
-        checked,
-        *return_expression,
-        std::slice::from_ref(return_parameter),
-    )?;
-    validate_short_circuit_expression(&return_expression)?;
-    let expected_value = evaluate_boolean_expression(&return_expression, &known_parameters);
-
-    let contract_value = validate_boolean_contract(checked, machine, expected_value)?;
-    let (identity_reshuffles, partition_compositions) =
-        lower_content_evidence(checked, machine, entry_state)?;
-    Ok(build_boolean_state_chain_module(
-        entry_parameters.len(),
-        jump_expressions,
         return_expression,
         contract_value,
         identity_reshuffles,
@@ -3355,6 +2562,22 @@ enum KnownDirectScalar {
     Integer(IntegerValue),
 }
 
+impl KnownDirectScalar {
+    const fn boolean(self) -> Option<bool> {
+        match self {
+            Self::Boolean(value) => Some(value),
+            Self::Integer(_) => None,
+        }
+    }
+
+    const fn integer(self) -> Option<IntegerValue> {
+        match self {
+            Self::Boolean(_) => None,
+            Self::Integer(value) => Some(value),
+        }
+    }
+}
+
 fn evaluate_direct_expression(
     expression: &LoweredDirectExpression,
     parameters: &[Option<KnownDirectScalar>],
@@ -3684,9 +2907,29 @@ fn validate_boolean_contract(
     checked: &CheckedTrees,
     machine: &psi_checked_trees::machine::Machine,
     expected_value: Option<bool>,
+    allow_crash_contracts: bool,
 ) -> Result<bool, LoweringError> {
     let contracts = checked.machine_contracts(machine);
-    if contracts.len() != 2 {
+    let value_contract_count = contracts
+        .iter()
+        .filter(|contract| {
+            matches!(
+                contract.kind,
+                SignatureContractKind::Requires | SignatureContractKind::Ensures
+            )
+        })
+        .count();
+    if value_contract_count != 2
+        || (!allow_crash_contracts && contracts.len() != value_contract_count)
+        || contracts.iter().any(|contract| {
+            !matches!(
+                contract.kind,
+                SignatureContractKind::Requires
+                    | SignatureContractKind::Ensures
+                    | SignatureContractKind::Crashes { .. }
+            )
+        })
+    {
         return unsupported("machine must have exactly one requires and one ensures clause");
     }
     let mut shared_value = None;
@@ -3817,182 +3060,6 @@ fn integer_value(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn build_integer_conditional_module(
-    parameter_types: &[ScalarType],
-    condition: LoweredBooleanReturnExpression,
-    when_true_arguments: Vec<usize>,
-    when_false_arguments: Vec<usize>,
-    when_true_parameter_types: Vec<ScalarType>,
-    when_false_parameter_types: Vec<ScalarType>,
-    when_true_expression: LoweredDirectExpression,
-    when_false_expression: LoweredDirectExpression,
-    result_type: ScalarType,
-    contract_value: IntegerValue,
-    identity_reshuffles: LoweredContentIdentityReshuffles,
-    partition_compositions: LoweredContentPartitionCompositions,
-) -> LoweredTerminalPsi {
-    let parameters = parameter_types
-        .iter()
-        .enumerate()
-        .map(|(index, scalar_type)| ValueDeclaration {
-            id: value_id(
-                u64::try_from(index)
-                    .expect("parameter index fits a semantic identity")
-                    .checked_add(1)
-                    .expect("parameter identity is nonzero"),
-            ),
-            scalar_type: *scalar_type,
-        })
-        .collect::<Vec<_>>();
-    let mut next_value_identity = u64::try_from(parameters.len())
-        .expect("parameter count fits a semantic identity")
-        .checked_add(1)
-        .expect("generated identities follow parameter identities");
-    let mut all_operations = Vec::new();
-    let condition = emit_boolean_expression(
-        &condition,
-        &parameters,
-        &mut next_value_identity,
-        &mut all_operations,
-    );
-    let entry_operation_end = all_operations.len();
-    let mut allocate_parameters = |types: &[ScalarType]| {
-        types
-            .iter()
-            .map(|scalar_type| {
-                let parameter = ValueDeclaration {
-                    id: value_id(next_value_identity),
-                    scalar_type: *scalar_type,
-                };
-                next_value_identity = next_value_identity
-                    .checked_add(1)
-                    .expect("branch parameter identities advance");
-                parameter
-            })
-            .collect::<Vec<_>>()
-    };
-    let true_parameters = allocate_parameters(&when_true_parameter_types);
-    let false_parameters = allocate_parameters(&when_false_parameter_types);
-    let true_operation_start = all_operations.len();
-    let true_value = emit_direct_expression(
-        &when_true_expression,
-        &true_parameters,
-        &mut next_value_identity,
-        &mut all_operations,
-    );
-    let true_operation_end = all_operations.len();
-    let false_value = emit_direct_expression(
-        &when_false_expression,
-        &false_parameters,
-        &mut next_value_identity,
-        &mut all_operations,
-    );
-    let result = ValueDeclaration {
-        id: value_id(next_value_identity),
-        scalar_type: result_type,
-    };
-
-    let ScalarType::Integer(integer_type) = result_type else {
-        unreachable!("conditional source slice has an integer result")
-    };
-    let literal = ScalarTerm::integer(integer_type, contract_value)
-        .expect("validated source contract fits the result type");
-    let goal = Proposition::Equal(literal.clone(), literal);
-    let obligation = obligation_id(1);
-    let mut structural_places = identity_reshuffles
-        .structural_places
-        .into_iter()
-        .map(|place| (place.id, place.kind))
-        .collect::<BTreeMap<_, _>>();
-    for place in partition_compositions.structural_places {
-        merge_content_place_declaration(&mut structural_places, place)
-            .expect("checked lowering rejects conflicting structural places");
-    }
-
-    LoweredTerminalPsi {
-        semantic_module: TerminalModule {
-            semantic_version: SemanticVersion::CURRENT,
-            entry: machine_id(1),
-            proposition_declarations: Vec::new(),
-            proposition_applications: Vec::new(),
-            machines: vec![TerminalMachine {
-                id: machine_id(1),
-                parameters: parameters.clone(),
-                result,
-                structural_places: structural_places
-                    .into_iter()
-                    .map(|(id, kind)| StructuralPlaceDeclaration { id, kind })
-                    .collect(),
-                content_entry_claims: identity_reshuffles.entry_claims,
-                content_identity_reshuffles: identity_reshuffles.reshuffles,
-                content_partition_compositions: partition_compositions.compositions,
-                entry: block_id(1),
-                blocks: vec![
-                    Block {
-                        id: block_id(1),
-                        parameters: Vec::new(),
-                        operations: all_operations[..entry_operation_end].to_vec(),
-                        terminator: Terminator::Conditional {
-                            condition,
-                            when_true: SuccessorEdge {
-                                edge: edge_id(1),
-                                target: block_id(2),
-                                arguments: when_true_arguments
-                                    .iter()
-                                    .map(|position| parameters[*position].id)
-                                    .collect(),
-                            },
-                            when_false: SuccessorEdge {
-                                edge: edge_id(2),
-                                target: block_id(3),
-                                arguments: when_false_arguments
-                                    .iter()
-                                    .map(|position| parameters[*position].id)
-                                    .collect(),
-                            },
-                        },
-                    },
-                    Block {
-                        id: block_id(2),
-                        parameters: true_parameters,
-                        operations: all_operations[true_operation_start..true_operation_end]
-                            .to_vec(),
-                        terminator: Terminator::Return {
-                            edge: edge_id(3),
-                            value: true_value,
-                        },
-                    },
-                    Block {
-                        id: block_id(3),
-                        parameters: false_parameters,
-                        operations: all_operations[true_operation_end..].to_vec(),
-                        terminator: Terminator::Return {
-                            edge: edge_id(4),
-                            value: false_value,
-                        },
-                    },
-                ],
-                contract: MachineContract {
-                    id: contract_id(1),
-                    crash_context: psi_terminal::CrashContextMaximum::portable_root(),
-                    requires: vec![goal.clone()],
-                    ensures: vec![ContractClause {
-                        obligation,
-                        proposition: goal,
-                    }],
-                },
-            }],
-        },
-        proof_bundle: ProofBundle {
-            evidence: vec![ObligationEvidence {
-                obligation,
-                route: EvidenceRoute::KernelDerived(PrimitiveJudgment::ClosedIntegerRelation),
-            }],
-        },
-        debug_map: None,
-    }
-}
-
 fn bind_boolean_decision<F>(
     decision: LoweredBooleanDecision,
     continuation: &F,
@@ -4151,99 +3218,6 @@ fn boolean_decision_test_count(decision: &LoweredBooleanDecision) -> usize {
 struct LoweredBooleanDecisionTarget {
     block: BlockId,
     arguments: Vec<ValueId>,
-}
-
-#[allow(clippy::too_many_arguments)]
-fn emit_boolean_guard_decision_blocks(
-    decision: &LoweredBooleanDecision,
-    parameters: &[ValueDeclaration],
-    when_true_target: &LoweredBooleanDecisionTarget,
-    when_false_target: &LoweredBooleanDecisionTarget,
-    next_value_identity: &mut u64,
-    next_edge_identity: &mut u64,
-    all_operations: &mut Vec<Operation>,
-    blocks: &mut Vec<Option<Block>>,
-) -> LoweredBooleanDecisionTarget {
-    match decision {
-        LoweredBooleanDecision::Value(LoweredBooleanReturnExpression::Constant { value: true }) => {
-            when_true_target.clone()
-        }
-        LoweredBooleanDecision::Value(LoweredBooleanReturnExpression::Constant {
-            value: false,
-        }) => when_false_target.clone(),
-        LoweredBooleanDecision::Value(_) => {
-            unreachable!("guard control decisions end in canonical Boolean choices")
-        }
-        LoweredBooleanDecision::Test {
-            condition,
-            when_true,
-            when_false,
-        } => {
-            let block_index = blocks.len();
-            let block = block_id(
-                u64::try_from(block_index)
-                    .expect("block index fits a semantic identity")
-                    .checked_add(1)
-                    .expect("guard decision block identity is nonzero"),
-            );
-            blocks.push(None);
-            let operation_start = all_operations.len();
-            let condition =
-                emit_boolean_expression(condition, parameters, next_value_identity, all_operations);
-            let operation_end = all_operations.len();
-            let true_edge = edge_id(*next_edge_identity);
-            let false_edge = edge_id(
-                next_edge_identity
-                    .checked_add(1)
-                    .expect("guard false edge identity advances"),
-            );
-            *next_edge_identity = next_edge_identity
-                .checked_add(2)
-                .expect("guard decision edge identities advance");
-            let when_true = emit_boolean_guard_decision_blocks(
-                when_true,
-                parameters,
-                when_true_target,
-                when_false_target,
-                next_value_identity,
-                next_edge_identity,
-                all_operations,
-                blocks,
-            );
-            let when_false = emit_boolean_guard_decision_blocks(
-                when_false,
-                parameters,
-                when_true_target,
-                when_false_target,
-                next_value_identity,
-                next_edge_identity,
-                all_operations,
-                blocks,
-            );
-            blocks[block_index] = Some(Block {
-                id: block,
-                parameters: Vec::new(),
-                operations: all_operations[operation_start..operation_end].to_vec(),
-                terminator: Terminator::Conditional {
-                    condition,
-                    when_true: SuccessorEdge {
-                        edge: true_edge,
-                        target: when_true.block,
-                        arguments: when_true.arguments,
-                    },
-                    when_false: SuccessorEdge {
-                        edge: false_edge,
-                        target: when_false.block,
-                        arguments: when_false.arguments,
-                    },
-                },
-            });
-            LoweredBooleanDecisionTarget {
-                block,
-                arguments: Vec::new(),
-            }
-        }
-    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -4456,6 +3430,87 @@ fn emit_reserved_boolean_value_blocks(
         terminator,
     });
     block
+}
+
+#[allow(clippy::too_many_arguments)]
+fn emit_inlined_boolean_value_blocks(
+    decision: &LoweredBooleanDecision,
+    parameters: &[ValueDeclaration],
+    block_parameters: Vec<ValueDeclaration>,
+    exit: LoweredBooleanDecisionExit,
+    source_block: BlockId,
+    first_synthetic_block: BlockId,
+    next_value_identity: &mut u64,
+    next_edge_identity: &mut u64,
+    all_operations: &mut Vec<Operation>,
+) -> (Block, Vec<Block>) {
+    let first_reserved_identity = first_synthetic_block
+        .get()
+        .checked_sub(1)
+        .expect("synthetic Boolean blocks follow source blocks");
+    let mut reserved = Vec::new();
+    let entry = emit_reserved_boolean_value_blocks(
+        decision,
+        parameters,
+        block_parameters,
+        exit,
+        first_reserved_identity,
+        next_value_identity,
+        next_edge_identity,
+        all_operations,
+        &mut reserved,
+    );
+    assert_eq!(entry.get(), first_reserved_identity);
+    let mut reserved = reserved
+        .into_iter()
+        .map(|block| block.expect("every inlined Boolean value block is finalized"));
+    let mut root = reserved
+        .next()
+        .expect("short-circuit Boolean value has a decision root");
+    root.id = source_block;
+    (root, reserved.collect())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn emit_inlined_boolean_guard_blocks(
+    decision: &LoweredBooleanDecision,
+    parameters: &[ValueDeclaration],
+    block_parameters: Vec<ValueDeclaration>,
+    when_true_target: &LoweredBooleanDecisionTarget,
+    when_false_target: &LoweredBooleanDecisionTarget,
+    source_block: BlockId,
+    first_synthetic_block: BlockId,
+    next_value_identity: &mut u64,
+    next_edge_identity: &mut u64,
+    all_operations: &mut Vec<Operation>,
+) -> (Block, Vec<Block>) {
+    let first_reserved_identity = first_synthetic_block
+        .get()
+        .checked_sub(1)
+        .expect("synthetic Boolean blocks follow source blocks");
+    let mut reserved = Vec::new();
+    let entry = emit_reserved_boolean_guard_decision_blocks(
+        decision,
+        parameters,
+        block_parameters,
+        when_true_target,
+        when_false_target,
+        first_reserved_identity,
+        next_value_identity,
+        next_edge_identity,
+        all_operations,
+        &mut reserved,
+    );
+    assert_eq!(entry.block.get(), first_reserved_identity);
+    assert!(entry.arguments.is_empty());
+    let mut reserved = reserved
+        .into_iter()
+        .map(|block| block.expect("every inlined Boolean guard block is finalized"));
+    let mut root = reserved
+        .next()
+        .expect("short-circuit Boolean guard has a decision root");
+    root.id = source_block;
+    (root, reserved.collect())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -4687,50 +3742,6 @@ fn emit_boolean_decision_blocks(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn emit_boolean_return_blocks(
-    expression: &LoweredBooleanReturnExpression,
-    parameters: &[ValueDeclaration],
-    next_value_identity: &mut u64,
-    next_edge_identity: &mut u64,
-    all_operations: &mut Vec<Operation>,
-    blocks: &mut Vec<Option<Block>>,
-) -> BlockId {
-    if contains_short_circuit(expression) {
-        let decision = lower_boolean_value_decision(expression);
-        return emit_boolean_decision_blocks(
-            &decision,
-            parameters,
-            parameters.to_vec(),
-            LoweredBooleanDecisionExit::Return,
-            next_value_identity,
-            next_edge_identity,
-            all_operations,
-            blocks,
-        );
-    }
-
-    let block = block_id(
-        u64::try_from(blocks.len())
-            .expect("block count fits a semantic identity")
-            .checked_add(1)
-            .expect("Boolean return block identity is nonzero"),
-    );
-    let operation_start = all_operations.len();
-    let value =
-        emit_boolean_expression(expression, parameters, next_value_identity, all_operations);
-    let edge = edge_id(*next_edge_identity);
-    *next_edge_identity = next_edge_identity
-        .checked_add(1)
-        .expect("Boolean return edge identities advance");
-    blocks.push(Some(Block {
-        id: block,
-        parameters: parameters.to_vec(),
-        operations: all_operations[operation_start..].to_vec(),
-        terminator: Terminator::Return { edge, value },
-    }));
-    block
-}
-
 fn build_boolean_short_circuit_module(
     parameter_count: usize,
     return_expression: LoweredBooleanReturnExpression,
@@ -4969,748 +3980,10 @@ fn build_nested_conditional_target(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn build_nested_boolean_conditional_target(
-    target: usize,
-    arguments: &[LoweredBooleanReturnExpression],
-    current_parameters: &[ValueDeclaration],
-    next_block_identity: &mut u64,
-    next_value_identity: &mut u64,
-    pending_blocks: &mut Vec<PendingBooleanBlockGroup>,
-) -> LoweredBooleanDecisionTarget {
-    let target = block_id(
-        u64::try_from(target)
-            .expect("state index fits a semantic identity")
-            .checked_add(1)
-            .expect("block identity is nonzero"),
-    );
-    let direct_arguments = arguments
-        .iter()
-        .map(|argument| match argument {
-            LoweredBooleanReturnExpression::Parameter { position } => {
-                Some(current_parameters[*position].id)
-            }
-            LoweredBooleanReturnExpression::Constant { .. }
-            | LoweredBooleanReturnExpression::Not { .. }
-            | LoweredBooleanReturnExpression::Equal { .. }
-            | LoweredBooleanReturnExpression::IntegerComparison { .. }
-            | LoweredBooleanReturnExpression::And { .. }
-            | LoweredBooleanReturnExpression::Or { .. } => None,
-        })
-        .collect::<Option<Vec<_>>>();
-    if let Some(arguments) = direct_arguments {
-        return LoweredBooleanDecisionTarget {
-            block: target,
-            arguments,
-        };
-    }
-
-    let first_id = block_id(*next_block_identity);
-    if let [argument] = arguments
-        && contains_short_circuit(argument)
-    {
-        let decision = lower_boolean_value_decision(argument);
-        *next_block_identity = next_block_identity
-            .checked_add(
-                u64::try_from(boolean_decision_block_count(&decision))
-                    .expect("Boolean edge binding block count fits a semantic identity"),
-            )
-            .expect("Boolean edge binding block identities advance");
-        let parameters = current_parameters
-            .iter()
-            .map(|_| {
-                let parameter = ValueDeclaration {
-                    id: value_id(*next_value_identity),
-                    scalar_type: ScalarType::Boolean,
-                };
-                *next_value_identity = next_value_identity
-                    .checked_add(1)
-                    .expect("Boolean edge binding parameter identities advance");
-                parameter
-            })
-            .collect::<Vec<_>>();
-        pending_blocks.push(PendingBooleanBlockGroup::Value(PendingBooleanValueBlocks {
-            first_id,
-            parameters,
-            decision,
-            exit: LoweredBooleanDecisionExit::Jump { target },
-        }));
-    } else if arguments.iter().any(contains_short_circuit) {
-        let reserved_block_count = arguments
-            .iter()
-            .map(|argument| {
-                if contains_short_circuit(argument) {
-                    boolean_decision_block_count(&lower_boolean_value_decision(argument))
-                } else {
-                    1
-                }
-            })
-            .sum::<usize>()
-            .checked_add(1)
-            .expect("Boolean edge tuple convergence block count advances");
-        *next_block_identity = next_block_identity
-            .checked_add(
-                u64::try_from(reserved_block_count)
-                    .expect("Boolean edge tuple block count fits a semantic identity"),
-            )
-            .expect("Boolean edge tuple block identities advance");
-        let stage_parameters = (0..=arguments.len())
-            .map(|completed_argument_count| {
-                (0..current_parameters.len() + completed_argument_count)
-                    .map(|_| {
-                        let parameter = ValueDeclaration {
-                            id: value_id(*next_value_identity),
-                            scalar_type: ScalarType::Boolean,
-                        };
-                        *next_value_identity = next_value_identity
-                            .checked_add(1)
-                            .expect("Boolean edge tuple parameter identities advance");
-                        parameter
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .collect::<Vec<_>>();
-        pending_blocks.push(PendingBooleanBlockGroup::TupleBinding(
-            PendingBooleanTupleBindingBlocks {
-                first_id,
-                original_parameter_count: current_parameters.len(),
-                arguments: arguments.to_vec(),
-                stage_parameters,
-                target,
-            },
-        ));
-    } else {
-        *next_block_identity = next_block_identity
-            .checked_add(1)
-            .expect("Boolean direct edge binding block identities advance");
-        let parameters = current_parameters
-            .iter()
-            .map(|_| {
-                let parameter = ValueDeclaration {
-                    id: value_id(*next_value_identity),
-                    scalar_type: ScalarType::Boolean,
-                };
-                *next_value_identity = next_value_identity
-                    .checked_add(1)
-                    .expect("Boolean direct edge binding parameter identities advance");
-                parameter
-            })
-            .collect::<Vec<_>>();
-        pending_blocks.push(PendingBooleanBlockGroup::DirectBinding(
-            PendingBooleanDirectBindingBlock {
-                id: first_id,
-                parameters,
-                target,
-                arguments: arguments.to_vec(),
-            },
-        ));
-    }
-
-    LoweredBooleanDecisionTarget {
-        block: first_id,
-        arguments: current_parameters
-            .iter()
-            .map(|parameter| parameter.id)
-            .collect(),
-    }
-}
-
-fn build_nested_boolean_branch_module(
-    states: &[LoweredBooleanBranchState],
-    contract_value: bool,
-    identity_reshuffles: LoweredContentIdentityReshuffles,
-    partition_compositions: LoweredContentPartitionCompositions,
-) -> LoweredTerminalPsi {
-    let parameters = (0..states[0].parameter_count)
-        .map(|index| ValueDeclaration {
-            id: value_id(
-                u64::try_from(index)
-                    .expect("parameter index fits a semantic identity")
-                    .checked_add(1)
-                    .expect("parameter identity is nonzero"),
-            ),
-            scalar_type: ScalarType::Boolean,
-        })
-        .collect::<Vec<_>>();
-    let mut next_value_identity = u64::try_from(parameters.len())
-        .expect("parameter count fits a semantic identity")
-        .checked_add(1)
-        .expect("nested Boolean values follow machine parameters");
-    let mut state_parameters = Vec::with_capacity(states.len());
-    state_parameters.push(parameters.clone());
-    for state in &states[1..] {
-        state_parameters.push(
-            (0..state.parameter_count)
-                .map(|_| {
-                    let parameter = ValueDeclaration {
-                        id: value_id(next_value_identity),
-                        scalar_type: ScalarType::Boolean,
-                    };
-                    next_value_identity = next_value_identity
-                        .checked_add(1)
-                        .expect("nested Boolean block parameter identities advance");
-                    parameter
-                })
-                .collect(),
-        );
-    }
-
-    let mut all_operations = Vec::new();
-    let mut next_edge_identity = 1_u64;
-    let mut next_block_identity = u64::try_from(states.len())
-        .expect("Boolean state count fits a semantic identity")
-        .checked_add(1)
-        .expect("Boolean decision blocks follow source blocks");
-    let mut pending_blocks = Vec::new();
-    let mut blocks = Vec::with_capacity(states.len());
-    for (index, state) in states.iter().enumerate() {
-        let operation_start = all_operations.len();
-        let current_parameters = &state_parameters[index];
-        let terminator = match &state.terminator {
-            LoweredBooleanBranchTerminator::Jump { target, arguments } => {
-                let target = block_id(
-                    u64::try_from(*target)
-                        .expect("state index fits a semantic identity")
-                        .checked_add(1)
-                        .expect("block identity is nonzero"),
-                );
-                if arguments.len() > 1 && arguments.iter().any(contains_short_circuit) {
-                    let first_id = block_id(next_block_identity);
-                    let reserved_block_count = arguments
-                        .iter()
-                        .map(|argument| {
-                            if contains_short_circuit(argument) {
-                                boolean_decision_block_count(&lower_boolean_value_decision(
-                                    argument,
-                                ))
-                            } else {
-                                1
-                            }
-                        })
-                        .sum::<usize>()
-                        .checked_add(1)
-                        .expect("Boolean tuple convergence block count advances");
-                    next_block_identity = next_block_identity
-                        .checked_add(
-                            u64::try_from(reserved_block_count)
-                                .expect("Boolean tuple block count fits a semantic identity"),
-                        )
-                        .expect("Boolean tuple block identities advance");
-                    let stage_parameters = (0..=arguments.len())
-                        .map(|completed_argument_count| {
-                            (0..state.parameter_count + completed_argument_count)
-                                .map(|_| {
-                                    let parameter = ValueDeclaration {
-                                        id: value_id(next_value_identity),
-                                        scalar_type: ScalarType::Boolean,
-                                    };
-                                    next_value_identity = next_value_identity
-                                        .checked_add(1)
-                                        .expect("Boolean tuple parameter identities advance");
-                                    parameter
-                                })
-                                .collect::<Vec<_>>()
-                        })
-                        .collect::<Vec<_>>();
-                    pending_blocks.push(PendingBooleanBlockGroup::TupleBinding(
-                        PendingBooleanTupleBindingBlocks {
-                            first_id,
-                            original_parameter_count: state.parameter_count,
-                            arguments: arguments.clone(),
-                            stage_parameters,
-                            target,
-                        },
-                    ));
-                    let edge = edge_id(next_edge_identity);
-                    next_edge_identity = next_edge_identity
-                        .checked_add(1)
-                        .expect("Boolean tuple entry edge identity advances");
-                    Terminator::Jump {
-                        edge,
-                        target: first_id,
-                        arguments: current_parameters
-                            .iter()
-                            .map(|parameter| parameter.id)
-                            .collect(),
-                    }
-                } else if let [argument] = arguments.as_slice()
-                    && contains_short_circuit(argument)
-                {
-                    let decision = lower_boolean_value_decision(argument);
-                    let first_id = block_id(next_block_identity);
-                    next_block_identity = next_block_identity
-                        .checked_add(
-                            u64::try_from(boolean_decision_block_count(&decision))
-                                .expect("Boolean binding block count fits a semantic identity"),
-                        )
-                        .expect("Boolean binding block identities advance");
-                    let decision_parameters = (0..state.parameter_count)
-                        .map(|_| {
-                            let parameter = ValueDeclaration {
-                                id: value_id(next_value_identity),
-                                scalar_type: ScalarType::Boolean,
-                            };
-                            next_value_identity = next_value_identity
-                                .checked_add(1)
-                                .expect("Boolean binding parameter identities advance");
-                            parameter
-                        })
-                        .collect::<Vec<_>>();
-                    pending_blocks.push(PendingBooleanBlockGroup::Value(
-                        PendingBooleanValueBlocks {
-                            first_id,
-                            parameters: decision_parameters,
-                            decision,
-                            exit: LoweredBooleanDecisionExit::Jump { target },
-                        },
-                    ));
-                    let edge = edge_id(next_edge_identity);
-                    next_edge_identity = next_edge_identity
-                        .checked_add(1)
-                        .expect("Boolean binding entry edge identity advances");
-                    Terminator::Jump {
-                        edge,
-                        target: first_id,
-                        arguments: current_parameters
-                            .iter()
-                            .map(|parameter| parameter.id)
-                            .collect(),
-                    }
-                } else {
-                    let arguments = arguments
-                        .iter()
-                        .map(|argument| {
-                            emit_boolean_expression(
-                                argument,
-                                current_parameters,
-                                &mut next_value_identity,
-                                &mut all_operations,
-                            )
-                        })
-                        .collect();
-                    let edge = edge_id(next_edge_identity);
-                    next_edge_identity = next_edge_identity
-                        .checked_add(1)
-                        .expect("nested Boolean jump edge identities advance");
-                    Terminator::Jump {
-                        edge,
-                        target,
-                        arguments,
-                    }
-                }
-            }
-            LoweredBooleanBranchTerminator::Conditional {
-                condition,
-                when_true_target,
-                when_true_arguments,
-                when_false_target,
-                when_false_arguments,
-            } => {
-                if contains_short_circuit(condition) {
-                    let decision = lower_boolean_control_decision(
-                        condition,
-                        LoweredBooleanDecision::Value(LoweredBooleanReturnExpression::Constant {
-                            value: true,
-                        }),
-                        LoweredBooleanDecision::Value(LoweredBooleanReturnExpression::Constant {
-                            value: false,
-                        }),
-                    );
-                    let decision_block_count = boolean_decision_test_count(&decision);
-                    let first_id = block_id(next_block_identity);
-                    next_block_identity = next_block_identity
-                        .checked_add(
-                            u64::try_from(decision_block_count)
-                                .expect("Boolean guard block count fits a semantic identity"),
-                        )
-                        .expect("Boolean guard block identities advance");
-                    let decision_parameters = (0..state.parameter_count)
-                        .map(|_| {
-                            let parameter = ValueDeclaration {
-                                id: value_id(next_value_identity),
-                                scalar_type: ScalarType::Boolean,
-                            };
-                            next_value_identity = next_value_identity
-                                .checked_add(1)
-                                .expect("Boolean guard parameter identities advance");
-                            parameter
-                        })
-                        .collect::<Vec<_>>();
-                    let when_true = build_nested_boolean_conditional_target(
-                        *when_true_target,
-                        when_true_arguments,
-                        &decision_parameters,
-                        &mut next_block_identity,
-                        &mut next_value_identity,
-                        &mut pending_blocks,
-                    );
-                    let when_false = build_nested_boolean_conditional_target(
-                        *when_false_target,
-                        when_false_arguments,
-                        &decision_parameters,
-                        &mut next_block_identity,
-                        &mut next_value_identity,
-                        &mut pending_blocks,
-                    );
-                    pending_blocks.push(PendingBooleanBlockGroup::Guard(
-                        PendingShortCircuitGuardBlocks {
-                            first_id,
-                            parameters: decision_parameters,
-                            decision,
-                            when_true,
-                            when_false,
-                        },
-                    ));
-                    let edge = edge_id(next_edge_identity);
-                    next_edge_identity = next_edge_identity
-                        .checked_add(1)
-                        .expect("Boolean guard entry edge identity advances");
-                    Terminator::Jump {
-                        edge,
-                        target: first_id,
-                        arguments: current_parameters
-                            .iter()
-                            .map(|parameter| parameter.id)
-                            .collect(),
-                    }
-                } else {
-                    let condition = emit_boolean_expression(
-                        condition,
-                        current_parameters,
-                        &mut next_value_identity,
-                        &mut all_operations,
-                    );
-                    let true_edge = edge_id(next_edge_identity);
-                    let false_edge = edge_id(
-                        next_edge_identity
-                            .checked_add(1)
-                            .expect("Boolean false edge identity advances"),
-                    );
-                    next_edge_identity = next_edge_identity
-                        .checked_add(2)
-                        .expect("Boolean conditional edge identities advance");
-                    let when_true = build_nested_boolean_conditional_target(
-                        *when_true_target,
-                        when_true_arguments,
-                        current_parameters,
-                        &mut next_block_identity,
-                        &mut next_value_identity,
-                        &mut pending_blocks,
-                    );
-                    let when_false = build_nested_boolean_conditional_target(
-                        *when_false_target,
-                        when_false_arguments,
-                        current_parameters,
-                        &mut next_block_identity,
-                        &mut next_value_identity,
-                        &mut pending_blocks,
-                    );
-                    Terminator::Conditional {
-                        condition,
-                        when_true: SuccessorEdge {
-                            edge: true_edge,
-                            target: when_true.block,
-                            arguments: when_true.arguments,
-                        },
-                        when_false: SuccessorEdge {
-                            edge: false_edge,
-                            target: when_false.block,
-                            arguments: when_false.arguments,
-                        },
-                    }
-                }
-            }
-            LoweredBooleanBranchTerminator::Return { expression } => {
-                if contains_short_circuit(expression) {
-                    let decision = lower_boolean_value_decision(expression);
-                    let first_id = block_id(next_block_identity);
-                    next_block_identity = next_block_identity
-                        .checked_add(
-                            u64::try_from(boolean_decision_block_count(&decision))
-                                .expect("Boolean return block count fits a semantic identity"),
-                        )
-                        .expect("Boolean return block identities advance");
-                    let decision_parameters = (0..state.parameter_count)
-                        .map(|_| {
-                            let parameter = ValueDeclaration {
-                                id: value_id(next_value_identity),
-                                scalar_type: ScalarType::Boolean,
-                            };
-                            next_value_identity = next_value_identity
-                                .checked_add(1)
-                                .expect("Boolean return parameter identities advance");
-                            parameter
-                        })
-                        .collect::<Vec<_>>();
-                    pending_blocks.push(PendingBooleanBlockGroup::Value(
-                        PendingBooleanValueBlocks {
-                            first_id,
-                            parameters: decision_parameters,
-                            decision,
-                            exit: LoweredBooleanDecisionExit::Return,
-                        },
-                    ));
-                    let edge = edge_id(next_edge_identity);
-                    next_edge_identity = next_edge_identity
-                        .checked_add(1)
-                        .expect("Boolean return entry edge identity advances");
-                    Terminator::Jump {
-                        edge,
-                        target: first_id,
-                        arguments: current_parameters
-                            .iter()
-                            .map(|parameter| parameter.id)
-                            .collect(),
-                    }
-                } else {
-                    let value = emit_boolean_expression(
-                        expression,
-                        current_parameters,
-                        &mut next_value_identity,
-                        &mut all_operations,
-                    );
-                    let edge = edge_id(next_edge_identity);
-                    next_edge_identity = next_edge_identity
-                        .checked_add(1)
-                        .expect("nested Boolean return edge identity advances");
-                    Terminator::Return { edge, value }
-                }
-            }
-        };
-        blocks.push(Block {
-            id: block_id(
-                u64::try_from(index)
-                    .expect("state index fits a semantic identity")
-                    .checked_add(1)
-                    .expect("block identity is nonzero"),
-            ),
-            parameters: if index == 0 {
-                Vec::new()
-            } else {
-                current_parameters.clone()
-            },
-            operations: all_operations[operation_start..].to_vec(),
-            terminator,
-        });
-    }
-    pending_blocks.sort_by_key(PendingBooleanBlockGroup::first_id);
-    for pending in pending_blocks {
-        let mut decision_blocks = Vec::new();
-        match pending {
-            PendingBooleanBlockGroup::Guard(pending) => {
-                let entry = emit_reserved_boolean_guard_decision_blocks(
-                    &pending.decision,
-                    &pending.parameters,
-                    pending.parameters.clone(),
-                    &pending.when_true,
-                    &pending.when_false,
-                    pending.first_id.get(),
-                    &mut next_value_identity,
-                    &mut next_edge_identity,
-                    &mut all_operations,
-                    &mut decision_blocks,
-                );
-                assert_eq!(entry.block, pending.first_id);
-            }
-            PendingBooleanBlockGroup::Value(pending) => {
-                let entry = emit_reserved_boolean_value_blocks(
-                    &pending.decision,
-                    &pending.parameters,
-                    pending.parameters.clone(),
-                    pending.exit,
-                    pending.first_id.get(),
-                    &mut next_value_identity,
-                    &mut next_edge_identity,
-                    &mut all_operations,
-                    &mut decision_blocks,
-                );
-                assert_eq!(entry, pending.first_id);
-            }
-            PendingBooleanBlockGroup::TupleBinding(pending) => {
-                let mut next_stage_identity = pending.first_id.get();
-                for (index, argument) in pending.arguments.iter().enumerate() {
-                    let parameters = &pending.stage_parameters[index];
-                    let carried_arguments = parameters
-                        .iter()
-                        .map(|parameter| parameter.id)
-                        .collect::<Vec<_>>();
-                    if contains_short_circuit(argument) {
-                        let decision = lower_boolean_value_decision(argument);
-                        let stage_block_count = boolean_decision_block_count(&decision);
-                        let next_stage =
-                            block_id(
-                                next_stage_identity
-                                    .checked_add(u64::try_from(stage_block_count).expect(
-                                        "Boolean tuple stage count fits a semantic identity",
-                                    ))
-                                    .expect("Boolean tuple stage block identities advance"),
-                            );
-                        let mut stage_blocks = Vec::with_capacity(stage_block_count);
-                        let entry = emit_reserved_boolean_tuple_stage_blocks(
-                            &decision,
-                            parameters,
-                            parameters.clone(),
-                            next_stage,
-                            &carried_arguments,
-                            next_stage_identity,
-                            &mut next_value_identity,
-                            &mut next_edge_identity,
-                            &mut all_operations,
-                            &mut stage_blocks,
-                        );
-                        assert_eq!(entry.get(), next_stage_identity);
-                        decision_blocks.extend(stage_blocks);
-                        next_stage_identity = next_stage.get();
-                    } else {
-                        let operation_start = all_operations.len();
-                        let value = emit_boolean_expression(
-                            argument,
-                            parameters,
-                            &mut next_value_identity,
-                            &mut all_operations,
-                        );
-                        let mut arguments = carried_arguments;
-                        arguments.push(value);
-                        let next_stage = block_id(
-                            next_stage_identity
-                                .checked_add(1)
-                                .expect("Boolean tuple stage block identity advances"),
-                        );
-                        let edge = edge_id(next_edge_identity);
-                        next_edge_identity = next_edge_identity
-                            .checked_add(1)
-                            .expect("Boolean tuple stage edge identity advances");
-                        decision_blocks.push(Some(Block {
-                            id: block_id(next_stage_identity),
-                            parameters: parameters.clone(),
-                            operations: all_operations[operation_start..].to_vec(),
-                            terminator: Terminator::Jump {
-                                edge,
-                                target: next_stage,
-                                arguments,
-                            },
-                        }));
-                        next_stage_identity = next_stage.get();
-                    }
-                }
-                let parameters = pending
-                    .stage_parameters
-                    .last()
-                    .expect("Boolean tuple has a convergence parameter set");
-                let edge = edge_id(next_edge_identity);
-                next_edge_identity = next_edge_identity
-                    .checked_add(1)
-                    .expect("Boolean tuple convergence edge identity advances");
-                decision_blocks.push(Some(Block {
-                    id: block_id(next_stage_identity),
-                    parameters: parameters.clone(),
-                    operations: Vec::new(),
-                    terminator: Terminator::Jump {
-                        edge,
-                        target: pending.target,
-                        arguments: parameters[pending.original_parameter_count..]
-                            .iter()
-                            .map(|parameter| parameter.id)
-                            .collect(),
-                    },
-                }));
-            }
-            PendingBooleanBlockGroup::DirectBinding(pending) => {
-                let operation_start = all_operations.len();
-                let arguments = pending
-                    .arguments
-                    .iter()
-                    .map(|argument| {
-                        emit_boolean_expression(
-                            argument,
-                            &pending.parameters,
-                            &mut next_value_identity,
-                            &mut all_operations,
-                        )
-                    })
-                    .collect();
-                let edge = edge_id(next_edge_identity);
-                next_edge_identity = next_edge_identity
-                    .checked_add(1)
-                    .expect("Boolean direct binding edge identity advances");
-                decision_blocks.push(Some(Block {
-                    id: pending.id,
-                    parameters: pending.parameters,
-                    operations: all_operations[operation_start..].to_vec(),
-                    terminator: Terminator::Jump {
-                        edge,
-                        target: pending.target,
-                        arguments,
-                    },
-                }));
-            }
-        }
-        blocks.extend(
-            decision_blocks
-                .into_iter()
-                .map(|block| block.expect("every reserved nested Boolean block is finalized")),
-        );
-    }
-
-    let result = ValueDeclaration {
-        id: value_id(next_value_identity),
-        scalar_type: ScalarType::Boolean,
-    };
-    let literal = ScalarTerm::boolean(contract_value);
-    let goal = Proposition::Equal(literal.clone(), literal);
-    let obligation = obligation_id(1);
-    let mut structural_places = identity_reshuffles
-        .structural_places
-        .into_iter()
-        .map(|place| (place.id, place.kind))
-        .collect::<BTreeMap<_, _>>();
-    for place in partition_compositions.structural_places {
-        merge_content_place_declaration(&mut structural_places, place)
-            .expect("checked lowering rejects conflicting structural places");
-    }
-    LoweredTerminalPsi {
-        semantic_module: TerminalModule {
-            semantic_version: SemanticVersion::CURRENT,
-            entry: machine_id(1),
-            proposition_declarations: Vec::new(),
-            proposition_applications: Vec::new(),
-            machines: vec![TerminalMachine {
-                id: machine_id(1),
-                parameters,
-                result,
-                structural_places: structural_places
-                    .into_iter()
-                    .map(|(id, kind)| StructuralPlaceDeclaration { id, kind })
-                    .collect(),
-                content_entry_claims: identity_reshuffles.entry_claims,
-                content_identity_reshuffles: identity_reshuffles.reshuffles,
-                content_partition_compositions: partition_compositions.compositions,
-                entry: block_id(1),
-                blocks,
-                contract: MachineContract {
-                    id: contract_id(1),
-                    crash_context: psi_terminal::CrashContextMaximum::portable_root(),
-                    requires: vec![goal.clone()],
-                    ensures: vec![ContractClause {
-                        obligation,
-                        proposition: goal,
-                    }],
-                },
-            }],
-        },
-        proof_bundle: ProofBundle {
-            evidence: vec![ObligationEvidence {
-                obligation,
-                route: EvidenceRoute::KernelDerived(PrimitiveJudgment::ReflexiveEquality),
-            }],
-        },
-        debug_map: None,
-    }
-}
-
-fn build_nested_integer_branch_module(
-    states: &[LoweredIntegerBranchState],
+fn build_nested_scalar_branch_module(
+    states: &[LoweredScalarBranchState],
     result_type: ScalarType,
-    contract_value: IntegerValue,
+    contract_value: KnownDirectScalar,
     identity_reshuffles: LoweredContentIdentityReshuffles,
     partition_compositions: LoweredContentPartitionCompositions,
 ) -> LoweredTerminalPsi {
@@ -5760,13 +4033,57 @@ fn build_nested_integer_branch_module(
         .checked_add(1)
         .expect("conditional binding blocks follow source blocks");
     let mut pending_blocks = Vec::new();
+    let mut inlined_blocks = Vec::new();
     let mut blocks = Vec::with_capacity(states.len());
     for (index, state) in states.iter().enumerate() {
         let operation_start = all_operations.len();
         let current_parameters = &state_parameters[index];
+        let source_block = block_id(
+            u64::try_from(index)
+                .expect("state index fits a semantic identity")
+                .checked_add(1)
+                .expect("block identity is nonzero"),
+        );
+        let source_block_parameters = if index == 0 {
+            Vec::new()
+        } else {
+            current_parameters.clone()
+        };
         let terminator = match &state.terminator {
-            LoweredIntegerBranchTerminator::Jump { target, arguments } => {
-                if arguments
+            LoweredScalarBranchTerminator::Jump { target, arguments } => {
+                if let [LoweredDirectExpression::Boolean { expression }] = arguments.as_slice()
+                    && contains_short_circuit(expression)
+                {
+                    let decision = lower_boolean_value_decision(expression);
+                    let block_count = boolean_decision_block_count(&decision);
+                    let first_synthetic_block = block_id(next_block_identity);
+                    next_block_identity = next_block_identity
+                        .checked_add(
+                            u64::try_from(block_count - 1)
+                                .expect("Boolean binding child count fits a semantic identity"),
+                        )
+                        .expect("Boolean binding block identities advance");
+                    let target = block_id(
+                        u64::try_from(*target)
+                            .expect("state index fits a semantic identity")
+                            .checked_add(1)
+                            .expect("block identity is nonzero"),
+                    );
+                    let (root, children) = emit_inlined_boolean_value_blocks(
+                        &decision,
+                        current_parameters,
+                        source_block_parameters,
+                        LoweredBooleanDecisionExit::Jump { target },
+                        source_block,
+                        first_synthetic_block,
+                        &mut next_value_identity,
+                        &mut next_edge_identity,
+                        &mut all_operations,
+                    );
+                    blocks.push(root);
+                    inlined_blocks.extend(children);
+                    continue;
+                } else if arguments
                     .iter()
                     .any(direct_expression_contains_short_circuit)
                 {
@@ -5816,7 +4133,7 @@ fn build_nested_integer_branch_module(
                     }
                 }
             }
-            LoweredIntegerBranchTerminator::Conditional {
+            LoweredScalarBranchTerminator::Conditional {
                 condition,
                 when_true_target,
                 when_true_arguments,
@@ -5835,31 +4152,17 @@ fn build_nested_integer_branch_module(
                     );
                     let decision_block_count = boolean_decision_test_count(&decision);
                     debug_assert!(decision_block_count > 0);
-                    let first_id = block_id(next_block_identity);
+                    let first_synthetic_block = block_id(next_block_identity);
                     next_block_identity = next_block_identity
                         .checked_add(
-                            u64::try_from(decision_block_count)
-                                .expect("nested guard block count fits a semantic identity"),
+                            u64::try_from(decision_block_count - 1)
+                                .expect("nested guard child count fits a semantic identity"),
                         )
                         .expect("nested guard block identities advance");
-                    let decision_parameters = state
-                        .parameter_types
-                        .iter()
-                        .map(|scalar_type| {
-                            let parameter = ValueDeclaration {
-                                id: value_id(next_value_identity),
-                                scalar_type: *scalar_type,
-                            };
-                            next_value_identity = next_value_identity
-                                .checked_add(1)
-                                .expect("nested guard parameter identities advance");
-                            parameter
-                        })
-                        .collect::<Vec<_>>();
                     let when_true = build_nested_conditional_target(
                         *when_true_target,
                         when_true_arguments,
-                        &decision_parameters,
+                        current_parameters,
                         &state.parameter_types,
                         &mut next_block_identity,
                         &mut next_value_identity,
@@ -5868,33 +4171,27 @@ fn build_nested_integer_branch_module(
                     let when_false = build_nested_conditional_target(
                         *when_false_target,
                         when_false_arguments,
-                        &decision_parameters,
+                        current_parameters,
                         &state.parameter_types,
                         &mut next_block_identity,
                         &mut next_value_identity,
                         &mut pending_blocks,
                     );
-                    pending_blocks.push(PendingNestedBlockGroup::ShortCircuitGuard(
-                        PendingShortCircuitGuardBlocks {
-                            first_id,
-                            parameters: decision_parameters,
-                            decision,
-                            when_true,
-                            when_false,
-                        },
-                    ));
-                    let edge = edge_id(next_edge_identity);
-                    next_edge_identity = next_edge_identity
-                        .checked_add(1)
-                        .expect("nested guard entry edge identity advances");
-                    Terminator::Jump {
-                        edge,
-                        target: first_id,
-                        arguments: current_parameters
-                            .iter()
-                            .map(|parameter| parameter.id)
-                            .collect(),
-                    }
+                    let (root, children) = emit_inlined_boolean_guard_blocks(
+                        &decision,
+                        current_parameters,
+                        source_block_parameters,
+                        &when_true,
+                        &when_false,
+                        source_block,
+                        first_synthetic_block,
+                        &mut next_value_identity,
+                        &mut next_edge_identity,
+                        &mut all_operations,
+                    );
+                    blocks.push(root);
+                    inlined_blocks.extend(children);
+                    continue;
                 } else {
                     let condition = emit_boolean_expression(
                         condition,
@@ -5943,20 +4240,48 @@ fn build_nested_integer_branch_module(
                     }
                 }
             }
-            LoweredIntegerBranchTerminator::Return { expression } => {
-                let value = emit_direct_expression(
-                    expression,
-                    current_parameters,
-                    &mut next_value_identity,
-                    &mut all_operations,
-                );
-                let edge = edge_id(next_edge_identity);
-                next_edge_identity = next_edge_identity
-                    .checked_add(1)
-                    .expect("nested return edge identities advance");
-                Terminator::Return { edge, value }
+            LoweredScalarBranchTerminator::Return { expression } => {
+                if let LoweredDirectExpression::Boolean { expression } = expression
+                    && contains_short_circuit(expression)
+                {
+                    let decision = lower_boolean_value_decision(expression);
+                    let block_count = boolean_decision_block_count(&decision);
+                    let first_synthetic_block = block_id(next_block_identity);
+                    next_block_identity = next_block_identity
+                        .checked_add(
+                            u64::try_from(block_count - 1)
+                                .expect("scalar return child count fits a semantic identity"),
+                        )
+                        .expect("scalar return block identities advance");
+                    let (root, children) = emit_inlined_boolean_value_blocks(
+                        &decision,
+                        current_parameters,
+                        source_block_parameters,
+                        LoweredBooleanDecisionExit::Return,
+                        source_block,
+                        first_synthetic_block,
+                        &mut next_value_identity,
+                        &mut next_edge_identity,
+                        &mut all_operations,
+                    );
+                    blocks.push(root);
+                    inlined_blocks.extend(children);
+                    continue;
+                } else {
+                    let value = emit_direct_expression(
+                        expression,
+                        current_parameters,
+                        &mut next_value_identity,
+                        &mut all_operations,
+                    );
+                    let edge = edge_id(next_edge_identity);
+                    next_edge_identity = next_edge_identity
+                        .checked_add(1)
+                        .expect("nested return edge identities advance");
+                    Terminator::Return { edge, value }
+                }
             }
-            LoweredIntegerBranchTerminator::Crash(crash) => {
+            LoweredScalarBranchTerminator::Crash(crash) => {
                 let edge = edge_id(next_edge_identity);
                 next_edge_identity = next_edge_identity
                     .checked_add(1)
@@ -5971,21 +4296,13 @@ fn build_nested_integer_branch_module(
             }
         };
         blocks.push(Block {
-            id: block_id(
-                u64::try_from(index)
-                    .expect("state index fits a semantic identity")
-                    .checked_add(1)
-                    .expect("block identity is nonzero"),
-            ),
-            parameters: if index == 0 {
-                Vec::new()
-            } else {
-                current_parameters.clone()
-            },
+            id: source_block,
+            parameters: source_block_parameters,
             operations: all_operations[operation_start..].to_vec(),
             terminator,
         });
     }
+    blocks.extend(inlined_blocks);
     pending_blocks.sort_by_key(PendingNestedBlockGroup::first_id);
     for pending in pending_blocks {
         match pending {
@@ -6120,39 +4437,25 @@ fn build_nested_integer_branch_module(
                         .map(|block| block.expect("every reserved mixed tuple block is finalized")),
                 );
             }
-            PendingNestedBlockGroup::ShortCircuitGuard(pending) => {
-                let mut decision_blocks = Vec::new();
-                let entry = emit_reserved_boolean_guard_decision_blocks(
-                    &pending.decision,
-                    &pending.parameters,
-                    pending.parameters.clone(),
-                    &pending.when_true,
-                    &pending.when_false,
-                    pending.first_id.get(),
-                    &mut next_value_identity,
-                    &mut next_edge_identity,
-                    &mut all_operations,
-                    &mut decision_blocks,
-                );
-                assert_eq!(entry.block, pending.first_id);
-                assert!(entry.arguments.is_empty());
-                blocks.extend(
-                    decision_blocks.into_iter().map(|block| {
-                        block.expect("every reserved nested guard block is finalized")
-                    }),
-                );
-            }
         }
     }
+    blocks.sort_by_key(|block| block.id);
     let result = ValueDeclaration {
         id: value_id(next_value_identity),
         scalar_type: result_type,
     };
-    let ScalarType::Integer(integer_type) = result_type else {
-        unreachable!("nested branch source slice has an integer result")
+    let (literal, evidence_route) = match (result_type, contract_value) {
+        (ScalarType::Boolean, KnownDirectScalar::Boolean(value)) => (
+            ScalarTerm::boolean(value),
+            EvidenceRoute::KernelDerived(PrimitiveJudgment::ReflexiveEquality),
+        ),
+        (ScalarType::Integer(integer_type), KnownDirectScalar::Integer(value)) => (
+            ScalarTerm::integer(integer_type, value)
+                .expect("validated source contract fits the result type"),
+            EvidenceRoute::KernelDerived(PrimitiveJudgment::ClosedIntegerRelation),
+        ),
+        _ => unreachable!("validated scalar contract matches the machine result type"),
     };
-    let literal = ScalarTerm::integer(integer_type, contract_value)
-        .expect("validated source contract fits the result type");
     let goal = Proposition::Equal(literal.clone(), literal);
     let obligation = obligation_id(1);
     let mut structural_places = identity_reshuffles
@@ -6197,7 +4500,7 @@ fn build_nested_integer_branch_module(
         proof_bundle: ProofBundle {
             evidence: vec![ObligationEvidence {
                 obligation,
-                route: EvidenceRoute::KernelDerived(PrimitiveJudgment::ClosedIntegerRelation),
+                route: evidence_route,
             }],
         },
         debug_map: None,
@@ -6389,170 +4692,6 @@ fn build_integer_comparison_module(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn build_boolean_conditional_module(
-    parameter_count: usize,
-    condition: LoweredBooleanReturnExpression,
-    when_true_arguments: Vec<usize>,
-    when_false_arguments: Vec<usize>,
-    when_true_parameter_count: usize,
-    when_false_parameter_count: usize,
-    when_true_expression: LoweredBooleanReturnExpression,
-    when_false_expression: LoweredBooleanReturnExpression,
-    contract_value: bool,
-    identity_reshuffles: LoweredContentIdentityReshuffles,
-    partition_compositions: LoweredContentPartitionCompositions,
-) -> LoweredTerminalPsi {
-    fn allocate_boolean_parameters(count: usize, next: &mut u64) -> Vec<ValueDeclaration> {
-        (0..count)
-            .map(|_| {
-                let parameter = ValueDeclaration {
-                    id: value_id(*next),
-                    scalar_type: ScalarType::Boolean,
-                };
-                *next = next
-                    .checked_add(1)
-                    .expect("Boolean parameter identities advance");
-                parameter
-            })
-            .collect()
-    }
-    let mut next_value_identity = 1_u64;
-    let parameters = allocate_boolean_parameters(parameter_count, &mut next_value_identity);
-    let condition_decision = lower_boolean_control_decision(
-        &condition,
-        LoweredBooleanDecision::Value(LoweredBooleanReturnExpression::Constant { value: true }),
-        LoweredBooleanDecision::Value(LoweredBooleanReturnExpression::Constant { value: false }),
-    );
-    let guard_block_count = boolean_decision_test_count(&condition_decision);
-    let true_block_count = if contains_short_circuit(&when_true_expression) {
-        boolean_decision_block_count(&lower_boolean_value_decision(&when_true_expression))
-    } else {
-        1
-    };
-    let true_target_block = block_id(
-        u64::try_from(guard_block_count)
-            .expect("guard block count fits a semantic identity")
-            .checked_add(1)
-            .expect("true branch follows the guard decision"),
-    );
-    let false_target_block = block_id(
-        true_target_block
-            .get()
-            .checked_add(
-                u64::try_from(true_block_count)
-                    .expect("true branch block count fits a semantic identity"),
-            )
-            .expect("false branch follows the true branch"),
-    );
-    let mut all_operations = Vec::new();
-    let mut blocks = Vec::new();
-    let mut next_edge_identity = 1_u64;
-    let entry = emit_boolean_guard_decision_blocks(
-        &condition_decision,
-        &parameters,
-        &LoweredBooleanDecisionTarget {
-            block: true_target_block,
-            arguments: when_true_arguments
-                .iter()
-                .map(|position| parameters[*position].id)
-                .collect(),
-        },
-        &LoweredBooleanDecisionTarget {
-            block: false_target_block,
-            arguments: when_false_arguments
-                .iter()
-                .map(|position| parameters[*position].id)
-                .collect(),
-        },
-        &mut next_value_identity,
-        &mut next_edge_identity,
-        &mut all_operations,
-        &mut blocks,
-    );
-    assert_eq!(entry.block, block_id(1));
-    assert!(entry.arguments.is_empty());
-    assert_eq!(blocks.len(), guard_block_count);
-    let true_parameters =
-        allocate_boolean_parameters(when_true_parameter_count, &mut next_value_identity);
-    let false_parameters =
-        allocate_boolean_parameters(when_false_parameter_count, &mut next_value_identity);
-    let true_target = emit_boolean_return_blocks(
-        &when_true_expression,
-        &true_parameters,
-        &mut next_value_identity,
-        &mut next_edge_identity,
-        &mut all_operations,
-        &mut blocks,
-    );
-    assert_eq!(true_target, true_target_block);
-    let false_target = emit_boolean_return_blocks(
-        &when_false_expression,
-        &false_parameters,
-        &mut next_value_identity,
-        &mut next_edge_identity,
-        &mut all_operations,
-        &mut blocks,
-    );
-    assert_eq!(false_target, false_target_block);
-    let result = ValueDeclaration {
-        id: value_id(next_value_identity),
-        scalar_type: ScalarType::Boolean,
-    };
-    let literal = ScalarTerm::boolean(contract_value);
-    let goal = Proposition::Equal(literal.clone(), literal);
-    let obligation = obligation_id(1);
-    let mut structural_places = identity_reshuffles
-        .structural_places
-        .into_iter()
-        .map(|place| (place.id, place.kind))
-        .collect::<BTreeMap<_, _>>();
-    for place in partition_compositions.structural_places {
-        merge_content_place_declaration(&mut structural_places, place)
-            .expect("checked lowering rejects conflicting structural places");
-    }
-    LoweredTerminalPsi {
-        semantic_module: TerminalModule {
-            semantic_version: SemanticVersion::CURRENT,
-            entry: machine_id(1),
-            proposition_declarations: Vec::new(),
-            proposition_applications: Vec::new(),
-            machines: vec![TerminalMachine {
-                id: machine_id(1),
-                parameters: parameters.clone(),
-                result,
-                structural_places: structural_places
-                    .into_iter()
-                    .map(|(id, kind)| StructuralPlaceDeclaration { id, kind })
-                    .collect(),
-                content_entry_claims: identity_reshuffles.entry_claims,
-                content_identity_reshuffles: identity_reshuffles.reshuffles,
-                content_partition_compositions: partition_compositions.compositions,
-                entry: block_id(1),
-                blocks: blocks
-                    .into_iter()
-                    .map(|block| block.expect("every Boolean conditional block is finalized"))
-                    .collect(),
-                contract: MachineContract {
-                    id: contract_id(1),
-                    crash_context: psi_terminal::CrashContextMaximum::portable_root(),
-                    requires: vec![goal.clone()],
-                    ensures: vec![ContractClause {
-                        obligation,
-                        proposition: goal,
-                    }],
-                },
-            }],
-        },
-        proof_bundle: ProofBundle {
-            evidence: vec![ObligationEvidence {
-                obligation,
-                route: EvidenceRoute::KernelDerived(PrimitiveJudgment::ReflexiveEquality),
-            }],
-        },
-        debug_map: None,
-    }
-}
-
 fn emit_boolean_expression(
     expression: &LoweredBooleanReturnExpression,
     parameters: &[ValueDeclaration],
@@ -6650,222 +4789,6 @@ fn emit_boolean_expression(
         LoweredBooleanReturnExpression::And { .. } | LoweredBooleanReturnExpression::Or { .. } => {
             unreachable!("short-circuit Boolean expressions lower through terminal control")
         }
-    }
-}
-
-fn build_boolean_state_chain_module(
-    parameter_count: usize,
-    jump_expressions: Vec<LoweredBooleanReturnExpression>,
-    return_expression: LoweredBooleanReturnExpression,
-    contract_value: bool,
-    identity_reshuffles: LoweredContentIdentityReshuffles,
-    partition_compositions: LoweredContentPartitionCompositions,
-) -> LoweredTerminalPsi {
-    let terminal_parameters = (0..parameter_count)
-        .map(|index| ValueDeclaration {
-            id: value_id(
-                u64::try_from(index)
-                    .expect("parameter index fits a semantic identity")
-                    .checked_add(1)
-                    .expect("parameter identity is nonzero"),
-            ),
-            scalar_type: ScalarType::Boolean,
-        })
-        .collect::<Vec<_>>();
-    let mut next_value_identity = u64::try_from(parameter_count)
-        .expect("parameter count fits a semantic identity")
-        .checked_add(1)
-        .expect("generated identities follow the parameter identities");
-    let mut all_operations = Vec::new();
-    let mut blocks = Vec::with_capacity(jump_expressions.len() + 1);
-    let mut current_parameters = terminal_parameters.clone();
-    let mut next_edge_identity = 1_u64;
-    for (index, jump_expression) in jump_expressions.iter().enumerate() {
-        let block_parameters = if index == 0 {
-            Vec::new()
-        } else {
-            current_parameters.clone()
-        };
-        if contains_short_circuit(jump_expression) {
-            let decision = lower_boolean_value_decision(jump_expression);
-            let decision_block_count = boolean_decision_block_count(&decision);
-            let target = block_id(
-                u64::try_from(blocks.len())
-                    .expect("generated block count fits a semantic identity")
-                    .checked_add(
-                        u64::try_from(decision_block_count)
-                            .expect("decision block count fits a semantic identity"),
-                    )
-                    .and_then(|identity| identity.checked_add(1))
-                    .expect("the next source-state block follows its decision tree"),
-            );
-            let expected_entry = block_id(
-                u64::try_from(blocks.len())
-                    .expect("generated block count fits a semantic identity")
-                    .checked_add(1)
-                    .expect("decision entry block identity is nonzero"),
-            );
-            let entry = emit_boolean_decision_blocks(
-                &decision,
-                &current_parameters,
-                block_parameters,
-                LoweredBooleanDecisionExit::Jump { target },
-                &mut next_value_identity,
-                &mut next_edge_identity,
-                &mut all_operations,
-                &mut blocks,
-            );
-            assert_eq!(entry, expected_entry);
-            assert_eq!(
-                blocks.len(),
-                usize::try_from(target.get()).expect("block identity fits usize") - 1,
-                "decision block count predicts the next source-state identity"
-            );
-        } else {
-            let operation_start = all_operations.len();
-            let jump_value = emit_boolean_expression(
-                jump_expression,
-                &current_parameters,
-                &mut next_value_identity,
-                &mut all_operations,
-            );
-            let block = block_id(
-                u64::try_from(blocks.len())
-                    .expect("block count fits a semantic identity")
-                    .checked_add(1)
-                    .expect("block identity is nonzero"),
-            );
-            let target = block_id(
-                block
-                    .get()
-                    .checked_add(1)
-                    .expect("target block identity follows its source"),
-            );
-            let edge = edge_id(next_edge_identity);
-            next_edge_identity = next_edge_identity
-                .checked_add(1)
-                .expect("state-chain jump edge identities advance");
-            blocks.push(Some(Block {
-                id: block,
-                parameters: block_parameters,
-                operations: all_operations[operation_start..].to_vec(),
-                terminator: Terminator::Jump {
-                    edge,
-                    target,
-                    arguments: vec![jump_value],
-                },
-            }));
-        }
-        let next_parameter = ValueDeclaration {
-            id: value_id(next_value_identity),
-            scalar_type: ScalarType::Boolean,
-        };
-        next_value_identity = next_value_identity
-            .checked_add(1)
-            .expect("generated identities advance after a Boolean block parameter");
-        current_parameters = vec![next_parameter];
-    }
-    if contains_short_circuit(&return_expression) {
-        let decision = lower_boolean_value_decision(&return_expression);
-        let expected_entry = block_id(
-            u64::try_from(blocks.len())
-                .expect("generated block count fits a semantic identity")
-                .checked_add(1)
-                .expect("decision entry block identity is nonzero"),
-        );
-        let entry = emit_boolean_decision_blocks(
-            &decision,
-            &current_parameters,
-            current_parameters.clone(),
-            LoweredBooleanDecisionExit::Return,
-            &mut next_value_identity,
-            &mut next_edge_identity,
-            &mut all_operations,
-            &mut blocks,
-        );
-        assert_eq!(entry, expected_entry);
-    } else {
-        let return_operation_start = all_operations.len();
-        let return_value = emit_boolean_expression(
-            &return_expression,
-            &current_parameters,
-            &mut next_value_identity,
-            &mut all_operations,
-        );
-        let block = block_id(
-            u64::try_from(blocks.len())
-                .expect("block count fits a semantic identity")
-                .checked_add(1)
-                .expect("block identity is nonzero"),
-        );
-        let edge = edge_id(next_edge_identity);
-        blocks.push(Some(Block {
-            id: block,
-            parameters: current_parameters,
-            operations: all_operations[return_operation_start..].to_vec(),
-            terminator: Terminator::Return {
-                edge,
-                value: return_value,
-            },
-        }));
-    }
-    let result_id = value_id(next_value_identity);
-    let literal = ScalarTerm::boolean(contract_value);
-    let goal = Proposition::Equal(literal.clone(), literal);
-    let obligation = obligation_id(1);
-    let mut structural_places = identity_reshuffles
-        .structural_places
-        .into_iter()
-        .map(|place| (place.id, place.kind))
-        .collect::<BTreeMap<_, _>>();
-    for place in partition_compositions.structural_places {
-        merge_content_place_declaration(&mut structural_places, place)
-            .expect("checked lowering rejects conflicting structural places");
-    }
-
-    LoweredTerminalPsi {
-        semantic_module: TerminalModule {
-            semantic_version: SemanticVersion::CURRENT,
-            entry: machine_id(1),
-            proposition_declarations: Vec::new(),
-            proposition_applications: Vec::new(),
-            machines: vec![TerminalMachine {
-                id: machine_id(1),
-                parameters: terminal_parameters,
-                result: ValueDeclaration {
-                    id: result_id,
-                    scalar_type: ScalarType::Boolean,
-                },
-                structural_places: structural_places
-                    .into_iter()
-                    .map(|(id, kind)| StructuralPlaceDeclaration { id, kind })
-                    .collect(),
-                content_entry_claims: identity_reshuffles.entry_claims,
-                content_identity_reshuffles: identity_reshuffles.reshuffles,
-                content_partition_compositions: partition_compositions.compositions,
-                entry: block_id(1),
-                blocks: blocks
-                    .into_iter()
-                    .map(|block| block.expect("every Boolean state-chain block is finalized"))
-                    .collect(),
-                contract: MachineContract {
-                    id: contract_id(1),
-                    crash_context: psi_terminal::CrashContextMaximum::portable_root(),
-                    requires: vec![goal.clone()],
-                    ensures: vec![ContractClause {
-                        obligation,
-                        proposition: goal,
-                    }],
-                },
-            }],
-        },
-        proof_bundle: ProofBundle {
-            evidence: vec![ObligationEvidence {
-                obligation,
-                route: EvidenceRoute::KernelDerived(PrimitiveJudgment::ReflexiveEquality),
-            }],
-        },
-        debug_map: None,
     }
 }
 

@@ -219,10 +219,12 @@ Remaining:
   reach both native targets. Compile-known propagation now carries typed
   Boolean and integer scalar facts through those bindings, follows the
   resulting selector, meets conservatively at joins, and rejects an unrelated
-  closed integer contract. Every multi-state integer-result machine now enters
-  the general typed DAG producer, including pure unconditional mixed-scalar
-  graphs; the duplicate integer-only chain lowerer and terminal builder are
-  retired.
+  closed integer contract. Every multi-state scalar-result machine now enters
+  one general typed DAG producer, including pure unconditional graphs and
+  three-state conditionals. Boolean-result graphs may carry and compute mixed
+  Boolean/integer bindings, preserve short-circuit returns, and retain checked
+  crash leaves. The duplicate integer-chain, three-state conditional,
+  Boolean-chain, and Boolean-DAG lowerers/builders are retired.
 - Replace all remaining terminal-path `ExpressionHandle` and source-tree
   dependencies with lowered values and predicates. Absorb useful StateGraph /
   ControlFlow topology, then retire the legacy backend lane as consumers move.
@@ -230,7 +232,7 @@ Remaining:
   buckets, including multiple alternative route facts and the unconditional
   `crashes Cause` shorthand, and preserves explicit `crash Cause;` exits through
   checked trees. Source production lowers crash-only machines covered by one
-  unconditional same-cause bucket and acyclic integer control whose crash
+  unconditional same-cause bucket and acyclic scalar control whose crash
   branch has one checker-proved incoming-path bucket, including the live
   structural implication rules; verification and direct
   interpretation retain cause, derived damage minimum, selected nominal

@@ -575,6 +575,65 @@ ensures true == true
     state finish_boolean_edge(left: bool, right: bool) -> bool { left == right }
 }
 
+machine terminal_mixed_scalar_boolean_graph(
+    choose_less: bool,
+    left: u8 in Wrapping,
+    right: u8 in Wrapping
+) -> bool
+requires true == true
+ensures true == true
+{
+    transition { _ -> compare_mixed_scalar(choose_less, left + 1u8, right * 2u8) }
+    state compare_mixed_scalar(
+        choose_less: bool,
+        left: u8 in Wrapping,
+        right: u8 in Wrapping
+    ) -> bool {
+        transition choose_less {
+            true -> finish_mixed_boolean(left < right)
+            _ -> finish_mixed_boolean(left == right)
+        }
+    }
+    state finish_mixed_boolean(value: bool) -> bool { value }
+}
+
+machine terminal_mixed_scalar_boolean_short_circuit(
+    first: bool,
+    second: bool,
+    value: u8 in Wrapping,
+    limit: u8 in Wrapping
+) -> bool
+requires true == true
+ensures true == true
+{
+    transition { _ -> finish_mixed_short_circuit(first && second, value + 1u8, limit) }
+    state finish_mixed_short_circuit(
+        selected: bool,
+        value: u8 in Wrapping,
+        limit: u8 in Wrapping
+    ) -> bool {
+        selected && value < limit
+    }
+}
+
+machine terminal_boolean_guarded_trap(flag: bool) -> bool
+requires true == true
+ensures true == true
+crashes Trap ExecutionDomain
+    flag
+{
+    transition flag {
+        true -> fail_boolean()
+        _ -> succeed_boolean()
+    }
+
+    state fail_boolean() -> bool {
+        crash Trap;
+    }
+
+    state succeed_boolean() -> bool { true }
+}
+
 machine terminal_runtime_saturating_add(value: u8 in Saturating) -> u8 in Saturating
 requires 255u8 == 255u8
 ensures 255u8 == 255u8
