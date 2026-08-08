@@ -829,6 +829,172 @@ fn checked_source_integer_graph_computes_boolean_jump_bindings() {
 }
 
 #[test]
+fn checked_source_integer_graph_stages_short_circuit_boolean_jump_bindings() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("short-circuit Boolean integer-graph source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_integer_short_circuit_boolean_binding")
+        .expect("integer graphs should stage short-circuit Boolean bindings");
+    drop(checked);
+
+    let machine = &lowered.semantic_module.machines[0];
+    assert_eq!(machine.blocks.len(), 11);
+    assert_eq!(
+        machine
+            .blocks
+            .iter()
+            .filter(|block| matches!(block.terminator, Terminator::Conditional { .. }))
+            .count(),
+        3
+    );
+    let semantic_bytes = encode_module(&lowered.semantic_module)
+        .expect("short-circuit Boolean integer graph should encode canonically");
+    let proof_bytes = encode_proof_bundle(&lowered.proof_bundle)
+        .expect("short-circuit Boolean integer-graph proof should encode canonically");
+    let semantic_module =
+        decode_module(&semantic_bytes).expect("short-circuit Boolean integer graph should decode");
+    let proof_bundle = decode_proof_bundle(&proof_bytes)
+        .expect("short-circuit Boolean integer-graph proof should decode");
+    let verified = verify_module(
+        &semantic_module,
+        &proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("short-circuit Boolean integer graph should verify after frontend drop");
+    assert_eq!(
+        derive_fixed_entry_fuel(&verified, semantic_module.entry)
+            .expect("short-circuit Boolean integer graph should have exact fuel")
+            .ceiling_units(),
+        10
+    );
+
+    let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let integer = |value| TerminalScalarValue::Integer {
+        scalar_type: u8_type,
+        value: IntegerValue::Unsigned(value),
+    };
+    for (first, second, expected, units) in [
+        (false, false, 20_u128, 9_u64),
+        (false, true, 20, 9),
+        (true, false, 20, 10),
+        (true, true, 10, 10),
+    ] {
+        let measured = interpret_terminal_measured(
+            &verified,
+            &[
+                TerminalScalarValue::Boolean(first),
+                TerminalScalarValue::Boolean(second),
+                integer(10),
+                integer(20),
+            ],
+        )
+        .expect("short-circuit Boolean integer graph should interpret");
+        assert_eq!(measured.value(), integer(expected));
+        assert_eq!(measured.usage().total_units(), units);
+    }
+
+    let abstract_operations = lower_verified_module(&verified)
+        .expect("short-circuit Boolean integer graph should cross the Omega boundary");
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_operations = lower_to_target_operations(&abstract_operations, target)
+            .expect("short-circuit Boolean integer graph should select for both native targets");
+        assert!(matches!(
+            target_operations.functions[0].operation,
+            TerminalTargetOperation::ReturnIntegerConditionalControl { .. }
+        ));
+        let assigned = assign_registers(&target_operations)
+            .expect("short-circuit Boolean integer-graph homes should assign");
+        let machine_code = emit_machine_code(&assigned)
+            .expect("short-circuit Boolean integer-graph machine code should emit");
+        assert!(!machine_code.functions[0].bytes.is_empty());
+    }
+}
+
+#[test]
+fn checked_source_integer_graph_localizes_short_circuit_boolean_edge_bindings() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("selected short-circuit Boolean source canary should compile");
+    let lowered = lower_machine(
+        &checked,
+        "terminal_integer_conditional_short_circuit_boolean_binding",
+    )
+    .expect("integer graphs should localize short-circuit Boolean edge bindings");
+    drop(checked);
+
+    let machine = &lowered.semantic_module.machines[0];
+    assert_eq!(machine.blocks.len(), 12);
+    assert_eq!(
+        machine
+            .blocks
+            .iter()
+            .filter(|block| matches!(block.terminator, Terminator::Conditional { .. }))
+            .count(),
+        4
+    );
+    let semantic_bytes = encode_module(&lowered.semantic_module)
+        .expect("selected short-circuit Boolean graph should encode canonically");
+    let proof_bytes = encode_proof_bundle(&lowered.proof_bundle)
+        .expect("selected short-circuit Boolean graph proof should encode canonically");
+    let semantic_module =
+        decode_module(&semantic_bytes).expect("selected short-circuit Boolean graph should decode");
+    let proof_bundle = decode_proof_bundle(&proof_bytes)
+        .expect("selected short-circuit Boolean graph proof should decode");
+    let verified = verify_module(
+        &semantic_module,
+        &proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("selected short-circuit Boolean graph should verify after frontend drop");
+    assert_eq!(
+        derive_fixed_entry_fuel(&verified, semantic_module.entry)
+            .expect("selected short-circuit Boolean graph should have exact fuel")
+            .ceiling_units(),
+        10
+    );
+
+    let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let integer = |value| TerminalScalarValue::Integer {
+        scalar_type: u8_type,
+        value: IntegerValue::Unsigned(value),
+    };
+    for (select, first, second, expected, units) in [
+        (false, true, true, 20_u128, 3_u64),
+        (true, false, true, 20, 9),
+        (true, true, false, 20, 10),
+        (true, true, true, 10, 10),
+    ] {
+        let measured = interpret_terminal_measured(
+            &verified,
+            &[
+                TerminalScalarValue::Boolean(select),
+                TerminalScalarValue::Boolean(first),
+                TerminalScalarValue::Boolean(second),
+                integer(10),
+                integer(20),
+            ],
+        )
+        .expect("selected short-circuit Boolean graph should interpret");
+        assert_eq!(measured.value(), integer(expected));
+        assert_eq!(measured.usage().total_units(), units);
+    }
+
+    let abstract_operations = lower_verified_module(&verified)
+        .expect("selected short-circuit Boolean graph should cross the Omega boundary");
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_operations = lower_to_target_operations(&abstract_operations, target)
+            .expect("selected short-circuit Boolean graph should select for both native targets");
+        assert!(matches!(
+            target_operations.functions[0].operation,
+            TerminalTargetOperation::ReturnIntegerConditionalControl { .. }
+        ));
+        let assigned = assign_registers(&target_operations)
+            .expect("selected short-circuit Boolean graph homes should assign");
+        let machine_code = emit_machine_code(&assigned)
+            .expect("selected short-circuit Boolean graph machine code should emit");
+        assert!(!machine_code.functions[0].bytes.is_empty());
+    }
+}
+
+#[test]
 fn checked_source_nested_jump_expressions_reach_terminal_and_native_lowering() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("computed nested-jump source canary should compile");

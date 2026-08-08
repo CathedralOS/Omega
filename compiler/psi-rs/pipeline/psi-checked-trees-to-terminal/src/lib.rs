@@ -284,6 +284,15 @@ struct PendingConditionalBindingBlock {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+struct PendingMixedTupleBindingBlocks {
+    first_id: BlockId,
+    original_parameter_count: usize,
+    arguments: Vec<LoweredDirectExpression>,
+    stage_parameters: Vec<Vec<ValueDeclaration>>,
+    target: BlockId,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct PendingShortCircuitGuardBlocks {
     first_id: BlockId,
     parameters: Vec<ValueDeclaration>,
@@ -295,6 +304,7 @@ struct PendingShortCircuitGuardBlocks {
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum PendingNestedBlockGroup {
     ConditionalBinding(PendingConditionalBindingBlock),
+    TupleBinding(PendingMixedTupleBindingBlocks),
     ShortCircuitGuard(PendingShortCircuitGuardBlocks),
 }
 
@@ -302,6 +312,7 @@ impl PendingNestedBlockGroup {
     fn first_id(&self) -> BlockId {
         match self {
             Self::ConditionalBinding(block) => block.id,
+            Self::TupleBinding(blocks) => blocks.first_id,
             Self::ShortCircuitGuard(blocks) => blocks.first_id,
         }
     }
@@ -3213,6 +3224,14 @@ fn contains_short_circuit(expression: &LoweredBooleanReturnExpression) -> bool {
     }
 }
 
+fn direct_expression_contains_short_circuit(expression: &LoweredDirectExpression) -> bool {
+    matches!(
+        expression,
+        LoweredDirectExpression::Boolean { expression }
+            if contains_short_circuit(expression)
+    )
+}
+
 fn validate_short_circuit_expression(
     expression: &LoweredBooleanReturnExpression,
 ) -> Result<(), LoweringError> {
@@ -3385,11 +3404,6 @@ fn lower_direct_return_expression(
         let expression = lower_boolean_expression(checked, expression, parameters)?;
         validate_short_circuit_expression(&expression)?;
         validate_boolean_parameter_types(&expression, parameter_types)?;
-        if contains_short_circuit(&expression) {
-            return unsupported(
-                "mixed scalar graph bindings do not support short-circuit Boolean expressions yet",
-            );
-        }
         return Ok((
             LoweredDirectExpression::Boolean {
                 expression: Box::new(expression),
@@ -4962,6 +4976,76 @@ fn build_nested_conditional_target(
         };
     }
 
+    if arguments
+        .iter()
+        .any(direct_expression_contains_short_circuit)
+    {
+        let first_id = block_id(*next_block_identity);
+        let reserved_block_count = arguments
+            .iter()
+            .map(|argument| match argument {
+                LoweredDirectExpression::Boolean { expression }
+                    if contains_short_circuit(expression) =>
+                {
+                    boolean_decision_block_count(&lower_boolean_value_decision(expression))
+                }
+                _ => 1,
+            })
+            .sum::<usize>()
+            .checked_add(1)
+            .expect("mixed tuple convergence block count advances");
+        *next_block_identity = next_block_identity
+            .checked_add(
+                u64::try_from(reserved_block_count)
+                    .expect("mixed tuple block count fits a semantic identity"),
+            )
+            .expect("mixed tuple block identities advance");
+        let stage_parameters = (0..=arguments.len())
+            .map(|completed_argument_count| {
+                let mut scalar_types = current_parameter_types.to_vec();
+                scalar_types.extend(
+                    arguments[..completed_argument_count]
+                        .iter()
+                        .map(LoweredDirectExpression::scalar_type),
+                );
+                scalar_types
+                    .into_iter()
+                    .map(|scalar_type| {
+                        let parameter = ValueDeclaration {
+                            id: value_id(*next_value_identity),
+                            scalar_type,
+                        };
+                        *next_value_identity = next_value_identity
+                            .checked_add(1)
+                            .expect("mixed tuple parameter identities advance");
+                        parameter
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+        pending_blocks.push(PendingNestedBlockGroup::TupleBinding(
+            PendingMixedTupleBindingBlocks {
+                first_id,
+                original_parameter_count: current_parameters.len(),
+                arguments: arguments.to_vec(),
+                stage_parameters,
+                target: block_id(
+                    u64::try_from(target)
+                        .expect("state index fits a semantic identity")
+                        .checked_add(1)
+                        .expect("block identity is nonzero"),
+                ),
+            },
+        ));
+        return LoweredBooleanDecisionTarget {
+            block: first_id,
+            arguments: current_parameters
+                .iter()
+                .map(|parameter| parameter.id)
+                .collect(),
+        };
+    }
+
     let id = block_id(*next_block_identity);
     *next_block_identity = next_block_identity
         .checked_add(1)
@@ -5794,30 +5878,54 @@ fn build_nested_integer_branch_module(
         let current_parameters = &state_parameters[index];
         let terminator = match &state.terminator {
             LoweredIntegerBranchTerminator::Jump { target, arguments } => {
-                let arguments = arguments
+                if arguments
                     .iter()
-                    .map(|argument| {
-                        emit_direct_expression(
-                            argument,
-                            current_parameters,
-                            &mut next_value_identity,
-                            &mut all_operations,
-                        )
-                    })
-                    .collect();
-                let edge = edge_id(next_edge_identity);
-                next_edge_identity = next_edge_identity
-                    .checked_add(1)
-                    .expect("nested jump edge identities advance");
-                Terminator::Jump {
-                    edge,
-                    target: block_id(
-                        u64::try_from(*target)
-                            .expect("state index fits a semantic identity")
-                            .checked_add(1)
-                            .expect("block identity is nonzero"),
-                    ),
-                    arguments,
+                    .any(direct_expression_contains_short_circuit)
+                {
+                    let target = build_nested_conditional_target(
+                        *target,
+                        arguments,
+                        current_parameters,
+                        &state.parameter_types,
+                        &mut next_block_identity,
+                        &mut next_value_identity,
+                        &mut pending_blocks,
+                    );
+                    let edge = edge_id(next_edge_identity);
+                    next_edge_identity = next_edge_identity
+                        .checked_add(1)
+                        .expect("mixed tuple entry edge identity advances");
+                    Terminator::Jump {
+                        edge,
+                        target: target.block,
+                        arguments: target.arguments,
+                    }
+                } else {
+                    let arguments = arguments
+                        .iter()
+                        .map(|argument| {
+                            emit_direct_expression(
+                                argument,
+                                current_parameters,
+                                &mut next_value_identity,
+                                &mut all_operations,
+                            )
+                        })
+                        .collect();
+                    let edge = edge_id(next_edge_identity);
+                    next_edge_identity = next_edge_identity
+                        .checked_add(1)
+                        .expect("nested jump edge identities advance");
+                    Terminator::Jump {
+                        edge,
+                        target: block_id(
+                            u64::try_from(*target)
+                                .expect("state index fits a semantic identity")
+                                .checked_add(1)
+                                .expect("block identity is nonzero"),
+                        ),
+                        arguments,
+                    }
                 }
             }
             LoweredIntegerBranchTerminator::Conditional {
@@ -6026,6 +6134,103 @@ fn build_nested_integer_branch_module(
                         arguments,
                     },
                 });
+            }
+            PendingNestedBlockGroup::TupleBinding(pending) => {
+                let mut pending_stage_blocks = Vec::new();
+                let mut next_stage_identity = pending.first_id.get();
+                for (index, argument) in pending.arguments.iter().enumerate() {
+                    let parameters = &pending.stage_parameters[index];
+                    let carried_arguments = parameters
+                        .iter()
+                        .map(|parameter| parameter.id)
+                        .collect::<Vec<_>>();
+                    if let LoweredDirectExpression::Boolean { expression } = argument
+                        && contains_short_circuit(expression)
+                    {
+                        let decision = lower_boolean_value_decision(expression);
+                        let stage_block_count = boolean_decision_block_count(&decision);
+                        let next_stage = block_id(
+                            next_stage_identity
+                                .checked_add(
+                                    u64::try_from(stage_block_count)
+                                        .expect("mixed tuple stage count fits a semantic identity"),
+                                )
+                                .expect("mixed tuple stage block identities advance"),
+                        );
+                        let mut stage_blocks = Vec::with_capacity(stage_block_count);
+                        let entry = emit_reserved_boolean_tuple_stage_blocks(
+                            &decision,
+                            parameters,
+                            parameters.clone(),
+                            next_stage,
+                            &carried_arguments,
+                            next_stage_identity,
+                            &mut next_value_identity,
+                            &mut next_edge_identity,
+                            &mut all_operations,
+                            &mut stage_blocks,
+                        );
+                        assert_eq!(entry.get(), next_stage_identity);
+                        pending_stage_blocks.extend(stage_blocks);
+                        next_stage_identity = next_stage.get();
+                    } else {
+                        let operation_start = all_operations.len();
+                        let value = emit_direct_expression(
+                            argument,
+                            parameters,
+                            &mut next_value_identity,
+                            &mut all_operations,
+                        );
+                        let mut arguments = carried_arguments;
+                        arguments.push(value);
+                        let next_stage = block_id(
+                            next_stage_identity
+                                .checked_add(1)
+                                .expect("mixed tuple stage block identity advances"),
+                        );
+                        let edge = edge_id(next_edge_identity);
+                        next_edge_identity = next_edge_identity
+                            .checked_add(1)
+                            .expect("mixed tuple stage edge identity advances");
+                        pending_stage_blocks.push(Some(Block {
+                            id: block_id(next_stage_identity),
+                            parameters: parameters.clone(),
+                            operations: all_operations[operation_start..].to_vec(),
+                            terminator: Terminator::Jump {
+                                edge,
+                                target: next_stage,
+                                arguments,
+                            },
+                        }));
+                        next_stage_identity = next_stage.get();
+                    }
+                }
+                let parameters = pending
+                    .stage_parameters
+                    .last()
+                    .expect("mixed tuple has a convergence parameter set");
+                let edge = edge_id(next_edge_identity);
+                next_edge_identity = next_edge_identity
+                    .checked_add(1)
+                    .expect("mixed tuple convergence edge identity advances");
+                pending_stage_blocks.push(Some(Block {
+                    id: block_id(next_stage_identity),
+                    parameters: parameters.clone(),
+                    operations: Vec::new(),
+                    terminator: Terminator::Jump {
+                        edge,
+                        target: pending.target,
+                        arguments: parameters[pending.original_parameter_count..]
+                            .iter()
+                            .map(|parameter| parameter.id)
+                            .collect(),
+                    },
+                }));
+                blocks.extend(
+                    pending_stage_blocks
+                        .into_iter()
+                        .map(|block| block.expect("every reserved mixed tuple block is finalized")),
+                );
             }
             PendingNestedBlockGroup::ShortCircuitGuard(pending) => {
                 let mut decision_blocks = Vec::new();

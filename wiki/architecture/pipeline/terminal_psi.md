@@ -178,10 +178,11 @@ The checked-source producer lowers scalar integer-result acyclic control graphs
 whose blocks return, jump unconditionally, or select one ordered
 positive-Boolean/fallback successor pair. Unconditional jumps may compute
 recursive exact-typed integer expressions for integer bindings and recursive
-non-short-circuit Boolean expressions for Boolean bindings. The latter include
-literal, negation, Boolean equality/inequality, and exact-type integer
-comparison forms, and may feed a later integer-result selector through an
-ordinary terminal block parameter. A computed
+Boolean expressions for Boolean bindings. Non-short forms include literal,
+negation, Boolean equality/inequality, and exact-type integer comparison;
+short-circuit forms use value-producing decision blocks inside typed
+left-to-right tuple stages. Either may feed a later integer-result selector
+through an ordinary terminal block parameter. A computed
 conditional successor binding lowers through a synthesized arm-local block:
 the conditional passes its current parameters into only the selected block,
 that block computes the recursive exact-typed arguments, and an ordinary jump
@@ -285,9 +286,12 @@ each linear block owns one unconditional successor, and leaves return a
 recursively nested integer expression. Successors bind ordered already-defined
 Boolean or integer parameters with exact target types; an unconditional jump
 may instead compute recursively nested parameter/literal integer expressions
-or non-short-circuit Boolean expressions before binding its target. Joins are
-explicit block-parameter merges. Mixed-scalar short-circuit bindings remain a
-later slice.
+or Boolean expressions before binding its target. Mixed-scalar tuples that
+contain short-circuit Boolean expressions evaluate every authored argument
+left-to-right in typed stages, carrying original parameters and earlier results
+until one convergence jump binds the authored target. The same staging is
+arm-local for conditional-edge payloads, so an unselected tuple has no executed
+operations, edges, or fuel charge. Joins are explicit block-parameter merges.
 Short-circuit guards use explicit decision blocks, and computed conditional
 edge bindings use selected-arm blocks because terminal edges do not own
 operations. This preserves source ordering and keeps each branch's computation
@@ -309,7 +313,10 @@ integer direct return, and a six-block integer graph with nested runtime
 selection and a three-way convergent tail. An integer-result companion computes
 Boolean inequality on an unconditional edge, carries it through a Boolean block
 parameter, and selects the returned integer with that value. These canaries
-discard `CheckedTrees`, then verify and execute the produced semantic modules.
+also stage an `&&` binding beside integer payloads on unconditional and
+conditional edges; the latter bypasses the entire tuple on its unselected arm.
+They discard `CheckedTrees`, then verify and execute the produced semantic
+modules.
 Direct-return `&&`/`||` expressions lower to acyclic terminal conditional
 trees. Each evaluated operand owns its selected conditional edge; the deciding
 left operand bypasses the right subtree, and Boolean leaf constants plus return
