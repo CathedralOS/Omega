@@ -1,6 +1,7 @@
 use psi_diagnostics::Diagnostic;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use psi_typed_trees::name::Identifier;
 use psi_typed_trees::statement::StatementNode;
 use psi_typed_trees::trait_definition::DynamicSignatureIneligibility;
 use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -8,13 +9,20 @@ use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 /// One local dynamic coercion whose complete nominal conformance is fixed in
 /// the checked artifact. Runtime descriptor lowering consumes this exact
 /// selection rather than rediscovering implementations from names.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DynamicConformanceSelection {
     pub occurrence: ExpressionHandle,
     pub binding: psi_symbols::SymbolHandle,
+    pub binding_name: Identifier,
     pub machine: psi_symbols::SymbolHandle,
     pub state: psi_symbols::SymbolHandle,
     pub statement_index: usize,
+    /// Exact source place repackaged by this coercion. Whole-artifact
+    /// devirtualization uses it as the selected realization's receiver instead
+    /// of treating the two-word dynamic descriptor as the concrete `self`.
+    pub source_symbol: psi_symbols::SymbolHandle,
+    pub source_name: Identifier,
+    pub source_path: Vec<Identifier>,
     pub source_data: psi_symbols::SymbolHandle,
     pub target_trait: psi_symbols::SymbolHandle,
     /// Stable child symbol for a named conformance. `None` denotes the unique
@@ -63,6 +71,22 @@ pub fn collect_dynamic_conformance_selections(
                     unreachable!("dynamic_trait_reference returns a dynamic-trait node")
                 };
                 let target_trait = *target_trait;
+                if local.is_mutable
+                    && dynamic_binding_is_reassigned(program, machine, local.symbol, &local.name)
+                {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "local dynamic binding `{}` is reassigned; physical descriptor lowering is required before mutable dynamic bindings can dispatch",
+                        local.name
+                    )));
+                    continue;
+                }
+                let Some(source_place) = dynamic_source_place(program, cast.value) else {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "local dynamic coercion `{}` requires a direct named or member source place",
+                        cast.display_name(&program.expression_table)
+                    )));
+                    continue;
+                };
                 let Some(source_type) = crate::places::declared_place_type_raw(
                     program,
                     machine,
@@ -124,9 +148,13 @@ pub fn collect_dynamic_conformance_selections(
                     let selection = DynamicConformanceSelection {
                         occurrence,
                         binding: local.symbol,
+                        binding_name: local.name.clone(),
                         machine: machine.symbol,
                         state: state.symbol,
                         statement_index,
+                        source_symbol: source_place.symbol,
+                        source_name: source_place.name.clone(),
+                        source_path: source_place.path.clone(),
                         source_data,
                         target_trait,
                         conformance: Some(selected.symbol),
@@ -141,9 +169,13 @@ pub fn collect_dynamic_conformance_selections(
                         let selection = DynamicConformanceSelection {
                             occurrence,
                             binding: local.symbol,
+                            binding_name: local.name.clone(),
                             machine: machine.symbol,
                             state: state.symbol,
                             statement_index,
+                            source_symbol: source_place.symbol,
+                            source_name: source_place.name.clone(),
+                            source_path: source_place.path.clone(),
                             source_data,
                             target_trait,
                             conformance: conformance.symbol.is_valid().then_some(conformance.symbol),
@@ -171,6 +203,71 @@ pub fn collect_dynamic_conformance_selections(
     } else {
         Err(diagnostics)
     }
+}
+
+#[derive(Debug, Clone)]
+struct DynamicSourcePlace {
+    symbol: psi_symbols::SymbolHandle,
+    name: Identifier,
+    path: Vec<Identifier>,
+}
+
+fn dynamic_source_place(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<DynamicSourcePlace> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Atomic(atomic) => dynamic_source_place(program, atomic.value),
+        ExpressionNode::Mutable(inner) => dynamic_source_place(program, *inner),
+        ExpressionNode::Name(name) => {
+            let leaf = program
+                .expression_table
+                .name_path_members(name.members)
+                .last()?
+                .clone();
+            Some(DynamicSourcePlace {
+                symbol: name.symbol,
+                name: leaf.clone(),
+                path: vec![leaf],
+            })
+        }
+        ExpressionNode::Member(member) => {
+            let mut source = dynamic_source_place(program, member.receiver)?;
+            source.symbol = member.member_symbol;
+            source.name = member.member.clone();
+            source.path.push(member.member.clone());
+            Some(source)
+        }
+        _ => None,
+    }
+}
+
+fn dynamic_binding_is_reassigned(
+    program: &TypedTrees,
+    machine: &psi_typed_trees::machine::Machine,
+    binding: psi_symbols::SymbolHandle,
+    binding_name: &Identifier,
+) -> bool {
+    program.machine_states(machine).iter().any(|state| {
+        program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .any(|statement| {
+                let StatementNode::Assignment(assignment) = statement else {
+                    return false;
+                };
+                let Some(target) = dynamic_source_place(program, assignment.target) else {
+                    return false;
+                };
+                target.path.len() == 1
+                    && if binding.is_valid() && target.symbol.is_valid() {
+                        target.symbol == binding
+                    } else {
+                        target.name == *binding_name
+                    }
+            })
+    })
 }
 
 /// Explain why one requirement is absent from a local `dyn Trait` surface.

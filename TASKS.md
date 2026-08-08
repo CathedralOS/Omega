@@ -456,12 +456,19 @@ checked-result arithmetic decision listed below.
   realizations, retain default provenance through checked `dyn` facts, and use
   identical sibling routing, including inherited generic defaults. Exact named
   closed-conformance rows now survive state-graph/control-flow lowering and
-  drive dynamic-parameter state calls without attached-machine/name lookup;
-  local coercion selections also survive with stable owner coordinates. Finish
-  physical local descriptor/table materialization and call-through, make every
-  remaining descriptor adapter consume only retained rows, migrate legacy
-  attached-machine conformances, and retire their closed-artifact candidate
-  lookup. Bare exact-requirement satisfiers never license `dyn`.
+  drive dynamic-parameter state calls without attached-machine implementation
+  lookup;
+  local coercion selections also survive with stable owner coordinates and
+  retain their original source place. Direct nonescaping local calls now
+  devirtualize through the exact retained row with that source place as the
+  concrete receiver, including member-place receivers, without reading an
+  unmaterialized descriptor. Finish physical descriptor/table materialization
+  for pass-through, rebound, and escaping values, make every remaining
+  descriptor adapter consume only retained rows, retain exact requirement
+  symbols on every dynamic call occurrence and remove the compatibility
+  slot-spelling fallback, migrate legacy attached-machine conformances, and
+  retire their closed-artifact candidate lookup. Bare exact-requirement
+  satisfiers never license `dyn`.
 - Complete hermetic semantic evaluation: invocation-specific crash-route
   refinement, target-semantic capsule, separate semantic result and usage
   identities, deterministic progress, and constant/runtime equivalence.

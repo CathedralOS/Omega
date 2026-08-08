@@ -1075,13 +1075,20 @@ fn closed_conformance_instantiates_an_inherited_generic_trait_default() {
 fn bare_local_dynamic_coercion_rejects_ambiguous_conformances() {
     let typed = typed_program_from_source(
         r#"
-        trait Marker {}
+        trait Marker {
+            machine code(&self) -> i32;
+        }
         data Item {}
-        Item satisfies Marker as First;
-        Item satisfies Marker as Second;
+        Item satisfies Marker as First {
+            machine code(&self) -> i32 { 1 }
+        }
+        Item satisfies Marker as Second {
+            machine code(&self) -> i32 { 2 }
+        }
 
-        machine erase(item: Item) {
+        machine erase(item: Item) -> i32 {
             let erased: &dyn Marker = &item as &dyn Marker;
+            erased.code()
         }
         "#,
     );
@@ -1200,11 +1207,14 @@ fn named_local_dynamic_coercion_rejects_wrong_source_carrier() {
 fn local_dynamic_coercion_rejects_missing_conformance() {
     let typed = typed_program_from_source(
         r#"
-        trait Marker {}
+        trait Marker {
+            machine code(&self) -> i32;
+        }
         data Item {}
 
-        machine erase(item: Item) {
+        machine erase(item: Item) -> i32 {
             let erased: &dyn Marker = &item as &dyn Marker;
+            erased.code()
         }
         "#,
     );
@@ -1214,6 +1224,35 @@ fn local_dynamic_coercion_rejects_missing_conformance() {
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic.message.contains(
             "local dynamic coercion from `Item` to `dyn Marker` has no complete nominal conformance",
+        )
+    }));
+}
+
+#[test]
+fn reassigned_local_dynamic_binding_requires_physical_descriptor_lowering() {
+    let typed = typed_program_from_source(
+        r#"
+        trait Shape {
+            machine code(&self) -> i32;
+        }
+        data Item {}
+        Item satisfies Shape as Primary {
+            machine code(&self) -> i32 { 1 }
+        }
+
+        machine choose(first: Item, second: Item) -> i32 {
+            let mut erased: &dyn Shape = &first as &dyn Item::Primary;
+            erased = &second as &dyn Item::Primary;
+            erased.code()
+        }
+        "#,
+    );
+
+    let diagnostics = validate_program(&typed)
+        .expect_err("a reassigned dynamic binding cannot use a stale initializer selection");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains(
+            "local dynamic binding `erased` is reassigned; physical descriptor lowering is required before mutable dynamic bindings can dispatch",
         )
     }));
 }

@@ -497,6 +497,14 @@ The coercion is an `as` operation: the compiler proves that the named
 conformance fits and packages the same referent with a statically selected
 table. It runs no user code and cannot fail.
 
+When a direct-place coercion remains local and its exact call is visible in the
+closed artifact, Omega may devirtualize it completely. The retained conformance
+row selects the realization and the coercion's retained source place supplies
+the concrete receiver; no descriptor or table needs to materialize for that
+call. This changes only lowering. A dynamic value that is passed onward,
+rebound, stored, joined with another selection, or otherwise escapes that
+closed use retains the two-word representation above.
+
 The checked implementation now retains the first selection rung for a direct
 place coercion bound to a borrowed local. A bare `&T as &dyn Trait` selects only
 when one complete nominal conformance is unique and records the exact data,
@@ -508,13 +516,15 @@ stable child symbol during checked selection. Unknown paths and paths belonging
 to a different source carrier reject. Omega now owns a distinct target ABI view
 for the two-word `{ instance, selected-conformance table }` carrier and retains
 the trait plus authored named selection in physical layout descriptors; it no
-longer models the second word as a slice length. Descriptor materialization,
-private table emission, and adapter lowering remain subsequent implementation
-rungs. Those consumers use the complete normalized map authored by the selected
-conformance block. Each row retains the declaring trait, requirement, exact
-satisfier machine, default instantiation when applicable, normalized contracts,
-and selected conformance identity; neither Psi nor Omega infers adapter rows
-from matching state names.
+longer models the second word as a slice length. Direct nonescaping local
+calls now consume the retained row and original source place for whole-artifact
+devirtualization. Physical descriptor materialization, private table emission,
+and the remaining pass-through/rebinding/escaping adapters remain subsequent
+implementation rungs. Those consumers use the complete normalized map authored
+by the selected conformance block. Each row retains the declaring trait,
+requirement, exact satisfier machine, default instantiation when applicable,
+normalized contracts, and selected conformance identity; neither Psi nor Omega
+infers adapter rows from matching state names.
 
 The table is a private realization. Logical identity records the trait,
 selected conformance, and normalized contracts rather than a table address.

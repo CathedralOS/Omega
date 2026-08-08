@@ -417,10 +417,16 @@ symbol. Missing or ambiguous selections fail before Omega lowering. An exact
 `dyn Type::Conformance` target is now retained through typed identity, derives
 its dispatch trait from the declared edge, and selects that stable child symbol
 even when sibling conformances exist; unknown and wrong-carrier paths reject.
-The private table and adapter realization remain.
+The selection also retains the original source place. When that coercion and
+call remain nonescaping inside the closed artifact, the backend selects the
+exact normalized row and calls its realization with the original source place
+as the concrete receiver. That call needs no physical descriptor. Private table
+materialization and erased-shape adapters remain necessary for dynamic values
+that pass onward, are rebound, join, are stored, or otherwise escape this exact
+use.
 
-The dynamic requirement's operational envelope accounts for the complete
-dispatch path:
+When the physical descriptor remains, the dynamic requirement's operational
+envelope accounts for the complete dispatch path:
 
 ```text
 descriptor dispatch
@@ -428,6 +434,11 @@ descriptor dispatch
 + erased physical call shape
 + selected satisfier demand
 ```
+
+Whole-artifact devirtualization may discharge the descriptor, table, and erased
+adapter terms for an exact call and record the selected realization's direct
+call shape instead. It cannot erase resource cost merely because the semantic
+target is known; the realized direct call remains in the resource envelope.
 
 Call-shape cost is a resource term, not merely an ABI note. If a
 suspension-capable requirement needs a continuation-capable physical shape,

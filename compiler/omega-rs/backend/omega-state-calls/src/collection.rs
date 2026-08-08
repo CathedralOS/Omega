@@ -27,6 +27,10 @@ pub(crate) struct CollectedStateCall {
     /// statement-position calls: their control-flow op carries only the leaf
     /// name, so those fall back to a single-segment path.
     pub raw_receiver: ExpressionHandle,
+    /// Exact source-place path retained by a local dynamic coercion. When
+    /// present, whole-artifact devirtualization routes `self` through this
+    /// place and ignores `raw_receiver`, which names the erased descriptor.
+    pub resolved_receiver_path: Vec<Identifier>,
     pub target_key: StateKey,
     pub raw_arguments: HandleSpan<ExpressionHandle>,
     pub reachable: bool,
@@ -94,7 +98,9 @@ pub(crate) fn collect_machine_state_calls(
                     resolve_dynamic_call_candidates(
                         &context.control_flow,
                         state.key,
+                        operation.statement_index,
                         *receiver_symbol,
+                        receiver,
                         *target_symbol,
                         target,
                     )
@@ -102,15 +108,32 @@ pub(crate) fn collect_machine_state_calls(
                     Vec::new()
                 };
                 if !dyn_candidates.is_empty() {
+                    let dynamic_receiver = dynamic_source_receiver(
+                        &context.control_flow,
+                        state.key,
+                        operation.statement_index,
+                        *receiver_symbol,
+                        receiver,
+                    );
                     for candidate in dyn_candidates {
                         calls.push(CollectedStateCall {
                             source_key: state.key,
                             statement_index: operation.statement_index,
                             call_ordinal,
                             role: StateCallRole::Statement,
-                            receiver_symbol: *receiver_symbol,
-                            receiver_name: receiver.clone(),
+                            receiver_symbol: dynamic_receiver
+                                .as_ref()
+                                .map(|receiver| receiver.symbol)
+                                .unwrap_or(*receiver_symbol),
+                            receiver_name: dynamic_receiver
+                                .as_ref()
+                                .map(|receiver| receiver.name.clone())
+                                .unwrap_or_else(|| receiver.clone()),
                             raw_receiver: ExpressionHandle::invalid(),
+                            resolved_receiver_path: dynamic_receiver
+                                .as_ref()
+                                .map(|receiver| receiver.path.clone())
+                                .unwrap_or_default(),
                             target_key: candidate.key,
                             raw_arguments: match operation.expressions {
                                 OperationExpressionRefs::Call { arguments } => arguments,
@@ -146,6 +169,7 @@ pub(crate) fn collect_machine_state_calls(
                     receiver_symbol: *receiver_symbol,
                     receiver_name: receiver.clone(),
                     raw_receiver: ExpressionHandle::invalid(),
+                    resolved_receiver_path: Vec::new(),
                     target_key: resolved_target
                         .as_ref()
                         .map(|target| target.key)
@@ -512,20 +536,39 @@ fn collect_expression_state_calls_in_table(
                 let candidates = resolve_dynamic_call_candidates(
                     &context.control_flow,
                     source_key,
+                    statement_index,
                     receiver.symbol,
+                    &receiver.name,
                     call.target_symbol,
                     &call.target,
                 );
                 if !candidates.is_empty() {
+                    let dynamic_receiver = dynamic_source_receiver(
+                        &context.control_flow,
+                        source_key,
+                        statement_index,
+                        receiver.symbol,
+                        &receiver.name,
+                    );
                     for candidate in candidates {
                         calls.push(CollectedStateCall {
                             source_key,
                             statement_index,
                             call_ordinal: *call_ordinal,
                             role,
-                            receiver_symbol: receiver.symbol,
-                            receiver_name: receiver.name.clone(),
+                            receiver_symbol: dynamic_receiver
+                                .as_ref()
+                                .map(|receiver| receiver.symbol)
+                                .unwrap_or(receiver.symbol),
+                            receiver_name: dynamic_receiver
+                                .as_ref()
+                                .map(|receiver| receiver.name.clone())
+                                .unwrap_or_else(|| receiver.name.clone()),
                             raw_receiver: call.receiver,
+                            resolved_receiver_path: dynamic_receiver
+                                .as_ref()
+                                .map(|receiver| receiver.path.clone())
+                                .unwrap_or_default(),
                             target_key: candidate.key,
                             raw_arguments: call.arguments,
                             reachable: context.runtime_state_is_reachable_by_key(source_key),
@@ -600,6 +643,7 @@ fn collect_expression_state_calls_in_table(
                 receiver_symbol: receiver.symbol,
                 receiver_name: receiver.name.clone(),
                 raw_receiver: call.receiver,
+                resolved_receiver_path: Vec::new(),
                 target_key: resolved_target
                     .as_ref()
                     .map(|target| target.key)
@@ -817,6 +861,38 @@ struct ReceiverParts {
     symbol: SymbolHandle,
     name: Identifier,
     is_present: bool,
+}
+
+fn dynamic_source_receiver(
+    control_flow: &ControlFlowPlan,
+    source_key: StateKey,
+    statement_index: usize,
+    binding: SymbolHandle,
+    binding_name: &Identifier,
+) -> Option<DynamicSourceReceiver> {
+    let selection = control_flow
+        .semantics
+        .facts
+        .dynamic_conformances
+        .for_receiver(
+            source_key.machine,
+            source_key.state,
+            binding,
+            binding_name,
+            statement_index,
+        )?;
+    Some(DynamicSourceReceiver {
+        symbol: selection.source_symbol,
+        name: selection.source_name.clone(),
+        path: selection.source_path.clone(),
+    })
+}
+
+#[derive(Debug, Clone)]
+struct DynamicSourceReceiver {
+    symbol: SymbolHandle,
+    name: Identifier,
+    path: Vec<Identifier>,
 }
 
 struct ResolvedStateCall {
@@ -1052,23 +1128,37 @@ fn resolve_state_call_target(
 fn resolve_dynamic_call_candidates(
     control_flow: &ControlFlowPlan,
     source_key: StateKey,
+    statement_index: usize,
     receiver_symbol: SymbolHandle,
+    receiver_name: &Identifier,
     target_symbol: SymbolHandle,
     target_state: &Identifier,
 ) -> Vec<ResolvedStateCall> {
-    if !receiver_symbol.is_valid() {
+    if !receiver_symbol.is_valid() && receiver_name.as_str().is_empty() {
         return Vec::new();
     }
     if let Some(selection) = control_flow
         .semantics
         .facts
         .dynamic_conformances
-        .for_binding(source_key.machine, source_key.state, receiver_symbol)
+        .for_receiver(
+            source_key.machine,
+            source_key.state,
+            receiver_symbol,
+            receiver_name,
+            statement_index,
+        )
     {
         return selection
             .rows
             .iter()
-            .filter(|row| row.requirement == target_symbol)
+            .filter(|row| {
+                if target_symbol.is_valid() {
+                    row.requirement == target_symbol
+                } else {
+                    row.requirement_name == *target_state
+                }
+            })
             .filter_map(|row| {
                 control_flow
                     .states
@@ -1101,7 +1191,13 @@ fn resolve_dynamic_call_candidates(
         return parameter
             .dyn_conformance_rows
             .iter()
-            .filter(|row| row.requirement == target_symbol)
+            .filter(|row| {
+                if target_symbol.is_valid() {
+                    row.requirement == target_symbol
+                } else {
+                    row.requirement_name == *target_state
+                }
+            })
             .filter_map(|row| {
                 control_flow
                     .states
@@ -1577,8 +1673,10 @@ mod tests {
             Item satisfies Shape as Primary {
                 machine code(&self) -> i32 { transition { _ -> 7 } }
             }
-            machine run(item: Item) {
+            machine run(item: Item) -> i32 {
                 let erased: &dyn Shape = &item as &dyn Item::Primary;
+                let result: i32 = erased.code();
+                transition { _ -> result }
             }
         "#;
 
@@ -1594,6 +1692,16 @@ mod tests {
         assert!(checked_selection.binding.is_valid());
         assert!(checked_selection.machine.is_valid());
         assert!(checked_selection.state.is_valid());
+        assert!(checked_selection.source_symbol.is_valid());
+        assert_eq!(checked_selection.source_name.as_str(), "item");
+        assert_eq!(
+            checked_selection
+                .source_path
+                .iter()
+                .map(|segment| segment.as_str())
+                .collect::<Vec<_>>(),
+            vec!["item"]
+        );
 
         let state_graph =
             omega_checked_trees_to_state_graph::build_state_graph(&checked).expect("state graph");
@@ -1605,6 +1713,44 @@ mod tests {
         assert_eq!(
             control_flow.semantics.facts.dynamic_conformances,
             checked.facts.dynamic_conformances.binding_facts()
+        );
+        let run = control_flow
+            .machines
+            .iter()
+            .find(|(_, machine)| machine.name.as_str() == "run")
+            .map(|(_, machine)| machine)
+            .expect("run machine");
+        let entry_key = control_flow
+            .states
+            .span(run.states)
+            .and_then(|states| states.first())
+            .map(|state| state.key)
+            .expect("run entry");
+        let runtime_flow = build_runtime_flow_plan(&control_flow, entry_key).expect("runtime flow");
+        let target = omega_target::NativeTarget::linux_arm64();
+        let host_abi = build_host_abi_plan(target);
+        let host_calls = build_host_call_plan(&checked, target, &host_abi).expect("host calls");
+        let state_calls = crate::build_state_call_plan(&control_flow, &host_calls, &runtime_flow);
+        let dynamic_call = state_calls
+            .calls
+            .iter()
+            .map(|(_, call)| call)
+            .find(|call| call.target_key.state == checked_selection.rows[0].realization_state)
+            .expect("selected dynamic call");
+        assert_eq!(
+            dynamic_call.receiver_symbol,
+            checked_selection.source_symbol
+        );
+        assert_eq!(dynamic_call.receiver_name.as_str(), "item");
+        assert_eq!(
+            state_calls
+                .receiver_path_segments
+                .span(dynamic_call.receiver_path)
+                .expect("retained source path")
+                .iter()
+                .map(|segment| segment.as_str())
+                .collect::<Vec<_>>(),
+            vec!["item"]
         );
     }
 }

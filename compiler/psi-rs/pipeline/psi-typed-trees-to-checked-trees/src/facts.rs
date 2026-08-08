@@ -104,6 +104,7 @@ fn build_dynamic_conformance_facts(
             rows.push(psi_checked_trees::DynamicConformanceRowFact {
                 declaring_trait: row.declaring_trait,
                 requirement: row.requirement,
+                requirement_name: row.requirement_name.clone(),
                 realization_machine: row.realization_machine,
                 realization_state: row.realization_state,
                 source: match row.source {
@@ -122,9 +123,13 @@ fn build_dynamic_conformance_facts(
         selections.push(psi_checked_trees::DynamicConformanceSelectionFact {
             occurrence: selection.occurrence,
             binding: selection.binding,
+            binding_name: selection.binding_name.clone(),
             machine: selection.machine,
             state: selection.state,
             statement_index: selection.statement_index,
+            source_symbol: selection.source_symbol,
+            source_name: selection.source_name.clone(),
+            source_path: selection.source_path.clone(),
             source_data: selection.source_data,
             target_trait: selection.target_trait,
             conformance: selection.conformance,

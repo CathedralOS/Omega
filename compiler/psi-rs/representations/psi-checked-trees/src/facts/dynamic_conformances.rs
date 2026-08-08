@@ -1,5 +1,6 @@
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::expression::ExpressionHandle;
+use psi_typed_trees::name::Identifier;
 
 /// Checked selection behind one local `&T as &dyn Trait` coercion.
 ///
@@ -11,12 +12,16 @@ pub struct DynamicConformanceSelectionFact {
     pub occurrence: ExpressionHandle,
     /// Local binding that stores this selected borrowed dynamic value.
     pub binding: SymbolHandle,
+    pub binding_name: Identifier,
     /// Stable owner coordinates survive state segmentation and expression
     /// remapping, so backend dispatch never has to identify this selection by
     /// a copied expression handle.
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
     pub statement_index: usize,
+    pub source_symbol: SymbolHandle,
+    pub source_name: Identifier,
+    pub source_path: Vec<Identifier>,
     pub source_data: SymbolHandle,
     pub target_trait: SymbolHandle,
     /// Stable child symbol for a named conformance. `None` denotes the unique
@@ -28,10 +33,14 @@ pub struct DynamicConformanceSelectionFact {
     pub rows: Vec<DynamicConformanceRowFact>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DynamicConformanceRowFact {
     pub declaring_trait: SymbolHandle,
     pub requirement: SymbolHandle,
+    /// Stable slot spelling used only when an older call occurrence has no
+    /// resolved requirement symbol. The conformance row remains authoritative;
+    /// this never searches implementation names.
+    pub requirement_name: Identifier,
     pub realization_machine: SymbolHandle,
     pub realization_state: SymbolHandle,
     pub source: DynamicConformanceRowSource,
@@ -54,9 +63,13 @@ pub struct DynamicConformanceFacts {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DynamicConformanceBindingFact {
     pub binding: SymbolHandle,
+    pub binding_name: Identifier,
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
     pub statement_index: usize,
+    pub source_symbol: SymbolHandle,
+    pub source_name: Identifier,
+    pub source_path: Vec<Identifier>,
     pub source_data: SymbolHandle,
     pub target_trait: SymbolHandle,
     pub conformance: Option<SymbolHandle>,
@@ -96,9 +109,13 @@ impl DynamicConformanceFacts {
                 .iter()
                 .map(|selection| DynamicConformanceBindingFact {
                     binding: selection.binding,
+                    binding_name: selection.binding_name.clone(),
                     machine: selection.machine,
                     state: selection.state,
                     statement_index: selection.statement_index,
+                    source_symbol: selection.source_symbol,
+                    source_name: selection.source_name.clone(),
+                    source_path: selection.source_path.clone(),
                     source_data: selection.source_data,
                     target_trait: selection.target_trait,
                     conformance: selection.conformance,
@@ -119,5 +136,28 @@ impl DynamicConformanceBindingFacts {
         self.selections.iter().find(|selection| {
             selection.machine == machine && selection.state == state && selection.binding == binding
         })
+    }
+
+    pub fn for_receiver(
+        &self,
+        machine: SymbolHandle,
+        state: SymbolHandle,
+        binding: SymbolHandle,
+        binding_name: &Identifier,
+        use_statement_index: usize,
+    ) -> Option<&DynamicConformanceBindingFact> {
+        self.selections
+            .iter()
+            .filter(|selection| {
+                selection.machine == machine
+                    && selection.state == state
+                    && selection.statement_index < use_statement_index
+                    && if binding.is_valid() {
+                        selection.binding == binding
+                    } else {
+                        selection.binding_name == *binding_name
+                    }
+            })
+            .max_by_key(|selection| selection.statement_index)
     }
 }

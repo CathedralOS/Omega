@@ -193,7 +193,11 @@ pub fn build_state_call_plan_with_workers(
         // carry their receiver EXPRESSION and walk its chain; statement calls
         // only know the leaf name, recorded as a single-segment path.
         let mut receiver_path = psi_arena::HandleSpan::empty();
-        if call.raw_receiver.is_valid() {
+        if !call.resolved_receiver_path.is_empty() {
+            for segment in &call.resolved_receiver_path {
+                receiver_path.push_contiguous(plan.receiver_path_segments.insert(segment.clone()));
+            }
+        } else if call.raw_receiver.is_valid() {
             collection::append_receiver_path(
                 &context.control_flow.expressions,
                 call.raw_receiver,
