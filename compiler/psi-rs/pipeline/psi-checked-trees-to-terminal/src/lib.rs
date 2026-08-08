@@ -1395,6 +1395,7 @@ fn lower_explicit_crash_machine(
                 }],
                 contract: MachineContract {
                     id: contract_id(1),
+                    crash_context: psi_terminal::CrashContextMaximum::portable_root(),
                     requires: Vec::new(),
                     ensures: Vec::new(),
                 },
@@ -3323,6 +3324,7 @@ fn build_integer_conditional_module(
                 ],
                 contract: MachineContract {
                     id: contract_id(1),
+                    crash_context: psi_terminal::CrashContextMaximum::portable_root(),
                     requires: vec![goal.clone()],
                     ensures: vec![ContractClause {
                         obligation,
@@ -3827,6 +3829,7 @@ fn build_boolean_short_circuit_module(
                     .collect(),
                 contract: MachineContract {
                     id: contract_id(1),
+                    crash_context: psi_terminal::CrashContextMaximum::portable_root(),
                     requires: vec![goal.clone()],
                     ensures: vec![ContractClause {
                         obligation,
@@ -4052,6 +4055,7 @@ fn build_nested_integer_branch_module(
                 blocks,
                 contract: MachineContract {
                     id: contract_id(1),
+                    crash_context: psi_terminal::CrashContextMaximum::portable_root(),
                     requires: vec![goal.clone()],
                     ensures: vec![ContractClause {
                         obligation,
@@ -4153,6 +4157,7 @@ fn build_boolean_module(
                 }],
                 contract: MachineContract {
                     id: contract_id(1),
+                    crash_context: psi_terminal::CrashContextMaximum::portable_root(),
                     requires: vec![goal.clone()],
                     ensures: vec![ContractClause {
                         obligation,
@@ -4292,6 +4297,7 @@ fn build_integer_comparison_module(
                 }],
                 contract: MachineContract {
                     id: contract_id(1),
+                    crash_context: psi_terminal::CrashContextMaximum::portable_root(),
                     requires: vec![goal.clone()],
                     ensures: vec![ContractClause {
                         obligation,
@@ -4456,6 +4462,7 @@ fn build_boolean_conditional_module(
                     .collect(),
                 contract: MachineContract {
                     id: contract_id(1),
+                    crash_context: psi_terminal::CrashContextMaximum::portable_root(),
                     requires: vec![goal.clone()],
                     ensures: vec![ContractClause {
                         obligation,
@@ -4749,6 +4756,7 @@ fn build_boolean_state_chain_module(
                     .collect(),
                 contract: MachineContract {
                     id: contract_id(1),
+                    crash_context: psi_terminal::CrashContextMaximum::portable_root(),
                     requires: vec![goal.clone()],
                     ensures: vec![ContractClause {
                         obligation,
@@ -4848,6 +4856,7 @@ fn build_direct_parameter_module(
                 }],
                 contract: MachineContract {
                     id: contract_id(1),
+                    crash_context: psi_terminal::CrashContextMaximum::portable_root(),
                     requires: vec![goal.clone()],
                     ensures: vec![ContractClause {
                         obligation,
@@ -5085,6 +5094,7 @@ fn build_integer_state_chain_module(
                 blocks,
                 contract: MachineContract {
                     id: contract_id(1),
+                    crash_context: psi_terminal::CrashContextMaximum::portable_root(),
                     requires: vec![goal.clone()],
                     ensures: vec![ContractClause {
                         obligation,

@@ -235,6 +235,7 @@ fn fixture() -> (TerminalModule, ProofBundle) {
             ],
             contract: MachineContract {
                 id: contract_id(1),
+                crash_context: psi_terminal::CrashContextMaximum::portable_root(),
                 requires: vec![goal.clone()],
                 ensures: vec![ContractClause {
                     obligation,

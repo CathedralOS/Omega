@@ -91,6 +91,7 @@ fn v2_boolean_constant_axiom_proves_the_return_contract() {
             }],
             contract: MachineContract {
                 id: ContractId::new(10).expect("contract"),
+                crash_context: Vec::new(),
                 requires: Vec::new(),
                 ensures: vec![ContractClause {
                     obligation,
@@ -174,6 +175,7 @@ fn v15_boolean_not_axiom_proves_the_return_contract() {
             }],
             contract: MachineContract {
                 id: ContractId::new(20).expect("contract"),
+                crash_context: Vec::new(),
                 requires: Vec::new(),
                 ensures: vec![ContractClause {
                     obligation,
@@ -319,6 +321,7 @@ fn v17_boolean_equality_axiom_proves_the_return_contract() {
             }],
             contract: MachineContract {
                 id: ContractId::new(30).expect("contract"),
+                crash_context: Vec::new(),
                 requires: Vec::new(),
                 ensures: vec![ContractClause {
                     obligation,
@@ -451,6 +454,7 @@ fn v18_integer_equality_axiom_proves_the_return_contract() {
             }],
             contract: MachineContract {
                 id: ContractId::new(40).expect("contract"),
+                crash_context: Vec::new(),
                 requires: Vec::new(),
                 ensures: vec![ContractClause {
                     obligation,
@@ -620,6 +624,7 @@ fn v19_integer_ordering_axioms_prove_return_contracts() {
                 }],
                 contract: MachineContract {
                     id: ContractId::new(50).expect("contract"),
+                    crash_context: Vec::new(),
                     requires: Vec::new(),
                     ensures: vec![ContractClause {
                         obligation,
@@ -781,6 +786,7 @@ fn v20_integer_bitwise_axioms_prove_exact_result_contracts() {
                 }],
                 contract: MachineContract {
                     id: ContractId::new(60).expect("contract"),
+                    crash_context: Vec::new(),
                     requires: Vec::new(),
                     ensures: vec![ContractClause {
                         obligation,
@@ -946,6 +952,7 @@ fn v21_wrapping_shift_axioms_preserve_the_count_type() {
                 }],
                 contract: MachineContract {
                     id: ContractId::new(70).expect("contract"),
+                    crash_context: Vec::new(),
                     requires: Vec::new(),
                     ensures: vec![ContractClause {
                         obligation,
@@ -1293,6 +1300,39 @@ fn v23_crash_requires_a_demand_covering_its_separate_damage_minimum() {
 }
 
 #[test]
+fn v24_crash_requires_a_per_cause_context_maximum_covering_its_demand() {
+    let mut module = Fixture::new().module;
+    module.semantic_version = SemanticVersion::V24;
+    module.machines[0].contract.ensures.clear();
+    module.machines[0].blocks[1].terminator = Terminator::Crash {
+        edge: EdgeId::new(10).expect("crash edge"),
+        cause: CrashCause::Trap,
+        damage_minimum: "Activation".to_owned(),
+        containment_demand: "ExecutionDomain".to_owned(),
+        frontier_lower_bound: Vec::new(),
+    };
+    assert!(matches!(
+        validate_module(&module),
+        Err(ModuleError::MissingCrashContextMaximum {
+            cause: CrashCause::Trap,
+            ..
+        })
+    ));
+
+    module.machines[0].contract.crash_context = vec![psi_terminal::CrashContextMaximum {
+        cause: CrashCause::Trap,
+        maximum_scope: "Activation".to_owned(),
+    }];
+    assert!(matches!(
+        validate_module(&module),
+        Err(ModuleError::CrashContextMaximumTooNarrow { .. })
+    ));
+
+    module.machines[0].contract.crash_context[0].maximum_scope = "ExecutionDomain".to_owned();
+    validate_module(&module).expect("the per-cause context maximum covers the crash demand");
+}
+
+#[test]
 fn crash_frontier_must_name_every_still_live_entry_claim() {
     let (mut module, _, _) = identity_reshuffle_module();
     module.semantic_version = SemanticVersion::V22;
@@ -1571,6 +1611,7 @@ fn identity_reshuffle_module() -> (TerminalModule, Proposition, ObligationId) {
         }],
         contract: MachineContract {
             id: ContractId::new(90).expect("contract"),
+            crash_context: Vec::new(),
             requires: Vec::new(),
             ensures: vec![ContractClause {
                 obligation,
@@ -1800,6 +1841,7 @@ fn reflexive_content_module() -> (TerminalModule, Proposition, ObligationId) {
         }],
         contract: MachineContract {
             id: ContractId::new(80).expect("contract"),
+            crash_context: Vec::new(),
             requires: Vec::new(),
             ensures: vec![ContractClause {
                 obligation,
@@ -2348,6 +2390,7 @@ fn wrapping_add_module() -> (TerminalModule, Proposition, ObligationId) {
         }],
         contract: MachineContract {
             id: ContractId::new(20).expect("contract"),
+            crash_context: Vec::new(),
             requires: Vec::new(),
             ensures: vec![ContractClause {
                 obligation,
@@ -2420,6 +2463,7 @@ fn saturating_add_module() -> (TerminalModule, Proposition, ObligationId) {
         }],
         contract: MachineContract {
             id: ContractId::new(30).expect("contract"),
+            crash_context: Vec::new(),
             requires: Vec::new(),
             ensures: vec![ContractClause {
                 obligation,
@@ -2492,6 +2536,7 @@ fn wrapping_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
         }],
         contract: MachineContract {
             id: ContractId::new(40).expect("contract"),
+            crash_context: Vec::new(),
             requires: Vec::new(),
             ensures: vec![ContractClause {
                 obligation,
@@ -2564,6 +2609,7 @@ fn saturating_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
         }],
         contract: MachineContract {
             id: ContractId::new(50).expect("contract"),
+            crash_context: Vec::new(),
             requires: Vec::new(),
             ensures: vec![ContractClause {
                 obligation,
@@ -2636,6 +2682,7 @@ fn wrapping_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
         }],
         contract: MachineContract {
             id: ContractId::new(60).expect("contract"),
+            crash_context: Vec::new(),
             requires: Vec::new(),
             ensures: vec![ContractClause {
                 obligation,
@@ -2708,6 +2755,7 @@ fn saturating_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
         }],
         contract: MachineContract {
             id: ContractId::new(70).expect("contract"),
+            crash_context: Vec::new(),
             requires: Vec::new(),
             ensures: vec![ContractClause {
                 obligation,
@@ -2795,6 +2843,7 @@ impl Fixture {
             ],
             contract: MachineContract {
                 id: ContractId::new(1).expect("contract"),
+                crash_context: Vec::new(),
                 requires: Vec::new(),
                 ensures: vec![ContractClause {
                     obligation,

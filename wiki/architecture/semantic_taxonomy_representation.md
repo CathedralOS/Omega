@@ -916,6 +916,8 @@ CheckedCrashCallSite {
 CrashContextPlan {
   maximum_by_cause: SparseMap<CrashCauseId, CrashScopeId>,
   // absent cause = forbidden
+  // terminal Psi v24 retains the effective map in each machine contract;
+  // artifact-root production supplies ExecutionDomain for both closed causes
 }
 
 CrashTerminatorPlan {

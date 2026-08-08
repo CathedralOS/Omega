@@ -206,6 +206,7 @@ fn fixture() -> TerminalModule {
             }],
             contract: MachineContract {
                 id: contract_id(1),
+                crash_context: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
             },

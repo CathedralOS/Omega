@@ -105,9 +105,14 @@ rejects narrower authored demand, and emits both the derived minimum and
 selected published demand into v23. Archived v22 bytes decode conservatively
 with both in-memory fields equal to their single encoded scope. Conditional
 frontier membership, invariant/custody-based minimum widening, broader guarded
-production, context maxima, and installation realization remain the rest of
-CRASH-CONTRACT. Declared intermediate nominal scope ordering is separately
-blocked on `OWNER_QUESTIONS.md` Q2.
+production, narrower supervisor/task context production, and installation
+realization remain the rest of CRASH-CONTRACT. Terminal Psi v24 stores each
+effective sparse per-cause context maximum in the fingerprinted machine
+contract and the verifier enforces `containment demand <= context
+maximum[cause]`. Artifact-root crash production supplies `ExecutionDomain` for
+both closed causes; archived modules migrate only causes used by their crash
+terminators to that legacy root maximum. Declared intermediate nominal scope
+ordering is separately blocked on `OWNER_QUESTIONS.md` Q2.
 `psi-terminal-verifier` rejects malformed identities, types, contract scopes,
 cycles, unreachable fact sources, and missing/extra evidence, reconstructs the
 exact operation/edge/return axioms, and checks every `ensures` from a separate

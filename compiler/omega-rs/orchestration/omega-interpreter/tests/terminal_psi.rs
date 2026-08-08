@@ -78,6 +78,7 @@ fn verified_v1_integer_control_contract_slice_executes_directly() {
         ],
         contract: MachineContract {
             id: ContractId::new(1).expect("contract"),
+            crash_context: Vec::new(),
             requires: Vec::new(),
             ensures: vec![ContractClause {
                 obligation,
@@ -239,6 +240,7 @@ fn verified_v22_and_v23_crashes_are_stable_terminal_outcomes() {
         }],
         contract: MachineContract {
             id: ContractId::new(90).expect("contract"),
+            crash_context: Vec::new(),
             requires: Vec::new(),
             ensures: Vec::new(),
         },
@@ -341,6 +343,7 @@ fn interpreter_rejects_an_out_of_range_integer_argument() {
         }],
         contract: MachineContract {
             id: ContractId::new(10).expect("contract"),
+            crash_context: Vec::new(),
             requires: Vec::new(),
             ensures: Vec::new(),
         },
