@@ -234,7 +234,10 @@ Current ownership is:
   unconditional same-cause bucket as structurally proved guard coverage;
   exact incoming/fallthrough predicates and their sound conjunction/negated-
   disjunction, nested-negation, and Boolean-literal relation consequences add
-  path-conditioned guarded coverage. The site
+  path-conditioned guarded coverage. Comparison operand reversal and negated
+  equality/inequality are also retained as equivalent consequences. Negated
+  ordered comparisons remain opaque until total-order/type evidence is present,
+  since the complement law is unsound for unordered float values. The site
   separately retains its exact incoming-predicate conjunction for downstream
   refinement and reporting.
 - `psi-checked-trees/src/proof/` owns proof-facing checked facts:

@@ -71,7 +71,8 @@ covering bucket, emits its selected containment demand and the site's derived
 damage minimum on the crash terminator, and fails closed for absent or
 ambiguous coverage. This covers crash-only unconditional machines and
 checker-proved incoming-path guards in the acyclic integer-control slice,
-including nested-negation implication. Route facts are already
+including nested-negation implication and portable comparison equivalences.
+Route facts are already
 restricted to Boolean expressions. Public contract and generic-template
 identities already merge exact `(cause, scope)` buckets, discard duplicate
 routes, and let a route-less or explicit-`true` route subsume guarded
@@ -92,7 +93,11 @@ conjunct, negated disjunctions imply each negated disjunct, and nested logical
 negation flips polarity. Boolean comparisons with a literal normalize
 `x == true`, `x == false`, `x != true`, and `x != false`, including negated
 fallthrough edges, to the operand polarity they establish; converse
-implications remain rejected. Checked sites
+implications remain rejected. Comparison predicates also retain their
+operand-reversed equivalent, and negated equality/inequality retains the
+opposite relation. Negated ordered comparisons stay opaque without checked
+total-order evidence because unordered float values invalidate the usual
+complement law. Checked sites
 retain their exact incoming-predicate conjunction separately from these
 coverage consequences. Checked calls likewise retain invocation coordinates,
 the exact target contract fingerprint, the incoming path conjunction, a

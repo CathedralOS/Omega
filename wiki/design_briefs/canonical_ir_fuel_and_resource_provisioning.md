@@ -77,8 +77,10 @@ contract. The row's derived damage minimum, complete covering-bucket subset,
 and reconstructed frontier are independent checked fields; terminal v23
 retains both that minimum and the selected published demand. Checker-proved
 incoming-path guarded crash branches now lower in the acyclic integer-control
-slice, including nested-negation implication; broader guard entailment and
-source shapes remain.
+slice, including nested-negation implication, comparison operand reversal, and
+negated equality/inequality. Ordered-comparison negation still requires checked
+total-order/type evidence so future unordered float values remain sound;
+broader guard entailment and source shapes remain.
 
 The first Psi-owned checked-tree producer, `psi-checked-trees-to-terminal`,
 lowers a closed set of scalar closed-contract source forms: a recursively nested Boolean

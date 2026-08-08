@@ -212,9 +212,11 @@ fn call_route_guard_covers(
 
 /// Retain only propositional consequences that follow structurally from one
 /// incoming predicate. A positive conjunction entails each conjunct; a
-/// negated disjunction entails each negated disjunct; and logical negation
-/// flips polarity. Everything else remains an opaque canonical atom. This is
-/// deliberately incomplete but sound, and does not rewrite public routes.
+/// negated disjunction entails each negated disjunct; logical negation flips
+/// polarity; equality/inequality normalize under negation; and comparisons
+/// retain operand-reversed equivalents. Everything else remains an opaque
+/// canonical atom. This is deliberately incomplete but sound, and does not
+/// rewrite public routes.
 fn collect_structural_guard_consequences(
     program: &TypedTrees,
     expression: psi_typed_trees::expression::ExpressionHandle,
@@ -296,7 +298,88 @@ fn collect_structural_guard_consequences(
                     output,
                 );
             }
+            let normalized = normalized_comparison(binary.operator, negated)
+                .expect("equality operators are comparisons");
+            output.push(crate::facts::canonical_crash_binary_path_predicate(
+                program,
+                normalized,
+                binary.left,
+                binary.right,
+                parameter_names,
+                content_conservation,
+            ));
+            output.push(crate::facts::canonical_crash_binary_path_predicate(
+                program,
+                reversed_comparison(normalized),
+                binary.right,
+                binary.left,
+                parameter_names,
+                content_conservation,
+            ));
+        }
+        ExpressionNode::Binary(binary)
+            if normalized_comparison(binary.operator, negated).is_some() =>
+        {
+            let normalized = normalized_comparison(binary.operator, negated)
+                .expect("comparison operator was matched above");
+            output.push(crate::facts::canonical_crash_binary_path_predicate(
+                program,
+                normalized,
+                binary.left,
+                binary.right,
+                parameter_names,
+                content_conservation,
+            ));
+            output.push(crate::facts::canonical_crash_binary_path_predicate(
+                program,
+                reversed_comparison(normalized),
+                binary.right,
+                binary.left,
+                parameter_names,
+                content_conservation,
+            ));
         }
         _ => {}
+    }
+}
+
+fn normalized_comparison(
+    operator: psi_typed_trees::expression::BinaryOperator,
+    negated: bool,
+) -> Option<psi_typed_trees::expression::BinaryOperator> {
+    use psi_typed_trees::expression::BinaryOperator;
+
+    Some(match (operator, negated) {
+        (BinaryOperator::Equal, false) => BinaryOperator::Equal,
+        (BinaryOperator::Equal, true) => BinaryOperator::NotEqual,
+        (BinaryOperator::NotEqual, false) => BinaryOperator::NotEqual,
+        (BinaryOperator::NotEqual, true) => BinaryOperator::Equal,
+        (BinaryOperator::Less, false) => BinaryOperator::Less,
+        // Ordered negation is not portable to unordered float values:
+        // `!(x < y)` does not imply `x >= y` when either operand is NaN.
+        (BinaryOperator::Less, true) => return None,
+        (BinaryOperator::LessOrEqual, false) => BinaryOperator::LessOrEqual,
+        (BinaryOperator::LessOrEqual, true) => return None,
+        (BinaryOperator::Greater, false) => BinaryOperator::Greater,
+        (BinaryOperator::Greater, true) => return None,
+        (BinaryOperator::GreaterOrEqual, false) => BinaryOperator::GreaterOrEqual,
+        (BinaryOperator::GreaterOrEqual, true) => return None,
+        _ => return None,
+    })
+}
+
+fn reversed_comparison(
+    operator: psi_typed_trees::expression::BinaryOperator,
+) -> psi_typed_trees::expression::BinaryOperator {
+    use psi_typed_trees::expression::BinaryOperator;
+
+    match operator {
+        BinaryOperator::Equal => BinaryOperator::Equal,
+        BinaryOperator::NotEqual => BinaryOperator::NotEqual,
+        BinaryOperator::Less => BinaryOperator::Greater,
+        BinaryOperator::LessOrEqual => BinaryOperator::GreaterOrEqual,
+        BinaryOperator::Greater => BinaryOperator::Less,
+        BinaryOperator::GreaterOrEqual => BinaryOperator::LessOrEqual,
+        _ => unreachable!("only normalized comparisons reach operand reversal"),
     }
 }
