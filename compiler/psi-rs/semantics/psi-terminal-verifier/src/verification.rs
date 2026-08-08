@@ -265,6 +265,18 @@ fn reconstruct_semantic_axioms(machine: &TerminalMachine) -> Vec<Proposition> {
                         .expect("validator requires exact bitwise-not operand type");
                     axioms.push(Proposition::Equal(value_term(operation.result.id), result));
                 }
+                OperationKind::IntegerWiden { operand } => {
+                    let ScalarType::Integer(source_type) = value_term(operand).scalar_type() else {
+                        unreachable!("validator requires an integer widening operand")
+                    };
+                    let ScalarType::Integer(target_type) = operation.result.scalar_type else {
+                        unreachable!("validator requires an integer widening result")
+                    };
+                    let result =
+                        ScalarTerm::integer_widen(source_type, target_type, value_term(operand))
+                            .expect("validator requires a universally total integer widening");
+                    axioms.push(Proposition::Equal(value_term(operation.result.id), result));
+                }
                 OperationKind::IntegerBitwiseAnd { left, right }
                 | OperationKind::IntegerBitwiseOr { left, right }
                 | OperationKind::IntegerBitwiseXor { left, right } => {

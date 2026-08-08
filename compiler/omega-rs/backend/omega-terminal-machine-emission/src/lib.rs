@@ -1139,6 +1139,20 @@ fn emit_x86_64_expression_node(
             bytes.extend_from_slice(&[0x48, 0xf7, 0xd0]); // not rax
             emit_x86_64_normalize(bytes, scalar_type);
         }
+        TerminalAssignedIntegerExpression::IntegerWiden {
+            source_type,
+            operand,
+            ..
+        } => {
+            emit_x86_64_expression_node(
+                bytes,
+                *source_type,
+                operand,
+                frame_byte_size,
+                stack_depth,
+            )?;
+            emit_x86_64_normalize(bytes, scalar_type);
+        }
         TerminalAssignedIntegerExpression::WrappingShiftLeft {
             count_type,
             value,
@@ -1655,6 +1669,14 @@ fn emit_aarch64_expression_node(
             instructions.push(0xaa20_03e0); // mvn x0, x0
             emit_aarch64_normalize(instructions, scalar_type);
         }
+        TerminalAssignedIntegerExpression::IntegerWiden {
+            source_type,
+            operand,
+            ..
+        } => {
+            emit_aarch64_expression_node(instructions, *source_type, operand, frame, stack_depth)?;
+            emit_aarch64_normalize(instructions, scalar_type);
+        }
         TerminalAssignedIntegerExpression::WrappingShiftLeft {
             count_type,
             value,
@@ -1937,7 +1959,10 @@ fn expression_source(expression: &TerminalAssignedIntegerExpression) -> ValueId 
     match expression {
         TerminalAssignedIntegerExpression::Immediate { source_value, .. }
         | TerminalAssignedIntegerExpression::Parameter { source_value, .. } => *source_value,
-        TerminalAssignedIntegerExpression::BitwiseNot { operand, .. } => expression_source(operand),
+        TerminalAssignedIntegerExpression::BitwiseNot { operand, .. }
+        | TerminalAssignedIntegerExpression::IntegerWiden { operand, .. } => {
+            expression_source(operand)
+        }
         TerminalAssignedIntegerExpression::WrappingAdd { left, .. }
         | TerminalAssignedIntegerExpression::BitwiseAnd { left, .. }
         | TerminalAssignedIntegerExpression::BitwiseOr { left, .. }

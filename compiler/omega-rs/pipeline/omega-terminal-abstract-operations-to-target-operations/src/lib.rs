@@ -342,6 +342,49 @@ fn lower_function(
                 )?;
                 provenance.operations.push(*psi_operation);
             }
+            TerminalAbstractOperation::IntegerWiden {
+                psi_operation,
+                result,
+                source_type,
+                target_type,
+                operand,
+            } => {
+                let operand_value = match values.get(operand).cloned() {
+                    Some(KnownScalar::Integer {
+                        scalar_type: operand_type,
+                        value,
+                    }) if operand_type == *source_type
+                        && source_type.can_widen_to(*target_type) =>
+                    {
+                        value
+                    }
+                    Some(_) => return Err(LoweringError::IntegerWidenTypeMismatch(*result)),
+                    None => return Err(LoweringError::UnknownValue(*operand)),
+                };
+                let value = match operand_value {
+                    KnownInteger::Immediate(value) => KnownInteger::Immediate(
+                        source_type
+                            .widen_value_to(*target_type, value)
+                            .ok_or(LoweringError::IntegerWidenTypeMismatch(*result))?,
+                    ),
+                    KnownInteger::Runtime(expression) => {
+                        KnownInteger::Runtime(TerminalTargetIntegerExpression::IntegerWiden {
+                            psi_operation: *psi_operation,
+                            source_type: *source_type,
+                            operand: Box::new(expression),
+                        })
+                    }
+                };
+                insert_value(
+                    &mut values,
+                    *result,
+                    KnownScalar::Integer {
+                        scalar_type: *target_type,
+                        value,
+                    },
+                )?;
+                provenance.operations.push(*psi_operation);
+            }
             TerminalAbstractOperation::WrappingIntegerShiftLeft {
                 psi_operation,
                 result,
@@ -1802,6 +1845,39 @@ fn lower_conditional_scalar_operation(
             };
             (*psi_operation, *result, *scalar_type, value)
         }
+        TerminalAbstractOperation::IntegerWiden {
+            psi_operation,
+            result,
+            source_type,
+            target_type,
+            operand,
+        } => {
+            let operand_value = match values.get(operand).cloned() {
+                Some(KnownScalar::Integer {
+                    scalar_type: operand_type,
+                    value,
+                }) if operand_type == *source_type && source_type.can_widen_to(*target_type) => {
+                    value
+                }
+                Some(_) => return Err(LoweringError::IntegerWidenTypeMismatch(*result)),
+                None => return Err(LoweringError::UnknownValue(*operand)),
+            };
+            let value = match operand_value {
+                KnownInteger::Immediate(value) => KnownInteger::Immediate(
+                    source_type
+                        .widen_value_to(*target_type, value)
+                        .ok_or(LoweringError::IntegerWidenTypeMismatch(*result))?,
+                ),
+                KnownInteger::Runtime(expression) => {
+                    KnownInteger::Runtime(TerminalTargetIntegerExpression::IntegerWiden {
+                        psi_operation: *psi_operation,
+                        source_type: *source_type,
+                        operand: Box::new(expression),
+                    })
+                }
+            };
+            (*psi_operation, *result, *target_type, value)
+        }
         TerminalAbstractOperation::IntegerBitwiseAnd {
             psi_operation,
             result,
@@ -2408,6 +2484,7 @@ fn conditional_provenance(
             | TerminalAbstractOperation::IntegerLessThan { psi_operation, .. }
             | TerminalAbstractOperation::IntegerLessOrEqual { psi_operation, .. }
             | TerminalAbstractOperation::IntegerBitwiseNot { psi_operation, .. }
+            | TerminalAbstractOperation::IntegerWiden { psi_operation, .. }
             | TerminalAbstractOperation::IntegerBitwiseAnd { psi_operation, .. }
             | TerminalAbstractOperation::IntegerBitwiseOr { psi_operation, .. }
             | TerminalAbstractOperation::IntegerBitwiseXor { psi_operation, .. }
@@ -2472,6 +2549,7 @@ pub enum LoweringError {
     IntegerConstantHasNonIntegerType(ValueId),
     IntegerConstantOutsideType(ValueId),
     IntegerBitwiseOperandTypeMismatch(ValueId),
+    IntegerWidenTypeMismatch(ValueId),
     WrappingShiftOperandTypeMismatch(ValueId),
     WrappingAddOperandTypeMismatch(ValueId),
     SaturatingAddOperandTypeMismatch(ValueId),

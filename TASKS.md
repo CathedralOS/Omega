@@ -263,7 +263,18 @@ Remaining:
   `0 - value` meaning: checked retention contextually lands only that generated
   zero at the validated operand carrier, then the existing Wrapping or
   Saturating subtraction vocabulary crosses artifacts, fuel, interpretation,
-  and both native targets.
+  and both native targets. Universally total fixed-width `i*`/`u*` widening
+  whose target contains the complete source range now crosses the same
+  retained-expression lane as terminal Psi v26:
+  canonical semantic/proof sections, exact verification, one-unit operation
+  fuel, artifact-root interpretation, Omega lowering, and sign- or
+  zero-extending x86-64/AArch64 emission. Same-carrier casts remain static
+  retags. Narrowing, same-width signedness changes, signed-to-unsigned casts,
+  and conversions that depend on occurrence range evidence continue to fail
+  closed until terminal Psi retains the proof-bearing range facts needed to
+  justify them; `addr` also remains outside this slice because terminal Psi does
+  not yet retain its distinct carrier identity. These are implementation
+  frontiers, not unresolved language rulings.
 - Retire the legacy backend lane as terminal-Psi vocabulary and consumers grow;
   do not restore any `ExpressionHandle` or source-tree dependency in the live
   scalar terminal path.

@@ -41,10 +41,11 @@ v21 adds wrapping left and signedness-aware right shifts, v22 adds an explicit
 no-successor crash terminator with a closed cause, nominal damage scope, and
 machine-local abandoned-frontier lower bound, v23 separates the body-derived
 damage minimum from the selected published containment demand, v24 adds
-canonical sparse per-cause context maxima to machine contracts, and current
-v25 adds total fixed-width integer bitwise complement. Shift
-counts retain their own integer type and reduce by Euclidean modulo of the
-shifted value's width. The verifier
+canonical sparse per-cause context maxima to machine contracts, v25 adds total
+fixed-width integer bitwise complement, and current v26 adds universally total
+fixed-width `i*`/`u*` widening whose target contains the complete source range.
+Shift counts retain their own integer type and reduce by Euclidean modulo of
+the shifted value's width. The verifier
 reconstructs operation, edge-binding, and return-binding axioms guaranteed on
 every return path, rejects
 unreachable fact sources and out-of-scope contract
@@ -60,7 +61,7 @@ and create no overflow obligation. Omega's interpreter executes the same
 verified module object and rejects out-of-range integer arguments before
 execution. Reaching a verified crash reports a distinct terminal outcome after
 charging the crash edge once; resumption cannot replay it. Canonical encoding,
-validation, and fuel cover the complete v25 row. Native lowering currently
+validation, and fuel cover the complete v26 row. Native lowering currently
 rejects crash rows explicitly until target crash plans are represented.
 The source producer selects its uniquely matching unconditional route from the
 checked machine-contract crash plan. That plan canonically merges authored
@@ -118,9 +119,16 @@ arithmetic policy inside those expressions. The checked scalar plan retains
 the operand and selected policy without retaining a typed-expression handle;
 terminal production uses that policy to choose an enclosing operation and
 otherwise erases the cast. Because the primitive carrier is unchanged, there
-is no terminal operation, proof term, or fuel charge. Cross-carrier and
-declared semantic-domain casts remain rejected by this producer until their
-own executable vocabulary exists.
+is no terminal operation, proof term, or fuel charge. Strict-width casts whose
+target contains the complete source range retain an `IntegerWiden` operation,
+preserve the mathematical value at the wider carrier, and cost one operation
+unit. This includes unsigned-to-signed widening when the target is wider.
+Narrowing, same-width signedness changes, signed-to-unsigned casts, and
+conversions whose validity depends on occurrence range evidence remain rejected
+until the terminal vocabulary carries the facts needed to prove them. `addr`
+remains outside until terminal Psi retains that carrier distinctly from `u64`.
+Declared semantic-domain casts remain rejected until their own executable
+vocabulary exists.
 Unary integer negation follows the parser's settled `0 - value` lowering. The
 checked scalar plan contextually lands the compiler-generated anonymous zero at
 the validated operand carrier, so terminal production emits an ordinary
@@ -251,9 +259,10 @@ semantic v18 plus proof format v12 add recursive integer-equality vocabulary;
 semantic v19 plus proof format v13 add recursive integer-ordering vocabulary;
 semantic v20 plus proof format v14 add recursive integer-bitwise vocabulary;
 semantic v21 plus proof format v15 add recursive wrapping-shift vocabulary;
-and semantic v25 plus proof format v16 add recursive integer-bitwise-complement
-vocabulary, without changing fuel schedule v1. Parameter-fed canaries
-round-trip, verify, cost two units, and agree with native execution: wrapping
+semantic v25 plus proof format v16 add recursive integer-bitwise-complement
+vocabulary; and semantic v26 plus proof format v17 add recursive exact-typed
+integer-widening vocabulary, without changing fuel schedule v1. Parameter-fed
+canaries round-trip, verify, cost two units, and agree with native execution: wrapping
 `u8` computes 5-10 = 251, while signed `i64` saturating subtraction reaches
 both bounds and wrapping `u8` multiplication computes 20*13 = 4.
 The signed `i64` saturating-multiply canary reaches both bounds and covers the
@@ -272,8 +281,9 @@ recursive Boolean-negation terms, minimal format v11 adds recursive
 Boolean-equality terms, minimal format v12 adds recursive integer-equality
 terms, minimal format v13 adds recursive integer-ordering terms, and minimal
 format v14 adds recursive integer-bitwise terms, minimal format v15 adds
-recursive wrapping-shift terms, and minimal format v16 adds recursive integer
-bitwise-complement terms. The proof section has its own
+recursive wrapping-shift terms, minimal format v16 adds recursive integer
+bitwise-complement terms, and minimal format v17 adds recursive integer-widening
+terms with exact source and target types. The proof section has its own
 golden fingerprint, and a role-separated manifest binds semantic, proof,
 installation, and debug sections without folding replaceable evidence into
 program identity. The clean terminal lane owns a semantic-identity-bound object
@@ -336,12 +346,19 @@ certificates. The v25 bitwise-complement slice retains an exact integer carrier
 through source checking, canonical artifact decode, proof reconstruction,
 interpretation, fuel, target assignment, and native emission on both target
 architectures. Proof format v16 carries the exact recursive complement term in
-replaceable certificates. The same-carrier policy-cast canary selects wrapping
-addition through explicit source casts and costs only that operation plus its
-return edge; a direct policy erasure remains an ordinary parameter return and
-costs only the edge. Wrapping/Saturating unary negation costs one zero constant,
-one subtraction, and one return edge. These source forms reuse existing
-terminal terms, so none changes semantic or proof format versions. The v3
+replaceable certificates. The v26 integer-widening slice retains exact source
+and target carriers through source checking, canonical artifact decode, proof
+reconstruction, interpretation, fuel, target assignment, and sign- or
+zero-extending native emission on both target architectures. Direct canaries
+cost one operation plus the return edge; a nested wrapping-add companion costs
+one widening, one constant, one addition, and one edge. Proof format v17
+carries the exact recursive widening term. The same-carrier policy-cast canary
+selects wrapping addition through explicit source casts and costs only that
+operation plus its return edge; a direct policy erasure remains an ordinary
+parameter return and costs only the edge. Wrapping/Saturating unary negation
+costs one zero constant, one subtraction, and one return edge. These source
+forms reuse existing terminal terms, so none changes semantic or proof format
+versions. The v3
 wrapping slice
 round-trips, verifies,
 meters, lowers, emits,

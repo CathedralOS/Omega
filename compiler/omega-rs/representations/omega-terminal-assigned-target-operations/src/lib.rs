@@ -249,6 +249,11 @@ pub enum TerminalAssignedIntegerExpression {
         psi_operation: OperationId,
         operand: Box<TerminalAssignedIntegerExpression>,
     },
+    IntegerWiden {
+        psi_operation: OperationId,
+        source_type: IntegerType,
+        operand: Box<TerminalAssignedIntegerExpression>,
+    },
     BitwiseAnd {
         psi_operation: OperationId,
         left: Box<TerminalAssignedIntegerExpression>,

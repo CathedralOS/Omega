@@ -975,6 +975,135 @@ fn v25_integer_bitwise_not_reconstructs_its_exact_result_axiom() {
 }
 
 #[test]
+fn v26_integer_widen_reconstructs_its_exact_result_axiom_and_rejects_partial_casts() {
+    let source_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+    let target_type = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
+    let source_scalar = ScalarType::Integer(source_type);
+    let target_scalar = ScalarType::Integer(target_type);
+    let operand = ValueId::new(68).expect("operand");
+    let computed = ValueId::new(69).expect("computed");
+    let result = ValueId::new(70).expect("result");
+    let source = ScalarTerm::value(operand, source_scalar);
+    let widened = ScalarTerm::integer_widen(source_type, target_type, source).unwrap();
+    let goal = Proposition::Equal(ScalarTerm::value(result, target_scalar), widened.clone());
+    let obligation = ObligationId::new(68).expect("obligation");
+    let module = TerminalModule {
+        semantic_version: SemanticVersion::V26,
+        entry: MachineId::new(68).expect("machine"),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        machines: vec![TerminalMachine {
+            id: MachineId::new(68).expect("machine"),
+            parameters: vec![ValueDeclaration {
+                id: operand,
+                scalar_type: source_scalar,
+            }],
+            result: ValueDeclaration {
+                id: result,
+                scalar_type: target_scalar,
+            },
+            structural_places: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: BlockId::new(68).expect("block"),
+            blocks: vec![Block {
+                id: BlockId::new(68).expect("block"),
+                parameters: Vec::new(),
+                operations: vec![Operation {
+                    id: OperationId::new(68).expect("operation"),
+                    result: ValueDeclaration {
+                        id: computed,
+                        scalar_type: target_scalar,
+                    },
+                    kind: OperationKind::IntegerWiden { operand },
+                }],
+                terminator: Terminator::Return {
+                    edge: EdgeId::new(68).expect("edge"),
+                    value: computed,
+                },
+            }],
+            contract: MachineContract {
+                id: ContractId::new(68).expect("contract"),
+                crash_context: Vec::new(),
+                requires: Vec::new(),
+                ensures: vec![ContractClause {
+                    obligation,
+                    proposition: goal.clone(),
+                }],
+            },
+        }],
+    };
+    let bundle = ProofBundle {
+        evidence: vec![ObligationEvidence {
+            obligation,
+            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                identity: EvidenceIdentity::new(68).expect("certificate"),
+                proof_system_version: ProofSystemVersion::CURRENT,
+                proof: ProofNode {
+                    conclusion: goal,
+                    rule: ProofRule::EqualityTransitivity {
+                        left_equals_middle: Box::new(ProofNode {
+                            conclusion: Proposition::Equal(
+                                ScalarTerm::value(result, target_scalar),
+                                ScalarTerm::value(computed, target_scalar),
+                            ),
+                            rule: ProofRule::SemanticAxiom { index: 1 },
+                        }),
+                        middle_equals_right: Box::new(ProofNode {
+                            conclusion: Proposition::Equal(
+                                ScalarTerm::value(computed, target_scalar),
+                                widened,
+                            ),
+                            rule: ProofRule::SemanticAxiom { index: 0 },
+                        }),
+                    },
+                },
+            }),
+        }],
+    };
+    verify_module(&module, &bundle, &AdmissionProfile::default())
+        .expect("v26 reconstructs the exact widening result axiom");
+
+    let mut old = module.clone();
+    old.semantic_version = SemanticVersion::V25;
+    assert_eq!(
+        validate_module(&old).expect_err("v25 cannot contain integer widening"),
+        ModuleError::OperationRequiresSemanticVersion {
+            operation: OperationId::new(68).expect("operation"),
+            required: SemanticVersion::V26,
+            actual: SemanticVersion::V25,
+        }
+    );
+
+    let mut narrowing = module.clone();
+    narrowing.machines[0].contract.ensures.clear();
+    narrowing.machines[0].parameters[0].scalar_type = target_scalar;
+    narrowing.machines[0].blocks[0].operations[0]
+        .result
+        .scalar_type = source_scalar;
+    narrowing.machines[0].result.scalar_type = source_scalar;
+    assert!(matches!(
+        validate_module(&narrowing),
+        Err(ModuleError::IntegerWidenOperandTypeMismatch { .. })
+    ));
+
+    let mut cross_signedness = module;
+    cross_signedness.machines[0].contract.ensures.clear();
+    let unsigned_target = ScalarType::Integer(
+        IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 cross-sign target"),
+    );
+    cross_signedness.machines[0].blocks[0].operations[0]
+        .result
+        .scalar_type = unsigned_target;
+    cross_signedness.machines[0].result.scalar_type = unsigned_target;
+    assert!(matches!(
+        validate_module(&cross_signedness),
+        Err(ModuleError::IntegerWidenOperandTypeMismatch { .. })
+    ));
+}
+
+#[test]
 fn v21_wrapping_shift_axioms_preserve_the_count_type() {
     let value_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 value type");
     let count_type = IntegerType::new(IntegerSign::Signed, 16).expect("i16 count type");

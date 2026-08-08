@@ -18,6 +18,31 @@ pub struct IntegerType {
 }
 
 impl IntegerType {
+    pub fn can_widen_to(self, target: Self) -> bool {
+        self.bits < target.bits
+            && (self.sign == target.sign
+                || matches!(
+                    (self.sign, target.sign),
+                    (IntegerSign::Unsigned, IntegerSign::Signed)
+                ))
+    }
+
+    pub fn widen_value_to(self, target: Self, value: IntegerValue) -> Option<IntegerValue> {
+        if !self.can_widen_to(target) || !self.admits(value) {
+            return None;
+        }
+        match (target.sign, value) {
+            (IntegerSign::Signed, IntegerValue::Unsigned(value)) => {
+                Some(IntegerValue::Signed(i128::try_from(value).ok()?))
+            }
+            (IntegerSign::Signed, IntegerValue::Signed(value)) => Some(IntegerValue::Signed(value)),
+            (IntegerSign::Unsigned, IntegerValue::Unsigned(value)) => {
+                Some(IntegerValue::Unsigned(value))
+            }
+            (IntegerSign::Unsigned, IntegerValue::Signed(_)) => None,
+        }
+    }
+
     pub fn new(sign: IntegerSign, bits: u16) -> Result<Self, PropositionError> {
         if !(1..=128).contains(&bits) {
             return Err(PropositionError::InvalidIntegerWidth(bits));
@@ -474,6 +499,11 @@ pub enum ScalarTerm {
         scalar_type: IntegerType,
         operand: Box<ScalarTerm>,
     },
+    IntegerWiden {
+        source_type: IntegerType,
+        target_type: IntegerType,
+        operand: Box<ScalarTerm>,
+    },
     IntegerBitwiseOr {
         scalar_type: IntegerType,
         left: Box<ScalarTerm>,
@@ -637,6 +667,27 @@ impl ScalarTerm {
         }
         Ok(Self::IntegerBitwiseNot {
             scalar_type,
+            operand: Box::new(operand),
+        })
+    }
+
+    pub fn integer_widen(
+        source_type: IntegerType,
+        target_type: IntegerType,
+        operand: ScalarTerm,
+    ) -> Result<Self, PropositionError> {
+        let actual = operand.scalar_type();
+        let expected = ScalarType::Integer(source_type);
+        if actual != expected || !source_type.can_widen_to(target_type) {
+            return Err(PropositionError::IntegerWidenTypeMismatch {
+                source: expected,
+                target: ScalarType::Integer(target_type),
+                operand: actual,
+            });
+        }
+        Ok(Self::IntegerWiden {
+            source_type,
+            target_type,
             operand: Box::new(operand),
         })
     }
@@ -849,6 +900,7 @@ impl ScalarTerm {
             | Self::SaturatingIntegerMultiply { scalar_type, .. } => {
                 ScalarType::Integer(*scalar_type)
             }
+            Self::IntegerWiden { target_type, .. } => ScalarType::Integer(*target_type),
             Self::WrappingIntegerShiftLeft { value_type, .. }
             | Self::WrappingIntegerShiftRight { value_type, .. } => {
                 ScalarType::Integer(*value_type)
@@ -868,6 +920,20 @@ impl ScalarTerm {
                     return None;
                 }
                 Some((*scalar_type, scalar_type.bitwise_not(operand)?))
+            }
+            Self::IntegerWiden {
+                source_type,
+                target_type,
+                operand,
+            } => {
+                let (operand_type, operand) = operand.integer_value()?;
+                if operand_type != *source_type || !source_type.can_widen_to(*target_type) {
+                    return None;
+                }
+                Some((
+                    *target_type,
+                    source_type.widen_value_to(*target_type, operand)?,
+                ))
             }
             Self::WrappingIntegerAdd {
                 scalar_type,
@@ -1110,6 +1176,22 @@ impl ScalarTerm {
                 if operand.scalar_type() != expected {
                     return Err(PropositionError::IntegerBitwiseNotTypeMismatch {
                         expected,
+                        operand: operand.scalar_type(),
+                    });
+                }
+                Ok(())
+            }
+            Self::IntegerWiden {
+                source_type,
+                target_type,
+                operand,
+            } => {
+                operand.validate()?;
+                let expected = ScalarType::Integer(*source_type);
+                if operand.scalar_type() != expected || !source_type.can_widen_to(*target_type) {
+                    return Err(PropositionError::IntegerWidenTypeMismatch {
+                        source: expected,
+                        target: ScalarType::Integer(*target_type),
                         operand: operand.scalar_type(),
                     });
                 }
@@ -1463,9 +1545,9 @@ impl PropositionContext {
                 self.validate_term(value)?;
                 self.validate_term(count)?;
             }
-            ScalarTerm::BooleanNot { operand } | ScalarTerm::IntegerBitwiseNot { operand, .. } => {
-                self.validate_term(operand)?
-            }
+            ScalarTerm::BooleanNot { operand }
+            | ScalarTerm::IntegerBitwiseNot { operand, .. }
+            | ScalarTerm::IntegerWiden { operand, .. } => self.validate_term(operand)?,
             ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => {}
         }
         Ok(())
@@ -1557,6 +1639,11 @@ pub enum PropositionError {
         expected: ScalarType,
         operand: ScalarType,
     },
+    IntegerWidenTypeMismatch {
+        source: ScalarType,
+        target: ScalarType,
+        operand: ScalarType,
+    },
     IntegerOperandTypeMismatch {
         expected: ScalarType,
         left: ScalarType,
@@ -1640,6 +1727,54 @@ impl std::error::Error for PropositionError {}
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn integer_widening_requires_range_containment_and_preserves_closed_values() {
+        let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let u16_type = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16");
+        let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let i64_type = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
+
+        assert!(u8_type.can_widen_to(u16_type));
+        assert!(i8_type.can_widen_to(i64_type));
+        assert!(u8_type.can_widen_to(i64_type));
+        assert!(!u16_type.can_widen_to(u8_type));
+        assert!(!u8_type.can_widen_to(u8_type));
+        assert!(!i8_type.can_widen_to(u16_type));
+
+        let widened = ScalarTerm::integer_widen(
+            i8_type,
+            i64_type,
+            ScalarTerm::integer(i8_type, IntegerValue::Signed(-128)).expect("i8 literal"),
+        )
+        .expect("signed widening");
+        assert_eq!(widened.scalar_type(), ScalarType::Integer(i64_type));
+        assert_eq!(
+            widened.integer_value(),
+            Some((i64_type, IntegerValue::Signed(-128)))
+        );
+
+        let cross_signedness = ScalarTerm::integer_widen(
+            u8_type,
+            i64_type,
+            ScalarTerm::integer(u8_type, IntegerValue::Unsigned(255)).expect("u8 literal"),
+        )
+        .expect("the complete u8 range fits i64");
+        assert_eq!(
+            cross_signedness.integer_value(),
+            Some((i64_type, IntegerValue::Signed(255)))
+        );
+
+        let narrowing = ScalarTerm::integer_widen(
+            u16_type,
+            u8_type,
+            ScalarTerm::integer(u16_type, IntegerValue::Unsigned(1)).expect("u16 literal"),
+        );
+        assert!(matches!(
+            narrowing,
+            Err(PropositionError::IntegerWidenTypeMismatch { .. })
+        ));
+    }
 
     #[test]
     fn integer_literals_are_checked_against_their_terminal_type() {
